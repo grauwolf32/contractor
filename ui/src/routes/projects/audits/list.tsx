@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
@@ -102,6 +102,22 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
       }),
     getNextPageParam: nextCursor,
   });
+  const {
+    fetchNextPage: fetchNextArtifactPage,
+    hasNextPage: hasNextArtifactPage,
+    isFetching: isFetchingArtifacts,
+    isError: artifactLoadFailed,
+  } = artifacts;
+  useEffect(() => {
+    if (hasNextArtifactPage && !isFetchingArtifacts && !artifactLoadFailed) {
+      void fetchNextArtifactPage();
+    }
+  }, [
+    artifactLoadFailed,
+    fetchNextArtifactPage,
+    hasNextArtifactPage,
+    isFetchingArtifacts,
+  ]);
   const profileItems = useMemo(
     () => profiles.data?.pages.flatMap((page) => page.items) ?? [],
     [profiles.data],
@@ -154,10 +170,23 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
   const inputEntries = Object.entries(exactProfile?.inputs ?? {}).sort(
     ([left], [right]) => left.localeCompare(right),
   );
-  const missingRequired = inputEntries.filter(
-    ([name, contract]) =>
+  const artifactInventoryComplete =
+    artifacts.isSuccess && !artifacts.hasNextPage;
+  const inputs = inputEntries.map(([name, contract]) => {
+    const compatible = artifactItems.filter((artifact) =>
+      compatibleMediaType(artifact.mediaType, contract.mediaTypes),
+    );
+    const selection =
+      artifactSelections[name] ??
+      (artifactInventoryComplete && compatible.length === 1
+        ? artifactOption(compatible[0]!)
+        : "");
+    return { name, contract, compatible, selection };
+  });
+  const missingRequired = inputs.filter(
+    ({ contract, compatible, selection }) =>
       contract.required &&
-      selectedArtifact(artifactSelections[name], artifactItems) === undefined,
+      selectedArtifact(selection, compatible) === undefined,
   );
 
   function selectProfile(value: string): void {
@@ -176,17 +205,14 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
       return;
     }
     const selectedInputs = Object.fromEntries(
-      inputEntries.flatMap(([name]) => {
-        const artifact = selectedArtifact(
-          artifactSelections[name],
-          artifactItems,
-        );
+      inputs.flatMap(({ name, compatible, selection }) => {
+        const artifact = selectedArtifact(selection, compatible);
         return artifact === undefined ? [] : [[name, { ...artifact }]];
       }),
     );
     if (missingRequired.length > 0) {
       setValidationError(
-        `Select exact Project Artifacts for: ${missingRequired.map(([name]) => name).join(", ")}.`,
+        `Select exact Project Artifacts for: ${missingRequired.map(({ name }) => name).join(", ")}.`,
       );
       return;
     }
@@ -328,10 +354,30 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
           )}
           <fieldset className="audit-input-fields">
             <legend>Exact Project inputs</legend>
-            {inputEntries.map(([name, contract]) => {
-              const compatible = artifactItems.filter((artifact) =>
-                compatibleMediaType(artifact.mediaType, contract.mediaTypes),
-              );
+            {artifacts.isPending ||
+            (artifacts.hasNextPage && !artifacts.isError) ? (
+              <p className="loading-copy" role="status">
+                Loading Project Artifacts…
+              </p>
+            ) : null}
+            {artifacts.error === null ? null : (
+              <>
+                <ErrorNotice error={artifacts.error} />
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={artifacts.isFetching}
+                  onClick={() =>
+                    void (artifacts.hasNextPage
+                      ? artifacts.fetchNextPage()
+                      : artifacts.refetch())
+                  }
+                >
+                  Retry loading Project Artifacts
+                </button>
+              </>
+            )}
+            {inputs.map(({ name, contract, compatible, selection }) => {
               return (
                 <label key={name}>
                   <span>
@@ -340,7 +386,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
                   <small>{contract.mediaTypes.join(", ")}</small>
                   <select
                     aria-label={`Input ${name}`}
-                    value={artifactSelections[name] ?? ""}
+                    value={selection}
                     required={contract.required}
                     onChange={(event) => {
                       const value = event.currentTarget.value;
@@ -369,18 +415,6 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
               );
             })}
           </fieldset>
-          {artifacts.hasNextPage ? (
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={artifacts.isFetchingNextPage}
-              onClick={() => void artifacts.fetchNextPage()}
-            >
-              {artifacts.isFetchingNextPage
-                ? "Loading…"
-                : "Load more Project Artifacts"}
-            </button>
-          ) : null}
           <details>
             <summary>Optional scope and Runtime labels</summary>
             <div className="form-grid audit-scope-fields">
@@ -549,7 +583,17 @@ export function ProjectAuditWorkspace({
                   </div>
                 </dl>
                 {audit.stopReason ? (
-                  <p className="form-error">{audit.stopReason.message}</p>
+                  <p
+                    className={
+                      audit.stopReason.code === "deadline_exhausted"
+                        ? "muted-copy"
+                        : "form-error"
+                    }
+                  >
+                    {audit.stopReason.code === "deadline_exhausted"
+                      ? "Time limit reached. Continue with a longer limit or no time limit."
+                      : audit.stopReason.message}
+                  </p>
                 ) : null}
                 <div className="audit-card-footer">
                   <div className="button-row">
@@ -568,7 +612,7 @@ export function ProjectAuditWorkspace({
                   <AuditControls
                     audit={audit}
                     projectName={projectName}
-                    deleteOnly
+                    compact
                   />
                 </div>
                 <details className="audit-record-details">

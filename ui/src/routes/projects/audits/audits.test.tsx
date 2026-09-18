@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -284,6 +290,51 @@ function renderApplication(api: PublicAPI, path: string) {
   };
 }
 
+async function openAuditCreateForm({
+  profiles = [profile],
+  loadArtifacts,
+}: {
+  profiles?: AuditProfile[];
+  loadArtifacts: (url: URL) => Response | Promise<Response>;
+}) {
+  const api = new PublicAPI(
+    runtimeConfig,
+    vi.fn(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const url = new URL(request.url);
+      if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+      if (url.pathname === "/v1/projects/project_example") {
+        return jsonResponse(project, { headers: { ETag: '"1"' } });
+      }
+      if (url.pathname === "/v1/projects/project_example/audits") {
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }
+      if (url.pathname === "/v1/projects/project_example/artifacts") {
+        return loadArtifacts(url);
+      }
+      if (url.pathname === "/v1/audit-profiles") {
+        return jsonResponse({ items: profiles, page: { hasMore: false } });
+      }
+      const exactProfile = profiles.find(
+        (candidate) =>
+          url.pathname ===
+          `/v1/audit-profiles/${candidate.ref.name}/versions/${candidate.ref.version}`,
+      );
+      if (exactProfile !== undefined) {
+        return jsonResponse(exactProfile, {
+          headers: { ETag: `"${exactProfile.ref.digest}"` },
+        });
+      }
+      throw new Error(`unexpected ${request.method} ${url.pathname}`);
+    }),
+  );
+  renderApplication(api, "/projects/project_example/audits");
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "New Audit" }));
+  await screen.findByLabelText("Input source");
+  return user;
+}
+
 describe("Project Audit routes", () => {
   it.each(["text/markdown", "text/plain"])(
     "previews and downloads an exact %s report",
@@ -364,7 +415,7 @@ describe("Project Audit routes", () => {
     },
   );
 
-  it("creates a draft from one compatible exact Project Artifact", async () => {
+  it("creates a draft with the automatically selected unique compatible Project Artifact", async () => {
     const requests: Request[] = [];
     const draft = auditAt("draft", 1);
     const selectedProfile: AuditProfile = {
@@ -433,7 +484,6 @@ describe("Project Audit routes", () => {
     const createButton = screen.getByRole("button", {
       name: "Create Audit draft",
     });
-    expect(createButton).toBeDisabled();
     expect(
       await screen.findByText(
         "Exact standards pinned at start: owasp-web-top10@2025",
@@ -445,11 +495,10 @@ describe("Project Audit routes", () => {
     expect(
       screen.getByTestId("audit-profile-standard-selection"),
     ).toHaveTextContent("2 exact requirements");
-    await user.selectOptions(
-      await screen.findByLabelText("Input source"),
-      screen.getByRole("option", {
-        name: /sources\/payment-service@revision-7/u,
-      }),
+    await waitFor(() =>
+      expect(screen.getByLabelText("Input source")).toHaveValue(
+        JSON.stringify(sourceArtifact.artifact),
+      ),
     );
     expect(createButton).toBeEnabled();
     await user.type(screen.getByLabelText("Objective"), "Map attack surface");
@@ -479,6 +528,150 @@ describe("Project Audit routes", () => {
       inputs: { source: sourceArtifact.artifact },
       scope: { objective: "Map attack surface" },
     });
+  });
+
+  it.each(["application/zip", "text/plain"])(
+    "waits for all Project pages before selecting when a later artifact is %s",
+    async (mediaType) => {
+      const laterArtifact = {
+        ...sourceArtifact,
+        artifact: { ...sourceArtifact.artifact, name: "another-artifact" },
+        mediaType,
+      };
+      let resolveLaterPage!: (response: Response) => void;
+      const laterPage = new Promise<Response>((resolve) => {
+        resolveLaterPage = resolve;
+      });
+      const loadArtifacts = vi.fn((url: URL) =>
+        url.searchParams.get("cursor") === "later-page"
+          ? laterPage
+          : jsonResponse({
+              items: [sourceArtifact],
+              page: { hasMore: true, nextCursor: "later-page" },
+            }),
+      );
+      const user = await openAuditCreateForm({ loadArtifacts });
+      const source = screen.getByLabelText("Input source");
+      const create = screen.getByRole("button", { name: "Create Audit draft" });
+      await waitFor(() => expect(loadArtifacts).toHaveBeenCalledTimes(2));
+      expect(source).toHaveValue("");
+      expect(create).toBeDisabled();
+      resolveLaterPage(
+        jsonResponse({ items: [laterArtifact], page: { hasMore: false } }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText("Loading Project Artifacts…")).toBeNull(),
+      );
+      if (mediaType === "application/zip") {
+        expect(source).toHaveValue("");
+        expect(create).toBeDisabled();
+        await user.selectOptions(
+          source,
+          JSON.stringify(laterArtifact.artifact),
+        );
+        await user.type(screen.getByLabelText("Objective"), "Manual choice");
+        expect(source).toHaveValue(JSON.stringify(laterArtifact.artifact));
+        expect(create).toBeEnabled();
+      } else {
+        expect(source).toHaveValue(JSON.stringify(sourceArtifact.artifact));
+        expect(create).toBeEnabled();
+        await user.selectOptions(source, "");
+        await user.type(screen.getByLabelText("Objective"), "Choose later");
+        expect(source).toHaveValue("");
+        expect(create).toBeDisabled();
+      }
+    },
+  );
+
+  it("matches each input of a newly selected profile and respects an optional input cleared by the user", async () => {
+    const otherProfile: AuditProfile = {
+      ...profile,
+      ref: { ...profile.ref, name: "custom-audit" },
+      inputs: {
+        source: { required: true, mediaTypes: ["application/json"] },
+        notes: { required: false, mediaTypes: ["text/*"] },
+        attachment: { required: false, mediaTypes: ["*/*"] },
+        diagram: { required: false, mediaTypes: ["image/png"] },
+      },
+    };
+    const jsonArtifact = {
+      ...sourceArtifact,
+      artifact: { ...sourceArtifact.artifact, name: "api-schema" },
+      mediaType: "application/json",
+    };
+    const notesArtifact = {
+      ...sourceArtifact,
+      artifact: { ...sourceArtifact.artifact, name: "notes" },
+      mediaType: "text/markdown",
+    };
+    const user = await openAuditCreateForm({
+      profiles: [profile, otherProfile],
+      loadArtifacts: () =>
+        jsonResponse({
+          items: [sourceArtifact, jsonArtifact, notesArtifact],
+          page: { hasMore: false },
+        }),
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Input source")).toHaveValue(
+        JSON.stringify(sourceArtifact.artifact),
+      ),
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Exact Audit profile"),
+      JSON.stringify([otherProfile.ref.name, otherProfile.ref.version]),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Input source")).toHaveValue(
+        JSON.stringify(jsonArtifact.artifact),
+      ),
+    );
+    expect(screen.getByLabelText("Input notes")).toHaveValue(
+      JSON.stringify(notesArtifact.artifact),
+    );
+    expect(screen.getByLabelText("Input attachment")).toHaveValue("");
+    expect(screen.getByLabelText("Input diagram")).toHaveValue("");
+    await user.selectOptions(screen.getByLabelText("Input notes"), "");
+    await user.type(screen.getByLabelText("Objective"), "Review schema");
+    expect(screen.getByLabelText("Input notes")).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Create Audit draft" }),
+    ).toBeEnabled();
+  });
+
+  it("does not treat a partial Project inventory as unique when a later page fails", async () => {
+    let retry = false;
+    const loadArtifacts = vi.fn((url: URL) => {
+      if (url.searchParams.get("cursor") === "later-page") {
+        return retry
+          ? jsonResponse({ items: [], page: { hasMore: false } })
+          : jsonResponse(
+              { code: "unavailable", message: "Artifact listing unavailable" },
+              { status: 503 },
+            );
+      }
+      return jsonResponse({
+        items: [sourceArtifact],
+        page: { hasMore: true, nextCursor: "later-page" },
+      });
+    });
+    const user = await openAuditCreateForm({ loadArtifacts });
+    const retryButton = await screen.findByRole("button", {
+      name: "Retry loading Project Artifacts",
+    });
+    expect(screen.getByLabelText("Input source")).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Create Audit draft" }),
+    ).toBeDisabled();
+    expect(loadArtifacts).toHaveBeenCalledTimes(2);
+    retry = true;
+    await user.click(retryButton);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Input source")).toHaveValue(
+        JSON.stringify(sourceArtifact.artifact),
+      ),
+    );
+    expect(loadArtifacts).toHaveBeenCalledTimes(3);
   });
 
   it("shows the exact retained standard identity on the Audit baseline", async () => {
@@ -1484,6 +1677,73 @@ describe("Project Audit routes", () => {
     expect(decided).toBe(true);
   });
 
+  it.each(["draft", "completed"] as const)(
+    "chooses unlimited time before starting or continuing a %s Audit",
+    async (state) => {
+      let current = auditAt(state, 2);
+      if (state === "completed")
+        current = {
+          ...current,
+          stopReason: {
+            code: "deadline_exhausted",
+            message: "The Audit wall-time deadline was reached",
+          },
+        };
+      const writes: Request[] = [];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const path = new URL(request.url).pathname;
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (path === "/v1/audits/audit_example")
+            return jsonResponse(current, {
+              headers: { ETag: `"${current.revision}"` },
+            });
+          if (path.endsWith("/start") || path.endsWith("/resume")) {
+            writes.push(request.clone());
+            expect(await request.json()).toEqual({ deadlineSeconds: 0 });
+            expect(request.headers.get("If-Match")).toBe('"2"');
+            current = auditAt("active", 3);
+            return jsonResponse(
+              path.endsWith("/start")
+                ? {
+                    audit: current,
+                    round: { roundId: "round_example" },
+                    items: [],
+                  }
+                : current,
+              { headers: { ETag: '"3"' } },
+            );
+          }
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      renderApplication(api, "/projects/project_example/audits/audit_example");
+      const user = userEvent.setup();
+      const name = state === "draft" ? "Start Audit" : "Continue Audit";
+      await user.click(await screen.findByRole("button", { name }));
+      const dialog = screen.getByRole("dialog", { name });
+      expect(writes).toHaveLength(0);
+      expect(within(dialog).getByLabelText("Audit time limit")).toHaveFocus();
+      expect(within(dialog).getByLabelText("Audit time limit")).toHaveValue(
+        "604800",
+      );
+      await user.selectOptions(
+        within(dialog).getByLabelText("Audit time limit"),
+        "0",
+      );
+      await user.click(within(dialog).getByRole("button", { name }));
+      expect(
+        await screen.findByRole("button", { name: "Pause new Audit Runs" }),
+      ).toBeVisible();
+      expect(writes).toHaveLength(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
   it("recovers a stale pause from the authoritative revision", async () => {
     let current = auditAt("active", 2);
     let pauseRequested = false;
@@ -1522,7 +1782,7 @@ describe("Project Audit routes", () => {
     const user = userEvent.setup();
 
     await user.click(
-      await screen.findByRole("button", { name: "Pause new Runs" }),
+      await screen.findByRole("button", { name: "Pause new Audit Runs" }),
     );
     expect(
       within(await screen.findByRole("alert")).getByText(
@@ -1530,7 +1790,9 @@ describe("Project Audit routes", () => {
       ),
     ).toBeVisible();
     await vi.waitFor(() =>
-      expect(screen.getByRole("button", { name: "Resume" })).toBeVisible(),
+      expect(
+        screen.getByRole("button", { name: "Continue Audit" }),
+      ).toBeVisible(),
     );
     expect(pauseRequested).toBe(true);
     expect(screen.getByText("revision 3")).toBeVisible();

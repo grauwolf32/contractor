@@ -1,6 +1,7 @@
 package auditimport
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -673,6 +674,18 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		t.Fatalf("machine report is not truthful: %s", machineBytes)
 	}
 
+	snapshot.Audit.ContinuationCount = 1
+	snapshot.Audit.Revision++
+	if worked, err := importer.Finalize(context.Background(), claim, snapshot); err != nil || !worked {
+		t.Fatalf("continuation finalization = (%t, %v)", worked, err)
+	}
+	if store.committed.Machine.Artifact.Ref.Name != "report-continuation-1.json" ||
+		store.committed.Summary.Artifact.Ref.Name != "report-continuation-1.md" ||
+		!bytes.Equal(machineBytes, artifactAccess.writes["report.json"]) {
+		t.Fatal("continuation overwrote the historical report")
+	}
+	snapshot.Audit.ContinuationCount = 0
+
 	humanProfile := loadResultProfileFixture(t, "disabled", false, "human-required")
 	humanSnapshot, err := json.Marshal(humanProfile)
 	if err != nil {
@@ -697,6 +710,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		!containsBytes(artifactAccess.writes["report.md"], "not a security or compliance certification") {
 		t.Fatalf("human Markdown summary omitted qualification: %s", artifactAccess.writes["report.md"])
 	}
+
 }
 
 func TestMarkdownSummaryEscapesDynamicFields(t *testing.T) {

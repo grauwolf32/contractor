@@ -251,7 +251,8 @@
 .audit-finding-review-form > label,
 .audit-finding-review-actions > label,
 .audit-findings-toolbar label,
-.audit-review-fields label {
+.audit-review-fields label,
+.audit-time-dialog label {
   display: grid;
   min-width: 0;
   gap: 0.35rem;
@@ -264,7 +265,9 @@
 .audit-finding-review-form textarea,
 .audit-review-fields select,
 .audit-findings-toolbar input,
-.audit-findings-toolbar select {
+.audit-findings-toolbar select,
+.audit-time-dialog input,
+.audit-time-dialog select {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line-strong);
@@ -850,4 +853,17 @@
   .audit-finding-review-actions .button-row > button {
     flex: 1 1 10rem;
   }
+}
+
+.project-dialog.audit-time-dialog {
+  width: min(100%, 36rem);
+}
+
+.audit-time-dialog form {
+  display: grid;
+  gap: 1rem;
+}
+.audit-time-dialog p {
+  margin: 0;
+  line-height: 1.5;
 }

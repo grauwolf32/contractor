@@ -30,6 +30,9 @@ func (s *Service) Start(ctx context.Context, params StartParams) (StartedAudit, 
 		params.IdempotencyKey == "" || !validDigest(params.RequestDigest) {
 		return StartedAudit{}, fmt.Errorf("%w: Audit start request is invalid", ErrInvalid)
 	}
+	if err := validateDeadlineSeconds(params.DeadlineSeconds); err != nil {
+		return StartedAudit{}, err
+	}
 	store := auditstore.NewPostgresStore(s.pool)
 	if replay, found, err := store.LookupMutationReplay(
 		ctx, params.OwnerID, auditstore.MutationStart,
@@ -282,16 +285,22 @@ func (s *Service) startInTransaction(
 			},
 		}
 	}
+	deadlineSeconds := profile.Execution.DeadlineSeconds
+	if params.DeadlineSeconds != nil {
+		deadlineSeconds = *params.DeadlineSeconds
+	}
+	var deadline time.Time
+	if deadlineSeconds > 0 {
+		deadline = s.now().UTC().Add(timeDurationSeconds(deadlineSeconds))
+	}
 	roundID := deterministicID("round", audit.AuditID, "1")
 	started, created, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID,
 		ExpectedRevision: params.ExpectedRevision,
 		RoundID:          roundID, RoundOrdinal: 1, Manifest: worklistArtifact,
 		BaselineSnapshot: baselineJSON,
-		DeadlineAt: s.now().UTC().Add(
-			timeDurationSeconds(profile.Execution.DeadlineSeconds),
-		),
-		Items: items, InitialRetained: standardLinks, IdempotencyKey: params.IdempotencyKey,
+		DeadlineAt:       deadline,
+		Items:            items, InitialRetained: standardLinks, IdempotencyKey: params.IdempotencyKey,
 		RequestDigest: params.RequestDigest,
 	})
 	if err != nil {

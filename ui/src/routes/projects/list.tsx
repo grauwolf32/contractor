@@ -5,20 +5,24 @@ import { Link, useNavigate } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
   createProject,
+  deleteProject,
   listProjects,
   MAXIMUM_PROJECT_DESCRIPTION_LENGTH,
   MAXIMUM_PROJECT_NAME_LENGTH,
   normalizeProjectRequest,
   type CreateProjectRequest,
+  type Project,
   type ProjectKind,
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
+import { DeleteIcon } from "../../app/delete-icon";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import {
   CursorControls,
   ErrorNotice,
   formatTimestamp,
 } from "../artifacts/common";
+import { DeleteProjectDialog } from "./deletion";
 
 interface ProjectCollectionPresentation {
   kind: ProjectKind;
@@ -47,6 +51,7 @@ function ProjectCollectionRoute({
     undefined,
   ]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Project>();
   const [validationError, setValidationError] = useState<string | null>(null);
   const cursor = cursors.at(-1);
   const keyring = useMemo(
@@ -60,6 +65,12 @@ function ProjectCollectionRoute({
         kind: presentation.kind,
         ...(cursor === undefined ? {} : { cursor }),
       }),
+    refetchInterval: (query) =>
+      query.state.data?.items.some(
+        (project) => project.lifecycle === "deleting",
+      )
+        ? 1_000
+        : false,
   });
   const create = useMutation({
     mutationFn: (request: CreateProjectRequest) =>
@@ -73,6 +84,23 @@ function ProjectCollectionRoute({
         `${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`,
       );
     },
+  });
+  const deletion = useMutation({
+    mutationFn: (project: Project) =>
+      deleteProject(api, {
+        projectId: project.projectId,
+        expectedRevision: project.revision,
+      }),
+    onSuccess: async (deleting) => {
+      setDeleteTarget(undefined);
+      queryClient.setQueryData(
+        queryKeys.projects.detail(deleting.projectId),
+        deleting,
+      );
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
+    },
+    onError: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all }),
   });
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -221,14 +249,37 @@ function ProjectCollectionRoute({
                   </dd>
                 </div>
               </dl>
-              <Link
-                className="project-card-open"
-                to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
-              >
-                {project.lifecycle === "deleting"
-                  ? "View deletion status →"
-                  : `Open ${presentation.cardEyebrow} →`}
-              </Link>
+              <div className="project-card-actions">
+                <Link
+                  className="project-card-open"
+                  to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
+                >
+                  {project.lifecycle === "deleting"
+                    ? "View deletion status →"
+                    : `Open ${presentation.cardEyebrow} →`}
+                </Link>
+                {presentation.kind === "project" ? (
+                  <button
+                    className="danger-button delete-icon-button"
+                    type="button"
+                    aria-label={`Delete Project ${project.name}`}
+                    title={
+                      project.lifecycle === "deleting"
+                        ? "Project deletion in progress"
+                        : "Delete Project"
+                    }
+                    disabled={
+                      project.lifecycle === "deleting" || deletion.isPending
+                    }
+                    onClick={() => {
+                      deletion.reset();
+                      setDeleteTarget(project);
+                    }}
+                  >
+                    <DeleteIcon />
+                  </button>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>
@@ -248,6 +299,22 @@ function ProjectCollectionRoute({
         }
         onNext={(next) => setCursors((current) => [...current, next])}
       />
+      {deleteTarget === undefined ? null : (
+        <DeleteProjectDialog
+          key={deleteTarget.projectId}
+          project={deleteTarget}
+          pending={deletion.isPending}
+          error={deletion.error}
+          onCancel={() => {
+            if (deletion.isPending) return;
+            setDeleteTarget(undefined);
+            deletion.reset();
+          }}
+          onConfirm={() => {
+            if (!deletion.isPending) deletion.mutate(deleteTarget);
+          }}
+        />
+      )}
     </section>
   );
 }

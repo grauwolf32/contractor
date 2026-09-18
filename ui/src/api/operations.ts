@@ -240,7 +240,7 @@ function safeRuntimeDocument(
     requireExactRuntimeKeys(
       worker,
       [],
-      ["llmGateway", "telemetry", "httpProxy"],
+      ["llmGateway", "telemetry", "httpProxy", "caido"],
     );
     if (worker.llmGateway !== undefined && worker.llmGateway !== null) {
       requireExactRuntimeKeys(worker.llmGateway, [], ["gateway", "credential"]);
@@ -260,6 +260,13 @@ function safeRuntimeDocument(
         worker.httpProxy,
         ["adapter", "proxyUrl", "targets"],
         ["credential", "caBundlePem"],
+      );
+    }
+    if (worker.caido !== undefined && worker.caido !== null) {
+      requireExactRuntimeKeys(
+        worker.caido,
+        ["adapter", "endpoint"],
+        ["credential", "caBundlePem", "requestTimeoutSeconds"],
       );
     }
   }
@@ -336,6 +343,11 @@ function safeRuntimeDocument(
                               : { caBundlePem: worker.httpProxy.caBundlePem }),
                             targets: [...worker.httpProxy.targets],
                           },
+                  }),
+              ...(worker.caido === undefined
+                ? {}
+                : {
+                    caido: worker.caido === null ? null : { ...worker.caido },
                   }),
             },
           }),

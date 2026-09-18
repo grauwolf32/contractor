@@ -250,8 +250,14 @@ function AuditOverview({ audit }: { audit: Audit }) {
             <dt>Deadline</dt>
             <dd>
               {audit.deadlineAt === undefined
-                ? "Not started"
-                : formatTimestamp(audit.deadlineAt)}
+                ? audit.state === "draft"
+                  ? "Set when starting"
+                  : "No time limit"
+                : audit.stopReason?.code === "deadline_exhausted"
+                  ? "Time limit reached"
+                  : audit.state === "paused"
+                    ? "Paused — remaining time is saved"
+                    : formatTimestamp(audit.deadlineAt)}
             </dd>
           </div>
         </dl>
@@ -360,8 +366,16 @@ function AuditOverview({ audit }: { audit: Audit }) {
       )}
       {audit.stopReason === undefined ? null : (
         <section className="notice notice-error audit-stop-reason" role="alert">
-          <strong>{audit.stopReason.code}</strong>
-          <p>{audit.stopReason.message}</p>
+          <strong>
+            {audit.stopReason.code === "deadline_exhausted"
+              ? "Time limit reached"
+              : audit.stopReason.code}
+          </strong>
+          <p>
+            {audit.stopReason.code === "deadline_exhausted"
+              ? "Continue this audit with a longer limit or no time limit. Accepted results are retained."
+              : audit.stopReason.message}
+          </p>
         </section>
       )}
     </div>

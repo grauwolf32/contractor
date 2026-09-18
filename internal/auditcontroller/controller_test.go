@@ -187,19 +187,48 @@ func TestControllerCancellationClosesDispatchAndCancelsBoundRun(t *testing.T) {
 	}
 }
 
-func TestControllerDeadlineClosesDispatchBeforeRoundOrRunCreation(t *testing.T) {
+func TestControllerDeadlinePausesBeforeRoundOrRunCreation(t *testing.T) {
 	harness := newControllerHarness(t, 2, 2)
 	harness.store.expireAudit()
 	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
 		t.Fatalf("deadline fence = (%t, %v)", worked, err)
 	}
 	audit := harness.store.auditSnapshot()
-	if audit.State != auditstore.AuditFinalizing || audit.Dispatch != auditstore.DispatchClosed ||
+	if audit.State != auditstore.AuditPaused || audit.Dispatch != auditstore.DispatchOpen ||
 		audit.StopReason == nil || audit.StopReason.Code != "deadline_exhausted" {
-		t.Fatalf("deadline result = %+v", audit)
+		t.Fatalf("deadline state=%s dispatch=%s reason=%v", audit.State, audit.Dispatch, audit.StopReason)
 	}
 	if got := harness.creator.createdCount(); got != 0 {
 		t.Fatalf("deadline created %d child Runs", got)
+	}
+}
+
+func TestControllerDeadlineKeepsRunningWorkAndCollectsResults(t *testing.T) {
+	harness := newControllerHarness(t, 2, 2)
+	harness.controller.collector = &fakeControllerCollector{store: harness.store}
+	for step := 0; step < 2; step++ {
+		if _, err := harness.controller.RunOnce(harness.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	harness.store.expireAudit()
+	if _, err := harness.controller.RunOnce(harness.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := harness.runs.cancelCount(); got != 0 {
+		t.Fatalf("deadline cancelled %d Runs", got)
+	}
+	harness.finishOldest(t, runstore.RunSucceeded)
+	for step := 0; step < 3; step++ {
+		if _, err := harness.controller.RunOnce(harness.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := harness.store.auditSnapshot().State; got != auditstore.AuditPaused {
+		t.Fatalf("state=%s", got)
+	}
+	if got := harness.creator.createdCount(); got != 1 {
+		t.Fatalf("created=%d", got)
 	}
 }
 

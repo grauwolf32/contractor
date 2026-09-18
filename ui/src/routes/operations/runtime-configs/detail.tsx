@@ -94,6 +94,10 @@ export function RuntimeConfigDetailRoute() {
               value={query.data.document.spec.worker?.httpProxy}
             />
             <OptionalBlock
+              title="Worker Caido"
+              value={query.data.document.spec.worker?.caido}
+            />
+            <OptionalBlock
               title="Planner telemetry"
               value={query.data.document.spec.planner?.telemetry}
             />

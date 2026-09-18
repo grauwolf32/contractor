@@ -37,6 +37,7 @@ WITH active_project_gate AS MATERIALIZED (
 ), changed AS (
     UPDATE audits AS audit
        SET state = $5,
+           paused_at = CASE WHEN $5 = 'paused' THEN clock_timestamp() ELSE NULL END,
            revision = revision + 1,
            dispatch_state = CASE
                WHEN $5 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed', 'deleting')
@@ -132,6 +133,7 @@ func (s *PostgresStore) TransitionClaimed(
 	), changed AS (
     UPDATE audits AS audit
        SET state = $6,
+           paused_at = CASE WHEN $6 = 'paused' THEN clock_timestamp() ELSE NULL END,
            revision = audit.revision + 1,
            dispatch_state = CASE
                WHEN $6 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed', 'deleting')

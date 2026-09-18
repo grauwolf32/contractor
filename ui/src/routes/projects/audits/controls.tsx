@@ -10,6 +10,9 @@ import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
 import { Dialog } from "../../../app/dialog";
+import { Icon } from "../../../app/icon";
+import { AuditTimeLimitDialog } from "./time-limit-dialog";
+import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../artifacts/common";
 
@@ -172,39 +175,50 @@ function AuditMutationDialog({
 export function AuditControls({
   audit,
   projectName,
-  deleteOnly = false,
+  compact = false,
 }: {
   audit: Audit;
   projectName: string | undefined;
-  deleteOnly?: boolean;
+  compact?: boolean;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState<DestructiveAuditAction>();
   const destructiveRequestInFlight = useRef(false);
+  const [timeAction, setTimeAction] = useState<"start" | "resume">();
   const [keyring] = useState(
     () =>
       new MutationDraftKeyring<{
         action: AuditMutationAction;
         auditId: string;
         revision: number;
+        deadlineSeconds?: number;
       }>("mutate-audit"),
   );
   const mutation = useMutation({
-    mutationFn: (action: AuditMutationAction) => {
+    mutationFn: ({
+      action,
+      deadlineSeconds,
+    }: {
+      action: AuditMutationAction;
+      deadlineSeconds?: number;
+    }) => {
       const draft = {
         action,
         auditId: audit.auditId,
         revision: audit.revision,
+        ...(deadlineSeconds === undefined ? {} : { deadlineSeconds }),
       };
       return mutateAudit(api, action, {
         auditId: audit.auditId,
         expectedRevision: audit.revision,
         idempotencyKey: keyring.keyFor(draft),
+        ...(deadlineSeconds === undefined ? {} : { deadlineSeconds }),
       });
     },
     onSuccess: async (result) => {
       setConfirmation(undefined);
+      setTimeAction(undefined);
       const updated = auditMutationAudit(result);
       queryClient.setQueryData(
         queryKeys.audits.detail(updated.auditId),
@@ -255,7 +269,7 @@ export function AuditControls({
     }
     destructiveRequestInFlight.current = true;
     mutation.reset();
-    mutation.mutate(confirmation);
+    mutation.mutate({ action: confirmation });
   }
   const buttons: Array<{
     action: AuditMutationAction;
@@ -265,10 +279,14 @@ export function AuditControls({
   if (audit.state === "draft")
     buttons.push({ action: "start", label: "Start Audit" });
   if (audit.state === "active" || audit.state === "waiting_review") {
-    buttons.push({ action: "pause", label: "Pause new Runs" });
+    buttons.push({ action: "pause", label: "Pause new Audit Runs" });
   }
-  if (audit.state === "paused")
-    buttons.push({ action: "resume", label: "Resume" });
+  if (
+    audit.state === "paused" ||
+    ((audit.state === "completed" || audit.state === "failed") &&
+      audit.stopReason?.code === "deadline_exhausted")
+  )
+    buttons.push({ action: "resume", label: "Continue Audit" });
   if (
     audit.state === "active" ||
     audit.state === "waiting_review" ||
@@ -287,47 +305,103 @@ export function AuditControls({
   }
   return (
     <div className="audit-controls">
-      {buttons
-        .filter((button) => !deleteOnly || button.action === "delete")
-        .map((button) => (
-          <button
-            key={button.action}
-            className={button.dangerous ? "danger-button" : "secondary-button"}
-            type="button"
-            disabled={mutation.isPending}
-            onClick={() => {
-              if (button.dangerous) {
-                mutation.reset();
-                setConfirmation(button.action as DestructiveAuditAction);
-              } else {
-                mutation.mutate(button.action);
-              }
-            }}
-          >
-            {mutation.isPending && mutation.variables === button.action
-              ? `${button.label}…`
-              : button.label}
-          </button>
-        ))}
+      {buttons.map((button) => (
+        <button
+          key={button.action}
+          className={
+            button.action === "delete"
+              ? "danger-button delete-icon-button"
+              : button.dangerous
+                ? `danger-button ${compact ? "icon-button" : ""}`
+                : "secondary-button icon-button"
+          }
+          type="button"
+          aria-label={button.label}
+          title={
+            button.action === "pause"
+              ? "Pause new Audit Runs; running work can finish"
+              : button.label
+          }
+          aria-haspopup={button.action === "pause" ? undefined : "dialog"}
+          disabled={mutation.isPending}
+          onClick={() => {
+            if (button.dangerous) {
+              mutation.reset();
+              setConfirmation(button.action as DestructiveAuditAction);
+            } else if (
+              button.action === "start" ||
+              button.action === "resume"
+            ) {
+              mutation.reset();
+              setTimeAction(button.action);
+            } else {
+              mutation.mutate({ action: button.action });
+            }
+          }}
+        >
+          {button.action === "delete" ? (
+            <DeleteIcon />
+          ) : button.action === "pause" ? (
+            <Icon name="pause" />
+          ) : button.action === "start" || button.action === "resume" ? (
+            <Icon name="play" />
+          ) : compact ? (
+            <Icon name="stop" />
+          ) : (
+            button.label
+          )}
+        </button>
+      ))}
       {!auditActionAllowed(audit, "delete") ? (
         <div className="audit-delete-hint">
-          <button className="danger-button" type="button" disabled>
-            Delete Audit
+          <button
+            className="danger-button delete-icon-button"
+            type="button"
+            aria-label="Delete Audit"
+            title="Delete Audit"
+            disabled
+          >
+            <DeleteIcon />
           </button>
-          <small>
-            {audit.state === "deleting"
-              ? "Deleting audit and retained results…"
-              : audit.state === "cancelling"
-                ? "Waiting for cancellation to finish."
-                : "Cancel or finish the audit before deleting it."}
-          </small>
+          {compact ? null : (
+            <small>
+              {audit.state === "deleting"
+                ? "Deleting audit and retained results…"
+                : audit.state === "cancelling"
+                  ? "Waiting for cancellation to finish."
+                  : "Cancel or finish the audit before deleting it."}
+            </small>
+          )}
         </div>
       ) : null}
-      {confirmation === undefined && mutation.error !== null ? (
+      {confirmation === undefined &&
+      timeAction === undefined &&
+      mutation.error !== null ? (
         <div className="audit-control-error">
           <AuditMutationNotice error={mutation.error} />
         </div>
       ) : null}
+      {timeAction === undefined ? null : (
+        <AuditTimeLimitDialog
+          audit={audit}
+          action={timeAction}
+          pending={mutation.isPending}
+          error={mutation.error}
+          onClose={() => {
+            if (!mutation.isPending) {
+              mutation.reset();
+              setTimeAction(undefined);
+            }
+          }}
+          onConfirm={(seconds) => {
+            if (!mutation.isPending)
+              mutation.mutate({
+                action: timeAction,
+                ...(seconds === undefined ? {} : { deadlineSeconds: seconds }),
+              });
+          }}
+        />
+      )}
       {confirmation === undefined ? null : (
         <AuditMutationDialog
           action={confirmation}

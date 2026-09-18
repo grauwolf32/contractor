@@ -917,6 +917,11 @@ paths:
         - $ref: '#/components/parameters/RequiredIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuditTimeLimitRequest'}
       responses:
         '200':
           description: Started Audit or exact idempotency replay
@@ -976,13 +981,18 @@ paths:
     post:
       operationId: resumeAudit
       tags: [Audits]
-      summary: Resume child Run admission for a paused Audit
+      summary: Resume a paused Audit or continue a legacy deadline closure with retained results
       x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/RequiredIfMatch'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AuditTimeLimitRequest'}
       responses:
         '200':
           description: Audit dispatch is active
@@ -3856,7 +3866,8 @@ components:
         currentRoundId: {$ref: '#/components/schemas/ResourceId'}
         dispatchState: {$ref: '#/components/schemas/AuditDispatchState'}
         holdState: {$ref: '#/components/schemas/AuditHoldState'}
-        deadlineAt: {type: string, format: date-time}
+        deadlineAt: {type: string, format: date-time, description: 'Absent when the started Audit has no time limit.'}
+        pausedAt: {type: string, format: date-time, description: 'Time when the remaining Audit allowance was frozen.'}
         limits: {$ref: '#/components/schemas/AuditLimits'}
         reservedRunCount: {type: integer, minimum: 0}
         submittedRunCount: {type: integer, minimum: 0}
@@ -4093,6 +4104,16 @@ components:
           description: Exact contractor.audit.report.v1 machine-readable document.
           additionalProperties: true
         summary: {type: string, maxLength: 65536}
+    AuditTimeLimitRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        deadlineSeconds:
+          type: integer
+          minimum: 0
+          maximum: 31536000
+          description: Time allowed from start or resume, in seconds. Zero disables the Audit deadline. Omit at start to use the profile; omit at resume to retain paused time remaining, or renew the profile allowance after expiry. Pauses do not consume this allowance.
+
     AuditStartResponse:
       type: object
       additionalProperties: false

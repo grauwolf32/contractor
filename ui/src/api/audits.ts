@@ -60,6 +60,7 @@ export interface AuditMutationOptions {
   auditId: string;
   expectedRevision: number;
   idempotencyKey: string;
+  deadlineSeconds?: number;
 }
 
 function requireData<T>(result: {
@@ -336,7 +337,12 @@ export async function mutateAudit(
   } as const;
   if (action === "start") {
     const result = await api.request((client) =>
-      client.POST("/v1/audits/{auditId}/start", common),
+      client.POST("/v1/audits/{auditId}/start", {
+        ...common,
+        ...(options.deadlineSeconds === undefined
+          ? {}
+          : { body: { deadlineSeconds: options.deadlineSeconds } }),
+      }),
     );
     const started = requireData(result);
     const audit = safeAudit(started.audit, result.response.status);
@@ -362,7 +368,12 @@ export async function mutateAudit(
   }
   if (action === "resume") {
     const result = await api.request((client) =>
-      client.POST("/v1/audits/{auditId}/resume", common),
+      client.POST("/v1/audits/{auditId}/resume", {
+        ...common,
+        ...(options.deadlineSeconds === undefined
+          ? {}
+          : { body: { deadlineSeconds: options.deadlineSeconds } }),
+      }),
     );
     return finishAuditMutation(result, options.auditId);
   }

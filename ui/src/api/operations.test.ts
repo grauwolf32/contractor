@@ -27,6 +27,7 @@ import {
   putRuntimeLabel,
   replaceRuntimeAgentPrincipalLabels,
   type CreateCredentialRequest,
+  type RuntimeConfigDocument,
 } from "./operations";
 
 const runtimeConfig: RuntimeConfig = {
@@ -416,6 +417,86 @@ describe("Operations API", () => {
     await expect(listRuntimeAgentPrincipals(unexpected)).rejects.toThrow(
       "response shape",
     );
+  });
+
+  it.each([
+    {
+      adapter: "caido-graphql@1" as const,
+      endpoint: "https://caido.example/graphql",
+      credential: "caido-local",
+      caBundlePem: "TEST_CA_BUNDLE",
+      requestTimeoutSeconds: 30,
+    },
+    null,
+  ])(
+    "preserves Caido patches in RuntimeConfig list, detail and publication responses: %j",
+    async (caido) => {
+      const document: RuntimeConfigDocument = {
+        apiVersion: "contractor/v1alpha1",
+        kind: "RuntimeConfig",
+        metadata: { name: "caido-debug", version: "1" },
+        spec: { worker: { caido } },
+      };
+      const resource = {
+        ref: { ...document.metadata, digest },
+        document,
+        builtIn: false,
+        createdBy: "user-1",
+        createdAt: "2026-09-01T00:00:00Z",
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          if (request.method === "POST") return response(resource, 201);
+          return response(
+            new URL(request.url).pathname.endsWith("/runtime-configs")
+              ? { items: [resource], page: { hasMore: false } }
+              : resource,
+          );
+        }),
+      );
+      api.csrf.replace("a".repeat(43));
+      expect((await listRuntimeConfigs(api)).items).toEqual([resource]);
+      expect(await getRuntimeConfig(api, "caido-debug", "1")).toEqual(resource);
+      expect(
+        await publishRuntimeConfig(api, document, "caido-publish-1"),
+      ).toEqual(resource);
+    },
+  );
+
+  it.each([
+    { adapter: "caido-graphql@1" },
+    { endpoint: "https://caido.example/graphql" },
+    {
+      adapter: "caido-graphql@1",
+      endpoint: "https://caido.example/graphql",
+      token: "MUST_FAIL_CLOSED",
+    },
+  ])("rejects invalid Caido response fields: %j", async (caido) => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              ref: { name: "caido-debug", version: "1", digest },
+              document: {
+                apiVersion: "contractor/v1alpha1",
+                kind: "RuntimeConfig",
+                metadata: { name: "caido-debug", version: "1" },
+                spec: { worker: { caido } },
+              },
+              builtIn: false,
+              createdBy: "user-1",
+              createdAt: "2026-09-01T00:00:00Z",
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listRuntimeConfigs(api)).rejects.toThrow("response shape");
   });
 
   it("manages RuntimeConfig, labels, and write-only Runtime credentials", async () => {

@@ -8,6 +8,31 @@ import { applicationRoutes } from "../../app/router";
 
 function setup(path: string, authorized = true) {
   const requests: string[] = [];
+  const runtimeResource = {
+    ref: {
+      name: "debug",
+      version: "1",
+      digest: `sha256:${"1".repeat(64)}`,
+    },
+    document: {
+      apiVersion: "contractor/v1alpha1",
+      kind: "RuntimeConfig",
+      metadata: { name: "debug", version: "1" },
+      spec: {
+        worker: {
+          caido: {
+            adapter: "caido-graphql@1",
+            endpoint: "https://caido.example/graphql",
+            credential: "caido-local",
+            requestTimeoutSeconds: 30,
+          },
+        },
+      },
+    },
+    builtIn: false,
+    createdBy: "user_local",
+    createdAt: "2026-09-07T00:00:00Z",
+  };
   const api = new PublicAPI(
     {
       uiVersion: "0.1.0",
@@ -36,23 +61,10 @@ function setup(path: string, authorized = true) {
           runtimeAgents: [],
           allocations: [],
         };
+      else if (pathname === "/v1/operations/runtime-configs")
+        body = { items: [runtimeResource], page: { hasMore: false } };
       else if (pathname === "/v1/operations/runtime-configs/debug/versions/1")
-        body = {
-          ref: {
-            name: "debug",
-            version: "1",
-            digest: `sha256:${"1".repeat(64)}`,
-          },
-          document: {
-            apiVersion: "contractor/v1alpha1",
-            kind: "RuntimeConfig",
-            metadata: { name: "debug", version: "1" },
-            spec: {},
-          },
-          builtIn: false,
-          createdBy: "user_local",
-          createdAt: "2026-09-07T00:00:00Z",
-        };
+        body = runtimeResource;
       return new Response(JSON.stringify(body), {
         headers: {
           "content-type": "application/json",
@@ -69,11 +81,67 @@ function setup(path: string, authorized = true) {
 }
 
 describe("Run configuration navigation", () => {
+  it("opens creation forms from icons and clears a closed credential draft", async () => {
+    setup("/runs/configuration");
+    const user = userEvent.setup();
+    const addCredential = await screen.findByRole("button", {
+      name: "Add Runtime credential",
+    });
+    expect(screen.queryByLabelText("Runtime credential ID")).toBeNull();
+    expect(screen.queryByLabelText("RuntimeConfig name")).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Runtime label bindings" }),
+    ).toBeNull();
+    await user.click(addCredential);
+    let dialog = screen.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
+    expect(
+      within(dialog).getByLabelText("Runtime credential ID"),
+    ).toHaveFocus();
+    await user.type(
+      within(dialog).getByLabelText(/Header value/),
+      "temporary-secret",
+    );
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(addCredential);
+    dialog = screen.getByRole("dialog", { name: "Create Runtime credential" });
+    expect(within(dialog).getByLabelText(/Header value/)).toHaveValue("");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Close Runtime credential form",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Publish RuntimeConfig" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Publish RuntimeConfig" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("RuntimeConfig name")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Manage bindings for debug@1",
+      }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Runtime label bindings" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Exact RuntimeConfig")).toHaveDisplayValue(
+      "debug@1",
+    );
+  });
+
   it.each(["/runs/configuration", "/operations/runtime-configs"])(
     "opens %s under Runs and supports refresh",
     async (path) => {
       const { router, requests } = setup(path);
       await screen.findByRole("heading", { name: "RuntimeConfig versions" });
+      expect(
+        await screen.findByRole("link", { name: "debug@1" }),
+      ).toBeVisible();
       expect(router.state.location.pathname).toBe("/runs/configuration");
       const tabs = screen.getByRole("navigation", { name: "Run views" });
       expect(tabs).toHaveClass("operations-navigation");
@@ -110,6 +178,8 @@ describe("Run configuration navigation", () => {
       "/operations/runtime-configs/debug/1?from=bookmark#worker",
     );
     await screen.findByRole("heading", { name: "debug@1" });
+    expect(screen.getByRole("heading", { name: "Worker Caido" })).toBeVisible();
+    expect(screen.getByText("https://caido.example/graphql")).toBeVisible();
     expect(router.state.location).toMatchObject({
       pathname: "/runs/configuration/debug/1",
       search: "?from=bookmark",

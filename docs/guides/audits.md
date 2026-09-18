@@ -20,6 +20,28 @@ manifest digest from trusted Run inputs, writes one complete canonical result
 package, and leaves validation, evidence retention, coverage and settlement to
 the Server. Each item remains independently visible even when it shares a Run.
 
+## Time limits, pause and continuation
+
+The play icon next to an Audit opens its start or continuation settings. The UI
+defaults to seven days; choose 24 hours, a custom duration, or **No time limit**.
+The clock includes queue waiting, but manual pauses preserve the remaining time.
+At the limit, the Audit pauses new Run submissions while existing Runs finish
+and their results are collected. Use the pause icon to do the same manually.
+
+`POST /v1/audits/{auditId}/start` and `/resume` accept an optional JSON body:
+`{"deadlineSeconds":604800}` for seven days, or `{"deadlineSeconds":0}` for no
+Audit time limit. Omitting the body at start preserves the profile default;
+omitting it at resume preserves the remaining paused time, or renews the profile
+allowance if it was exhausted. These mutations still require `If-Match` and
+`Idempotency-Key`.
+
+An older Audit completed or failed with `deadline_exhausted` also offers
+**Continue Audit**. It reopens undispatched tasks and interrupted tasks with
+attempts remaining, preserving accepted results, attempt history, findings and
+the exact baseline. Its previous report remains retained; the next report is a
+new artifact. Other exhausted budgets and unrelated failed checks are unchanged.
+Expired task approvals require a new human decision.
+
 ## Start a checklist Audit
 
 The following commands assume a running local stack, `jq`, a source archive at

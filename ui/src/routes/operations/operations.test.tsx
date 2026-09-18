@@ -614,15 +614,20 @@ describe("Operations routes", () => {
         throw new Error(`unexpected ${request.method} ${request.url}`);
       }),
     );
-    const view = renderOperations(api, "/operations/runtime-configs");
+    renderOperations(api, "/operations/runtime-configs");
     expect(
       await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
     ).toBeInTheDocument();
     const user = userEvent.setup();
 
-    const credentialForm = view.container.querySelector(
-      "form.runtime-credential-form",
-    ) as HTMLFormElement;
+    expect(screen.queryByLabelText("Runtime credential ID")).toBeNull();
+    expect(screen.queryByLabelText("RuntimeConfig name")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Add Runtime credential" }),
+    );
+    const credentialForm = screen.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
     await user.type(
       within(credentialForm).getByLabelText("Runtime credential ID"),
       "otel-debug",
@@ -642,13 +647,19 @@ describe("Operations routes", () => {
     expect(within(credentialForm).getByLabelText(/Header value/)).toHaveValue(
       "",
     );
-    expect(view.container.textContent).not.toContain(secret);
+    expect(document.body.textContent).not.toContain(secret);
     expect(runtimeCredentialBody).toEqual({
       credentialId: "otel-debug",
       kind: "otlp-headers@1",
       material: { headers: { Authorization: secret } },
     });
 
+    await user.click(
+      screen.getByRole("button", { name: "Close Runtime credential form" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Publish RuntimeConfig" }),
+    );
     await user.type(screen.getByLabelText("RuntimeConfig name"), "debug");
     const telemetryGroup = screen.getByRole("group", {
       name: /Worker telemetry/,
@@ -700,9 +711,17 @@ describe("Operations routes", () => {
       },
     });
 
-    const labelForm = view.container.querySelector(
-      "form.runtime-label-create",
-    ) as HTMLFormElement;
+    await user.click(
+      screen.getByRole("button", { name: "Close RuntimeConfig form" }),
+    );
+    const bindingTrigger = await screen.findByRole("button", {
+      name: "Manage bindings for debug@1",
+    });
+    expect(bindingTrigger).not.toHaveClass("has-bindings");
+    await user.click(bindingTrigger);
+    const labelForm = screen
+      .getByRole("dialog", { name: "Runtime label bindings" })
+      .querySelector("form.runtime-label-create") as HTMLFormElement;
     await user.type(within(labelForm).getByLabelText("New label"), "debug");
     await user.selectOptions(
       within(labelForm).getByLabelText("Exact RuntimeConfig"),
@@ -728,6 +747,12 @@ describe("Operations routes", () => {
         name: "Reload authoritative binding",
       }),
     ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Close Runtime bindings" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Manage bindings for debug@1" }),
+    ).toHaveClass("has-bindings");
   });
 
   it("shows durable offline and adapter-incompatible principals as separate facts", async () => {

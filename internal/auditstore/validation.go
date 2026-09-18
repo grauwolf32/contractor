@@ -461,9 +461,6 @@ func validateMaterialize(params MaterializeRoundParams) error {
 	if err := validateJSONObject("baseline snapshot", params.BaselineSnapshot, MaxSnapshotBytes); err != nil {
 		return err
 	}
-	if params.DeadlineAt.IsZero() {
-		return invalidf("Audit deadline is invalid")
-	}
 	if err := validateRoundItems(params.Items); err != nil {
 		return err
 	}

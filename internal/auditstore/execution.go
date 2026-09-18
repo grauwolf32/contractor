@@ -78,7 +78,7 @@ WITH member_input AS MATERIALIZED (
      WHERE audit.audit_id = $1
        AND settings.singleton = true
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
-       AND audit.deadline_at > clock_timestamp()
+       AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
 	   AND audit.profile_snapshot #>> ARRAY['workflows', $13::text, 'kind'] = $5
      FOR UPDATE OF audit, settings
 ), round_gate AS MATERIALIZED (
@@ -138,7 +138,7 @@ WITH member_input AS MATERIALIZED (
        AND audit.reserved_run_count < audit.max_submitted_runs
        AND audit.outstanding_run_count < claim_gate.max_concurrent_runs
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
-       AND audit.deadline_at > clock_timestamp()
+       AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
 	       AND (
            ($5 = 'check' AND $6::text IS NOT NULL
              AND jsonb_array_length($12::jsonb) > 0
@@ -327,7 +327,7 @@ WITH live_claim AS MATERIALIZED (
      WHERE execution.execution_id = $4 AND execution.audit_id = $1
        AND execution.state = 'intent' AND execution.run_id IS NULL
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
-       AND audit.deadline_at > clock_timestamp()
+       AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
      FOR UPDATE OF audit, execution
 ), advanced_audit AS (
     UPDATE audits AS audit
@@ -339,7 +339,7 @@ WITH live_claim AS MATERIALIZED (
      WHERE audit.audit_id = eligible.audit_id
        AND audit.submitted_run_count < audit.reserved_run_count
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
-       AND audit.deadline_at > clock_timestamp()
+       AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
     RETURNING audit.audit_id, audit.next_event_sequence
 ), changed AS (
     UPDATE audit_executions AS execution

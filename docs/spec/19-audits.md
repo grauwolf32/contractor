@@ -825,11 +825,11 @@ stateDiagram-v2
   draft --> active: start and pin baseline
   active --> waiting_review: no approved runnable work
   waiting_review --> active: accepted exact decision
-  active --> paused: pause new audit work
+  active --> paused: owner pause or time limit
   waiting_review --> paused: pause item review
   paused --> active: resume
   active --> finalizing: close dispatch
-  waiting_review --> finalizing: item-review deadline
+  waiting_review --> paused: item-review time limit
   finalizing --> waiting_review: report acceptance required
   finalizing --> completed: commit report and coverage
   waiting_review --> completed: accept exact report candidate
@@ -849,10 +849,27 @@ stateDiagram-v2
 ```
 
 An active Audit may enter `failed` only after dispatch is closed and owned Runs
-are terminal/released. Budget or deadline exhaustion closes dispatch and tries
+are terminal/released. Non-time budget exhaustion closes dispatch and tries
 bounded finalization with explicit gaps; inability to form a structurally valid
-report yields `failed`. Terminal continuation creates a new Audit with explicit
-baseline provenance.
+report yields `failed`. The optional Audit time limit instead pauses admission,
+preserves the dispatch hold and leaves existing Runs to drain and collect.
+The owner can override `deadlineSeconds` at start or resume; zero disables the
+deadline, and a positive value is bounded to 365 days. A manual pause records
+`paused_at`, so resume can restore the remaining allowance independently of
+collection updates while paused. Waiting for a frozen report decision uses that
+decision's own expiry rather than the Audit admission clock.
+
+As a compatibility exception, owner resume may reopen a legacy `completed` or
+`failed` Audit whose stop reason is exactly `deadline_exhausted`. This requires
+an active Project, no uncollected executions, and revalidation of credential
+dependencies before restoring the dispatch hold. It reopens only undispatched
+closure exclusions or deadline-interrupted items with attempts remaining in the
+current round. Accepted items, receipts, evidence and baseline bytes never
+change. Old report links move to `report/history/<revision>/...`, the immutable
+report bytes remain retained, and a continuation counter distinguishes future
+report artifact names. The resume event records the previous state/reason and
+new deadline. Other terminal states remain final. Expired task approvals require
+fresh exact-subject requests; resuming never silently extends human authority.
 
 `completed` means the bounded Audit process closed, not that the application is
 secure. Completion requires a durable collection receipt for every execution,

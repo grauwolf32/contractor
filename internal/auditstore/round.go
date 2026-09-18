@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -203,7 +204,7 @@ WITH project_gate AS MATERIALIZED (
 SELECT `+prefixedAuditColumns("started")+` FROM started`,
 		params.OwnerID, params.AuditID, params.ExpectedRevision,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
-		[]byte(params.BaselineSnapshot), params.DeadlineAt, encodedItems,
+		[]byte(params.BaselineSnapshot), optionalDeadline(params.DeadlineAt), encodedItems,
 		params.Manifest.Digest, params.IdempotencyKey, params.RequestDigest, response,
 		encodedLinks, retainedBytes,
 	))
@@ -329,7 +330,7 @@ WITH live_claim AS MATERIALIZED (
      WHERE audit.audit_id = $1 AND audit.revision = $4
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND audit.current_round_id = previous.round_id
-       AND audit.deadline_at > clock_timestamp()
+       AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
        AND $7 = previous.ordinal + 1 AND $7 <= audit.max_rounds
        AND jsonb_array_length($10::jsonb) > 0
        AND jsonb_array_length($10::jsonb) <= audit.max_items_per_round
@@ -531,7 +532,7 @@ func (s *PostgresStore) TransitionRound(
 	           OR (
 	               audit.state = 'active' AND audit.dispatch_state = 'open'
 	               AND audit.current_round_id = $4
-	               AND audit.deadline_at > clock_timestamp()
+	               AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
 	           )
 	       )
 	     FOR UPDATE OF audit
@@ -589,4 +590,11 @@ SELECT changed.round_id, changed.audit_id, changed.ordinal,
 		return existing, nil
 	}
 	return Round{}, ErrPrecondition
+}
+
+func optionalDeadline(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	return &value
 }

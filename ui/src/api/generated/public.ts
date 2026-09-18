@@ -526,7 +526,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume child Run admission for a paused Audit */
+        /** Resume a paused Audit or continue a legacy deadline closure with retained results */
         post: operations["resumeAudit"];
         delete?: never;
         options?: never;
@@ -2013,8 +2013,16 @@ export interface components {
             currentRoundId?: components["schemas"]["ResourceId"];
             dispatchState: components["schemas"]["AuditDispatchState"];
             holdState: components["schemas"]["AuditHoldState"];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Absent when the started Audit has no time limit.
+             */
             deadlineAt?: string;
+            /**
+             * Format: date-time
+             * @description Time when the remaining Audit allowance was frozen.
+             */
+            pausedAt?: string;
             limits: components["schemas"]["AuditLimits"];
             reservedRunCount: number;
             submittedRunCount: number;
@@ -2218,6 +2226,10 @@ export interface components {
                 [key: string]: unknown;
             };
             summary?: string;
+        };
+        AuditTimeLimitRequest: {
+            /** @description Time allowed from start or resume, in seconds. Zero disables the Audit deadline. Omit at start to use the profile; omit at resume to retain paused time remaining, or renew the profile allowance after expiry. Pauses do not consume this allowance. */
+            deadlineSeconds?: number;
         };
         AuditStartResponse: {
             audit: components["schemas"]["Audit"];
@@ -5439,7 +5451,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AuditTimeLimitRequest"];
+            };
+        };
         responses: {
             /** @description Started Audit or exact idempotency replay */
             200: {
@@ -5521,7 +5537,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AuditTimeLimitRequest"];
+            };
+        };
         responses: {
             /** @description Audit dispatch is active */
             200: {

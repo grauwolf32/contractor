@@ -299,6 +299,7 @@ a {
   display: flex;
   min-height: 2.65rem;
   align-items: center;
+  gap: 0.65rem;
   border-radius: 0.5rem;
   color: #aab5c3;
   padding: 0.7rem 0.8rem;
@@ -313,6 +314,34 @@ a {
 
 .sidebar nav a.active {
   box-shadow: inset 3px 0 var(--accent);
+}
+
+.app-icon {
+  flex: none;
+}
+
+.sidebar nav a.active .app-icon {
+  color: var(--accent);
+}
+
+.sidebar-utility-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.session-panel .app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.icon-button {
+  display: inline-grid;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center;
 }
 
 .session-panel {
@@ -3557,6 +3586,42 @@ code {
   gap: 1rem;
 }
 
+.runtime-library-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.runtime-config-table {
+  min-width: 48rem;
+}
+
+.runtime-credential-table {
+  min-width: 36rem;
+}
+
+.runtime-binding-trigger.has-bindings {
+  border: 1px solid #7a8b45;
+  background: #17200e;
+  color: var(--accent);
+}
+
+.runtime-binding-trigger.has-bindings:not(:disabled):hover {
+  border-color: var(--accent);
+  background: #26351a;
+}
+
+.project-dialog.runtime-configuration-dialog {
+  width: min(100%, 60rem);
+}
+
+.runtime-configuration-dialog > .configuration-draft {
+  margin: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
 .runtime-principal-card h4 {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -3943,6 +4008,31 @@ code {
   background: var(--danger);
 }
 
+.delete-icon-button.danger-button {
+  display: inline-grid;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid #a85c61;
+  background: #3a1d22;
+  padding: 0;
+  color: #ffc0c4;
+  place-items: center;
+}
+
+.delete-icon-button:not(:disabled):hover {
+  border-color: #df8c94;
+  background: #522932;
+  color: #ffe0e3;
+}
+
+.delete-icon-button:disabled {
+  border-color: #5c6678;
+  background: #222a36;
+  color: #aebacd;
+  opacity: 1;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -4120,6 +4210,13 @@ code {
   font-size: 0.8rem;
   font-weight: 750;
   text-decoration: none;
+}
+
+.project-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .evals-page .project-card,
@@ -5449,6 +5546,8 @@ code {
 
   .sidebar nav a {
     justify-content: center;
+    flex-direction: column;
+    gap: 0.35rem;
   }
 
   .project-shortcut-grid {

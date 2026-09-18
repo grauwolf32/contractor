@@ -137,6 +137,7 @@ type StartParams struct {
 	ExpectedRevision uint64
 	IdempotencyKey   string
 	RequestDigest    string
+	DeadlineSeconds  *int
 }
 
 type MutationParams struct {
@@ -145,6 +146,7 @@ type MutationParams struct {
 	ExpectedRevision uint64
 	IdempotencyKey   string
 	RequestDigest    string
+	DeadlineSeconds  *int
 }
 
 type MutationResult struct {

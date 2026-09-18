@@ -108,15 +108,15 @@ func (c *Controller) reconcile(
 		if changed, expireErr := c.store.ExpireReportReview(ctx, claim, audit.Revision); changed || expireErr != nil {
 			return changed, expireErr
 		}
-		if audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
+		if audit.Dispatch == auditstore.DispatchOpen && audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
 			reason := auditstore.StopReason{
 				Code:    "deadline_exhausted",
-				Message: "The Audit wall-time deadline elapsed while exact human approval was pending.",
+				Message: "The Audit time limit was reached. Extend or disable the limit to continue.",
 			}
 			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
 				Claim: claim, ExpectedRevision: audit.Revision,
 				ExpectedState: auditstore.AuditWaitingReview,
-				TargetState:   auditstore.AuditFinalizing, Reason: &reason,
+				TargetState:   auditstore.AuditPaused, Reason: &reason,
 			})
 			return err == nil, err
 		}
@@ -126,7 +126,7 @@ func (c *Controller) reconcile(
 		if reason := c.dispatchClosureReason(snapshot); reason != nil {
 			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
 				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
+				ExpectedState: auditstore.AuditActive, TargetState: deadlineTarget(reason),
 				Reason: reason,
 			})
 			return err == nil, err
@@ -434,7 +434,8 @@ func (c *Controller) reconcileRolePhase(
 			if disposition == auditstore.CollectionAccepted {
 				continue
 			}
-			if !roleDispositionRetryable(disposition, receiptErrorCode(snapshot, latest.ExecutionID)) {
+			if !roleDispositionRetryable(disposition, receiptErrorCode(snapshot, latest.ExecutionID)) &&
+				!(snapshot.Audit.ContinuationCount > 0 && disposition == auditstore.CollectionExecutionCancelled) {
 				return false, false, &auditstore.StopReason{
 					Code: "role_execution_not_retryable",
 					Message: fmt.Sprintf(
@@ -647,7 +648,7 @@ func (c *Controller) dispatchClosureReason(
 	audit := snapshot.Audit
 	if audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
 		return &auditstore.StopReason{
-			Code: "deadline_exhausted", Message: "The Audit wall-time deadline was reached; no new Runs may be submitted.",
+			Code: "deadline_exhausted", Message: "The Audit time limit was reached. Existing Runs can finish; extend or disable the limit to continue.",
 		}
 	}
 	if audit.Limits.BatchSize < 1 || audit.Limits.BatchSize > auditstore.MaxCollectionItems ||
@@ -994,4 +995,11 @@ func randomID(prefix string) (string, error) {
 		return "", err
 	}
 	return prefix + hex.EncodeToString(raw[:]), nil
+}
+
+func deadlineTarget(reason *auditstore.StopReason) auditstore.AuditState {
+	if reason != nil && reason.Code == "deadline_exhausted" {
+		return auditstore.AuditPaused
+	}
+	return auditstore.AuditFinalizing
 }

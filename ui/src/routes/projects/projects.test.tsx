@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -60,6 +60,182 @@ function renderProjectApplication(api: PublicAPI, path: string) {
 }
 
 describe("Project routes", () => {
+  it("deletes from the Project list after confirmation and removes the completed deletion without navigation", async () => {
+    const deleteRequests: Request[] = [];
+    let deleting = false;
+    let complete = false;
+    let finishDelete!: () => void;
+    const deletingProject = {
+      ...project,
+      lifecycle: "deleting",
+      deletion: { phase: "draining", requestedAt: "2026-09-05T10:00:00Z" },
+      revision: "2",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects") {
+          return jsonResponse({
+            items: complete ? [] : [deleting ? deletingProject : project],
+            page: { hasMore: false },
+          });
+        }
+        if (
+          url.pathname === "/v1/projects/project_example" &&
+          request.method === "DELETE"
+        ) {
+          deleteRequests.push(request.clone());
+          return new Promise<Response>((resolve) => {
+            finishDelete = () => {
+              deleting = true;
+              resolve(
+                jsonResponse(deletingProject, {
+                  status: 202,
+                  headers: { ETag: '"2"' },
+                }),
+              );
+            };
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const { router } = renderProjectApplication(api, "/projects");
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole("button", {
+      name: "Delete Project Payment service",
+    });
+    expect(trigger).toHaveAttribute("title", "Delete Project");
+    await user.click(trigger);
+    let dialog = screen.getByRole("alertdialog", {
+      name: "Delete Payment service?",
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    expect(
+      within(dialog).getByRole("button", { name: "Delete Project" }),
+    ).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(deleteRequests).toHaveLength(0);
+    await user.click(trigger);
+    dialog = screen.getByRole("alertdialog", {
+      name: "Delete Payment service?",
+    });
+    await user.type(
+      within(dialog).getByLabelText("Type Payment service to confirm"),
+      project.name,
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete Project" }),
+    );
+    expect(
+      await within(dialog).findByRole("button", { name: "Starting deletion…" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toBeDisabled();
+    expect(deleteRequests).toHaveLength(1);
+    expect(deleteRequests[0]?.headers.get("If-Match")).toBe('"1"');
+    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(
+      session.csrfToken,
+    );
+    finishDelete();
+    await screen.findByText("Deletion in progress");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Delete Project Payment service" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("link", { name: "View deletion status →" }),
+    ).toHaveAttribute("href", "/projects/project_example");
+    complete = true;
+    await waitFor(
+      () =>
+        expect(screen.queryByRole("link", { name: project.name })).toBeNull(),
+      { timeout: 3_000 },
+    );
+    expect(router.state.location.pathname).toBe("/projects");
+    expect(deleteRequests).toHaveLength(1);
+  });
+
+  it("keeps a failed list deletion open and refreshes the Project before a new confirmation", async () => {
+    let current = project;
+    const deleteRequests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects") {
+          return jsonResponse({ items: [current], page: { hasMore: false } });
+        }
+        if (
+          url.pathname === "/v1/projects/project_example" &&
+          request.method === "DELETE"
+        ) {
+          deleteRequests.push(request.clone());
+          current = { ...project, name: "Renamed project", revision: "2" };
+          return jsonResponse(
+            {
+              code: "precondition_failed",
+              message: "resource revision precondition failed",
+              retryable: false,
+            },
+            { status: 412 },
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderProjectApplication(api, "/projects");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Project Payment service",
+      }),
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Delete Payment service?",
+    });
+    await user.type(
+      within(dialog).getByLabelText("Type Payment service to confirm"),
+      project.name,
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete Project" }),
+    );
+    expect(
+      await within(dialog).findByText("resource revision precondition failed"),
+    ).toBeVisible();
+    expect(deleteRequests).toHaveLength(1);
+    expect(deleteRequests[0]?.headers.get("If-Match")).toBe('"1"');
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Cancel" }),
+      ).toBeEnabled(),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Project Renamed project",
+      }),
+    );
+    const reopened = screen.getByRole("alertdialog", {
+      name: "Delete Renamed project?",
+    });
+    expect(
+      within(reopened).getByLabelText("Type Renamed project to confirm"),
+    ).toHaveValue("");
+    expect(
+      within(reopened).getByRole("button", { name: "Delete Project" }),
+    ).toBeDisabled();
+  });
+
   it.each(["metadata", "target"] as const)(
     "retains the unsaved %s draft and its exact revision after a Project refresh",
     async (operation) => {

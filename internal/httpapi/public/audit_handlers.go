@@ -1,6 +1,7 @@
 package public
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -114,6 +115,7 @@ type auditResponse struct {
 	DispatchState         auditstore.DispatchState            `json:"dispatchState"`
 	HoldState             auditstore.HoldState                `json:"holdState"`
 	DeadlineAt            *time.Time                          `json:"deadlineAt,omitempty"`
+	PausedAt              *time.Time                          `json:"pausedAt,omitempty"`
 	Limits                auditstore.Limits                   `json:"limits"`
 	ReservedRunCount      int                                 `json:"reservedRunCount"`
 	SubmittedRunCount     int                                 `json:"submittedRunCount"`
@@ -458,7 +460,8 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	if err := requireEmptyBody(w, r); err != nil {
+	seconds, err := readAuditTimeLimit(w, r)
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -477,10 +480,10 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auditID := r.PathValue("auditId")
-	digest := auditStartRequestDigest(auditID, revision)
+	digest := auditStartRequestDigest(auditID, revision, seconds)
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision,
-		IdempotencyKey: key, RequestDigest: digest,
+		IdempotencyKey: key, RequestDigest: digest, DeadlineSeconds: seconds,
 	})
 	if err != nil {
 		h.handleError(w, err)
@@ -530,7 +533,14 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 		h.handleError(w, err)
 		return
 	}
-	if err := requireEmptyBody(w, r); err != nil {
+	var seconds *int
+	var err error
+	if action == "resume" {
+		seconds, err = readAuditTimeLimit(w, r)
+	} else {
+		err = requireEmptyBody(w, r)
+	}
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -551,7 +561,8 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 	params := auditservice.MutationParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
 		ExpectedRevision: revision, IdempotencyKey: key,
-		RequestDigest: auditMutationRequestDigest(action, r.PathValue("auditId"), revision),
+		RequestDigest:   auditMutationRequestDigest(action, r.PathValue("auditId"), revision, seconds),
+		DeadlineSeconds: seconds,
 	}
 	var result auditservice.MutationResult
 	switch action {
@@ -810,7 +821,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		Inputs: selection.Inputs, Scope: selection.Scope,
 		RuntimeLabels: append([]string{}, selection.RuntimeLabels...),
 		State:         source.State, Revision: source.Revision, CurrentRoundID: source.CurrentRoundID,
-		DispatchState: source.Dispatch, HoldState: source.Hold, DeadlineAt: source.DeadlineAt,
+		DispatchState: source.Dispatch, HoldState: source.Hold, DeadlineAt: source.DeadlineAt, PausedAt: source.PausedAt,
 		Limits: source.Limits, ReservedRunCount: source.ReservedRunCount,
 		SubmittedRunCount: source.SubmittedRunCount, OutstandingRunCount: source.OutstandingRunCount,
 		RetainedEvidenceBytes: source.RetainedEvidenceBytes, EventSequence: source.EventSequence,
@@ -904,21 +915,23 @@ func createAuditRequestDigest(projectID string, request createAuditRequest) (str
 	return "sha256:" + hex.EncodeToString(digest[:]), labels, nil
 }
 
-func auditStartRequestDigest(auditID string, revision uint64) string {
+func auditStartRequestDigest(auditID string, revision uint64, seconds ...*int) string {
 	encoded, _ := json.Marshal(struct {
-		AuditID  string `json:"auditId"`
-		Revision uint64 `json:"revision"`
-	}{auditID, revision})
+		AuditID         string `json:"auditId"`
+		Revision        uint64 `json:"revision"`
+		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
+	}{auditID, revision, firstTimeLimit(seconds)})
 	digest := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
-func auditMutationRequestDigest(action, auditID string, revision uint64) string {
+func auditMutationRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
 	encoded, _ := json.Marshal(struct {
-		Action   string `json:"action"`
-		AuditID  string `json:"auditId"`
-		Revision uint64 `json:"revision"`
-	}{action, auditID, revision})
+		Action          string `json:"action"`
+		AuditID         string `json:"auditId"`
+		Revision        uint64 `json:"revision"`
+		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
+	}{action, auditID, revision, firstTimeLimit(seconds)})
 	digest := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
@@ -950,4 +963,42 @@ func pointerItemState(value *auditstore.ItemState) string {
 		return ""
 	}
 	return string(*value)
+}
+
+func firstTimeLimit(values []*int) *int {
+	if len(values) == 0 {
+		return nil
+	}
+	return values[0]
+}
+
+func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid Audit time limit body", errInvalidRequest)
+	}
+	if len(data) == 0 {
+		return nil, nil
+	}
+	media, err := requestMediaType(r)
+	if err != nil || media != "application/json" {
+		return nil, errInvalidRequest
+	}
+	var request struct {
+		DeadlineSeconds *int `json:"deadlineSeconds"`
+	}
+	if err := decodeStrictPublicJSON(data, &request); err != nil {
+		return nil, fmt.Errorf("%w: invalid Audit time limit: %v", errInvalidRequest, err)
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(data, &fields) != nil || fields == nil {
+		return nil, errInvalidRequest
+	}
+	if value, ok := fields["deadlineSeconds"]; ok && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		return nil, errInvalidRequest
+	}
+	if request.DeadlineSeconds != nil && (*request.DeadlineSeconds < 0 || *request.DeadlineSeconds > config.MaxAuditDeadlineSeconds) {
+		return nil, fmt.Errorf("%w: Audit time limit must be 0 (unlimited) or at most %d seconds", errInvalidRequest, config.MaxAuditDeadlineSeconds)
+	}
+	return request.DeadlineSeconds, nil
 }

@@ -32,6 +32,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func TestPostgresControllerDispatchesWithoutAuditDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 1)
+	if _, err := harness.pool.Exec(ctx, `UPDATE audits SET deadline_at=NULL WHERE audit_id=$1`, harness.started.Audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
+	controller := harness.controller(t)
+	for step := 0; step < 2; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("unlimited admission step=%d worked=%t error=%v", step, worked, err)
+		}
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("unlimited Audit did not submit a Run: %v", err)
+	}
+}
+
 func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

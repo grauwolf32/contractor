@@ -20,10 +20,6 @@ func (s *Service) Pause(ctx context.Context, params MutationParams) (MutationRes
 	return s.transition(ctx, params, lifecyclePause)
 }
 
-func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationResult, error) {
-	return s.transition(ctx, params, lifecycleResume)
-}
-
 func (s *Service) Cancel(ctx context.Context, params MutationParams) (MutationResult, error) {
 	return s.transition(ctx, params, lifecycleCancel)
 }

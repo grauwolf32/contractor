@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
@@ -22,6 +22,9 @@ import {
   type RuntimeLabelBinding,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
+import { Dialog } from "../../../app/dialog";
+import { Icon } from "../../../app/icon";
+import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import {
   CursorControls,
@@ -312,10 +315,14 @@ function buildDocument(
 function RuntimeConfigPublishForm({
   configs,
   gateways,
+  onClose,
 }: {
   configs: RuntimeConfigResource[];
   gateways: ConfigurationResource[];
+  onClose: () => void;
 }) {
+  const heading = useId();
+  const initialFocus = useRef<HTMLInputElement>(null);
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(emptyConfigDraft);
@@ -357,275 +364,306 @@ function RuntimeConfigPublishForm({
     ["tool-subprocess", "Tool subprocess environment"],
   ] as const;
   return (
-    <form className="configuration-draft" onSubmit={submit} noValidate>
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Immutable typed infrastructure patch</p>
-          <h3>Publish RuntimeConfig</h3>
+    <Dialog
+      className="project-dialog panel runtime-configuration-dialog"
+      labelledBy={heading}
+      initialFocusRef={initialFocus}
+      onRequestClose={() => {
+        if (!mutation.isPending) onClose();
+      }}
+    >
+      <form className="configuration-draft" onSubmit={submit} noValidate>
+        <div className="project-dialog-heading">
+          <div>
+            <p className="eyebrow">Immutable typed infrastructure patch</p>
+            <h2 id={heading}>Publish RuntimeConfig</h2>
+            <small>{configs.length} loaded versions</small>
+          </div>
+          <button
+            className="project-dialog-close"
+            type="button"
+            aria-label="Close RuntimeConfig form"
+            disabled={mutation.isPending}
+            onClick={onClose}
+          >
+            ×
+          </button>
         </div>
-        <span>{configs.length} loaded versions</span>
-      </div>
-      <p className="muted-copy">
-        Values become active only through a label binding. Publishing another
-        version never mutates existing Runs or allocations.
-      </p>
-      <div className="form-grid">
-        <label>
-          RuntimeConfig name
-          <input
-            aria-label="RuntimeConfig name"
-            required
-            maxLength={63}
-            value={draft.name}
-            onChange={(event) => update("name", event.target.value)}
-          />
-        </label>
-        <label>
-          Immutable version
-          <input
-            aria-label="RuntimeConfig version"
-            required
-            maxLength={128}
-            value={draft.version}
-            onChange={(event) => update("version", event.target.value)}
-          />
-        </label>
-      </div>
-
-      <fieldset className="runtime-config-block">
-        <legend>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={draft.gateway}
-              onChange={(event) => update("gateway", event.target.checked)}
-            />
-            Worker LLM Gateway route
-          </label>
-        </legend>
+        <p className="muted-copy">
+          Values become active only through a label binding. Publishing another
+          version never mutates existing Runs or allocations.
+        </p>
         <div className="form-grid">
           <label>
-            Exact LLM Gateway
-            <select
-              disabled={!draft.gateway}
-              value={draft.gatewayKey}
-              onChange={(event) => update("gatewayKey", event.target.value)}
-            >
-              <option value="">Select exact Gateway</option>
-              {gateways.map((resource) => (
-                <option key={gatewayKey(resource)} value={gatewayKey(resource)}>
-                  {resource.ref.name}@{resource.ref.version} · {resource.source}
-                </option>
-              ))}
-            </select>
+            RuntimeConfig name
+            <input
+              ref={initialFocus}
+              aria-label="RuntimeConfig name"
+              required
+              maxLength={63}
+              value={draft.name}
+              onChange={(event) => update("name", event.target.value)}
+            />
           </label>
           <label>
-            Active LLM credential ID (optional)
+            Immutable version
             <input
-              disabled={!draft.gateway}
-              value={draft.llmCredential}
-              onChange={(event) => update("llmCredential", event.target.value)}
+              aria-label="RuntimeConfig version"
+              required
+              maxLength={128}
+              value={draft.version}
+              onChange={(event) => update("version", event.target.value)}
             />
           </label>
         </div>
-      </fieldset>
 
-      {(
-        [
-          [
-            "workerTelemetry",
-            "Worker telemetry",
-            "workerTelemetryEndpoint",
-            "workerTelemetryCredential",
-            "workerTelemetryTimeout",
-            "workerTelemetryCaptureContent",
-          ],
-          [
-            "plannerTelemetry",
-            "Planner telemetry",
-            "plannerTelemetryEndpoint",
-            "plannerTelemetryCredential",
-            "plannerTelemetryTimeout",
-            "plannerTelemetryCaptureContent",
-          ],
-        ] as const
-      ).map(
-        ([enabled, title, endpoint, credential, timeout, captureContent]) => (
-          <fieldset className="runtime-config-block" key={enabled}>
-            <legend>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={draft[enabled]}
-                  onChange={(event) => update(enabled, event.target.checked)}
-                />
-                {title} · otlp-http@1
-              </label>
-            </legend>
+        <fieldset className="runtime-config-block">
+          <legend>
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                disabled={!draft[enabled]}
-                checked={draft[captureContent]}
+                checked={draft.gateway}
+                onChange={(event) => update("gateway", event.target.checked)}
+              />
+              Worker LLM Gateway route
+            </label>
+          </legend>
+          <div className="form-grid">
+            <label>
+              Exact LLM Gateway
+              <select
+                disabled={!draft.gateway}
+                value={draft.gatewayKey}
+                onChange={(event) => update("gatewayKey", event.target.value)}
+              >
+                <option value="">Select exact Gateway</option>
+                {gateways.map((resource) => (
+                  <option
+                    key={gatewayKey(resource)}
+                    value={gatewayKey(resource)}
+                  >
+                    {resource.ref.name}@{resource.ref.version} ·{" "}
+                    {resource.source}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Active LLM credential ID (optional)
+              <input
+                disabled={!draft.gateway}
+                value={draft.llmCredential}
                 onChange={(event) =>
-                  update(captureContent, event.target.checked)
+                  update("llmCredential", event.target.value)
                 }
               />
-              Capture content — trust this sink with unredacted prompts,
-              responses and tool content, including any secrets they contain.
             </label>
-            <div className="form-grid">
-              <label>
-                OTLP traces endpoint
-                <input
-                  disabled={!draft[enabled]}
-                  placeholder="https://otel.example/v1/traces"
-                  value={draft[endpoint]}
-                  onChange={(event) => update(endpoint, event.target.value)}
-                />
-              </label>
-              <label>
-                Runtime credential ID (optional)
-                <input
-                  disabled={!draft[enabled]}
-                  value={draft[credential]}
-                  onChange={(event) => update(credential, event.target.value)}
-                />
-              </label>
-              <label>
-                Flush timeout seconds
-                <input
-                  disabled={!draft[enabled]}
-                  type="number"
-                  min={1}
-                  max={10}
-                  step={1}
-                  value={draft[timeout]}
-                  onChange={(event) => update(timeout, event.target.value)}
-                />
-              </label>
-              {enabled === "workerTelemetry" &&
-                (
-                  [
-                    ["workerTelemetryBatchSize", "Batch size (MiB)", 64],
-                    [
-                      "workerTelemetryMaxAttempts",
-                      "Maximum attempts per batch",
-                      10,
-                    ],
-                    [
-                      "workerTelemetryMaxPendingSpans",
-                      "Maximum pending spans",
-                      2048,
-                    ],
-                    [
-                      "workerTelemetryMaxPendingSize",
-                      "Maximum pending size (MiB)",
-                      64,
-                    ],
-                  ] as const
-                ).map(([field, label, maximum]) => (
-                  <label key={field}>
-                    {label}
-                    <input
-                      disabled={!draft.workerTelemetry}
-                      type="number"
-                      min={1}
-                      max={maximum}
-                      step={1}
-                      value={draft[field]}
-                      onChange={(event) => update(field, event.target.value)}
-                    />
-                  </label>
-                ))}
-            </div>
-          </fieldset>
-        ),
-      )}
+          </div>
+        </fieldset>
 
-      <fieldset className="runtime-config-block">
-        <legend>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={draft.httpProxy}
-              onChange={(event) => update("httpProxy", event.target.checked)}
-            />
-            Worker HTTP proxy · http-proxy@1
-          </label>
-        </legend>
-        <div className="form-grid">
-          <label>
-            Proxy URL
-            <input
-              disabled={!draft.httpProxy}
-              placeholder="http://caido.internal:8080"
-              value={draft.proxyURL}
-              onChange={(event) => update("proxyURL", event.target.value)}
-            />
-          </label>
-          <label>
-            Runtime credential ID (optional)
-            <input
-              disabled={!draft.httpProxy}
-              value={draft.proxyCredential}
-              onChange={(event) =>
-                update("proxyCredential", event.target.value)
-              }
-            />
-          </label>
-          <label className="runtime-ca-field">
-            Additional CA bundle PEM (optional)
-            <textarea
-              disabled={!draft.httpProxy}
-              value={draft.proxyCA}
-              onChange={(event) => update("proxyCA", event.target.value)}
-            />
-          </label>
-        </div>
-        <div className="runtime-targets">
-          {targetOptions.map(([target, label]) => (
-            <label className="checkbox-label" key={target}>
+        {(
+          [
+            [
+              "workerTelemetry",
+              "Worker telemetry",
+              "workerTelemetryEndpoint",
+              "workerTelemetryCredential",
+              "workerTelemetryTimeout",
+              "workerTelemetryCaptureContent",
+            ],
+            [
+              "plannerTelemetry",
+              "Planner telemetry",
+              "plannerTelemetryEndpoint",
+              "plannerTelemetryCredential",
+              "plannerTelemetryTimeout",
+              "plannerTelemetryCaptureContent",
+            ],
+          ] as const
+        ).map(
+          ([enabled, title, endpoint, credential, timeout, captureContent]) => (
+            <fieldset className="runtime-config-block" key={enabled}>
+              <legend>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={draft[enabled]}
+                    onChange={(event) => update(enabled, event.target.checked)}
+                  />
+                  {title} · otlp-http@1
+                </label>
+              </legend>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  disabled={!draft[enabled]}
+                  checked={draft[captureContent]}
+                  onChange={(event) =>
+                    update(captureContent, event.target.checked)
+                  }
+                />
+                Capture content — trust this sink with unredacted prompts,
+                responses and tool content, including any secrets they contain.
+              </label>
+              <div className="form-grid">
+                <label>
+                  OTLP traces endpoint
+                  <input
+                    disabled={!draft[enabled]}
+                    placeholder="https://otel.example/v1/traces"
+                    value={draft[endpoint]}
+                    onChange={(event) => update(endpoint, event.target.value)}
+                  />
+                </label>
+                <label>
+                  Runtime credential ID (optional)
+                  <input
+                    disabled={!draft[enabled]}
+                    value={draft[credential]}
+                    onChange={(event) => update(credential, event.target.value)}
+                  />
+                </label>
+                <label>
+                  Flush timeout seconds
+                  <input
+                    disabled={!draft[enabled]}
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={1}
+                    value={draft[timeout]}
+                    onChange={(event) => update(timeout, event.target.value)}
+                  />
+                </label>
+                {enabled === "workerTelemetry" &&
+                  (
+                    [
+                      ["workerTelemetryBatchSize", "Batch size (MiB)", 64],
+                      [
+                        "workerTelemetryMaxAttempts",
+                        "Maximum attempts per batch",
+                        10,
+                      ],
+                      [
+                        "workerTelemetryMaxPendingSpans",
+                        "Maximum pending spans",
+                        2048,
+                      ],
+                      [
+                        "workerTelemetryMaxPendingSize",
+                        "Maximum pending size (MiB)",
+                        64,
+                      ],
+                    ] as const
+                  ).map(([field, label, maximum]) => (
+                    <label key={field}>
+                      {label}
+                      <input
+                        disabled={!draft.workerTelemetry}
+                        type="number"
+                        min={1}
+                        max={maximum}
+                        step={1}
+                        value={draft[field]}
+                        onChange={(event) => update(field, event.target.value)}
+                      />
+                    </label>
+                  ))}
+              </div>
+            </fieldset>
+          ),
+        )}
+
+        <fieldset className="runtime-config-block">
+          <legend>
+            <label className="checkbox-label">
               <input
                 type="checkbox"
+                checked={draft.httpProxy}
+                onChange={(event) => update("httpProxy", event.target.checked)}
+              />
+              Worker HTTP proxy · http-proxy@1
+            </label>
+          </legend>
+          <div className="form-grid">
+            <label>
+              Proxy URL
+              <input
                 disabled={!draft.httpProxy}
-                checked={draft.proxyTargets.includes(target)}
+                placeholder="http://caido.internal:8080"
+                value={draft.proxyURL}
+                onChange={(event) => update("proxyURL", event.target.value)}
+              />
+            </label>
+            <label>
+              Runtime credential ID (optional)
+              <input
+                disabled={!draft.httpProxy}
+                value={draft.proxyCredential}
                 onChange={(event) =>
-                  update(
-                    "proxyTargets",
-                    event.target.checked
-                      ? [...draft.proxyTargets, target]
-                      : draft.proxyTargets.filter((value) => value !== target),
-                  )
+                  update("proxyCredential", event.target.value)
                 }
               />
-              {label}
             </label>
-          ))}
-        </div>
-      </fieldset>
-
-      {errors.length === 0 ? null : (
-        <div className="notice notice-error" role="alert">
-          <strong>RuntimeConfig draft is not publishable</strong>
-          <ul>
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
+            <label className="runtime-ca-field">
+              Additional CA bundle PEM (optional)
+              <textarea
+                disabled={!draft.httpProxy}
+                value={draft.proxyCA}
+                onChange={(event) => update("proxyCA", event.target.value)}
+              />
+            </label>
+          </div>
+          <div className="runtime-targets">
+            {targetOptions.map(([target, label]) => (
+              <label className="checkbox-label" key={target}>
+                <input
+                  type="checkbox"
+                  disabled={!draft.httpProxy}
+                  checked={draft.proxyTargets.includes(target)}
+                  onChange={(event) =>
+                    update(
+                      "proxyTargets",
+                      event.target.checked
+                        ? [...draft.proxyTargets, target]
+                        : draft.proxyTargets.filter(
+                            (value) => value !== target,
+                          ),
+                    )
+                  }
+                />
+                {label}
+              </label>
             ))}
-          </ul>
-        </div>
-      )}
-      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
-      {published === undefined ? null : (
-        <div className="notice notice-success" role="status">
-          Published {published.ref.name}@{published.ref.version}. Bind a label
-          explicitly before it affects future resolution.
-        </div>
-      )}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? "Publishing…" : "Publish immutable RuntimeConfig"}
-      </button>
-    </form>
+          </div>
+        </fieldset>
+
+        {errors.length === 0 ? null : (
+          <div className="notice notice-error" role="alert">
+            <strong>RuntimeConfig draft is not publishable</strong>
+            <ul>
+              {errors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {mutation.error === null ? null : (
+          <ErrorNotice error={mutation.error} />
+        )}
+        {published === undefined ? null : (
+          <div className="notice notice-success" role="status">
+            Published {published.ref.name}@{published.ref.version}. Bind a label
+            explicitly before it affects future resolution.
+          </div>
+        )}
+        <button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending
+            ? "Publishing…"
+            : "Publish immutable RuntimeConfig"}
+        </button>
+      </form>
+    </Dialog>
   );
 }
 
@@ -755,12 +793,14 @@ function BindingEditor({
         </button>
         {binding.label === "default" ? null : (
           <button
-            className="danger-button"
+            className="danger-button delete-icon-button"
             type="button"
+            aria-label={`Remove binding ${binding.label}`}
+            title={`Remove binding ${binding.label}`}
             disabled={deletion.isPending}
             onClick={() => deletion.mutate()}
           >
-            Remove binding
+            <DeleteIcon />
           </button>
         )}
       </div>
@@ -792,14 +832,16 @@ function BindingEditor({
 function RuntimeBindings({
   bindings,
   configs,
+  target,
 }: {
   bindings: RuntimeLabelBinding[];
   configs: RuntimeConfigResource[];
+  target: RuntimeConfigResource;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const [label, setLabel] = useState("");
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(exactKey(target));
   const [error, setError] = useState<string>();
   const [keyring] = useState(
     () =>
@@ -823,7 +865,7 @@ function RuntimeBindings({
       ),
     onSuccess: async () => {
       setLabel("");
-      setSelected("");
+      setSelected(exactKey(target));
       await queryClient.invalidateQueries({
         queryKey: queryKeys.operations.runtimeLabels.all,
       });
@@ -852,17 +894,13 @@ function RuntimeBindings({
     mutation.mutate({ name: label, resource });
   }
   return (
-    <div className="panel operations-library runtime-bindings">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Revisioned Control Plane pointers</p>
-          <h3>Runtime label bindings</h3>
-          <p className="muted-copy">
-            CAS updates affect only future Run creation or allocation pinning.
-            Active allocations retain their exact snapshot.
-          </p>
-        </div>
-      </div>
+    <div className="runtime-bindings">
+      <p className="muted-copy">
+        Bindings apply to future Runs. Existing Runs keep their configuration.
+      </p>
+      {ordered.length === 0 ? (
+        <p className="compact-empty">No labels use this version yet.</p>
+      ) : null}
       <div className="runtime-binding-list">
         {ordered.map((binding) => (
           <BindingEditor
@@ -924,7 +962,9 @@ interface HeaderDraft {
   value: string;
 }
 
-function RuntimeCredentialCreateForm() {
+function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
+  const heading = useId();
+  const initialFocus = useRef<HTMLInputElement>(null);
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const nextHeaderID = useRef(2);
@@ -952,6 +992,7 @@ function RuntimeCredentialCreateForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     setError(null);
     setCreated(undefined);
     if (!/^[a-z][a-z0-9_-]{0,127}$/.test(credentialId)) {
@@ -1013,171 +1054,197 @@ function RuntimeCredentialCreateForm() {
   }
 
   return (
-    <form
-      className="configuration-draft runtime-credential-form"
-      onSubmit={(event) => void submit(event)}
-      noValidate
-      autoComplete="off"
+    <Dialog
+      className="project-dialog panel runtime-configuration-dialog"
+      labelledBy={heading}
+      initialFocusRef={initialFocus}
+      onRequestClose={() => {
+        if (!pending) onClose();
+      }}
     >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Write-only encrypted material</p>
-          <h3>Create Runtime credential</h3>
-        </div>
-        <span>active when present</span>
-      </div>
-      <p className="muted-copy">
-        Secret values are erased from the form immediately on submit and are
-        never readable through the API. A failed request requires re-entry.
-      </p>
-      <div className="form-grid">
-        <label>
-          Runtime credential ID
-          <input
-            aria-label="Runtime credential ID"
-            autoComplete="off"
-            value={credentialId}
-            onChange={(event) => setCredentialId(event.target.value)}
-          />
-        </label>
-        <label>
-          Credential kind
-          <select
-            value={kind}
-            onChange={(event) => {
-              setKind(
-                event.target.value as CreateRuntimeCredentialRequest["kind"],
-              );
-              clearSecretFields();
-            }}
-          >
-            <option value="otlp-headers@1">OTLP headers</option>
-            <option value="http-proxy-basic@1">HTTP proxy basic auth</option>
-            <option value="http-proxy-bearer@1">HTTP proxy bearer token</option>
-            <option value="caido-bearer@1">Caido bearer token</option>
-            <option value="http-origin-basic@1">HTTP origin basic auth</option>
-            <option value="http-origin-bearer@1">
-              HTTP origin bearer token
-            </option>
-          </select>
-        </label>
-      </div>
-      {kind === "otlp-headers@1" ? (
-        <div className="runtime-secret-rows">
-          {headers.map((header) => (
-            <div className="runtime-secret-row" key={header.id}>
-              <label>
-                Header name
-                <input
-                  autoComplete="off"
-                  value={header.name}
-                  onChange={(event) =>
-                    setHeaders((current) =>
-                      current.map((candidate) =>
-                        candidate.id === header.id
-                          ? { ...candidate, name: event.target.value }
-                          : candidate,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              <label>
-                Header value · write only
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={header.value}
-                  onChange={(event) =>
-                    setHeaders((current) =>
-                      current.map((candidate) =>
-                        candidate.id === header.id
-                          ? { ...candidate, value: event.target.value }
-                          : candidate,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={headers.length === 1}
-                onClick={() =>
-                  setHeaders((current) =>
-                    current.filter((candidate) => candidate.id !== header.id),
-                  )
-                }
-              >
-                Remove header
-              </button>
-            </div>
-          ))}
+      <form
+        className="configuration-draft runtime-credential-form"
+        onSubmit={(event) => void submit(event)}
+        noValidate
+        autoComplete="off"
+      >
+        <div className="project-dialog-heading">
+          <div>
+            <p className="eyebrow">Write-only encrypted material</p>
+            <h2 id={heading}>Create Runtime credential</h2>
+          </div>
           <button
-            className="secondary-button"
+            className="project-dialog-close"
             type="button"
-            onClick={() => {
-              const id = nextHeaderID.current++;
-              setHeaders((current) => [
-                ...current,
-                { id, name: "", value: "" },
-              ]);
-            }}
+            aria-label="Close Runtime credential form"
+            disabled={pending}
+            onClick={onClose}
           >
-            Add header
+            ×
           </button>
         </div>
-      ) : kind === "http-proxy-basic@1" || kind === "http-origin-basic@1" ? (
+        <p className="muted-copy">
+          Secret values are erased from the form immediately on submit and are
+          never readable through the API. A failed request requires re-entry.
+        </p>
         <div className="form-grid">
           <label>
-            {kind === "http-origin-basic@1" ? "Origin" : "Proxy"} username ·
-            write only
+            Runtime credential ID
             <input
+              ref={initialFocus}
+              aria-label="Runtime credential ID"
               autoComplete="off"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              value={credentialId}
+              onChange={(event) => setCredentialId(event.target.value)}
             />
           </label>
           <label>
-            {kind === "http-origin-basic@1" ? "Origin" : "Proxy"} password ·
-            write only
+            Credential kind
+            <select
+              value={kind}
+              onChange={(event) => {
+                setKind(
+                  event.target.value as CreateRuntimeCredentialRequest["kind"],
+                );
+                clearSecretFields();
+              }}
+            >
+              <option value="otlp-headers@1">OTLP headers</option>
+              <option value="http-proxy-basic@1">HTTP proxy basic auth</option>
+              <option value="http-proxy-bearer@1">
+                HTTP proxy bearer token
+              </option>
+              <option value="caido-bearer@1">Caido bearer token</option>
+              <option value="http-origin-basic@1">
+                HTTP origin basic auth
+              </option>
+              <option value="http-origin-bearer@1">
+                HTTP origin bearer token
+              </option>
+            </select>
+          </label>
+        </div>
+        {kind === "otlp-headers@1" ? (
+          <div className="runtime-secret-rows">
+            {headers.map((header) => (
+              <div className="runtime-secret-row" key={header.id}>
+                <label>
+                  Header name
+                  <input
+                    autoComplete="off"
+                    value={header.name}
+                    onChange={(event) =>
+                      setHeaders((current) =>
+                        current.map((candidate) =>
+                          candidate.id === header.id
+                            ? { ...candidate, name: event.target.value }
+                            : candidate,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+                <label>
+                  Header value · write only
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={header.value}
+                    onChange={(event) =>
+                      setHeaders((current) =>
+                        current.map((candidate) =>
+                          candidate.id === header.id
+                            ? { ...candidate, value: event.target.value }
+                            : candidate,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+                <button
+                  className="danger-button delete-icon-button"
+                  type="button"
+                  aria-label={`Remove header ${header.name || header.id}`}
+                  title="Remove header"
+                  disabled={headers.length === 1}
+                  onClick={() =>
+                    setHeaders((current) =>
+                      current.filter((candidate) => candidate.id !== header.id),
+                    )
+                  }
+                >
+                  <DeleteIcon />
+                </button>
+              </div>
+            ))}
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                const id = nextHeaderID.current++;
+                setHeaders((current) => [
+                  ...current,
+                  { id, name: "", value: "" },
+                ]);
+              }}
+            >
+              Add header
+            </button>
+          </div>
+        ) : kind === "http-proxy-basic@1" || kind === "http-origin-basic@1" ? (
+          <div className="form-grid">
+            <label>
+              {kind === "http-origin-basic@1" ? "Origin" : "Proxy"} username ·
+              write only
+              <input
+                autoComplete="off"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
+            </label>
+            <label>
+              {kind === "http-origin-basic@1" ? "Origin" : "Proxy"} password ·
+              write only
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+          </div>
+        ) : (
+          <label>
+            Bearer token · write only
             <input
               type="password"
               autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
             />
           </label>
-        </div>
-      ) : (
-        <label>
-          Bearer token · write only
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-          />
-        </label>
-      )}
-      {error === null ? null : <ErrorNotice error={error} />}
-      {created === undefined ? null : (
-        <div className="notice notice-success" role="status">
-          Created safe metadata for {created.credentialId}; secret material
-          cannot be read back.
-        </div>
-      )}
-      <button type="submit" disabled={pending}>
-        {pending ? "Creating…" : "Create active Runtime credential"}
-      </button>
-    </form>
+        )}
+        {error === null ? null : <ErrorNotice error={error} />}
+        {created === undefined ? null : (
+          <div className="notice notice-success" role="status">
+            Created safe metadata for {created.credentialId}; secret material
+            cannot be read back.
+          </div>
+        )}
+        <button type="submit" disabled={pending}>
+          {pending ? "Creating…" : "Create active Runtime credential"}
+        </button>
+      </form>
+    </Dialog>
   );
 }
 
 function RuntimeCredentialList({
   credentials,
+  onCreate,
 }: {
   credentials: RuntimeCredentialMetadata[];
+  onCreate: () => void;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -1200,13 +1267,25 @@ function RuntimeCredentialList({
           <p className="eyebrow">Secret-free active inventory</p>
           <h3>Runtime credentials</h3>
         </div>
-        <span>{credentials.length} loaded</span>
+        <div className="runtime-library-actions">
+          <span>{credentials.length} loaded</span>
+          <button
+            className="secondary-button icon-button"
+            type="button"
+            aria-label="Add Runtime credential"
+            title="Add Runtime credential"
+            aria-haspopup="dialog"
+            onClick={onCreate}
+          >
+            <Icon name="add-credential" />
+          </button>
+        </div>
       </div>
       {credentials.length === 0 ? (
         <p className="compact-empty">No Runtime credentials exist.</p>
       ) : (
         <div className="table-scroll">
-          <table>
+          <table className="runtime-credential-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -1225,12 +1304,14 @@ function RuntimeCredentialList({
                   <td>{formatTimestamp(credential.createdAt)}</td>
                   <td>
                     <button
-                      className="danger-button"
+                      className="danger-button delete-icon-button"
                       type="button"
+                      aria-label={`Delete Runtime credential ${credential.credentialId}`}
+                      title={`Delete Runtime credential ${credential.credentialId}`}
                       disabled={deletion.isPending}
                       onClick={() => deletion.mutate(credential.credentialId)}
                     >
-                      Delete active credential
+                      <DeleteIcon />
                     </button>
                   </td>
                 </tr>
@@ -1244,8 +1325,55 @@ function RuntimeCredentialList({
   );
 }
 
+function RuntimeBindingsDialog({
+  target,
+  configs,
+  bindings,
+  onClose,
+}: {
+  target: RuntimeConfigResource;
+  configs: RuntimeConfigResource[];
+  bindings: RuntimeLabelBinding[];
+  onClose: () => void;
+}) {
+  const heading = useId();
+  return (
+    <Dialog
+      className="project-dialog panel runtime-configuration-dialog"
+      labelledBy={heading}
+      onRequestClose={onClose}
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">
+            {target.ref.name}@{target.ref.version}
+          </p>
+          <h2 id={heading}>Runtime label bindings</h2>
+        </div>
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close Runtime bindings"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      <RuntimeBindings
+        target={target}
+        configs={configs}
+        bindings={bindings.filter(
+          (binding) => binding.config.digest === target.ref.digest,
+        )}
+      />
+    </Dialog>
+  );
+}
+
 export function RuntimeConfigurationRoute() {
   const api = usePublicAPI();
+  const [createDialog, setCreateDialog] = useState<"config" | "credential">();
+  const [bindingTarget, setBindingTarget] = useState<RuntimeConfigResource>();
   const [configCursors, setConfigCursors] = useState<Array<string | undefined>>(
     [undefined],
   );
@@ -1260,7 +1388,27 @@ export function RuntimeConfigurationRoute() {
   });
   const labels = useQuery({
     queryKey: queryKeys.operations.runtimeLabels.list(),
-    queryFn: () => listRuntimeLabels(api),
+    queryFn: async () => {
+      const items: RuntimeLabelBinding[] = [];
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      for (;;) {
+        const page = await listRuntimeLabels(
+          api,
+          cursor === undefined ? {} : { cursor },
+        );
+        items.push(...page.items);
+        if (!page.page.hasMore) return { items, page: { hasMore: false } };
+        const next = page.page.nextCursor;
+        if (next === undefined || next === "" || seen.has(next)) {
+          throw new Error(
+            "The server returned an invalid Runtime label cursor.",
+          );
+        }
+        seen.add(next);
+        cursor = next;
+      }
+    },
   });
   const credentials = useQuery({
     queryKey: queryKeys.operations.runtimeCredentials.list(),
@@ -1286,7 +1434,19 @@ export function RuntimeConfigurationRoute() {
               it.
             </p>
           </div>
-          <span>{loadedConfigs.length} loaded</span>
+          <div className="runtime-library-actions">
+            <span>{loadedConfigs.length} loaded</span>
+            <button
+              className="secondary-button icon-button"
+              type="button"
+              aria-label="Publish RuntimeConfig"
+              title="Publish RuntimeConfig"
+              aria-haspopup="dialog"
+              onClick={() => setCreateDialog("config")}
+            >
+              <Icon name="add-config" />
+            </button>
+          </div>
         </div>
         {configs.isPending ? (
           <p className="loading-copy">Loading RuntimeConfigs…</p>
@@ -1296,13 +1456,14 @@ export function RuntimeConfigurationRoute() {
           </p>
         ) : (
           <div className="table-scroll">
-            <table>
+            <table className="runtime-config-table">
               <thead>
                 <tr>
                   <th>Version</th>
                   <th>Digest</th>
                   <th>Source</th>
                   <th>Created</th>
+                  <th>Bindings</th>
                 </tr>
               </thead>
               <tbody>
@@ -1318,6 +1479,26 @@ export function RuntimeConfigurationRoute() {
                       {resource.builtIn ? "built-in" : resource.createdBy}
                     </td>
                     <td>{formatTimestamp(resource.createdAt)}</td>
+                    <td>
+                      <button
+                        className={`secondary-button icon-button runtime-binding-trigger ${labels.data?.items.some((binding) => binding.config.digest === resource.ref.digest) ? "has-bindings" : ""}`}
+                        type="button"
+                        aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
+                        title={
+                          labels.data?.items.some(
+                            (binding) =>
+                              binding.config.digest === resource.ref.digest,
+                          )
+                            ? "Label bindings active — manage bindings"
+                            : "Add a label binding"
+                        }
+                        aria-haspopup="dialog"
+                        disabled={!labels.isSuccess}
+                        onClick={() => setBindingTarget(resource)}
+                      >
+                        <Icon name="binding" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1339,16 +1520,30 @@ export function RuntimeConfigurationRoute() {
           onNext={(next) => setConfigCursors((current) => [...current, next])}
         />
       </div>
-      <RuntimeBindings
-        bindings={labels.data?.items ?? []}
-        configs={loadedConfigs}
+      <RuntimeCredentialList
+        credentials={credentials.data?.items ?? []}
+        onCreate={() => setCreateDialog("credential")}
       />
-      <RuntimeCredentialList credentials={credentials.data?.items ?? []} />
-      <RuntimeCredentialCreateForm />
-      <RuntimeConfigPublishForm
-        configs={loadedConfigs}
-        gateways={gateways.data?.items ?? []}
-      />
+      {createDialog === "credential" ? (
+        <RuntimeCredentialCreateForm
+          onClose={() => setCreateDialog(undefined)}
+        />
+      ) : null}
+      {createDialog === "config" ? (
+        <RuntimeConfigPublishForm
+          configs={loadedConfigs}
+          gateways={gateways.data?.items ?? []}
+          onClose={() => setCreateDialog(undefined)}
+        />
+      ) : null}
+      {bindingTarget === undefined ? null : (
+        <RuntimeBindingsDialog
+          target={bindingTarget}
+          configs={loadedConfigs}
+          bindings={labels.data?.items ?? []}
+          onClose={() => setBindingTarget(undefined)}
+        />
+      )}
     </>
   );
 }

@@ -246,6 +246,8 @@ type Audit struct {
 	Dispatch              DispatchState
 	Hold                  HoldState
 	DeadlineAt            *time.Time
+	PausedAt              *time.Time
+	ContinuationCount     int
 	Limits                Limits
 	ReservedRunCount      int
 	SubmittedRunCount     int
