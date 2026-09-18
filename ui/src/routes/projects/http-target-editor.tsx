@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
+import { Dialog } from "../../app/dialog";
 import { usePublicAPI } from "../../api/context";
 import {
   createRuntimeCredential,
@@ -114,6 +115,7 @@ function ProjectHTTPTargetDialog({
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const heading = useId();
+  const urlInput = useRef<HTMLInputElement>(null);
   const currentCredential = project.httpTarget?.credential;
   const [url, setURL] = useState(project.httpTarget?.url ?? "");
   const [authMode, setAuthMode] = useState<TargetAuthMode>(
@@ -137,14 +139,6 @@ function ProjectHTTPTargetDialog({
       credential.kind === "http-origin-basic@1" ||
       credential.kind === "http-origin-bearer@1",
   );
-
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape" && !pending) onClose();
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose, pending]);
 
   function clearSecrets(): void {
     setUsername("");
@@ -261,149 +255,150 @@ function ProjectHTTPTargetDialog({
   }
 
   return (
-    <div className="project-dialog-backdrop" role="presentation">
-      <section
-        className="project-dialog panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={heading}
-      >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Project HTTP target</p>
-            <h2 id={heading}>Application access</h2>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close target dialog"
-            disabled={pending}
-            onClick={onClose}
-          >
-            ×
-          </button>
+    <Dialog
+      className="project-dialog panel"
+      labelledBy={heading}
+      initialFocusRef={urlInput}
+      onRequestClose={() => {
+        if (!pending) onClose();
+      }}
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Project HTTP target</p>
+          <h2 id={heading}>Application access</h2>
         </div>
-        <p className="muted-copy">
-          The URL and credential reference are safe metadata. Secret material is
-          write-only and reaches only matching HTTP-enabled allocations.
-        </p>
-        <form
-          className="configuration-draft project-target-form"
-          autoComplete="off"
-          onSubmit={(event) => void submit(event)}
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close target dialog"
+          disabled={pending}
+          onClick={onClose}
         >
-          <label>
-            Application URL
-            <input
-              required
-              type="url"
-              placeholder="https://app.example.test"
-              value={url}
-              onChange={(event) => setURL(event.target.value)}
-            />
-          </label>
-          <label>
-            Authorization
-            <select
-              value={authMode}
-              onChange={(event) => {
-                setAuthMode(event.target.value as TargetAuthMode);
-                clearSecrets();
-              }}
-            >
-              <option value="none">No Authorization</option>
-              <option value="existing">Existing origin credential</option>
-              <option value="basic">New Basic credential</option>
-              <option value="bearer">New Bearer credential</option>
-            </select>
-          </label>
-          {authMode === "existing" ? (
-            credentials.isPending ? (
-              <p className="loading-copy">Loading active credentials…</p>
-            ) : credentials.error !== null ? (
-              <ErrorNotice error={credentials.error} />
-            ) : (
-              <label>
-                Active HTTP origin credential
-                <select
-                  required
-                  value={credentialID}
-                  onChange={(event) => setCredentialID(event.target.value)}
-                >
-                  <option value="">Select credential</option>
-                  {originCredentials.map((credential) => (
-                    <option
-                      key={credential.credentialId}
-                      value={credential.credentialId}
-                    >
-                      {credential.credentialId} · {credential.kind}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )
-          ) : authMode === "basic" ? (
-            <div className="form-grid">
-              <label>
-                Username
-                <input
-                  autoComplete="off"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                />
-              </label>
-              <label>
-                Password · write only
-                <input
-                  type={showSecrets ? "text" : "password"}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </label>
-            </div>
-          ) : authMode === "bearer" ? (
+          ×
+        </button>
+      </div>
+      <p className="muted-copy">
+        The URL and credential reference are safe metadata. Secret material is
+        write-only and reaches only matching HTTP-enabled allocations.
+      </p>
+      <form
+        className="configuration-draft project-target-form"
+        autoComplete="off"
+        onSubmit={(event) => void submit(event)}
+      >
+        <label>
+          Application URL
+          <input
+            required
+            ref={urlInput}
+            type="url"
+            placeholder="https://app.example.test"
+            value={url}
+            onChange={(event) => setURL(event.target.value)}
+          />
+        </label>
+        <label>
+          Authorization
+          <select
+            value={authMode}
+            onChange={(event) => {
+              setAuthMode(event.target.value as TargetAuthMode);
+              clearSecrets();
+            }}
+          >
+            <option value="none">No Authorization</option>
+            <option value="existing">Existing origin credential</option>
+            <option value="basic">New Basic credential</option>
+            <option value="bearer">New Bearer credential</option>
+          </select>
+        </label>
+        {authMode === "existing" ? (
+          credentials.isPending ? (
+            <p className="loading-copy">Loading active credentials…</p>
+          ) : credentials.error !== null ? (
+            <ErrorNotice error={credentials.error} />
+          ) : (
             <label>
-              Bearer token · write only
+              Active HTTP origin credential
+              <select
+                required
+                value={credentialID}
+                onChange={(event) => setCredentialID(event.target.value)}
+              >
+                <option value="">Select credential</option>
+                {originCredentials.map((credential) => (
+                  <option
+                    key={credential.credentialId}
+                    value={credential.credentialId}
+                  >
+                    {credential.credentialId} · {credential.kind}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        ) : authMode === "basic" ? (
+          <div className="form-grid">
+            <label>
+              Username
+              <input
+                autoComplete="off"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
+            </label>
+            <label>
+              Password · write only
               <input
                 type={showSecrets ? "text" : "password"}
                 autoComplete="new-password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-          ) : null}
-          {authMode === "basic" || authMode === "bearer" ? (
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={showSecrets}
-                onChange={(event) => setShowSecrets(event.target.checked)}
-              />
-              Show secret while entering
-            </label>
-          ) : null}
-          {error === null ? null : <ErrorNotice error={error} reconcileWrite />}
-          <div className="project-form-actions">
-            <button
-              type="submit"
-              disabled={
-                pending || (authMode === "existing" && credentials.isFetching)
-              }
-            >
-              {pending ? "Saving…" : "Save target"}
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={pending}
-              onClick={onClose}
-            >
-              Cancel
-            </button>
           </div>
-        </form>
-      </section>
-    </div>
+        ) : authMode === "bearer" ? (
+          <label>
+            Bearer token · write only
+            <input
+              type={showSecrets ? "text" : "password"}
+              autoComplete="new-password"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+            />
+          </label>
+        ) : null}
+        {authMode === "basic" || authMode === "bearer" ? (
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={showSecrets}
+              onChange={(event) => setShowSecrets(event.target.checked)}
+            />
+            Show secret while entering
+          </label>
+        ) : null}
+        {error === null ? null : <ErrorNotice error={error} reconcileWrite />}
+        <div className="project-form-actions">
+          <button
+            type="submit"
+            disabled={
+              pending || (authMode === "existing" && credentials.isFetching)
+            }
+          >
+            {pending ? "Saving…" : "Save target"}
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={pending}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

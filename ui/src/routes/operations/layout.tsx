@@ -170,8 +170,8 @@ export function OperationsLayoutRoute() {
           <p className="eyebrow">Control Plane observation and configuration</p>
           <h2>Operations</h2>
           <p className="lede">
-            REST snapshots are authoritative. Live events only invalidate this
-            view; they never predict allocation or configuration state.
+            Monitor Runtime Agents, inspect allocations and manage execution
+            settings.
           </p>
         </div>
         {independentRead || personalSettings ? null : (
@@ -186,7 +186,10 @@ export function OperationsLayoutRoute() {
         )}
       </header>
 
-      <nav className="operations-navigation" aria-label="Operations sections">
+      <nav
+        className="operations-navigation section-navigation"
+        aria-label="Operations sections"
+      >
         {navigation
           .filter((item) => authorized || item.to === "/operations/settings")
           .map((item) => (

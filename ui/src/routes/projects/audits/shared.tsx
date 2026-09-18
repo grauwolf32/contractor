@@ -34,7 +34,7 @@ export function ProjectAuditNavigation({
 }) {
   return (
     <nav
-      className="audit-section-navigation"
+      className="audit-section-navigation section-navigation"
       aria-label="Project audit sections"
     >
       {(["audits", "findings"] as const).map((section) => (

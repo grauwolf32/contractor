@@ -1663,7 +1663,10 @@ export function ProjectAuditDetailRoute() {
       {audit.data === undefined ? null : (
         <AuditControls audit={audit.data} projectName={project.data?.name} />
       )}
-      <nav className="audit-section-navigation" aria-label="Audit sections">
+      <nav
+        className="audit-section-navigation section-navigation"
+        aria-label="Audit sections"
+      >
         {SECTIONS.map((candidate) => {
           const target =
             candidate.id === "overview"

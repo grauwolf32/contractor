@@ -6,6 +6,7 @@ import { Application } from "./app/application";
 import { createApplicationRouter } from "./app/router";
 import { loadRuntimeConfig } from "./config/runtime-config";
 import "./styles.css";
+import "./app/ui-primitives.css";
 
 function renderBootstrapFailure(root: HTMLElement, error: unknown): void {
   const message =

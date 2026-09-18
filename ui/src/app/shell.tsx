@@ -34,6 +34,9 @@ export function ApplicationShell() {
 
   return (
     <div className="application">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <aside className="sidebar" data-menu-open={menuOpen}>
         <div>
           <img
@@ -73,7 +76,11 @@ export function ApplicationShell() {
           <div>
             <strong>{session?.principal.username}</strong>
             <small>UI {UI_VERSION}</small>
-            <NavLink className="sidebar-utility-link" to="/operations/settings">
+            <NavLink
+              className="sidebar-utility-link"
+              to="/operations/settings"
+              onClick={() => setMenuOpen(false)}
+            >
               <Icon name="settings" />
               <span>Settings</span>
             </NavLink>
@@ -94,7 +101,7 @@ export function ApplicationShell() {
           )}
         </div>
       </aside>
-      <main className="content">
+      <main id="main-content" className="content" tabIndex={-1}>
         <Outlet />
       </main>
     </div>

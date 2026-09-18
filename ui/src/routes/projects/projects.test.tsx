@@ -1,8 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
+import * as queryClientFactory from "../../app/query-client";
+import { queryKeys } from "../../api/query-keys";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { PublicAPI } from "../../api/client";
 import { Application } from "../../app/application";
@@ -269,7 +271,12 @@ describe("Project routes", () => {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }),
       );
+      const queryClient = queryClientFactory.createApplicationQueryClient();
+      const factory = vi
+        .spyOn(queryClientFactory, "createApplicationQueryClient")
+        .mockReturnValueOnce(queryClient);
       renderProjectApplication(api, "/projects/project_example");
+      factory.mockRestore();
       const user = userEvent.setup();
       await screen.findByRole("heading", { name: "Payment service" });
       await user.click(
@@ -287,14 +294,18 @@ describe("Project routes", () => {
       expect(projectReads).toBe(1);
 
       currentProject = { ...project, name: "Updated elsewhere", revision: "2" };
-      await user.click(
-        within(
-          screen
-            .getByRole("heading", { name: "Payment service" })
-            .closest("header")!,
-        ).getByRole("button", { name: "Refresh project details" }),
-      );
-      await screen.findByRole("heading", { name: "Updated elsewhere" });
+      // Model an authoritative refresh while the modal makes the background inert.
+      await act(async () => {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.projects.detail(project.projectId),
+        });
+      });
+      expect(
+        await screen.findByRole("heading", {
+          name: "Updated elsewhere",
+          hidden: true,
+        }),
+      ).toBeInTheDocument();
       expect(projectReads).toBe(2);
       expect(screen.getByLabelText(label)).toHaveValue(draft);
       await user.click(
@@ -643,7 +654,15 @@ describe("Project routes", () => {
 
     await screen.findByRole("heading", { name: "Payment service" });
     await user.click(screen.getByRole("button", { name: "Configure target" }));
-    const dialog = screen.getByRole("dialog", { name: "Application access" });
+    let dialog = screen.getByRole("dialog", { name: "Application access" });
+    expect(within(dialog).getByLabelText("Application URL")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    const targetTrigger = screen.getByRole("button", {
+      name: "Configure target",
+    });
+    await waitFor(() => expect(targetTrigger).toHaveFocus());
+    await user.click(targetTrigger);
+    dialog = screen.getByRole("dialog", { name: "Application access" });
     await user.type(
       within(dialog).getByLabelText("Application URL"),
       "https://app.example.test/api",

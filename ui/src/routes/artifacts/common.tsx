@@ -113,8 +113,7 @@ export function ErrorNotice({
   error: unknown;
   reconcileWrite?: boolean;
 }) {
-  const message =
-    error instanceof Error ? error.message : "Artifact request failed";
+  const message = error instanceof Error ? error.message : "Request failed";
   const requestId =
     error instanceof PublicAPIError ? error.requestId : undefined;
   return (

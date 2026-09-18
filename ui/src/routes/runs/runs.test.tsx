@@ -437,7 +437,11 @@ describe("Run routes", () => {
     expect(
       screen.getByRole("alertdialog", { name: "Delete completed Run?" }),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Delete Run" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
     expect(deleteRequests).toHaveLength(0);
 
     await user.click(trigger);

@@ -38,8 +38,8 @@ export function OperationsOverviewRoute() {
         <h3>Visible mismatches</h3>
         <p>Observed and authoritative facts remain deliberately separate.</p>
       </Link>
-      <div className="panel operations-snapshot-record">
-        <h3>Snapshot identity</h3>
+      <details className="panel operations-snapshot-record">
+        <summary>Snapshot identity</summary>
         <dl className="key-value-list">
           <div>
             <dt>Generation</dt>
@@ -58,7 +58,7 @@ export function OperationsOverviewRoute() {
           A Server restart changes generation. Any missed revision causes a full
           REST resynchronization.
         </p>
-      </div>
+      </details>
     </div>
   );
 }

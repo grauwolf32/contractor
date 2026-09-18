@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
+import { ActionMenu } from "../../app/action-menu";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
@@ -87,33 +88,32 @@ function ProjectWorkspaceRoute({
               : "Sources, audits and results in one workspace."}
           </p>
         </div>
-        <details className="additional-actions project-actions-menu">
-          <summary aria-label="Project actions" title="Project actions">
-            ⋯
-          </summary>
-          <div className="additional-actions-menu">
+        <ActionMenu
+          label={
+            expectedKind === "evaluation" ? "Eval actions" : "Project actions"
+          }
+        >
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={project.isFetching}
+            onClick={() => void project.refetch()}
+          >
+            {project.isFetching ? "Refreshing…" : "Refresh project details"}
+          </button>
+          {activeProject === undefined ? null : (
             <button
-              className="secondary-button"
+              className="danger-button"
               type="button"
-              disabled={project.isFetching}
-              onClick={() => void project.refetch()}
+              onClick={() => {
+                deletion.reset();
+                setDeleteOpen(true);
+              }}
             >
-              {project.isFetching ? "Refreshing…" : "Refresh project details"}
+              {deleteLabel}
             </button>
-            {activeProject === undefined ? null : (
-              <button
-                className="danger-button"
-                type="button"
-                onClick={() => {
-                  deletion.reset();
-                  setDeleteOpen(true);
-                }}
-              >
-                {deleteLabel}
-              </button>
-            )}
-          </div>
-        </details>
+          )}
+        </ActionMenu>
       </header>
 
       {project.isPending ? (
@@ -144,7 +144,7 @@ function ProjectWorkspaceRoute({
       ) : (
         <>
           <nav
-            className="project-local-navigation"
+            className="project-local-navigation section-navigation"
             aria-label="Project sections"
           >
             {expectedKind === "project" ? (

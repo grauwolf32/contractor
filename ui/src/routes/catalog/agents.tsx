@@ -35,7 +35,7 @@ export function AgentListRoute() {
     <section className="catalog-agents">
       <header className="route-header-row catalog-discovery-header">
         <div>
-          <h3>Agents</h3>
+          <h2>Agents</h2>
           <p className="lede">
             Explore exact Agent versions, instructions, Skills, tools and
             Workflow usage.

@@ -1,0 +1,117 @@
+:root {
+  --control-height: 2.75rem;
+  --control-radius: 0.55rem;
+}
+
+.section-navigation {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  padding: 0.3rem;
+  scrollbar-width: thin;
+}
+
+.section-navigation a {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: var(--control-height);
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  color: var(--muted-strong);
+  padding: 0.5rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.section-navigation a:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.section-navigation a.active,
+.section-navigation a[aria-current="page"] {
+  border-color: #52622d;
+  background: var(--accent-dark);
+  color: var(--accent);
+}
+
+.section-navigation a:focus-visible {
+  outline-offset: -2px;
+}
+
+.audit-open-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.audit-open-link:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.metadata-grid > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalog-page {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+}
+
+.catalog-page > header h2 {
+  margin: 0;
+}
+
+.catalog-page .route-header-row {
+  margin-bottom: 1.25rem;
+}
+
+.operations-snapshot-record > summary {
+  cursor: pointer;
+  color: var(--muted-strong);
+  font-weight: 650;
+}
+
+.operations-snapshot-record[open] > summary {
+  margin-bottom: 1rem;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(calc(-100% - 1rem));
+  border: 1px solid var(--accent);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  padding: 0.6rem 1rem;
+  color: var(--accent);
+}
+
+.skip-link:focus {
+  transform: none;
+}

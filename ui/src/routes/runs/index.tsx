@@ -37,7 +37,10 @@ export function RunsRoute() {
         </div>
       </header>
 
-      <nav className="operations-navigation" aria-label="Run views">
+      <nav
+        className="operations-navigation section-navigation"
+        aria-label="Run views"
+      >
         <Link
           to="/runs"
           className={completed || configuration ? undefined : "active"}

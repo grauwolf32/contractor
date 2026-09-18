@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
+import { Dialog } from "../../app/dialog";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
@@ -38,57 +39,50 @@ function DeleteRunDialog({
   onConfirm: () => void;
 }) {
   const heading = useId();
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent): void {
-      if (event.key === "Escape" && !pending) {
-        onCancel();
-      }
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onCancel, pending]);
+  const cancel = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="project-dialog-backdrop" role="presentation">
-      <section
-        className="project-dialog run-delete-dialog panel"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={heading}
-      >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Permanent action</p>
-            <h2 id={heading}>Delete completed Run?</h2>
-          </div>
+    <Dialog
+      className="project-dialog run-delete-dialog panel"
+      role="alertdialog"
+      labelledBy={heading}
+      initialFocusRef={cancel}
+      onRequestClose={() => {
+        if (!pending) onCancel();
+      }}
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Permanent action</p>
+          <h2 id={heading}>Delete completed Run?</h2>
         </div>
-        <p>
-          This permanently removes Run <code>{runId}</code>, its execution
-          history, and all Run-owned Artifacts. Shared source Artifacts and
-          published Project outputs are retained.
-        </p>
-        {error === null ? null : <ErrorNotice error={error} />}
-        <div className="run-delete-dialog-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            autoFocus
-            disabled={pending}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="danger-button"
-            type="button"
-            disabled={pending}
-            onClick={onConfirm}
-          >
-            {pending ? "Deleting…" : "Delete Run"}
-          </button>
-        </div>
-      </section>
-    </div>
+      </div>
+      <p>
+        This permanently removes Run <code>{runId}</code>, its execution
+        history, and all Run-owned Artifacts. Shared source Artifacts and
+        published Project outputs are retained.
+      </p>
+      {error === null ? null : <ErrorNotice error={error} />}
+      <div className="run-delete-dialog-actions">
+        <button
+          className="secondary-button"
+          type="button"
+          ref={cancel}
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          className="danger-button"
+          type="button"
+          disabled={pending}
+          onClick={onConfirm}
+        >
+          {pending ? "Deleting…" : "Delete Run"}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

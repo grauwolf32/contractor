@@ -23,7 +23,10 @@ export function CatalogLayoutRoute() {
         <p className="eyebrow">Reusable execution definitions</p>
         <h2>Catalog</h2>
       </header>
-      <nav className="catalog-navigation" aria-label="Catalog navigation">
+      <nav
+        className="catalog-navigation section-navigation"
+        aria-label="Catalog navigation"
+      >
         <NavLink to="/catalog/workflows">Workflows</NavLink>
         <NavLink to="/catalog/agents">Agents</NavLink>
         <NavLink to="/catalog/skills">Skills</NavLink>
