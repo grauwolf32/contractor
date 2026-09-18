@@ -1,7 +1,8 @@
+import { ReturnLink } from "../../app/context-navigation";
 import { GitSourceDetails } from "../artifacts/git-import-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
@@ -115,6 +116,7 @@ function ProjectArtifactHistory({
   projectId: string;
   metadata: ArtifactMetadata;
 }) {
+  const location = useLocation();
   const api = usePublicAPI();
   const [versionCursors, setVersionCursors] = useState<
     Array<string | undefined>
@@ -182,6 +184,7 @@ function ProjectArtifactHistory({
               >
                 <Link
                   to={`?revision=${encodeURIComponent(item.artifact.revision)}`}
+                  state={location.state}
                 >
                   <code>{item.artifact.revision}</code>
                   <span>{formatBytes(item.size)}</span>
@@ -308,12 +311,12 @@ function ProjectArtifactDetailRouteView({
     <section className="route-page artifact-page project-artifact-page">
       <header className="route-header-row">
         <div>
-          <Link
-            className="back-link"
+          <ReturnLink
             to={`${detailRoot}/${encodeURIComponent(projectId)}#project-artifacts`}
-          >
-            ← {detailRoot === "/evals" ? "Eval" : "Project"} Artifacts
-          </Link>
+            label={
+              detailRoot === "/evals" ? "Eval Artifacts" : "Project Artifacts"
+            }
+          />
           <p className="eyebrow">ProjectScope binding</p>
           <h2>
             {namespace}/{name}

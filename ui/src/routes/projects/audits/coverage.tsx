@@ -1,89 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { ContextLink } from "../../../app/context-navigation";
+import { ASSESSMENTS, GROUPS } from "./assessments";
+import { useAuditCoverage } from "./coverage-data";
 import { useMemo } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 
-import { collectAuditPages } from "../../../api/audit-collections";
-import {
-  auditNeedsPolling,
-  listAuditCoverage,
-  type Audit,
-  type AuditCoverageRow,
-} from "../../../api/audits";
-import { usePublicAPI } from "../../../api/context";
-import { queryKeys } from "../../../api/query-keys";
+import { type Audit, type AuditCoverageRow } from "../../../api/audits";
 import { ErrorNotice } from "../../artifacts/common";
 import { AuditMarkdown } from "./shared";
-
-type Status = AuditCoverageRow["coverage"]["status"];
-type Group =
-  "all" | "issues" | "uncertain" | "not-tested" | "complete" | "out-of-scope";
-
-const ASSESSMENTS: Record<
-  Status,
-  { label: string; description: string; group: Group }
-> = {
-  violated: {
-    label: "Issue found",
-    description: "The check found evidence that the requirement is violated.",
-    group: "issues",
-  },
-  satisfied: {
-    label: "Requirement met",
-    description: "The available evidence satisfies this check.",
-    group: "complete",
-  },
-  inconclusive: {
-    label: "Inconclusive",
-    description: "There is not enough evidence to reach a conclusion.",
-    group: "uncertain",
-  },
-  blocked: {
-    label: "Blocked",
-    description:
-      "The check could not be completed. Review the limitations below.",
-    group: "uncertain",
-  },
-  "not-tested": {
-    label: "Not checked yet",
-    description: "No assessment has been recorded for this check.",
-    group: "not-tested",
-  },
-  "not-applicable": {
-    label: "Not applicable",
-    description: "Reviewed and marked as not applicable to this audit.",
-    group: "out-of-scope",
-  },
-  excluded: {
-    label: "Excluded",
-    description: "This check was excluded from the assessment.",
-    group: "out-of-scope",
-  },
-  "traced-complete": {
-    label: "Fully traced",
-    description:
-      "All requested parts of this operation were traced. This is not a security verdict.",
-    group: "complete",
-  },
-  "traced-partial": {
-    label: "Partially traced",
-    description: "Some parts of this operation could not be traced.",
-    group: "uncertain",
-  },
-  unmapped: {
-    label: "Not mapped",
-    description: "The operation could not be mapped to its implementation.",
-    group: "uncertain",
-  },
-};
-
-const GROUPS: { id: Group; label: string }[] = [
-  { id: "all", label: "All checks" },
-  { id: "issues", label: "Issues found" },
-  { id: "uncertain", label: "Need follow-up" },
-  { id: "not-tested", label: "Not checked yet" },
-  { id: "complete", label: "Met / fully traced" },
-  { id: "out-of-scope", label: "Not applicable / excluded" },
-];
 
 const EVIDENCE_LABELS: Record<string, string> = {
   artifact: "Artifact",
@@ -218,11 +141,12 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
               </pre>
             </details>
           ) : null}
-          <Link
+          <ContextLink
+            returnLabel="Coverage and results"
             to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${row.itemId}`}
           >
             View attempts & execution details →
-          </Link>
+          </ContextLink>
           <small className="muted-copy">Check ID: {row.itemKey}</small>
         </div>
       </details>
@@ -231,29 +155,12 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
 }
 
 export function AuditCoverage({ audit }: { audit: Audit }) {
-  const api = usePublicAPI();
   const [params, setParams] = useSearchParams();
   const search = params.get("q") ?? "";
   const group =
     GROUPS.find((candidate) => candidate.id === params.get("result"))?.id ??
     "all";
-  const coverage = useQuery({
-    queryKey: [
-      ...queryKeys.audits.allCoverage(audit.auditId),
-      audit.currentRoundId ?? null,
-    ],
-    queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditCoverage(api, audit.auditId, {
-          ...(cursor === undefined ? {} : { cursor }),
-          ...(audit.currentRoundId === undefined
-            ? {}
-            : { round: audit.currentRoundId }),
-        }),
-      ),
-    refetchInterval: auditNeedsPolling(audit.state) ? 5_000 : false,
-    refetchOnReconnect: true,
-  });
+  const coverage = useAuditCoverage(audit);
   const rows = useMemo(() => coverage.data ?? [], [coverage.data]);
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();

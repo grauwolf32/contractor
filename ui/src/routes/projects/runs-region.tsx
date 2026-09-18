@@ -1,3 +1,4 @@
+import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -56,9 +57,13 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
                 {group.runs.map((run) => (
                   <tr key={run.runId}>
                     <td data-label="Run">
-                      <Link to={`/runs/${encodeURIComponent(run.runId)}`}>
+                      <ContextLink
+                        returnLabel="Project Runs"
+                        returnHash="#project-runs"
+                        to={`/runs/${encodeURIComponent(run.runId)}`}
+                      >
                         {run.runId}
-                      </Link>
+                      </ContextLink>
                     </td>
                     <td data-label="Leg">
                       <code>{run.labels["eval.leg"] ?? "—"}</code>
@@ -153,9 +158,13 @@ export function ProjectRunsRegion({
               {query.data.items.map((run) => (
                 <tr key={run.runId}>
                   <td data-label="Run">
-                    <Link to={`/runs/${encodeURIComponent(run.runId)}`}>
+                    <ContextLink
+                      returnLabel="Project Runs"
+                      returnHash="#project-runs"
+                      to={`/runs/${encodeURIComponent(run.runId)}`}
+                    >
                       {run.runId}
-                    </Link>
+                    </ContextLink>
                   </td>
                   <td data-label="Workflow">
                     <code>{run.workflow}</code>

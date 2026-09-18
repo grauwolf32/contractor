@@ -867,3 +867,55 @@
   margin: 0;
   line-height: 1.5;
 }
+
+.audit-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.65rem;
+}
+.audit-progress-stat {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  padding: 0.85rem;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+.audit-progress-stat:hover {
+  border-color: var(--accent);
+}
+.audit-progress-stat strong {
+  font-size: 1.55rem;
+}
+.audit-progress-stat span {
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+.audit-setup-details > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.audit-setup-details[open] > summary {
+  margin-bottom: 1rem;
+}
+.audit-review-filter {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 18rem;
+  margin-bottom: 1rem;
+  color: var(--muted-strong);
+}
+.audit-review-filter select {
+  min-height: var(--control-height);
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface-subtle);
+  color: var(--text);
+  padding: 0.55rem;
+}
+.audit-review-card {
+  scroll-margin-top: 5rem;
+}

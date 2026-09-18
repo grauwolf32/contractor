@@ -1,3 +1,4 @@
+import { ContextLink } from "../../../app/context-navigation";
 import {
   useInfiniteQuery,
   useMutation,
@@ -549,11 +550,12 @@ export function ProjectAuditWorkspace({
                       {formatTimestamp(audit.createdAt)}
                     </p>
                     <h3>
-                      <Link
+                      <ContextLink
+                        returnLabel="Project Audits"
                         to={audit.state === "draft" ? root : `${root}/coverage`}
                       >
                         {auditProfileLabel(audit)}
-                      </Link>
+                      </ContextLink>
                     </h3>
                   </div>
                   <StateBadge state={audit.state} />
@@ -597,16 +599,22 @@ export function ProjectAuditWorkspace({
                 ) : null}
                 <div className="audit-card-footer">
                   <div className="button-row">
-                    <Link
+                    <ContextLink
+                      returnLabel="Project Audits"
                       className="audit-open-link"
                       to={audit.state === "draft" ? root : `${root}/coverage`}
                     >
                       {audit.state === "draft"
                         ? "Open draft →"
                         : "View checks & results →"}
-                    </Link>
+                    </ContextLink>
                     {audit.state === "waiting_review" ? (
-                      <Link to={`${root}/reviews`}>Review decisions</Link>
+                      <ContextLink
+                        returnLabel="Project Audits"
+                        to={`${root}/reviews`}
+                      >
+                        Review decisions
+                      </ContextLink>
                     ) : null}
                   </div>
                   <AuditControls

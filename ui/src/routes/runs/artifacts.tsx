@@ -1,6 +1,7 @@
+import { ContextLink, ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
@@ -149,10 +150,14 @@ function RunOutputPreview({
                 : "Retry preview"}
           </button>
         )}
-        <Link className="run-output-detail-link" to={detailPath}>
+        <ContextLink
+          returnLabel="Run results"
+          className="run-output-detail-link"
+          to={detailPath}
+        >
           Open {artifact.namespace}/{artifact.name}@{artifact.revision} exact
           details →
-        </Link>
+        </ContextLink>
       </div>
       {requested ? (
         <div className="run-output-preview-body">
@@ -350,11 +355,12 @@ export function RunArtifactLibrary({ runId }: { runId: string }) {
                   key={`${metadata.artifact.namespace}/${metadata.artifact.name}`}
                 >
                   <td>
-                    <Link
+                    <ContextLink
+                      returnLabel="Run results"
                       to={`/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(metadata.artifact.namespace)}/${encodeURIComponent(metadata.artifact.name)}?revision=${encodeURIComponent(metadata.artifact.revision)}`}
                     >
                       {metadata.artifact.namespace}/{metadata.artifact.name}
-                    </Link>
+                    </ContextLink>
                   </td>
                   <td>
                     <code>{metadata.artifact.revision}</code>
@@ -435,6 +441,7 @@ function RunArtifactHistory({
   runId: string;
   metadata: ArtifactMetadata;
 }) {
+  const location = useLocation();
   const api = usePublicAPI();
   const identity = metadata.artifact;
   const [versionCursors, setVersionCursors] = useState<
@@ -501,6 +508,7 @@ function RunArtifactHistory({
               >
                 <Link
                   to={`?revision=${encodeURIComponent(item.artifact.revision)}`}
+                  state={location.state}
                 >
                   <code>{item.artifact.revision}</code>
                   <span>{formatBytes(item.size)}</span>
@@ -615,9 +623,7 @@ export function RunArtifactDetailRoute() {
     <section className="route-page artifact-page runs-page">
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to={`/runs/${encodeURIComponent(runId)}`}>
-            ← Run {runId}
-          </Link>
+          <ReturnLink to={`/runs/${encodeURIComponent(runId)}`} label="Run" />
           <p className="eyebrow">Exact RunScope binding</p>
           <h2>
             {namespace}/{name}

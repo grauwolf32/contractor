@@ -1,7 +1,8 @@
+import { ReturnLink } from "../../app/context-navigation";
 import { GitSourceDetails } from "./git-import-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
@@ -101,6 +102,7 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
 }
 
 function ArtifactHistory({ metadata }: { metadata: ArtifactMetadata }) {
+  const location = useLocation();
   const api = usePublicAPI();
   const [versionCursors, setVersionCursors] = useState<
     Array<string | undefined>
@@ -168,6 +170,7 @@ function ArtifactHistory({ metadata }: { metadata: ArtifactMetadata }) {
               >
                 <Link
                   to={`?revision=${encodeURIComponent(item.artifact.revision)}`}
+                  state={location.state}
                 >
                   <code>{item.artifact.revision}</code>
                   <span>{formatBytes(item.size)}</span>
@@ -283,9 +286,7 @@ export function ArtifactDetailRoute() {
     <section className="route-page artifact-page">
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to="/artifacts">
-            ← All Artifacts
-          </Link>
+          <ReturnLink to="/artifacts" label="All Artifacts" />
           <p className="eyebrow">UserScope binding</p>
           <h2>
             {namespace}/{name}

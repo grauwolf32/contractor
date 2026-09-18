@@ -122,10 +122,28 @@ function LoadedArtifactPreview({
         aria-label="Artifact preview mode"
         className="artifact-preview-tabs"
         role="tablist"
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+            return;
+          event.preventDefault();
+          const next =
+            event.key === "Home"
+              ? "rendered"
+              : event.key === "End"
+                ? "source"
+                : tab === "rendered"
+                  ? "source"
+                  : "rendered";
+          setTab(next);
+          document
+            .getElementById(next === "rendered" ? renderedTabId : sourceTabId)
+            ?.focus();
+        }}
       >
         <button
           aria-controls={renderedPanelId}
           aria-selected={tab === "rendered"}
+          tabIndex={tab === "rendered" ? 0 : -1}
           className={tab === "rendered" ? "selected" : undefined}
           id={renderedTabId}
           role="tab"
@@ -137,6 +155,7 @@ function LoadedArtifactPreview({
         <button
           aria-controls={sourcePanelId}
           aria-selected={tab === "source"}
+          tabIndex={tab === "source" ? 0 : -1}
           className={tab === "source" ? "selected" : undefined}
           id={sourceTabId}
           role="tab"
@@ -152,6 +171,7 @@ function LoadedArtifactPreview({
         hidden={tab !== "rendered"}
         id={renderedPanelId}
         role="tabpanel"
+        tabIndex={0}
       >
         <RendererErrorBoundary>
           <Suspense
@@ -168,6 +188,7 @@ function LoadedArtifactPreview({
         hidden={tab !== "source"}
         id={sourcePanelId}
         role="tabpanel"
+        tabIndex={0}
       >
         <pre className="artifact-preview" tabIndex={0}>
           {source}

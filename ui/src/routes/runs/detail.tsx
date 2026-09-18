@@ -1,3 +1,4 @@
+import { ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -804,9 +805,7 @@ export function RunDetailRoute() {
     <section className="route-page runs-page run-detail-page">
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to="/runs">
-            ← All Runs
-          </Link>
+          <ReturnLink to="/runs" label="All Runs" />
           <p className="eyebrow">Workflow Run</p>
           <h2>{query.data?.workflow ?? "Run details"}</h2>
           <div className="run-identity">

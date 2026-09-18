@@ -1,3 +1,5 @@
+import { AuditProgress } from "./progress";
+import { ContextLink, ReturnLink } from "../../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   lazy,
@@ -7,7 +9,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router";
 
 import {
   AUDIT_ID_PATTERN,
@@ -103,13 +111,14 @@ function ExactArtifactLink({
     </>
   );
   return projectReadable ? (
-    <Link
+    <ContextLink
+      returnLabel="Audit"
       className="artifact-ref-link"
       to={exactArtifactLink(projectId, artifact)}
       title={artifact.digest}
     >
       {content}
-    </Link>
+    </ContextLink>
   ) : (
     <span className="artifact-ref-link" title={artifact.digest}>
       {content}
@@ -138,11 +147,30 @@ function AuditOverview({ audit }: { audit: Audit }) {
   const baseline = audit.baseline;
   return (
     <div className="audit-detail-stack">
-      <section className="panel audit-section-panel">
+      {audit.stopReason === undefined ? null : (
+        <section className="notice notice-error audit-stop-reason" role="alert">
+          <strong>
+            {audit.stopReason.code === "deadline_exhausted"
+              ? "Time limit reached"
+              : audit.stopReason.code}
+          </strong>
+          <p>
+            {audit.stopReason.code === "deadline_exhausted"
+              ? "Continue this audit with a longer limit or no time limit. Accepted results are retained."
+              : audit.stopReason.message}
+          </p>
+        </section>
+      )}
+      <AuditProgress audit={audit} />
+      <details
+        className="panel audit-section-panel audit-setup-details"
+        open={audit.state === "draft"}
+      >
+        <summary>Profile and scope</summary>
         <div className="section-heading">
           <div>
             <p className="eyebrow">Audit setup</p>
-            <h3>Profile and scope</h3>
+            <h3>Exact setup</h3>
           </div>
           <Link
             className="audit-open-link"
@@ -193,7 +221,7 @@ function AuditOverview({ audit }: { audit: Audit }) {
             </dd>
           </div>
         </dl>
-      </section>
+      </details>
       <section className="panel audit-section-panel">
         <p className="eyebrow">Immutable selections</p>
         <h3>Inputs</h3>
@@ -271,9 +299,8 @@ function AuditOverview({ audit }: { audit: Audit }) {
           </p>
         </section>
       ) : (
-        <section className="panel audit-section-panel">
-          <p className="eyebrow">Start-time snapshot</p>
-          <h3>Baseline</h3>
+        <details className="panel audit-section-panel audit-setup-details">
+          <summary>Baseline and exact standards</summary>
           <dl className="metadata-grid">
             <div>
               <dt>Source content</dt>
@@ -362,21 +389,7 @@ function AuditOverview({ audit }: { audit: Audit }) {
               empty="No inventory gaps."
             />
           </div>
-        </section>
-      )}
-      {audit.stopReason === undefined ? null : (
-        <section className="notice notice-error audit-stop-reason" role="alert">
-          <strong>
-            {audit.stopReason.code === "deadline_exhausted"
-              ? "Time limit reached"
-              : audit.stopReason.code}
-          </strong>
-          <p>
-            {audit.stopReason.code === "deadline_exhausted"
-              ? "Continue this audit with a longer limit or no time limit. Accepted results are retained."
-              : audit.stopReason.message}
-          </p>
-        </section>
+        </details>
       )}
     </div>
   );
@@ -506,11 +519,14 @@ function AuditChecks({
                   {attempt.runId === undefined ? (
                     <span>No child Run</span>
                   ) : (
-                    <Link to={`/runs/${encodeURIComponent(attempt.runId)}`}>
+                    <ContextLink
+                      returnLabel="Audit"
+                      to={`/runs/${encodeURIComponent(attempt.runId)}`}
+                    >
                       {attempt.runDeleted
                         ? "Deleted Run provenance"
                         : attempt.runId}
-                    </Link>
+                    </ContextLink>
                   )}
                 </li>
               ))}
@@ -912,9 +928,12 @@ function AuditFindings({ audit }: { audit: Audit }) {
       <div className="empty-state panel">
         <h3>No finding candidates</h3>
         <p>A successful Run alone does not create or confirm a finding.</p>
-        <Link to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}>
+        <ContextLink
+          returnLabel="Audit findings"
+          to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
+        >
           View all project findings →
-        </Link>
+        </ContextLink>
       </div>
     );
   }
@@ -928,9 +947,12 @@ function AuditFindings({ audit }: { audit: Audit }) {
       <AuditAnchor />
       <div className="section-heading">
         <h3>Findings in this audit</h3>
-        <Link to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}>
+        <ContextLink
+          returnLabel="Audit findings"
+          to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
+        >
           View all project findings →
-        </Link>
+        </ContextLink>
       </div>
       {findings.data.map((finding) => (
         <AuditFindingCard
@@ -974,13 +996,14 @@ export function AuditFindingCard({
       <div className="section-heading">
         <div>
           {showAudit ? (
-            <Link
+            <ContextLink
+              returnLabel="Project findings"
               className="audit-finding-origin"
               to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/findings`}
             >
               {auditProfileLabel(audit)}{" "}
               <span>· {audit.auditId.slice(-8)}</span>
-            </Link>
+            </ContextLink>
           ) : null}
           <h3>{finding.firstProposal.document.title}</h3>
         </div>
@@ -1183,6 +1206,8 @@ function ActionReviewControls({
 }
 
 function AuditReviews({ audit }: { audit: Audit }) {
+  const [filters, setFilters] = useSearchParams();
+  const pendingOnly = filters.get("state") === "pending";
   const api = usePublicAPI();
   const reviews = useQuery({
     queryKey: queryKeys.audits.allReviews(audit.auditId),
@@ -1225,8 +1250,12 @@ function AuditReviews({ audit }: { audit: Audit }) {
   if (reviews.isPending)
     return <p className="loading-copy">Loading reviews…</p>;
   if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
+  const visibleReviews = reviews.data.filter(
+    (review) => !pendingOnly || review.state === "pending",
+  );
   return (
     <section className="panel audit-section-panel">
+      <AuditAnchor />
       <div className="section-heading">
         <div>
           <p className="eyebrow">Decisions and review history</p>
@@ -1237,6 +1266,21 @@ function AuditReviews({ audit }: { audit: Audit }) {
           pending · {reviews.data.length} total
         </span>
       </div>
+      <label className="audit-review-filter">
+        Review state
+        <select
+          value={pendingOnly ? "pending" : "all"}
+          onChange={(event) => {
+            const next = new URLSearchParams(filters);
+            if (event.target.value === "pending") next.set("state", "pending");
+            else next.delete("state");
+            setFilters(next, { replace: true, preventScrollReset: true });
+          }}
+        >
+          <option value="all">All reviews</option>
+          <option value="pending">Pending decisions</option>
+        </select>
+      </label>
       {items.error === null ? null : (
         <div className="notice">
           <p>
@@ -1251,12 +1295,20 @@ function AuditReviews({ audit }: { audit: Audit }) {
           </button>
         </div>
       )}
-      {reviews.data.length === 0 ? (
-        <p className="muted-copy">No human review has been opened.</p>
+      {visibleReviews.length === 0 ? (
+        <p className="muted-copy">
+          {pendingOnly
+            ? "No pending decisions. Choose All reviews to inspect previous decisions."
+            : "No human review has been opened."}
+        </p>
       ) : (
         <ol className="audit-review-history">
-          {reviews.data.map((review) => (
-            <li className="audit-review-card" key={review.requestId}>
+          {visibleReviews.map((review) => (
+            <li
+              className="audit-review-card"
+              key={review.requestId}
+              id={`review-${review.requestId}`}
+            >
               <div className="audit-review-heading">
                 <div>
                   <p className="eyebrow">
@@ -1278,18 +1330,20 @@ function AuditReviews({ audit }: { audit: Audit }) {
                 Requested {formatTimestamp(review.createdAt)}
               </p>
               {subjects.has(review.subjectId) ? (
-                <Link
+                <ContextLink
+                  returnLabel="Audit reviews"
                   to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${encodeURIComponent(review.subjectId)}`}
                 >
                   View check →
-                </Link>
+                </ContextLink>
               ) : null}
               {review.subjectKind === "finding" ? (
-                <Link
+                <ContextLink
+                  returnLabel="Audit reviews"
                   to={`/projects/${encodeURIComponent(audit.projectId)}/findings?audit=${encodeURIComponent(audit.auditId)}#finding-${encodeURIComponent(audit.auditId)}-${encodeURIComponent(review.findingId ?? review.subjectId)}`}
                 >
                   Review finding →
-                </Link>
+                </ContextLink>
               ) : null}
               <details className="audit-record-details">
                 <summary>Review details</summary>
@@ -1399,9 +1453,12 @@ function AuditRuns({
                     {attempt.runId === undefined ? (
                       "—"
                     ) : (
-                      <Link to={`/runs/${encodeURIComponent(attempt.runId)}`}>
+                      <ContextLink
+                        returnLabel="Audit"
+                        to={`/runs/${encodeURIComponent(attempt.runId)}`}
+                      >
                         {attempt.runId}
-                      </Link>
+                      </ContextLink>
                     )}
                   </td>
                   <td data-label="Technical outcome">
@@ -1473,11 +1530,12 @@ function AuditReportView({
               <strong>This exact report is awaiting owner acceptance.</strong>
               <p>
                 Review its frozen contents, then approve or reject it in the{" "}
-                <Link
+                <ContextLink
+                  returnLabel="Audit report"
                   to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/reviews`}
                 >
                   Reviews section
-                </Link>
+                </ContextLink>
                 .
               </p>
             </div>
@@ -1578,6 +1636,7 @@ function AuditSectionContent({
 }
 
 export function ProjectAuditDetailRoute() {
+  const location = useLocation();
   const api = usePublicAPI();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1638,12 +1697,10 @@ export function ProjectAuditDetailRoute() {
     <section className="route-page audit-page audit-detail-page">
       <header className="route-header-row">
         <div>
-          <Link
-            className="back-link"
+          <ReturnLink
             to={`/projects/${encodeURIComponent(projectId)}#project-audits`}
-          >
-            ← {project.data?.name ?? "Project"} Audits
-          </Link>
+            label={`${project.data?.name ?? "Project"} Audits`}
+          />
           <p className="eyebrow">{project.data?.name ?? "Audit"}</p>
           <h2>
             {audit.data === undefined ? "Audit" : auditProfileLabel(audit.data)}
@@ -1678,6 +1735,7 @@ export function ProjectAuditDetailRoute() {
               className={section === candidate.id ? "active" : ""}
               aria-current={section === candidate.id ? "page" : undefined}
               to={target}
+              state={location.state}
             >
               {candidate.label}
             </Link>

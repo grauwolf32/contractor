@@ -369,6 +369,8 @@ describe("Project Audit routes", () => {
                 sizeBytes: summary.length,
               },
             });
+          if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+            return jsonResponse({ items: [], page: { hasMore: false } });
           throw new Error(`unexpected ${request.method} ${path}`);
         }),
       );
@@ -470,6 +472,8 @@ describe("Project Audit routes", () => {
         if (path === "/v1/audits/audit_example") {
           return jsonResponse(draft, { headers: { ETag: '"1"' } });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -694,11 +698,16 @@ describe("Project Audit routes", () => {
         if (path === "/v1/audits/audit_example") {
           return jsonResponse(current, { headers: { ETag: '"3"' } });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
     renderApplication(api, "/projects/project_example/audits/audit_example");
 
+    await userEvent
+      .setup()
+      .click(await screen.findByText("Baseline and exact standards"));
     const standards = await screen.findByTestId("audit-baseline-standards");
     expect(within(standards).getByText("OWASP Top 10:2025")).toBeVisible();
     expect(within(standards).getByText("owasp-web-top10@2025")).toBeVisible();
@@ -765,6 +774,8 @@ describe("Project Audit routes", () => {
             page: { hasMore: false },
           });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -1363,6 +1374,8 @@ describe("Project Audit routes", () => {
               replayed: false,
             });
           }
+          if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+            return jsonResponse({ items: [], page: { hasMore: false } });
           throw new Error(`unexpected ${request.method} ${path}`);
         }),
       );
@@ -1530,6 +1543,8 @@ describe("Project Audit routes", () => {
           currentAudit = auditAt("active", 4);
           return jsonResponse({ request: review, decision, replayed: false });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -1653,6 +1668,8 @@ describe("Project Audit routes", () => {
         if (path === "/v1/audits/audit_example/report") {
           return jsonResponse({ status: "pending" });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -1718,6 +1735,8 @@ describe("Project Audit routes", () => {
               { headers: { ETag: '"3"' } },
             );
           }
+          if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+            return jsonResponse({ items: [], page: { hasMore: false } });
           throw new Error(`unexpected ${request.method} ${path}`);
         }),
       );
@@ -1775,6 +1794,8 @@ describe("Project Audit routes", () => {
             headers: { ETag: `"${current.revision}"` },
           });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -1839,6 +1860,8 @@ describe("Project Audit routes", () => {
             headers: { ETag: `"${current.revision}"` },
           });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -1939,6 +1962,8 @@ describe("Project Audit routes", () => {
             headers: { ETag: `"${current.revision}"` },
           });
         }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
     );
@@ -1964,5 +1989,120 @@ describe("Project Audit routes", () => {
     await vi.waitFor(() =>
       expect(screen.getByText("cancelled", { exact: true })).toBeVisible(),
     );
+  });
+  it("links complete current-round progress to filtered checks and pending decisions", async () => {
+    const previousScroll = HTMLElement.prototype.scrollIntoView;
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    const completed = auditAt("completed", 4);
+    completed.currentRoundId = "round_example";
+    const coverageCursors: Array<string | null> = [];
+    const reviewCursors: Array<string | null> = [];
+    const review: AuditReviewRequest = {
+      requestId: "review_report",
+      auditId: completed.auditId,
+      subjectKind: "audit-report",
+      subjectId: "report_example",
+      kind: "report-acceptance",
+      subjectRevision: 1,
+      subjectDigest: `sha256:${"b".repeat(64)}`,
+      requestedActions: ["approve", "reject"],
+      state: "pending",
+      revision: 1,
+      createdAt: completed.createdAt,
+      updatedAt: completed.updatedAt,
+    };
+    const row = (
+      itemId: string,
+      status: AuditCoverageRow["coverage"]["status"],
+    ): AuditCoverageRow => ({
+      roundId: "round_example",
+      itemId,
+      ordinal: 0,
+      itemKey: itemId,
+      subjectKey: itemId,
+      coverage: { status, requested: [], completed: [], gaps: [] },
+      updatedAt: completed.updatedAt,
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url),
+          cursor = url.searchParams.get("cursor");
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/audits/audit_example")
+          return jsonResponse(completed, { headers: { ETag: '"4"' } });
+        if (url.pathname.endsWith("/coverage")) {
+          expect(url.searchParams.get("round")).toBe("round_example");
+          coverageCursors.push(cursor);
+          return jsonResponse(
+            cursor === null
+              ? {
+                  items: [row("met", "satisfied")],
+                  page: { hasMore: true, nextCursor: "coverage-next" },
+                }
+              : {
+                  items: [row("gap", "blocked"), row("waiting", "not-tested")],
+                  page: { hasMore: false },
+                },
+          );
+        }
+        if (url.pathname.endsWith("/reviews")) {
+          reviewCursors.push(cursor);
+          return jsonResponse(
+            cursor === null
+              ? {
+                  items: [],
+                  page: { hasMore: true, nextCursor: "reviews-next" },
+                }
+              : { items: [review], page: { hasMore: false } },
+          );
+        }
+        throw new Error(`unexpected ${url.pathname}`);
+      }),
+    );
+    const { router } = renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example",
+    );
+    const progress = await screen.findByRole("region", {
+      name: "Audit progress",
+    });
+    expect(
+      await within(progress).findByRole("link", { name: "All checks: 3" }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_example/audits/audit_example/coverage",
+    );
+    expect(
+      within(progress).getByRole("link", { name: "Need follow-up: 1" }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_example/audits/audit_example/coverage?result=uncertain",
+    );
+    expect(coverageCursors).toEqual([null, "coverage-next"]);
+    expect(reviewCursors).toEqual([null, "reviews-next"]);
+    const user = userEvent.setup();
+    await user.click(
+      await within(progress).findByRole("link", {
+        name: "Pending decisions: 1",
+      }),
+    );
+    expect(
+      await screen.findByRole("combobox", { name: "Review state" }),
+    ).toHaveValue("pending");
+    expect(router.state.location.search).toBe("?state=pending");
+    expect(router.state.location.hash).toBe("#review-review_report");
+    expect(document.getElementById("review-review_report")).toBeVisible();
+    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+    HTMLElement.prototype.scrollIntoView = previousScroll;
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Review state" }),
+      "all",
+    );
+    expect(router.state.location.search).toBe("");
   });
 });

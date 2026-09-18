@@ -1,6 +1,6 @@
+import { ContextLink } from "../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router";
 
 import { listArtifacts, type ArtifactWriteResponse } from "../api/artifacts";
 import { usePublicAPI } from "../api/context";
@@ -75,11 +75,12 @@ export function SkillsRoute() {
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Global Skill revision stored.</strong>
-          <Link
+          <ContextLink
+            returnLabel="Skills"
             to={`/artifacts/skills/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
           >
             Open skills/{written.artifact.name}@{written.artifact.revision}
-          </Link>
+          </ContextLink>
         </div>
       )}
 
@@ -121,11 +122,12 @@ export function SkillsRoute() {
                 {query.data.items.map((item) => (
                   <tr key={item.artifact.name}>
                     <td data-label="Skill">
-                      <Link
+                      <ContextLink
+                        returnLabel="Skills"
                         to={`/artifacts/skills/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.name}
-                      </Link>
+                      </ContextLink>
                     </td>
                     <td data-label="Current revision">
                       <code>{item.artifact.revision}</code>

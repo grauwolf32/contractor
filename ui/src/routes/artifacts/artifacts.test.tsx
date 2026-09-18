@@ -393,4 +393,47 @@ describe("Artifact routes", () => {
       screen.getByText(/Inline preview is unavailable/),
     ).toBeInTheDocument();
   });
+  it("restores the namespace and cursor after inspecting an Artifact", async () => {
+    const binding = {
+      artifact: { namespace: "sources", name: "example", revision: "r1" },
+      mediaType: "text/plain",
+      size: 4,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-01T10:00:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input),
+          url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname.endsWith("/metadata")) return jsonResponse(binding);
+        if (url.pathname === "/v1/artifacts") {
+          expect(url.searchParams.get("namespace")).toBe("sources");
+          expect(url.searchParams.get("cursor")).toBe("page-two");
+          return jsonResponse({ items: [binding], page: { hasMore: false } });
+        }
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderArtifactApplication(
+      api,
+      "/artifacts?namespace=sources&cursor=page-two",
+    );
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("link", { name: "sources/example" }),
+    );
+    await user.click(await screen.findByRole("link", { name: "← Artifacts" }));
+    expect(router.state.location.search).toBe(
+      "?namespace=sources&cursor=page-two",
+    );
+    expect(screen.getByPlaceholderText("all namespaces")).toHaveValue(
+      "sources",
+    );
+    expect(
+      await screen.findByRole("link", { name: "sources/example" }),
+    ).toBeVisible();
+  });
 });

@@ -1,3 +1,4 @@
+import { ContextLink } from "../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
@@ -13,11 +14,10 @@ import {
   type RunSummary,
   type WorkflowRunState,
 } from "../api/runs";
-import {
-  listWorkflows,
-  type WorkflowPage,
-  type WorkflowSummary,
-} from "../api/workflows";
+import type { WorkflowSummary } from "../api/workflows";
+import { useWorkflowInventory } from "./workflows/inventory";
+import { groupWorkflowVersions } from "./workflows/families";
+import { workflowDisplayName } from "./workflows/presentation";
 import { useSession } from "../auth/session";
 import { ErrorNotice, formatTimestamp } from "./artifacts/common";
 import { StateBadge } from "./runs/components";
@@ -49,34 +49,6 @@ function boundedCount(pages: Array<RunPage | undefined>): string {
   return `${count}${pages.some((page) => page?.page.hasMore === true) ? "+" : ""}`;
 }
 
-function loadedCount(page: WorkflowPage | undefined): string {
-  if (page === undefined) {
-    return "—";
-  }
-  return `${page.items.length}${page.page.hasMore ? "+" : ""}`;
-}
-
-function latestWorkflowVersions(
-  workflows: WorkflowSummary[],
-): WorkflowSummary[] {
-  const latest = new Map<string, WorkflowSummary>();
-  for (const workflow of workflows) {
-    const current = latest.get(workflow.ref.name);
-    if (
-      current === undefined ||
-      workflow.ref.version.localeCompare(current.ref.version, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }) > 0
-    ) {
-      latest.set(workflow.ref.name, workflow);
-    }
-  }
-  return [...latest.values()].sort((left, right) =>
-    left.ref.name.localeCompare(right.ref.name),
-  );
-}
-
 function sortRuns(runs: RunSummary[]): RunSummary[] {
   return [...runs].sort((left, right) => {
     const byCreated = right.createdAt.localeCompare(left.createdAt);
@@ -104,7 +76,8 @@ function RunRows({
   return (
     <div className="action-run-list">
       {runs.map((run) => (
-        <Link
+        <ContextLink
+          returnLabel="Action center"
           className="action-run-row"
           key={run.runId}
           to={`/runs/${encodeURIComponent(run.runId)}`}
@@ -118,7 +91,7 @@ function RunRows({
             <small>{runDuration(run)}</small>
           </span>
           <time dateTime={run.updatedAt}>{formatTimestamp(run.updatedAt)}</time>
-        </Link>
+        </ContextLink>
       ))}
     </div>
   );
@@ -175,7 +148,7 @@ function ActivePanel({ queries }: { queries: ActiveQuery[] }) {
           <p className="eyebrow">In progress</p>
           <h3>Active Runs</h3>
         </div>
-        <Link to="/runs?state=running">Open running Runs →</Link>
+        <Link to="/runs">Open active queue →</Link>
       </div>
       <p className="action-panel-copy">
         Runs that are starting, running, or stopping.
@@ -355,9 +328,11 @@ function workflowContractSummary(workflow: WorkflowSummary): string {
 function QuickStartPanel({
   query,
 }: {
-  query: ReturnType<typeof usePublishedWorkflows>;
+  query: ReturnType<typeof useWorkflowInventory>;
 }) {
-  const workflows = latestWorkflowVersions(query.data?.items ?? []).slice(0, 6);
+  const workflows = groupWorkflowVersions(query.data ?? [])
+    .slice(0, 6)
+    .map((family) => family.versions[0]!);
   return (
     <section className="panel action-panel quick-start-panel">
       <div className="section-heading">
@@ -365,7 +340,7 @@ function QuickStartPanel({
           <p className="eyebrow">Quick start</p>
           <h3>Start from a published Workflow</h3>
         </div>
-        <Link to="/workflows">Browse catalog →</Link>
+        <Link to="/catalog/workflows">Browse catalog →</Link>
       </div>
       {query.isPending ? (
         <p className="loading-copy">Loading Workflow catalog…</p>
@@ -383,10 +358,10 @@ function QuickStartPanel({
           {workflows.map((workflow) => (
             <Link
               key={`${workflow.ref.name}@${workflow.ref.version}`}
-              to={`/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`}
+              to={`/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`}
             >
               <span>
-                <strong>{workflow.ref.name}</strong>
+                <strong>{workflowDisplayName(workflow)}</strong>
                 <code>@{workflow.ref.version}</code>
               </span>
               <small>{workflowContractSummary(workflow)}</small>
@@ -415,14 +390,6 @@ function useActiveRun(state: ActiveRunState) {
   });
 }
 
-function usePublishedWorkflows() {
-  const api = usePublicAPI();
-  return useQuery({
-    queryKey: queryKeys.workflows.list(undefined),
-    queryFn: () => listWorkflows(api),
-  });
-}
-
 function useOperations(authorized: boolean) {
   const api = usePublicAPI();
   return useQuery({
@@ -441,7 +408,7 @@ export function HomeRoute() {
   const running = useActiveRun("running");
   const cancelling = useActiveRun("cancelling");
   const activeQueries = [initializing, running, cancelling];
-  const workflows = usePublishedWorkflows();
+  const workflows = useWorkflowInventory();
   const operations = useOperations(operationsAuthorized);
   const activePages = activeQueries.map((query) => query.data);
   const activeCount = activePages.every((page) => page !== undefined)
@@ -534,10 +501,10 @@ export function HomeRoute() {
                 : `${operations.data.runtimeAgents.length} observed agents`}
           </small>
         </Link>
-        <Link className="action-metric-card" to="/workflows">
+        <Link className="action-metric-card" to="/catalog/workflows">
           <span>Published versions</span>
-          <strong>{loadedCount(workflows.data)}</strong>
-          <small>loaded Workflow catalog</small>
+          <strong>{workflows.data?.length ?? "—"}</strong>
+          <small>complete Workflow catalog</small>
         </Link>
       </section>
 

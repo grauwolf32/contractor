@@ -1,3 +1,4 @@
+import { ContextLink } from "../../app/context-navigation";
 import {
   GitImportDialog,
   GitSourceDetails,
@@ -10,7 +11,7 @@ import {
   useImperativeHandle,
   useState,
 } from "react";
-import { Link } from "react-router";
+import { useSearchParams } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
   type ArtifactWriteResponse,
@@ -58,11 +59,32 @@ export const ProjectArtifactRegion = forwardRef<
   }
 >(function ProjectArtifactRegion({ projectId, detailRoot }, ref) {
   const api = usePublicAPI();
-  const [namespaceDraft, setNamespaceDraft] = useState("");
-  const [namespace, setNamespace] = useState<string | undefined>();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
+  const [filters, setFilters] = useSearchParams();
+  const namespace = filters.get("artifactsNamespace") || undefined;
+  const cursors: Array<string | undefined> = [
     undefined,
-  ]);
+    ...filters.getAll("artifactsCursor"),
+  ];
+  function setCursors(
+    update:
+      | Array<string | undefined>
+      | ((current: Array<string | undefined>) => Array<string | undefined>),
+  ) {
+    const next = new URLSearchParams(filters);
+    next.delete("artifactsCursor");
+    for (const cursor of typeof update === "function"
+      ? update(cursors)
+      : update)
+      if (cursor !== undefined) next.append("artifactsCursor", cursor);
+    setFilters(next, { preventScrollReset: true });
+  }
+  function setNamespaceFilter(value: string) {
+    const next = new URLSearchParams(filters);
+    next.delete("artifactsCursor");
+    if (value === "") next.delete("artifactsNamespace");
+    else next.set("artifactsNamespace", value);
+    setFilters(next, { preventScrollReset: true });
+  }
   const [shortcut, setShortcut] = useState<ShortcutDefinition | null>(null);
   const [gitOpen, setGitOpen] = useState(false);
   const [written, setWritten] = useState<
@@ -93,22 +115,21 @@ export const ProjectArtifactRegion = forwardRef<
 
   function applyFilter(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const candidate = namespaceDraft.trim();
+    const candidate = String(
+      new FormData(event.currentTarget).get("namespaceFilter") ?? "",
+    ).trim();
     if (candidate !== "" && !ARTIFACT_NAME_PATTERN.test(candidate)) {
       setFilterError("Namespace filter is not a valid Artifact name.");
       return;
     }
     setFilterError(null);
-    setNamespace(candidate === "" ? undefined : candidate);
-    setCursors([undefined]);
+    setNamespaceFilter(candidate);
   }
 
   function finishUpload(result: ArtifactWriteResponse): void {
     setWritten(result);
     setShortcut(null);
-    setNamespace(undefined);
-    setNamespaceDraft("");
-    setCursors([undefined]);
+    setNamespaceFilter("");
   }
 
   return (
@@ -150,12 +171,14 @@ export const ProjectArtifactRegion = forwardRef<
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Project Artifact revision stored.</strong>
-          <Link
+          <ContextLink
+            returnLabel="Project Artifacts"
+            returnHash="#project-artifacts"
             to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
           >
             Open {written.artifact.namespace}/{written.artifact.name}@
             {written.artifact.revision}
-          </Link>
+          </ContextLink>
           {"gitSource" in written ? (
             <GitSourceDetails source={written.gitSource} />
           ) : null}
@@ -174,8 +197,8 @@ export const ProjectArtifactRegion = forwardRef<
               <input
                 name="namespaceFilter"
                 placeholder="all namespaces"
-                value={namespaceDraft}
-                onChange={(event) => setNamespaceDraft(event.target.value)}
+                key={namespace ?? ""}
+                defaultValue={namespace ?? ""}
               />
             </label>
             <button className="secondary-button" type="submit">
@@ -215,11 +238,13 @@ export const ProjectArtifactRegion = forwardRef<
                 {query.data.items.map((item) => (
                   <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
                     <td data-label="Binding">
-                      <Link
+                      <ContextLink
+                        returnLabel="Project Artifacts"
+                        returnHash="#project-artifacts"
                         to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.namespace}/{item.artifact.name}
-                      </Link>
+                      </ContextLink>
                     </td>
                     <td data-label="Current revision">
                       <code>{item.artifact.revision}</code>

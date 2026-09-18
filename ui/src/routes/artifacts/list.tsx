@@ -1,6 +1,7 @@
+import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
@@ -21,11 +22,24 @@ const EXCLUDED_SKILL_NAMESPACE = "skills";
 
 export function ArtifactListRoute() {
   const api = usePublicAPI();
-  const [namespaceDraft, setNamespaceDraft] = useState("");
-  const [namespace, setNamespace] = useState<string | undefined>();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
+  const [filters, setFilters] = useSearchParams();
+  const namespace = filters.get("namespace") || undefined;
+  const cursors: Array<string | undefined> = [
     undefined,
-  ]);
+    ...filters.getAll("cursor"),
+  ];
+  function setCursors(
+    update:
+      | Array<string | undefined>
+      | ((current: Array<string | undefined>) => Array<string | undefined>),
+  ) {
+    const nextCursors = typeof update === "function" ? update(cursors) : update;
+    const next = new URLSearchParams(filters);
+    next.delete("cursor");
+    for (const cursor of nextCursors)
+      if (cursor !== undefined) next.append("cursor", cursor);
+    setFilters(next, { preventScrollReset: true });
+  }
   const [filterError, setFilterError] = useState<string | null>(null);
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -46,14 +60,19 @@ export function ArtifactListRoute() {
 
   function applyFilter(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const candidate = namespaceDraft.trim();
+    const candidate = String(
+      new FormData(event.currentTarget).get("namespaceFilter") ?? "",
+    ).trim();
     if (candidate !== "" && !ARTIFACT_NAME_PATTERN.test(candidate)) {
       setFilterError("Namespace filter is not a valid Artifact name.");
       return;
     }
     setFilterError(null);
-    setNamespace(candidate === "" ? undefined : candidate);
-    setCursors([undefined]);
+    const next = new URLSearchParams(filters);
+    next.delete("cursor");
+    if (candidate === "") next.delete("namespace");
+    else next.set("namespace", candidate);
+    setFilters(next, { preventScrollReset: true });
   }
 
   return (
@@ -102,12 +121,13 @@ export function ArtifactListRoute() {
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Artifact revision stored.</strong>
-          <Link
+          <ContextLink
+            returnLabel="Artifacts"
             to={`/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
           >
             Open {written.artifact.namespace}/{written.artifact.name}@
             {written.artifact.revision}
-          </Link>
+          </ContextLink>
         </div>
       )}
 
@@ -126,8 +146,8 @@ export function ArtifactListRoute() {
               <input
                 name="namespaceFilter"
                 placeholder="all namespaces"
-                value={namespaceDraft}
-                onChange={(event) => setNamespaceDraft(event.target.value)}
+                key={namespace ?? ""}
+                defaultValue={namespace ?? ""}
               />
             </label>
             <button className="secondary-button" type="submit">
@@ -167,11 +187,12 @@ export function ArtifactListRoute() {
                 {query.data.items.map((item) => (
                   <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
                     <td data-label="Binding">
-                      <Link
+                      <ContextLink
+                        returnLabel="Artifacts"
                         to={`/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.namespace}/{item.artifact.name}
-                      </Link>
+                      </ContextLink>
                     </td>
                     <td data-label="Current revision">
                       <code>{item.artifact.revision}</code>

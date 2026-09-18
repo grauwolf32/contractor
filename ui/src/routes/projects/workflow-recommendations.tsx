@@ -1,8 +1,8 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
-import { listProjectArtifacts } from "../../api/project-artifacts";
+import { useProjectArtifactInventory } from "./inventory";
 import { queryKeys } from "../../api/query-keys";
 import { getWorkflow } from "../../api/workflows";
 import { WorkflowCard } from "../workflows/card";
@@ -20,12 +20,6 @@ import {
   buildWorkflowCompatibility,
   type WorkflowCompatibility,
 } from "./recommendations";
-
-const INITIAL_CURSOR = null;
-
-function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
-  return page.page.hasMore ? page.page.nextCursor : undefined;
-}
 
 function selector(item: WorkflowCompatibility): string {
   return workflowSelector(item.workflow);
@@ -115,29 +109,16 @@ export function ProjectWorkflowRecommendations({
   projectId: string;
   focusRequest?: number;
 }) {
-  const api = usePublicAPI();
   const section = useRef<HTMLElement>(null);
   const handledFocusRequest = useRef(0);
   const [selection, setSelection] = useState<WorkflowCompatibility | null>(
     null,
   );
   const workflows = useWorkflowInventory();
-  const artifacts = useInfiniteQuery({
-    queryKey: queryKeys.projects.artifacts.picker(projectId),
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      listProjectArtifacts(api, {
-        projectId,
-        ...(pageParam === null ? {} : { cursor: pageParam }),
-      }),
-    getNextPageParam: nextCursor,
-  });
-  const artifactItems = useMemo(
-    () => artifacts.data?.pages.flatMap((page) => page.items ?? []) ?? [],
-    [artifacts.data],
-  );
+  const artifacts = useProjectArtifactInventory(projectId);
+  const artifactItems = artifacts.data;
   const compatibility = useMemo(
-    () => buildWorkflowCompatibility(workflows.data ?? [], artifactItems),
+    () => buildWorkflowCompatibility(workflows.data ?? [], artifactItems ?? []),
     [artifactItems, workflows.data],
   );
   const { families, selectVersion } = useWorkflowFamilies(workflows.data ?? []);
@@ -164,7 +145,6 @@ export function ProjectWorkflowRecommendations({
           .includes(search.toLowerCase()),
       ),
   );
-  const inventoryComplete = !artifacts.hasNextPage;
 
   useEffect(() => {
     if (
@@ -184,12 +164,6 @@ export function ProjectWorkflowRecommendations({
     region?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     target?.focus({ preventScroll: true });
   }, [artifacts.isPending, focusRequest, workflows.isPending]);
-
-  async function loadRemainingPage(): Promise<void> {
-    await Promise.all([
-      artifacts.hasNextPage ? artifacts.fetchNextPage() : Promise.resolve(),
-    ]);
-  }
 
   if (workflows.isPending || artifacts.isPending) {
     return (
@@ -216,6 +190,17 @@ export function ProjectWorkflowRecommendations({
         <p className="eyebrow">Workflow matching</p>
         <h3>Recommended Workflows</h3>
         <ErrorNotice error={workflows.error ?? artifacts.error} />
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={workflows.isFetching || artifacts.isFetching}
+          onClick={() => {
+            void workflows.refetch();
+            void artifacts.refetch();
+          }}
+        >
+          Retry matching
+        </button>
       </section>
     );
   }
@@ -266,22 +251,7 @@ export function ProjectWorkflowRecommendations({
           />
         </label>
       </div>
-      {!inventoryComplete ? (
-        <div className="notice notice-warning">
-          <strong>More Project artifacts are available.</strong>
-          <p>Load all materials before checking input matches.</p>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={artifacts.isFetchingNextPage}
-            onClick={() => void loadRemainingPage()}
-          >
-            {artifacts.isFetchingNextPage
-              ? "Loading next page…"
-              : "Load next catalog page"}
-          </button>
-        </div>
-      ) : visible.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="compact-empty">
           <strong>
             {filter === "recommended" && recommended.length === 0
@@ -289,8 +259,19 @@ export function ProjectWorkflowRecommendations({
               : "No matching Workflows."}
           </strong>
           <p>
-            Use All workflows to inspect missing inputs or explicitly run again.
+            Inspect all Workflows to review missing inputs or explicitly run
+            again.
           </p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => {
+              setFilter("all");
+              setSearch("");
+            }}
+          >
+            Show all workflows
+          </button>
         </div>
       ) : (
         <div className="workflow-family-grid">

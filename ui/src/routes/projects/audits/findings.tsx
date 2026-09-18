@@ -1,3 +1,4 @@
+import { ReturnLink } from "../../../app/context-navigation";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
 
@@ -141,12 +142,10 @@ export function ProjectFindingsRoute() {
     <section className="route-page audit-page project-findings-page">
       <header className="route-header-row">
         <div>
-          <Link
-            className="back-link"
+          <ReturnLink
             to={`/projects/${encodeURIComponent(projectId)}`}
-          >
-            ← {project.data?.name ?? "Project"}
-          </Link>
+            label={project.data?.name ?? "Project"}
+          />
           <p className="eyebrow">Project findings</p>
           <h2>Findings</h2>
           <p className="lede">

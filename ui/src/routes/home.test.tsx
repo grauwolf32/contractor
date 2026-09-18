@@ -104,14 +104,17 @@ describe("Action center", () => {
           });
         }
         if (url.pathname === "/v1/workflows") {
-          return apiResponse({
-            items: [
-              workflow("review", "1"),
-              workflow("generate", "1"),
-              workflow("review", "2"),
-            ],
-            page: { hasMore: false },
-          });
+          return apiResponse(
+            url.searchParams.get("cursor") === "next-workflows"
+              ? {
+                  items: [workflow("review", "10")],
+                  page: { hasMore: false },
+                }
+              : {
+                  items: [workflow("review", "9"), workflow("generate", "1")],
+                  page: { hasMore: true, nextCursor: "next-workflows" },
+                },
+          );
         }
         if (url.pathname === "/v1/operations/snapshot") {
           return apiResponse({
@@ -178,16 +181,24 @@ describe("Action center", () => {
     expect(
       within(health as HTMLElement).getByText("Attention"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open active queue →" }),
+    ).toHaveAttribute("href", "/runs");
+    expect(
+      requests.some(
+        (url) => url.searchParams.get("cursor") === "next-workflows",
+      ),
+    ).toBe(true);
     const quickStart = view.container.querySelector(".quick-start-panel");
     expect(quickStart).not.toBeNull();
     expect(
       within(quickStart as HTMLElement).getByRole("link", {
-        name: /review.*@2/i,
+        name: /review.*@10/i,
       }),
-    ).toHaveAttribute("href", "/workflows/review/2");
+    ).toHaveAttribute("href", "/catalog/workflows/review/10");
     expect(
       within(quickStart as HTMLElement).queryByRole("link", {
-        name: /review.*@1/i,
+        name: /review.*@9/i,
       }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(

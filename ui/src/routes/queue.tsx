@@ -1,3 +1,4 @@
+import { ContextLink } from "../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -300,14 +301,15 @@ export function QueuePanel() {
               {query.data.items.map((item) => (
                 <tr key={item.runId}>
                   <td className="run-list-id-cell" data-label="Run">
-                    <Link
+                    <ContextLink
+                      returnLabel="Active queue"
                       className="run-list-id-link"
                       to={`/runs/${encodeURIComponent(item.runId)}`}
                       aria-label={item.runId}
                       title={item.runId}
                     >
                       {compactRunId(item.runId)}
-                    </Link>
+                    </ContextLink>
                   </td>
                   <td className="run-list-workflow-cell" data-label="Workflow">
                     <span className="run-list-mobile-label">Workflow</span>

@@ -1,6 +1,7 @@
+import { ContextLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 
 import { Dialog } from "../../app/dialog";
 import { usePublicAPI } from "../../api/context";
@@ -478,14 +479,15 @@ export function CompletedRunsPanel() {
               {query.data.items.map((run) => (
                 <tr key={run.runId}>
                   <td className="run-list-id-cell" data-label="Run">
-                    <Link
+                    <ContextLink
+                      returnLabel="Completed Runs"
                       className="run-list-id-link"
                       to={`/runs/${encodeURIComponent(run.runId)}`}
                       aria-label={run.runId}
                       title={run.runId}
                     >
                       {compactRunId(run.runId)}
-                    </Link>
+                    </ContextLink>
                   </td>
                   <td className="run-list-workflow-cell" data-label="Workflow">
                     <span className="run-list-mobile-label">Workflow</span>

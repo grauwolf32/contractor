@@ -1214,3 +1214,32 @@ The compact Project actions menu contains metadata refresh and the existing
 confirmed deletion action. The duplicate Audits/Run analysis header shortcuts
 are removed. Cards are content-sized and do not stretch merely to match a larger
 neighboring contract.
+
+### UI consistency and contextual navigation
+
+Section navigation shares control sizing and active/focus states across Catalog,
+Runs, Operations, Projects and Audits. Local Project/Audit navigation remains
+sticky. Project overflow actions support Escape and outside dismissal. Run
+removal, Project HTTP target configuration and Skill upload use the shared modal
+focus containment, inert background and return-focus behavior. A keyboard skip
+link targets the main content.
+
+Home Quick start uses the complete Workflow inventory and the same numeric
+version policy as Project/Catalog cards. Project Workflow matching loads every
+Artifact page before considering a unique MIME match; incomplete or cyclic
+pagination displays an error with explicit retry and supplies no partial match.
+
+Run and Artifact drill-down links retain the originating URL and nested return
+context. Library and Project Artifact namespace/cursor filters are URL-backed;
+Artifact revision selection retains the origin. Direct detail links continue to
+have a deterministic parent destination. Preview tabs support arrows, Home/End
+and a single tab stop for the selected tab.
+
+Audit Overview begins with current-round progress and pending decisions, based
+on complete coverage/review collections. Counts link to the same result groups
+used by Coverage, or the URL-backed pending review filter. A sole pending review
+is anchored directly. Unavailable counts remain unknown; refresh errors identify
+retained snapshot counts. Execution state, coverage assessments and human
+acceptance remain separate. Profile/scope remain expanded for drafts; immutable
+baseline details are available through disclosure. No Evals experiment API or
+comparison metrics are added by these UI changes.

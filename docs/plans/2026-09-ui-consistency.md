@@ -79,3 +79,9 @@ Typecheck, ESLint, production build and whitespace checks passed. The repeated
 JavaScript errors, unexpected error alerts or unnamed buttons. Scheduler settings
 review preserves the API's Cache-Control header; authentication remains a fixture,
 so this review is not an end-to-end login or mutation acceptance test.
+
+### Stage 3 — separate branch
+
+Usability review, route/story matrix, implementation choices and validation are
+recorded in [the all-view User Story review](2026-09-ui-user-story-review.md).
+Branch: `feat/ui-user-story-usability`. Full final UI suite: 57 files / 348 tests.
