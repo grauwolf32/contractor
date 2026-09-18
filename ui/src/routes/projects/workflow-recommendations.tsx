@@ -4,13 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { getWorkflow, listWorkflows } from "../../api/workflows";
+import { getWorkflow } from "../../api/workflows";
+import { WorkflowCard } from "../workflows/card";
+import { useWorkflowFamilies } from "../workflows/families";
+import { useWorkflowInventory } from "../workflows/inventory";
 import { Dialog } from "../../app/dialog";
 import { artifactOptionKey } from "../../run-drafts/validation";
 import { ErrorNotice } from "../artifacts/common";
 import { WorkflowRunForm } from "../workflows/run-form";
 import {
-  workflowDescription,
   workflowDisplayName,
   workflowSelector,
 } from "../workflows/presentation";
@@ -27,92 +29,6 @@ function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
 
 function selector(item: WorkflowCompatibility): string {
   return workflowSelector(item.workflow);
-}
-
-function WorkflowCompatibilityCard({
-  item,
-  allWorkflows,
-  onRun,
-}: {
-  item: WorkflowCompatibility;
-  allWorkflows: boolean;
-  onRun: (item: WorkflowCompatibility) => void;
-}) {
-  const inputEntries = Object.entries(item.workflow.inputs ?? {}).sort(
-    ([left], [right]) => left.localeCompare(right),
-  );
-  return (
-    <article
-      className={`project-workflow-card ${item.compatible ? "is-compatible" : "is-blocked"}`}
-    >
-      <div>
-        <p className="eyebrow">
-          {item.suppressed
-            ? "Primary result exists"
-            : item.compatible
-              ? "Format-compatible"
-              : "Missing inputs"}
-        </p>
-        <h4>{workflowDisplayName(item.workflow)}</h4>
-        <code>{selector(item)}</code>
-      </div>
-      <p className="muted-copy">{workflowDescription(item.workflow)}</p>
-      {inputEntries.length === 0 ? (
-        <p className="project-workflow-fact">No Artifact inputs required.</p>
-      ) : (
-        <dl className="project-workflow-inputs">
-          {inputEntries.map(([name, slot]) => {
-            const count = item.candidates[name]?.length ?? 0;
-            return (
-              <div key={name}>
-                <dt>
-                  <code>{name}</code>
-                  {slot.required ? <strong>required</strong> : null}
-                </dt>
-                <dd>
-                  {count === 0
-                    ? "no match"
-                    : count === 1
-                      ? "1 exact candidate"
-                      : `${count} candidates · choose in form`}
-                </dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
-      <div className="project-workflow-output-copy">
-        <span>Primary outputs</span>
-        {item.primaryOutputs.length === 0 ? (
-          <small>none declared</small>
-        ) : (
-          <code>{item.primaryOutputs.join(", ")}</code>
-        )}
-      </div>
-      {!item.compatible ? (
-        <p className="project-workflow-missing">
-          Add compatible {item.missingRequiredInputs.join(", ")} Artifact
-          {item.missingRequiredInputs.length === 1 ? "" : "s"} to enable this
-          Workflow.
-        </p>
-      ) : null}
-      <button
-        className={allWorkflows ? "secondary-button" : undefined}
-        type="button"
-        disabled={!item.compatible && !allWorkflows}
-        aria-label={
-          item.suppressed
-            ? `Run again ${selector(item)}`
-            : allWorkflows
-              ? `Configure ${selector(item)} from all workflows`
-              : `Run ${selector(item)}`
-        }
-        onClick={() => onRun(item)}
-      >
-        {item.suppressed ? "Run again" : "Configure Run"}
-      </button>
-    </article>
-  );
 }
 
 function ProjectWorkflowLauncher({
@@ -205,13 +121,7 @@ export function ProjectWorkflowRecommendations({
   const [selection, setSelection] = useState<WorkflowCompatibility | null>(
     null,
   );
-  const workflows = useInfiniteQuery({
-    queryKey: queryKeys.workflows.picker,
-    initialPageParam: INITIAL_CURSOR as string | null,
-    queryFn: ({ pageParam }) =>
-      listWorkflows(api, pageParam === null ? {} : { cursor: pageParam }),
-    getNextPageParam: nextCursor,
-  });
+  const workflows = useWorkflowInventory();
   const artifacts = useInfiniteQuery({
     queryKey: queryKeys.projects.artifacts.picker(projectId),
     initialPageParam: INITIAL_CURSOR as string | null,
@@ -222,22 +132,39 @@ export function ProjectWorkflowRecommendations({
       }),
     getNextPageParam: nextCursor,
   });
-  const workflowItems = useMemo(
-    () => workflows.data?.pages.flatMap((page) => page.items ?? []) ?? [],
-    [workflows.data],
-  );
   const artifactItems = useMemo(
     () => artifacts.data?.pages.flatMap((page) => page.items ?? []) ?? [],
     [artifacts.data],
   );
   const compatibility = useMemo(
-    () => buildWorkflowCompatibility(workflowItems, artifactItems),
-    [artifactItems, workflowItems],
+    () => buildWorkflowCompatibility(workflows.data ?? [], artifactItems),
+    [artifactItems, workflows.data],
   );
-  const recommended = compatibility.filter(
-    (item) => item.compatible && !item.suppressed,
+  const { families, selectVersion } = useWorkflowFamilies(workflows.data ?? []);
+  const [filter, setFilter] = useState("recommended");
+  const [search, setSearch] = useState("");
+  const selectedItems = families.map((family) => ({
+    ...family,
+    matching: compatibility.find(
+      (item) => selector(item) === workflowSelector(family.workflow),
+    )!,
+  }));
+  const recommended = selectedItems.filter(
+    ({ matching }) => matching.compatible && !matching.suppressed,
   );
-  const inventoryComplete = !workflows.hasNextPage && !artifacts.hasNextPage;
+  const visible = selectedItems.filter(
+    ({ versions, matching }) =>
+      (filter === "all" ||
+        (filter === "recommended"
+          ? matching.compatible && !matching.suppressed
+          : !matching.compatible)) &&
+      versions.some((w) =>
+        `${workflowDisplayName(w)} ${w.ref.name} ${w.presentation?.description ?? ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      ),
+  );
+  const inventoryComplete = !artifacts.hasNextPage;
 
   useEffect(() => {
     if (
@@ -260,7 +187,6 @@ export function ProjectWorkflowRecommendations({
 
   async function loadRemainingPage(): Promise<void> {
     await Promise.all([
-      workflows.hasNextPage ? workflows.fetchNextPage() : Promise.resolve(),
       artifacts.hasNextPage ? artifacts.fetchNextPage() : Promise.resolve(),
     ]);
   }
@@ -303,82 +229,87 @@ export function ProjectWorkflowRecommendations({
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Advisory matching</p>
-          <h3>Recommended Workflows</h3>
+          <h3>Workflows</h3>
+          <p className="muted-copy">
+            Choose a Workflow and review its exact inputs before launching.
+          </p>
         </div>
-        <span className="project-workflow-count">
-          {recommended.length} compatible
+        <span className="muted-copy">
+          {families.length} workflows · {workflows.data?.length ?? 0} versions
         </span>
       </div>
-      <p className="muted-copy">
-        Compatibility uses current media types only. Go Server validates every
-        exact selection again when the Project Run is created.
-      </p>
-
+      <div className="workflow-discovery-toolbar">
+        <div className="workflow-filter-tabs" aria-label="Workflow filters">
+          {[
+            ["recommended", "Recommended"],
+            ["all", "All workflows"],
+            ["missing", "Missing inputs"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className="secondary-button"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value!)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="catalog-search">
+          Find workflow
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Name or description"
+          />
+        </label>
+      </div>
       {!inventoryComplete ? (
         <div className="notice notice-warning">
-          <strong>More catalog data is available.</strong>
-          <p>
-            Finish loading before recommendations are shown, so a later Artifact
-            page cannot change compatibility or output suppression.
-          </p>
+          <strong>More Project artifacts are available.</strong>
+          <p>Load all materials before checking input matches.</p>
           <button
             className="secondary-button"
             type="button"
-            disabled={
-              workflows.isFetchingNextPage || artifacts.isFetchingNextPage
-            }
+            disabled={artifacts.isFetchingNextPage}
             onClick={() => void loadRemainingPage()}
           >
-            {workflows.isFetchingNextPage || artifacts.isFetchingNextPage
+            {artifacts.isFetchingNextPage
               ? "Loading next page…"
               : "Load next catalog page"}
           </button>
         </div>
-      ) : recommended.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="compact-empty">
-          <strong>No new Workflow result is recommended.</strong>
+          <strong>
+            {filter === "recommended" && recommended.length === 0
+              ? "No new Workflow result is recommended."
+              : "No matching Workflows."}
+          </strong>
           <p>
-            Required inputs may be missing, or every primary output may already
-            exist. All workflows below keeps explicit recomputation available.
+            Use All workflows to inspect missing inputs or explicitly run again.
           </p>
         </div>
       ) : (
-        <div className="project-workflow-grid">
-          {recommended.map((item) => (
-            <WorkflowCompatibilityCard
-              key={`recommended:${selector(item)}`}
-              item={item}
-              allWorkflows={false}
-              onRun={setSelection}
+        <div className="workflow-family-grid">
+          {visible.map(({ name, versions, workflow, matching }) => (
+            <WorkflowCard
+              key={name}
+              workflow={workflow}
+              versions={versions}
+              onVersion={(version) => selectVersion(name, version)}
+              matching={matching}
+              onConfigure={() => setSelection(matching)}
             />
           ))}
         </div>
       )}
-
-      <details className="project-all-workflows">
-        <summary>
-          <span>
-            <strong>All workflows</strong>
-            <small>Inspect missing inputs or explicitly run again</small>
-          </span>
-          <span>{compatibility.length} loaded</span>
-        </summary>
-        {compatibility.length === 0 ? (
-          <div className="compact-empty">No published Workflows found.</div>
-        ) : (
-          <div className="project-workflow-grid is-all">
-            {compatibility.map((item) => (
-              <WorkflowCompatibilityCard
-                key={`all:${selector(item)}`}
-                item={item}
-                allWorkflows
-                onRun={setSelection}
-              />
-            ))}
-          </div>
-        )}
-      </details>
+      <p className="muted-copy workflow-card-parameters">
+        Input matches compare media types. Review content and parameters in the
+        Run form.
+      </p>
 
       {selection === null ? null : (
         <ProjectWorkflowLauncher

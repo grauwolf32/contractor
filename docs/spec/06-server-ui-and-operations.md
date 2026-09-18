@@ -1186,3 +1186,31 @@ Artifact use so later RBAC does not require changing domain semantics.
   ModelPolicy, LLMGatewayConfig and credentials;
 - artifact preview size limits and whether OpenAPI/LikeC4 receive specialized
   renderers in the first UI increment.
+
+
+## Shared Workflow discovery cards
+
+Project and Catalog use the same Workflow identity, version selector and card
+structure. Each logical name appears once. The Catalog reads all bounded pages
+before offering a default so a later page cannot hide a newer version. Numeric
+versions (including dot-separated integer components) sort by components without
+floating-point conversion; the highest is initially selected and marked Latest.
+Other published labels use deterministic natural ordering without a Latest claim.
+An explicit older selection survives background refresh. Changing a version
+changes its displayed inputs, outputs, matching and exact-version actions together.
+An already open Run setup remains pinned to its selected version.
+
+Catalog cards display input/output contracts, primary-output flags, formats and
+parameter counts. Project cards display only the selected version's artifact
+matches, ambiguous choices, missing requirements and primary outputs. Matching
+media types is not proof of semantic suitability or Runtime capacity. Existing
+outputs suppress recommendations but remain available through All workflows;
+the UI never silently selects an older compatible version. Missing authored
+presentation is not replaced with an invented purpose or a placeholder paragraph.
+
+Project navigation leads to Audits, Overview, Artifacts, Workflows and Runs.
+Add sources is a contextual Artifacts action; Workflow cards open exact Run setup.
+The compact Project actions menu contains metadata refresh and the existing
+confirmed deletion action. The duplicate Audits/Run analysis header shortcuts
+are removed. Cards are content-sized and do not stretch merely to match a larger
+neighboring contract.

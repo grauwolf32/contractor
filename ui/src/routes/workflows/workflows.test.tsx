@@ -475,7 +475,7 @@ describe("Workflow routes", () => {
     ).not.toContain("/v1/operations/runtime-labels");
   });
 
-  it("paginates exact published Workflow versions", async () => {
+  it("loads all published Workflow pages before presenting grouped cards", async () => {
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {
@@ -512,15 +512,15 @@ describe("Workflow routes", () => {
       }),
     ).toHaveAttribute("href", workflowRoute);
     expect(screen.getByText(workflowDescription)).toBeVisible();
-    expect(screen.getByText(workflowSelector)).toBeVisible();
+    expect(screen.getByText(workflowSelector)).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Next" }));
     expect(
       await screen.findByRole("link", { name: nextWorkflow.ref.name }),
     ).toBeInTheDocument();
-    expect(screen.getByText("No authored description.")).toBeVisible();
-    expect(router.state.location.search).toContain("cursor=next-workflow");
-    expect(router.state.location.search).toContain("page=2");
+    expect(screen.queryByText("No authored description.")).toBeNull();
+    expect(
+      screen.getByText("2 workflows · 2 published versions"),
+    ).toBeVisible();
 
     await user.type(screen.getByLabelText("Search workflows"), "likec4");
     await waitFor(() =>

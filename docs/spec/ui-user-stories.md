@@ -35,8 +35,8 @@ remain stable as the interface changes and are used in tasks and acceptance chec
 As an analyst, I want to collect source code, the target and results in one Project
 so that I can continue and repeat work on the same subject.
 
-Done when the Project header provides actions to add materials and choose an
-analysis; after an upload or Git import, the storage scope, exact revision and
+Done when Project sections provide actions to add materials and choose an
+analysis, with clear section navigation; after an upload or Git import, the storage scope, exact revision and
 next step are clear. Deletion is available through secondary actions with the
 existing confirmation.
 
@@ -55,8 +55,12 @@ I can choose an analysis without first learning about Stages and internal names.
 Done when the catalog shows descriptions, required materials and outputs, search
 covers all published entries, and the exact selected version is visible before
 launch. Execution details are available separately. A missing description is not
-replaced by a guess based on the name; a version is not declared "latest" based
-on an assumed numeric or SemVer ordering.
+replaced by a guess based on the name; the default version follows the explicit shared UI ordering described below.
+Numeric dot-separated versions sort by integer components and default to the
+highest version after the complete inventory loads. Non-numeric labels remain
+selectable in deterministic natural order without a Latest claim. A deliberate
+older selection and an open Run draft never change silently on refresh. This
+policy supersedes the earlier version-order prohibition at the user’s request.
 
 Implementation tasks: V37-003, V37-006, V37-007.
 

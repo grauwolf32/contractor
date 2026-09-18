@@ -117,14 +117,25 @@ export const ProjectArtifactRegion = forwardRef<
       title="Artifacts"
       id="project-artifacts"
       action={
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="button-row">
+          <button
+            type="button"
+            onClick={() => {
+              setGitOpen(false);
+              setShortcut(SOURCE_SHORTCUT);
+            }}
+          >
+            Add sources
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            {query.isFetching ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       }
     >
       <p className="muted-copy">

@@ -160,3 +160,34 @@
     white-space: normal;
   }
 }
+
+.project-actions-menu {
+  flex: none;
+}
+.project-actions-menu > summary {
+  display: grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  font-size: 1.5rem;
+  background: transparent;
+}
+.project-actions-menu > summary::after {
+  display: none;
+}
+.project-detail-page > .route-header-row > div:first-child {
+  flex: 1;
+}
+.project-actions-menu .additional-actions-menu {
+  text-align: left;
+}
+@media (max-width: 760px) {
+  .project-detail-page > .route-header-row {
+    flex-direction: row;
+  }
+  .project-actions-menu .additional-actions-menu {
+    position: absolute;
+    width: min(19rem, calc(100vw - 2rem));
+  }
+}

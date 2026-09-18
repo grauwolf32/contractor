@@ -292,7 +292,7 @@ describe("Project routes", () => {
           screen
             .getByRole("heading", { name: "Payment service" })
             .closest("header")!,
-        ).getByRole("button", { name: "Refresh" }),
+        ).getByRole("button", { name: "Refresh project details" }),
       );
       await screen.findByRole("heading", { name: "Updated elsewhere" });
       expect(projectReads).toBe(2);
@@ -384,7 +384,7 @@ describe("Project routes", () => {
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
-    await user.click(screen.getByText("Additional actions", { exact: true }));
+    await user.click(screen.getByLabelText("Project actions"));
     await user.click(screen.getByRole("button", { name: "Delete Project" }));
     const dialog = screen.getByRole("alertdialog", {
       name: "Delete Payment service?",
@@ -423,7 +423,9 @@ describe("Project routes", () => {
     await expect(deleteRequests[0]?.text()).resolves.toBe("");
 
     complete = true;
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await user.click(
+      screen.getByRole("button", { name: "Refresh project details" }),
+    );
     await vi.waitFor(() =>
       expect(router.state.location.pathname).toBe("/projects"),
     );
@@ -938,21 +940,21 @@ describe("Project routes", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "Run openapi-from-source@1",
+        name: "Configure openapi-from-source@1",
       }),
     ).toBeEnabled();
     expect(
       screen.getAllByRole("heading", { name: "OpenAPI contract" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(
       screen.getAllByText("Build an API contract from the project sources."),
-    ).toHaveLength(2);
-    expect(screen.getAllByText("No authored description.")).toHaveLength(2);
+    ).toHaveLength(1);
+    expect(screen.queryByText("No authored description.")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Run likec4-from-source@1" }),
+      screen.getByRole("button", { name: "Configure likec4-from-source@1" }),
     ).toBeEnabled();
     await user.click(
-      screen.getByRole("button", { name: "Run openapi-from-source@1" }),
+      screen.getByRole("button", { name: "Configure openapi-from-source@1" }),
     );
     const dialog = await screen.findByRole("dialog", {
       name: "OpenAPI contract",
@@ -1068,7 +1070,7 @@ describe("Project routes", () => {
       await screen.findByText("No new Workflow result is recommended."),
     ).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Run openapi-from-source@1" }),
+      screen.queryByRole("button", { name: "Configure openapi-from-source@1" }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByText("All workflows"));
     expect(

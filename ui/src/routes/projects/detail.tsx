@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
@@ -9,10 +8,7 @@ import { ErrorNotice } from "../artifacts/common";
 import { ProjectRegion } from "./common";
 import { ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";
-import {
-  ProjectArtifactRegion,
-  type ProjectArtifactRegionHandle,
-} from "./artifact-region";
+import { ProjectArtifactRegion } from "./artifact-region";
 import { ProjectRunsRegion } from "./runs-region";
 import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { useProjectDeletion } from "./use-project-deletion";
@@ -30,8 +26,6 @@ function ProjectWorkspaceRoute({
 }) {
   const api = usePublicAPI();
   const { projectId = "" } = useParams();
-  const artifactRegion = useRef<ProjectArtifactRegionHandle>(null);
-  const [analysisFocusRequest, setAnalysisFocusRequest] = useState(0);
   const validProject = PROJECT_ID_PATTERN.test(projectId);
   const destination = expectedKind === "evaluation" ? "/evals" : "/projects";
   const project = useQuery({
@@ -90,63 +84,36 @@ function ProjectWorkspaceRoute({
           <p className="lede">
             {expectedKind === "evaluation"
               ? "Each sample remains an ordinary isolated Workflow Run; eval labels group it without changing execution semantics."
-              : "Reusable inputs and published results stay Project-scoped; every Run still receives its own exact immutable copy."}
+              : "Sources, audits and results in one workspace."}
           </p>
         </div>
-        <div className="project-header-actions primary-action-cluster">
-          {activeProject === undefined ? null : (
-            <>
-              {expectedKind === "project" ? (
-                <a className="audit-open-link" href="#project-audits">
-                  Audits
-                </a>
-              ) : null}
+        <details className="additional-actions project-actions-menu">
+          <summary aria-label="Project actions" title="Project actions">
+            ⋯
+          </summary>
+          <div className="additional-actions-menu">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={project.isFetching}
+              onClick={() => void project.refetch()}
+            >
+              {project.isFetching ? "Refreshing…" : "Refresh project details"}
+            </button>
+            {activeProject === undefined ? null : (
               <button
-                className="secondary-button"
+                className="danger-button"
                 type="button"
-                onClick={() => artifactRegion.current?.openSources()}
+                onClick={() => {
+                  deletion.reset();
+                  setDeleteOpen(true);
+                }}
               >
-                Add sources
+                {deleteLabel}
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setAnalysisFocusRequest((request) => request + 1)
-                }
-              >
-                Run analysis
-              </button>
-            </>
-          )}
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={project.isFetching}
-            onClick={() => void project.refetch()}
-          >
-            {project.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
-          {activeProject === undefined ? null : (
-            <details className="additional-actions">
-              <summary>Additional actions</summary>
-              <div className="additional-actions-menu">
-                <button
-                  className="danger-button"
-                  type="button"
-                  onClick={() => {
-                    deletion.reset();
-                    setDeleteOpen(true);
-                  }}
-                >
-                  {deleteLabel}
-                </button>
-                <small>
-                  Permanently delete this workspace after its Runs drain.
-                </small>
-              </div>
-            </details>
-          )}
-        </div>
+            )}
+          </div>
+        </details>
       </header>
 
       {project.isPending ? (
@@ -180,10 +147,10 @@ function ProjectWorkspaceRoute({
             className="project-local-navigation"
             aria-label="Project sections"
           >
-            <a href="#project-overview">Overview</a>
             {expectedKind === "project" ? (
               <a href="#project-audits">Audits</a>
             ) : null}
+            <a href="#project-overview">Overview</a>
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-workflows">Workflows</a>
             {expectedKind === "project" ? (
@@ -237,14 +204,10 @@ function ProjectWorkspaceRoute({
             />
           </ProjectRegion>
           <ProjectArtifactRegion
-            ref={artifactRegion}
             projectId={project.data.projectId}
             detailRoot={expectedKind === "evaluation" ? "/evals" : "/projects"}
           />
-          <ProjectWorkflowRecommendations
-            projectId={project.data.projectId}
-            focusRequest={analysisFocusRequest}
-          />
+          <ProjectWorkflowRecommendations projectId={project.data.projectId} />
           <ProjectRunsRegion
             projectId={project.data.projectId}
             evaluation={expectedKind === "evaluation"}
