@@ -233,7 +233,7 @@ keys before decoding and otherwise preserves scalar bytes under RFC 8785. Thus
 omitting a default and spelling it explicitly produce the same digest, while a
 semantic endpoint, credential, target or trust change produces a new digest.
 
-The first typed leaves are:
+The typed leaves are:
 
 - `worker.llmGateway`: a non-empty typed patch containing an exact existing
   `LLMGatewayConfig` ref, a matching LLM credential ref, or both; after all
@@ -244,6 +244,9 @@ The first typed leaves are:
 - `worker.httpProxy`: one exact Runtime adapter, proxy endpoint, optional typed
   credential, optional bounded CA bundle and an explicit non-empty target set,
   or explicit null in an overlay;
+- `worker.caido`: the atomic `caido-graphql@1` endpoint, optional typed
+  credential, CA bundle and request timeout defined by
+  [11](11-http-and-caido-tools.md), or explicit null in an overlay;
 - `planner.telemetry`: the Server-side exporter configuration used by a
   Planner invocation for that Run, or explicit null in an overlay.
 
@@ -362,21 +365,24 @@ produce duplicates. They do not measure confirmed collector loss or spans lost
 in a process crash. No endpoint, response body, credential or captured content
 is included in these counters.
 
-`http-proxy@1` configures ordinary HTTP proxying. A model-visible Caido API tool
-would be a separately selected Toolset plus a future typed `caido-api@1`
-adapter. Merely applying a `caido` label never adds that tool to an
-AgentTemplate.
+`http-proxy@1` configures ordinary HTTP proxying. Model-visible Caido API tools
+belong to the separately selected `caido@1` Toolset and use the
+`caido-graphql@1` adapter configured by `worker.caido` under
+[11](11-http-and-caido-tools.md). Merely applying a `caido` label never adds
+tools to an AgentTemplate.
 
 ## Credentials
 
 RuntimeConfig stores only exact credential references. Secret material lives
 in the existing encrypted PostgreSQL credential boundary, generalized for
-versioned adapter-owned credential schemas. Initial runtime credential kinds
-are:
+versioned adapter-owned credential schemas. Infrastructure credential kinds
+include:
 
 - `otlp-headers@1`: a bounded secret HTTP header mapping for `otlp-http@1`;
 - `http-proxy-basic@1`: username/password for `http-proxy@1`;
-- `http-proxy-bearer@1`: a bearer token for `http-proxy@1`.
+- `http-proxy-bearer@1`: a bearer token for `http-proxy@1`;
+- `caido-bearer@1`: a bearer token for `caido-graphql@1` under
+  [11](11-http-and-caido-tools.md).
 
 Header names are validated and hop-by-hop, routing and body-framing headers are
 forbidden. Secret values are accepted once through an authenticated Operations
@@ -625,9 +631,10 @@ Merge units are explicit rather than inferred from arbitrary JSON depth:
 - `worker.llmGateway.gateway` and `worker.llmGateway.credential` are independent
   leaves; `credential: null` explicitly clears an inherited credential and an
   omitted value inherits it;
-- `worker.telemetry`, `worker.httpProxy` and `planner.telemetry` are atomic
-  blocks. A higher layer replaces the complete block, so endpoints, credentials
-  and trust/capture policy cannot be assembled accidentally from different
+- `worker.telemetry`, `worker.httpProxy`, `worker.caido` and
+  `planner.telemetry` are atomic blocks. A higher layer replaces the complete
+  block, so endpoints, credentials and trust/capture policy cannot be assembled
+  accidentally from different
   deployments. An explicit `null` clears an inherited block, while omission
   inherits it;
 - two labels in one layer that provide the same atomic block must provide
@@ -720,6 +727,12 @@ RuntimeSettings
     basicAuth? | bearerToken?        secret; mutually exclusive
     caBundlePem?
     targets
+  caido?
+    adapter                          caido-graphql@1
+    endpoint
+    bearerToken?                     secret
+    caBundlePem?
+    requestTimeoutSeconds
   requestTimeoutSeconds
 
 AllocationSpec
@@ -742,9 +755,10 @@ Startup capability discovery in [02] adds one fourth composable dimension:
 supported_runtime_adapters: sorted set of exact RuntimeAdapter refs
 ```
 
-Initial refs are `otlp-http@1` and `http-proxy@1`. Their bounded startup probes
-verify only that local implementation dependencies can construct the adapter.
-They do not contact an OTLP endpoint, proxy, LLM Gateway or credential service.
+Supported refs include `otlp-http@1`, `http-proxy@1` and `caido-graphql@1`.
+Their bounded startup probes verify only that local implementation dependencies
+can construct the adapter. They do not contact an OTLP endpoint, proxy, Caido
+endpoint, LLM Gateway or credential service.
 The snapshot remains immutable for `instance_id`; changing adapter code or
 local dependencies requires a Runtime Agent restart.
 
@@ -1026,7 +1040,6 @@ errors. Error bodies remain bounded and secret-free.
 - explicit priorities among multiple labels inside one layer instead of
   conflict-on-write;
 - dynamic Runtime adapter download, re-probe or capability update;
-- model-visible Caido API tools and a `caido-api@1` adapter;
 - telemetry secret-content filtering and a separate retention policy;
 - cross-process W3C parent/child trace topology beyond safe correlation
   attributes;

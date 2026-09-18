@@ -1,6 +1,6 @@
 # Contractor UI: user stories and improvement plan
 
-Status: **planned; implementation tracked by task**. Updated: 2026-09-06.
+Status: **planned; implementation tracked by task**. Updated: 2026-09-18.
 
 This document records user goals and usability criteria. The
 [UI specification](06-server-ui-and-operations.md) describes current behavior
@@ -39,6 +39,11 @@ Done when the Project header provides actions to add materials and choose an
 analysis; after an upload or Git import, the storage scope, exact revision and
 next step are clear. Deletion is available through secondary actions with the
 existing confirmation.
+
+Project cards also expose a named Delete icon. Confirmation requires the
+current Project name; pending deletion disables repeat submission and provides
+a link to deletion status. A stale revision requires refreshed data and a new
+confirmation.
 
 Implementation tasks: V37-002, V37-003. Git import: existing V35-004.
 
@@ -125,6 +130,21 @@ and the researcher's decision are shown separately. Audit cancellation and
 deletion require confirmation that explains the consequences; dismissing the
 confirmation changes nothing.
 
+The Audit draft loads all Project Artifact pages before preselecting a sole
+media-compatible input. Ambiguous matches require an explicit choice; user
+choices and cleared slots are preserved. A load failure offers retry and does
+not imply uniqueness. The exact selection stays visible and editable before
+draft creation and remains subject to Server validation.
+
+Start and Continue open the time-limit dialog specified in
+[19](19-audits.md#17-public-api-and-ui): seven days by default, 24 hours, a
+custom duration or no time limit. Ordinary paused Audits default to keeping
+their remaining allowance. The UI explains that queue waiting consumes time,
+pauses preserve it, and reaching the limit pauses new Runs while existing work
+finishes. Eligible legacy deadline closures offer Continue with accepted
+results and previous reports retained. Dismissing time settings sends no
+mutation; icon actions retain accessible names and explanatory tooltips.
+
 Implementation tasks: V37-001, V37-005, V37-010.
 
 ### US-08 — Inspect an agent and its prompt
@@ -181,6 +201,14 @@ Publishing a RuntimeConfig is not presented as changing an allocation already
 in progress. Revision/snapshot details are available in diagnostics. Permissions
 and the disabled state of metrics reflect Server's state.
 
+In Runs Configuration, named icon actions open RuntimeConfig publication and
+Runtime credential dialogs. Bindings open for the exact selected version and
+show whether bindings already exist. Closing a credential dialog clears its
+unsaved secret fields. Lists and detail preserve Caido configuration and its
+explicit-null overlay semantics under
+[06](06-server-ui-and-operations.md#runtime-labels-and-infrastructure-configuration)
+and [11](11-http-and-caido-tools.md).
+
 Layout task: V37-011. Server/PostgreSQL charts and final allocation metrics are
 already planned in V32-006; the 15-second / 60-second / 5-minute intervals,
 disabling metrics and independent Go profiling are defined by the
@@ -230,6 +258,12 @@ For each wave, verify a connected journey rather than only an individual screen:
 choose a Workflow → missing file → fill in the form → navigate away and return →
 launch; error → new draft; completed Run → primary result; waiting_review →
 evidence → decision; dismiss Audit confirmation without mutation.
+
+Audit checks also cover artifact pagination and ambiguous matches, starting
+without a time limit, preserving time through a pause, and continuing a legacy
+deadline closure without changing accepted results. Configuration checks cover
+keyboard opening/closing of dialogs, exact-version binding selection, Caido
+read projections and clearing an unsaved credential on close.
 
 Acceptance covers keyboard access, 1440×1000 and 390×844 viewports, real data
 constraints, errors, empty states and recovery after an ambiguous response.

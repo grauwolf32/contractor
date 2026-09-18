@@ -853,6 +853,21 @@ Runtime Agent label assignments under the contract in
 [07](07-runtime-labels-and-infrastructure-config.md). These resources are not
 part of the six YAML configuration subtrees and have no disabled state.
 
+The Runs Configuration workspace lists RuntimeConfig versions and credentials.
+Publication and credential creation open separate accessible dialogs through
+named actions; a version's binding action opens a dialog with that exact
+RuntimeConfig preselected. Existing bindings are indicated on the version row.
+Closing the credential dialog clears its unsaved secret fields. Icon actions
+retain accessible names and tooltips, and keyboard focus follows the shared
+Dialog contract. Publishing a version and binding it remain separate actions.
+
+RuntimeConfig list, detail and publication responses preserve the optional
+`worker.caido` patch, including explicit `null`. A non-null patch requires
+`adapter` and `endpoint` and permits only `credential`, `caBundlePem` and
+`requestTimeoutSeconds` in addition, under [11](11-http-and-caido-tools.md).
+Unknown fields, including inline token material, are rejected. Detail displays
+the safe Worker Caido configuration.
+
 The Run form submits Runtime label names only through `runtimeLabels`. The
 successful Run response and detail
 surface show the exact pinned binding revision, RuntimeConfig ref/digest and

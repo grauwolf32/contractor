@@ -66,6 +66,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [25](25-audit-worker-finalization.md) | Implemented opt-in through V39-006: collection, Runtime completion, ZIP publication and diagnostics; V39-007 release gate remains |
 | [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
 | [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
+| [28](28-finding-analysis-and-sarif.md) | Draft; not implemented: structured finding analysis, exact-evidence resolution and deterministic SARIF export |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
 | [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 
