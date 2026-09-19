@@ -3,8 +3,8 @@ id: V52-003
 title: Recover and document repeated local model GPU watchdog failures
 milestone: live-workflow-baselines
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: d402ffbfa9e76ca3b63d749b1b5d5891ab194f74
 depends_on: []
 languages: [markdown, yaml]
 goal: >-
