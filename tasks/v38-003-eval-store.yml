@@ -3,8 +3,8 @@ id: "V38-003"
 title: "Persist owner-scoped eval datasets, plans and durable commands"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "d4c4e8854d73fe44f52c8b3f6d461cfc56dcbcc1"
 implementation_repository: "contractor"
 depends_on: ["V38-002"]
 languages: ["go", "sql"]

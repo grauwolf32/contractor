@@ -3,7 +3,7 @@ id: "V38-004"
 title: "Coordinate native evals through replay-safe Run and Audit submissions"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 implementation_repository: "contractor"
 depends_on: ["V38-003"]
