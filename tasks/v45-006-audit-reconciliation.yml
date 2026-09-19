@@ -51,3 +51,8 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+  - go test -race -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditimport — passed.
+  - Regression tests preserve collection no-op phase barriers, exact holds, scheduled checks, selection capacity and scan bounds.
+  - git diff --check — passed.

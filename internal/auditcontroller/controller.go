@@ -6,18 +6,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"sort"
-	"sync"
-	"sync/atomic"
-	"time"
-
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // Wake is an edge-triggered latency hint. Periodic PostgreSQL reconciliation
@@ -104,52 +101,15 @@ func (c *Controller) reconcile(
 	}
 	audit := snapshot.Audit
 
-	if audit.State == auditstore.AuditWaitingReview {
-		if changed, expireErr := c.store.ExpireReportReview(ctx, claim, audit.Revision); changed || expireErr != nil {
-			return changed, expireErr
-		}
-		if audit.Dispatch == auditstore.DispatchOpen && audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
-			reason := auditstore.StopReason{
-				Code:    "deadline_exhausted",
-				Message: "The Audit time limit was reached. Extend or disable the limit to continue.",
-			}
-			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditWaitingReview,
-				TargetState:   auditstore.AuditPaused, Reason: &reason,
-			})
-			return err == nil, err
-		}
+	// A non-nil phase result stops this pass, including retryable no-op outcomes.
+	if result := c.reconcileReviewAndDeadline(ctx, claim, snapshot); result != nil {
+		return result.changed, result.err
 	}
-
-	if audit.State == auditstore.AuditActive {
-		if reason := c.dispatchClosureReason(snapshot); reason != nil {
-			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditActive, TargetState: deadlineTarget(reason),
-				Reason: reason,
-			})
-			return err == nil, err
-		}
-	}
-
 	if changed, err := c.observeOneTerminal(ctx, claim, snapshot); changed || err != nil {
 		return changed, err
 	}
-	if c.collector != nil {
-		for _, execution := range snapshot.Executions {
-			if execution.State != auditstore.ExecutionCollecting {
-				continue
-			}
-			changed, collectErr := c.collector.Collect(ctx, claim, snapshot, execution)
-			if errors.Is(collectErr, auditstore.ErrPrecondition) {
-				return false, nil
-			}
-			if errors.Is(collectErr, auditimport.ErrPermanent) {
-				return c.failAuditImport(ctx, claim, audit, "collection-contract-invalid")
-			}
-			return changed, collectErr
-		}
+	if result := c.collectOne(ctx, claim, snapshot); result != nil {
+		return result.changed, result.err
 	}
 	if audit.State == auditstore.AuditActive {
 		if changed, err := c.resumeOneIntent(ctx, claim, snapshot); changed || err != nil {
@@ -157,251 +117,26 @@ func (c *Controller) reconcile(
 		}
 	}
 
-	if audit.State == auditstore.AuditActive && snapshot.Round != nil {
-		switch snapshot.Round.State {
-		case auditstore.RoundAccepted:
-			changed, complete, reason, err := c.reconcileRolePhase(
-				ctx, claim, snapshot, auditstore.ExecutionDiscovery,
-			)
-			if changed || err != nil {
-				return changed, err
-			}
-			if reason != nil {
-				return c.closeForRoleFailure(ctx, claim, audit, reason)
-			}
-			if complete {
-				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-					Claim: claim, RoundID: snapshot.Round.RoundID,
-					ExpectedRevision: snapshot.Round.Revision,
-					ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
-				})
-				return err == nil, err
-			}
-		case auditstore.RoundExecuting:
-			if audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 &&
-				len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions {
-				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-					Claim: claim, RoundID: snapshot.Round.RoundID,
-					ExpectedRevision: snapshot.Round.Revision,
-					ExpectedState:    auditstore.RoundExecuting, TargetState: auditstore.RoundAssessing,
-				})
-				return err == nil, err
-			}
-			if audit.OutstandingRunCount == 0 && len(snapshot.Executions) == 0 &&
-				!snapshot.MoreItems && !snapshot.MoreExecutions &&
-				onlyAwaitingReview(snapshot.Items) {
-				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-					Claim: claim, ExpectedRevision: audit.Revision,
-					ExpectedState: auditstore.AuditActive,
-					TargetState:   auditstore.AuditWaitingReview,
-				})
-				return err == nil, err
-			}
-		case auditstore.RoundAssessing:
-			changed, complete, reason, err := c.reconcileRolePhase(
-				ctx, claim, snapshot, auditstore.ExecutionAssessment,
-			)
-			if changed || err != nil {
-				return changed, err
-			}
-			if reason != nil {
-				return c.closeForRoleFailure(ctx, claim, audit, reason)
-			}
-			if complete {
-				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-					Claim: claim, RoundID: snapshot.Round.RoundID,
-					ExpectedRevision: snapshot.Round.Revision,
-					ExpectedState:    auditstore.RoundAssessing, TargetState: auditstore.RoundClosed,
-				})
-				return err == nil, err
-			}
-		case auditstore.RoundClosed:
-			if audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 {
-				var reason *auditstore.StopReason
-				if c.roundBuilder != nil {
-					params, closureReason, buildErr := c.roundBuilder.PrepareNextRound(ctx, claim, snapshot)
-					if buildErr != nil {
-						return false, buildErr
-					}
-					if params.RoundID != "" {
-						_, _, acceptErr := c.store.AcceptNextRound(ctx, params)
-						if errors.Is(acceptErr, auditstore.ErrPrecondition) {
-							return false, nil
-						}
-						return acceptErr == nil, acceptErr
-					}
-					reason = closureReason
-				}
-				if reason == nil {
-					reason = &auditstore.StopReason{
-						Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
-					}
-				}
-				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-					Claim: claim, ExpectedRevision: audit.Revision,
-					ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-					Reason: reason,
-				})
-				return err == nil, err
-			}
-		}
+	if result := c.progressRound(ctx, claim, snapshot); result != nil {
+		return result.changed, result.err
 	}
 	closed := audit.Dispatch == auditstore.DispatchClosed ||
 		audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditFinalizing ||
 		audit.State == auditstore.AuditDeleting
 	if closed {
-		if changed, err := c.failOneUnboundIntent(ctx, claim, snapshot); changed || err != nil {
-			return changed, err
-		}
-		if audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditDeleting || deadlineClosure(audit) {
-			if changed, err := c.cancelOneSubmittedRun(ctx, snapshot); changed || err != nil {
-				return changed, err
-			}
-		}
-		settled, err := c.store.SettleUndispatched(ctx, claim, auditstore.MaxReconcileRows)
-		if err != nil {
-			return false, err
-		}
-		if settled != 0 {
-			return true, nil
-		}
-		if audit.Hold == auditstore.HoldHeld {
-			_, changed, err := c.store.ReleaseDispatchHold(ctx, claim)
-			if changed || err != nil {
-				return changed, err
-			}
-		}
-		if !auditSettlementBarrier(snapshot) {
-			return false, nil
-		}
-		switch audit.State {
-		case auditstore.AuditFinalizing:
-			if snapshot.Round != nil && snapshot.Round.State != auditstore.RoundClosed {
-				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-					Claim: claim, RoundID: snapshot.Round.RoundID,
-					ExpectedRevision: snapshot.Round.Revision,
-					ExpectedState:    snapshot.Round.State, TargetState: auditstore.RoundClosed,
-				})
-				return err == nil, err
-			}
-			if c.collector == nil {
-				return false, nil
-			}
-			changed, finalizeErr := c.collector.Finalize(ctx, claim, snapshot)
-			if errors.Is(finalizeErr, auditimport.ErrPermanent) {
-				return c.failAuditImport(ctx, claim, audit, "report-contract-invalid")
-			}
-			return changed, finalizeErr
-		case auditstore.AuditCancelling:
-			target := auditstore.AuditCancelled
-			if audit.DeletionRequestedAt != nil {
-				target = auditstore.AuditDeleting
-			}
-			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditCancelling, TargetState: target,
-				Reason: audit.StopReason,
-			})
-			return err == nil, err
-		case auditstore.AuditDeleting:
-			runID, found, err := c.store.NextLiveRunForDeletion(ctx, claim)
-			if err != nil {
-				return false, err
-			}
-			if found {
-				err = c.runs.DeleteReleasedTerminalRun(ctx, audit.OwnerID, runID)
-				var blocked *runstore.RunNotDeletableError
-				if errors.As(err, &blocked) || errors.Is(err, runstore.ErrNotFound) {
-					return false, nil
-				}
-				return err == nil, err
-			}
-			err = c.store.PurgeClaimed(ctx, claim, auditdomain.ArtifactNamespace(audit.AuditID))
-			return err == nil, err
-		}
-		return false, nil
+		return c.settleClosedAudit(ctx, claim, snapshot)
 	}
-	if audit.State != auditstore.AuditActive || snapshot.Round == nil ||
-		snapshot.Round.State != auditstore.RoundExecuting {
-		return false, nil
-	}
-
-	selected := make([]CheckExecutionMember, 0, min(audit.Limits.BatchSize, auditstore.MaxCollectionItems))
-	var binding config.ResolvedAuditWorkflowBinding
-	profile, profileErr := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-	for _, item := range snapshot.Items {
-		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
-			continue
-		}
-		if len(selected) != 0 && (!sameBatchEnvelope(selected[0].Item, item) ||
-			profileErr == nil && !sameItemParameterEnvelope(binding, selected[0].Item, item)) {
-			continue
-		}
-		if len(selected) == 0 && profileErr == nil {
-			binding = profile.Workflows[item.WorkflowRole]
-		}
-		attempt, err := c.store.NextItemAttempt(ctx, claim, item.ItemID)
-		if errors.Is(err, auditstore.ErrPrecondition) {
-			return false, nil
-		}
-		if err != nil {
-			return false, err
-		}
-		if attempt > audit.Limits.MaxItemRunAttempts {
-			reason := auditstore.StopReason{
-				Code:    "item_attempt_budget_exhausted",
-				Message: "An Audit item remained ready after its configured attempt budget was exhausted.",
-			}
-			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-				Claim: claim, ExpectedRevision: audit.Revision,
-				ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-				Reason: &reason,
-			})
-			return err == nil, err
-		}
-		selected = append(selected, CheckExecutionMember{Item: item, Attempt: attempt})
-		if len(selected) == audit.Limits.BatchSize || len(selected) == auditstore.MaxCollectionItems {
-			break
-		}
-	}
-	if len(selected) != 0 {
-		return c.dispatch(ctx, claim, snapshot, selected)
-	}
-	return false, nil
+	return c.dispatchReadyBatch(ctx, claim, snapshot)
 }
 
-func sameBatchEnvelope(left, right auditstore.Item) bool {
-	return left.WorkflowRole == right.WorkflowRole && left.ApprovalKind == right.ApprovalKind &&
-		left.ApprovalDigest == right.ApprovalDigest
+// reconcileResult distinguishes continuing a phase from stopping without a change.
+type reconcileResult struct {
+	changed bool
+	err     error
 }
 
-func sameItemParameterEnvelope(
-	binding config.ResolvedAuditWorkflowBinding,
-	left auditstore.Item,
-	right auditstore.Item,
-) bool {
-	for _, mapping := range binding.Parameters {
-		if mapping.Source != config.AuditParameterItemField {
-			continue
-		}
-		switch mapping.Name {
-		case "itemKey":
-			if left.ItemKey != right.ItemKey {
-				return false
-			}
-		case "subjectKey":
-			if left.SubjectKey != right.SubjectKey {
-				return false
-			}
-		case "kind":
-			if left.Kind != right.Kind {
-				return false
-			}
-		default:
-			return false
-		}
-	}
-	return true
+func reconciliationDone(changed bool, err error) *reconcileResult {
+	return &reconcileResult{changed: changed, err: err}
 }
 
 func (c *Controller) reconcileRolePhase(
