@@ -2694,3 +2694,4 @@ tasks:
   - {id: V55-010, file: v55-010-katana-scan-adapter.yml}
   - {id: V57-001, file: v57-001-live-harness-effective-model.yml}
   - {id: V57-002, file: v57-002-documentation-status-reconciliation.yml}
+  - {id: V57-005, file: v57-005-a2a-connection-reuse-experiment.yml}

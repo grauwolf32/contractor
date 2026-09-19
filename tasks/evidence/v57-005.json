@@ -1,0 +1,962 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V57-005",
+  "verified_on": "2026-09-19",
+  "decision": {
+    "outcome": "no-change",
+    "production_transport_changed": false,
+    "reason": "Connection reuse reduces handshakes, but changes expiry verification and transport retry behavior. No measured production CPU or whole-Run benefit justifies a default change; explicit retry, lifetime and ownership policies are prerequisites for a separate follow-up.",
+    "v57_004": "Not implemented; detailed user discussion remains pending."
+  },
+  "environment": {
+    "base_commit": "be33cebbf8b9b5fd833d238b2bf0547d5694f319",
+    "go": "go1.25.6 linux/amd64",
+    "a2a_go_sdk": "v2.5.0",
+    "os": "Linux 7.1.9-arch1-2 x86_64",
+    "cpu": "Intel Core i7-7700K @ 4.20GHz",
+    "logical_cpus": 8,
+    "python": "3.13.14",
+    "a2a_python_sdk": "1.1.2",
+    "network": "loopback only; no real Runtime or model endpoints"
+  },
+  "fixture": {
+    "tls": "1.3 mutual TLS; local CA; Control Plane URI role; endpoint hostname and Runtime SPKI verification",
+    "http": "HTTP/1.1; ForceAttemptHTTP2=false; TLS ClientSessionCache=nil",
+    "client_path": "Invoker.Invoke -> real A2A SDK JSON-RPC -> production cloneBoundedHTTPClient; direct SDK calls for retry/response/ownership characterization",
+    "ownership": "new raw transport per Invoke; test-only owned protocolClient.Destroy closes raw transport idle connections",
+    "server": "controlled net/http TLS server with SDK-encoded JSON-RPC results; not production Python Runtime",
+    "rpc_methods": {
+      "SendMessage": "POST",
+      "GetTask": "POST"
+    },
+    "response_read_limit_bytes": 1048576,
+    "max_application_body_read_bytes": 1048577,
+    "benchmark": {
+      "iterations_per_sample": 3,
+      "samples_per_arm": 3,
+      "sequential": true,
+      "race_detector": false,
+      "fixed_poll_count": 8,
+      "poll_intervals_ms": [
+        2,
+        100
+      ],
+      "pki_and_server_setup_timed": false,
+      "tls_file_loading_timed": false,
+      "new_sdk_client_and_invoke_timed": true,
+      "cpu_isolation": false
+    },
+    "fixed_duration": {
+      "ready_after_ms": 800,
+      "poll_interval_ms": 100,
+      "ready_clock": "server time since SendMessage receipt, independent of poll count"
+    }
+  },
+  "benchmark_samples": [
+    {
+      "poll_interval": "2ms",
+      "reuse": false,
+      "iterations": 3,
+      "ns_per_op": 45223320,
+      "connections_per_op": 9.0,
+      "handshakes_per_op": 9.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "2ms",
+      "reuse": false,
+      "iterations": 3,
+      "ns_per_op": 38575961,
+      "connections_per_op": 9.0,
+      "handshakes_per_op": 9.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "2ms",
+      "reuse": false,
+      "iterations": 3,
+      "ns_per_op": 37797167,
+      "connections_per_op": 9.0,
+      "handshakes_per_op": 9.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "2ms",
+      "reuse": true,
+      "iterations": 3,
+      "ns_per_op": 20519327,
+      "connections_per_op": 1.0,
+      "handshakes_per_op": 1.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "2ms",
+      "reuse": true,
+      "iterations": 3,
+      "ns_per_op": 20410756,
+      "connections_per_op": 1.0,
+      "handshakes_per_op": 1.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "2ms",
+      "reuse": true,
+      "iterations": 3,
+      "ns_per_op": 23529228,
+      "connections_per_op": 1.0,
+      "handshakes_per_op": 1.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "100ms",
+      "reuse": false,
+      "iterations": 3,
+      "ns_per_op": 833748351,
+      "connections_per_op": 9.0,
+      "handshakes_per_op": 9.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "100ms",
+      "reuse": false,
+      "iterations": 3,
+      "ns_per_op": 826842110,
+      "connections_per_op": 9.0,
+      "handshakes_per_op": 9.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "100ms",
+      "reuse": false,
+      "iterations": 3,
+      "ns_per_op": 824439912,
+      "connections_per_op": 9.0,
+      "handshakes_per_op": 9.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "100ms",
+      "reuse": true,
+      "iterations": 3,
+      "ns_per_op": 810101508,
+      "connections_per_op": 1.0,
+      "handshakes_per_op": 1.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "100ms",
+      "reuse": true,
+      "iterations": 3,
+      "ns_per_op": 809210239,
+      "connections_per_op": 1.0,
+      "handshakes_per_op": 1.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    },
+    {
+      "poll_interval": "100ms",
+      "reuse": true,
+      "iterations": 3,
+      "ns_per_op": 808774309,
+      "connections_per_op": 1.0,
+      "handshakes_per_op": 1.0,
+      "polls_per_op": 8.0,
+      "sends_per_op": 1.0
+    }
+  ],
+  "timing_cases_without_race": [
+    {
+      "name": "TestConnectionReuseExperimentCounts",
+      "observations": [],
+      "status": "PASS",
+      "elapsed_seconds": 0.24
+    },
+    {
+      "name": "TestConnectionReuseExperimentCounts/production",
+      "observations": [
+        "connections=21 handshakes=21 sends=1 polls=20 elapsed=73.209005ms"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.07
+    },
+    {
+      "name": "TestConnectionReuseExperimentCounts/owned_baseline",
+      "observations": [
+        "connections=21 handshakes=21 sends=1 polls=20 elapsed=115.908391ms"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.12
+    },
+    {
+      "name": "TestConnectionReuseExperimentCounts/owned_reuse",
+      "observations": [
+        "connections=1 handshakes=1 sends=1 polls=20 elapsed=49.724951ms"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.05
+    },
+    {
+      "name": "TestConnectionReuseExperimentFixedTaskDuration",
+      "observations": [],
+      "status": "PASS",
+      "elapsed_seconds": 1.64
+    },
+    {
+      "name": "TestConnectionReuseExperimentFixedTaskDuration/reuse_false",
+      "observations": [
+        "task_ready_after=800ms poll_interval=100ms elapsed=822.552265ms sends=1 polls=8 connections=9 handshakes=9"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.82
+    },
+    {
+      "name": "TestConnectionReuseExperimentFixedTaskDuration/reuse_true",
+      "observations": [
+        "task_ready_after=800ms poll_interval=100ms elapsed=808.626153ms sends=1 polls=8 connections=1 handshakes=1"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.81
+    }
+  ],
+  "commands": [
+    {
+      "command": "go test ./internal/planner/a2a -run '^$' -bench '^BenchmarkConnectionReuseExperiment$' -benchtime=3x -count=3",
+      "exit_code": 0,
+      "result": "PASS; 12 benchmark samples; each checks exact TCP/TLS/send/poll counters; package 20.495s"
+    },
+    {
+      "command": "go test -count=1 ./internal/planner/a2a -run '^TestConnectionReuseExperiment(Counts|FixedTaskDuration)$' -v",
+      "exit_code": 0,
+      "result": "PASS; package 1.885s; measurements retained above"
+    },
+    {
+      "command": "make test-mtls",
+      "exit_code": 0,
+      "result": [
+        "go test -count=1 ./internal/mtls/... ./cmd/contractor-pki/...",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/mtls\t0.018s",
+        "ok  \tgithub.com/grauwolf32/contractor/cmd/contractor-pki\t0.004s",
+        "cd runtime && uv run pytest tests/test_mtls.py",
+        ".....                                                                    [100%]",
+        "5 passed in 0.42s"
+      ]
+    },
+    {
+      "command": "go test -race -count=25 ./internal/planner/a2a -run '^TestConnectionReuseExperimentRetry$'",
+      "exit_code": 0,
+      "result": "PASS; 25 repeats x 20 cases; 7.361s; executed by execution_review agent"
+    },
+    {
+      "command": "go test -race -count=20 ./internal/planner/a2a -run '^TestConnectionReuseExperimentLifecycleSimulatedRetirement$'",
+      "exit_code": 0,
+      "result": "PASS; 20 repeats x 2 cases; 2.079s; executed by quality_ops_review agent"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/planner/a2a -run '^TestConnectionReuseExperiment' -v",
+      "exit_code": 0,
+      "result": [
+        "PASS",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/a2a\t9.244s"
+      ],
+      "executed_leaf_cases": 70
+    },
+    {
+      "command": "go test -race -count=1 ./internal/planner/a2a ./internal/controlplane ./internal/mtls",
+      "exit_code": 0,
+      "result": [
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/a2a\t9.286s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/controlplane\t4.420s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/mtls\t1.083s"
+      ]
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "result": "PASS; no whitespace errors in unstaged changes"
+    },
+    {
+      "command": "git diff --cached --check",
+      "exit_code": 0,
+      "result": "PASS; staged implementation changes checked before commit"
+    }
+  ],
+  "policy_findings": {
+    "retry": "GetBody=nil suppresses observed implicit retries of nonempty POSTs, including zero-write retries; no production policy changed.",
+    "adversarial_replay": "Prewarmed SendMessage + lost response + either Idempotency-Key or X-Idempotency-Key produces two fixture effects with identical RPC ID, full-body SHA256 and request ID. Current Invoke starts SendMessage on a fresh connection and is not demonstrated to duplicate it.",
+    "expiry": "Client TLS verification clock advances beyond server leaf NotAfter between SendMessage and GetTask. Baseline rejects new handshake; reuse continues the existing authenticated session. Initial expiry and wrong principal both fail before HTTP.",
+    "cleanup": "SDK Destroy and bounded http.Client.CloseIdleConnections do not close pooled sockets. Calling original transport.CloseIdleConnections does; cancellation handles active requests.",
+    "response_bound": "Known-length oversize rejected before body read; oversized chunked JSON consumes at most limit+1 before decode failure. A complete JSON prefix with unfinished entity is accepted, body closed, socket discarded. Full entity size/EOF/wire bytes/RSS are not guaranteed by this wrapper.",
+    "process_identity": "New key is rejected by old SPKI binding; correctly rebound next invocation succeeds. Same-key retired tenant can reach HTTP, then simulated allocation gate rejects before dispatch. This is not production Registry/watchdog/release verification.",
+    "active_poll_cleanup": "Cancellation/deadline headers/body tested both on first SendMessage and active GetTask. httptrace confirms reused poll connection for candidate; baseline gets 2 TCP/TLS versus reuse 1. All sockets closed, sends=1/polls=1 in active poll cases."
+  },
+  "limitations": [
+    "Loopback microbenchmark on a shared workstation; three short samples do not establish statistical significance or production CPU/Run latency.",
+    "Fixed-poll benchmark controls RPC workload, while a separate test controls actual task readiness duration.",
+    "TLS write fault wrapper performs explicit handshake/hostname/SPKI verification but hides concrete *tls.Conn from net/http; benchmark uses ordinary transport.",
+    "Server TLS verification counters can lag client handshake completion on injected immediate zero-write failure; client handshakes and server observations are separately recorded.",
+    "Certificate expiry is controlled client verification time, not system clock mutation; server client-certificate validation clock remains unchanged.",
+    "Production response parser, certificate policy, polling intervals, retries, keepalive defaults, ControlPlane transport, and live evals are untouched."
+  ],
+  "fixed_duration_with_race_initial_run": [
+    {
+      "name": "TestConnectionReuseExperimentFixedTaskDuration/reuse_false",
+      "observations": [
+        "task_ready_after=800ms poll_interval=100ms elapsed=829.287725ms sends=1 polls=7 connections=8 handshakes=8"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.84
+    },
+    {
+      "name": "TestConnectionReuseExperimentFixedTaskDuration/reuse_true",
+      "observations": [
+        "task_ready_after=800ms poll_interval=100ms elapsed=818.042753ms sends=1 polls=8 connections=1 handshakes=1"
+      ],
+      "status": "PASS",
+      "elapsed_seconds": 0.83
+    }
+  ],
+  "fault_matrix_with_race": {
+    "test_nodes": 80,
+    "leaf_cases": 70,
+    "top_level_tests": 11,
+    "cases": [
+      {
+        "name": "TestConnectionReuseExperimentCounts",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.43
+      },
+      {
+        "name": "TestConnectionReuseExperimentCounts/production",
+        "observations": [
+          "connections=21 handshakes=21 sends=1 polls=20 elapsed=177.965193ms"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.18
+      },
+      {
+        "name": "TestConnectionReuseExperimentCounts/owned_baseline",
+        "observations": [
+          "connections=21 handshakes=21 sends=1 polls=20 elapsed=169.026622ms"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.17
+      },
+      {
+        "name": "TestConnectionReuseExperimentCounts/owned_reuse",
+        "observations": [
+          "connections=1 handshakes=1 sends=1 polls=20 elapsed=65.089522ms"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.07
+      },
+      {
+        "name": "TestConnectionReuseExperimentFixedTaskDuration",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 1.68
+      },
+      {
+        "name": "TestConnectionReuseExperimentFixedTaskDuration/reuse_false",
+        "observations": [
+          "task_ready_after=800ms poll_interval=100ms elapsed=853.17239ms sends=1 polls=8 connections=9 handshakes=9"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.86
+      },
+      {
+        "name": "TestConnectionReuseExperimentFixedTaskDuration/reuse_true",
+        "observations": [
+          "task_ready_after=800ms poll_interval=100ms elapsed=813.939518ms sends=1 polls=8 connections=1 handshakes=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.82
+      },
+      {
+        "name": "TestConnectionReuseExperimentExplicitOwnership",
+        "observations": [
+          "SDK Destroy + bounded client CloseIdleConnections retain socket; owned raw transport closes it"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.45
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/known_length",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=1170 body_closes=2 success=true"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/chunked",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=1170 body_closes=2 success=true"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/oversize_length",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=0 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/oversize_chunked",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=2097154 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.14
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/malformed",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=24 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/truncated",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=52 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_false/valid_prefix_unread_tail",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=1170 body_closes=2 success=true"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/known_length",
+        "observations": [
+          "connections=1 handshakes=1 responses=2 read_bytes=1170 body_closes=2 success=true"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/chunked",
+        "observations": [
+          "connections=1 handshakes=1 responses=2 read_bytes=1170 body_closes=2 success=true"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/oversize_length",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=0 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/oversize_chunked",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=2097154 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.13
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/malformed",
+        "observations": [
+          "connections=1 handshakes=1 responses=2 read_bytes=24 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/truncated",
+        "observations": [
+          "connections=1 handshakes=1 responses=2 read_bytes=52 body_closes=2 success=false"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentResponseBounds/reuse_true/valid_prefix_unread_tail",
+        "observations": [
+          "connections=2 handshakes=2 responses=2 read_bytes=1170 body_closes=2 success=true"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleWrongPrincipal",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleWrongPrincipal/reuse=false",
+        "observations": [
+          "wrong principal: protected requests=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleWrongPrincipal/reuse=true",
+        "observations": [
+          "wrong principal: protected requests=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 5.13
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/poll_wait",
+        "observations": [
+          "poll_wait: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/headers",
+        "observations": [
+          "headers: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/body",
+        "observations": [
+          "body: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/deadline_headers",
+        "observations": [
+          "deadline_headers: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.61
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/deadline_body",
+        "observations": [
+          "deadline_body: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.62
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/poll_headers",
+        "observations": [
+          "poll_headers: SendMessage=1 GetTask=1 GotConn=2 reused=0 accepted=2 closed=2"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.04
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/poll_body",
+        "observations": [
+          "poll_body: SendMessage=1 GetTask=1 GotConn=2 reused=0 accepted=2 closed=2"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.03
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/deadline_poll_headers",
+        "observations": [
+          "deadline_poll_headers: SendMessage=1 GetTask=1 GotConn=2 reused=0 accepted=2 closed=2"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.61
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=false/deadline_poll_body",
+        "observations": [
+          "deadline_poll_body: SendMessage=1 GetTask=1 GotConn=2 reused=0 accepted=2 closed=2"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.62
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/poll_wait",
+        "observations": [
+          "poll_wait: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.03
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/headers",
+        "observations": [
+          "headers: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/body",
+        "observations": [
+          "body: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/deadline_headers",
+        "observations": [
+          "deadline_headers: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.61
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/deadline_body",
+        "observations": [
+          "deadline_body: SendMessage=1 GetTask=0 GotConn=1 reused=0 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.62
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/poll_headers",
+        "observations": [
+          "poll_headers: SendMessage=1 GetTask=1 GotConn=2 reused=1 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.04
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/poll_body",
+        "observations": [
+          "poll_body: SendMessage=1 GetTask=1 GotConn=2 reused=1 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/deadline_poll_headers",
+        "observations": [
+          "deadline_poll_headers: SendMessage=1 GetTask=1 GotConn=2 reused=1 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.61
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCancellation/reuse=true/deadline_poll_body",
+        "observations": [
+          "deadline_poll_body: SendMessage=1 GetTask=1 GotConn=2 reused=1 accepted=1 closed=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.62
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleLaterAllocation",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.09
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleLaterAllocation/reuse=false",
+        "observations": [
+          "two allocations on the same endpoint: two independently closed connections/handshakes, exact tenant per invocation"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.06
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleLaterAllocation/reuse=true",
+        "observations": [
+          "two allocations on the same endpoint: two independently closed connections/handshakes, exact tenant per invocation"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.03
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleSimulatedRetirement",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.05
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleSimulatedRetirement/reuse=false",
+        "observations": [
+          "same-key simulated process retirement: old tenant reaches HTTP but is rejected before Worker dispatch; replacement uses a new invocation"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleSimulatedRetirement/reuse=true",
+        "observations": [
+          "same-key simulated process retirement: old tenant reaches HTTP but is rejected before Worker dispatch; replacement uses a new invocation"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.03
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCertificateExpiry",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.05
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCertificateExpiry/reuse=false/expiredInitially=false",
+        "observations": [
+          "baseline: next poll performs fresh handshake and rejects expired server certificate before HTTP"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCertificateExpiry/reuse=false/expiredInitially=true",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCertificateExpiry/reuse=true/expiredInitially=false",
+        "observations": [
+          "candidate limitation: established TLS connection continues after server-certificate NotAfter in client verification clock"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleCertificateExpiry/reuse=true/expiredInitially=true",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleKeyRotation",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.05
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleKeyRotation/reuse=false",
+        "observations": [
+          "new key on same CA/SAN/endpoint: old principal rejected before HTTP; newly bound invocation accepted"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentLifecycleKeyRotation/reuse=true",
+        "observations": [
+          "new key on same CA/SAN/endpoint: old principal rejected before HTTP; newly bound invocation accepted"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.03
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry",
+        "observations": [],
+        "status": "PASS",
+        "elapsed_seconds": 0.24
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/fresh_send_control",
+        "observations": [
+          "target=SendMessage success=true dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=0 target_effects=1 sdk_requests=1 reused=[false] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_control_without_getbody",
+        "observations": [
+          "target=SendMessage success=true dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/fresh_send_zero_write",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=0 polls=0 target_effects=0 sdk_requests=1 reused=[false] fault_writes=1 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_zero_write",
+        "observations": [
+          "target=SendMessage success=true dials=2 client_tls=2 server_accepts=2 server_tls=2 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true false] fault_writes=1 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_zero_write_without_getbody",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=0 polls=1 target_effects=0 sdk_requests=2 reused=[true] fault_writes=1 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_zero_write_header_without_getbody",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=0 polls=1 target_effects=0 sdk_requests=2 reused=[true] fault_writes=1 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/fresh_send_partial_write",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=0 polls=0 target_effects=0 sdk_requests=1 reused=[false] fault_writes=1 fault_bytes=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_partial_write",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=0 polls=1 target_effects=0 sdk_requests=2 reused=[true] fault_writes=1 fault_bytes=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_partial_write_without_getbody",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=0 polls=1 target_effects=0 sdk_requests=2 reused=[true] fault_writes=1 fault_bytes=1"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/fresh_send_lost_response",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=0 target_effects=1 sdk_requests=1 reused=[false] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/fresh_send_lost_response_header",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=0 target_effects=1 sdk_requests=1 reused=[false] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_lost_response",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_lost_response_without_getbody",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_lost_response_idempotency_key_replays",
+        "observations": [
+          "target=SendMessage success=true dials=2 client_tls=2 server_accepts=2 server_tls=2 sends=2 polls=1 target_effects=2 sdk_requests=2 reused=[true false] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_lost_response_x_idempotency_key_replays",
+        "observations": [
+          "target=SendMessage success=true dials=2 client_tls=2 server_accepts=2 server_tls=2 sends=2 polls=1 target_effects=2 sdk_requests=2 reused=[true false] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_lost_response_idempotency_key_without_getbody",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/reused_send_lost_response_x_idempotency_key_without_getbody",
+        "observations": [
+          "target=SendMessage success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/get_task_after_send_zero_write",
+        "observations": [
+          "target=GetTask success=true dials=2 client_tls=2 server_accepts=2 server_tls=2 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true false] fault_writes=1 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/get_task_after_send_lost_response",
+        "observations": [
+          "target=GetTask success=false dials=1 client_tls=1 server_accepts=1 server_tls=1 sends=1 polls=1 target_effects=1 sdk_requests=2 reused=[true] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.01
+      },
+      {
+        "name": "TestConnectionReuseExperimentRetry/get_task_after_send_lost_response_header_replays_read",
+        "observations": [
+          "target=GetTask success=true dials=2 client_tls=2 server_accepts=2 server_tls=2 sends=1 polls=2 target_effects=2 sdk_requests=2 reused=[true false] fault_writes=0 fault_bytes=0"
+        ],
+        "status": "PASS",
+        "elapsed_seconds": 0.02
+      }
+    ]
+  },
+  "production_diff_review": {
+    "allowed_paths": [
+      "internal/planner/a2a/*_experiment_test.go",
+      "docs/research/2026-09-19-a2a-connection-reuse-decision.md",
+      "docs/research/README.md",
+      "tasks/evidence/v57-005.json",
+      "tasks/v57-005-a2a-connection-reuse-experiment.yml",
+      "tasks/index.yml"
+    ],
+    "result": "Only test fixtures, research, evidence and task metadata; no production settings, dependencies or clients changed."
+  }
+}

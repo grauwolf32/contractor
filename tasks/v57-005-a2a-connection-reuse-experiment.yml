@@ -1,0 +1,147 @@
+schema_version: "1.0"
+id: V57-005
+title: Measure and fault-test invocation-scoped A2A connection reuse
+milestone: architecture-review-followups
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, markdown]
+goal: >-
+  Determine whether reusing a principal-bound HTTP connection inside one A2A
+  invocation is worthwhile and preserves request, retry and lifecycle semantics,
+  using a controlled local TLS experiment without changing production clients.
+context:
+  authority: >-
+    The user requested a second review of architecture recommendations and
+    concrete follow-up tasks. Connection reuse is an unmeasured candidate,
+    not a demonstrated production defect or an approved default change.
+  specification:
+    - docs/spec/02-runtime-and-a2a.md
+    - docs/spec/04-execution-lifecycle-and-metrics.md
+    - docs/spec/07-runtime-labels-and-infrastructure-config.md
+  history:
+    - >-
+      V8-004 and commit 3e359fb9b4c1463e325bd660b2cfe2422e78b8b1 added
+      per-principal endpoint verification and the current per-invocation
+      transport with DisableKeepAlives=true. The flag's independent performance
+      rationale is not documented; preserve the SPKI/endpoint guarantee.
+    - >-
+      The reviewed A2A Go SDK v2.5.0 JSON-RPC path sends SendMessage and GetTask
+      as HTTP POST with a replayable bytes.Buffer body. It has no application
+      retry loop, but Go Transport may retry on a reused connection after a
+      nothing-written error. Idempotency headers can change retry eligibility.
+    - >-
+      JSON-RPC SDK Destroy is a no-op in the reviewed version. Contractor's
+      boundedRoundTripper does not forward CloseIdleConnections. The SDK decodes
+      one JSON object and closes the response body; successful full-body drain
+      and connection reuse must be established rather than assumed.
+  current_code:
+    - internal/planner/a2a/client.go
+    - internal/planner/a2a/client_test.go
+    - internal/mtls/mtls.go
+    - internal/controlplane/runtime_client.go
+    - configs/server.local.yaml
+  identity_boundary: >-
+    The Runtime principal is the verified certificate SPKI identity; process
+    instance and allocation identity are separate. Reusing one established
+    connection does not perform another certificate validity/hostname check on
+    every poll. Key rotation, process retirement and certificate lifetime must
+    be considered explicitly, not conflated with a shared hostname.
+  measurement_boundary: >-
+    Current local configuration uses a 100 ms poll interval. The estimate of
+    roughly ten polls per second at low response latency is not measured CPU,
+    handshake cost or a promise of end-to-end Run improvement.
+  informative_review:
+    - docs/research/2026-09-19-architecture-evolution-review.md
+    - docs/plans/2026-09-19-architecture-review-followups.md
+  review_status: These documents are informative; production keepalive changes require a separately scoped follow-up after the experiment's decision.
+scope:
+  in:
+    - Record the actual Go/SDK versions and inspect their POST body replay, idempotency, retry, redirect and client-destruction behavior.
+    - Build a test-only local real-TLS fixture using the actual JSON-RPC client path and compare the current transport with invocation-scoped reuse.
+    - Count accepted connections, TLS handshakes, semantic SendMessage dispatches and GetTask polls under identical controlled Task duration and poll settings.
+    - Exercise zero-write, partial-write and lost-response faults, including whether GetBody removal is needed to preserve an explicitly selected retry policy.
+    - Exercise bounded Content-Length/chunked/malformed responses and partial body consumption without adding an unbounded drain to obtain reuse.
+    - Exercise cancellation, deadlines, wrong principal, later allocations, endpoint/process retirement and the selected certificate-lifetime policy.
+    - Retain direct ownership of experimental transports and verify explicit idle/active resource cleanup; do not rely on SDK Destroy alone.
+    - Record recommend-follow-up, no-change or defer with measurements, fault results, policy choices and limitations.
+  out:
+    - Change production keepalive, polling intervals, transport wrappers, retries, certificate policy or A2A defaults.
+    - Introduce a cross-principal or cross-invocation shared pool, ControlPlane pooling, HTTP/2, adaptive polling, streaming or long polling.
+    - Add idempotency headers or blind retries to semantic SendMessage calls, or infer exactly-once effects from HTTP request identity.
+    - Deploy services, contact real Runtime/model endpoints or run live inference/load campaigns.
+    - Claim a guaranteed improvement from the number of configured polls or from a benchmark that bypasses the SDK/bounded-response path.
+deliverables:
+  - path: internal/planner/a2a/client_connection_experiment_test.go
+    description: Test-only paired transport fixture, real TLS counters, bounded responses and controlled benchmarks; no production option/default changes.
+  - path: internal/planner/a2a/client_connection_retry_experiment_test.go
+    description: SDK POST replay characterization with deterministic TLS write/response faults.
+  - path: internal/planner/a2a/client_connection_lifecycle_experiment_test.go
+    description: Principal, expiry, cancellation, ownership and simulated retirement boundaries.
+  - path: docs/research/2026-09-19-a2a-connection-reuse-decision.md
+    description: Version-specific transport analysis, measurements, retry/certificate/cleanup decisions and justified follow-up or no-change outcome.
+  - path: tasks/evidence/v57-005.json
+    description: Executed commands, environment and fixture parameters, observed counts/measurements, fault outcomes and decision evidence.
+requirements:
+  - id: R1
+    text: Each experimental reuse transport belongs to one invocation and one verified Runtime principal/endpoint; allocation and process retirement cannot cause cross-identity reuse.
+  - id: R2
+    text: Distinguish safe transport retry before bytes are written from replay after a possible semantic effect; prove observed dispatch counts under faults and do not call JSON-RPC GetTask an HTTP GET.
+  - id: R3
+    text: Any bounded drain or explicit GetBody policy is test-only and documented; the experiment cannot silently alter production retry/response behavior.
+  - id: R4
+    text: A no-change decision is valid. A production reuse patch, if recommended, is a separate follow-up with the exact accepted retry, certificate and cleanup invariants.
+  - id: R5
+    text: Benchmark connection counts and task latency through the real SDK path, preserve response limits, and report variability and scope instead of extrapolating to overall model latency or production CPU.
+acceptance_criteria:
+  - id: A1
+    text: A repeatable paired fixture records actual connection/handshake/poll/dispatch counts and controlled completion latency for both strategies using the same inputs and declared Go/SDK versions.
+  - id: A2
+    text: Zero-write, partial-write, lost-response and unexpected idempotency-header cases record actual retry/dispatch behavior; a candidate that can repeat a possibly completed semantic SendMessage is rejected rather than recommended.
+  - id: A3
+    text: Wrong principal and changed identity receive no protected request bytes; cancellation, deadline, allocation/process retirement and certificate-lifetime cases establish the precise lifecycle limits of reuse.
+  - id: A4
+    text: Known-length, chunked, oversized, malformed and partially consumed response cases establish bounds and resource cleanup despite SDK Destroy being a no-op; any candidate violation is documented and prevents a production recommendation.
+  - id: A5
+    text: The decision cites executed measurements/fault cases and admits no-change or uncertainty; production clients and settings remain unchanged, and document/file existence alone is not evidence of safety or benefit.
+tests:
+  - name: connection-reuse-fault-matrix
+    command: go test -race -count=1 ./internal/planner/a2a -run '^TestConnectionReuseExperiment'
+    covers: [A1, A2, A3, A4]
+  - name: controlled-connection-benchmark
+    command: go test ./internal/planner/a2a -run '^$' -bench '^BenchmarkConnectionReuseExperiment$' -benchtime=3x -count=3
+    covers: [A1, A5]
+  - name: existing-transport-and-identity-regressions
+    command: go test -race -count=1 ./internal/planner/a2a ./internal/controlplane ./internal/mtls
+    covers: [A2, A3, A4, A5]
+  - name: mtls-integration
+    command: make test-mtls
+    covers: [A3, A5]
+  - name: whitespace
+    command: git diff --check
+    covers: [A5]
+verification_requirements:
+  - Implement the named TestConnectionReuseExperiment cases and BenchmarkConnectionReuseExperiment in this task and verify they actually execute; a matching command with no tests is not a pass.
+  - A reproducibly unsafe or ineffective candidate can support a completed no-change decision; fault fixtures assert the observed behavior and identify the rejection rather than hiding failed candidate assumptions.
+  - Capture direct TCP/TLS and semantic-dispatch counters rather than treating HTTP request counts or successful task completion as proof of reuse or absence of replay.
+  - Record benchmark environment and variance; CPU/whole-Run gains remain unestablished unless separately measured.
+  - Review the final production diff and keep the experiment confined to tests, evidence and its decision document.
+
+verification:
+  verified_on: "2026-09-19"
+  decision: no-change
+  evidence: tasks/evidence/v57-005.json
+  decision_document: docs/research/2026-09-19-a2a-connection-reuse-decision.md
+  acceptance:
+    A1: "Passed: real NewMTLS parity, 12 benchmark samples and separate fixed-800ms Task readiness fixture; direct TCP/TLS/send/poll counters."
+    A2: "Passed: 20 SDK/TLS fault cases characterize zero/partial writes, lost responses, both idempotency headers and GetBody removal; adversarial SendMessage replay rejected as a production policy."
+    A3: "Passed: wrong SPKI, key rotation, expiry, next allocation, simulated retirement, cancellation/deadline on fresh SendMessage and active reused GetTask; certificate-lifetime difference prevents a transparent reuse recommendation."
+    A4: "Passed: 14 paired response cases plus direct transport ownership and active cancellation; bounded application reads verified without claiming full entity validation or unbounded drain."
+    A5: "Passed: no-change decision, 70 executed leaf cases under race detector, required benchmark/regressions/mTLS commands, and production diff review."
+  production_changes: none
+  boundaries:
+    - No production CPU or end-to-end Run speedup established by the local benchmark.
+    - Runtime retirement is a simulated allocation gate, not production Registry/watchdog/release verification.
+    - Certificate expiry uses the client TLS verification clock; established-session lifetime policy remains unchanged.
+    - V57-004 remains pending for the detailed discussion requested by the user.
