@@ -914,6 +914,20 @@ func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
 	}
 }
 
+func TestWorkflowAutomaticRetryMayExceed1024Attempts(t *testing.T) {
+	root := copyConfigTree(t)
+	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(strings.Replace(
+		multiStageWorkflowYAML, "maxAttempts: 3", "maxAttempts: 1025", 1,
+	)))
+	workflow, err := mustLoad(t, root, MVPDescriptors()).Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry := workflow.Stages["build"].On.Failed.Retry; retry == nil || retry.MaxAttempts != 1025 {
+		t.Fatalf("automatic retry configuration was capped: %+v", retry)
+	}
+}
+
 func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
 	t.Run("output", func(t *testing.T) {
 		root := copyConfigTree(t)

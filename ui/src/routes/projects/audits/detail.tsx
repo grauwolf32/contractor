@@ -648,21 +648,25 @@ function FindingReviewControls({
       if (pendingReview === undefined) {
         throw new Error("The exact finding review is no longer pending");
       }
-      const decision: DecideAuditFindingRequest = {
-        verdict,
-        rationale: rationale.trim(),
-        ...(verdict === "true_positive" ? { severity } : {}),
-        ...(verdict === "duplicate" ? { duplicateTargetId } : {}),
-      };
+      const decision: DecideAuditFindingRequest =
+        verdict === "true_positive"
+          ? { verdict, rationale: rationale.trim(), severity }
+          : verdict === "duplicate"
+            ? { verdict, rationale: rationale.trim(), duplicateTargetId }
+            : { verdict, rationale: rationale.trim() };
       const draft = {
         operation: "decide",
         auditId: audit.auditId,
         requestId: pendingReview.requestId,
         revision: pendingReview.revision,
         verdict,
-        severity: decision.severity,
+        severity:
+          decision.verdict === "true_positive" ? decision.severity : undefined,
         rationale: decision.rationale,
-        duplicateTargetId: decision.duplicateTargetId,
+        duplicateTargetId:
+          decision.verdict === "duplicate"
+            ? decision.duplicateTargetId
+            : undefined,
       };
       return decideAuditFinding(api, {
         auditId: audit.auditId,

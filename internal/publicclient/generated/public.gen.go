@@ -285,6 +285,57 @@ func (e CredentialManagerDescriptorImplementation) Valid() bool {
 	}
 }
 
+// Defines values for DecideAuditFindingDuplicateRequestVerdict.
+const (
+	Duplicate DecideAuditFindingDuplicateRequestVerdict = "duplicate"
+)
+
+// Valid indicates whether the value is a known member of the DecideAuditFindingDuplicateRequestVerdict enum.
+func (e DecideAuditFindingDuplicateRequestVerdict) Valid() bool {
+	switch e {
+	case Duplicate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecideAuditFindingOtherRequestVerdict.
+const (
+	FalsePositive DecideAuditFindingOtherRequestVerdict = "false_positive"
+	NeedsEvidence DecideAuditFindingOtherRequestVerdict = "needs_evidence"
+	Reopen        DecideAuditFindingOtherRequestVerdict = "reopen"
+)
+
+// Valid indicates whether the value is a known member of the DecideAuditFindingOtherRequestVerdict enum.
+func (e DecideAuditFindingOtherRequestVerdict) Valid() bool {
+	switch e {
+	case FalsePositive:
+		return true
+	case NeedsEvidence:
+		return true
+	case Reopen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecideAuditFindingTruePositiveRequestVerdict.
+const (
+	TruePositive DecideAuditFindingTruePositiveRequestVerdict = "true_positive"
+)
+
+// Valid indicates whether the value is a known member of the DecideAuditFindingTruePositiveRequestVerdict enum.
+func (e DecideAuditFindingTruePositiveRequestVerdict) Valid() bool {
+	switch e {
+	case TruePositive:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingCollectionSourceSelectionKind.
 const (
 	FindingCollectionSourceSelectionKindAudit FindingCollectionSourceSelectionKind = "audit"
@@ -2276,13 +2327,39 @@ type DecideAuditActionRequest struct {
 	Rationale string            `json:"rationale"`
 }
 
+// DecideAuditFindingDuplicateRequest defines model for DecideAuditFindingDuplicateRequest.
+type DecideAuditFindingDuplicateRequest struct {
+	DuplicateTargetId ResourceId                                `json:"duplicateTargetId"`
+	Rationale         string                                    `json:"rationale"`
+	Verdict           DecideAuditFindingDuplicateRequestVerdict `json:"verdict"`
+}
+
+// DecideAuditFindingDuplicateRequestVerdict defines model for DecideAuditFindingDuplicateRequest.Verdict.
+type DecideAuditFindingDuplicateRequestVerdict string
+
+// DecideAuditFindingOtherRequest defines model for DecideAuditFindingOtherRequest.
+type DecideAuditFindingOtherRequest struct {
+	Rationale string                                `json:"rationale"`
+	Verdict   DecideAuditFindingOtherRequestVerdict `json:"verdict"`
+}
+
+// DecideAuditFindingOtherRequestVerdict defines model for DecideAuditFindingOtherRequest.Verdict.
+type DecideAuditFindingOtherRequestVerdict string
+
 // DecideAuditFindingRequest defines model for DecideAuditFindingRequest.
 type DecideAuditFindingRequest struct {
-	DuplicateTargetId *ResourceId           `json:"duplicateTargetId,omitempty"`
-	Rationale         string                `json:"rationale"`
-	Severity          *AuditFindingSeverity `json:"severity,omitempty"`
-	Verdict           AuditAnalystVerdict   `json:"verdict"`
+	union json.RawMessage
 }
+
+// DecideAuditFindingTruePositiveRequest defines model for DecideAuditFindingTruePositiveRequest.
+type DecideAuditFindingTruePositiveRequest struct {
+	Rationale string                                       `json:"rationale"`
+	Severity  AuditFindingSeverity                         `json:"severity"`
+	Verdict   DecideAuditFindingTruePositiveRequestVerdict `json:"verdict"`
+}
+
+// DecideAuditFindingTruePositiveRequestVerdict defines model for DecideAuditFindingTruePositiveRequest.Verdict.
+type DecideAuditFindingTruePositiveRequestVerdict string
 
 // DecideAuditReviewRequest defines model for DecideAuditReviewRequest.
 type DecideAuditReviewRequest struct {
@@ -2600,6 +2677,7 @@ type LLMGatewayConfigRef struct {
 
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
+	// Password Password must contain 12 through 1024 UTF-8 bytes. The server validates byte length, rather than Unicode character count.
 	Password *string `json:"password,omitempty"`
 	Username string  `json:"username"`
 }
@@ -3327,10 +3405,12 @@ type RunRuntimeConfiguration struct {
 
 // RunStatus defines model for RunStatus.
 type RunStatus struct {
-	ActiveStageExecutionId *ResourceId    `json:"activeStageExecutionId,omitempty"`
-	Attempts               []StageAttempt `json:"attempts"`
-	Cancellation           *Cancellation  `json:"cancellation,omitempty"`
-	CreatedAt              *time.Time     `json:"createdAt,omitempty"`
+	ActiveStageExecutionId *ResourceId `json:"activeStageExecutionId,omitempty"`
+
+	// Attempts Complete retained attempt history, including automatic retries. No fixed item cap or truncation is applied by this endpoint.
+	Attempts     []StageAttempt `json:"attempts"`
+	Cancellation *Cancellation  `json:"cancellation,omitempty"`
+	CreatedAt    *time.Time     `json:"createdAt,omitempty"`
 
 	// Deletable True only when terminal release and every applicable retention receipt are durable.
 	Deletable          bool                         `json:"deletable"`
@@ -3351,9 +3431,11 @@ type RunStatus struct {
 	RuntimeLabels          []ConfigId              `json:"runtimeLabels"`
 	StartedAt              *time.Time              `json:"startedAt,omitempty"`
 	State                  WorkflowRunState        `json:"state"`
-	Transitions            []StageTransition       `json:"transitions"`
-	UpdatedAt              *time.Time              `json:"updatedAt,omitempty"`
-	Workflow               Selector                `json:"workflow"`
+
+	// Transitions Complete retained transition history. No fixed item cap or truncation is applied by this endpoint.
+	Transitions []StageTransition `json:"transitions"`
+	UpdatedAt   *time.Time        `json:"updatedAt,omitempty"`
+	Workflow    Selector          `json:"workflow"`
 }
 
 // RunSummary defines model for RunSummary.
@@ -4323,6 +4405,11 @@ type GetArtifactArchiveFileParams struct {
 
 // ImportGitArtifactParams defines parameters for ImportGitArtifact.
 type ImportGitArtifactParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken  *OptionalCSRFToken                  `json:"X-CSRF-Token,omitempty"`
 	IfNoneMatch *ImportGitArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
 	IfMatch     *string                             `json:"If-Match,omitempty"`
 }
@@ -4814,6 +4901,11 @@ type GetProjectArtifactArchiveFileParams struct {
 
 // ImportProjectGitArtifactParams defines parameters for ImportProjectGitArtifact.
 type ImportProjectGitArtifactParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken  *OptionalCSRFToken                         `json:"X-CSRF-Token,omitempty"`
 	IfNoneMatch *ImportProjectGitArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
 	IfMatch     *string                                    `json:"If-Match,omitempty"`
 }
@@ -5002,9 +5094,27 @@ type ResumeRunParams struct {
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// DeleteGitKeyParams defines parameters for DeleteGitKey.
+type DeleteGitKeyParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // ReplaceGitKeyJSONBody defines parameters for ReplaceGitKey.
 type ReplaceGitKeyJSONBody struct {
 	PrivateKey *string `json:"privateKey,omitempty"`
+}
+
+// ReplaceGitKeyParams defines parameters for ReplaceGitKey.
+type ReplaceGitKeyParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
 // ListWorkflowsParams defines parameters for ListWorkflows.
@@ -5458,6 +5568,94 @@ func (t CreateRuntimeCredentialRequest) MarshalJSON() ([]byte, error) {
 }
 
 func (t *CreateRuntimeCredentialRequest) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsDecideAuditFindingTruePositiveRequest returns the union data inside the DecideAuditFindingRequest as a DecideAuditFindingTruePositiveRequest
+func (t DecideAuditFindingRequest) AsDecideAuditFindingTruePositiveRequest() (DecideAuditFindingTruePositiveRequest, error) {
+	var body DecideAuditFindingTruePositiveRequest
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDecideAuditFindingTruePositiveRequest overwrites any union data inside the DecideAuditFindingRequest as the provided DecideAuditFindingTruePositiveRequest
+func (t *DecideAuditFindingRequest) FromDecideAuditFindingTruePositiveRequest(v DecideAuditFindingTruePositiveRequest) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDecideAuditFindingTruePositiveRequest performs a merge with any union data inside the DecideAuditFindingRequest, using the provided DecideAuditFindingTruePositiveRequest
+func (t *DecideAuditFindingRequest) MergeDecideAuditFindingTruePositiveRequest(v DecideAuditFindingTruePositiveRequest) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDecideAuditFindingDuplicateRequest returns the union data inside the DecideAuditFindingRequest as a DecideAuditFindingDuplicateRequest
+func (t DecideAuditFindingRequest) AsDecideAuditFindingDuplicateRequest() (DecideAuditFindingDuplicateRequest, error) {
+	var body DecideAuditFindingDuplicateRequest
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDecideAuditFindingDuplicateRequest overwrites any union data inside the DecideAuditFindingRequest as the provided DecideAuditFindingDuplicateRequest
+func (t *DecideAuditFindingRequest) FromDecideAuditFindingDuplicateRequest(v DecideAuditFindingDuplicateRequest) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDecideAuditFindingDuplicateRequest performs a merge with any union data inside the DecideAuditFindingRequest, using the provided DecideAuditFindingDuplicateRequest
+func (t *DecideAuditFindingRequest) MergeDecideAuditFindingDuplicateRequest(v DecideAuditFindingDuplicateRequest) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsDecideAuditFindingOtherRequest returns the union data inside the DecideAuditFindingRequest as a DecideAuditFindingOtherRequest
+func (t DecideAuditFindingRequest) AsDecideAuditFindingOtherRequest() (DecideAuditFindingOtherRequest, error) {
+	var body DecideAuditFindingOtherRequest
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDecideAuditFindingOtherRequest overwrites any union data inside the DecideAuditFindingRequest as the provided DecideAuditFindingOtherRequest
+func (t *DecideAuditFindingRequest) FromDecideAuditFindingOtherRequest(v DecideAuditFindingOtherRequest) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDecideAuditFindingOtherRequest performs a merge with any union data inside the DecideAuditFindingRequest, using the provided DecideAuditFindingOtherRequest
+func (t *DecideAuditFindingRequest) MergeDecideAuditFindingOtherRequest(v DecideAuditFindingOtherRequest) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t DecideAuditFindingRequest) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *DecideAuditFindingRequest) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -6772,7 +6970,11 @@ type ClientInterface interface {
 
 	// ImportGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -6781,7 +6983,11 @@ type ClientInterface interface {
 
 	// ImportGitArtifact Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7359,7 +7565,11 @@ type ClientInterface interface {
 
 	// ImportProjectGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -7368,7 +7578,11 @@ type ClientInterface interface {
 
 	// ImportProjectGitArtifact Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7582,7 +7796,7 @@ type ClientInterface interface {
 	// DeleteGitKey Remove the owner's configured Git key without changing imported artifacts
 	//
 	// Corresponds with DELETE /v1/settings/git-key (the `DeleteGitKey` operationId).
-	DeleteGitKey(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteGitKey(ctx context.Context, params *DeleteGitKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetGitKey Read configured state and public fingerprint of the owner's Git SSH key
 	//
@@ -7594,14 +7808,14 @@ type ClientInterface interface {
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-	ReplaceGitKeyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplaceGitKeyWithBody(ctx context.Context, params *ReplaceGitKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReplaceGitKey Validate and replace the owner's encrypted Git SSH private key
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-	ReplaceGitKey(ctx context.Context, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplaceGitKey(ctx context.Context, params *ReplaceGitKeyParams, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListWorkflows List published Workflow versions
 	//
@@ -7700,7 +7914,11 @@ func (c *Client) GetArtifactArchiveFile(ctx context.Context, namespace ArtifactN
 
 // ImportGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes any type of body and a specified content type.
 //
@@ -7719,7 +7937,11 @@ func (c *Client) ImportGitArtifactWithBody(ctx context.Context, namespace Artifa
 
 // ImportGitArtifact Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -9197,7 +9419,11 @@ func (c *Client) GetProjectArtifactArchiveFile(ctx context.Context, projectId Pr
 
 // ImportProjectGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes any type of body and a specified content type.
 //
@@ -9216,7 +9442,11 @@ func (c *Client) ImportProjectGitArtifactWithBody(ctx context.Context, projectId
 
 // ImportProjectGitArtifact Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -9760,8 +9990,8 @@ func (c *Client) ResumeRun(ctx context.Context, runId RunId, params *ResumeRunPa
 // DeleteGitKey Remove the owner's configured Git key without changing imported artifacts
 //
 // Corresponds with DELETE /v1/settings/git-key (the `DeleteGitKey` operationId).
-func (c *Client) DeleteGitKey(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteGitKeyRequest(c.Server)
+func (c *Client) DeleteGitKey(ctx context.Context, params *DeleteGitKeyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGitKeyRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9792,8 +10022,8 @@ func (c *Client) GetGitKey(ctx context.Context, reqEditors ...RequestEditorFn) (
 // Takes any type of body and a specified content type.
 //
 // Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-func (c *Client) ReplaceGitKeyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceGitKeyRequestWithBody(c.Server, contentType, body)
+func (c *Client) ReplaceGitKeyWithBody(ctx context.Context, params *ReplaceGitKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceGitKeyRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9809,8 +10039,8 @@ func (c *Client) ReplaceGitKeyWithBody(ctx context.Context, contentType string, 
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-func (c *Client) ReplaceGitKey(ctx context.Context, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceGitKeyRequest(c.Server, body)
+func (c *Client) ReplaceGitKey(ctx context.Context, params *ReplaceGitKeyParams, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceGitKeyRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10289,26 +10519,48 @@ func NewImportGitArtifactRequestWithBody(server string, namespace ArtifactNamesp
 
 	if params != nil {
 
-		if params.IfNoneMatch != nil {
+		if params.Origin != nil {
 			var headerParam0 string
 
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "If-None-Match", *params.IfNoneMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("If-None-Match", headerParam0)
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
+
+		if params.IfNoneMatch != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "If-None-Match", *params.IfNoneMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("If-None-Match", headerParam2)
 		}
 
 		if params.IfMatch != nil {
-			var headerParam1 string
+			var headerParam3 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", *params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			headerParam3, err = runtime.StyleParamWithOptions("simple", false, "If-Match", *params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("If-Match", headerParam1)
+			req.Header.Set("If-Match", headerParam3)
 		}
 
 	}
@@ -15250,26 +15502,48 @@ func NewImportProjectGitArtifactRequestWithBody(server string, projectId Project
 
 	if params != nil {
 
-		if params.IfNoneMatch != nil {
+		if params.Origin != nil {
 			var headerParam0 string
 
-			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "If-None-Match", *params.IfNoneMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("If-None-Match", headerParam0)
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
+
+		if params.IfNoneMatch != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "If-None-Match", *params.IfNoneMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("If-None-Match", headerParam2)
 		}
 
 		if params.IfMatch != nil {
-			var headerParam1 string
+			var headerParam3 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", *params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			headerParam3, err = runtime.StyleParamWithOptions("simple", false, "If-Match", *params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("If-Match", headerParam1)
+			req.Header.Set("If-Match", headerParam3)
 		}
 
 	}
@@ -17237,7 +17511,7 @@ func NewResumeRunRequestWithBody(server string, runId RunId, params *ResumeRunPa
 }
 
 // NewDeleteGitKeyRequest constructs an http.Request for the DeleteGitKey method
-func NewDeleteGitKeyRequest(server string) (*http.Request, error) {
+func NewDeleteGitKeyRequest(server string, params *DeleteGitKeyParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -17258,6 +17532,32 @@ func NewDeleteGitKeyRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.Origin != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
+
 	}
 
 	return req, nil
@@ -17291,18 +17591,18 @@ func NewGetGitKeyRequest(server string) (*http.Request, error) {
 }
 
 // NewReplaceGitKeyRequest calls the generic ReplaceGitKey builder with application/json body
-func NewReplaceGitKeyRequest(server string, body ReplaceGitKeyJSONRequestBody) (*http.Request, error) {
+func NewReplaceGitKeyRequest(server string, params *ReplaceGitKeyParams, body ReplaceGitKeyJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewReplaceGitKeyRequestWithBody(server, "application/json", bodyReader)
+	return NewReplaceGitKeyRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewReplaceGitKeyRequestWithBody constructs an http.Request for the ReplaceGitKey method, with any body, and a specified content type
-func NewReplaceGitKeyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewReplaceGitKeyRequestWithBody(server string, params *ReplaceGitKeyParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -17326,6 +17626,32 @@ func NewReplaceGitKeyRequestWithBody(server string, contentType string, body io.
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Origin != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
+
+	}
 
 	return req, nil
 }
@@ -17549,7 +17875,11 @@ type ClientWithResponsesInterface interface {
 
 	// ImportGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -17558,7 +17888,11 @@ type ClientWithResponsesInterface interface {
 
 	// ImportGitArtifactWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -18248,7 +18582,11 @@ type ClientWithResponsesInterface interface {
 
 	// ImportProjectGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -18257,7 +18595,11 @@ type ClientWithResponsesInterface interface {
 
 	// ImportProjectGitArtifactWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 	//
-	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+	// Omitting both precondition headers or sending `If-None-Match: *` creates
+	// an absent binding and conflicts if it already exists. Updating an
+	// existing binding requires one strong quoted `If-Match` revision;
+	// supplying both headers is invalid. No automatic refresh or mutation
+	// retry. The whole operation is bounded to 120 seconds.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -18513,7 +18855,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /v1/settings/git-key (the `DeleteGitKey` operationId).
-	DeleteGitKeyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteGitKeyResponse, error)
+	DeleteGitKeyWithResponse(ctx context.Context, params *DeleteGitKeyParams, reqEditors ...RequestEditorFn) (*DeleteGitKeyResponse, error)
 
 	// GetGitKeyWithResponse Read configured state and public fingerprint of the owner's Git SSH key
 	//
@@ -18527,14 +18869,14 @@ type ClientWithResponsesInterface interface {
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-	ReplaceGitKeyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error)
+	ReplaceGitKeyWithBodyWithResponse(ctx context.Context, params *ReplaceGitKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error)
 
 	// ReplaceGitKeyWithResponse Validate and replace the owner's encrypted Git SSH private key
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-	ReplaceGitKeyWithResponse(ctx context.Context, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error)
+	ReplaceGitKeyWithResponse(ctx context.Context, params *ReplaceGitKeyParams, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error)
 
 	// ListWorkflowsWithResponse List published Workflow versions
 	//
@@ -32149,7 +32491,11 @@ func (c *ClientWithResponses) GetArtifactArchiveFileWithResponse(ctx context.Con
 
 // ImportGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -32164,7 +32510,11 @@ func (c *ClientWithResponses) ImportGitArtifactWithBodyWithResponse(ctx context.
 
 // ImportGitArtifactWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -33394,7 +33744,11 @@ func (c *ClientWithResponses) GetProjectArtifactArchiveFileWithResponse(ctx cont
 
 // ImportProjectGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -33409,7 +33763,11 @@ func (c *ClientWithResponses) ImportProjectGitArtifactWithBodyWithResponse(ctx c
 
 // ImportProjectGitArtifactWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 //
-// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+// Omitting both precondition headers or sending `If-None-Match: *` creates
+// an absent binding and conflicts if it already exists. Updating an
+// existing binding requires one strong quoted `If-Match` revision;
+// supplying both headers is invalid. No automatic refresh or mutation
+// retry. The whole operation is bounded to 120 seconds.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -33863,8 +34221,8 @@ func (c *ClientWithResponses) ResumeRunWithResponse(ctx context.Context, runId R
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with DELETE /v1/settings/git-key (the `DeleteGitKey` operationId).
-func (c *ClientWithResponses) DeleteGitKeyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteGitKeyResponse, error) {
-	rsp, err := c.DeleteGitKey(ctx, reqEditors...)
+func (c *ClientWithResponses) DeleteGitKeyWithResponse(ctx context.Context, params *DeleteGitKeyParams, reqEditors ...RequestEditorFn) (*DeleteGitKeyResponse, error) {
+	rsp, err := c.DeleteGitKey(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -33889,8 +34247,8 @@ func (c *ClientWithResponses) GetGitKeyWithResponse(ctx context.Context, reqEdit
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-func (c *ClientWithResponses) ReplaceGitKeyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error) {
-	rsp, err := c.ReplaceGitKeyWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) ReplaceGitKeyWithBodyWithResponse(ctx context.Context, params *ReplaceGitKeyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error) {
+	rsp, err := c.ReplaceGitKeyWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -33902,8 +34260,8 @@ func (c *ClientWithResponses) ReplaceGitKeyWithBodyWithResponse(ctx context.Cont
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /v1/settings/git-key (the `ReplaceGitKey` operationId).
-func (c *ClientWithResponses) ReplaceGitKeyWithResponse(ctx context.Context, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error) {
-	rsp, err := c.ReplaceGitKey(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ReplaceGitKeyWithResponse(ctx context.Context, params *ReplaceGitKeyParams, body ReplaceGitKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceGitKeyResponse, error) {
+	rsp, err := c.ReplaceGitKey(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
