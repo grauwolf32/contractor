@@ -3,7 +3,8 @@ id: V45-005
 title: Separate Scheduler lifecycle phases
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 9ef3eec6f9841abdfb3165536d488c437c613004
 depends_on: []
 languages:
 - go

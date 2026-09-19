@@ -3,7 +3,7 @@ id: V45-006
 title: Extract Audit reconciliation phases and batch selection
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
