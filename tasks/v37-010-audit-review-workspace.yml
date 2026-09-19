@@ -3,8 +3,8 @@ id: "V37-010"
 title: "Turn Audit reviews into a contextual queue of decisions with complete filtered summaries"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "1b45fc52bc93c1a3ed53d3081ab243902a1a398a"
 depends_on: ["V37-005", "V25-011"]
 languages: ["go", "typescript"]
 goal: >-
