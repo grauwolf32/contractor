@@ -48,3 +48,8 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+  - go test -race -count=1 ./internal/controlplane — passed.
+  - Exhaustive candidate graphs up to three bindings and three agents agree with independent assignment search; stable augmentation leaves the graph unchanged.
+  - git diff --check — passed.

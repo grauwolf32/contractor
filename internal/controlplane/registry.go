@@ -6,14 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 const (
@@ -594,103 +593,6 @@ func (r *InMemoryRegistry) DiscardCandidateReservations(stageExecutionID string)
 	return nil
 }
 
-// completeCapabilityAssignment finds a complete injective binding-to-slot
-// assignment over two already stable-ordered collections. Each augmentation
-// uses an explicit queue and parent edges so request-controlled binding depth
-// never becomes call-stack depth. It does not mutate Runtime Agent entries.
-func completeCapabilityAssignment(
-	available []*agentEntry,
-	bindings []BindingRequirement,
-) ([]*agentEntry, bool) {
-	return completeCapabilityAssignmentWithEdges(available, bindings, nil)
-}
-
-func completeCapabilityAssignmentWithEdges(
-	available []*agentEntry,
-	bindings []BindingRequirement,
-	edges []CandidateEdge,
-) ([]*agentEntry, bool) {
-	if len(bindings) > len(available) {
-		return nil, false
-	}
-	edgeSet := make(map[string]CandidateEdge, len(edges))
-	for _, edge := range edges {
-		edgeSet[edge.LogicalAgentName+"\x00"+edge.RuntimeAgentInstanceID] = edge
-	}
-	candidates := make([][]int, len(bindings))
-	for bindingIndex, binding := range bindings {
-		for agentIndex, entry := range available {
-			if !isBindingCompatible(entry.registration, binding) {
-				continue
-			}
-			if edges != nil {
-				edge, ok := edgeSet[binding.LogicalAgentName+"\x00"+entry.registration.InstanceID]
-				if !ok || edge.RuntimeAgentID != entry.principal.RuntimeAgentID ||
-					edge.RuntimeAgentLabelRevision != entry.principal.LabelRevision ||
-					!containsRuntimeAdapters(entry.registration.SupportedRuntimeAdapters, edge.RequiredRuntimeAdapters) {
-					continue
-				}
-			}
-			candidates[bindingIndex] = append(candidates[bindingIndex], agentIndex)
-		}
-		if len(candidates[bindingIndex]) == 0 {
-			return nil, false
-		}
-	}
-
-	bindingToAgent := integersFilled(len(bindings), -1)
-	agentToBinding := integersFilled(len(available), -1)
-	for startBinding := range bindings {
-		seenBindings := make([]bool, len(bindings))
-		seenAgents := make([]bool, len(available))
-		parentBindingForAgent := integersFilled(len(available), -1)
-		queue := make([]int, 1, len(bindings))
-		queue[0] = startBinding
-		seenBindings[startBinding] = true
-		augmented := false
-
-		for len(queue) > 0 && !augmented {
-			bindingIndex := queue[0]
-			queue = queue[1:]
-			for _, agentIndex := range candidates[bindingIndex] {
-				if seenAgents[agentIndex] {
-					continue
-				}
-				seenAgents[agentIndex] = true
-				parentBindingForAgent[agentIndex] = bindingIndex
-				occupiedBy := agentToBinding[agentIndex]
-				if occupiedBy == -1 {
-					for currentAgent := agentIndex; currentAgent != -1; {
-						currentBinding := parentBindingForAgent[currentAgent]
-						previousAgent := bindingToAgent[currentBinding]
-						bindingToAgent[currentBinding] = currentAgent
-						agentToBinding[currentAgent] = currentBinding
-						currentAgent = previousAgent
-					}
-					augmented = true
-					break
-				}
-				if !seenBindings[occupiedBy] {
-					seenBindings[occupiedBy] = true
-					queue = append(queue, occupiedBy)
-				}
-			}
-		}
-		if !augmented {
-			return nil, false
-		}
-	}
-
-	selected := make([]*agentEntry, len(bindings))
-	for bindingIndex, agentIndex := range bindingToAgent {
-		if agentIndex < 0 {
-			return nil, false
-		}
-		selected[bindingIndex] = available[agentIndex]
-	}
-	return selected, true
-}
-
 func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge) error {
 	if edges == nil || len(edges) > len(bindings)*maximumOperationsItems {
 		return fmt.Errorf("%w: candidate edge set is invalid", ErrInvalidRequest)
@@ -699,7 +601,7 @@ func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge
 	for _, binding := range bindings {
 		bindingsByName[binding.LogicalAgentName] = struct{}{}
 	}
-	seen := make(map[string]struct{}, len(edges))
+	seen := make(map[candidateEdgeKey]struct{}, len(edges))
 	for _, edge := range edges {
 		if _, ok := bindingsByName[edge.LogicalAgentName]; !ok ||
 			strings.TrimSpace(edge.RuntimeAgentInstanceID) == "" ||
@@ -709,7 +611,7 @@ func validateCandidateEdges(bindings []BindingRequirement, edges []CandidateEdge
 			}) != nil {
 			return fmt.Errorf("%w: candidate edge identity is invalid", ErrInvalidRequest)
 		}
-		key := edge.LogicalAgentName + "\x00" + edge.RuntimeAgentInstanceID
+		key := candidateEdgeKey{edge.LogicalAgentName, edge.RuntimeAgentInstanceID}
 		if _, duplicate := seen[key]; duplicate {
 			return fmt.Errorf("%w: candidate edge is duplicated", ErrInvalidRequest)
 		}
@@ -739,14 +641,6 @@ func containsRuntimeAdapters(
 		}
 	}
 	return true
-}
-
-func integersFilled(length int, value int) []int {
-	result := make([]int, length)
-	for index := range result {
-		result[index] = value
-	}
-	return result
 }
 
 func (r *InMemoryRegistry) GetGrant(allocationID string) (AllocationGrant, error) {
