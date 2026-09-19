@@ -47,7 +47,8 @@ scope:
     - >-
       Add Project/experiment deletion fence participation and private-data purge prerequisites;
       retain pinned dataset revisions and exact owned execution dependencies. Prepare schema
-      support for result/assessment/view generations consumed by V38-006.
+      support for result/assessment/view generations and durable progress observations consumed
+      by V38-006.
   out:
     - >-
       Dispatching Runs/Audits, scoring, external callbacks and deriving identity or deletable

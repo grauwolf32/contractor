@@ -43,7 +43,8 @@ scope:
       reload; author/import immutable dataset revisions with provenance and explicit private
       check/rubric separation.
     - >-
-      Select latest available compatible catalog versions for new draft convenience, visibly
+      Select execution kind Workflow or Audit, then latest available compatible Workflow or
+      AuditProfile versions for new draft convenience, visibly
       retain exact choices and pin on Prepare. Display expected cases x two variants x repeats,
       input-role/capability issues, equality-pin coverage and explicit budgets before separate
       Start.
@@ -75,7 +76,8 @@ requirements:
 acceptance_criteria:
   - id: "A1"
     given: >-
-      A user authors/imports two cases and selects exact A/B variants with repetitions.
+      A user authors/imports two cases and selects exact A/B variants with repetitions,
+      separately for Workflow and Audit.
     when: >-
       They leave/reload the wizard, prepare and review Start.
     then: >-

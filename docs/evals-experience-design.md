@@ -89,6 +89,23 @@ membership by matching labels. Details and compatibility are in
 
 ## User journey and screens
 
+### Workflow and Audit experiments
+
+The setup starts with Workflow or Audit. Both support native UI launch and an
+external runner, exact A/B versions, the same case/repeat matrix and the same
+comparison screens. A Workflow attempt is one Run; an Audit attempt is the entire
+Audit. Its child Runs, rounds and items remain drill-down evidence, not additional
+samples. Mixed Workflow-versus-Audit A/B comparisons are outside the first slice.
+
+Audit variants use exact AuditProfiles, compatible inputs and unchanged trusted
+inventory/importer rules. Each Audit member gets its own execution Project of
+kind `project`; the evaluation Project stores the experiment association. Quality
+comes from the selected checks/review, never from Audit completion alone. Token
+charts include all owned execution roles once; Audit duration measures its parent
+interval rather than summing possibly overlapping child Runs. Missing child metrics
+remain partial. The authoritative details are in
+[Workflow and Audit parity](spec/29-managed-evals.md#workflow-and-audit-parity).
+
 ### List and navigation
 
 `/evals` lists experiments: name, A/B variants, case/repeat count, control mode,
@@ -105,7 +122,7 @@ workspace views; migration must not reinterpret a Project ID as an experiment ID
 
 ### Setup in four steps
 
-1. **Variants:** name/workspace and comparison purpose; exact A/B Workflow or
+1. **Variants:** execution kind, name/workspace and comparison purpose; exact A/B Workflow or
    AuditProfile, applicable execution overrides, resolved Agent/Skill details.
    The purpose presets declared equal/different dimensions; the review shows them.
    A workflow comparison can allow model differences. An instruction-only
@@ -173,6 +190,46 @@ contextual back links. On narrow screens a case/sample becomes a paired card
 with A/B labels retained; evidence opens a dedicated page. Keyboard navigation,
 focus return and 390px/1280px layouts are acceptance requirements. Filters,
 snapshot and cursor survive a trip to Run/artifact detail.
+
+### Charts
+
+Add five views over the same selected experiment snapshot. Overview contains a
+compact quality comparison and execution progress. Comparison offers Tokens,
+Duration and Case differences through a metric selector, followed by the existing
+pair table; it does not become another long dashboard of expanded charts.
+
+| Chart | Question answered | Presentation |
+| --- | --- | --- |
+| Quality A/B | Does the candidate pass the declared checks more often? | Two horizontal bars: end-to-end passed / expected, with exact counts and scored coverage beside each bar. Conditional scored quality is a separately labelled toggle. |
+| Tokens | Which variant consumes more tokens, and how variable are attempts? | A/B distributions with shared bins, sample counts and p50/p90 markers; complete comparable pairs only. |
+| Duration | Which variant takes longer, and are there slow attempts? | The same distribution view for elapsed execution time, labelled with its exact measurement scope including queue time where applicable. |
+| Case differences | Where does the candidate get better or worse? | A paginated diverging plot of B minus A tokens or duration per case/sample, centred on zero. Quality regressions have explicit textual badges. |
+| Execution progress | Is the experiment advancing? | A/B step lines for observed terminal members against expected counts over elapsed wall time, with pause/restart observation gaps shown honestly. Assessment coverage stays separate. |
+
+A is blue and B orange throughout; labels, point shapes and line styles identify
+variants without relying on colour alone. Quality/status colours keep their normal
+meaning. Charts have keyboard-accessible details and a Show data table alternative.
+Clicking a distribution bin opens the matching filtered attempt/pair list; clicking
+a case difference opens that exact pair and retains filters/back navigation.
+
+Each chart shows its scope, included/expected count and exclusions. Comparisons
+use matching measurement scopes and never substitute zero for absent usage or
+failed collection. p50/p90 describe observed variation, not confidence intervals;
+one sample is a labelled point, and zero samples are not a flat zero line. A
+missing metric hides its plot and leaves a compact coverage explanation in the
+summary. Incomparable scopes are explained instead of overlaid.
+
+In the worked example, quality is A 3/4 versus B 2/4. The token comparison contains
+only two complete pairs: A 80/45 and B 70/60. Their differences are -10 and +15;
+paired totals 125 versus 130 do not represent the complete experiment. B's known
+130 over 2/4 remains visibly partial. Pagination cannot change chart totals.
+
+At 390px show one chart at a time with tap/keyboard access to the same details;
+at 1280px the two Overview charts fit side by side. Reuse Operations chart visual
+conventions and shared primitives where appropriate. Cross-experiment history
+trends are a later extension: differing datasets/pins must not form a misleading
+single performance line. API bounds and aggregation semantics are owned by
+[spec 29](spec/29-managed-evals.md#chart-projections).
 
 ### Controls
 
@@ -262,3 +319,26 @@ change an existing frozen Playground experiment.
 
 This verifies the design and decomposition only. No planned endpoint, coordinator,
 browser journey or model-quality result is represented as implemented or tested.
+
+### Chart and execution-kind consistency review — 2026-09-19
+
+The chart extension is assigned to V38-002 (DTOs/fixtures), V38-003 (observation
+storage), V38-006 (collection/projections), V38-008 (UI) and V38-010 (release
+verification). Setup, public API and Playground client tasks explicitly cover
+both Workflow and Audit; implementation statuses remain pending.
+
+The review checked spec 19 Audit authority and spec 26 identity/accounting against
+current Contractor Audit creation/response routes and Playground provider code.
+It made two integration requirements explicit: Audit execution Projects use kind
+`project`, and item pages alone cannot prove that all discovery/assessment/check
+executions were collected. V38-006 therefore provides the bounded authoritative
+member execution inventory used by V38-009. A whole Audit remains one member;
+parent duration and deduplicated child token accounting use existing semantics.
+
+Verification passed: 336 indexed tasks and their complete dependency graph,
+acceptance/test coverage for every V38 task, new local links/anchors, API JSON
+examples, chart pair deltas and nearest-rank percentiles. The shared trace token
+cohort has paired totals 125/130, differences -10/+15, p50 45/60 and p90 80/70;
+those are partial paired statistics, not whole-experiment savings. Spec 26 bytes
+and completed task evidence were preserved. Runtime/UI validation belongs to the
+pending implementation tasks; this review does not claim those features work yet.

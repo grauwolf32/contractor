@@ -80,7 +80,9 @@ acceptance_criteria:
       Clients create/import, prepare, start, poll, replay and finalize through HTTP.
     then: >-
       Responses follow the published contract and invoke existing execution services exactly
-      once, while external and native dispatch ownership remain enforced.
+      once, while external and native dispatch ownership remain enforced. Exercise Workflow
+      and Audit in both modes, reject mixed-kind registrations and preserve kind=project Audit
+      execution workspaces behind the evaluation Project association.
   - id: "A2"
     given: >-
       Foreign owners, Worker credentials, cookie requests and malformed/stale bodies.

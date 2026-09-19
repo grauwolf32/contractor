@@ -49,7 +49,8 @@ scope:
       Exercise lease/command/Audit-suboperation faults, cancellation/deletion fences,
       unavailable evidence/usage, conflicts, failed checks, foreign owners, private truth
       sentinels, large pagination and both desktop/mobile keyboard journeys. Update story/spec
-      status with actual measured evidence.
+      status with actual measured evidence. Include chart/table parity, bin drill-down,
+      bounded series, partial cohorts, progress gaps and accessible desktop/mobile charts.
   out:
     - >-
       Paid models/targets, V40 instruction quality verdicts, synthetic UX scores, silently
@@ -60,7 +61,9 @@ requirements:
     text: >-
       Process evidence and mocked-browser evidence are labelled separately. The gate must fail
       if required PostgreSQL/process cases skip or a native path imports/calls Playground.
-      Include ordinary Workflow and Audit managed member creation.
+      Verify the full matrix: native Workflow, native Audit, external Workflow and external
+      Audit. Include Audit children across roles/rounds/retries, overlapping durations, missing
+      child reports and repeated observations; verify one parent member and exact accounting.
   - id: "R2"
     text: >-
       Reconcile every accepted submission before claiming cancellation or purge complete. Run
@@ -97,6 +100,8 @@ acceptance_criteria:
     then: >-
       Queries/pages remain bounded, fault assertions pass without required skips, public clients
       agree and docs distinguish proven UI/process behavior from unmeasured model quality.
+      Chart totals/percentiles agree with tables independently of pagination, matching-pair
+      exclusions are visible and missing measurements/history are never fabricated.
 tests:
   - name: "managed-release"
     command: >-

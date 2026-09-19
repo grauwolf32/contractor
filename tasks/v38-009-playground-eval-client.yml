@@ -74,12 +74,16 @@ requirements:
 acceptance_criteria:
   - id: "A1"
     given: >-
-      A public API fixture and Playground with private truth sentinels.
+      Public API fixtures for Workflow and Audit in both control modes, with private truth
+      sentinels and a multi-child Audit.
     when: >-
       The CLI imports cases, starts a native experiment or registers/drives an external one.
     then: >-
       Requests use only documented owner APIs, leak no truth/credentials and retain exact IDs,
-      mappings and attributed assessments.
+      mappings and attributed assessments. Workflow/Audit kind is preserved; Audit child
+      accounting follows spec 29 and cannot change the expected member denominator. Follow
+      the managed member execution inventory API across all pages/roles; an item list alone
+      cannot establish complete Audit usage.
   - id: "A2"
     given: >-
       Lost responses, an interrupted external journal and a server deletion fence.

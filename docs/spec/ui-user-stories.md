@@ -196,9 +196,13 @@ storage contract.
 As an agent author, I want to define variants, shared cases and a repeat count so
 that I can compare results, duration and token usage using comparable data.
 
-Target outcome: experiment setup and comparison by case/sample, with missing,
-repeated and failed Runs shown explicitly. Missing metrics are not zero; a
-successful Run alone does not imply high quality. Quality assessment requires
+Target outcome: experiment setup and comparison by case/sample for Workflow or
+Audit variants in both native and external control modes. One sample is one Run
+or one whole Audit; child Runs do not increase the denominator. Missing, repeated
+and failed attempts are shown explicitly. Quality, tokens, duration, paired
+differences and progress charts use the same complete data as the comparison
+tables. Missing metrics are not zero; successful execution alone does not imply
+high quality. Quality assessment requires
 an explicitly selected evaluator or a human decision.
 
 **Selected design, implementation pending:** V38-001 defines the

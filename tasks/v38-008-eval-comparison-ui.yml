@@ -48,6 +48,11 @@ scope:
       Add owner human review against the pinned rubric/exact result, CAS selection, safe report
       export, per-dimension pair counts and incomplete-data explanations. Retain filters and
       pagination context on diagnostic/evidence round trips.
+    - >-
+      Add compact quality and progress charts to Overview, and token/duration distributions
+      plus paginated case/sample differences in Comparison. Use the chart API and metric
+      selector rather than loading all Runs or expanding a long dashboard. Provide bin-to-list
+      and point-to-pair navigation, exact coverage and equivalent accessible data tables.
   out:
     - >-
       Client-side scans of all Runs, first-page totals, implicit quality inference, external
@@ -69,6 +74,13 @@ requirements:
       Use paired cards at 390px and side-by-side rows/evidence at 1280px with keyboard access
       and meaningful labels. Review is an explicit attributable action; stale result/rubric/CAS
       prompts a fresh review instead of applying to changed evidence.
+  - id: "R4"
+    text: >-
+      Keep A blue/B orange with labels and non-colour alternatives; reuse Operations chart
+      conventions. Show p50/p90 as observed variation, never confidence intervals. Missing
+      metrics hide their plot but retain a coverage explanation; unmatched scopes are not
+      overlaid. Support touch/keyboard detail, filter-preserving drill-down and one chart at a
+      time on narrow screens. Cross-experiment history trends remain outside this slice.
 acceptance_criteria:
   - id: "A1"
     given: >-
@@ -94,15 +106,28 @@ acceptance_criteria:
     then: >-
       Context is retained, old links resolve, external controls are truthful and mobile layout
       keeps A/B identity and primary actions legible.
+  - id: "A4"
+    given: >-
+      Workflow and Audit fixtures with full, partial, empty, single-sample and large chart
+      cohorts plus observation gaps; Audits have multiple children/rounds/retries.
+    when: >-
+      Users change metric/filter, inspect bins/points, open data tables and return from pairs
+      at 390px and 1280px using mouse, touch or keyboard.
+    then: >-
+      Charts retain exact cohort coverage, units and A/B colours, never turn missing values
+      into zero or join gaps, and agree with tables across pages; focus and navigation context
+      survive drill-down without requiring colour or hover to understand a result. Audit
+      charts count the parent once and open its report/coverage, with child Runs available
+      as bounded evidence rather than extra samples.
 tests:
   - name: "ui"
     command: >-
       cd ui && corepack pnpm exec vitest run src/routes/evals-comparison.test.tsx
       src/routes/evals-skills.test.tsx && corepack pnpm typecheck && corepack pnpm lint &&
       corepack pnpm build
-    covers: ["A1", "A2", "A3"]
+    covers: ["A1", "A2", "A3", "A4"]
   - name: "browser"
     command: >-
       cd ui && corepack pnpm exec playwright test e2e/evals-comparison.spec.ts
       e2e/evals-skills.spec.ts
-    covers: ["A1", "A2", "A3"]
+    covers: ["A1", "A2", "A3", "A4"]

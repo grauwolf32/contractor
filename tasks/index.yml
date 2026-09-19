@@ -801,12 +801,14 @@ managed_evals_planning:
     - {wave: 2, tasks: [V38-003], outcome: Durable owner-scoped plans and commands.}
     - {wave: 3, tasks: [V38-004], outcome: Native coordinator and common member submissions.}
     - {wave: 4, tasks: [V38-005], outcome: Public setup and execution control APIs.}
-    - {wave: 5, tasks: [V38-006], outcome: Attributed assessment and bounded complete comparisons.}
+    - {wave: 5, tasks: [V38-006], outcome: Attributed assessment and bounded complete comparisons with chart projections.}
     - {wave: 6, tasks: [V38-007, V38-009], outcome: Native browser setup and optional Playground client.}
-    - {wave: 7, tasks: [V38-008], outcome: Experiment discovery and comparison UI.}
+    - {wave: 7, tasks: [V38-008], outcome: Experiment discovery and accessible comparison charts for Workflow and Audit.}
     - {wave: 8, tasks: [V38-010], outcome: Independent native and external process/browser release gates.}
   boundaries:
     - Full browser setup/start/compare is the selected product direction; implementation remains pending.
+    - Both Workflow and Audit are required in server and external modes; Audit children never become separate eval samples.
+    - Chart projections and tables share exact cohorts, scope and completeness; unavailable metrics are not zero.
     - Contractor has no Playground runtime dependency or callback; Playground is an optional public API client.
     - Immutable server/external control mode prevents simultaneous dispatch; existing Run/Audit services and Scheduler own execution.
     - Spec 29 is an explicit later managed-mode extension; existing spec 26 portable bundles and private CLI journals remain valid.

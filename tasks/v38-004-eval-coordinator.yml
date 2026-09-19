@@ -42,7 +42,7 @@ scope:
       Prepare executes zero Runs/Audits or targets.
     - >-
       Persist and reconcile per-member Run create or Audit create/start suboperations through
-      existing domain services. Isolate Audit execution Projects per member and pin exact
+      existing domain services. Isolate Audit execution Projects of kind project per member and pin exact
       visible inputs so cases/arms cannot inherit each other's outputs.
     - >-
       Add native PostgreSQL-claimed coordinator, existing execution observation and drain
@@ -79,7 +79,9 @@ acceptance_criteria:
       create/start.
     then: >-
       The same plan and sample IDs recover with no duplicate execution, no Playground dependency
-      and preserved ordinary Run/Audit snapshots.
+      and preserved ordinary Run/Audit snapshots. Each Audit uses its own kind=project
+      workspace and counts once regardless of child Runs/rounds; the existing Audit controller
+      retains child ownership, importer authority and cancellation/drain behavior.
   - id: "A2"
     given: >-
       Active, uncertain and pending members with explicit budgets.

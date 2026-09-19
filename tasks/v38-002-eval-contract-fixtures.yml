@@ -39,9 +39,14 @@ scope:
     - >-
       Define closed, bounded request/response schemas for datasets with private check
       partitions, native drafts/plans, contractor.eval-registration/v1 external manifests,
-      capabilities, command receipts, members, result/assessment ingestion, review context,
+      capabilities, command receipts, members and paginated execution inventories,
+      result/assessment ingestion, review context,
       selection, pair pages and reports. Include full valid HTTP examples and invalid fixtures
       for every mutation. Include the existing portable comparison-gates extension mapping.
+      Define chart DTOs and fixtures for quality, token/duration distributions, pair deltas
+      and observed progress, including bounded bins/buckets and bound drill-down filters.
+      Cover Workflow and Audit in both control modes, with exact profile/Workflow selectors;
+      Audit child/round/retry evidence retains one member and parent wall-time semantics.
     - >-
       Map portable snake_case records to managed camelCase DTOs without changing exact retained
       portable bytes. Freeze member/pair hashes, lookup versus portable IDs, source claims
@@ -79,7 +84,9 @@ acceptance_criteria:
       Go codecs validate every positive/negative example.
     then: >-
       Valid records round-trip, invalid records fail deterministically, and identity/digest
-      expectations do not require Python.
+      expectations do not require Python. Workflow/Audit times two control modes validate;
+      mixed execution kinds are rejected. Replayed/overlapping Audit child measurements never
+      double-count tokens, sum child wall times or expand the expected member denominator.
   - id: "A2"
     given: >-
       The trace-small fixture with 8 expected members.
@@ -88,6 +95,8 @@ acceptance_criteria:
     then: >-
       A/B end-to-end passes are 3/4 and 2/4, scored quality is 3/3 and 2/3,
       terminal/quality/token pair counts are 3/2/2, and B known 130 tokens cover only 2/4.
+      Chart fixtures retain only the two matching token pairs (A 80/45, B 70/60), with
+      differences -10/+15 and shared histogram boundaries; missing measurements are not zero.
   - id: "A3"
     given: >-
       Hidden truth, secret and foreign-owner sentinel fixtures.

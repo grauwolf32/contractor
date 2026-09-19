@@ -4,7 +4,8 @@ Status: **Design selected in V38-001; implementation pending V38-002–V38-010.*
 
 [Product journey](../evals-experience-design.md) ·
 [Portable evaluation format](26-portable-evaluation-format.md) ·
-[Projects](17-projects-and-queue.md) · [Lifecycle](18-run-and-workspace-lifecycle-controls.md)
+[Projects](17-projects-and-queue.md) · [Audits](19-audits.md) ·
+[Lifecycle](18-run-and-workspace-lifecycle-controls.md)
 
 This document owns Contractor's later browser-managed experiment service and its
 public producer API. Spec 26 remains the owner of portable document identities,
@@ -118,6 +119,57 @@ members can remain in a valid manifest as ineligible with reasons; they are neve
 silently dropped or submitted. Arbitrary target provisioning and private Playground
 oracle protocols are not native capabilities of this slice.
 
+### Workflow and Audit parity
+
+Both executable kinds are required in native and external control modes. Kind is
+chosen for the experiment; A/B use either two exact Workflow bindings or two exact
+AuditProfile bindings. Mixed Workflow-versus-Audit comparisons are outside this
+slice and fail preparation/registration explicitly. The common denominator is one
+member per `(case,sample,variant)`, not the number of underlying Runs or Audit items.
+
+| Concern | Workflow member | Audit member |
+| --- | --- | --- |
+| Executable selection | Exact Workflow with resolved dependent versions/settings | Exact AuditProfile with resolved roles, inventory/standards and execution settings |
+| Submission receipt | One ordinary Run | One ordinary Audit, with separate durable create/start receipts |
+| Workspace | Exact visible case inputs forked into RunScope | Separate owned execution Project of kind `project` per member; the evaluation Project holds only its explicit association |
+| Internal work | Stage/Worker attempts and retries | Audit rounds, check/discovery/assessment Runs, retries and child attempts |
+| Evaluation progress | One terminal Run contributes one terminal member | One terminal Audit contributes one terminal member, regardless of child/item counts |
+| Evidence navigation | Exact Run outputs and diagnostics | Exact Audit report/coverage/findings plus bounded child Run/item drill-down |
+
+The existing Audit service rejects evaluation Projects as execution workspaces;
+managed Evals preserves that boundary rather than changing Project kind or using
+a special Audit creation bypass. Input, inventory, standards, worklist, importer
+and trusted child-Run authority remain in [19](19-audits.md). Private eval truth
+never becomes a trusted Audit checklist/task manifest. Audit `completed` maps to
+technical execution success, not a passing quality assessment; the selected
+external/native/human checks still determine assessment.
+
+For either kind, token measures aggregate one authoritative cumulative snapshot
+per unique Run/stage execution across all included roles/retries. For Audit,
+resolve all owned child executions through authoritative Audit associations,
+not only item labels or the first item page; discovery/assessment work counts too.
+The bounded managed member execution-list endpoint exposes these authoritative
+associations to external clients as well as the UI. An Audit item list alone is
+not a complete execution inventory.
+Never add parent totals to child totals or sum successive polling snapshots.
+Missing children, truncated reports or unavailable finalizer/role accounting make
+the corresponding scope partial/unavailable. Child counts do not change the
+expected member or scored denominator. Cached tokens remain a subset of inputs.
+
+`wall_ms` uses the parent execution's `createdAt` to confirmed `finishedAt` for
+both Run and Audit, matching the existing Contractor provider interval. It
+includes queue/hold time but excludes evaluator preparation/scoring/publication.
+Audit wall time is not the sum of child Run durations because children may overlap.
+Unavailable timestamps are not replaced by guessed child bounds. Any separately
+reported active/service time must have a distinct scope and cannot share the same
+comparison series. Progress-chart time is experiment wall time and is labelled
+separately from per-member execution duration.
+
+V38-002 fixtures and V38-010 acceptance include all four kind/control combinations,
+an Audit with multiple children/rounds/retries, overlapping child durations,
+missing child usage and duplicate observation replay. UI labels and drill-down
+follow the selected kind; they never suggest an Audit is just one child Run.
+
 ## Execution control and recovery
 
 Keep lifecycle distinct from result quality:
@@ -226,13 +278,15 @@ JSON uses camelCase DTO fields; retained portable documents keep their own schem
 | `POST /v1/eval-experiments/{id}/commands` | `kind`, expected `planSha256` where frozen; kinds `prepare,start,pause,resume,cancel,finalize,duplicate`; 202 receipt or 201 new draft for duplicate |
 | `GET /v1/eval-experiments/{id}/commands/{commandId}` | Durable accepted/running/completed/failed receipt and safe reason |
 | `POST /v1/eval-experiments/{id}/members/{memberId}/submissions` | `planSha256`; managed replay-safe submission receipt; server mode rejects external dispatch |
-| `GET /v1/eval-experiments/{id}/members` | Expected member page including zero/one verified receipt, state, result/assessment selection and conflicts |
+| `GET /v1/eval-experiments/{id}/members` | Expected member page including zero/one verified receipt, state, result/assessment selection and conflicts; accepts a bound chart bin filter token |
+| `GET /v1/eval-experiments/{id}/members/{memberId}/executions` | Owner-scoped paginated parent/child execution refs with kind, role/round, exact association, observed status and inventory completeness; all Audit roles, no private inputs |
 | `POST /v1/eval-experiments/{id}/members/{memberId}/results` | Versioned external collection/result with exact execution/artifact refs; cannot override authoritative execution state or server usage |
 | `GET /v1/eval-experiments/{id}/members/{memberId}/review` | Owner-only bounded review context: exact selected result, pinned rubric/check settings and evidence availability; omitted from execution and safe reports |
 | `POST /v1/eval-experiments/{id}/members/{memberId}/assessments` | Registered native-check request, human decision or external record; exact result digest, check pins, actor/producer and predecessor |
 | `POST /v1/eval-experiments/{id}/selections` | CAS selection of exact result/assessment refs; creates new view generation, never edits old records |
-| `GET /v1/eval-experiments/{id}/pairs` | Snapshot-bound case/sample pairs and per-dimension completeness; full summary attached |
+| `GET /v1/eval-experiments/{id}/pairs` | Snapshot-bound case/sample pairs and per-dimension completeness; full summary attached; accepts a bound chart bin filter token |
 | `GET /v1/eval-experiments/{id}/pairs/{pairId}` | Exact A/B selected records, safe artifact/Run/Audit links and exclusion reasons |
+| `GET /v1/eval-experiments/{id}/charts/{chart}` | Bounded selected-snapshot chart data; chart is `quality`, `tokens`, `duration`, `pair-deltas` or `progress`; scope, units and coverage are explicit |
 | `GET /v1/eval-experiments/{id}/report` | Safe versioned JSON or Markdown export of one complete selected view snapshot |
 | `DELETE /v1/eval-experiments/{id}` | CAS, durable fence/drain/purge receipt; see retention |
 
@@ -346,7 +400,7 @@ Native collection resolves the frozen binding's output roles through registered
 normalizers and records exact raw evidence, completeness and observed usage. It
 can retain useful partial outputs from failed executions; it cannot fill missing
 observations from private expectations. Audit bindings create one isolated
-execution Project per member and pin their visible inputs, so findings and
+execution Project of kind `project` per member and pin their visible inputs, so findings and
 published outputs from another case/arm cannot become implicit inputs.
 Native validators run in explicitly allowed bounded paths over exact artifacts;
 external check records do not trigger code import or a callback. Human review
@@ -397,6 +451,72 @@ approval. Per-pair regressions remain visible even if aggregate thresholds pass.
 An unsupported external gate extension remains an attributed producer claim and
 cannot yield a native verdict.
 No best-of-N or success-only denominator replaces individual attempts.
+
+Managed member execution lists use indexed authoritative Run/Audit associations,
+not label search or item-to-Run guesses. Rows retain unavailable/deleted refs with
+an explicit gap. Cursors bind to owner, member and an execution-inventory revision;
+new child execution associations invalidate the cursor for an explicit reload.
+`inventoryComplete` requires a closed/drained parent dispatch inventory and
+resolved accepted child intents; observing one page or a terminal child cannot
+establish completeness. An external collector follows every page before claiming
+complete scope; each HTTP query remains bounded. V38-006 owns this projection and
+V38-009 consumes it through the public API.
+
+### Chart projections
+
+Charts are a projection of the same complete selected view, never a browser scan
+or aggregation of the first member page. V38-002 defines the chart DTOs/fixtures,
+V38-006 serves them and V38-008 renders them. GET
+`/v1/eval-experiments/{id}/charts/{chart}?viewSnapshot=...` accepts an optional
+suite filter and a metric/measurement-scope selector appropriate to that chart.
+Unknown chart/options and incompatible combinations fail closed. Responses carry
+`viewSnapshot`, freshness, filters, scope, units, included/expected/excluded counts,
+exclusion reasons and the unfiltered experiment summary. Changing a view uses the
+same 409 reload contract as pairs; a filtered series is labelled explicitly.
+
+- **Quality:** end-to-end passed/expected and separately scored/expected counts
+  per arm. A conditional scored-quality mode uses its explicitly named denominator.
+  Technical success, check success and external producer provenance remain distinct.
+- **Tokens/duration:** distributions over complete matching pairs for the chosen
+  dimension and verified required-equal pins. Technical failures remain included
+  when measured. Server materialization computes exact p50/p90 by nearest rank,
+  with at most 20 shared equal-width bins spanning the pooled observed range.
+  Bins are left-closed/right-open except the final inclusive upper edge; all-equal
+  values use one bin. Return bin counts, exact boundaries and deterministic filter
+  tokens so drill-down uses exactly the displayed cohort, including missing-data
+  and scope exclusions. Zero/one-value cohorts are unavailable/single-point views,
+  not interpolated densities. Separate measurement scopes are never pooled.
+- **Pair differences:** B minus A in the selected raw unit, one case/sample per
+  row; never divide by a zero baseline or imply a quality verdict from cost alone.
+  Page through at most 100 exact pair IDs/values using the existing cursor rules.
+  Sort by absolute difference with frozen pair order as a tie-breaker, or frozen
+  order when requested. Show total comparable pairs and quality-regression flags.
+  These row pages are explicitly paginated; they are not the whole-experiment
+  aggregate plotted above them.
+- **Progress:** observed terminal-member counts per arm against fixed expected
+  counts, with separate current assessment coverage. Persist server observation
+  timestamps/counts during view publication; do not reconstruct intermediate
+  samples from browser polls or producer-provided wall clocks. Bound the display
+  to 200 time buckets, retaining the last observed value per bucket, and return
+  interval, observation range and aggregation metadata. Use elapsed experiment
+  wall time, including pauses; absence of observations is a gap, not zero or proof
+  of stalled execution. A latest complete snapshot supplies the current endpoint;
+  unknown historical progression remains unavailable.
+
+Bin filter tokens are opaque and owner/experiment/snapshot/suite/scope bound.
+Member/pair list endpoints accept them as `binFilter` for bounded drill-down; changing their
+context rejects the request rather than broadening access or membership. Exact
+percentiles come from retained complete cohorts, not rounded histogram bins.
+Known all-arm partial totals stay separate from comparable-pair totals; neither
+can establish complete experiment savings when coverage is incomplete.
+
+No historical trend across different experiments is part of this slice. An empty
+metric suppresses its plot while retaining a short coverage explanation. A and B
+keep fixed blue/orange identities with text/shape/line alternatives; status colours
+must not override variant identity. Every plot offers an equivalent bounded data
+table and accessible detail controls. p50/p90 are variation summaries, not error
+bars or claims of statistical significance. Existing retained portable documents
+and comparison rules remain unchanged.
 
 ### Pagination and response examples
 

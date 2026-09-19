@@ -137,7 +137,9 @@ experiment API/coordinator and independent producer boundary are owned by
 The delivered portable evaluator in [26](26-portable-evaluation-format.md) does
 not imply that UI is delivered. Existing evaluation Projects and generic
 Run-label behavior remain valid; Contractor will not require Playground to run
-native Evals.
+native Evals. Both Workflow and Audit experiments are required. Planned chart
+projections and kind-specific evidence navigation follow spec 29 and share the
+comparison tables' exact membership, scope and missing-data semantics.
 
 ## Deployment boundary
 
