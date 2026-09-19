@@ -8,7 +8,7 @@ languages:
 - markdown
 id: V60-001
 title: Record detailed project review plan and execute the first evidence pass
-status: in_progress
+status: completed
 depends_on:
 - V59-005
 goal: Build a risk-ordered review plan after V59 and execute a source, history and focused-test pass without confusing
@@ -50,3 +50,12 @@ tests:
 verification_requirements:
 - Check local links, unique task IDs and dependency graph; record actual commands/results and original implementation
   hash in a later completion commit.
+implementation_commit: e716fca1d999367abe2d140ae478514f05917d0d
+verification:
+  evidence: tasks/evidence/v60-001.json
+  results:
+  - Detailed plan covers specification domains 00 through 29 and concrete scenario, command and completion boundaries.
+  - Three independent review tracks executed source/history checks and focused regressions; four reproduced defects mapped to V60-002 through V60-004.
+  - Accepted decisions, rejected hypotheses, unexecuted verification and active V38/V40/V55/V56 work recorded separately.
+  - 359 indexed task IDs and YAML keys are unique; task paths, dependencies, graph, acceptance coverage and local document links validated.
+  - First pass is complete; deeper V60-005 through V60-010 review tasks remain pending.
