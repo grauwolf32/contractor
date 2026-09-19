@@ -17,7 +17,7 @@ import {
   putRuntimeLabel,
   type ConfigurationResource,
   type CreateRuntimeCredentialRequest,
-  type RuntimeConfigDocument,
+  type RuntimeConfigAuthorDocument,
   type RuntimeConfigResource,
   type RuntimeCredentialMetadata,
   type RuntimeLabelBinding,
@@ -134,7 +134,7 @@ function telemetry(
   timeout: string,
   captureContent: boolean,
 ): NonNullable<
-  NonNullable<RuntimeConfigDocument["spec"]["worker"]>["telemetry"]
+  NonNullable<RuntimeConfigAuthorDocument["spec"]["worker"]>["telemetry"]
 > {
   return {
     adapter: "otlp-http@1",
@@ -148,7 +148,7 @@ function telemetry(
 function buildDocument(
   draft: ConfigDraft,
   gateways: ConfigurationResource[],
-): { document?: RuntimeConfigDocument; errors: string[] } {
+): { document?: RuntimeConfigAuthorDocument; errors: string[] } {
   const errors: string[] = [];
   if (!RUNTIME_ID.test(draft.name)) {
     errors.push(
@@ -239,15 +239,11 @@ function buildDocument(
   if (errors.length > 0 || (draft.gateway && selectedGateway === undefined)) {
     return { errors };
   }
-  const worker: NonNullable<RuntimeConfigDocument["spec"]["worker"]> = {
+  const worker: NonNullable<RuntimeConfigAuthorDocument["spec"]["worker"]> = {
     ...(draft.gateway
       ? {
           llmGateway: {
-            gateway: {
-              gatewayId: selectedGateway!.ref.name,
-              version: selectedGateway!.ref.version,
-              digest: selectedGateway!.ref.digest,
-            },
+            gateway: `${selectedGateway!.ref.name}@${selectedGateway!.ref.version}`,
             ...(draft.llmCredential === ""
               ? {}
               : { credential: draft.llmCredential }),
@@ -331,10 +327,12 @@ function RuntimeConfigPublishForm({
   const [published, setPublished] = useState<RuntimeConfigResource>();
   const [keyring] = useState(
     () =>
-      new MutationDraftKeyring<RuntimeConfigDocument>("publish-runtime-config"),
+      new MutationDraftKeyring<RuntimeConfigAuthorDocument>(
+        "publish-runtime-config",
+      ),
   );
   const mutation = useMutation({
-    mutationFn: (document: RuntimeConfigDocument) =>
+    mutationFn: (document: RuntimeConfigAuthorDocument) =>
       publishRuntimeConfig(api, document, keyring.keyFor(document)),
     onSuccess: async (resource) => {
       setPublished(resource);

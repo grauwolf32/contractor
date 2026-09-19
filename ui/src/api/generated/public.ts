@@ -2988,12 +2988,35 @@ export interface components {
             caBundlePem?: string;
             requestTimeoutSeconds?: number;
         };
+        RuntimeLLMGatewayAuthorPatch: {
+            gateway?: components["schemas"]["Selector"];
+            credential?: components["schemas"]["ConfigId"] | null;
+        };
+        RuntimeWorkerAuthorPatch: {
+            llmGateway?: components["schemas"]["RuntimeLLMGatewayAuthorPatch"];
+            telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
+            httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
+            caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
+        };
+        RuntimeConfigAuthorSpec: {
+            worker?: components["schemas"]["RuntimeWorkerAuthorPatch"];
+            planner?: components["schemas"]["RuntimePlannerPatch"];
+        };
+        /** @description Publication input. Gateway selections use exact name@version strings, resolved by the Server before storage. At least one patch operation is required. */
+        RuntimeConfigAuthorDocument: {
+            /** @constant */
+            apiVersion: "contractor/v1alpha1";
+            /** @constant */
+            kind: "RuntimeConfig";
+            metadata: components["schemas"]["RuntimeConfigMetadata"];
+            spec: components["schemas"]["RuntimeConfigAuthorSpec"];
+        };
         RuntimeLLMGatewayPatch: {
-            gateway?: components["schemas"]["LLMGatewayConfigRef"] | components["schemas"]["Selector"] | null;
+            gateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["ConfigId"] | null;
         };
         RuntimeWorkerPatch: {
-            llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"] | null;
+            llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"];
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
             caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
@@ -3005,6 +3028,7 @@ export interface components {
             worker?: components["schemas"]["RuntimeWorkerPatch"];
             planner?: components["schemas"]["RuntimePlannerPatch"];
         };
+        /** @description Immutable normalized read document. Gateway selections contain exact resolved refs. The built-in document may have an empty spec. */
         RuntimeConfigDocument: {
             /** @constant */
             apiVersion: "contractor/v1alpha1";
@@ -7527,7 +7551,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RuntimeConfigDocument"];
+                "application/json": components["schemas"]["RuntimeConfigAuthorDocument"];
             };
         };
         responses: {

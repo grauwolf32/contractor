@@ -9,6 +9,7 @@ require (
 	github.com/google/jsonschema-go v0.4.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/oapi-codegen/nullable v1.1.0
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/ucarion/jcs v0.1.2
 	go.opentelemetry.io/proto/otlp v1.10.0
