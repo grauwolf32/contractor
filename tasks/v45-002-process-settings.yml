@@ -3,7 +3,8 @@ id: V45-002
 title: Separate process settings phases and name deployment defaults
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d86729d4f5b873cd9263986076daf7d37b4231ce
 depends_on:
 - V45-001
 languages:
