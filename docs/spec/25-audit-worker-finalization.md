@@ -365,6 +365,14 @@ existing database tests skip when CONTRACTOR_TEST_DATABASE_URL is absent.
 Include same-Run versus new-Run retry, escalation variants, mixed batch/scalar
 replays, exact-budget completion, input-alias changes, and real ADK continuation.
 
+The executable gate is `make test-audit-completion-e2e`, included in
+`make release-verify`. Its fixed required-case matrix and no-skip report
+validation are documented in the
+[Audit completion release gate](../testing/release-gates.md#audit-completion-release-gate).
+The bridge uses production Run creation, allocation grants, mTLS Artifact API,
+PostgreSQL artifact storage and Audit importer, with a separate pinned ADK
+Runner process and scripted model. Scheduler driving is test orchestration.
+
 ## 7. Non-goals
 
 This increment adds no mandatory tool policy to ordinary workflows, general

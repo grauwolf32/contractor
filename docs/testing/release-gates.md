@@ -13,10 +13,61 @@ testing overview. The exact aggregate target is maintained in the
 - [Complete browser stack gate](#complete-browser-stack-gate)
 - [Run and Project lifecycle release gate](#run-and-project-lifecycle-release-gate)
 - [Workflow Scheduler concurrency release gate](#workflow-scheduler-concurrency-release-gate)
+- [Audit completion release gate](#audit-completion-release-gate)
 - [Shared MemoryTools release boundary](#shared-memorytools-release-boundary)
 - [HTTP/Caido hardening boundary](#httpcaido-hardening-boundary)
 - [Streamline Planner evidence](#streamline-planner-evidence)
 - [Automated MVP evidence](#automated-mvp-evidence)
+
+## Audit completion release gate
+
+Prepare the pinned Runtime environment with `cd runtime && uv sync --locked`,
+then set `CONTRACTOR_TEST_DATABASE_URL` to a disposable PostgreSQL instance and run:
+
+```shell
+make test-audit-completion-e2e
+```
+
+The database role must be allowed to create and drop test databases. The gate
+creates randomly named databases, applies production migrations, and removes
+them after testing. Do not point it at the demo database. No live provider,
+demo deployment, or immutable catalog update is involved.
+
+This target is included in `make release-verify`. It requires Go, uv and the
+prepared Runtime environment. Its fixed
+[required-case matrix](../../scripts/audit-completion-matrix.json) is checked
+against Go JSON events and pytest JUnit results: missing tests, insufficient
+parameter coverage, failures and **any selected skip** fail the gate. The three
+PostgreSQL authority/recovery tests and the Runtime/importer bridge must run.
+Plain `go test ./...` and `make verify` can skip database tests and cannot
+substitute for this gate. The standalone Python bridge test also skips outside
+its Go parent; inside the gate a missing child result is a failure.
+
+`TestAuditCompletionRuntimeZIPImporter` creates a trusted two-item Audit Run
+through `runservice.CreateAudit`, passes its exact completion contract to the
+pinned ADK Runner in a separate Python process, and serves artifacts through
+the production mTLS Artifact API backed by PostgreSQL. The actual Runtime ZIP
+is bound and frozen as a Workflow output, then collected by the production Go
+importer into durable coverage and one batch receipt. The external model and
+Scheduler driving are deterministic test orchestration; this is not a live
+provider benchmark or a full Server/Planner/A2A deployment test.
+
+Bridge cases cover reversed separate submissions, correction after missing
+evidence, no calls, invalid/partial collection, dropped write reply, cancellation
+before/after write, deliberately injected invalid packages, abrupt post-write
+process loss, same-Run recognition/conflict (including proposal invocation IDs),
+and a new child Run in the same Audit. The component suites additionally cover
+parallel/revisioned submissions, batch atomicity, shared fixtures and sessions,
+standard evidence rules, escalation, spoofing, unsupported Runtimes, rollback,
+restart, hard budgets, real-Runner continuations, and ordinary/legacy completion.
+
+Each invocation stores sanitized logs, `go.jsonl`, `runtime.xml`, and the exact
+executed test names in `executed.json` under a fresh directory in
+`.local/audit-completion-gate/`. `executed.json` is written only after every
+check passes; old reports cannot make a later failed invocation pass. Use
+`python3 scripts/test-audit-completion-e2e.py --output-dir <directory>` to retain
+these artifacts elsewhere. [V39-007](../../tasks/v39-007-audit-completion-release-gate.yml)
+records the implementation commit and verification evidence.
 
 ## Hardening gates
 
