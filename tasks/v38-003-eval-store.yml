@@ -3,7 +3,7 @@ id: "V38-003"
 title: "Persist owner-scoped eval datasets, plans and durable commands"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 implementation_repository: "contractor"
 depends_on: ["V38-002"]
@@ -32,7 +32,7 @@ context:
     global token defaults or shared-demo mutations.
   locations: >-
     Contractor: internal/evalstore, internal/evaldomain and migrations under
-    internal/persistence/postgres. Integrate the existing Project lifecycle transaction/fence
+    internal/persistence/migrations. Integrate the existing Project lifecycle transaction/fence
     interfaces; coordinator side effects follow in V38-004.
 scope:
   in:

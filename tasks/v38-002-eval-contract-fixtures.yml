@@ -3,8 +3,8 @@ id: "V38-002"
 title: "Define managed eval DTOs and portable conformance fixtures"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "d5f31ab94b16f99254e64ebdd20efa89fdb4100a"
 implementation_repository: "contractor"
 depends_on: ["V38-001", "V41-008"]
 languages: ["go", "json", "yaml"]
