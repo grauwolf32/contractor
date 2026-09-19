@@ -3,8 +3,8 @@ id: V57-004
 title: Separate model-result decoding from trusted Worker result assembly
 milestone: architecture-review-followups
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 7f553b2295051b8ad88a2cea98972727b41afaf8
 depends_on: []
 languages: [python, markdown]
 goal: >-
