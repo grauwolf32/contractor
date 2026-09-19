@@ -1,0 +1,57 @@
+schema_version: '1.0'
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on:
+- V59-005
+languages:
+- go
+- python
+- markdown
+id: V60-004
+title: Preserve Go test event identity while redacting Audit gate diagnostics
+goal: Keep mandatory-case verification trustworthy when the test database password matches framework event values.
+context:
+  authority: User requested detailed project review and implementation; initial offline composition test exposed
+    a deterministic release gate failure.
+  specification:
+  - docs/spec/25-audit-worker-finalization.md
+  design: docs/plans/2026-09-20-project-review.md
+  finding_ids:
+  - PR-04
+  reproduction: The release CI password contractor is globally replaced inside Go event Package values before verification;
+    a valid 54-case report then fails mandatory-case matching. A password pass also corrupts Action.
+scope:
+  in:
+  - Separate structured Go event identity/status from redaction of diagnostic output; preserve secret-free saved/displayed
+    diagnostics.
+  - Add an offline subprocess-to-verifier composition regression using actual gate matrix and colliding database
+    passwords.
+  - Retain mandatory run/pass/package validation and rejection of skip, fail, malformed stream and nonzero process
+    status.
+  out:
+  - Relax required-case counts or change CI credentials to hide the problem.
+  - Modify live eval runners or publish/deploy releases.
+acceptance_criteria:
+- id: A1
+  text: A valid complete Go event stream passes through run_command and verify_go_report even with password contractor
+    or pass.
+- id: A2
+  text: Actual DSN/password occurrences in diagnostic Output and stderr are redacted in saved logs and stdout.
+- id: A3
+  text: Skipped, missing, failed or malformed required-case evidence remains rejected and the subprocess exit code
+    is enforced.
+tests:
+- command: go test -count=1 ./tests/e2e -run AuditCompletion
+  covers:
+  - A1
+  - A2
+  - A3
+- command: git diff --check
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Choose regression placement matching existing Audit completion script tests and record its exact offline command.
+- Keep implementation and subsequent completion metadata separate, recording full original hash.

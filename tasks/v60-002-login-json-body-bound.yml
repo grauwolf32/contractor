@@ -1,0 +1,61 @@
+schema_version: '1.0'
+milestone: project-review-v60
+priority: P2
+languages:
+- go
+- python
+- typescript
+- markdown
+id: V60-002
+title: Admit supported passwords after bounded JSON escaping
+status: in_progress
+depends_on:
+- V59-005
+goal: Allow every supported compact JSON login password at its existing UTF-8 byte bound while retaining a small
+  bounded request body.
+context:
+  authority: User requested fixes followed by implementation of a detailed project review; first pass reproduced
+    this admission defect.
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+  design: docs/plans/2026-09-20-project-review.md
+  finding_ids:
+  - PR-01
+  reproduction: A 1024-byte password hashes and authenticates directly; HTTP login rejects compact JSON of 2082
+    bytes for backslashes/quotes or 6178 bytes for U+0001 because body cap is 2048.
+scope:
+  in:
+  - Raise only the login JSON body cap to a justified bounded 8 KiB and synchronize the explicit specification.
+  - Preserve current 12–1024 UTF-8 byte password validation, username constraints, origin/CSRF behavior and rate
+    limiting.
+  - Add real handler regression cases for maximum escaped valid passwords and raw-body overflow; keep malformed/unknown-field
+    and authentication protection cases passing.
+  out:
+  - Change password policy, hashing, sessions, general HTTP limits or global WorkerCompletion limits.
+  - Deploy or alter user credentials.
+acceptance_criteria:
+- id: A1
+  text: Actual login succeeds for supported maximum ASCII, quote/backslash and six-byte-escaped control-character
+    passwords.
+- id: A2
+  text: Requests exceeding 8 KiB, invalid password bounds and malformed/unknown fields remain rejected; origin and
+    rate-limit behavior remains tested.
+- id: A3
+  text: Spec and implementation distinguish raw-body bytes from decoded password UTF-8 bytes and explain the bound.
+tests:
+- command: go test -count=1 ./internal/httpapi/public ./internal/auth
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+- command: git diff --check
+  covers:
+  - A3
+verification_requirements:
+- Reproduce the new regression on the parent implementation before applying the fix.
+- Separate implementation and completion metadata commits; record full original implementation hash and actual test
+  evidence.

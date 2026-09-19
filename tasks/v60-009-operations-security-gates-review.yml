@@ -1,0 +1,73 @@
+schema_version: '1.0'
+id: V60-009
+title: Review authentication, delivery gates and operational recovery evidence
+milestone: project-review-v60
+priority: P2
+status: pending
+depends_on:
+- V60-001
+- V60-002
+- V60-004
+languages:
+- go
+- python
+- typescript
+- markdown
+goal: Review authentication, delivery gates and operational recovery evidence.
+context:
+  authority: User requested a detailed project review plan and commencement after V59 corrections.
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/21-podman-sandbox.md
+  - docs/spec/22-performance-metrics-and-profiling.md
+  - docs/spec/23-artifact-blob-backends.md
+  - docs/spec/24-git-artifacts.md
+  design: docs/plans/2026-09-20-project-review.md
+scope:
+  in:
+  - Exercise malformed/duplicate credentials, cookie/origin/CSRF boundaries, private mTLS authority and secret projections.
+  - Verify no skipped or fabricated gate success, redaction/status composition, environment guards and pinned generation.
+  - Complete disposable startup/upgrade/restore walkthrough and measure gate timing and selected bounded resource
+    paths before proposing optimizations.
+  out:
+  - Take over active V38 managed Evals, V40-002, V55-004 or V56 toolsets; change intentionally deferred semantics without a contract decision.
+  - Live model runs, production data mutation or deployment.
+  - Claim whole-project correctness from one review slice.
+acceptance_criteria:
+- id: A1
+  text: All scoped scenarios have source/history analysis and either executed representative verification or a precise
+    unresolved limitation; unresolved required verification keeps this task in_progress.
+- id: A2
+  text: Confirmed defects have reproduction, normative basis, priority, bounded correction task and meaningful regression;
+    accepted or rejected hypotheses are recorded separately.
+- id: A3
+  text: Required commands execute successfully on the reviewed commit; relevant database/process/browser cases must
+    not silently skip, and actual toolchain and evidence levels are recorded.
+tests:
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-mtls
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make release-verify
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Refresh baseline and concurrent ownership before taking this pending task.
+- Use only isolated disposable databases/directories and fake Gateways; inspect Makefile prerequisites before running
+  broad gates.
+- Read relevant decision history; list exact scenarios and test results in the project review report.
+- Keep implementation and subsequent completion metadata commits separate with the full original implementation
+  hash.
