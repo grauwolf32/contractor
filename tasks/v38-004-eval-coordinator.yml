@@ -3,8 +3,8 @@ id: "V38-004"
 title: "Coordinate native evals through replay-safe Run and Audit submissions"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "859cc500f829fb88051cc6e47036ba5c43543b8a"
 implementation_repository: "contractor"
 depends_on: ["V38-003"]
 languages: ["go"]
@@ -104,3 +104,17 @@ tests:
       test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/evalservice
       ./internal/evalcoordinator ./internal/projectlifecycle
     covers: ["A1", "A2", "A3"]
+
+verification_result:
+  date: "2026-09-19"
+  database: "Disposable PostgreSQL 17; isolated random schemas; no demo writes or live model/target execution."
+  evidence: >-
+    Required race suites for evalservice, evalcoordinator and projectlifecycle passed.
+    The evalstore, persistence/postgres, runservice, auditservice and app race suites
+    and focused go vet also passed. Real ordinary services create deterministic
+    8-member Workflow/Audit plans with two coordinators, lost create/start responses
+    and process replacement. Checks cover zero-effect preparation, separate Audit
+    workspaces, exact selection guards, external dispatch ownership, finalization,
+    pause/resume clock preservation, observed-token high-water limits, deadline
+    cancellation, stale claims, command acknowledgement recovery, deleted-execution
+    tombstones and Project deletion waiting on uncertain accepted work.
