@@ -1890,13 +1890,13 @@ def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
     asyncio.run(scenario())
 
 
-def test_gateway_model_bounds_sdk_retries_and_aggregate_timeout(tmp_path: Path) -> None:
+def test_gateway_model_bounds_transport_retries_and_aggregate_timeout(tmp_path: Path) -> None:
     async def scenario() -> None:
         context = build_context(tmp_path, WorkerState(), {})
         model = gateway_model(context)
 
         assert isinstance(model, OpenAICompatibleGatewayLlm)
-        assert model._client_handle.client.max_retries == 3
+        assert model._client_handle.max_retries == 3
         assert model._client_handle.operation_timeout_seconds == (
             context.runtime_settings.request_timeout_seconds + 60
         )

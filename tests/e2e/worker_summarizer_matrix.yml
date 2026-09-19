@@ -101,8 +101,8 @@ cases:
     category: isolation
     acceptance: [A1, A3]
     faults: [F16]
-    expected: Gateway construction bounds SDK retries and the aggregate timeout for one policy call.
-    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_gateway_model_bounds_sdk_retries_and_aggregate_timeout}
+    expected: Gateway construction bounds transport retries and the aggregate timeout for one policy call.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_gateway_model_bounds_transport_retries_and_aggregate_timeout}
   - id: closed_state_and_metrics
     category: usage
     acceptance: [A1, A4]

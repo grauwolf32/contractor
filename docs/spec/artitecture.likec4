@@ -853,7 +853,7 @@ model {
         #contractor
       }
 
-      modelClient = component 'Contractor ADK BaseLlm / AsyncOpenAI — allocation-owned Gateway route and classified failures' {
+      modelClient = component 'Contractor ADK BaseLlm / HTTPX — allocation-owned Gateway route and classified failures' {
         #contractor #optional
       }
     }

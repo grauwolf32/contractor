@@ -1,13 +1,17 @@
 import asyncio
 import importlib.util
+import json
+import sys
 from importlib.metadata import version
 
+import httpx
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.types import AgentCard
 from google.adk.agents import LlmAgent
 from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
 from contractor_runtime.a2a_server import build_agent_card, build_worker_a2a_application
 from contractor_runtime.contracts import StageContentRequest, WorkerCompletion, WorkerModelResult
@@ -18,7 +22,7 @@ from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
     assert version("google-adk") == "2.8.0"
     assert version("a2a-sdk") == "1.1.2"
-    assert version("openai") == "2.54.0"
+    assert importlib.util.find_spec("openai") is None
     assert importlib.util.find_spec("litellm") is None
 
     model = OpenAICompatibleGatewayLlm(
@@ -56,6 +60,59 @@ def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
     assert application is not None
     assert DefaultRequestHandler is not None
     asyncio.run(model.close())
+
+
+def test_adk_gateway_invocation_does_not_load_optional_provider_sdks() -> None:
+    async def scenario() -> None:
+        async def gateway(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content)
+            assert payload["model"] == "smoke-model"
+            assert request.url.path == "/v1/chat/completions"
+            return httpx.Response(
+                200,
+                json={
+                    "model": "smoke-model",
+                    "choices": [{"finish_reason": "stop", "message": {"content": "ok"}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                },
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            model = OpenAICompatibleGatewayLlm(
+                model="smoke-model",
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.example/v1",
+                    api_key="smoke-token",
+                    timeout_seconds=1,
+                    http_client=http,
+                ),
+            )
+            runner = Runner(
+                app_name="dependency-smoke",
+                agent=LlmAgent(name="worker", model=model, instruction="Return ok"),
+                session_service=InMemorySessionService(),
+                auto_create_session=True,
+            )
+            try:
+                events = [
+                    event
+                    async for event in runner.run_async(
+                        user_id="smoke-user",
+                        session_id="smoke-session",
+                        new_message=types.Content(role="user", parts=[types.Part(text="go")]),
+                    )
+                ]
+                final = next(event for event in events if event.is_final_response())
+                assert final.content.parts[0].text == "ok"
+                assert final.usage_metadata.total_token_count == 2
+            finally:
+                await model.close()
+            for prefix in ("openai", "litellm", "anthropic"):
+                assert not any(
+                    name == prefix or name.startswith(prefix + ".") for name in sys.modules
+                )
+
+    asyncio.run(scenario())
 
 
 class SmokeWorker:

@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-from types import SimpleNamespace
 from typing import Any
 
 import httpx
 import pytest
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from contractor_runtime.llm.client import GatewayClientHandle, new_gateway_client
+from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
@@ -32,24 +30,16 @@ def test_output_limit_retains_usage_without_executable_tool_calls(arguments: str
     calls = (
         []
         if arguments is None
-        else [
-            SimpleNamespace(
-                id="call-truncated",
-                function=SimpleNamespace(name="write_file", arguments=arguments),
-            )
-        ]
+        else [{"id": "call-truncated", "function": {"name": "write_file", "arguments": arguments}}]
     )
     response = _to_llm_response(
-        SimpleNamespace(
-            model="worker-model",
-            choices=[
-                SimpleNamespace(
-                    finish_reason="length",
-                    message=SimpleNamespace(content=None, tool_calls=calls),
-                )
+        {
+            "model": "worker-model",
+            "choices": [
+                {"finish_reason": "length", "message": {"content": None, "tool_calls": calls}}
             ],
-            usage=SimpleNamespace(prompt_tokens=12, completion_tokens=32, total_tokens=44),
-        )
+            "usage": {"prompt_tokens": 12, "completion_tokens": 32, "total_tokens": 44},
+        }
     )
     assert response.finish_reason == types.FinishReason.MAX_TOKENS
     assert response.error_code == "MAX_TOKENS"
@@ -233,7 +223,7 @@ def test_adk_request_and_gateway_response_round_trip() -> None:
     asyncio.run(scenario())
 
 
-def test_sdk_retries_three_connection_failures_with_one_logical_response(
+def test_transport_retries_three_connection_failures_with_one_logical_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def scenario() -> None:
@@ -249,7 +239,7 @@ def test_sdk_retries_three_connection_failures_with_one_logical_response(
                 raise httpx.ConnectError("connection was lost", request=request)
             return completion_response(request, content="recovered")
 
-        monkeypatch.setattr("openai._base_client.anyio.sleep", no_delay)
+        monkeypatch.setattr("contractor_runtime.llm.client.sleep", no_delay)
         http_client = httpx.AsyncClient(
             transport=httpx.MockTransport(flaky_gateway),
             trust_env=False,
@@ -274,7 +264,7 @@ def test_sdk_retries_three_connection_failures_with_one_logical_response(
         assert attempts == 4
         assert len(responses) == 1
         assert responses[0].content.parts[0].text == "recovered"
-        assert handle.client.max_retries == 3
+        assert handle.max_retries == 3
         assert handle.operation_timeout_seconds == 180
         await model.close()
         await http_client.aclose()
@@ -355,7 +345,7 @@ def test_gateway_errors_are_secret_free_and_external_cancellation_propagates(
         async def leaking_gateway(_request: httpx.Request) -> httpx.Response:
             raise RuntimeError(f"provider rejected Bearer {SECRET}")
 
-        monkeypatch.setattr("openai._base_client.anyio.sleep", no_delay)
+        monkeypatch.setattr("contractor_runtime.llm.client.sleep", no_delay)
         http_client = httpx.AsyncClient(
             transport=httpx.MockTransport(leaking_gateway),
             trust_env=False,
@@ -413,13 +403,14 @@ def test_owned_client_cleanup_is_idempotent_and_aggregate_deadline_is_safe() -> 
             transport=httpx.MockTransport(blocked_gateway),
             trust_env=False,
         )
-        openai_client = AsyncOpenAI(
+        handle = new_gateway_client(
             api_key=SECRET,
             base_url="https://gateway.example/v1",
-            max_retries=3,
+            timeout_seconds=120,
             http_client=http_client,
         )
-        handle = GatewayClientHandle(openai_client, True, 0.01)
+        handle._owns_http_client = True
+        handle.operation_timeout_seconds = 0.01
         model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle)
 
         with pytest.raises(GatewayModelError) as captured:
@@ -430,6 +421,8 @@ def test_owned_client_cleanup_is_idempotent_and_aggregate_deadline_is_safe() -> 
         await model.close()
         assert model.closed
         assert http_client.is_closed
+        assert handle._api_key == ""
+        assert handle._completion_url is None
 
         with pytest.raises(GatewayModelError) as closed:
             async for _ in model.generate_content_async(LlmRequest()):
@@ -538,7 +531,7 @@ def test_gateway_http_failures_preserve_safe_retryability(status, code, retryabl
             timeout_seconds=120,
             http_client=http_client,
         )
-        handle.client.max_retries = 0
+        handle.max_retries = 0
         model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle)
         try:
             with pytest.raises(GatewayModelError) as captured:
@@ -551,5 +544,99 @@ def test_gateway_http_failures_preserve_safe_retryability(status, code, retryabl
         finally:
             await model.close()
             await http_client.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "payload,error_type",
+    [
+        ("not JSON", "InvalidGatewayResponse"),
+        ("null", "InvalidGatewayResponse"),
+        ('{"choices":[]}', "InvalidGatewayResponse"),
+        ('{"choices":[{"message":"invalid"}]}', "InvalidGatewayResponse"),
+        ('{"choices":[{"message":{"tool_calls":[null]}}]}', "InvalidGatewayToolCall"),
+        (
+            '{"choices":[{"message":{"tool_calls":[{"function":{"name":"tool",'
+            '"arguments":"[]"}}]}}]}',
+            "InvalidGatewayToolArguments",
+        ),
+        ('{"choices":[{"message":{"content":"ok"}}],"usage":[]}', "InvalidGatewayUsage"),
+    ],
+)
+def test_malformed_gateway_responses_fail_without_transport_retries(payload, error_type) -> None:
+    async def scenario() -> None:
+        calls = 0
+
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(200, text=payload)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+            )
+            model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle)
+            with pytest.raises(GatewayModelError) as captured:
+                async for _ in model.generate_content_async(LlmRequest()):
+                    pass
+            assert calls == 1
+            assert captured.value.provider_error_type == error_type
+            assert captured.value.__context__ is None
+            assert captured.value.__cause__ is None
+            await model.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_retry_wait_obeys_aggregate_deadline_and_cancellation(
+    monkeypatch: pytest.MonkeyPatch, cancel: bool
+) -> None:
+    async def scenario() -> None:
+        calls = 0
+        waiting = asyncio.Event()
+
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(503, headers={"retry-after": "60"}, json={})
+
+        async def wait(_seconds: float) -> None:
+            waiting.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr("contractor_runtime.llm.client.sleep", wait)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+            )
+            handle.operation_timeout_seconds = 10 if cancel else 0.02
+            model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle)
+
+            async def invoke() -> None:
+                async for _ in model.generate_content_async(LlmRequest()):
+                    pass
+
+            pending = asyncio.create_task(invoke())
+            await asyncio.wait_for(waiting.wait(), 1)
+            if cancel:
+                pending.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await pending
+            else:
+                with pytest.raises(GatewayModelError) as captured:
+                    await asyncio.wait_for(pending, 1)
+                assert captured.value.provider_error_type == "TimeoutError"
+                assert captured.value.retryable
+            assert calls == 1
+            await model.close()
 
     asyncio.run(scenario())

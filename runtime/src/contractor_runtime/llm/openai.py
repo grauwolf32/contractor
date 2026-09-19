@@ -14,10 +14,9 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
-from openai import APIConnectionError, APIStatusError
 from pydantic import BaseModel, PrivateAttr
 
-from contractor_runtime.llm.client import GatewayClientHandle
+from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestError
 
 _SAFE_ERROR_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 _FINISH_REASON = {
@@ -76,8 +75,8 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
             if stream:
                 raise _AdapterFailure("StreamingUnsupported")
             async with asyncio.timeout(self._client_handle.operation_timeout_seconds):
-                completion = await self._client_handle.client.chat.completions.create(
-                    **_completion_request(self.model, llm_request)
+                completion = await self._client_handle.complete(
+                    _completion_request(self.model, llm_request)
                 )
             response = _to_llm_response(completion)
         except asyncio.CancelledError:
@@ -358,44 +357,51 @@ def _copy_generation_options(payload: dict[str, Any], config: types.GenerateCont
 
 
 def _to_llm_response(completion: Any) -> LlmResponse:
-    choices = getattr(completion, "choices", None)
-    if not choices:
+    if not isinstance(completion, Mapping):
+        raise _AdapterFailure("InvalidGatewayResponse")
+    choices = completion.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], Mapping):
         raise _AdapterFailure("InvalidGatewayResponse")
     choice = choices[0]
-    message = getattr(choice, "message", None)
-    if message is None:
+    message = choice.get("message")
+    if not isinstance(message, Mapping):
         raise _AdapterFailure("InvalidGatewayResponse")
-    finish_reason = _map_finish_reason(getattr(choice, "finish_reason", None))
+    finish_reason = _map_finish_reason(choice.get("finish_reason"))
     output_limited = finish_reason == types.FinishReason.MAX_TOKENS
     parts: list[types.Part] = []
     reasoning = _reasoning_text(message)
     if reasoning:
         parts.append(types.Part(text=reasoning, thought=True))
-    text = _response_text(getattr(message, "content", None))
+    text = _response_text(message.get("content"))
     if text:
         parts.append(types.Part.from_text(text=text))
     # A length-limited response is never executable, even if a partial tool
     # call happens to parse. Keep the finish reason and usage instead of
     # misclassifying truncated arguments as an unaccounted adapter error.
-    tool_calls = [] if output_limited else (getattr(message, "tool_calls", None) or [])
+    tool_calls = [] if output_limited else (message.get("tool_calls") or [])
+    if not isinstance(tool_calls, list):
+        raise _AdapterFailure("InvalidGatewayToolCall")
     for tool_call in tool_calls:
-        function = getattr(tool_call, "function", None)
-        name = getattr(function, "name", None)
-        if function is None or not name:
+        function = tool_call.get("function") if isinstance(tool_call, Mapping) else None
+        name = function.get("name") if isinstance(function, Mapping) else None
+        if not isinstance(name, str) or not name:
             raise _AdapterFailure("InvalidGatewayToolCall")
-        arguments = _tool_arguments(getattr(function, "arguments", None))
+        arguments = _tool_arguments(function.get("arguments"))
         part = types.Part.from_function_call(name=name, args=arguments)
-        part.function_call.id = getattr(tool_call, "id", None) or ""
+        call_id = tool_call.get("id") or ""
+        if not isinstance(call_id, str):
+            raise _AdapterFailure("InvalidGatewayToolCall")
+        part.function_call.id = call_id
         parts.append(part)
     if not parts and not output_limited:
         raise _AdapterFailure("EmptyGatewayResponse")
 
     response = LlmResponse(
-        model_version=getattr(completion, "model", None),
+        model_version=completion.get("model"),
         content=types.Content(role="model", parts=parts),
         partial=False,
         finish_reason=finish_reason,
-        usage_metadata=_usage_metadata(getattr(completion, "usage", None)),
+        usage_metadata=_usage_metadata(completion.get("usage")),
     )
     if finish_reason is not None and finish_reason != types.FinishReason.STOP:
         response.error_code = finish_reason.value
@@ -407,12 +413,12 @@ def _to_llm_response(completion: Any) -> LlmResponse:
     return response
 
 
-def _reasoning_text(message: Any) -> str:
-    value = getattr(message, "reasoning_content", None)
+def _reasoning_text(message: Mapping[str, Any]) -> str:
+    value = message.get("reasoning_content")
     if value is None:
-        value = getattr(message, "reasoning", None)
-    if value is None and isinstance(getattr(message, "model_extra", None), dict):
-        extra = message.model_extra
+        value = message.get("reasoning")
+    extra = message.get("model_extra")
+    if value is None and isinstance(extra, Mapping):
         value = extra.get("reasoning_content", extra.get("reasoning"))
     return "".join(_reasoning_fragments(value))
 
@@ -463,14 +469,18 @@ def _tool_arguments(value: Any) -> dict[str, Any]:
 def _usage_metadata(usage: Any) -> types.GenerateContentResponseUsageMetadata | None:
     if usage is None:
         return None
-    prompt_details = getattr(usage, "prompt_tokens_details", None)
-    completion_details = getattr(usage, "completion_tokens_details", None)
+    if not isinstance(usage, Mapping):
+        raise _AdapterFailure("InvalidGatewayUsage")
+    prompt_details = usage.get("prompt_tokens_details") or {}
+    completion_details = usage.get("completion_tokens_details") or {}
+    if not isinstance(prompt_details, Mapping) or not isinstance(completion_details, Mapping):
+        raise _AdapterFailure("InvalidGatewayUsage")
     return types.GenerateContentResponseUsageMetadata(
-        prompt_token_count=getattr(usage, "prompt_tokens", None),
-        candidates_token_count=getattr(usage, "completion_tokens", None),
-        total_token_count=getattr(usage, "total_tokens", None),
-        cached_content_token_count=getattr(prompt_details, "cached_tokens", None),
-        thoughts_token_count=getattr(completion_details, "reasoning_tokens", None),
+        prompt_token_count=usage.get("prompt_tokens"),
+        candidates_token_count=usage.get("completion_tokens"),
+        total_token_count=usage.get("total_tokens"),
+        cached_content_token_count=prompt_details.get("cached_tokens"),
+        thoughts_token_count=completion_details.get("reasoning_tokens"),
     )
 
 
@@ -483,21 +493,16 @@ def _map_finish_reason(value: Any) -> types.FinishReason | None:
 def _safe_error_type(error: Exception) -> str:
     if isinstance(error, _AdapterFailure):
         return error.code
+    if isinstance(error, GatewayRequestError):
+        return error.provider_error_type
     name = type(error).__name__
     return name if _SAFE_ERROR_TYPE.fullmatch(name) else "UnknownProviderError"
 
 
 def _retryable_gateway_error(error: Exception) -> bool:
-    # Read only bounded scalar metadata; never retain response bodies or headers.
-    if isinstance(error, APIStatusError):
-        if isinstance(error.code, str) and error.code in {
-            "insufficient_quota",
-            "budget_exceeded",
-            "context_length_exceeded",
-        }:
-            return False
-        return error.status_code in {408, 409, 429} or 500 <= error.status_code < 600
-    if isinstance(error, (APIConnectionError, TimeoutError)):
+    if isinstance(error, GatewayRequestError):
+        return error.retryable
+    if isinstance(error, TimeoutError):
         return True
     if isinstance(error, _AdapterFailure):
         return error.code not in {"StreamingUnsupported"}

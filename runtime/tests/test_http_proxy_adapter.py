@@ -175,7 +175,7 @@ def test_proxy_failures_are_bounded_and_never_fall_back(
     async def no_retry_delay(_seconds: float) -> None:
         return None
 
-    monkeypatch.setattr("openai._base_client.anyio.sleep", no_retry_delay)
+    monkeypatch.setattr("contractor_runtime.llm.client.sleep", no_retry_delay)
 
     async def scenario() -> None:
         backend_calls = 0
@@ -311,7 +311,7 @@ async def assert_safe_model_proxy_failure(proxy_url: str, backend_url: str) -> N
     rendered = f"{captured.value!s} {captured.value!r} {adapter!r} {adapter.metrics!r}"
     for forbidden in (PROXY_PASSWORD, BACKEND_SECRET, proxy_url, GATEWAY_TOKEN):
         assert forbidden not in rendered
-    # The SDK owns the bounded 1 + 3 attempt policy. Every failure remains on
+    # The gateway client owns the bounded 1 + 3 attempt policy. Every failure remains on
     # this allocation's proxy route; there is no direct fallback.
     assert adapter.metrics.failed_operations == 4
     await model.close()
