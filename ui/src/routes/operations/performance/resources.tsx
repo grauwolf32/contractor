@@ -1,3 +1,4 @@
+import "./reading.css";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
@@ -52,10 +53,65 @@ function averageCores(item: AllocationResourceSummary): number | undefined {
 export function AllocationResourceList({
   items,
   showRunLink = true,
+  compact = false,
 }: {
   items: readonly AllocationResourceSummary[];
   showRunLink?: boolean;
+  compact?: boolean;
 }) {
+  if (compact)
+    return (
+      <div className="table-scroll">
+        <table className="responsive-table allocation-history-table">
+          <thead>
+            <tr>
+              <th>Stage / agent</th>
+              <th>Run</th>
+              <th>Outcome</th>
+              <th>Measurements</th>
+              <th>Finished</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.allocationId}>
+                <td data-label="Stage / agent">
+                  <strong>{item.stage}</strong>
+                  <small>{item.logicalAgent}</small>
+                  <details>
+                    <summary>Metrics and exact identity</summary>
+                    <AllocationResourceList
+                      items={[item]}
+                      showRunLink={false}
+                    />
+                  </details>
+                </td>
+                <td data-label="Run">
+                  <Link
+                    to={`/runs/${encodeURIComponent(item.runId)}`}
+                    title={item.runId}
+                    aria-label={item.runId}
+                  >
+                    {item.runId.length > 24
+                      ? `${item.runId.slice(0, 12)}…${item.runId.slice(-8)}`
+                      : item.runId}
+                  </Link>
+                </td>
+                <td data-label="Outcome">
+                  <OperationsState state={item.outcome} />
+                </td>
+                <td data-label="Measurements">
+                  <span>{item.status.replaceAll("_", " ")}</span>
+                </td>
+                <td data-label="Finished">
+                  {formatTimestamp(item.finishedAt)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   return (
     <div className="allocation-resource-list">
       {items.map((item) => {

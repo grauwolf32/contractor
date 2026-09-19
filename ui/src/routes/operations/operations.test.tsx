@@ -852,6 +852,17 @@ describe("Operations routes", () => {
     expect(within(incompatible).getByText(/Online/)).toBeVisible();
     expect(within(incompatible).queryByText("Available")).toBeNull();
     expect(within(incompatible).queryByRole("checkbox")).toBeNull();
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText("Agent connection"), "online");
+    expect(
+      screen.queryByText(
+        "Offline · saved labels are retained for the next registration.",
+      ),
+    ).toBeNull();
+    expect(
+      screen.getByRole("article", { name: "Agent · bbbbbb…bbbb" }),
+    ).toBeVisible();
   });
 });
 

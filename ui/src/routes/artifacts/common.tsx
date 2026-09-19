@@ -29,6 +29,8 @@ export function formatBytes(size: number): string {
   if (size < 1024 * 1024) {
     return `${(size / 1024).toFixed(1)} KiB`;
   }
+  if (size >= 1024 ** 4) return `${(size / 1024 ** 4).toFixed(1)} TiB`;
+  if (size >= 1024 ** 3) return `${(size / 1024 ** 3).toFixed(1)} GiB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
 }
 

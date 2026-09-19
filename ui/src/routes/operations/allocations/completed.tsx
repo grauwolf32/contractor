@@ -50,9 +50,8 @@ export function CompletedAllocationListRoute() {
             <p className="eyebrow">Terminal StageExecution history</p>
             <h3>Completed allocation resources</h3>
             <p className="muted-copy">
-              Entries survive authoritative release and retain the collection
-              policy selected for that allocation. This view has no lifecycle
-              mutation controls.
+              Historical allocation measurements. Open metrics to inspect their
+              scope, collection policy and exact identity.
             </p>
           </div>
           <button
@@ -115,7 +114,7 @@ export function CompletedAllocationListRoute() {
             </p>
           </div>
         ) : (
-          <AllocationResourceList items={query.data.items} />
+          <AllocationResourceList items={query.data.items} compact />
         )}
         {query.data === undefined ? null : (
           <CursorControls

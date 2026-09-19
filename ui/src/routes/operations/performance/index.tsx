@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import "./reading.css";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { usePublicAPI } from "../../../api/context";
@@ -175,7 +176,7 @@ function GroupCard({
 }) {
   const state = performanceFreshnessState(freshness, readAt);
   return (
-    <article className="performance-metric-card">
+    <article className="performance-metric-card" data-freshness={state}>
       <header>
         <h4>{title}</h4>
         <OperationsState state={state} />
@@ -191,6 +192,63 @@ function GroupCard({
       </small>
       {note === undefined ? null : <p className="muted-copy">{note}</p>}
     </article>
+  );
+}
+
+function CurrentResourceSummary({
+  snapshot,
+  gpuColors,
+}: {
+  snapshot: PerformanceSnapshot;
+  gpuColors: GPUColors;
+}) {
+  const sample = snapshot.current;
+  return (
+    <div className="performance-summary-grid">
+      <GroupCard
+        title="Server process"
+        freshness={sample?.process?.freshness}
+        readAt={snapshot.observedAt}
+      >
+        <dl className="metrics-grid performance-metrics-grid">
+          <div>
+            <dt>CPU</dt>
+            <dd>
+              {metric(
+                sample?.process?.cpuCores,
+                (value) => `${decimal(value)} cores`,
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Resident memory</dt>
+            <dd>{metric(sample?.process?.rssBytes, formatBytes)}</dd>
+          </div>
+        </dl>
+      </GroupCard>
+      <GPUCurrentMetrics
+        gpu={sample?.gpu}
+        readAt={snapshot.observedAt}
+        colors={gpuColors}
+        compact
+      />
+      <GroupCard
+        title="PostgreSQL"
+        freshness={sample?.database?.freshness}
+        readAt={snapshot.observedAt}
+      >
+        <dl className="metrics-grid performance-metrics-grid">
+          <div>
+            <dt>Active connections</dt>
+            <dd>{metric(sample?.database?.activeConnections, decimal)}</dd>
+          </div>
+          <div>
+            <dt>Lock waiting</dt>
+            <dd>{metric(sample?.database?.lockWaitingConnections, decimal)}</dd>
+          </div>
+        </dl>
+      </GroupCard>
+    </div>
   );
 }
 
@@ -464,6 +522,7 @@ function CurrentMetrics({
 
 export function OperationsPerformanceRoute() {
   const api = usePublicAPI();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [range, setRange] = useState<PerformanceRange>("1h");
   const current = useQuery({
     queryKey: queryKeys.operations.performance.current,
@@ -493,7 +552,6 @@ export function OperationsPerformanceRoute() {
     <div className="operations-library performance-page">
       <div className="section-heading performance-heading">
         <div>
-          <p className="eyebrow">Bounded built-in observations</p>
           <h3>Server performance</h3>
           <p className="muted-copy">
             Server process, PostgreSQL and available host GPU observations.
@@ -541,7 +599,10 @@ export function OperationsPerformanceRoute() {
             Read {formatTimestamp(current.data.observedAt)} · generation{" "}
             <code>{current.data.generation}</code>
           </p>
-          <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
+          <CurrentResourceSummary
+            snapshot={current.data}
+            gpuColors={gpuColors}
+          />
         </>
       )}
 
@@ -627,6 +688,17 @@ export function OperationsPerformanceRoute() {
           </>
         )}
       </section>
+      {current.data?.current === undefined ? null : (
+        <details
+          className="performance-detail-counters"
+          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+        >
+          <summary>Detailed counters and collection diagnostics</summary>
+          {detailsOpen ? (
+            <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
+          ) : null}
+        </details>
+      )}
     </div>
   );
 }

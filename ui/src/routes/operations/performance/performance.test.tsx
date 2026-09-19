@@ -314,6 +314,9 @@ describe("Operations performance views", () => {
       screen.getByLabelText("CPU usage numeric summary"),
     ).toHaveTextContent("Observed points1");
     expect(screen.getAllByText("1.25 cores").length).toBeGreaterThan(0);
+    await userEvent.click(
+      screen.getByText("Detailed counters and collection diagnostics"),
+    );
     expect(
       screen.getByText(/successful-acquisition mean, not p95/i),
     ).toBeInTheDocument();
@@ -444,7 +447,7 @@ describe("Operations performance views", () => {
       await screen.findByRole("link", { name: "run-complete" }),
     ).toHaveAttribute("href", "/runs/run-complete");
     expect(screen.getByText("128.0 MiB")).toBeInTheDocument();
-    expect(screen.getByText("report missing")).toBeInTheDocument();
+    expect(screen.getAllByText("report missing").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: /force|idle|reassign|release/i }),

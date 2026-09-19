@@ -15,6 +15,7 @@ import "./styles.css";
 
 export function RuntimeAgentListRoute() {
   const api = usePublicAPI();
+  const [connection, setConnection] = useState("all");
   const { snapshot } = useOperationsSnapshot();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -29,6 +30,19 @@ export function RuntimeAgentListRoute() {
     queryKey: queryKeys.operations.runtimeLabels.list(),
     queryFn: () => listRuntimeLabels(api),
   });
+  const visible = [...(principals.data?.items ?? [])]
+    .filter(
+      (principal) =>
+        connection === "all" ||
+        (connection === "online"
+          ? principal.live !== undefined
+          : principal.live === undefined),
+    )
+    .sort(
+      (a, b) =>
+        Number(b.live !== undefined) - Number(a.live !== undefined) ||
+        a.runtimeAgentId.localeCompare(b.runtimeAgentId),
+    );
   return (
     <>
       <div className="operations-library runtime-agent-library">
@@ -44,6 +58,18 @@ export function RuntimeAgentListRoute() {
             {principals.data?.items.length ?? 0} identities loaded
           </span>
         </div>
+        <label className="compact-select">
+          Connection
+          <select
+            aria-label="Agent connection"
+            value={connection}
+            onChange={(event) => setConnection(event.target.value)}
+          >
+            <option value="all">All agents · online first</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+          </select>
+        </label>
         {bindings.error === null ? null : (
           <ErrorNotice error={bindings.error} />
         )}
@@ -51,13 +77,13 @@ export function RuntimeAgentListRoute() {
           <ErrorNotice error={principals.error} />
         ) : principals.isPending ? (
           <p className="loading-copy">Loading Runtime Agents…</p>
-        ) : principals.data.items.length === 0 ? (
+        ) : visible.length === 0 ? (
           <p className="compact-empty">
-            No Runtime Agent certificate principal has registered yet.
+            No agents match this connection filter.
           </p>
         ) : (
           <div className="runtime-principal-grid">
-            {principals.data.items.map((principal) => (
+            {visible.map((principal) => (
               <AgentCard
                 key={principal.runtimeAgentId}
                 principal={principal}

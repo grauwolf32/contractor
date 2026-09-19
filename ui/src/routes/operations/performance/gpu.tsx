@@ -19,17 +19,26 @@ export function GPUCurrentMetrics({
   gpu,
   readAt,
   colors,
+  compact = false,
 }: {
   gpu: components["schemas"]["PerformanceGPU"] | undefined;
   readAt: string;
   colors: GPUColors;
+  compact?: boolean;
 }) {
   if (gpu === undefined || gpu.freshness.status === "unavailable") return null;
   return [...gpu.devices]
     .sort((a, b) => a.id.localeCompare(b.id))
     .map((device) => {
       const available = measurements.filter(
-        ([field]) => device[field] !== undefined,
+        ([field]) =>
+          device[field] !== undefined &&
+          (!compact ||
+            [
+              "utilizationPercent",
+              "memoryUsedBytes",
+              "memoryTotalBytes",
+            ].includes(field)),
       );
       if (available.length === 0) return null;
       return (

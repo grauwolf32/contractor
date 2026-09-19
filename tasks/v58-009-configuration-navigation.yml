@@ -3,8 +3,8 @@ id: V58-009
 title: Expose active configuration and separate reading from publishing
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a6ae161ee8ea272a3af2dcd8d64112d1bb141e7d
 depends_on:
 - V58-002
 - V58-007

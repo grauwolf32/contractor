@@ -1,0 +1,72 @@
+.performance-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.performance-page .performance-metrics-grid dd {
+  color: var(--text);
+}
+.performance-summary-grid .performance-metrics-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.performance-metric-card[data-freshness="unavailable"] dd {
+  color: var(--muted);
+}
+.performance-detail-counters {
+  margin-top: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 1rem;
+}
+.performance-detail-counters > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.performance-detail-counters[open] > summary {
+  margin-bottom: 1rem;
+}
+.allocation-history-table {
+  table-layout: fixed;
+}
+.allocation-history-table td {
+  vertical-align: top;
+  padding-block: 0.7rem;
+}
+.allocation-history-table th:first-child {
+  width: 30%;
+}
+.allocation-history-table th:nth-child(2) {
+  width: 21%;
+}
+.allocation-history-table summary {
+  cursor: pointer;
+  margin-top: 0.4rem;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+.allocation-history-table details[open] {
+  min-width: 0;
+}
+.allocation-history-table .allocation-resource-card {
+  margin-top: 0.75rem;
+  padding: 0.7rem;
+}
+.allocation-history-table .allocation-resource-metrics {
+  grid-template-columns: 1fr;
+}
+.allocation-history-table .allocation-resource-identity {
+  grid-template-columns: 1fr;
+}
+.allocation-history-table .allocation-resource-card header {
+  flex-wrap: wrap;
+}
+@media (max-width: 1000px) {
+  .performance-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .performance-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -3,7 +3,7 @@ id: V58-010
 title: Make resource history and current health scannable
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-002
@@ -53,3 +53,7 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+verification_results:
+- Focused Operations, Performance and GPU suites passed (23 tests in 3 files).
+- Application and Node TypeScript, targeted ESLint and production build passed.
+- Six live browser states at 1440 and 390 px passed without overflow, JavaScript errors or writes; evidence in .local/ui-design-implementation/phase-010.
