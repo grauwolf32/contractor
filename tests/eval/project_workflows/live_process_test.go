@@ -1,17 +1,14 @@
 package projectworkflows
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -282,77 +279,6 @@ func liveRepositoryRoot(t *testing.T) string {
 		t.Fatal("resolve repository root")
 	}
 	return root
-}
-
-func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model, gatewayURL string) {
-	t.Helper()
-	source := filepath.Join(repositoryRoot, "configs")
-	gatewayUpdated := false
-	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		relative, err := filepath.Rel(source, path)
-		if err != nil {
-			return err
-		}
-		destination := filepath.Join(target, relative)
-		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("configuration contains a symbolic link")
-		}
-		if entry.IsDir() {
-			return os.MkdirAll(destination, 0o700)
-		}
-		if !entry.Type().IsRegular() {
-			return fmt.Errorf("configuration contains a non-regular entry")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if relative == filepath.Join("model-policies", "domain_worker.yaml") ||
-			relative == filepath.Join("model-policies", "domain_worker_v2.yaml") ||
-			relative == filepath.Join("model-policies", "strong_domain_worker.yaml") {
-			encoded, _ := jsonString(model)
-			marker := "model: worker-model"
-			if relative == filepath.Join("model-policies", "strong_domain_worker.yaml") {
-				marker = "model: worker-strong-model"
-			}
-			updated := strings.Replace(string(data), marker, "model: "+encoded, 1)
-			if updated == string(data) {
-				return fmt.Errorf("Worker model marker is absent in %s", relative)
-			}
-			data = []byte(updated)
-		}
-		if relative == filepath.Join("llm-gateways", "local_litellm.yaml") {
-			encoded, _ := jsonString(gatewayURL)
-			lines := strings.Split(string(data), "\n")
-			for index, line := range lines {
-				if strings.HasPrefix(line, "  url: ") {
-					lines[index] = "  url: " + encoded
-					gatewayUpdated = true
-				}
-			}
-			data = []byte(strings.Join(lines, "\n"))
-		}
-		return os.WriteFile(destination, data, 0o600)
-	})
-	if err != nil {
-		t.Fatalf("copy live evaluation configuration (%s)", safeErrorType(err))
-	}
-	if !gatewayUpdated {
-		t.Fatal("live configuration did not update the Gateway URL")
-	}
-}
-
-func jsonString(value string) (string, error) {
-	var output bytes.Buffer
-	encoder := json.NewEncoder(&output)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(value); err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(output.String()), nil
 }
 
 func liveWorkRootEmpty(root string) bool {

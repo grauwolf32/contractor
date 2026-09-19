@@ -2678,3 +2678,4 @@ tasks:
   - {id: V55-008, file: v55-008-deterministic-scan-planner.yml}
   - {id: V55-009, file: v55-009-scan-candidate-ranking.yml}
   - {id: V55-010, file: v55-010-katana-scan-adapter.yml}
+  - {id: V57-001, file: v57-001-live-harness-effective-model.yml}
