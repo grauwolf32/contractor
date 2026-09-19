@@ -3,7 +3,7 @@ id: V45-009
 title: Index Workflow bindings and simplify configuration traversal
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -55,3 +55,4 @@ verification:
   - go test -race -count=1 ./internal/config ./internal/httpapi/public — passed.
   - Regression verifies byte-identical cursor fingerprints, exact revision isolation, detached bounded pages and duplicate required input rejection.
   - git diff --check — passed.
+implementation_commit: 30c7e9da22c804097933b6cbd0f4cb2cd1073ce4

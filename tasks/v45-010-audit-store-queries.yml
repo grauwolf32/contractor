@@ -3,7 +3,7 @@ id: V45-010
 title: Separate Audit write preparation from atomic SQL
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
