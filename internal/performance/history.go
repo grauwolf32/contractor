@@ -23,6 +23,9 @@ func (m Minute) Validate() error {
 	if m.Status != OK && m.Status != Partial && m.Status != Unavailable {
 		return errInvalidRecord
 	}
+	if m.GPU != nil && m.GPU.Validate(m.MinuteStart.Add(time.Minute)) != nil {
+		return errInvalidRecord
+	}
 	if m.CPU != nil && (m.CPU.DurationSeconds <= 0 || m.CPU.DurationSeconds > 60) {
 		return errInvalidRecord
 	}
@@ -260,6 +263,7 @@ func (b *historyBuilder) add(m Minute) error {
 	}
 	p.PoolLast = m.PoolLast
 	p.GCPausesLast = m.GCPausesLast
+	mergeGPU(&p.GPU, m.GPU)
 	// DB values/rates remain the latest *observation*, not five fake identical
 	// samples or an average of rates. Its original interval/timestamps survive.
 	if m.Database != nil {

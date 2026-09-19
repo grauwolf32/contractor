@@ -31,6 +31,7 @@ type Options struct {
 	Clock       Clock
 	ReadProcess ProcessReader
 	ReadPool    PoolReader
+	ReadGPU     GPUReader
 	Diagnostics *Diagnostics
 }
 
@@ -43,6 +44,7 @@ type Collector struct {
 	clock              Clock
 	process            ProcessReader
 	pool               PoolReader
+	gpu                GPUReader
 	generation         string
 	http               *HTTPRecorder
 	diagnostics        *Diagnostics
@@ -68,7 +70,7 @@ func New(options Options) *Collector {
 	if options.ReadPool == nil {
 		options.ReadPool = WorkingPoolReader(nil)
 	}
-	return &Collector{clock: options.Clock, process: options.ReadProcess, pool: options.ReadPool, diagnostics: options.Diagnostics, generation: rand.Text(), http: newHTTPRecorder(options.Clock.Now), last: options.Clock.Now()}
+	return &Collector{clock: options.Clock, process: options.ReadProcess, pool: options.ReadPool, gpu: options.ReadGPU, diagnostics: options.Diagnostics, generation: rand.Text(), http: newHTTPRecorder(options.Clock.Now), last: options.Clock.Now()}
 }
 
 func (c *Collector) Wrap(surface Surface, next http.Handler) http.Handler {
@@ -86,7 +88,7 @@ func (c *Collector) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		c.Collect()
+		c.collect(ctx)
 		now := c.clock.Now()
 		next := now.Truncate(SampleInterval).Add(SampleInterval)
 		timer := c.clock.NewTimer(next.Sub(now))
@@ -125,11 +127,22 @@ func freshness(start, end time.Time, expected uint64, reason Reason, known bool)
 
 // Collect serializes reader access; it is also the deterministic sampling seam
 // used by tests. Reader failures cannot escape as scheduler/lifecycle failures.
-func (c *Collector) Collect() {
+func (c *Collector) Collect() { c.collect(context.Background()) }
+
+func (c *Collector) collect(ctx context.Context) {
 	c.sampleMu.Lock()
 	defer c.sampleMu.Unlock()
 	p, processReason := c.process()
 	pool, poolReason := c.pool()
+	var gpu *GPU
+	var gpuReason Reason
+	if c.gpu != nil {
+		devices, reason := c.gpu(ctx)
+		if devices == nil {
+			devices = []GPUDevice{}
+		}
+		gpu, gpuReason = &GPU{Devices: devices}, reason
+	}
 	var diagnostic DiagnosticView
 	if c.diagnostics != nil {
 		diagnostic = c.diagnostics.Snapshot()
@@ -192,6 +205,13 @@ func (c *Collector) Collect() {
 	h := HTTP{Freshness: freshness(start, at, expected, httpReason, true), Surfaces: c.http.drain()}
 	sample := Sample{Version: 1, Generation: c.generation, ObservedAt: at.UTC(), HTTP: &h, Process: &p, Pool: &pool}
 	sample.Database, sample.DatabaseSize = diagnostic.Database, diagnostic.DatabaseSize
+	if gpu != nil {
+		gpu.Freshness = freshness(start, at, expected, gpuReason, len(gpu.Devices) > 0)
+		if gpu.Validate() != nil {
+			gpu = &GPU{Freshness: freshness(start, at, expected, ReadFailed, false), Devices: []GPUDevice{}}
+		}
+		sample.GPU = gpu
+	}
 	c.last, c.previousProcess, c.previousPool = at, p, pool
 	c.sampled = true
 	c.mu.Lock()

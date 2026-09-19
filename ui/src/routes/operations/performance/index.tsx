@@ -24,6 +24,8 @@ import {
 import { OperationsState } from "../common";
 import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
+import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
+import { historyGPUDevices, useGPUColors, type GPUColors } from "./gpu-colors";
 
 interface HTTPOverview {
   requestRate?: number;
@@ -192,7 +194,13 @@ function GroupCard({
   );
 }
 
-function CurrentMetrics({ snapshot }: { snapshot: PerformanceSnapshot }) {
+function CurrentMetrics({
+  snapshot,
+  gpuColors,
+}: {
+  snapshot: PerformanceSnapshot;
+  gpuColors: GPUColors;
+}) {
   const sample = snapshot.current;
   const process = sample?.process;
   const pool = sample?.pool;
@@ -245,6 +253,11 @@ function CurrentMetrics({ snapshot }: { snapshot: PerformanceSnapshot }) {
           </div>
         </dl>
       </GroupCard>
+      <GPUCurrentMetrics
+        gpu={sample?.gpu}
+        readAt={snapshot.observedAt}
+        colors={gpuColors}
+      />
       <GroupCard
         title="HTTP surfaces"
         freshness={sample?.http?.freshness}
@@ -466,6 +479,10 @@ export function OperationsPerformanceRoute() {
     refetchIntervalInBackground: false,
   });
   const series = useMemo(() => chartData(history.data), [history.data]);
+  const gpuColors = useGPUColors([
+    ...(current.data?.current?.gpu?.devices.map((device) => device.id) ?? []),
+    ...historyGPUDevices(history.data).keys(),
+  ]);
   const stepSeconds = (
     { "15s": 15, "1m": 60, "5m": 300, "1h": 3_600 } as const
   )[PERFORMANCE_RANGES[range].step];
@@ -479,9 +496,8 @@ export function OperationsPerformanceRoute() {
           <p className="eyebrow">Bounded built-in observations</p>
           <h3>Server performance</h3>
           <p className="muted-copy">
-            Current data is process-local. Durable history keeps real coverage
-            and generation gaps; unknown measurements are never rendered as
-            zero.
+            Server process, PostgreSQL and available host GPU observations.
+            History preserves collection gaps and Server restarts.
           </p>
         </div>
         <button
@@ -525,7 +541,7 @@ export function OperationsPerformanceRoute() {
             Read {formatTimestamp(current.data.observedAt)} · generation{" "}
             <code>{current.data.generation}</code>
           </p>
-          <CurrentMetrics snapshot={current.data} />
+          <CurrentMetrics snapshot={current.data} gpuColors={gpuColors} />
         </>
       )}
 
@@ -594,6 +610,11 @@ export function OperationsPerformanceRoute() {
                 }))}
                 expectedStepSeconds={stepSeconds}
                 unit="MiB"
+              />
+              <GPUHistoryCharts
+                colors={gpuColors}
+                history={history.data}
+                stepSeconds={stepSeconds}
               />
               <MetricChart
                 title="HTTP request rate"

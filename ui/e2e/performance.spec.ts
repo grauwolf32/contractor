@@ -195,3 +195,159 @@ test("renders disabled stale and discontinuous performance observations truthful
   );
   expect(registryReads).toBe(0);
 });
+
+test("shows only available GPU metrics on desktop and mobile", async ({
+  page,
+}) => {
+  const origin = new URL(test.info().project.use.baseURL as string).origin;
+  let gpuAvailable = true;
+  let reverseDevices = false;
+  await page.route("**/runtime-config.json", (route) =>
+    fulfillJSON(route, {
+      uiVersion: "0.1.0",
+      supportedApiVersions: [apiVersion],
+      apiBaseUrl: origin,
+    }),
+  );
+  await page.route(`${origin}/v1/**`, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/auth/session") {
+      return fulfillJSON(route, {
+        principal: {
+          userId: "operator",
+          username: "operator",
+          capabilities: ["user", "operations"],
+        },
+        csrfToken: "a".repeat(43),
+        idleExpiresAt: "2099-09-19T20:00:00Z",
+        absoluteExpiresAt: "2099-09-20T12:00:00Z",
+      });
+    }
+    const gpu = (at: string, utilization = 0) => ({
+      freshness: {
+        ...freshness(at),
+        status: "partial",
+        reason: "unsupported_metric",
+      },
+      devices: [
+        {
+          id: "GPU-aa",
+          name: "NVIDIA GeForce RTX 5090",
+          utilizationPercent: utilization,
+          memoryUsedBytes: 24 * 1024 ** 3,
+          memoryTotalBytes: 32 * 1024 ** 3,
+          temperatureCelsius: 44,
+        },
+        {
+          id: "GPU-bb",
+          name: "NVIDIA GeForce RTX 5090",
+          utilizationPercent: 65 - utilization / 2,
+          memoryUsedBytes: 16 * 1024 ** 3,
+          memoryTotalBytes: 32 * 1024 ** 3,
+          temperatureCelsius: 58,
+          powerWatts: 190,
+        },
+      ].sort((a, b) =>
+        reverseDevices ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id),
+      ),
+    });
+    if (url.pathname === "/v1/operations/performance") {
+      const at = new Date().toISOString();
+      return fulfillJSON(
+        route,
+        snapshot(true, at, {
+          ...sample("gpu-generation", at, 1),
+          ...(gpuAvailable ? { gpu: gpu(at) } : {}),
+        }),
+      );
+    }
+    if (url.pathname === "/v1/operations/performance/history") {
+      const to = url.searchParams.get("to")!;
+      return fulfillJSON(route, {
+        from: url.searchParams.get("from"),
+        to,
+        step: url.searchParams.get("step"),
+        points: [10, 30, 20, 40, 35, 10].map((utilization, i) => {
+          const at = new Date(Date.parse(to) - (6 - i) * 15_000).toISOString();
+          return {
+            kind: "sample",
+            ...sample("gpu-generation", at, 1),
+            ...(gpuAvailable ? { gpu: gpu(at, utilization) } : {}),
+          };
+        }),
+      });
+    }
+    return fulfillJSON(route, { code: "not_found" }, 404);
+  });
+  await page.goto("/operations/performance");
+  const card = page.getByRole("article", {
+    name: "GPU NVIDIA GeForce RTX 5090 · aa",
+  });
+  await expect(card).toBeVisible();
+  await expect(card.getByText("0 %", { exact: true })).toBeVisible();
+  await expect(card.getByText("44 °C", { exact: true })).toBeVisible();
+  await expect(card.getByText("Power draw")).toHaveCount(0);
+  const chart = page.getByRole("img", { name: "GPU utilization" });
+  await expect(chart).toBeVisible();
+  await expect(chart.locator(".performance-chart-line")).toHaveCount(2);
+  const lineA = chart.locator('[data-series-id="GPU-aa"] polyline');
+  const lineB = chart.locator('[data-series-id="GPU-bb"] polyline');
+  const colorA = await lineA.evaluate((line) => getComputedStyle(line).stroke);
+  const colorB = await lineB.evaluate((line) => getComputedStyle(line).stroke);
+  expect(colorA).not.toBe(colorB);
+  await expect(card.locator(".performance-series-swatch")).toHaveCSS(
+    "background-color",
+    colorA,
+  );
+  const legend = page.getByLabel("GPU utilization GPU legend");
+  await expect(legend.locator('[data-series-id="GPU-aa"]')).toContainText(
+    "NVIDIA GeForce RTX 5090 · aa",
+  );
+  await expect(
+    legend.locator('[data-series-id="GPU-bb"] .performance-series-swatch'),
+  ).toHaveCSS("background-color", colorB);
+  const powerChart = page.getByRole("img", { name: "Power draw" });
+  await expect(powerChart.locator('[data-series-id="GPU-aa"]')).toHaveCount(0);
+  await expect(
+    powerChart.locator('[data-series-id="GPU-bb"] polyline'),
+  ).toHaveCSS("stroke", colorB);
+  reverseDevices = true;
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+        "/v1/operations/performance/history",
+    ),
+    page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/v1/operations/performance",
+    ),
+    page.getByRole("button", { name: "Refresh metrics" }).click(),
+  ]);
+  await expect(lineA).toHaveCSS("stroke", colorA);
+  await expect(lineB).toHaveCSS("stroke", colorB);
+  await page.screenshot({
+    path: test.info().outputPath("gpu-desktop.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath("gpu-mobile.png"),
+    fullPage: true,
+  });
+  gpuAvailable = false;
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Server process" }),
+  ).toBeVisible();
+  await expect(card).toHaveCount(0);
+  await expect(
+    page.getByRole("img", { name: /GPU|VRAM|Temperature/ }),
+  ).toHaveCount(0);
+});

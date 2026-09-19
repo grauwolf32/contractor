@@ -2,6 +2,7 @@ package public
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -47,6 +48,22 @@ func TestPerformancePublicContracts(t *testing.T) {
 		t.Fatal("real process sample unavailable")
 	}
 	validate("PerformanceSample", collector.Snapshot().Current, true)
+	utilization := 0.0
+	gpuCollector := performance.New(performance.Options{ReadGPU: func(context.Context) ([]performance.GPUDevice, performance.Reason) {
+		return []performance.GPUDevice{{ID: "GPU-aa", Name: "NVIDIA GPU", UtilizationPercent: &utilization}}, performance.UnsupportedMetric
+	}})
+	gpuCollector.Collect()
+	withGPU := gpuCollector.Snapshot().Current
+	if withGPU == nil || withGPU.GPU == nil {
+		t.Fatal("missing GPU sample")
+	}
+	validate("PerformanceSample", withGPU, true)
+	validate("PerformanceFineHistoryPoint", performance.FineHistoryPoint{Kind: "sample", Sample: *withGPU}, true)
+	gpuMinute, err := performance.AggregateMinute(withGPU.ObservedAt.Truncate(time.Minute), []performance.Sample{*withGPU})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validate("PerformanceGPUAggregate", gpuMinute.GPU, true)
 	at := time.Date(2026, 9, 6, 10, 0, 0, 0, time.UTC)
 	for _, state := range []struct {
 		status performance.Status

@@ -56,6 +56,8 @@ const PERFORMANCE_REASONS = new Set([
   "database_unavailable",
   "budget_exceeded",
   "record_limit",
+  "gpu_not_available",
+  "unsupported_metric",
 ]);
 const RESOURCE_REASONS = new Set([
   "unsupported_platform",
@@ -211,6 +213,87 @@ function validHTTPSurface(value: unknown): boolean {
   );
 }
 
+function validGPU(
+  value:
+    | components["schemas"]["PerformanceGPU"]
+    | components["schemas"]["PerformanceGPUAggregate"],
+  aggregate = false,
+): boolean {
+  if (
+    !exactKeys(value, ["freshness", "devices"]) ||
+    !validFreshness(value.freshness) ||
+    value.freshness.intervalSeconds !== 15 ||
+    !Array.isArray(value.devices) ||
+    value.devices.length > 8
+  )
+    return false;
+  const fields = [
+    "utilizationPercent",
+    "memoryUsedBytes",
+    "memoryTotalBytes",
+    "temperatureCelsius",
+    "powerWatts",
+    "powerLimitWatts",
+  ] as const;
+  const seen = new Set<string>();
+  if (
+    !aggregate &&
+    (value.freshness.status === "unavailable") !== (value.devices.length === 0)
+  )
+    return false;
+  for (const device of value.devices) {
+    if (
+      !exactKeys(device, ["id", "name"], fields) ||
+      typeof device.id !== "string" ||
+      !/^GPU-[0-9a-fA-F-]{1,64}$/.test(device.id) ||
+      seen.has(device.id) ||
+      typeof device.name !== "string" ||
+      device.name.trim() === "" ||
+      device.name.length > 128 ||
+      /\p{Cc}/u.test(device.name)
+    )
+      return false;
+    seen.add(device.id);
+    for (const field of fields) {
+      const metric = device[field];
+      if (metric === undefined) continue;
+      const upper =
+        field === "utilizationPercent"
+          ? 100
+          : field.startsWith("memory")
+            ? Number.MAX_SAFE_INTEGER
+            : Number.MAX_VALUE;
+      if (aggregate) {
+        if (
+          typeof metric !== "object" ||
+          !exactKeys(metric, ["last", "min", "max", "samples", "observedAt"]) ||
+          ![metric.last, metric.min, metric.max].every(finiteNonnegative) ||
+          metric.min > metric.last ||
+          metric.last > metric.max ||
+          metric.max > upper ||
+          !unsignedInteger(metric.samples) ||
+          metric.samples === 0 ||
+          !validTimestamp(metric.observedAt)
+        )
+          return false;
+      } else if (
+        !finiteNonnegative(metric) ||
+        metric > upper ||
+        (field.startsWith("memory") && !unsignedInteger(metric))
+      )
+        return false;
+    }
+    if (
+      !aggregate &&
+      typeof device.memoryUsedBytes === "number" &&
+      typeof device.memoryTotalBytes === "number" &&
+      device.memoryUsedBytes > device.memoryTotalBytes
+    )
+      return false;
+  }
+  return true;
+}
+
 function validSample(
   value: components["schemas"]["PerformanceSample"],
   historyPoint = false,
@@ -225,6 +308,7 @@ function validSample(
         "pool",
         "database",
         "databaseSize",
+        "gpu",
         ...(historyPoint ? ["kind"] : []),
       ],
     ) ||
@@ -249,6 +333,7 @@ function validSample(
   ) {
     return false;
   }
+  if (value.gpu !== undefined && !validGPU(value.gpu)) return false;
   for (const group of [
     value.process,
     value.pool,
@@ -405,6 +490,7 @@ function safeHistory(
               "cpu",
               "poolLast",
               "gcPausesLast",
+              "gpu",
               "database",
               "databaseSize",
             ],
@@ -422,6 +508,7 @@ function safeHistory(
           Array.isArray(point.http ?? []) &&
           (point.http === undefined ||
             (point.http.length === 2 && point.http.every(validHTTPSurface))) &&
+          (point.gpu === undefined || validGPU(point.gpu, true)) &&
           boundedJSONTree(point);
     if (
       !kindMatches ||

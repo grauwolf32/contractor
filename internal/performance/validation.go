@@ -18,7 +18,13 @@ func (s Sample) Validate() error {
 		value    *Freshness
 		interval uint32
 	}
-	groups := make([]group, 0, 5)
+	groups := make([]group, 0, 6)
+	if s.GPU != nil {
+		if s.GPU.Validate() != nil {
+			return errInvalidRecord
+		}
+		groups = append(groups, group{&s.GPU.Freshness, 15})
+	}
 	if s.Process != nil {
 		groups = append(groups, group{&s.Process.Freshness, 15})
 		if h := s.Process.GCPauses; h != nil {
@@ -86,7 +92,7 @@ func (f Freshness) Validate() error {
 	}
 	if f.Reason != nil {
 		switch *f.Reason {
-		case UnsupportedPlatform, ReadFailed, SamplingGap, CounterReset, MissingBaseline, PermissionDenied, StatisticsDisabled, DatabaseUnavailable, BudgetExceeded, RecordLimit:
+		case UnsupportedPlatform, ReadFailed, SamplingGap, CounterReset, MissingBaseline, PermissionDenied, StatisticsDisabled, DatabaseUnavailable, BudgetExceeded, RecordLimit, GPUNotAvailable, UnsupportedMetric:
 		default:
 			return errInvalidRecord
 		}

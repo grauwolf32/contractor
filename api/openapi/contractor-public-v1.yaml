@@ -6264,7 +6264,7 @@ components:
       minimum: 0
       maximum: 9007199254740991
     PerformanceReason:
-      enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, missing_baseline, permission_denied, statistics_disabled, database_unavailable, budget_exceeded, record_limit]
+      enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, missing_baseline, permission_denied, statistics_disabled, database_unavailable, budget_exceeded, record_limit, gpu_not_available, unsupported_metric]
     PerformanceCoverage:
       type: object
       additionalProperties: false
@@ -6428,6 +6428,54 @@ components:
       properties:
         freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
         sizeBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+    PerformanceGPU:
+      type: object
+      additionalProperties: false
+      required: [freshness, devices]
+      description: NVIDIA devices visible to the Server host, including other applications. Unsupported metrics are omitted. Device UUIDs keep history separate across reorder or replacement.
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        devices:
+          type: array
+          maxItems: 8
+          items: {$ref: '#/components/schemas/PerformanceGPUDevice'}
+    PerformanceGPUDevice:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {type: string, pattern: '^GPU-[0-9a-fA-F-]{1,64}$', maxLength: 68}
+        name: {type: string, minLength: 1, maxLength: 128}
+        utilizationPercent: {type: number, minimum: 0, maximum: 100}
+        memoryUsedBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        memoryTotalBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        temperatureCelsius: {$ref: '#/components/schemas/PerformanceNumber'}
+        powerWatts: {$ref: '#/components/schemas/PerformanceNumber'}
+        powerLimitWatts: {$ref: '#/components/schemas/PerformanceNumber'}
+    PerformanceGPUAggregate:
+      type: object
+      additionalProperties: false
+      required: [freshness, devices]
+      description: NVIDIA devices visible to the Server host, including other applications. Unsupported metrics are omitted. Device UUIDs keep history separate across reorder or replacement.
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        devices:
+          type: array
+          maxItems: 8
+          items: {$ref: '#/components/schemas/PerformanceGPUDeviceGauges'}
+    PerformanceGPUDeviceGauges:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {type: string, pattern: '^GPU-[0-9a-fA-F-]{1,64}$', maxLength: 68}
+        name: {type: string, minLength: 1, maxLength: 128}
+        utilizationPercent: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        memoryUsedBytes: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        memoryTotalBytes: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        temperatureCelsius: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        powerWatts: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        powerLimitWatts: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
     PerformanceSample:
       type: object
       additionalProperties: false
@@ -6442,6 +6490,7 @@ components:
         pool: {$ref: '#/components/schemas/PerformancePool'}
         database: {$ref: '#/components/schemas/PerformanceDatabase'}
         databaseSize: {$ref: '#/components/schemas/PerformanceDatabaseSize'}
+        gpu: {$ref: '#/components/schemas/PerformanceGPU'}
     PerformanceDiagnostics:
       type: object
       additionalProperties: false
@@ -6493,6 +6542,7 @@ components:
         pool: {$ref: '#/components/schemas/PerformancePool'}
         database: {$ref: '#/components/schemas/PerformanceDatabase'}
         databaseSize: {$ref: '#/components/schemas/PerformanceDatabaseSize'}
+        gpu: {$ref: '#/components/schemas/PerformanceGPU'}
     PerformanceGaugeSummary:
       type: object
       additionalProperties: false
@@ -6551,6 +6601,7 @@ components:
         gcPausesLast: {$ref: '#/components/schemas/PerformanceGCPauseHistogram'}
         database: {$ref: '#/components/schemas/PerformanceDatabase'}
         databaseSize: {$ref: '#/components/schemas/PerformanceDatabaseSize'}
+        gpu: {$ref: '#/components/schemas/PerformanceGPUAggregate'}
         droppedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
         stepSeconds: {type: integer, enum: [60, 300, 3600]}
         observedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}

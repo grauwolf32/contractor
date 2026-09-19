@@ -25,8 +25,9 @@ resources cannot be reconstructed when they were not collected.
 
 ## Purpose and ownership
 
-Operations displays current Server/PostgreSQL performance, a bounded history,
-and resource summaries for completed allocations. Contractor owns collection,
+Operations displays current Server/PostgreSQL performance, optional host GPU
+measurements, a bounded history and resource summaries for completed allocations.
+Contractor owns collection,
 storage and presentation. No Prometheus, Grafana, exporter service or external
 time-series database is required.
 
@@ -92,6 +93,7 @@ diagnostic overhead.
 | --- | --- | --- |
 | HTTP accounting | Each admitted HTTP request and completion | Fixed in-memory counters and histograms |
 | Server process, HTTP snapshot, working pgx pool | Every 15 seconds | Last 60 minutes in memory |
+| Available NVIDIA host GPUs | Every 15 seconds, only when `nvidia-smi` is on Server's PATH | Last 60 minutes in memory and minute history |
 | PostgreSQL activity and cumulative statistics | Every 60 seconds | Latest typed snapshot and minute history |
 | PostgreSQL database size | Every 5 minutes | Latest typed snapshot and minute history |
 | Server/DB history write | Every minute | Minute aggregates, 7-day retention |
@@ -213,6 +215,50 @@ partial/unknown instead of counting hidden state as zero. Document the optional
 operator grant of `pg_read_all_stats` for full session visibility; never issue
 it automatically. Missing privileges or disabled PostgreSQL statistics do not
 disable independent HTTP/process/pool metrics.
+
+## Optional host GPU measurements
+
+GPU observations support local model deployments. They cover physical NVIDIA
+devices visible to the Server, including other applications; they are not
+attributed to a model, Run, allocation or Runtime Agent. A remote model router's
+GPU usage is outside this scope.
+
+When performance metrics are enabled, resolve `nvidia-smi` on the Server's PATH
+once at construction without running it. If absent or not executable, disable
+the GPU reader and omit the optional `gpu` group. This is normal operation, not
+a startup, readiness or collection error. Installing the binary later requires
+a Server restart. Metrics disabled means no GPU lookup or subprocesses.
+
+The normal 15-second sampler executes a fixed, read-only query without a shell
+or retries. Each probe has a two-second deadline, inherits Server cancellation,
+discards stderr and retains at most 16 KiB of stdout and eight devices. Probes
+never run in HTTP handlers. Driver failures, timeouts and malformed output only
+invalidate GPU measurements; process, HTTP, pool and database collection remain
+independent. No driver, exporter or optional binary is installed automatically.
+
+Each device has a stable GPU UUID and model name. Available fields are device
+utilization percent, used/total framebuffer memory in bytes (converted from
+`nvidia-smi` MiB), temperature in Celsius, power draw and power limit in watts.
+Unsupported individual fields are omitted; measured zero remains zero. Device
+identity is independent of row order. Current GPU cards are hidden when no
+measurements are available, and unsupported fields have no placeholder rows.
+Cards identify the Server host scope and retain freshness/staleness indicators.
+
+Optional GPU groups extend existing version-1 JSON records without a database
+migration. Per-device gauge summaries retain last/min/max, observation counts
+and timestamps in seven-day history. Old records without GPU data remain valid.
+GPU absence does not make otherwise valid Server minute records partial.
+History charts appear only for metrics with observations in the selected range,
+preserve gaps and Server generations, and show the last observed value in each
+aggregate interval. Retained history remains readable after current collection
+stops. At most the eight most recently observed device identities are displayed.
+Each physical GPU has its own current card. History uses four shared charts
+(utilization, used VRAM, temperature, power draw) with one colored series per
+device. A UUID-keyed palette is shared by card markers and chart legends and
+retained through refreshes, row reordering and range changes within the view.
+Legends identify model plus short UUID and show the last observed value; numeric
+summaries remain available per device. Missing sensors omit only that device's
+series, and gaps/restarts split each series independently.
 
 ## Time-series history and Operations API
 

@@ -47,6 +47,32 @@ most one hour (240 frames and 8 MiB). PostgreSQL statistics are sampled every 60
 seconds, database size every 300 seconds, and minute aggregates expire after
 seven days. History queries return at most 1,000 points.
 
+For local models, the same page also shows available NVIDIA GPU measurements:
+utilization, VRAM used/capacity, temperature and power draw/limit. These are
+physical GPU totals on the Server host, including other applications; they do
+not measure usage on a remote model router or attribute usage to individual Runs.
+
+GPU collection is optional. If `nvidia-smi` is absent or not executable on the
+Server process's `PATH` at startup, no GPU probe runs, no error is raised and no
+GPU card appears. There is no need to install it for router-based deployments.
+If it is available, the existing sampler probes every 15 seconds, with a
+two-second timeout and at most eight devices. Driver failure affects only GPU
+data. Unsupported sensors and cards without measurements are hidden, rather
+than shown as zeros or empty placeholders. Real zero utilization remains visible.
+Metrics disabled also disables GPU probing. Installing the binary after startup
+requires a Server restart to enable GPU collection.
+
+GPU history uses the existing one-hour live and seven-day durable retention.
+Charts appear only when their selected range contains observations; aggregate
+points show the last observation in each interval. Past observations remain
+readable when current collection is unavailable. UUIDs keep separate GPUs
+distinct even when their enumeration order changes.
+Multiple GPUs have separate current cards and different colored lines on shared
+history charts. Card markers and legends use the same colors. Legends include
+model names, short UUIDs and last observed values, so identical GPU models stay
+distinguishable. Colors remain stable through refreshes and range changes in
+the open view; per-device numeric summaries are available below each chart.
+
 `/operations/allocations/completed` shows terminal allocation resource summaries
 after authoritative release. The same projection appears on the owning Run's
 Stage attempt. Reports use the existing 30-day execution-report retention and

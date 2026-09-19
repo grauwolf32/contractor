@@ -66,6 +66,149 @@ function aggregate(
 }
 
 describe("performance API", () => {
+  it("accepts durable GPU gauges and rejects invalid aggregate summaries", async () => {
+    const at = "2026-09-06T11:59:45Z";
+    const request = performanceHistoryWindow(
+      "24h",
+      new Date(disabledSnapshot.observedAt),
+    );
+    const gauge = { last: 40, min: 0, max: 90, samples: 3, observedAt: at };
+    const read = (metric: unknown) =>
+      getPerformanceHistory(
+        new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () =>
+            response({
+              ...request,
+              points: [
+                {
+                  ...aggregate("2026-09-06T11:55:00Z", 300),
+                  gpu: {
+                    freshness: {
+                      status: "ok",
+                      observedAt: at,
+                      lastAttemptAt: at,
+                      intervalSeconds: 15,
+                      coverage: {
+                        startedAt: at,
+                        endedAt: at,
+                        durationSeconds: 0,
+                        expectedSamples: 1,
+                        observedSamples: 1,
+                      },
+                    },
+                    devices: [
+                      {
+                        id: "GPU-aa",
+                        name: "NVIDIA GPU",
+                        utilizationPercent: metric,
+                      },
+                    ],
+                  },
+                },
+              ],
+            }),
+          ),
+        ),
+        request,
+      );
+    const history = await read(gauge);
+    expect(history.points[0]?.gpu?.devices[0]?.utilizationPercent).toEqual(
+      gauge,
+    );
+    for (const metric of [
+      null,
+      0,
+      { ...gauge, min: 41 },
+      { ...gauge, max: 101 },
+      { ...gauge, samples: 0 },
+    ]) {
+      await expect(read(metric)).rejects.toMatchObject({
+        code: "invalid_api_response",
+      });
+    }
+  });
+
+  it("accepts optional GPU measurements and rejects malformed device data", async () => {
+    const at = disabledSnapshot.observedAt;
+    const freshness = {
+      status: "ok",
+      observedAt: at,
+      lastAttemptAt: at,
+      intervalSeconds: 15,
+      coverage: {
+        startedAt: at,
+        endedAt: at,
+        durationSeconds: 0,
+        expectedSamples: 1,
+        observedSamples: 1,
+      },
+    };
+    const device = {
+      id: "GPU-aa",
+      name: "NVIDIA GPU",
+      utilizationPercent: 0,
+      memoryUsedBytes: 1024,
+      memoryTotalBytes: 2048,
+    };
+    const read = (gpu: unknown) =>
+      getPerformance(
+        new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () =>
+            response({
+              ...disabledSnapshot,
+              enabled: true,
+              current: {
+                version: 1,
+                generation: disabledSnapshot.generation,
+                observedAt: at,
+                ...(gpu === undefined ? {} : { gpu }),
+              },
+            }),
+          ),
+        ),
+      );
+    expect((await read(undefined)).current?.gpu).toBeUndefined();
+    expect(
+      (await read({ freshness, devices: [device] })).current?.gpu?.devices[0]
+        ?.utilizationPercent,
+    ).toBe(0);
+    const unavailable = {
+      ...freshness,
+      status: "unavailable",
+      observedAt: undefined,
+      reason: "gpu_not_available",
+    };
+    expect(
+      (await read({ freshness: unavailable, devices: [] })).current?.gpu
+        ?.devices,
+    ).toEqual([]);
+    for (const gpu of [
+      null,
+      {},
+      { freshness, devices: null },
+      { freshness, devices: [device, device] },
+      { freshness, devices: [{ ...device, utilizationPercent: 101 }] },
+      { freshness, devices: [{ ...device, powerWatts: null }] },
+      { freshness, devices: [{ ...device, memoryUsedBytes: 4096 }] },
+      { freshness, devices: [{ ...device, memoryUsedBytes: 1.5 }] },
+      { freshness, devices: [{ ...device, id: "bad-id" }] },
+      { freshness, devices: [null] },
+      { freshness: unavailable, devices: [device] },
+      {
+        freshness,
+        devices: Array.from({ length: 9 }, (_, i) => ({
+          ...device,
+          id: `GPU-${i}`,
+        })),
+      },
+    ])
+      await expect(read(gpu)).rejects.toMatchObject({
+        code: "invalid_api_response",
+      });
+  });
+
   it("reads the independent current snapshot and rejects fabricated disabled data", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(

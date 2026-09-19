@@ -54,6 +54,7 @@ func configureHTTP(
 	if cfg.PerformanceMetrics {
 		performanceCollector = performance.New(performance.Options{
 			ReadPool: performance.WorkingPoolReader(pool), Diagnostics: performanceDiagnostics,
+			ReadGPU: performance.NewNVIDIAGPUReader(),
 		})
 	}
 	performanceReader := performance.NewReadService(

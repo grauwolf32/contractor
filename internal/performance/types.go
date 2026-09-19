@@ -39,6 +39,8 @@ const (
 	DatabaseUnavailable Reason = "database_unavailable"
 	BudgetExceeded      Reason = "budget_exceeded"
 	RecordLimit         Reason = "record_limit"
+	GPUNotAvailable     Reason = "gpu_not_available"
+	UnsupportedMetric   Reason = "unsupported_metric"
 )
 
 type Surface string
@@ -187,4 +189,5 @@ type Sample struct {
 	Pool         *Pool         `json:"pool,omitempty"`
 	Database     *Database     `json:"database,omitempty"`
 	DatabaseSize *DatabaseSize `json:"databaseSize,omitempty"`
+	GPU          *GPU          `json:"gpu,omitempty"`
 }

@@ -3743,7 +3743,7 @@ export interface components {
         PerformanceNumber: number;
         PerformanceInteger: number;
         /** @enum {unknown} */
-        PerformanceReason: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "missing_baseline" | "permission_denied" | "statistics_disabled" | "database_unavailable" | "budget_exceeded" | "record_limit";
+        PerformanceReason: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "missing_baseline" | "permission_denied" | "statistics_disabled" | "database_unavailable" | "budget_exceeded" | "record_limit" | "gpu_not_available" | "unsupported_metric";
         PerformanceCoverage: {
             /** Format: date-time */
             startedAt: string;
@@ -3861,6 +3861,36 @@ export interface components {
             freshness: components["schemas"]["PerformanceFreshness"];
             sizeBytes?: components["schemas"]["PerformanceInteger"];
         };
+        /** @description NVIDIA devices visible to the Server host, including other applications. Unsupported metrics are omitted. Device UUIDs keep history separate across reorder or replacement. */
+        PerformanceGPU: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            devices: components["schemas"]["PerformanceGPUDevice"][];
+        };
+        PerformanceGPUDevice: {
+            id: string;
+            name: string;
+            utilizationPercent?: number;
+            memoryUsedBytes?: components["schemas"]["PerformanceInteger"];
+            memoryTotalBytes?: components["schemas"]["PerformanceInteger"];
+            temperatureCelsius?: components["schemas"]["PerformanceNumber"];
+            powerWatts?: components["schemas"]["PerformanceNumber"];
+            powerLimitWatts?: components["schemas"]["PerformanceNumber"];
+        };
+        /** @description NVIDIA devices visible to the Server host, including other applications. Unsupported metrics are omitted. Device UUIDs keep history separate across reorder or replacement. */
+        PerformanceGPUAggregate: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            devices: components["schemas"]["PerformanceGPUDeviceGauges"][];
+        };
+        PerformanceGPUDeviceGauges: {
+            id: string;
+            name: string;
+            utilizationPercent?: components["schemas"]["PerformanceGaugeSummary"];
+            memoryUsedBytes?: components["schemas"]["PerformanceGaugeSummary"];
+            memoryTotalBytes?: components["schemas"]["PerformanceGaugeSummary"];
+            temperatureCelsius?: components["schemas"]["PerformanceGaugeSummary"];
+            powerWatts?: components["schemas"]["PerformanceGaugeSummary"];
+            powerLimitWatts?: components["schemas"]["PerformanceGaugeSummary"];
+        };
         /** @description One bounded frame, at most 32 KiB. Groups retain their actual coverage and timestamps; cached DB data is not a fresh process sample. */
         PerformanceSample: {
             /** @constant */
@@ -3873,6 +3903,7 @@ export interface components {
             pool?: components["schemas"]["PerformancePool"];
             database?: components["schemas"]["PerformanceDatabase"];
             databaseSize?: components["schemas"]["PerformanceDatabaseSize"];
+            gpu?: components["schemas"]["PerformanceGPU"];
         };
         PerformanceDiagnostics: {
             skippedSamples: components["schemas"]["PerformanceInteger"];
@@ -3933,6 +3964,7 @@ export interface components {
             pool?: components["schemas"]["PerformancePool"];
             database?: components["schemas"]["PerformanceDatabase"];
             databaseSize?: components["schemas"]["PerformanceDatabaseSize"];
+            gpu?: components["schemas"]["PerformanceGPU"];
         };
         PerformanceGaugeSummary: {
             last: components["schemas"]["PerformanceNumber"];
@@ -3979,6 +4011,7 @@ export interface components {
             gcPausesLast?: components["schemas"]["PerformanceGCPauseHistogram"];
             database?: components["schemas"]["PerformanceDatabase"];
             databaseSize?: components["schemas"]["PerformanceDatabaseSize"];
+            gpu?: components["schemas"]["PerformanceGPUAggregate"];
             droppedMinutes: components["schemas"]["PerformanceInteger"];
             /** @enum {integer} */
             stepSeconds: 60 | 300 | 3600;

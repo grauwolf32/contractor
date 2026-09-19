@@ -3388,6 +3388,8 @@ code {
 }
 
 .performance-chart-heading strong {
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--accent);
   font-size: 1.1rem;
 }
@@ -3423,6 +3425,65 @@ code {
   stroke: #111821;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
+}
+
+.performance-series-swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+}
+
+.performance-device-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.performance-device-heading small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: normal;
+}
+
+.performance-chart-legend {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.performance-chart-legend li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+}
+
+.performance-chart-legend li > span:nth-child(2) {
+  overflow-wrap: anywhere;
+}
+
+.performance-chart-legend strong {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.performance-series-details summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.performance-series-details h5 {
+  margin: 0.85rem 0 0.5rem;
+  font-weight: normal;
 }
 
 .performance-chart-summary {

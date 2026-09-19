@@ -65,6 +65,7 @@ type Minute struct {
 	GCPausesLast    *GCPauseHistogram `json:"gcPausesLast,omitempty"`
 	Database        *Database         `json:"database,omitempty"`
 	DatabaseSize    *DatabaseSize     `json:"databaseSize,omitempty"`
+	GPU             *GPUAggregate     `json:"gpu,omitempty"`
 	DroppedMinutes  uint64            `json:"droppedMinutes"`
 }
 
@@ -191,6 +192,9 @@ func AggregateMinute(start time.Time, samples []Sample) (Minute, error) {
 				}
 				result.PoolLast = pool // cumulative counters, not misleading latency quantiles
 			}
+		}
+		if sample.GPU != nil {
+			accumulateGPU(&result.GPU, sample.GPU)
 		}
 		previous = sample
 	}
