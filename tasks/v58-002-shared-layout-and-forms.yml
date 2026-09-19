@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V58-002
+title: Unify fields, responsive layouts and interaction states
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Unify fields, responsive layouts and interaction states.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D02
+  - D03
+  - D05
+  - D14
+  - D26
+  - D27
+  - D32
+scope:
+  in:
+  - Use consistently styled fields in portal dialogs and inline forms; preserve labels, focus, pending
+    state and existing confirmations.
+  - Remove New Audit root overflow at 390 and 320 CSS px and make horizontal section navigation discoverable.
+  - Maintain readable archive hover and selected states; reduce metadata/heading repetition and align
+    shared controls and version display.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Use consistently styled fields in portal dialogs and inline forms; preserve labels, focus,
+    pending state and existing confirmations.
+- id: A2
+  text: Remove New Audit root overflow at 390 and 320 CSS px and make horizontal section navigation
+    discoverable.
+- id: A3
+  text: Maintain readable archive hover and selected states; reduce metadata/heading repetition and
+    align shared controls and version display.
+tests:
+- command: cd ui && corepack pnpm test --run src/app/application.test.tsx src/routes/projects/audits/audits.test.tsx
+    src/routes/artifacts/git-artifacts.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

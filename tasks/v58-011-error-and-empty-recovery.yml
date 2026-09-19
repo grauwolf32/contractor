@@ -1,0 +1,57 @@
+schema_version: '1.0'
+id: V58-011
+title: Verify coherent recovery and empty states across views
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-003
+- V58-005
+- V58-006
+- V58-008
+- V58-009
+- V58-010
+languages:
+- typescript
+- css
+- markdown
+goal: Verify coherent recovery and empty states across views.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D25
+  - D26
+  - D27
+scope:
+  in:
+  - Give errors a precise operation-specific cause and usable retry/context action, while retaining
+    safe technical details.
+  - Keep empty states short and hide inactive pagination only when there are no adjacent pages; retain
+    active filters and recovery controls.
+  - Recheck context navigation and mobile access to primary actions across all changed view families.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Give errors a precise operation-specific cause and usable retry/context action, while retaining
+    safe technical details.
+- id: A2
+  text: Keep empty states short and hide inactive pagination only when there are no adjacent pages;
+    retain active filters and recovery controls.
+- id: A3
+  text: Recheck context navigation and mobile access to primary actions across all changed view families.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/artifacts/artifacts.test.tsx src/routes/projects/audits/audits.test.tsx
+    src/routes/operations/operations.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

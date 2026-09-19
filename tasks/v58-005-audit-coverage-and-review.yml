@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V58-005
+title: Clarify Audit coverage and bring finding decisions into context
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-002
+- V58-003
+languages:
+- typescript
+- css
+- markdown
+goal: Clarify Audit coverage and bring finding decisions into context.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D09
+  - D10
+  - D11
+  - D12
+  - D29
+scope:
+  in:
+  - Separate process completion, partial coverage, candidate findings and analyst decisions; place
+    Continue next to the relevant stop reason.
+  - Use compact human-readable checks and child Run rows, with technical identity/provenance available
+    on demand.
+  - Prioritize unreviewed findings and keep the decision actions accessible while reading their evidence.
+  - Select exact Audit profile versions deliberately, preserving older selections and current artifact
+    matching semantics.
+  - Start Audit reports with human summary and coverage gaps; keep original machine exports available.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Separate process completion, partial coverage, candidate findings and analyst decisions; place
+    Continue next to the relevant stop reason.
+- id: A2
+  text: Use compact human-readable checks and child Run rows, with technical identity/provenance available
+    on demand.
+- id: A3
+  text: Prioritize unreviewed findings and keep the decision actions accessible while reading their
+    evidence.
+- id: A4
+  text: Select exact Audit profile versions deliberately, preserving older selections and current
+    artifact matching semantics.
+- id: A5
+  text: Start Audit reports with human summary and coverage gaps; keep original machine exports available.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/projects/audits/audits.test.tsx src/routes/projects/projects.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

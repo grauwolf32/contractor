@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V58-012
+title: Verify and deploy the complete design review implementation
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-001
+- V58-002
+- V58-003
+- V58-004
+- V58-005
+- V58-006
+- V58-007
+- V58-008
+- V58-009
+- V58-010
+- V58-011
+languages:
+- typescript
+- css
+- markdown
+goal: Verify and deploy the complete design review implementation.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids: []
+scope:
+  in:
+  - All D01-D32 findings are mapped to implemented changes or an explicit evidence-based resolution
+    with no unsupported product claims.
+  - Run the full UI, server-UI, generated-contract, lint, typecheck and production build checks; record
+    results and commit identities.
+  - Repeat read-only live browser coverage at desktop/mobile, exercise key keyboard and error scenarios,
+    and save before/after measurements.
+  - Integrate into local main preserving concurrent work and deploy the UI release to the current
+    stand; preserve queue admission and Server/Runtime state.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: All D01-D32 findings are mapped to implemented changes or an explicit evidence-based resolution
+    with no unsupported product claims.
+- id: A2
+  text: Run the full UI, server-UI, generated-contract, lint, typecheck and production build checks;
+    record results and commit identities.
+- id: A3
+  text: Repeat read-only live browser coverage at desktop/mobile, exercise key keyboard and error
+    scenarios, and save before/after measurements.
+- id: A4
+  text: Integrate into local main preserving concurrent work and deploy the UI release to the current
+    stand; preserve queue admission and Server/Runtime state.
+tests:
+- command: make ui-generate-check ui-lint ui-typecheck ui-test ui-build
+  covers:
+  - A1
+  - A2
+- command: Read-only browser acceptance against the production build and live API; save tasks/evidence/v58-012.json.
+  covers:
+  - A3
+  - A4
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

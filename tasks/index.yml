@@ -2678,3 +2678,15 @@ tasks:
   - {id: V55-008, file: v55-008-deterministic-scan-planner.yml}
   - {id: V55-009, file: v55-009-scan-candidate-ranking.yml}
   - {id: V55-010, file: v55-010-katana-scan-adapter.yml}
+  - {id: V58-001, file: v58-001-runtime-provenance.yml}
+  - {id: V58-002, file: v58-002-shared-layout-and-forms.yml}
+  - {id: V58-003, file: v58-003-artifact-and-skill-reading.yml}
+  - {id: V58-004, file: v58-004-run-results-and-history.yml}
+  - {id: V58-005, file: v58-005-audit-coverage-and-review.yml}
+  - {id: V58-006, file: v58-006-home-and-projects.yml}
+  - {id: V58-007, file: v58-007-catalog-and-run-inputs.yml}
+  - {id: V58-008, file: v58-008-eval-workspaces.yml}
+  - {id: V58-009, file: v58-009-configuration-navigation.yml}
+  - {id: V58-010, file: v58-010-operations-observation.yml}
+  - {id: V58-011, file: v58-011-error-and-empty-recovery.yml}
+  - {id: V58-012, file: v58-012-release-verification.yml}

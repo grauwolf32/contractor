@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V58-008
+title: Put Eval execution results and distinguishing context first
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-004
+- V58-006
+languages:
+- typescript
+- css
+- markdown
+goal: Put Eval execution results and distinguishing context first.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D19
+scope:
+  in:
+  - Make similarly named Eval workspaces distinguishable through existing case, label and activity
+    data.
+  - Place existing Eval Runs and outcomes ahead of setup details, retaining exact artifacts, drafts
+    and workspace context.
+  - Show missing evaluation verdicts honestly and never infer passed evaluation from succeeded execution;
+    no new experiment resource is introduced.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Make similarly named Eval workspaces distinguishable through existing case, label and activity
+    data.
+- id: A2
+  text: Place existing Eval Runs and outcomes ahead of setup details, retaining exact artifacts, drafts
+    and workspace context.
+- id: A3
+  text: Show missing evaluation verdicts honestly and never infer passed evaluation from succeeded
+    execution; no new experiment resource is introduced.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/evals-skills.test.tsx src/routes/projects/projects.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

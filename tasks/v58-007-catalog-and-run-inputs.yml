@@ -1,0 +1,54 @@
+schema_version: '1.0'
+id: V58-007
+title: Improve catalog discovery and parameter authoring
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-002
+languages:
+- typescript
+- css
+- markdown
+goal: Improve catalog discovery and parameter authoring.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D16
+  - D17
+  - D23
+scope:
+  in:
+  - Group Agent versions into families with exact selection and complete-inventory search; preserve
+    deliberate older choices.
+  - Use published Workflow purpose and results when available and label MIME suggestions as format
+    matches without claiming semantic readiness.
+  - Provide readable parameter labels and appropriate multiline fields while preserving exact request
+    keys, requiredness, draft retention and submission behavior.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Group Agent versions into families with exact selection and complete-inventory search; preserve
+    deliberate older choices.
+- id: A2
+  text: Use published Workflow purpose and results when available and label MIME suggestions as format
+    matches without claiming semantic readiness.
+- id: A3
+  text: Provide readable parameter labels and appropriate multiline fields while preserving exact
+    request keys, requiredness, draft retention and submission behavior.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/catalog/catalog.test.tsx src/routes/workflows/cards.test.tsx
+    src/routes/workflows/workflows.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

@@ -1,0 +1,45 @@
+schema_version: '1.0'
+id: V58-001
+title: Restore Run viewing with current runtime provenance
+milestone: ui-design-review
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Restore Run viewing with current runtime provenance.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D01
+scope:
+  in:
+  - Accept and preserve supported Caido origin fields while retaining closed validation of unknown
+    or secret-like fields.
+  - Keep independently validated Run results readable when an optional diagnostic projection cannot
+    be rendered.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Accept and preserve supported Caido origin fields while retaining closed validation of unknown
+    or secret-like fields.
+- id: A2
+  text: Keep independently validated Run results readable when an optional diagnostic projection cannot
+    be rendered.
+tests:
+- command: cd ui && corepack pnpm test --run src/api/runtime-configuration.test.ts src/api/runs.test.ts
+    src/routes/runs/runs.test.tsx
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

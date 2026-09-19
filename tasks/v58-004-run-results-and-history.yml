@@ -1,0 +1,53 @@
+schema_version: '1.0'
+id: V58-004
+title: Make Run results primary and history compact
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-001
+- V58-002
+languages:
+- typescript
+- css
+- markdown
+goal: Make Run results primary and history compact.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D06
+  - D07
+scope:
+  in:
+  - Use compact completed Run rows with workflow, context, state and time; identity and labels expand
+    on demand, filters and pagination remain complete.
+  - Make primary result reading the main action of a successful Run, retaining all outputs, diagnostics
+    and repeat behavior.
+  - Use state-specific next actions and preserve controlling Audit/Project/Eval links and exact revisions.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Use compact completed Run rows with workflow, context, state and time; identity and labels
+    expand on demand, filters and pagination remain complete.
+- id: A2
+  text: Make primary result reading the main action of a successful Run, retaining all outputs, diagnostics
+    and repeat behavior.
+- id: A3
+  text: Use state-specific next actions and preserve controlling Audit/Project/Eval links and exact
+    revisions.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/runs/runs.test.tsx src/routes/runs/triage.test.ts
+    src/routes/runs/primary-output-preview.test.tsx src/routes/queue.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

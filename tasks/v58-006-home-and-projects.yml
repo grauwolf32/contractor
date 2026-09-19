@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V58-006
+title: Focus Home and Project overview on current actionable work
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-002
+- V58-004
+- V58-005
+languages:
+- typescript
+- css
+- markdown
+goal: Focus Home and Project overview on current actionable work.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D13
+  - D15
+  - D28
+scope:
+  in:
+  - Show queue admission pause independently of Runtime health; show failure age and scope without
+    implying old terminal errors are current incidents.
+  - Use neutral Project empty attention states, visible review needs, and material roles that retain
+    primary source archives in the overview.
+  - Make project cards compact with useful current context while retaining named deletion actions
+    and confirmations.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Show queue admission pause independently of Runtime health; show failure age and scope without
+    implying old terminal errors are current incidents.
+- id: A2
+  text: Use neutral Project empty attention states, visible review needs, and material roles that
+    retain primary source archives in the overview.
+- id: A3
+  text: Make project cards compact with useful current context while retaining named deletion actions
+    and confirmations.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/home.test.tsx src/routes/projects/projects.test.tsx
+    src/routes/projects/inventory.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

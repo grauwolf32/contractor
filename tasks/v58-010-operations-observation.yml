@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V58-010
+title: Make resource history and current health scannable
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-002
+- V58-009
+languages:
+- typescript
+- css
+- markdown
+goal: Make resource history and current health scannable.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D06
+  - D24
+  - D31
+scope:
+  in:
+  - Use compact completed allocation rows and disclose detailed metrics on demand; distinguish execution
+    state from metric availability.
+  - Put resource state, freshness and trends before secondary counters and retain units, missing-data
+    semantics and time controls.
+  - Make online and offline agents easier to distinguish with available safe identity metadata and
+    stable filtering.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Use compact completed allocation rows and disclose detailed metrics on demand; distinguish
+    execution state from metric availability.
+- id: A2
+  text: Put resource state, freshness and trends before secondary counters and retain units, missing-data
+    semantics and time controls.
+- id: A3
+  text: Make online and offline agents easier to distinguish with available safe identity metadata
+    and stable filtering.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/operations/performance/performance.test.tsx
+    src/routes/operations/performance/gpu.test.tsx src/routes/operations/operations.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

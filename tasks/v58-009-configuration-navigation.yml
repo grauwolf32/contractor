@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V58-009
+title: Expose active configuration and separate reading from publishing
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-002
+- V58-007
+languages:
+- typescript
+- css
+- markdown
+goal: Expose active configuration and separate reading from publishing.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D20
+  - D21
+  - D22
+  - D30
+scope:
+  in:
+  - Show default and named Runtime bindings inline with versions, avoid duplicate digests and sentinel
+    1970 timestamps.
+  - Link related configuration and credentials by scope and effect on future runs; preserve existing
+    authorization and exact mutation contracts.
+  - Use progressive publishing/credential forms with consistent action rows; separate Clone from read-only
+    details.
+  - Keep secret fields ephemeral and preserve idempotency, conflict review, pending-state and focus
+    semantics.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Show default and named Runtime bindings inline with versions, avoid duplicate digests and
+    sentinel 1970 timestamps.
+- id: A2
+  text: Link related configuration and credentials by scope and effect on future runs; preserve existing
+    authorization and exact mutation contracts.
+- id: A3
+  text: Use progressive publishing/credential forms with consistent action rows; separate Clone from
+    read-only details.
+- id: A4
+  text: Keep secret fields ephemeral and preserve idempotency, conflict review, pending-state and
+    focus semantics.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/runs/configuration.test.tsx src/routes/operations/operations.test.tsx
+    src/routes/operations/settings/settings.test.tsx src/routes/operations/llm-configurations/model.test.ts
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.

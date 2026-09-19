@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V58-003
+title: Put artifact and skill contents before secondary metadata
+milestone: ui-design-review
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V58-002
+languages:
+- typescript
+- css
+- markdown
+goal: Put artifact and skill contents before secondary metadata.
+context:
+  authority: User approved implementing the 2026-09-19 live design review and recording the task list.
+  design: docs/plans/2026-09-19-ui-design-implementation.md
+  review: docs/research/2026-09-19-ui-design-review.md
+  finding_ids:
+  - D04
+  - D08
+  - D18
+  - D25
+scope:
+  in:
+  - Render bounded SKILL.md frontmatter as safe metadata without changing Source or executing external
+    content.
+  - Place explicit file opening, download and version selection before secondary metadata; open uploads
+    and history on demand.
+  - Show useful Skills descriptions and retain Catalog navigation context without unbounded eager
+    package downloads.
+  - Explain archive index versus individual preview limits and provide a useful 404 recovery page.
+  out:
+  - Changes to execution, audit evidence or security boundaries unrelated to UI behavior.
+  - New evaluation experiment or toolset-configuration protocols tracked separately in V41/V56.
+acceptance_criteria:
+- id: A1
+  text: Render bounded SKILL.md frontmatter as safe metadata without changing Source or executing
+    external content.
+- id: A2
+  text: Place explicit file opening, download and version selection before secondary metadata; open
+    uploads and history on demand.
+- id: A3
+  text: Show useful Skills descriptions and retain Catalog navigation context without unbounded eager
+    package downloads.
+- id: A4
+  text: Explain archive index versus individual preview limits and provide a useful 404 recovery page.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/artifacts/previews/markdown.test.tsx src/routes/artifacts/archive-preview.test.tsx
+    src/routes/artifacts/artifacts.test.tsx src/routes/evals-skills.test.tsx
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification_requirements:
+- Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
+  invariants.
+- Browser evidence and final cross-view checks are owned by V58-012.
