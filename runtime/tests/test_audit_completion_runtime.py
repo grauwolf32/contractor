@@ -19,6 +19,7 @@ from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult, WorkerCompletionContract
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
+from contractor_runtime.worker import runtime as worker_runtime
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
@@ -345,7 +346,14 @@ def test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract(tm
     asyncio.run(scenario())
 
 
-def test_artifact_observations_survive_a_reminder_and_join_verified_publication(tmp_path):
+def test_audit_typed_assembly_preserves_reminder_publication_and_refs_without_model_decode(
+    tmp_path, monkeypatch
+):
+    def reject_model_decode(*args, **kwargs):
+        pytest.fail("Audit completion must not decode Runtime-owned output as model JSON")
+
+    monkeypatch.setattr(worker_runtime, "_decode_model_result", reject_model_decode)
+
     async def scenario():
         exact = ArtifactRef(namespace="builder", name="trace", revision="trace-r1")
 
@@ -359,7 +367,7 @@ def test_artifact_observations_survive_a_reminder_and_join_verified_publication(
         observe_trace.artifact_observation_cursor = 0
         observe_trace.observed_exact_refs_since = lambda cursor: (exact,) if cursor == 0 else ()
         expected, _ = assigned()
-        runtime, _, client, _, _ = await runtime_for(
+        runtime, model, client, state, _ = await runtime_for(
             tmp_path,
             [
                 tool_call("observe_trace", {}, call_id="trace"),
@@ -371,13 +379,34 @@ def test_artifact_observations_survive_a_reminder_and_join_verified_publication(
             model_calls=4,
             tool_calls=2,
         )
-        request = stage_request()
+
+        async def before_write():
+            diagnostic = runtime._completion.diagnostics
+            assert diagnostic.phase == "publishing"
+            assert diagnostic.accepted_count == diagnostic.total_count == 1
+            assert diagnostic.reminder_count == 1
+            assert state.begins == 1 and state.completions == 0
+
+        client.on_write = before_write
+        request = stage_request().model_copy(update={"subtask_id": "audit-direct-result"})
         request.result_artifacts["trace"] = ArtifactRef(namespace="builder", name="trace")
         result = await runtime.invoke(request)
         assert result.failure is None
-        assert result.result.artifacts["trace"] == exact
-        assert result.result.artifacts["report"].revision == "published-r1"
+        wire = json.loads(result.result.model_dump_json(by_alias=True))
+        assert wire["subtaskId"] == request.subtask_id
+        assert wire["result"] == "Recorded and published results for 1 assigned Audit items."
+        assert wire["artifacts"] == {
+            "trace": exact.model_dump(by_alias=True),
+            "report": {"namespace": "builder", "name": "report", "revision": "published-r1"},
+        }
+        assert wire["summarized"] is False
         assert len(client.writes) == 1
+        assert len(model.requests) == 4
+        assert all(not request["hasResponseSchema"] for request in model.requests)
+        assert runtime._result_finalizer is None
+        assert state.begins == state.completions == 1
+        metrics = (await state.snapshot())["lastCompletedInvocation"]["metrics"]
+        assert metrics["modelCalls"] == 4 and metrics["toolCalls"] == 2
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())

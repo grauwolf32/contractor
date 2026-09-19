@@ -696,9 +696,18 @@ class AdkWorkerRuntime:
                 return decision, False
             if isinstance(decision, FailCompletion):
                 return decision.failure, False
-            return self._build_runtime_result(
+            # Completion owns the published text/receipts, while Runtime owns
+            # identity, artifact slots and observations. Validate fresh fields:
+            # the completion's mutable WorkerResult is not the final projection.
+            fields = _validate_result_fields(
+                {"subtaskId": request.subtask_id, "result": decision.result.result},
+                expected_subtask_id=request.subtask_id,
+            )
+            if isinstance(fields, WorkerFailure):
+                return fields, False
+            return self._assemble_runtime_result(
                 request,
-                json.dumps({"subtaskId": request.subtask_id, "result": decision.result.result}),
+                fields,
                 tuple(self._invocation_observed_refs),
                 verified_finalizer_refs=tuple(decision.result.artifacts.values()),
             )
@@ -946,45 +955,32 @@ class AdkWorkerRuntime:
         *,
         verified_finalizer_refs: tuple[ArtifactRef, ...] = (),
     ) -> tuple[WorkerResult | WorkerFailure, bool]:
-        if candidate is None:
-            return _failure(
-                "worker_result_missing", "Worker returned no structured result", True
-            ), False
-        if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
-            return _failure(
-                "worker_result_too_large", "Worker structured result exceeds its limit", False
-            ), False
-        try:
-            raw_candidate = json.loads(candidate)
-        except (json.JSONDecodeError, TypeError):
-            return _failure(
-                "worker_result_invalid", "Worker returned an invalid structured result", True
-            ), False
-        if (
-            isinstance(raw_candidate, dict)
-            and isinstance(raw_candidate.get("result"), str)
-            and len(raw_candidate["result"].encode("utf-8")) > 64 * 1024
-        ):
-            return _failure(
-                "worker_result_too_large", "Worker structured result exceeds its limit", False
-            ), False
-        try:
-            model_result = WorkerModelResult.model_validate(raw_candidate)
-        except ValidationError:
-            return _failure(
-                "worker_result_invalid", "Worker returned an invalid structured result", True
-            ), False
-        if model_result.subtask_id != request.subtask_id:
-            return _failure(
-                "worker_result_subtask_mismatch",
-                "Worker result does not match the requested subtask",
-                True,
-            ), False
+        """Model-authored JSON boundary shared by finalizer and summarizer."""
+        fields = _decode_model_result(candidate, expected_subtask_id=request.subtask_id)
+        if isinstance(fields, WorkerFailure):
+            return fields, False
+        return self._assemble_runtime_result(
+            request, fields, observed_refs, verified_finalizer_refs=verified_finalizer_refs
+        )
+
+    def _assemble_runtime_result(
+        self,
+        request: StageContentRequest,
+        validated_fields: WorkerModelResult,
+        observed_refs: tuple[ArtifactRef, ...],
+        *,
+        verified_finalizer_refs: tuple[ArtifactRef, ...] = (),
+    ) -> tuple[WorkerResult | WorkerFailure, bool]:
+        """Project freshly validated fields through Runtime-owned result policy.
+
+        Both private callers validate immediately before this synchronous call;
+        no model/strategy-supplied identity, observations or slots are inherited.
+        """
         wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
         gateway_token = (
             wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
         )
-        if gateway_token and gateway_token in model_result.result:
+        if gateway_token and gateway_token in validated_fields.result:
             return _failure(
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             ), False
@@ -1015,7 +1011,7 @@ class AdkWorkerRuntime:
             ), False
         result = WorkerResult(
             subtaskId=request.subtask_id,
-            result=model_result.result,
+            result=validated_fields.result,
             observations=WorkerObservations(
                 profile="lean@1", tools={}, workspace=None, truncated=False
             ),
@@ -1166,6 +1162,52 @@ class AdkWorkerRuntime:
                 actions=EventActions(stateDelta={"contractor": snapshot}),
             ),
         )
+
+
+def _decode_model_result(
+    candidate: str | None, *, expected_subtask_id: str
+) -> WorkerModelResult | WorkerFailure:
+    """Decode actual model output without changing validation/error precedence."""
+    if candidate is None:
+        return _failure("worker_result_missing", "Worker returned no structured result", True)
+    if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
+        return _failure(
+            "worker_result_too_large", "Worker structured result exceeds its limit", False
+        )
+    try:
+        raw_candidate = json.loads(candidate)
+    except (json.JSONDecodeError, TypeError):
+        return _failure(
+            "worker_result_invalid", "Worker returned an invalid structured result", True
+        )
+    return _validate_result_fields(raw_candidate, expected_subtask_id=expected_subtask_id)
+
+
+def _validate_result_fields(
+    raw_candidate: Any, *, expected_subtask_id: str
+) -> WorkerModelResult | WorkerFailure:
+    """Validate fresh fields from decoded JSON or a trusted completion decision."""
+    if (
+        isinstance(raw_candidate, dict)
+        and isinstance(raw_candidate.get("result"), str)
+        and len(raw_candidate["result"].encode("utf-8")) > MAX_WORKER_RESULT_BYTES
+    ):
+        return _failure(
+            "worker_result_too_large", "Worker structured result exceeds its limit", False
+        )
+    try:
+        fields = WorkerModelResult.model_validate(raw_candidate)
+    except ValidationError:
+        return _failure(
+            "worker_result_invalid", "Worker returned an invalid structured result", True
+        )
+    if fields.subtask_id != expected_subtask_id:
+        return _failure(
+            "worker_result_subtask_mismatch",
+            "Worker result does not match the requested subtask",
+            True,
+        )
+    return fields
 
 
 def _candidate_text(event: Event) -> str | None:
