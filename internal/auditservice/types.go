@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -17,8 +17,7 @@ import (
 
 const (
 	DraftSelectionSchema = "contractor.audit.draft-selection.v1"
-	BaselineSchema       = "contractor.audit.baseline.v1"
-	maximumScopeFields   = 3
+	BaselineSchema       = auditbaseline.Schema
 	maximumScopeValue    = 64 << 10
 )
 
@@ -58,25 +57,7 @@ type ProfileSelector struct {
 	Version string `json:"version"`
 }
 
-type Scope struct {
-	Objective          string `json:"objective,omitempty"`
-	Target             string `json:"target,omitempty"`
-	AuthorizationScope string `json:"authorizationScope,omitempty"`
-}
-
-func (s Scope) Values() map[string]string {
-	result := make(map[string]string, maximumScopeFields)
-	if s.Objective != "" {
-		result["objective"] = s.Objective
-	}
-	if s.Target != "" {
-		result["target"] = s.Target
-	}
-	if s.AuthorizationScope != "" {
-		result["authorizationScope"] = s.AuthorizationScope
-	}
-	return result
-}
+type Scope = auditbaseline.Scope
 
 type DraftSelection struct {
 	Schema        string                              `json:"schema"`
@@ -85,28 +66,8 @@ type DraftSelection struct {
 	Scope         Scope                               `json:"scope"`
 }
 
-type BaselineInventory struct {
-	SourceContentDigest      string                         `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                         `json:"canonicalInventoryDigest"`
-	StandardSelection        *config.AuditStandardSelection `json:"standardSelection,omitempty"`
-	Gaps                     []string                       `json:"gaps"`
-	Worklist                 auditstore.ExactArtifact       `json:"worklist"`
-	ExecutionManifest        auditdomain.ExecutionManifest  `json:"executionManifest"`
-}
-
-type BaselineSnapshot struct {
-	Schema               string                              `json:"schema"`
-	Inputs               map[string]auditstore.ExactArtifact `json:"inputs"`
-	Scope                Scope                               `json:"scope"`
-	RuntimeLabels        []string                            `json:"runtimeLabels"`
-	RuntimeConfig        runtimeconfig.RunSnapshot           `json:"runtimeConfig"`
-	Skills               []contracts.RunSkillSnapshot        `json:"skills"`
-	LLMCredentialIDs     []string                            `json:"llmCredentialIds"`
-	RuntimeCredentialIDs []string                            `json:"runtimeCredentialIds"`
-	ProjectHTTPTarget    *contracts.HTTPOriginTargetRef      `json:"projectHttpTarget,omitempty"`
-	Standards            []auditstandards.PinnedPackage      `json:"standards"`
-	Inventory            BaselineInventory                   `json:"inventory"`
-}
+type BaselineInventory = auditbaseline.BaselineInventory
+type BaselineSnapshot = auditbaseline.BaselineSnapshot
 
 type Compatibility struct {
 	ServerCompatible        bool                  `json:"serverCompatible"`

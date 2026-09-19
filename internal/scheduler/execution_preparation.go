@@ -294,8 +294,8 @@ func (s *Scheduler) materializeRuntimeSettings(
 		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
 			timeout = result.RequestTimeoutSeconds
 		}
-		if timeout > 120 {
-			timeout = 120
+		if timeout > contracts.MaxCaidoRequestTimeoutSeconds {
+			timeout = contracts.MaxCaidoRequestTimeoutSeconds
 		}
 		caido := &contracts.CaidoSettings{
 			Adapter: contracts.RuntimeAdapterCaidoGraphQL, Endpoint: resolved.Caido.Endpoint,

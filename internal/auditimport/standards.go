@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -44,12 +45,9 @@ type retainedStandardIndex map[string]retainedStandard
 func (i *Importer) loadPinnedStandards(
 	ctx context.Context, snapshot auditstore.ReconcileSnapshot,
 ) (retainedStandardIndex, error) {
-	var baseline struct {
-		Schema    string                         `json:"schema"`
-		Standards []auditstandards.PinnedPackage `json:"standards"`
-	}
+	var baseline auditbaseline.StandardsProjection
 	if json.Unmarshal(snapshot.Audit.BaselineSnapshot, &baseline) != nil ||
-		baseline.Schema != "contractor.audit.baseline.v1" || baseline.Standards == nil {
+		baseline.Schema != auditbaseline.Schema || baseline.Standards == nil {
 		return nil, fmt.Errorf("%w: Audit standard baseline is invalid", ErrPermanent)
 	}
 	result := make(retainedStandardIndex, len(baseline.Standards))

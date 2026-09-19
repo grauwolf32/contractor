@@ -28,6 +28,9 @@ import (
 
 const completionWriteTimeout = time.Second
 
+// The Planner prompt context is distinct from the Worker request/result contracts.
+const maxPlannerContextBytes = 256 * 1024
+
 type streamlinePlanner struct {
 	profile        plannerProfile
 	invocation     planner.Invocation
@@ -369,7 +372,7 @@ func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
 		Workers:         workers,
 		ResultArtifacts: cloneResultContract(p.resultContract),
 	})
-	if err != nil || len(payload) > maxStagePayloadBytes {
+	if err != nil || len(payload) > maxPlannerContextBytes {
 		return nil, fmt.Errorf("Planner context exceeds its bounded contract")
 	}
 	return genai.NewContentFromText(string(payload), genai.RoleUser), nil

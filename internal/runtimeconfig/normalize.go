@@ -595,7 +595,7 @@ func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], a
 	}
 	timeout := 0
 	if value.RequestTimeoutSeconds.present {
-		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > 120 {
+		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > contracts.MaxCaidoRequestTimeoutSeconds {
 			return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.requestTimeoutSeconds must be from 1 through 120")
 		}
 		timeout = value.RequestTimeoutSeconds.value

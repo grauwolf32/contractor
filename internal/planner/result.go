@@ -23,8 +23,8 @@ func validateCandidate(
 		)
 	}
 	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > maxStageContentBytes ||
-		len(result.Summary) > maxResultSummaryBytes || len(result.Artifacts) > maxResultArtifacts {
+	if err != nil || len(encoded) > contracts.MaxStageResultBytes ||
+		len(result.Summary) > contracts.MaxStageResultSummaryBytes || len(result.Artifacts) > contracts.MaxStageResultArtifacts {
 		return NewError(
 			"invalid_worker_result", "Worker returned an oversized StageContentResult", false, err,
 		)

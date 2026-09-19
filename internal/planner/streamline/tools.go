@@ -20,9 +20,6 @@ const (
 	listSubtasksToolName          = "list_subtasks"
 	executeCurrentSubtaskToolName = "execute_current_subtask"
 	finishToolName                = "finish"
-	maxStagePayloadBytes          = 256 * 1024
-	maxStageSummaryBytes          = 64 * 1024
-	maxStageArtifacts             = 128
 )
 
 type workerCallArgs struct {
@@ -421,7 +418,7 @@ func (p *streamlinePlanner) workerRequest(
 		)
 	}
 	encoded, err := json.Marshal(request)
-	if err != nil || len(encoded) > maxStagePayloadBytes {
+	if err != nil || len(encoded) > contracts.MaxStageRequestBytes {
 		return contracts.StageContentRequest{}, safeToolFailure(
 			"worker_request_invalid", "Worker request exceeds its bounded contract", false,
 		)
@@ -433,8 +430,8 @@ func (p *streamlinePlanner) validateWorkerResult(
 	ctx context.Context, result contracts.WorkerResult,
 ) *planner.Error {
 	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > maxStagePayloadBytes ||
-		len(result.Result) > maxStageSummaryBytes || len(result.Artifacts) > maxStageArtifacts {
+	if err != nil || len(encoded) > contracts.MaxWorkerResultPayloadBytes ||
+		len(result.Result) > contracts.MaxWorkerResultBytes || len(result.Artifacts) > contracts.MaxWorkerResultArtifacts {
 		return planner.NewError(
 			"invalid_worker_result", "Worker returned an oversized WorkerResult", false, err,
 		)

@@ -3,7 +3,7 @@ id: V45-012
 title: Centralize repeated contract limits and Audit schema identity
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -43,7 +43,7 @@ acceptance_criteria:
 tests:
 - name: contract-race
   command: go test -race -count=1 ./internal/contracts ./internal/runtimeconfig ./internal/scheduler ./internal/planner/...
-    ./internal/auditdomain ./internal/auditimport ./internal/auditservice
+    ./internal/auditbaseline ./internal/auditdomain ./internal/auditimport ./internal/auditservice
   covers:
   - A1
   - A2
@@ -52,3 +52,9 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+- Required race suite passed across contracts, runtime configuration, Scheduler, Planners and Audit packages.
+- Shared Audit baseline types retain field order, tags, permissive reader projections and service aliases.
+- Stage request/result, Worker payload/completion and Planner prompt bounds retain distinct identities and unchanged values.
+- git diff --check passed.

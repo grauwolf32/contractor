@@ -38,9 +38,6 @@ const (
 	defaultLeaseScanInterval      = time.Second
 	defaultMetricsCleanupInterval = 24 * time.Hour
 	defaultMetricsCleanupBatch    = 500
-	maxCandidateBytes             = 256 * 1024
-	maxCandidateSummaryBytes      = 64 * 1024
-	maxCandidateArtifacts         = 128
 )
 
 type Scheduler struct {
@@ -1300,8 +1297,8 @@ func (s *Scheduler) validateCandidate(
 		return err
 	}
 	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > maxCandidateBytes || len(result.Summary) > maxCandidateSummaryBytes ||
-		len(result.Artifacts) > maxCandidateArtifacts {
+	if err != nil || len(encoded) > contracts.MaxStageResultBytes || len(result.Summary) > contracts.MaxStageResultSummaryBytes ||
+		len(result.Artifacts) > contracts.MaxStageResultArtifacts {
 		return fmt.Errorf("StageResult exceeds its bounded contract")
 	}
 	for name := range result.Artifacts {

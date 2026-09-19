@@ -17,9 +17,6 @@ import (
 )
 
 const (
-	maxStageContentBytes   = 256 * 1024
-	maxResultArtifacts     = 128
-	maxResultSummaryBytes  = 64 * 1024
 	completionWriteTimeout = time.Second
 )
 
@@ -387,7 +384,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 		return contracts.StageContentRequest{}, fmt.Errorf("invalid StageContentRequest: %w", err)
 	}
 	encoded, err := json.Marshal(request)
-	if err != nil || len(encoded) > maxStageContentBytes {
+	if err != nil || len(encoded) > contracts.MaxStageRequestBytes {
 		return contracts.StageContentRequest{}, fmt.Errorf("StageContentRequest exceeds its bounded contract")
 	}
 	return request, nil

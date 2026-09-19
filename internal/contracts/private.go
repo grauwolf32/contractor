@@ -460,6 +460,9 @@ type HTTPProxySettings struct {
 	Targets     []HTTPProxyTarget   `json:"targets"`
 }
 
+// MaxCaidoRequestTimeoutSeconds bounds the Caido GraphQL request contract.
+const MaxCaidoRequestTimeoutSeconds = 120
+
 type CaidoSettings struct {
 	Adapter               RuntimeAdapterRef `json:"adapter"`
 	Endpoint              string            `json:"endpoint"`
@@ -486,7 +489,7 @@ func (s CaidoSettings) Validate() error {
 			return err
 		}
 	}
-	if s.RequestTimeoutSeconds < 1 || s.RequestTimeoutSeconds > 120 {
+	if s.RequestTimeoutSeconds < 1 || s.RequestTimeoutSeconds > MaxCaidoRequestTimeoutSeconds {
 		return invalidf("Caido requestTimeoutSeconds must be from 1 through 120")
 	}
 	return nil
