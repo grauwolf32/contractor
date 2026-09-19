@@ -1,3 +1,4 @@
+import { ConfigurationLinks } from "../configuration-links";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -24,14 +25,16 @@ export function CredentialListRoute() {
   });
   return (
     <>
+      <ConfigurationLinks />
       <div className="panel operations-library">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Secret-free metadata</p>
             <h3>Active credentials</h3>
             <p className="muted-copy">
-              Every listed row is active. A disabled key must be removed from
-              LiteLLM and from Contractor rather than hidden behind UI state.
+              Access to LLM providers and their budgets. Runtime service
+              credentials are configured with Runtime defaults; repository SSH
+              keys are in Settings.
             </p>
           </div>
         </div>
@@ -103,7 +106,10 @@ export function CredentialListRoute() {
           onNext={(next) => setCursors((current) => [...current, next])}
         />
       </div>
-      <CredentialCreateForm />
+      <details className="configuration-clone">
+        <summary>Create LLM credential</summary>
+        <CredentialCreateForm />
+      </details>
     </>
   );
 }

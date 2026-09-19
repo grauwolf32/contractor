@@ -3,8 +3,8 @@ id: V58-008
 title: Put Eval execution results and distinguishing context first
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b41a01e3097bf5c1c248fbabdb42c674603b9225
 depends_on:
 - V58-004
 - V58-006

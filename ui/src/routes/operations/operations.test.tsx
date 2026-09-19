@@ -290,6 +290,9 @@ describe("Operations routes", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("CONFIG_SECRET_CANARY")).not.toBeInTheDocument();
     const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: "Clone to new version" }),
+    );
     await user.type(screen.getByLabelText("New immutable version"), "2");
     await user.click(
       screen.getByRole("button", { name: "Publish immutable version" }),
@@ -388,6 +391,9 @@ describe("Operations routes", () => {
       screen.queryByLabelText(/token|secret|key value/i),
     ).not.toBeInTheDocument();
     const user = userEvent.setup();
+    await user.click(
+      screen.getByText("Create LLM credential", { selector: "summary" }),
+    );
     await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
     await user.type(
       screen.getByLabelText("Safe label (optional)"),
@@ -735,6 +741,15 @@ describe("Operations routes", () => {
       await screen.findByText("debug", { selector: "strong" })
     ).closest("article") as HTMLElement;
     expect(within(debugCard).getByText(/revision 1/)).toBeInTheDocument();
+    expect(
+      within(debugCard).getByRole("button", {
+        name: "Rebind with current revision",
+      }),
+    ).toBeDisabled();
+    await user.selectOptions(
+      within(debugCard).getByLabelText("RuntimeConfig for debug"),
+      `${baseResource.ref.name}@${baseResource.ref.version}:${baseResource.ref.digest}`,
+    );
     await user.click(
       within(debugCard).getByRole("button", {
         name: "Rebind with current revision",

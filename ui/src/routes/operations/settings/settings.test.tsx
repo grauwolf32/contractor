@@ -161,7 +161,9 @@ describe("Operations Scheduler settings", () => {
     expect(
       await screen.findByRole("heading", { name: "Git SSH key" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("1 configuration area")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Repository access/ }),
+    ).toHaveAttribute("href", "#repository-access");
     expect(
       screen.queryByRole("heading", { name: "Workflow scheduling" }),
     ).not.toBeInTheDocument();

@@ -1,3 +1,4 @@
+import { ConfigurationLinks } from "../configuration-links";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -823,7 +824,10 @@ function BindingEditor({
         <button
           type="button"
           disabled={
-            selectedResource === undefined || mutation.isPending || stale
+            selectedResource === undefined ||
+            selectedResource.ref.digest === binding.config.digest ||
+            mutation.isPending ||
+            stale
           }
           onClick={() =>
             selectedResource === undefined
@@ -1469,11 +1473,11 @@ export function RuntimeConfigurationRoute() {
     configs.error ?? labels.error ?? credentials.error ?? gateways.error;
   return (
     <>
+      <ConfigurationLinks />
       {inventoryError === null ? null : <ErrorNotice error={inventoryError} />}
       <div className="panel operations-library">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Immutable safe documents</p>
             <h3>RuntimeConfig versions</h3>
             <p className="muted-copy">
               A version has no effect until default or a named label points to
@@ -1506,7 +1510,6 @@ export function RuntimeConfigurationRoute() {
               <thead>
                 <tr>
                   <th>Version</th>
-                  <th>Digest</th>
                   <th>Source</th>
                   <th>Created</th>
                   <th>Bindings</th>
@@ -1519,31 +1522,55 @@ export function RuntimeConfigurationRoute() {
                       <RuntimeRef resource={resource} />
                     </td>
                     <td>
-                      <code>{resource.ref.digest.slice(0, 18)}…</code>
-                    </td>
-                    <td>
                       {resource.builtIn ? "built-in" : resource.createdBy}
                     </td>
-                    <td>{formatTimestamp(resource.createdAt)}</td>
                     <td>
-                      <button
-                        className={`secondary-button icon-button runtime-binding-trigger ${labels.data?.items.some((binding) => binding.config.digest === resource.ref.digest) ? "has-bindings" : ""}`}
-                        type="button"
-                        aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
-                        title={
-                          labels.data?.items.some(
-                            (binding) =>
-                              binding.config.digest === resource.ref.digest,
-                          )
-                            ? "Label bindings active — manage bindings"
-                            : "Add a label binding"
-                        }
-                        aria-haspopup="dialog"
-                        disabled={!labels.isSuccess}
-                        onClick={() => setBindingTarget(resource)}
-                      >
-                        <Icon name="binding" />
-                      </button>
+                      {resource.builtIn
+                        ? "Built-in"
+                        : formatTimestamp(resource.createdAt)}
+                    </td>
+                    <td>
+                      <div className="runtime-inline-bindings">
+                        {labels.isSuccess ? (
+                          labels.data.items
+                            .filter(
+                              (binding) =>
+                                binding.config.digest === resource.ref.digest,
+                            )
+                            .map((binding) => (
+                              <span className="state-badge" key={binding.label}>
+                                {binding.label}
+                              </span>
+                            ))
+                        ) : (
+                          <small>Labels unavailable</small>
+                        )}
+                        {labels.isSuccess &&
+                        !labels.data.items.some(
+                          (binding) =>
+                            binding.config.digest === resource.ref.digest,
+                        ) ? (
+                          <small>No labels</small>
+                        ) : null}
+                        <button
+                          className={`secondary-button icon-button runtime-binding-trigger ${labels.data?.items.some((binding) => binding.config.digest === resource.ref.digest) ? "has-bindings" : ""}`}
+                          type="button"
+                          aria-label={`Manage bindings for ${resource.ref.name}@${resource.ref.version}`}
+                          title={
+                            labels.data?.items.some(
+                              (binding) =>
+                                binding.config.digest === resource.ref.digest,
+                            )
+                              ? "Label bindings active — manage bindings"
+                              : "Add a label binding"
+                          }
+                          aria-haspopup="dialog"
+                          disabled={!labels.isSuccess}
+                          onClick={() => setBindingTarget(resource)}
+                        >
+                          <Icon name="binding" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

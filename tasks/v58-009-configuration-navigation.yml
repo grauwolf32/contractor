@@ -3,7 +3,7 @@ id: V58-009
 title: Expose active configuration and separate reading from publishing
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-002
@@ -60,3 +60,9 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 23 tests passed covering runtime binding conflicts, unchanged-selection prevention, clone publication, secrets and scheduler CAS.
+- TypeScript, targeted ESLint and production build passed.
+- Live Runtime, LLM, credential and Settings views checked at 1440 and 390 px, including publication and clone forms.
+- Default/debug labels are visible inline; disabled Runtime blocks collapse, and Settings controls appear earlier.

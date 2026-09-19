@@ -1,5 +1,6 @@
+import { ConfigurationLinks } from "../configuration-links";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { usePublicAPI } from "../../../api/context";
@@ -23,26 +24,47 @@ function LoadedConfiguration({
   resource: ConfigurationResource;
 }) {
   const [published, setPublished] = useState<ConfigurationResource>();
+  const clone = useRef<HTMLDetailsElement>(null);
   return (
     <>
-      <div className="metadata-grid panel">
-        <div>
-          <dt>Kind</dt>
-          <dd>{resource.ref.kind}</dd>
-        </div>
-        <div>
-          <dt>Source</dt>
-          <dd>
-            <span className="state-badge">{resource.source}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>Immutable digest</dt>
-          <dd>
-            <code>{resource.ref.digest}</code>
-          </dd>
-        </div>
-      </div>
+      <ConfigurationLinks />
+      {resource.ref.kind === "model-policies" ||
+      resource.ref.kind === "llm-gateways" ? (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            if (clone.current) {
+              clone.current.open = true;
+              clone.current.scrollIntoView?.({ block: "start" });
+              clone.current.querySelector("input")?.focus();
+            }
+          }}
+        >
+          Clone to new version
+        </button>
+      ) : null}
+      <details className="configuration-provenance">
+        <summary>Published identity · {resource.source}</summary>
+        <dl className="metadata-grid panel">
+          <div>
+            <dt>Kind</dt>
+            <dd>{resource.ref.kind}</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>
+              <span className="state-badge">{resource.source}</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Immutable digest</dt>
+            <dd>
+              <code>{resource.ref.digest}</code>
+            </dd>
+          </div>
+        </dl>
+      </details>
       <div className="panel configuration-inspector">
         <p className="eyebrow">Safe typed body</p>
         <h3>Published values</h3>
@@ -63,27 +85,37 @@ function LoadedConfiguration({
           </Link>
         </div>
       )}
-      {resource.ref.kind === "model-policies" ? (
-        <ModelPolicyPublicationForm
-          source={resource}
-          onPublished={setPublished}
-        />
-      ) : resource.ref.kind === "llm-gateways" ? (
-        <LLMGatewayPublicationForm
-          source={resource}
-          onPublished={setPublished}
-        />
-      ) : (
-        <div className="notice notice-warning">
-          <strong>
-            This configuration kind is operator-authored and read-only.
-          </strong>
-          <p>
-            Its first UI editor is intentionally deferred; this exact version
-            remains inspectable.
-          </p>
-        </div>
-      )}
+      <details
+        className="configuration-clone"
+        ref={clone}
+        hidden={
+          resource.ref.kind !== "model-policies" &&
+          resource.ref.kind !== "llm-gateways"
+        }
+      >
+        <summary>New version draft</summary>
+        {resource.ref.kind === "model-policies" ? (
+          <ModelPolicyPublicationForm
+            source={resource}
+            onPublished={setPublished}
+          />
+        ) : resource.ref.kind === "llm-gateways" ? (
+          <LLMGatewayPublicationForm
+            source={resource}
+            onPublished={setPublished}
+          />
+        ) : (
+          <div className="notice notice-warning">
+            <strong>
+              This configuration kind is operator-authored and read-only.
+            </strong>
+            <p>
+              Publish this definition through the configuration source. This
+              page shows its recorded values.
+            </p>
+          </div>
+        )}
+      </details>
     </>
   );
 }

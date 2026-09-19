@@ -1,3 +1,4 @@
+import { ConfigurationLinks } from "../configuration-links";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -32,13 +33,15 @@ export function ConfigurationListRoute() {
   });
   return (
     <div className="panel operations-library">
+      <ConfigurationLinks />
       <div className="section-heading">
         <div>
           <p className="eyebrow">Immutable published configuration</p>
           <h3>LLM configurations</h3>
           <p className="muted-copy">
-            All kinds are inspectable. Only ModelPolicy and LLMGatewayConfig can
-            be cloned into a new create-only managed version.
+            Model policies define LLM behavior and limits; gateways route model
+            requests. New versions take effect when selected for future
+            executions.
           </p>
         </div>
         <label className="compact-select">
@@ -58,6 +61,13 @@ export function ConfigurationListRoute() {
           </select>
         </label>
       </div>
+      {kind === "agent-templates" ? (
+        <p>
+          <Link to="/catalog/agents">
+            Explore Agent instructions, Skills and Workflow usage in Catalog →
+          </Link>
+        </p>
+      ) : null}
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">
           Loading configurations…

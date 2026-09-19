@@ -76,7 +76,11 @@ export function RuntimeConfigDetailRoute() {
               </div>
               <div>
                 <dt>Created</dt>
-                <dd>{formatTimestamp(query.data.createdAt)}</dd>
+                <dd>
+                  {query.data.builtIn
+                    ? "Built-in"
+                    : formatTimestamp(query.data.createdAt)}
+                </dd>
               </div>
             </dl>
           </div>

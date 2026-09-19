@@ -1,3 +1,4 @@
+import { ConfigurationLinks } from "../configuration-links";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
@@ -133,19 +134,9 @@ export function OperationsSettingsRoute() {
               : "Manage the personal credential used by your private repository imports."}
           </p>
         </div>
-        <div className="settings-page-summary" aria-label="Settings summary">
-          <span className="status-dot" aria-hidden="true" />
-          <span>
-            <strong>
-              {canManageScheduler
-                ? "2 configuration areas"
-                : "1 configuration area"}
-            </strong>
-            <small>Available to this session</small>
-          </span>
-        </div>
       </header>
 
+      {canManageScheduler ? <ConfigurationLinks /> : null}
       <nav className="settings-directory" aria-label="Settings on this page">
         {canManageScheduler ? (
           <a href="#workflow-scheduling">

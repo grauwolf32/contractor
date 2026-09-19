@@ -1,0 +1,79 @@
+.configuration-scope-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.1rem;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.85rem;
+}
+.configuration-scope-links .active {
+  color: var(--text);
+  font-weight: 700;
+}
+.runtime-config-block:has(> legend input[type="checkbox"]:not(:checked))
+  > :not(legend) {
+  display: none;
+}
+.runtime-config-block legend {
+  max-width: 100%;
+}
+.runtime-config-block legend .checkbox-label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+}
+.runtime-inline-bindings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.runtime-inline-bindings .state-badge {
+  text-transform: none;
+}
+.configuration-clone {
+  margin-top: 1rem;
+}
+.configuration-clone > summary {
+  cursor: pointer;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  font-weight: 600;
+}
+.configuration-clone[open] > summary {
+  margin-bottom: 0.75rem;
+}
+.configuration-detail .configuration-inspector {
+  margin-top: 1rem;
+}
+.configuration-detail .configuration-inspector .eyebrow {
+  display: none;
+}
+.operations-settings .settings-page-header {
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+.operations-settings .settings-page-header::after {
+  display: none;
+}
+.operations-settings .settings-directory {
+  display: flex;
+  flex-wrap: wrap;
+}
+.operations-settings .settings-directory > a {
+  padding: 0.65rem 0.85rem;
+}
+.operations-settings .settings-directory-number,
+.operations-settings .settings-directory-arrow,
+.operations-settings .settings-directory p {
+  display: none;
+}
+.operations-settings .settings-section-mark {
+  display: none;
+}
+.operations-settings .settings-section-header {
+  padding-block: 0.75rem;
+}
