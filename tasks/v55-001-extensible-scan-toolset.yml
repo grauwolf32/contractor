@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V55-001
+title: Add extensible optional scanner tools and capability probes
+milestone: scan-tools-first-slice
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, go, markdown]
+goal: >-
+  Provide scan@1 with independently available nuclei, sqlmap and naabu operations
+  and a shared bounded process lifecycle that accepts new scanner adapters.
+context:
+  authority: User requested ScanToolset, binary availability in capabilities and implementation tasks.
+  specification: docs/spec/01-agent-template.md
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Typed scan_nuclei, scan_sqlmap and scan_naabu tools with exact selection.
+    - Independent bounded executable probes; unavailable tools absent from capabilities.
+    - Adapter registry owning binary, version arguments, file preparation and output decoding.
+    - No-shell invocation, bounded output, deadlines, process-group cancellation and scratch cleanup.
+    - Matching Go descriptors and Python infrastructure channels; active-check classification.
+    - Explicit unsupported-proxy and missing-template failures; operational documentation.
+  out:
+    - tool@1 Worker, full HTTP request input, ffuf, artifact reports and automatic binary installation.
+acceptance_criteria:
+  - id: A1
+    text: Missing, inaccessible, unloadable, hung or failing binaries independently disappear from capabilities without preventing startup.
+  - id: A2
+    text: All three tools validate typed input and invoke bounded argv commands with isolated scratch and no inherited credentials.
+  - id: A3
+    text: Timeout, cancellation, close, output overflow and scanner failure are explicit and leave no running process group or scratch.
+  - id: A4
+    text: A test adapter is registered, probed, prepared and decoded without changing the shared factory or executor.
+  - id: A5
+    text: Go descriptor parity and ADK callable schemas remain valid; an installed nuclei can scan a local fixture without external targets.
+tests:
+  - command: go test ./internal/config
+    covers: [A5]
+  - command: runtime/.venv/bin/pytest -W error --tb=short runtime/tests/test_scan_toolset.py runtime/tests/test_capabilities.py runtime/tests/test_allocation.py runtime/tests/test_adk_runtime.py
+    covers: [A1, A2, A3, A4, A5]
+  - command: runtime/.venv/bin/ruff check runtime/src/contractor_runtime/toolsets/scan runtime/src/contractor_runtime/factories.py runtime/tests/test_scan_toolset.py
+    covers: [A2, A4]
+  - command: runtime/.venv/bin/ruff format --check runtime/src/contractor_runtime/toolsets/scan runtime/src/contractor_runtime/factories.py runtime/tests/test_scan_toolset.py
+    covers: [A2, A4]
+  - command: git diff --check
+    covers: [A5]

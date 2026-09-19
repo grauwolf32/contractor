@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V55-003
+title: Execute nuclei and naabu through model-free tool Workers
+milestone: scan-tools-first-slice
+priority: P1
+status: pending
+depends_on: [V55-002]
+languages: [go, python, yaml, json, typescript]
+goal: Run a selected tool through ordinary passthrough Workflow allocation and publish its report without any model service.
+context:
+  authority: User requested runtime pseudoagents and server support for deterministic scan dispatch.
+  specification: docs/spec/01-agent-template.md
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Implement the V55-002 contract in Go, Python, API schemas, digests and generated clients.
+    - Resolve and place tool Workers without ModelPolicy, LLM gateway or model credential lookup.
+    - Implement generic tool@1 factory, argument validation, invocation, artifact report and trusted WorkerCompletion.
+    - Preserve lease fencing, A2A cancellation, WorkerState/metrics and allocation resource ownership.
+    - Implement invocation replay and prevent automatic rescans after unknown outcomes.
+    - Provide nuclei-target and naabu-host AgentTemplates and passthrough Workflow fixtures.
+  out:
+    - Dynamic worker allocation, OpenAPI planning, ffuf and SQLMap raw-request adapters.
+acceptance_criteria:
+  - id: A1
+    text: A normal passthrough Run executes nuclei from a target parameter and publishes an exact report ref with no configured model gateway or model credentials.
+  - id: A2
+    text: Missing selected scanner capabilities prevent placement; malformed inputs fail before spawning a process.
+  - id: A3
+    text: Cancellation, lease loss, duplicate input, changed input identity and publication failure follow the pinned contract without an implicit rescan.
+  - id: A4
+    text: Existing ADK model validation, model routing and Worker completion tests still pass.
+tests:
+  - command: go test ./internal/config ./internal/contracts ./internal/runtimeconfig ./internal/controlplane ./internal/scheduler ./internal/planner
+    covers: [A1, A2, A3, A4]
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_tool_worker.py runtime/tests/test_contracts.py runtime/tests/test_allocation.py runtime/tests/test_a2a_server.py runtime/tests/test_adk_runtime.py
+    covers: [A1, A2, A3, A4]
+  - command: make verify-wire-contracts test-wire-cross-language
+    covers: [A1, A4]

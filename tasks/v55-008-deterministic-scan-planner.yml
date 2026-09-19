@@ -1,0 +1,28 @@
+schema_version: "1.0"
+id: V55-008
+title: Plan bounded scan jobs deterministically
+milestone: scan-tools-followups
+priority: P2
+status: pending
+depends_on: [V55-007]
+languages: [go, yaml, markdown]
+goal: Turn prepared targets/RequestSet into a persisted reproducible plan executed by ordinary tool Workers.
+context:
+  authority: User proposed a separate deterministic planner for selecting and scheduling scans.
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Define scan-plan@1 candidates, selection policy, per-tool budgets, deduplication and coverage accounting.
+    - Persist exact candidates and plan before dispatch; use stable input and job identities on recovery.
+    - Route to existing fixed logical Workers and preserve scheduler ownership of allocations and concurrency.
+    - Record skipped, unavailable, failed, incomplete and completed jobs separately from security conclusions.
+  out:
+    - LLM ranking, dynamic physical-worker allocation and unbounded job fanout.
+acceptance_criteria:
+  - id: A1
+    text: Exact inputs and policy produce identical plans within request, time and count budgets.
+  - id: A2
+    text: Recovery never silently rescans jobs with completed or unknown outcomes; coverage includes all skipped/failed candidates.
+tests:
+  - command: go test ./internal/scanplan/... ./internal/planner/... ./internal/scheduler/...
+    covers: [A1, A2]

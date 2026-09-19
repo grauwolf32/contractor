@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: V55-004
+title: Scan a complete prepared HTTP request with sqlmap
+milestone: scan-tools-first-slice
+priority: P1
+status: pending
+depends_on: [V55-003]
+languages: [python, yaml, markdown]
+goal: Preserve the method, URL, headers and body of one supplied HTTP request when invoking sqlmap.
+context:
+  authority: User requested sqlmap scans of prepared requests, with OpenAPI generation planned later.
+  specification: docs/spec/01-agent-template.md
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Specify and validate one versioned HTTP-request artifact with bounded headers/body and selected test parameters.
+    - Materialize raw request privately for sqlmap -r, preserving HTTPS transport and request bytes.
+    - Expose typed request input through tool@1 and publish bounded report with exact input provenance.
+    - Keep session/output directories allocation-owned; redact request secrets from metrics and diagnostics.
+  out:
+    - OpenAPI parsing, RequestSet fanout, database dumping, shell operations or automatic authentication discovery.
+acceptance_criteria:
+  - id: A1
+    text: POST/JSON and non-POST requests preserve target, method, headers, body and explicit parameter selection.
+  - id: A2
+    text: Invalid headers, unsupported request framing, oversized content and inaccessible artifact refs fail before launch.
+  - id: A3
+    text: Raw files are private, exact input refs appear in the report, and cancellation deletes temporary files without leaking secrets to metrics.
+tests:
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_toolset.py runtime/tests/test_scan_http_request.py runtime/tests/test_tool_worker.py
+    covers: [A1, A2, A3]
+  - command: go test ./internal/config
+    covers: [A1]

@@ -316,6 +316,17 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: scan-tools-first-slice
+    exit_task: V55-006
+    outcome: >-
+      Optional scanner capabilities and model-free tool Workers execute simple
+      nuclei, naabu, sqlmap and ffuf Workflows with validated inputs and artifact
+      reports through the existing Server/Runtime and user upload journey.
+  - id: scan-tools-followups
+    exit_task: V55-009
+    outcome: >-
+      OpenAPI preparation supplies deterministic bounded scan plans with optional
+      LLM candidate ranking; a separate Katana adapter extends discovery.
   - id: mvp
     exit_task: MVP-015
     outcome: >-
@@ -2657,3 +2668,13 @@ tasks:
   - {id: V52-003, file: v52-003-local-model-gpu-watchdog.yml}
   - {id: V53-001, file: v53-001-large-source-audit-completion.yml}
   - {id: V53-002, file: v53-002-local-worker-reasoning-output-limit.yml}
+  - {id: V55-001, file: v55-001-extensible-scan-toolset.yml}
+  - {id: V55-002, file: v55-002-tool-worker-contract.yml}
+  - {id: V55-003, file: v55-003-model-free-tool-worker.yml}
+  - {id: V55-004, file: v55-004-sqlmap-http-request.yml}
+  - {id: V55-005, file: v55-005-ffuf-wordlist-artifacts.yml}
+  - {id: V55-006, file: v55-006-scan-workflows-release.yml}
+  - {id: V55-007, file: v55-007-openapi-request-set.yml}
+  - {id: V55-008, file: v55-008-deterministic-scan-planner.yml}
+  - {id: V55-009, file: v55-009-scan-candidate-ranking.yml}
+  - {id: V55-010, file: v55-010-katana-scan-adapter.yml}

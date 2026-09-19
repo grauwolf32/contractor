@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V55-005
+title: Add ffuf with validated artifact-backed wordlists
+milestone: scan-tools-first-slice
+priority: P1
+status: pending
+depends_on: [V55-003]
+languages: [python, go, yaml, markdown]
+goal: Execute bounded ffuf scans using an exact uploaded wordlist revision without accepting host filesystem paths.
+context:
+  authority: User requested ffuf and reusable scan lists uploaded as artifacts with meaningful types.
+  specification: docs/spec/03-artifact-plane.md
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Define text/vnd.contractor.wordlist and text/plain input-slot compatibility.
+    - Specify UTF-8, byte/line bounds, empty/trailing-line and LF/CRLF semantics without trimming or deduplicating payloads.
+    - Add scan_ffuf adapter and independent binary probe with matching server descriptor.
+    - Resolve exact RunScope wordlist, validate bytes and materialize it privately for a URL containing FUZZ.
+    - Expose typed rate, deadline and response filters; preserve bounded results and input revision provenance.
+  out:
+    - Arbitrary input commands, host paths, multiple wordlists, recursive crawling and UI changes.
+acceptance_criteria:
+  - id: A1
+    text: Available ffuf is independently advertised and a fourth adapter requires no scanner-name branches in the common process runner.
+  - id: A2
+    text: A valid uploaded list preserves payloads while malformed/oversized lists and wrong refs fail before process launch.
+  - id: A3
+    text: Exact wordlist revision, scan completion/truncation and bounded matched responses are recorded; all temporary files are removed on cancel or completion.
+tests:
+  - command: go test ./internal/config
+    covers: [A1]
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_toolset.py runtime/tests/test_scan_wordlist.py runtime/tests/test_tool_worker.py runtime/tests/test_capabilities.py
+    covers: [A1, A2, A3]

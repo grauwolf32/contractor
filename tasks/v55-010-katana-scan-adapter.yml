@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: V55-010
+title: Add Katana as a bounded discovery adapter
+milestone: scan-tools-followups
+priority: P2
+status: pending
+depends_on: [V55-007]
+languages: [python, go, yaml, markdown]
+goal: Reuse the scan adapter registry for Katana discovery and export prepared inputs for later scans.
+context:
+  authority: User wants to consider Katana after the simple ScanTools scenarios work.
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Add independent Katana binary probe, typed bounded crawl inputs and matching server capability descriptor.
+    - Convert supported observations into target-list or RequestSet artifacts with source provenance.
+    - Preserve scope, depth, request/time limits, cleanup and explicit incomplete discovery accounting.
+  out:
+    - Unlimited crawling, browser installation and automatic execution of discovered scans.
+acceptance_criteria:
+  - id: A1
+    text: Katana integrates through the registry without changing common process lifecycle code; missing binary disables only its operation.
+  - id: A2
+    text: Local discovery fixture exports valid deterministic inputs and explicit coverage limits without spawning further scans.
+tests:
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana.py runtime/tests/test_scan_toolset.py runtime/tests/test_capabilities.py
+    covers: [A1, A2]
+  - command: go test ./internal/config ./internal/scanplan/...
+    covers: [A1, A2]

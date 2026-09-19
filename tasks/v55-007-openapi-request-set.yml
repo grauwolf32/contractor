@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: V55-007
+title: Prepare deterministic scan requests from OpenAPI
+milestone: scan-tools-followups
+priority: P2
+status: pending
+depends_on: [V55-006]
+languages: [go, json, yaml, markdown]
+goal: Produce a bounded versioned RequestSet and explicit coverage gaps from an OpenAPI schema.
+context:
+  authority: User proposed OpenAPI-based route/request generation after simple scan scenarios.
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Specify application/vnd.contractor.http-requests+json with request identity and exact source provenance.
+    - Pin supported OpenAPI versions, reference handling and deterministic request generation rules.
+    - Use supplied server, path/query examples, body data and authentication bindings; report unresolved inputs explicitly.
+    - Bound bytes, references and request count; deduplicate canonical requests without losing provenance.
+  out:
+    - Active scan execution, guessed credentials, implicit remote reference fetching and LLM planning.
+acceptance_criteria:
+  - id: A1
+    text: Identical exact inputs yield stable request IDs and content digests across repeated preparation.
+  - id: A2
+    text: Missing required data, unsupported constructs and limits produce explicit preparation/coverage diagnostics.
+tests:
+  - command: go test ./internal/scanplan/... ./internal/contracts/...
+    covers: [A1, A2]
+implementation_note: Define the RequestSet normative schema and fixtures before implementing its parser.

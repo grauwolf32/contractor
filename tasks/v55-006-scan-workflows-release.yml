@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V55-006
+title: Deliver simple scan Workflows and artifact upload journey
+milestone: scan-tools-first-slice
+priority: P1
+status: pending
+depends_on: [V55-004, V55-005]
+languages: [go, python, typescript, yaml, markdown]
+goal: Let a user select a simple scan Workflow, supply a target/request/list and inspect a report through the existing product.
+context:
+  authority: User agreed to start with simple scan scenarios before OpenAPI planning and Katana.
+  specification: docs/spec/01-agent-template.md
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Add catalog examples for nuclei target, naabu host, sqlmap request and ffuf wordlist.
+    - Support wordlist semantic type selection, file extensions, preview and reuse in Project/Run inputs.
+    - Display scan technical outcome and report without equating empty findings with a clean target.
+    - Run real Server/Runtime integration against controlled local fixtures with no model services.
+    - Document installation/templates, capability diagnostics, proxy limitations and first-slice usage.
+  out:
+    - Production deployment, scanner auto-installation, large target batches and new Audit orchestration.
+acceptance_criteria:
+  - id: A1
+    text: A user uploads a wordlist, selects its exact revision, starts ffuf and opens the resulting report through the UI.
+  - id: A2
+    text: Nuclei, naabu and sqlmap fixtures run through ordinary Server/Runtime boundaries without a model gateway.
+  - id: A3
+    text: Missing binaries, invalid inputs, cancellation and report errors appear truthfully in workflow outcome and operations diagnostics.
+tests:
+  - command: make ui-typecheck ui-test ui-build
+    covers: [A1, A3]
+  - command: go test ./internal/config ./tests/e2e
+    covers: [A2, A3]
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestScanToolsAcrossProductionProcesses$'
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Existing integration database and controlled local target fixtures; scanner binaries preinstalled by the test environment.
+  - Browser evidence for upload, input selection and report display is required in addition to automated tests.

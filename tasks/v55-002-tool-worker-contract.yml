@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V55-002
+title: Specify deterministic tool Worker inputs and model-free execution
+milestone: scan-tools-first-slice
+priority: P1
+status: pending
+depends_on: [V55-001]
+languages: [markdown, yaml, json]
+goal: Define an implementable cross-language contract for tool@1 before enabling it in production catalogs.
+context:
+  authority: User requested pseudoagents invoking selected tools from supplied scan data.
+  specification: docs/spec/01-agent-template.md
+  design: docs/plans/2026-09-19-scan-tools.md
+scope:
+  in:
+    - Define AgentTemplate execution selector, argument bindings, output slot and deadline.
+    - Cover target from a Stage parameter, typed constants and exact input artifact refs without arbitrary executable selection.
+    - Specify absent model policy, instructions, gateway and model credentials for tool Workers while retaining ADK requirements.
+    - Specify report envelope, WorkerState/Completion mapping, replay identity, failure and unknown-outcome behavior.
+    - Specify capability matching, execution patches, digest/pinning and existing Allocation/A2A ownership.
+    - Record valid and invalid contract examples and implementation test matrix.
+  out:
+    - Enable an unimplemented tool@1 factory, change planner scheduling or implement scanner adapters.
+acceptance_criteria:
+  - id: A1
+    text: Normative specification and parseable examples unambiguously define input sources, validation, limits and output refs.
+  - id: A2
+    text: Model-free behavior is specified at catalog, RuntimeConfig resolution, placement, allocation and Worker boundaries; ADK behavior remains required.
+  - id: A3
+    text: Replay, cancellation, report publication failure and unknown scan outcomes have explicit testable semantics.
+tests:
+  - command: go test ./internal/config ./internal/contracts
+    covers: [A1, A2]
+  - command: runtime/.venv/bin/pytest runtime/tests/test_contracts.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification_requirements:
+  - Review each normative example and the complete failure/replay matrix against the acceptance criteria.
