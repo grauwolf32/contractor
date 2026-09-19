@@ -48,6 +48,7 @@ type Config struct {
 	CAFile                      string
 	CertificateFile             string
 	PrivateKeyFile              string
+	DevelopmentLLMGateway       string
 	DevelopmentWorkerToken      contracts.SecretString
 	DevelopmentPlannerToken     contracts.SecretString
 	PlannerTimeout              time.Duration

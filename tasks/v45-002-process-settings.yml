@@ -53,3 +53,9 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+- Required app/config/controlplane race suite passed, including default/file/environment/flag precedence and strict YAML/redaction regressions.
+- Development Gateway selector has tested fallback, explicit selection, exact credential binding and missing-Gateway behavior.
+- Registry durations retain 10-second heartbeat and 60-second confirmed lease defaults without new process settings.
+- git diff --check passed.

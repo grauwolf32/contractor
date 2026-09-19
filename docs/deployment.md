@@ -110,6 +110,12 @@ The Gateway endpoint and model aliases belong to immutable documents under
 and Runtime hosts can reach the selected Gateway. Tokens remain outside YAML.
 For the shipped development credential selectors, set the bootstrap token
 variables described in [the local walkthrough](guides/local-stack.md).
+Their exact Gateway selector defaults to `local-litellm@1`. Override it with
+ServerConfig `spec.developmentLlmGateway`, `CONTRACTOR_DEVELOPMENT_LLM_GATEWAY`
+or `--development-llm-gateway`, using the same file/environment/flag precedence.
+This binds only the development bootstrap tokens; ordinary managed credentials
+keep their own pinned Gateway identity. Registry heartbeat and confirmed-lease
+defaults remain 10 and 60 seconds and are not new ServerConfig settings.
 For managed LiteLLM keys, configure the persistent encryption key and exact
 admin binding in [Gateway credentials](operations/gateway-credentials.md), then
 select the issued credential in the Workflow or Run execution configuration.

@@ -120,12 +120,17 @@ type stageReservation struct {
 	released      bool
 }
 
+const (
+	defaultHeartbeatInterval = 10 * time.Second
+	defaultConfirmedLease    = 60 * time.Second
+)
+
 func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 	if options.HeartbeatInterval == 0 {
-		options.HeartbeatInterval = 10 * time.Second
+		options.HeartbeatInterval = defaultHeartbeatInterval
 	}
 	if options.ConfirmedLease == 0 {
-		options.ConfirmedLease = 60 * time.Second
+		options.ConfirmedLease = defaultConfirmedLease
 	}
 	if options.HeartbeatInterval < time.Second || options.ConfirmedLease <= options.HeartbeatInterval ||
 		options.HeartbeatInterval%time.Second != 0 || options.ConfirmedLease%time.Second != 0 {

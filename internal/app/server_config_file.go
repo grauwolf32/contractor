@@ -22,6 +22,7 @@ const (
 // and an optional ServerConfig document have been applied. Environment and
 // command-line settings are layered over it by ParseConfig.
 type serverConfigValues struct {
+	developmentLLMGateway       string
 	operations                  OperationalSettings
 	gitAllowedRemotes           []string
 	gitKnownHostsFile           string
@@ -58,6 +59,7 @@ type serverConfigDocument struct {
 // Pointer leaves distinguish an omitted setting from an explicit false or
 // empty value. Secret bytes and connection URLs intentionally have no fields.
 type serverConfigSpec struct {
+	DevelopmentLLMGateway       *string `yaml:"developmentLlmGateway"`
 	operationalSpec             `yaml:",inline"`
 	GitAllowedRemotes           *[]string `yaml:"gitAllowedRemotes"`
 	GitKnownHostsFile           *string   `yaml:"gitKnownHostsFile"`
@@ -87,6 +89,7 @@ type serverConfigSpec struct {
 
 func defaultServerConfigValues() serverConfigValues {
 	return serverConfigValues{
+		developmentLLMGateway: defaultDevelopmentLLMGateway,
 		operations:            defaultOperationalSettings(),
 		listenAddress:         defaultListenAddress,
 		privateListenAddress:  defaultPrivateListenAddress,
@@ -222,6 +225,7 @@ func applyServerConfigSpec(values *serverConfigValues, spec serverConfigSpec, ba
 		values.pprof = *spec.Pprof
 	}
 	setString(&values.pprofListen, spec.PprofListen)
+	setString(&values.developmentLLMGateway, spec.DevelopmentLLMGateway)
 	return nil
 }
 

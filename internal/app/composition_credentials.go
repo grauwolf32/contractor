@@ -153,9 +153,13 @@ func developmentCredentials(
 	if cfg.DevelopmentWorkerToken.Reveal() == "" && cfg.DevelopmentPlannerToken.Reveal() == "" {
 		return credentials.NewStaticProvider(entries)
 	}
-	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	selector := cfg.DevelopmentLLMGateway
+	if selector == "" {
+		selector = defaultDevelopmentLLMGateway
+	}
+	gateway, err := snapshot.LLMGateway(selector)
 	if err != nil {
-		return nil, errors.New("development tokens require LLMGatewayConfig local-litellm@1")
+		return nil, fmt.Errorf("development tokens require LLMGatewayConfig %s", selector)
 	}
 	appendEntry := func(id string, token contracts.SecretString) {
 		if token.Reveal() == "" {

@@ -180,7 +180,7 @@ func (s *OperationalSettings) applySpec(spec operationalSpec) error {
 	return nil
 }
 
-func (s *OperationalSettings) registerFlags(flags *flag.FlagSet, getenv func(string) string) error {
+func (s *OperationalSettings) applyEnvironment(getenv func(string) string) error {
 	for _, setting := range s.durations(operationalSpec{}) {
 		env := "CONTRACTOR_" + strings.ToUpper(strings.ReplaceAll(setting.flag, "-", "_"))
 		if encoded := getenv(env); encoded != "" {
@@ -190,7 +190,6 @@ func (s *OperationalSettings) registerFlags(flags *flag.FlagSet, getenv func(str
 			}
 			*setting.target = parsed
 		}
-		flags.DurationVar(setting.target, setting.flag, *setting.target, "ServerConfig spec."+setting.path)
 	}
 	if encoded := getenv("CONTRACTOR_AUDIT_CONTROLLER_CLAIM_BATCH"); encoded != "" {
 		parsed, err := strconv.Atoi(encoded)
@@ -199,8 +198,14 @@ func (s *OperationalSettings) registerFlags(flags *flag.FlagSet, getenv func(str
 		}
 		s.AuditController.ClaimBatch = parsed
 	}
-	flags.IntVar(&s.AuditController.ClaimBatch, "audit-controller-claim-batch", s.AuditController.ClaimBatch, "maximum concurrently claimed Audits")
 	return nil
+}
+
+func (s *OperationalSettings) registerFlags(flags *flag.FlagSet) {
+	for _, setting := range s.durations(operationalSpec{}) {
+		flags.DurationVar(setting.target, setting.flag, *setting.target, "ServerConfig spec."+setting.path)
+	}
+	flags.IntVar(&s.AuditController.ClaimBatch, "audit-controller-claim-batch", s.AuditController.ClaimBatch, "maximum concurrently claimed Audits")
 }
 
 func (s *OperationalSettings) validate() error {
