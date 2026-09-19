@@ -3,8 +3,8 @@ id: V39-007
 title: "Verify incremental Audit completion across Runtime and the real importer"
 milestone: audit-worker-completion
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: d1dd5efa97d23b25e4f7777f2a3b91dbd8850f6b
 depends_on: ["V39-006"]
 languages: ["go","python"]
 
@@ -81,3 +81,30 @@ tests:
     covers: ["A1","A2","A3"]
   - command: "make verify"
     covers: ["A1","A2","A3"]
+
+verification:
+  recorded_on: "2026-09-19"
+  evidence: tasks/evidence/v39-007.json
+  required_matrix: scripts/audit-completion-matrix.json
+  release_gate:
+    command: "make test-audit-completion-e2e"
+    result: passed
+    go_cases_including_subtests: 141
+    runtime_component_cases: 302
+    bridge_cases: 12
+    runtime_bridge_processes: 17
+    selected_skips: 0
+    database: "PostgreSQL 17.11 in a dedicated disposable localhost container; test databases removed after execution."
+  regression_checks:
+    - {command: "go test ./...", result: "passed; optional database skips are not counted as release evidence"}
+    - {command: "cd runtime && uv run --frozen pytest", result: "1879 passed, 31 skipped; the standalone bridge requires its Go parent"}
+    - {command: "make verify", result: "passed; includes 355 UI tests, 7 UI server tests and production build with Node 24.20.0"}
+  prerequisite_fix_commit: 36b12ace2e17a951de505f99b2746ed47b26f0e8
+  prerequisite_fix: >-
+    Four existing regression tests referenced documentation archives removed in
+    32125808. Their original Git blobs were retained in testdata and test paths
+    updated; no historical measurements or task statuses were rewritten.
+  boundaries:
+    - "The model is scripted. No live-provider benchmark or demo verification is claimed."
+    - "Run creation, registry grants, mTLS Artifact API, PostgreSQL repositories and Go importer are production code; Scheduler driving is test orchestration."
+    - "No demo deployment, immutable catalog edit or modification of running user Audits."

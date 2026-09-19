@@ -786,10 +786,10 @@ portable_eval_format_planning:
 
 audit_worker_completion_planning:
   planned_on: "2026-09-06"
-  status: partially_implemented
-  completed: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006]
+  status: implemented
+  completed: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
   in_progress: []
-  pending: [V39-007]
+  pending: []
   specification: docs/spec/25-audit-worker-finalization.md
   tasks: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
   delivery_order:
