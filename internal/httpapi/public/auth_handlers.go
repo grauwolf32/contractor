@@ -14,7 +14,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 )
 
-const maximumLoginBodyBytes int64 = 2048
+// A supported 1024-byte password can expand to 6144 JSON bytes. With a
+// 64-byte username and compact JSON framing, the request needs at most 6237
+// bytes. Keep raw-body admission separate from decoded password validation.
+const maximumLoginBodyBytes int64 = 8 * 1024
 
 var (
 	corsMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
