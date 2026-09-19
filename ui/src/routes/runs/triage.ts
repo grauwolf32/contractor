@@ -201,6 +201,18 @@ function guidance(
   attempt: StageAttempt | undefined,
   issue: RunTriageIssue | undefined,
 ): RunTriageGuidance {
+  if (run.state === "succeeded") {
+    const hasOutputs = Object.keys(run.outputs).length > 0;
+    return {
+      kind: "inspect",
+      title: hasOutputs
+        ? "Read the recorded results"
+        : "Review the completed execution",
+      message: hasOutputs
+        ? "Open the outputs below. Execution success alone does not establish result quality."
+        : "No output artifacts were recorded. Stage attempts and their diagnostics are available below.",
+    };
+  }
   if (activeSchedulerRetry(run)) {
     return {
       kind: "scheduled-retry",

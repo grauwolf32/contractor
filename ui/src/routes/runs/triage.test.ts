@@ -46,6 +46,21 @@ function runFixture(): RunStatus {
 }
 
 describe("Run triage", () => {
+  it("guides successful Runs to their outputs without treating execution as a quality verdict", () => {
+    const run = runFixture();
+    run.state = "succeeded";
+    run.outputs = {
+      report: { namespace: "outputs", name: "report", revision: "r1" },
+    };
+    expect(deriveRunTriage(run).guidance).toMatchObject({
+      title: "Read the recorded results",
+      message: expect.stringContaining("does not establish result quality"),
+    });
+    run.outputs = {};
+    expect(deriveRunTriage(run).guidance.message).toContain(
+      "No output artifacts",
+    );
+  });
   it("selects the latest authoritative failure and aggregates bounded metrics", () => {
     const first = attempt("stage-1", "analysis", 1);
     first.state = "interrupted";

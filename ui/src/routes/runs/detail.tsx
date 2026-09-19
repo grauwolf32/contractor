@@ -1,3 +1,4 @@
+import "./reading.css";
 import { ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
@@ -142,9 +143,14 @@ function RunTriageSummary({
         </div>
       )}
       <div className={`run-next-action is-${triage.guidance.kind}`}>
-        <span>Next valid action</span>
+        <span>Next action</span>
         <strong>{triage.guidance.title}</strong>
         <p>{triage.guidance.message}</p>
+        {run.state === "succeeded" && triage.outputCount > 0 ? (
+          <a className="primary-button" href="#run-outputs">
+            Read results
+          </a>
+        ) : null}
         {triage.guidance.operationsPath === undefined || !canOperate ? null : (
           <Link to={triage.guidance.operationsPath}>
             Open Operations diagnostics →
@@ -293,16 +299,15 @@ function RunRepeatControl({ run }: { run: RunStatus }) {
   return (
     <section className="panel run-repeat-control">
       <div>
-        <p className="eyebrow">New execution</p>
         <h3>Configure another Run</h3>
         <p className="muted-copy">
-          Recover caller-controlled values into a reviewed draft. This never
-          retries an attempt in place or changes this Run's history.
+          Review the saved inputs and configuration before starting a new Run.
         </p>
       </div>
       <button
         type="button"
         disabled={mutation.isPending}
+        className="secondary-button"
         onClick={() => void configureAnotherRun()}
       >
         {mutation.isPending
@@ -736,7 +741,6 @@ function LoadedRunDetail({
         key={`${run.runId}:${run.resumeStageExecutionId ?? "none"}`}
         run={run}
       />
-      <RunRepeatControl run={run} />
       {run.cancellation === undefined ? null : (
         <div className="notice notice-warning cancellation-record">
           <strong>Cancellation requested</strong>
@@ -754,6 +758,7 @@ function LoadedRunDetail({
       )}
       <RunOutputGallery run={run} />
       <RunOutputPublications run={run} />
+      <RunRepeatControl run={run} />
       <LiveAttempts
         key={`${liveKey}:${snapshotVersion}`}
         run={run}

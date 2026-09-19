@@ -3,8 +3,8 @@ id: V58-003
 title: Put artifact and skill contents before secondary metadata
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 03653c78930a4fd283ae49d648726f13b85e6a29
 depends_on:
 - V58-002
 languages:

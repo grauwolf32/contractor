@@ -3,7 +3,7 @@ id: V58-004
 title: Make Run results primary and history compact
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-001
@@ -51,3 +51,8 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 30 tests across Run routing, triage, primary output and queue passed; TypeScript, targeted ESLint and production build passed.
+- Browser history height fell from 15449 to 3787 px at 1440, and from 23283 to 7708 px at 390; all 50 rows remain available.
+- Successful and failed Runs verified with retained exact output links and no attempted mutations.

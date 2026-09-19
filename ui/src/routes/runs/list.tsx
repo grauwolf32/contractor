@@ -1,3 +1,4 @@
+import "./reading.css";
 import { ContextLink } from "../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
@@ -460,15 +461,13 @@ export function CompletedRunsPanel() {
         </div>
       ) : (
         <div className="table-scroll">
-          <table className="responsive-table run-list-table">
+          <table className="responsive-table run-list-table compact-run-history">
             <thead>
               <tr>
                 <th>Run</th>
                 <th>Workflow</th>
                 <th>State</th>
-                <th>Run metadata labels</th>
-                <th>Created</th>
-                <th>Updated</th>
+                <th>Context & details</th>
                 <th>Finished</th>
                 <th>
                   <span className="visually-hidden">Actions</span>
@@ -496,23 +495,33 @@ export function CompletedRunsPanel() {
                   <td className="run-list-state-cell" data-label="State">
                     <StateBadge state={run.state} />
                   </td>
-                  <td
-                    className={`run-list-labels-cell ${Object.keys(run.labels).length === 0 ? "run-list-labels-empty" : ""}`}
-                    data-label="Run metadata labels"
-                  >
-                    <span className="run-list-mobile-label">Labels</span>
-                    <RunMetadataLabelChips labels={run.labels} />
-                  </td>
-                  <td className="run-list-created-cell" data-label="Created">
-                    <time dateTime={run.createdAt}>
-                      {formatTimestamp(run.createdAt)}
-                    </time>
-                  </td>
-                  <td className="run-list-updated-cell" data-label="Updated">
-                    <span className="run-list-mobile-label">Updated</span>
-                    <time dateTime={run.updatedAt}>
-                      {formatTimestamp(run.updatedAt)}
-                    </time>
+                  <td className="run-list-labels-cell" data-label="Context">
+                    <details>
+                      <summary>
+                        {run.labels["eval.name"] ??
+                          run.labels.purpose ??
+                          (Object.keys(run.labels).length
+                            ? `${Object.keys(run.labels).length} labels`
+                            : "Details")}
+                      </summary>
+                      <RunMetadataLabelChips labels={run.labels} />
+                      <dl className="compact-record-facts">
+                        <div>
+                          <dt>Run ID</dt>
+                          <dd>
+                            <code>{run.runId}</code>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Created</dt>
+                          <dd>{formatTimestamp(run.createdAt)}</dd>
+                        </div>
+                        <div>
+                          <dt>Updated</dt>
+                          <dd>{formatTimestamp(run.updatedAt)}</dd>
+                        </div>
+                      </dl>
+                    </details>
                   </td>
                   <td className="run-list-finished-cell" data-label="Finished">
                     {run.finishedAt === undefined ? (

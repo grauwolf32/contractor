@@ -1,0 +1,103 @@
+.compact-run-history {
+  table-layout: fixed;
+}
+.compact-run-history th:first-child {
+  width: 20%;
+}
+.compact-run-history th:nth-child(2) {
+  width: 24%;
+}
+.compact-run-history th:nth-child(3) {
+  width: 12%;
+}
+.compact-run-history th:nth-child(5) {
+  width: 18%;
+}
+.compact-run-history th:last-child {
+  width: 3rem;
+}
+.compact-run-history td {
+  vertical-align: top;
+  padding-block: 0.8rem;
+}
+.compact-run-history summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  color: var(--muted-strong);
+}
+.compact-run-history details[open] {
+  min-width: 0;
+}
+.compact-run-history .run-metadata-label-chips {
+  margin-top: 0.75rem;
+}
+.compact-record-facts {
+  display: grid;
+  gap: 0.65rem;
+  font-size: 0.8rem;
+}
+.compact-record-facts dt {
+  color: var(--muted);
+}
+.compact-record-facts dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+.run-next-action .primary-button {
+  display: inline-flex;
+  justify-self: start;
+  margin-top: 0.5rem;
+}
+.run-triage-succeeded .run-next-action > span,
+.run-triage-succeeded .run-next-action > strong {
+  display: none;
+}
+.run-triage-succeeded .run-next-action {
+  padding: 0.7rem 0;
+  border: 0;
+  background: none;
+}
+.run-triage-succeeded .run-next-action p {
+  margin: 0;
+}
+.run-triage-succeeded .run-triage-facts {
+  gap: 0.6rem;
+  margin-top: 0.65rem;
+}
+.run-triage-succeeded .run-triage-facts > div {
+  padding: 0.65rem;
+}
+.run-repeat-control {
+  padding: 1rem;
+}
+.run-repeat-control h3 {
+  font-size: 1rem;
+}
+.run-repeat-control p {
+  margin: 0.4rem 0 0;
+}
+#run-outputs {
+  scroll-margin-top: 1rem;
+}
+@media (max-width: 760px) {
+  .compact-run-history tr {
+    gap: 0.4rem 0.6rem;
+  }
+  .compact-run-history .run-list-labels-cell {
+    display: block;
+    grid-column: 1 / -1;
+  }
+  .compact-run-history .run-list-finished-cell {
+    display: block;
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: var(--muted-strong);
+  }
+  .compact-run-history .run-list-finished-cell::before {
+    display: inline;
+    content: "Finished · ";
+  }
+  .run-triage-succeeded .run-triage-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
