@@ -3,7 +3,7 @@ id: V45-008
 title: Extract metric accumulators and share HTTP merging
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -55,3 +55,4 @@ verification:
   - go test -race -count=1 ./internal/performance — passed.
   - Minute/history comparison covers every HTTP counter dimension and histogram, with detached output; existing CPU, freshness, overlap and GPU regressions pass.
   - git diff --check — passed.
+implementation_commit: a15835f9733c261144c32da0e55e1f26babe102e

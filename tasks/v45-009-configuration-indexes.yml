@@ -3,7 +3,7 @@ id: V45-009
 title: Index Workflow bindings and simplify configuration traversal
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
