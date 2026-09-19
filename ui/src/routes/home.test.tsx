@@ -59,6 +59,15 @@ describe("Action center", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
+        if (url.pathname === "/v1/queue/control") {
+          const response = apiResponse({
+            paused: true,
+            revision: "4",
+            updatedAt: "2026-09-02T10:00:00Z",
+          });
+          response.headers.set("ETag", '"4"');
+          return response;
+        }
         if (url.pathname === "/v1/runs") {
           const state = url.searchParams.get("state");
           if (state === "running") {
@@ -163,6 +172,10 @@ describe("Action center", () => {
     expect(
       await screen.findByRole("heading", { name: "Action center" }),
     ).toBeInTheDocument();
+    expect(await screen.findByText("Queue paused")).toBeVisible();
+    expect(
+      screen.getByText(/Idle Runtime slots do not bypass this pause/u),
+    ).toBeVisible();
     expect(
       await screen.findByRole("link", { name: /review@2.*run-failed/i }),
     ).toHaveAttribute("href", "/runs/run-failed");

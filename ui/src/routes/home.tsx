@@ -1,3 +1,5 @@
+import { RecordedTime } from "../app/recorded-time";
+import { getOwnerQueueControl } from "../api/queue";
 import { ContextLink } from "../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
@@ -90,7 +92,7 @@ function RunRows({
             <StateBadge state={run.state} />
             <small>{runDuration(run)}</small>
           </span>
-          <time dateTime={run.updatedAt}>{formatTimestamp(run.updatedAt)}</time>
+          <RecordedTime value={run.finishedAt ?? run.updatedAt} />
         </ContextLink>
       ))}
     </div>
@@ -108,13 +110,14 @@ function AttentionPanel({
     <section className="panel action-panel action-attention">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Needs attention</p>
+          <p className="eyebrow">Execution history</p>
           <h3>Recent failures</h3>
         </div>
         <Link to="/runs?view=completed&state=failed">View failed Runs →</Link>
       </div>
       <p className="action-panel-copy">
-        Failed executions among the newest 50 owned Runs.
+        Failed executions among the newest 50 owned Runs. Dates indicate their
+        age; these are historical outcomes.
       </p>
       {query.isPending ? (
         <p className="loading-copy">Loading recent activity…</p>
@@ -277,13 +280,13 @@ function RuntimeHealthPanel({
         <div>
           <p className="eyebrow">Runtime health</p>
           <h3>
-            {attention ? "Capacity needs attention" : "Capacity is ready"}
+            {attention ? "Capacity needs attention" : "Runtime slots available"}
           </h3>
         </div>
         <span
           className={`health-indicator ${attention ? "health-attention" : "health-ready"}`}
         >
-          {attention ? "Attention" : "Healthy"}
+          {attention ? "Attention" : "Runtime healthy"}
         </span>
       </div>
       <dl className="runtime-health-grid">
@@ -338,10 +341,14 @@ function QuickStartPanel({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Quick start</p>
-          <h3>Start from a published Workflow</h3>
+          <h3>Choose a Workflow</h3>
         </div>
         <Link to="/catalog/workflows">Browse catalog →</Link>
       </div>
+      <p className="action-panel-copy">
+        Start with a Project to keep inputs and results together.{" "}
+        <Link to="/projects">Open Projects →</Link>
+      </p>
       {query.isPending ? (
         <p className="loading-copy">Loading Workflow catalog…</p>
       ) : query.error !== null ? (
@@ -365,7 +372,7 @@ function QuickStartPanel({
                 <code>@{workflow.ref.version}</code>
               </span>
               <small>{workflowContractSummary(workflow)}</small>
-              <em>Configure and run →</em>
+              <em>Inspect workflow →</em>
             </Link>
           ))}
         </div>
@@ -403,6 +410,12 @@ export function HomeRoute() {
   const { session } = useSession();
   const operationsAuthorized =
     session?.principal.capabilities.includes("operations") === true;
+  const api = usePublicAPI();
+  const admission = useQuery({
+    queryKey: queryKeys.queue.control,
+    queryFn: () => getOwnerQueueControl(api),
+    refetchInterval: 10000,
+  });
   const recent = useRecentRuns();
   const initializing = useActiveRun("initializing");
   const running = useActiveRun("running");
@@ -433,6 +446,7 @@ export function HomeRoute() {
 
   function refresh(): void {
     const refreshes: Array<Promise<unknown>> = [
+      admission.refetch(),
       recent.refetch(),
       ...activeQueries.map((query) => query.refetch()),
       workflows.refetch(),
@@ -471,6 +485,26 @@ export function HomeRoute() {
         </div>
       </header>
 
+      <div
+        className={`notice ${admission.data?.paused ? "notice-warning" : ""}`}
+        role="status"
+      >
+        <strong>
+          {admission.isPending
+            ? "Checking queue admission…"
+            : admission.error
+              ? "Queue admission unavailable"
+              : admission.data.paused
+                ? "Queue paused"
+                : "Queue admission open"}
+        </strong>
+        <p>
+          {admission.data?.paused
+            ? "New stage attempts are paused for your Runs. Idle Runtime slots do not bypass this pause."
+            : "Queue admission and Runtime health are independent. Check the queue for current work."}{" "}
+          <Link to="/runs">Open queue →</Link>
+        </p>
+      </div>
       <section className="action-metric-grid" aria-label="Current overview">
         <Link className="action-metric-card" to="/runs">
           <span>Active Runs</span>
@@ -478,7 +512,7 @@ export function HomeRoute() {
           <small>initializing, running, cancelling</small>
         </Link>
         <Link
-          className={`action-metric-card ${recentFailures !== undefined && recentFailures > 0 ? "metric-attention" : ""}`}
+          className={`action-metric-card ${recent.data?.items.some((run) => run.state === "failed" && recent.dataUpdatedAt - Date.parse(run.finishedAt ?? run.updatedAt) < 86400000) ? "metric-attention" : ""}`}
           to="/runs?view=completed&state=failed"
         >
           <span>Recent failures</span>

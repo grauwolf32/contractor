@@ -1,3 +1,5 @@
+import { RecordedTime } from "../../app/recorded-time";
+import "./collection.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -17,11 +19,7 @@ import {
 import { queryKeys } from "../../api/query-keys";
 import { DeleteIcon } from "../../app/delete-icon";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls, ErrorNotice } from "../artifacts/common";
 import { DeleteProjectDialog } from "./deletion";
 
 interface ProjectCollectionPresentation {
@@ -214,12 +212,8 @@ function ProjectCollectionRoute({
               className={`panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
               key={project.projectId}
             >
-              <div className="project-card-mark" aria-hidden="true">
-                {presentation.cardMark}
-              </div>
               <div>
                 <p className="eyebrow project-card-eyebrow">
-                  {presentation.cardEyebrow}
                   {project.lifecycle === "deleting" ? (
                     <span>Deletion in progress</span>
                   ) : null}
@@ -240,12 +234,18 @@ function ProjectCollectionRoute({
               <dl className="project-card-meta">
                 <div>
                   <dt>Updated</dt>
-                  <dd>{formatTimestamp(project.updatedAt)}</dd>
+                  <dd>
+                    <RecordedTime value={project.updatedAt} />
+                  </dd>
                 </div>
                 <div>
                   <dt>ID</dt>
                   <dd>
-                    <code>{project.projectId}</code>
+                    <code title={project.projectId}>
+                      {project.projectId.length > 24
+                        ? `${project.projectId.slice(0, 12)}…${project.projectId.slice(-8)}`
+                        : project.projectId}
+                    </code>
                   </dd>
                 </div>
               </dl>
@@ -326,7 +326,7 @@ export function ProjectListRoute() {
         kind: "project",
         heading: "Projects",
         pageEyebrow: "Reusable workspaces",
-        lede: "Group reusable inputs, generated outputs, and related Workflow Runs without changing their exact Artifact provenance.",
+        lede: "Keep source materials, analysis results and related Runs in one workspace.",
         createLabel: "New Project",
         createHeading: "Create Project",
         collectionHeading: "Workspaces",

@@ -3,8 +3,8 @@ id: V58-005
 title: Clarify Audit coverage and bring finding decisions into context
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 640b48902b5b7a03d3b59c106e601f6c22f4a9b7
 depends_on:
 - V58-002
 - V58-003

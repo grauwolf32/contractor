@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { listProjectAudits } from "../../api/audits";
 import { listProjectArtifacts } from "../../api/project-artifacts";
+import { ProjectFindingSummary } from "./review-summary";
 import { listProjectRuns, type Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { getRun, type RunSummary } from "../../api/runs";
@@ -163,13 +164,62 @@ export function ProjectOverview({ project }: { project: Project }) {
   });
   const materials = useQuery({
     queryKey: [...queryKeys.projects.artifacts.all(projectId), "overview"],
-    queryFn: () => listProjectArtifacts(api, { projectId, limit: 3 }),
+    queryFn: () => listProjectArtifacts(api, { projectId, limit: 5 }),
   });
+  const sourceMaterials = useQuery({
+    queryKey: [
+      ...queryKeys.projects.artifacts.all(projectId),
+      "overview-sources",
+    ],
+    queryFn: () =>
+      listProjectArtifacts(api, { projectId, namespace: "sources", limit: 3 }),
+  });
+  const materialItems = [
+    ...new Map(
+      [
+        ...(sourceMaterials.data?.items ?? []),
+        ...(materials.data?.items ?? []),
+      ].map((item) => [
+        `${item.artifact.namespace}/${item.artifact.name}`,
+        item,
+      ]),
+    ).values(),
+  ];
   const empty =
     materials.isSuccess &&
     materials.data.items.length === 0 &&
     !materials.data.page.hasMore;
-  const queries = [recent, successful, audits, decisions, materials];
+
+  const materialGroups = [
+    {
+      label: "Sources",
+      matches: (namespace: string, mediaType: string) =>
+        ["source", "sources"].includes(namespace) ||
+        (mediaType === "application/zip" && namespace !== "outputs"),
+    },
+    {
+      label: "Results",
+      matches: (namespace: string) => namespace === "outputs",
+    },
+    { label: "Documents and other inputs", matches: () => true },
+  ];
+  const groupedMaterials = materialGroups.map((group, index) => ({
+    ...group,
+    items: materialItems.filter(
+      (item) =>
+        materialGroups.findIndex((candidate) =>
+          candidate.matches(item.artifact.namespace, item.mediaType),
+        ) === index,
+    ),
+  }));
+  const queries = [
+    recent,
+    successful,
+    audits,
+    decisions,
+    materials,
+    sourceMaterials,
+  ];
   return (
     <section className="project-overview-section">
       <header className="section-heading">
@@ -192,8 +242,14 @@ export function ProjectOverview({ project }: { project: Project }) {
       </header>
       <div className="project-overview-grid">
         <div className="project-overview-stack">
-          <section className="panel project-overview-attention">
-            <p className="eyebrow">Needs your attention</p>
+          <section
+            className={`panel ${decisions.data?.items.length ? "project-overview-attention" : ""}`}
+          >
+            <p className="eyebrow">
+              {decisions.data?.items.length
+                ? "Needs your attention"
+                : "Next steps"}
+            </p>
             {decisions.isPending ? (
               <p className="loading-copy">Checking Audit decisions…</p>
             ) : decisions.error ? (
@@ -243,6 +299,10 @@ export function ProjectOverview({ project }: { project: Project }) {
                 </Link>
               </>
             )}
+            <ProjectFindingSummary
+              projectId={projectId}
+              audits={audits.data?.items ?? []}
+            />
           </section>
           <section className="panel">
             <div className="project-overview-heading">
@@ -308,6 +368,12 @@ export function ProjectOverview({ project }: { project: Project }) {
               <Link to={`${root}/settings`}>Settings →</Link>
             </div>
             <p className="eyebrow">Materials</p>
+            {sourceMaterials.error ? (
+              <p className="muted-copy">
+                Source summary unavailable. Open all artifacts to review
+                materials.
+              </p>
+            ) : null}
             {materials.isPending ? (
               <p className="loading-copy">Loading materials…</p>
             ) : materials.error ? (
@@ -316,24 +382,35 @@ export function ProjectOverview({ project }: { project: Project }) {
               <p className="compact-empty">No materials added yet.</p>
             ) : (
               <>
-                {materials.data.items.map((item) => (
-                  <div
-                    className="project-overview-file"
-                    key={`${item.artifact.namespace}/${item.artifact.name}`}
-                  >
-                    <ContextLink
-                      returnLabel="Project Overview"
-                      to={`${root}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}?revision=${encodeURIComponent(item.artifact.revision)}`}
-                    >
-                      <strong>
-                        {item.artifact.namespace}/{item.artifact.name}
-                      </strong>
-                      <small>
-                        {workflowFormats[item.mediaType] ?? item.mediaType}
-                      </small>
-                    </ContextLink>
-                  </div>
-                ))}
+                {groupedMaterials
+                  .filter((group) => group.items.length > 0)
+                  .map((group) => (
+                    <div className="project-material-group" key={group.label}>
+                      <h4>
+                        {group.label}{" "}
+                        <small>({group.items.length} shown)</small>
+                      </h4>
+                      {group.items.slice(0, 3).map((item) => (
+                        <div
+                          className="project-overview-file"
+                          key={`${item.artifact.namespace}/${item.artifact.name}`}
+                        >
+                          <ContextLink
+                            returnLabel="Project Overview"
+                            to={`${root}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}?revision=${encodeURIComponent(item.artifact.revision)}`}
+                          >
+                            <strong>
+                              {item.artifact.namespace}/{item.artifact.name}
+                            </strong>
+                            <small>
+                              {workflowFormats[item.mediaType] ??
+                                item.mediaType}
+                            </small>
+                          </ContextLink>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 <Link className="project-summary-link" to={`${root}/artifacts`}>
                   All artifacts →
                 </Link>

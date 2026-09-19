@@ -86,7 +86,10 @@ describe("Project routes", () => {
     const summaries = requests.filter((url) =>
       /\/(runs|audits|artifacts)$/.test(url.pathname),
     );
-    expect(summaries).toHaveLength(5);
+    expect(summaries).toHaveLength(6);
+    expect(
+      summaries.some((url) => url.searchParams.get("namespace") === "sources"),
+    ).toBe(true);
     expect(
       summaries.every((url) => Number(url.searchParams.get("limit")) <= 5),
     ).toBe(true);

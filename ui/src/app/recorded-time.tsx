@@ -1,0 +1,26 @@
+import { formatTimestamp } from "../routes/artifacts/common";
+import { useEffect, useState } from "react";
+
+export function RecordedTime({ value }: { value: string }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = (Date.parse(value) - now) / 1000;
+  const magnitude = Math.abs(seconds);
+  const unit =
+    magnitude >= 86400 ? "day" : magnitude >= 3600 ? "hour" : "minute";
+  const divisor = unit === "day" ? 86400 : unit === "hour" ? 3600 : 60;
+  const exact = `${formatTimestamp(value)} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+  return (
+    <time dateTime={value} title={exact}>
+      {Number.isFinite(seconds)
+        ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
+            Math.round(seconds / divisor),
+            unit,
+          )
+        : "Unknown date"}
+    </time>
+  );
+}

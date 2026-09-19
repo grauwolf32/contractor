@@ -3,7 +3,7 @@ id: V58-006
 title: Focus Home and Project overview on current actionable work
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-002
@@ -54,3 +54,8 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 17 tests passed across Home, Project routes and bounded inventory behavior; targeted ESLint, TypeScript and production build passed.
+- 6 live browser states at 1440 and 390 px had no overflow, JavaScript errors or writes.
+- Verified paused queue, historical failure ages, 1 unreviewed finding in 3 recent audits, and the source archive in Project context.
