@@ -3,7 +3,7 @@ id: "V46-004"
 title: "Navigate to the previous Catalog result page independently of browser history"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 depends_on: ["V37-007"]
 languages: ["typescript"]
 goal: >-
@@ -16,7 +16,12 @@ context:
     - "ui/src/routes/catalog/query-state.ts: useCatalogQueryState.previousPage"
     - "ui/src/routes/catalog/agent-detail.tsx: return Link and usage pagination"
     - "ui/src/routes/catalog/agents.tsx: Catalog cursor controls"
-    - "ui/src/routes/workflows: Workflow Catalog cursor controls"
+    - "ui/src/routes/workflows: Workflow family cards and Catalog return context"
+  current_ui: >-
+    Workflow discovery now reads all inventory pages and groups versions into
+    family cards, without result-page controls. Preserve its search and return
+    state without reintroducing per-version pagination. Agent discovery and
+    exact Agent usage still require cursor-based Previous navigation.
   reproduction: >-
     Open Catalog page 1, advance to page 2, open an item, use the item's return
     link to restore page 2, then click Previous. The return link pushes the list
@@ -48,9 +53,9 @@ requirements:
       or use browser history as a substitute.
 acceptance_criteria:
   - id: "A1"
-    given: "Page 2 or later of Agents or Workflows, followed by an item visit and its explicit return link."
-    when: "The user clicks Previous."
-    then: "The preceding result page opens with its query and cursor intact; item details are not reopened."
+    given: "Page 2 or later of Agents, or filtered Workflow families, followed by an item visit and its explicit return link."
+    when: "The user returns to the Catalog and, where paginated, clicks Previous."
+    then: "The original search and return state are preserved; paginated results open the preceding page with its cursor intact instead of reopening item details."
   - id: "A2"
     given: "A directly opened paginated URL, changed query, or browser Back/Forward navigation."
     when: "The user inspects pagination controls or navigates among result pages."

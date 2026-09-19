@@ -85,7 +85,11 @@ export function AgentListRoute() {
                 className="panel catalog-agent-card"
                 key={`${item.ref.name}@${item.ref.version}:${item.ref.digest}`}
                 to={agentPath(item.ref.name, item.ref.version)}
-                state={{ returnTo, returnLabel: "Agent search" }}
+                state={{
+                  returnTo,
+                  returnLabel: "Agent search",
+                  returnState: location.state,
+                }}
               >
                 <div className="catalog-agent-identity">
                   <strong>{item.ref.name}</strong>
@@ -122,6 +126,7 @@ export function AgentListRoute() {
             : {})}
           onBack={state.previousPage}
           onNext={state.nextPage}
+          {...(state.isFirstPage ? {} : { onFirst: state.firstPage })}
         />
       )}
     </section>

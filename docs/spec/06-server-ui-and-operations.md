@@ -91,6 +91,15 @@ instructions, prompt text or invocation content. A missing exact template is
 `404`; an existing template with no consumers returns an empty successful
 page.
 
+Agent discovery and exact Agent usage keep predecessor cursors for the same
+route and filters in page navigation state. Item links and explicit return links
+preserve that state, so Previous opens the preceding result page independently
+of browser history. Browser Back/Forward restores each visited page's cursor
+context. Changing the search or Agent version resets pagination. A directly
+opened later page with no known predecessor disables Previous and offers First
+page for the same query. Workflow family discovery shows the complete inventory
+described below; its detail links preserve search and return context.
+
 The UI supports an extensible catalog of security checks and supporting analyses.
 Project artifact tiles may provide familiar OpenAPI, LikeC4, source, documentation
 and diff icons, but they are shortcuts over arbitrary ArtifactRefs rather than

@@ -1,21 +1,19 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
+
+import {
+  useCatalogCursorState,
+  withoutCatalogPagination,
+} from "./cursor-state";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
-function pageNumber(raw: string | null): number {
-  if (raw === null || !/^[1-9][0-9]*$/.test(raw)) return 1;
-  const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) ? parsed : 1;
-}
-
 export function useCatalogQueryState() {
-  const navigate = useNavigate();
+  const location = useLocation();
+  const pagination = useCatalogCursorState();
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const committedSearch = searchParams.get("q") ?? "";
-  const cursor = searchParams.get("cursor") ?? undefined;
-  const page = pageNumber(searchParams.get("page"));
   const [draft, setDraft] = useState({
     base: committedSearch,
     value: committedSearch,
@@ -32,10 +30,19 @@ export function useCatalogQueryState() {
       else next.set("q", normalized);
       next.delete("cursor");
       next.delete("page");
-      setSearchParams(next, { replace: true });
+      setSearchParams(next, {
+        replace: true,
+        state: withoutCatalogPagination(location.state),
+      });
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [committedSearch, draftSearch, serializedSearchParams, setSearchParams]);
+  }, [
+    committedSearch,
+    draftSearch,
+    serializedSearchParams,
+    setSearchParams,
+    location.state,
+  ]);
 
   function changeDraftSearch(value: string): void {
     if (Array.from(value).length <= 200) {
@@ -43,21 +50,10 @@ export function useCatalogQueryState() {
     }
   }
 
-  function nextPage(nextCursor: string): void {
-    const next = new URLSearchParams(searchParams);
-    next.set("cursor", nextCursor);
-    next.set("page", String(page + 1));
-    setSearchParams(next);
-  }
-
   return {
+    ...pagination,
     committedSearch,
-    cursor,
     draftSearch,
-    page,
-    canGoBack: cursor !== undefined && page > 1,
     changeDraftSearch,
-    nextPage,
-    previousPage: () => void navigate(-1),
   };
 }

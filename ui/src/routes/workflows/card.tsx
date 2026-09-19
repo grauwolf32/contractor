@@ -44,6 +44,7 @@ export function WorkflowCard({
   matching,
   onConfigure,
   returnTo,
+  returnState,
 }: {
   workflow: WorkflowSummary;
   versions: WorkflowSummary[];
@@ -51,11 +52,12 @@ export function WorkflowCard({
   matching?: WorkflowCompatibility;
   onConfigure?: () => void;
   returnTo?: string;
+  returnState?: unknown;
 }) {
   const heading = useId();
   const selector = workflowSelector(workflow);
   const route = `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`;
-  const state = { returnTo, returnLabel: "Workflow search" };
+  const state = { returnTo, returnLabel: "Workflow search", returnState };
   const latest = versions.every((w) => /^\d+(?:\.\d+)*$/.test(w.ref.version));
   const ambiguous =
     matching &&

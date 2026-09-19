@@ -485,6 +485,41 @@ describe("Workflow overview and Run drawer", () => {
 });
 
 describe("Workflow routes", () => {
+  it.each([workflowDisplayName, "View workflow"])(
+    "preserves Workflow search and return state through the %s link",
+    async (linkName) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const path = new URL(request.url).pathname;
+          if (path === "/v1/auth/session") return apiResponse(session);
+          if (path === workflowEndpoint) return apiResponse(workflow);
+          const inventory = inventoryResponse(path);
+          if (inventory !== undefined) return inventory;
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      const path = "/catalog/workflows?q=openapi&keep=yes";
+      const { router } = renderWorkflowApplication(api, path);
+      const returnState = { from: "catalog-navigation" };
+      await act(async () => {
+        await router.navigate(path, { replace: true, state: returnState });
+      });
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("link", { name: linkName }));
+      await user.click(
+        await screen.findByRole("link", { name: /Workflow search/ }),
+      );
+      expect(router.state.location.pathname).toBe("/catalog/workflows");
+      expect(router.state.location.search).toBe("?q=openapi&keep=yes");
+      expect(router.state.location.state).toEqual(returnState);
+      expect(await screen.findByLabelText("Search workflows")).toHaveValue(
+        "openapi",
+      );
+    },
+  );
+
   it.each([
     { projectId: undefined, resolveBeforeReplacement: false },
     { projectId: "project_example", resolveBeforeReplacement: false },

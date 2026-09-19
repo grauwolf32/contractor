@@ -90,6 +90,7 @@ export function WorkflowListRoute() {
               versions={versions}
               onVersion={(version) => selectVersion(name, version)}
               returnTo={locationDestination(location)}
+              returnState={location.state}
             />
           ))}
         </div>

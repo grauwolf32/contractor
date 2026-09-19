@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -49,6 +49,8 @@ function setup(
     failPrompt?: boolean;
     failAgentList?: boolean;
     slowSearch?: string;
+    paginated?: boolean;
+    paginatedUsage?: boolean;
   } = {},
 ) {
   const abortedSearches: string[] = [];
@@ -75,7 +77,10 @@ function setup(
                 logicalWorker: "builder",
               },
         ],
-        page: { hasMore: false },
+        page:
+          options.paginatedUsage && !url.searchParams.has("cursor")
+            ? { hasMore: true, nextCursor: "usage-next" }
+            : { hasMore: false },
       };
     } else if (url.pathname.endsWith("/instructions")) {
       body = {
@@ -162,6 +167,17 @@ function setup(
               ? { hasMore: true, nextCursor: "versions-next" }
               : { hasMore: false },
         };
+        if (options.paginated && exactName === null) {
+          body = {
+            items: [configuration(versionCursor === "catalog-2" ? "2" : "1")],
+            page:
+              versionCursor === null
+                ? { hasMore: true, nextCursor: "catalog-2" }
+                : versionCursor === "catalog-2"
+                  ? { hasMore: true, nextCursor: "catalog-3" }
+                  : { hasMore: false },
+          };
+        }
       }
     }
     return new Response(JSON.stringify(body), {
@@ -198,6 +214,188 @@ function setup(
 }
 
 describe("Catalog", () => {
+  it("learns only visited predecessors after opening a later page directly", async () => {
+    const user = userEvent.setup();
+    const { router } = setup(
+      "/catalog/agents?q=researcher&cursor=catalog-2&page=4",
+      { paginated: true },
+    );
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Page 5");
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Previous" }));
+    await screen.findByText("Page 4");
+    expect(router.state.location.search).toBe(
+      "?q=researcher&cursor=catalog-2&page=4",
+    );
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+  });
+
+  it("does not reuse cursor history for changed filters or another Agent context", async () => {
+    const user = userEvent.setup();
+    const { router } = setup("/catalog/agents?q=researcher", {
+      paginated: true,
+      paginatedUsage: true,
+    });
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    const previousState = router.state.location.state;
+    await act(async () => {
+      await router.navigate(
+        "/catalog/agents?q=changed&cursor=catalog-2&page=2",
+        { state: previousState },
+      );
+    });
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+    await act(async () => {
+      await router.navigate(
+        "/catalog/agents/researcher/1?usageCursor=usage-next&usagePage=2",
+      );
+    });
+    await user.click(await screen.findByRole("button", { name: "First page" }));
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    const usageState = router.state.location.state;
+    await act(async () => {
+      await router.navigate(
+        "/catalog/agents/researcher/2?usageCursor=usage-next&usagePage=2",
+        { state: usageState },
+      );
+    });
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "First page" })).toBeEnabled();
+  });
+
+  it("returns through actual preceding Agent pages after a detail visit and browser navigation", async () => {
+    const user = userEvent.setup();
+    const { router } = setup("/catalog/agents?q=researcher&keep=yes", {
+      paginated: true,
+    });
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 3");
+    await user.click(
+      await screen.findByRole("link", { name: /Inspect exact version/ }),
+    );
+    await user.click(await screen.findByRole("link", { name: /Agent search/ }));
+    await screen.findByText("Page 3");
+    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    expect(router.state.location.pathname).toBe("/catalog/agents");
+    expect(
+      new URLSearchParams(router.state.location.search).get("cursor"),
+    ).toBe("catalog-2");
+    await screen.findByText("Page 2");
+    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    await screen.findByText("Page 1");
+    expect(router.state.location.search).toBe("?q=researcher&keep=yes");
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    await screen.findByText("Page 2");
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeEnabled();
+    await act(async () => {
+      await router.navigate(1);
+    });
+    await screen.findByText("Page 1");
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+  });
+
+  it("disables unknown predecessors on direct links and offers the same query's first page", async () => {
+    const user = userEvent.setup();
+    const { router } = setup(
+      "/catalog/agents?q=researcher&keep=yes&cursor=external&page=4",
+      { paginated: true },
+    );
+    await screen.findByText("Page 4");
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "First page" }));
+    await screen.findByText("Page 1");
+    expect(router.state.location.search).toBe("?q=researcher&keep=yes");
+  });
+
+  it("resets cursor history when the search changes", async () => {
+    const user = userEvent.setup();
+    const { router } = setup("/catalog/agents?keep=yes", { paginated: true });
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    await user.type(screen.getByLabelText("Search agents"), "researcher");
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?keep=yes&q=researcher"),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    expect(router.state.location.search).toBe("?keep=yes&q=researcher");
+  });
+
+  it("preserves Agent usage cursors through Workflow visits and resets them for another version", async () => {
+    const user = userEvent.setup();
+    const { router } = setup("/catalog/agents/researcher/1", {
+      paginatedUsage: true,
+    });
+    const usage = () =>
+      within(screen.getByRole("region", { name: "Where used" }));
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    await user.click(
+      await usage().findByRole("link", { name: "openapi-from-source@1" }),
+    );
+    await user.click(await screen.findByRole("link", { name: /researcher@1/ }));
+    await screen.findByText("Page 2");
+    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    expect(router.state.location.pathname).toBe("/catalog/agents/researcher/1");
+    expect(router.state.location.search).toBe("");
+    await user.click(await screen.findByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2");
+    await user.click(
+      screen.getByRole("button", { name: "Load more versions" }),
+    );
+    await screen.findByRole("option", { name: "2" });
+    await user.selectOptions(screen.getByLabelText("Published version"), "2");
+    await screen.findByText("Page 1");
+    expect(router.state.location.pathname).toBe("/catalog/agents/researcher/2");
+    expect(router.state.location.search).toBe("");
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+  });
+
+  it("offers the first usage page when an Agent usage URL is opened directly", async () => {
+    const user = userEvent.setup();
+    const { router } = setup(
+      "/catalog/agents/researcher/1?usageCursor=external&usagePage=4",
+      { paginatedUsage: true },
+    );
+    await screen.findByText("Page 4");
+    expect(
+      await screen.findByRole("button", { name: "Previous" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "First page" }));
+    await screen.findByText("Page 1");
+    expect(router.state.location.search).toBe("");
+  });
+
   it("groups navigation and lists exact agent versions for ordinary users", async () => {
     setup("/catalog/agents");
     const links = await screen.findAllByRole("link", {

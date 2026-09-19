@@ -1,12 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useMemo, useState } from "react";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import {
   agentPath,
@@ -25,15 +19,13 @@ import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "../../api/workflows";
 import { CursorControls, ErrorNotice } from "../artifacts/common";
 import { ConfigurationBodyView } from "../operations/llm-configurations/body";
 import { catalogReturnState, locationDestination } from "./navigation";
+import {
+  useCatalogCursorState,
+  withoutCatalogPagination,
+} from "./cursor-state";
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
 const INITIAL_CURSOR = null;
-
-function cursorPage(raw: string | null): number {
-  if (raw === null || !/^[1-9][0-9]*$/.test(raw)) return 1;
-  const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) ? parsed : 1;
-}
 
 function AgentVersionSelector({
   resource,
@@ -77,7 +69,7 @@ function AgentVersionSelector({
           value={resource.ref.version}
           onChange={(event) =>
             void navigate(agentPath(resource.ref.name, event.target.value), {
-              state: location.state,
+              state: withoutCatalogPagination(location.state),
             })
           }
         >
@@ -229,11 +221,9 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
 
 function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   const api = usePublicAPI();
-  const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const cursor = searchParams.get("usageCursor") ?? undefined;
-  const page = cursorPage(searchParams.get("usagePage"));
+  const pagination = useCatalogCursorState("usageCursor", "usagePage");
+  const { cursor, page } = pagination;
   const query = useQuery({
     queryKey: [
       "catalog",
@@ -251,13 +241,6 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
         { ...(cursor === undefined ? {} : { cursor }), signal },
       ),
   });
-
-  function nextPage(nextCursor: string): void {
-    const next = new URLSearchParams(searchParams);
-    next.set("usageCursor", nextCursor);
-    next.set("usagePage", String(page + 1));
-    setSearchParams(next, { state: location.state });
-  }
 
   return (
     <section
@@ -309,13 +292,14 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
       {query.data === undefined ? null : (
         <CursorControls
           label="Agent usage pages"
-          canGoBack={cursor !== undefined && page > 1}
+          canGoBack={pagination.canGoBack}
           {...(query.data.page.hasMore &&
           query.data.page.nextCursor !== undefined
             ? { nextCursor: query.data.page.nextCursor }
             : {})}
-          onBack={() => void navigate(-1)}
-          onNext={nextPage}
+          onBack={pagination.previousPage}
+          onNext={pagination.nextPage}
+          {...(pagination.isFirstPage ? {} : { onFirst: pagination.firstPage })}
         />
       )}
     </section>
