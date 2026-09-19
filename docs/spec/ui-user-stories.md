@@ -201,9 +201,13 @@ repeated and failed Runs shown explicitly. Missing metrics are not zero; a
 successful Run alone does not imply high quality. Quality assessment requires
 an explicitly selected evaluator or a human decision.
 
-**Separate phase:** V38-001 first defines the product and API contract and breaks
-down the implementation. Existing grouping of ordinary Runs by `eval.*` labels
-remains supported; completing V37 does not mean this story is complete.
+**Selected design, implementation pending:** V38-001 defines the
+[full browser journey](../evals-experience-design.md): configure, prepare, start,
+review and compare experiments. [Spec 29](29-managed-evals.md) keeps native
+Contractor execution independent of Playground, which can import data and drive
+external experiments through the same public API. V38-002 through V38-010 own
+implementation and verification. Existing grouping of ordinary Runs by `eval.*`
+labels remains supported; completing V37 or this design does not complete US-10.
 
 ### US-11 — Monitor and configure execution
 
@@ -261,7 +265,8 @@ and verification commands.
 | 3 | [V37-010](../../tasks/v37-010-audit-review-workspace.yml) | Audit summary and decision work queue | UX-09 |
 | 3 | [V37-011](../../tasks/v37-011-operations-progressive-forms.yml) | Operations overview, forms opened by action and the impact of changes | UX-10 |
 | V37 acceptance | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
-| Separate phase | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Experiment contract and Evals implementation tasks | UX-11 / US-10 |
+| Separate design | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Selected native experiment and independent producer contract | UX-11 / US-10 |
+| Planned implementation | [V38-002–010](../evals-experience-design.md#implementation-plan-and-closure-of-the-design-task) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
 
 The implemented sequence began with independent Dialog and Project actions,
 then added draft continuity, confirmations and input review. V37-006 added the

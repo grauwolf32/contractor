@@ -1,0 +1,109 @@
+schema_version: "1.0"
+id: "V38-007"
+title: "Build dataset authoring and full native experiment setup in Evals"
+milestone: "managed-evals-ui"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+implementation_repository: "contractor"
+depends_on: ["V38-006"]
+languages: ["typescript"]
+goal: >-
+  Let users author/import cases, configure A/B variants, review readiness and start or control
+  native experiments entirely in the Contractor UI.
+context:
+  specification: >-
+    docs/spec/29-managed-evals.md
+  design: >-
+    docs/evals-experience-design.md
+  format: >-
+    docs/spec/26-portable-evaluation-format.md
+  user_story: >-
+    US-10 in docs/spec/ui-user-stories.md
+  boundary: >-
+    Contractor builds and runs native Evals without Playground. Server and external control
+    modes are immutable and mutually exclusive for dispatch. Both submit ordinary Runs/Audits
+    through existing services; no new Worker Scheduler or label-based membership authority. The
+    delivered portable CLI format and private recovery journals remain compatible.
+  verification: >-
+    Create the named focused test files/packages as part of implementation. PostgreSQL commands
+    require a disposable database and must not pass by skipping integration cases. Use
+    deterministic fixtures; these tasks do not authorize paid models, live targets, tighter
+    global token defaults or shared-demo mutations.
+  locations: >-
+    Contractor UI: new ui/src/routes/evals modules and ui/src/routes/evals-setup.test.tsx,
+    shared route/navigation components, generated public API client and
+    ui/e2e/evals-setup.spec.ts. Reuse current Catalog selection, Project inputs, Dialog and tab
+    styles.
+scope:
+  in:
+    - >-
+      Add /evals/new and /evals/datasets; four setup steps are variants, cases/inputs,
+      assessment/repetitions and readiness. Save drafts with server CAS and restore after
+      reload; author/import immutable dataset revisions with provenance and explicit private
+      check/rubric separation.
+    - >-
+      Select latest available compatible catalog versions for new draft convenience, visibly
+      retain exact choices and pin on Prepare. Display expected cases x two variants x repeats,
+      input-role/capability issues, equality-pin coverage and explicit budgets before separate
+      Start.
+    - >-
+      Provide native overview/setup frame and Start/Pause/Resume/Cancel/Duplicate controls with
+      durable command polling and idempotent timeout recovery. Externally controlled experiments
+      show source/freshness and inspection, not controls claiming to stop the runner.
+  out:
+    - >-
+      Playground embedded service/browser fetches, model launches on page load or Prepare,
+      automatic token limit tightening, full comparison table owned by V38-008 and storing
+      private eval data in browser local storage.
+requirements:
+  - id: "R1"
+    text: >-
+      A stale draft/readiness result cannot launch an unseen plan. Timeout recovery reuses the
+      original key/body and polls its command; user navigation or browser restart cannot submit
+      duplicate members.
+  - id: "R2"
+    text: >-
+      Exact inputs and supported check choices are editable before prepare. Hidden review/check
+      material is excluded from Run input selection, generic previews and persisted browser
+      drafts. Draft edits invalidate readiness; frozen edits require Duplicate.
+  - id: "R3"
+    text: >-
+      Use current shared UI patterns with keyboard focus, labelled errors and 390px/1280px
+      layouts. Show unknown support/pins truthfully and no false completion for
+      pausing/cancelling/draining states.
+acceptance_criteria:
+  - id: "A1"
+    given: >-
+      A user authors/imports two cases and selects exact A/B variants with repetitions.
+    when: >-
+      They leave/reload the wizard, prepare and review Start.
+    then: >-
+      The draft survives, latest is resolved visibly only for fresh selection, the matrix
+      count/pins remain exact, and zero Runs start before the explicit Start command.
+  - id: "A2"
+    given: >-
+      An accepted launch with lost response plus stale CAS and unavailable inputs.
+    when: >-
+      The user returns, retries, pauses/resumes or duplicates.
+    then: >-
+      The same receipt recovers, errors offer concrete repair, budgets do not reset and external
+      mode never exposes native dispatch controls.
+  - id: "A3"
+    given: >-
+      Desktop, mobile and keyboard-only fixture users.
+    when: >-
+      They complete setup and dismiss cancellation dialogs.
+    then: >-
+      Fields, evidence of readiness and primary actions remain usable; focus returns correctly
+      and dismissed actions cause zero mutations.
+tests:
+  - name: "ui"
+    command: >-
+      cd ui && corepack pnpm exec vitest run src/routes/evals-setup.test.tsx && corepack pnpm
+      typecheck && corepack pnpm lint && corepack pnpm build
+    covers: ["A1", "A2", "A3"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/evals-setup.spec.ts
+    covers: ["A1", "A2", "A3"]

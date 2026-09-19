@@ -1,0 +1,117 @@
+schema_version: "1.0"
+id: "V38-010"
+title: "Verify native Evals independence and the full external producer journey"
+milestone: "managed-evals-ui"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+implementation_repository: "contractor"
+depends_on: ["V38-008", "V38-009"]
+languages: ["go", "typescript", "python", "markdown"]
+goal: >-
+  Close US-10 with reproducible full UI and external-client evidence, including restart,
+  ownership, completeness and deletion faults.
+context:
+  specification: >-
+    docs/spec/29-managed-evals.md
+  design: >-
+    docs/evals-experience-design.md
+  format: >-
+    docs/spec/26-portable-evaluation-format.md
+  user_story: >-
+    US-10 in docs/spec/ui-user-stories.md
+  boundary: >-
+    Contractor builds and runs native Evals without Playground. Server and external control
+    modes are immutable and mutually exclusive for dispatch. Both submit ordinary Runs/Audits
+    through existing services; no new Worker Scheduler or label-based membership authority. The
+    delivered portable CLI format and private recovery journals remain compatible.
+  verification: >-
+    Create the named focused test files/packages as part of implementation. PostgreSQL commands
+    require a disposable database and must not pass by skipping integration cases. Use
+    deterministic fixtures; these tasks do not authorize paid models, live targets, tighter
+    global token defaults or shared-demo mutations.
+  locations: >-
+    Contractor: add make test-evals over focused unit/PostgreSQL/process checks, extend
+    tests/e2e or the existing test-ui-stack harness with deterministic managed Evals fixtures,
+    and add docs/testing/evals-release-gate.md. Reuse browser suites from V38-007/008. Optional
+    Playground compatibility evidence is a separate client gate.
+scope:
+  in:
+    - >-
+      Run a real disposable Contractor Server/database/UI stack without Playground installed or
+      reachable. Author cases, prepare/start the 8-member fixture, restart the Server/browser,
+      review and compare exact retained outputs with no live models.
+    - >-
+      Use an independent minimal standard HTTP client, with no Playground imports, to register
+      external members, replay submissions, submit attributed assessments, finalize and read the
+      same UI/report. Separately record optional Playground client evidence.
+    - >-
+      Exercise lease/command/Audit-suboperation faults, cancellation/deletion fences,
+      unavailable evidence/usage, conflicts, failed checks, foreign owners, private truth
+      sentinels, large pagination and both desktop/mobile keyboard journeys. Update story/spec
+      status with actual measured evidence.
+  out:
+    - >-
+      Paid models/targets, V40 instruction quality verdicts, synthetic UX scores, silently
+      claiming every producer/scorer supported and shared-demo deployment without a separate
+      request.
+requirements:
+  - id: "R1"
+    text: >-
+      Process evidence and mocked-browser evidence are labelled separately. The gate must fail
+      if required PostgreSQL/process cases skip or a native path imports/calls Playground.
+      Include ordinary Workflow and Audit managed member creation.
+  - id: "R2"
+    text: >-
+      Reconcile every accepted submission before claiming cancellation or purge complete. Run
+      with multiple coordinator claim contenders and a network response-loss fixture; verify no
+      duplicate execution, stale epoch effect or reset budget.
+  - id: "R3"
+    text: >-
+      Record exact implementation commits, commands, environment and artifact evidence. Full UI
+      completion does not imply domain quality validation, V40 live readiness, support for
+      six-program dispatch or publication of new default configurations.
+acceptance_criteria:
+  - id: "A1"
+    given: >-
+      A real disposable native stack with no Playground dependency.
+    when: >-
+      The complete UI setup/start/restart/review/compare journey runs.
+    then: >-
+      All expected attempts and exact versions survive, ordinary Run/Audit services own
+      execution and the trace comparison is truthful at 390px and 1280px.
+  - id: "A2"
+    given: >-
+      An independent HTTP producer and optional Playground adapter.
+    when: >-
+      External import/register/submit/replay/assessment/finalization and ownership/fault cases
+      run.
+    then: >-
+      Both use the same API without special routing; source attribution, no-double-dispatch,
+      private-data isolation and deletion fences pass.
+  - id: "A3"
+    given: >-
+      The completed implementation and large comparison fixture.
+    when: >-
+      Required release commands and the evidence review complete.
+    then: >-
+      Queries/pages remain bounded, fault assertions pass without required skips, public clients
+      agree and docs distinguish proven UI/process behavior from unmeasured model quality.
+tests:
+  - name: "managed-release"
+    command: >-
+      test -n "$CONTRACTOR_TEST_DATABASE_URL" && make test-evals
+    covers: ["A1", "A2", "A3"]
+  - name: "ui"
+    command: >-
+      make ui-typecheck ui-lint ui-test ui-build && make verify-public-api
+    covers: ["A1", "A3"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/evals-setup.spec.ts
+      e2e/evals-comparison.spec.ts e2e/evals-skills.spec.ts
+    covers: ["A1", "A3"]
+  - name: "stack"
+    command: >-
+      test -n "$CONTRACTOR_TEST_DATABASE_URL" && make test-ui-stack
+    covers: ["A1", "A2"]

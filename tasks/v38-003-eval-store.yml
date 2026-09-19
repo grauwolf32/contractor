@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: "V38-003"
+title: "Persist owner-scoped eval datasets, plans and durable commands"
+milestone: "managed-evals-ui"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+implementation_repository: "contractor"
+depends_on: ["V38-002"]
+languages: ["go", "sql"]
+goal: >-
+  Create the authoritative native EvalStore and immutable external registration records with
+  crash-safe revisions, ownership and deletion fences.
+context:
+  specification: >-
+    docs/spec/29-managed-evals.md
+  design: >-
+    docs/evals-experience-design.md
+  format: >-
+    docs/spec/26-portable-evaluation-format.md
+  user_story: >-
+    US-10 in docs/spec/ui-user-stories.md
+  boundary: >-
+    Contractor builds and runs native Evals without Playground. Server and external control
+    modes are immutable and mutually exclusive for dispatch. Both submit ordinary Runs/Audits
+    through existing services; no new Worker Scheduler or label-based membership authority. The
+    delivered portable CLI format and private recovery journals remain compatible.
+  verification: >-
+    Create the named focused test files/packages as part of implementation. PostgreSQL commands
+    require a disposable database and must not pass by skipping integration cases. Use
+    deterministic fixtures; these tasks do not authorize paid models, live targets, tighter
+    global token defaults or shared-demo mutations.
+  locations: >-
+    Contractor: internal/evalstore, internal/evaldomain and migrations under
+    internal/persistence/postgres. Integrate the existing Project lifecycle transaction/fence
+    interfaces; coordinator side effects follow in V38-004.
+scope:
+  in:
+    - >-
+      Persist immutable dataset revisions, private rubric/check data, CAS drafts, frozen native
+      plans or external registrations, all expected members, submissions and suboperation
+      intents, commands, actor attribution and exact selected record references.
+    - >-
+      Provide bounded indexed owner reads, collection revisions, command idempotency receipts,
+      lease/epoch transitions and transaction interfaces for common submission admission. Store
+      exact bytes and their hashes, not independently mutable public manifests.
+    - >-
+      Add Project/experiment deletion fence participation and private-data purge prerequisites;
+      retain pinned dataset revisions and exact owned execution dependencies. Prepare schema
+      support for result/assessment/view generations consumed by V38-006.
+  out:
+    - >-
+      Dispatching Runs/Audits, scoring, external callbacks and deriving identity or deletable
+      dependencies from Run labels.
+requirements:
+  - id: "R1"
+    text: >-
+      Same operation key and digest replays its receipt before stale revision rejection; changed
+      body/revision under the same key conflicts. New operations recheck owner and deletion
+      fence. Portable ID uniqueness is owner/project scoped.
+  - id: "R2"
+    text: >-
+      Claims fence stale epochs, but immutable submission keys provide effect idempotency. The
+      transaction must atomically verify controlMode, lifecycle, deadline and in-flight
+      allowance before committing a submission intent.
+  - id: "R3"
+    text: >-
+      Private evaluator material stays outside ordinary model-visible artifact namespaces.
+      Plan-referenced revisions cannot disappear before experiment purge. Deletion must not
+      cascade into unrelated Runs.
+acceptance_criteria:
+  - id: "A1"
+    given: >-
+      Two owners, frozen registrations and concurrent writers in PostgreSQL.
+    when: >-
+      Creation, draft edits, replay and conflicting updates race.
+    then: >-
+      No cross-owner reads or writes occur, exactly one revision wins, replay returns the
+      original receipt, and plan bytes/expected membership remain immutable.
+  - id: "A2"
+    given: >-
+      Two claim holders and a Project deletion racing with submission admission.
+    when: >-
+      A lease expires and the old holder attempts a transition or new intent.
+    then: >-
+      Stale epochs cannot commit; deletion fences new work transactionally while retaining
+      unresolved accepted operations for recovery.
+  - id: "A3"
+    given: >-
+      Pinned revisions, private truth and many experiments.
+    when: >-
+      Indexed lists and eligible purge operations run.
+    then: >-
+      Lists are bounded before projection, cursor collection revisions are maintained,
+      referenced data is retained, and final purge removes only the intended private records.
+tests:
+  - name: "postgres"
+    command: >-
+      test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/evalstore
+      ./internal/persistence/postgres
+    covers: ["A1", "A2", "A3"]

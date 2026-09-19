@@ -46,9 +46,12 @@ cancel/drain/purge operation rather than a synchronous foreign-key cascade;
 [18](18-run-and-workspace-lifecycle-controls.md) owns its contract.
 
 `evaluation` is the same storage and execution composition with a distinct UI
-entry point. It does not create an eval-only Scheduler path. The Evals view
-uses Project kind plus the generic `purpose=eval` and `eval.*` Run-label
-convention in [16](16-run-metadata-labels.md).
+entry point. It does not create an eval-only Scheduler path. The implemented
+Evals view uses Project kind plus the generic `purpose=eval` and `eval.*` Run-label
+convention in [16](16-run-metadata-labels.md). Planned managed Evals in
+[29](29-managed-evals.md) add explicit experiments inside evaluation Projects;
+the Project remains their owner/storage container. Legacy labelled Runs remain
+inspectable and do not acquire verified experiment membership by label matching.
 
 The public Project collection is owner-isolated and supports a `kind` filter.
 The Projects UI asks for `project`; the Evals UI asks for `evaluation`.
@@ -302,8 +305,11 @@ Operations
 ```
 
 Project detail contains Overview, Artifacts and Runs plus Recommended/All
-Workflow launch surfaces. Evals renders evaluation Projects and eval-specific
-label grouping without duplicating execution APIs. Skills is a global
+Workflow launch surfaces. The current Evals view renders evaluation Projects
+and eval-specific label grouping. The planned
+[experiment journey](../evals-experience-design.md) makes experiments the Evals
+entry point while preserving legacy workspace routes and ordinary Run/Audit
+execution. Skills is a global
 owner-level view over `skills/*` UserScope artifacts and the existing
 SkillCatalog rules. A Project may show the Skills required by a candidate
 Workflow read-only, but cannot own, copy or override them.

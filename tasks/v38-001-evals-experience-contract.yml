@@ -115,8 +115,20 @@ tests:
 design_progress:
   date: "2026-09-19"
   branch: docs/v38-evals-experience
-  state: "Product direction drafted; launch ownership under user review."
+  state: "Product and ownership decisions resolved; design and planning verification passed."
   document: docs/evals-experience-design.md
-  recommendation: "Full browser setup, launch and comparison using a managed service around the existing Playground evaluator."
-  open_decision: "Managed browser launch versus CLI-owned execution with a report/comparison viewer."
-  remaining: "Resolve ownership, specify exact API/lifecycle contracts and create indexed implementation tasks before completion."
+  specification: docs/spec/29-managed-evals.md
+  decision: >-
+    Full browser setup, launch and comparison use Contractor's native experiment
+    service over ordinary Run/Audit execution. Playground is an optional independent
+    public API client/data and assessment producer; no server dependency or callback.
+    Immutable server/external control mode identifies the single dispatch owner.
+  implementation_tasks: [V38-002, V38-003, V38-004, V38-005, V38-006, V38-007, V38-008, V38-009, V38-010]
+  open_decisions: []
+  verification_result: >-
+    Worked example and 17 fault cases reviewed; arithmetic agrees with spec 26.
+    Both required test commands passed. All 336 indexed tasks form an acyclic
+    dependency graph; nine new tasks are pending with acceptance/test coverage.
+    New documentation links and API JSON examples validate. Spec 26 is unchanged.
+    Evidence is recorded in docs/evals-experience-design.md.
+  remaining: "Record the primary design completion commit; implementation remains in V38-002 through V38-010."

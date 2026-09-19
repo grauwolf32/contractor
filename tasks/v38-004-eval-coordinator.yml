@@ -1,0 +1,104 @@
+schema_version: "1.0"
+id: "V38-004"
+title: "Coordinate native evals through replay-safe Run and Audit submissions"
+milestone: "managed-evals-ui"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+implementation_repository: "contractor"
+depends_on: ["V38-003"]
+languages: ["go"]
+goal: >-
+  Run native experiments after the browser closes and provide the same durable member submission
+  service to external drivers.
+context:
+  specification: >-
+    docs/spec/29-managed-evals.md
+  design: >-
+    docs/evals-experience-design.md
+  format: >-
+    docs/spec/26-portable-evaluation-format.md
+  user_story: >-
+    US-10 in docs/spec/ui-user-stories.md
+  boundary: >-
+    Contractor builds and runs native Evals without Playground. Server and external control
+    modes are immutable and mutually exclusive for dispatch. Both submit ordinary Runs/Audits
+    through existing services; no new Worker Scheduler or label-based membership authority. The
+    delivered portable CLI format and private recovery journals remain compatible.
+  verification: >-
+    Create the named focused test files/packages as part of implementation. PostgreSQL commands
+    require a disposable database and must not pass by skipping integration cases. Use
+    deterministic fixtures; these tasks do not authorize paid models, live targets, tighter
+    global token defaults or shared-demo mutations.
+  locations: >-
+    Contractor: new internal/evalservice and internal/evalcoordinator; wire through
+    internal/app. Reuse internal/runservice, internal/auditservice, internal/projectlifecycle
+    and ordinary Scheduler APIs. Collection and assessment follow in V38-006.
+scope:
+  in:
+    - >-
+      Implement prepare/start/pause/resume/cancel/finalize/duplicate lifecycle services,
+      read-only exact binding/capability resolution, frozen order and plan materialization.
+      Prepare executes zero Runs/Audits or targets.
+    - >-
+      Persist and reconcile per-member Run create or Audit create/start suboperations through
+      existing domain services. Isolate Audit execution Projects per member and pin exact
+      visible inputs so cases/arms cannot inherit each other's outputs.
+    - >-
+      Add native PostgreSQL-claimed coordinator, existing execution observation and drain
+      integration. Enforce explicit experiment concurrency/deadline/optional observed-token
+      limits without changing global policies. External dispatch uses the common service and
+      never enters the native dispatch loop.
+  out:
+    - >-
+      New Worker Scheduler, automatic LLM judging, native arbitrary target provisioning, changes
+      to ordinary Run/Audit authority and silently taking over a CLI journal.
+requirements:
+  - id: "R1"
+    text: >-
+      Lost responses, crashes between Audit create/start, stale leases and concurrent callers
+      resolve to the same exact execution. A terminal member is never silently resampled. Verify
+      required pins again before submission without upgrading catalog versions.
+  - id: "R2"
+    text: >-
+      Pause fences new intents and reaches paused only after accepted work settles. Resume
+      retains original deadline/accounting. Cancel/deletion drains known executions and leaves
+      unknown outcomes explicit; uncertain intents count toward in-flight allowance.
+  - id: "R3"
+    text: >-
+      External registration initializes its clock on first accepted submission once. Finalize
+      fences new work and accounts for missing members; external cancellation fences/cancels
+      registered executions without claiming to stop an arbitrary producer process. Native
+      coordinator never dispatches external experiments.
+acceptance_criteria:
+  - id: "A1"
+    given: >-
+      A deterministic native 8-member plan and two concurrent coordinator processes.
+    when: >-
+      The browser closes, a process restarts and responses are lost around Run and Audit
+      create/start.
+    then: >-
+      The same plan and sample IDs recover with no duplicate execution, no Playground dependency
+      and preserved ordinary Run/Audit snapshots.
+  - id: "A2"
+    given: >-
+      Active, uncertain and pending members with explicit budgets.
+    when: >-
+      Pause/resume/cancel/deadline and Project deletion race with submission.
+    then: >-
+      No new intent passes a committed fence, accepted work reconciles/drains truthfully,
+      accounting never resets and unknown outcomes block purge.
+  - id: "A3"
+    given: >-
+      An external registration and a native experiment.
+    when: >-
+      Native ticks and concurrent external submission/finalization calls run.
+    then: >-
+      Only the declared driver dispatches; external requests obey the same admission and
+      idempotency rules, with no server-to-producer calls.
+tests:
+  - name: "coordinator"
+    command: >-
+      test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/evalservice
+      ./internal/evalcoordinator ./internal/projectlifecycle
+    covers: ["A1", "A2", "A3"]
