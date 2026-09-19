@@ -111,3 +111,12 @@ tests:
       if(done.has(id)) return; active.add(id); for(const dep of tasks.get(id).depends_on??[]) visit(dep);
       active.delete(id); done.add(id); } for(const id of tasks.keys()) visit(id);'
     covers: ["A2"]
+
+design_progress:
+  date: "2026-09-19"
+  branch: docs/v38-evals-experience
+  state: "Product direction drafted; launch ownership under user review."
+  document: docs/evals-experience-design.md
+  recommendation: "Full browser setup, launch and comparison using a managed service around the existing Playground evaluator."
+  open_decision: "Managed browser launch versus CLI-owned execution with a report/comparison viewer."
+  remaining: "Resolve ownership, specify exact API/lifecycle contracts and create indexed implementation tasks before completion."
