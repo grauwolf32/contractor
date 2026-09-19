@@ -907,7 +907,7 @@ INSERT INTO audit_events (
 
 func validateFindingList(params FindingListParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		params.Limit < 1 || params.Limit > MaxFindingPageSize ||
+		params.Limit < 1 || params.Limit > maxFindingListRows ||
 		(params.AfterCreatedAt == nil) != (params.AfterFindingID == "") ||
 		(params.State != nil && !params.State.Valid()) ||
 		(params.Severity != nil && !params.Severity.Valid()) {
@@ -924,7 +924,7 @@ func validateFindingList(params FindingListParams) error {
 
 func validateReviewList(params ReviewListParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
-		params.Limit < 1 || params.Limit > MaxFindingPageSize ||
+		params.Limit < 1 || params.Limit > maxFindingListRows ||
 		(params.AfterCreatedAt == nil) != (params.AfterRequestID == "") ||
 		(params.State != nil && !params.State.Valid()) ||
 		(params.FindingID != nil && !validReviewIdentity(*params.FindingID, 256)) {
@@ -936,7 +936,7 @@ func validateReviewList(params ReviewListParams) error {
 func validateProvenanceList(params ProvenanceListParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
 		!validReviewIdentity(params.FindingID, 256) || params.Limit < 1 ||
-		params.Limit > MaxFindingPageSize ||
+		params.Limit > maxFindingListRows ||
 		(params.AfterCreatedAt == nil) != (params.AfterRecordID == "") {
 		return auditstore.ErrInvalid
 	}

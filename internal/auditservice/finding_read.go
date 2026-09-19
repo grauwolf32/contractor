@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -117,9 +118,17 @@ func (s *Service) hydrateFindings(ctx context.Context, ownerID, auditID string, 
 			assessmentIDs = append(assessmentIDs, *row.currentAssessmentID)
 		}
 	}
-	receipts, err := s.findings.GetAuditReceipts(ctx, ownerID, auditID, receiptIDs)
-	if err != nil {
-		return nil, err
+	// A full public page includes a cursor sentinel. Keep receipt hydration
+	// within its independent batch bound, including ownership and exact reads
+	// for that extra row before the HTTP handler trims it from the response.
+	receipts := make([]findingintake.Receipt, 0, len(receiptIDs))
+	for start := 0; start < len(receiptIDs); start += findingintake.MaxAuditReceiptBatchSize {
+		end := min(start+findingintake.MaxAuditReceiptBatchSize, len(receiptIDs))
+		batch, err := s.findings.GetAuditReceipts(ctx, ownerID, auditID, receiptIDs[start:end])
+		if err != nil {
+			return nil, err
+		}
+		receipts = append(receipts, batch...)
 	}
 	decisions, err := s.readFindingDecisions(ctx, ownerID, auditID, decisionIDs)
 	if err != nil {

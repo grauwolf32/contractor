@@ -2709,3 +2709,8 @@ tasks:
   - {id: V58-011, file: v58-011-error-and-empty-recovery.yml}
   - {id: V58-012, file: v58-012-release-verification.yml}
   - {id: V58-013, file: v58-013-finding-text-and-run-actions.yml}
+  - {id: V59-001, file: v59-001-audit-report-and-pagination.yml}
+  - {id: V59-002, file: v59-002-published-configuration-contracts.yml}
+  - {id: V59-003, file: v59-003-runtime-config-author-and-nullable-client.yml}
+  - {id: V59-004, file: v59-004-request-and-history-contracts.yml}
+  - {id: V59-005, file: v59-005-verification-and-integration.yml}

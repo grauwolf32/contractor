@@ -8,6 +8,11 @@ Scheduler decisions from these records.
 
 ## Completed experiments and implementation reviews
 
+- [Public OpenAPI review — 2026-09-19](2026-09-19-public-openapi-review.md) —
+  verified schema, handler and generated-client mismatches.
+- [Public OpenAPI corrections — 2026-09-20](2026-09-20-public-openapi-corrections-results.md) —
+  all 12 findings corrected in V59, client regressions and isolated PostgreSQL verification.
+
 - [V57-004: Worker result assembly and size limits](2026-09-19-worker-result-assembly.md) —
   typed Audit handoff, removal of its synthetic JSON bound and history of remaining limits.
 - [V57-005: A2A invocation connection reuse](2026-09-19-a2a-connection-reuse-decision.md) —

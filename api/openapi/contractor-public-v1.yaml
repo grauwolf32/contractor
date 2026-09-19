@@ -106,6 +106,9 @@ paths:
       tags: [Settings]
       summary: Validate and replace the owner's encrypted Git SSH private key
       x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
       requestBody:
         required: true
         content:
@@ -128,6 +131,9 @@ paths:
       tags: [Settings]
       summary: Remove the owner's configured Git key without changing imported artifacts
       x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
       responses:
         '204':
           description: Key is absent
@@ -146,9 +152,16 @@ paths:
       operationId: importGitArtifact
       tags: [Artifacts]
       summary: Import one bounded Git snapshot as an exact source ZIP artifact
-      description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+      description: |
+        Omitting both precondition headers or sending `If-None-Match: *` creates
+        an absent binding and conflicts if it already exists. Updating an
+        existing binding requires one strong quoted `If-Match` revision;
+        supplying both headers is invalid. No automatic refresh or mutation
+        retry. The whole operation is bounded to 120 seconds.
       x-contractor-implementation: implemented
       parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
@@ -192,9 +205,16 @@ paths:
       operationId: importProjectGitArtifact
       tags: [Artifacts]
       summary: Import one bounded Git snapshot as an exact source ZIP artifact
-      description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+      description: |
+        Omitting both precondition headers or sending `If-None-Match: *` creates
+        an absent binding and conflicts if it already exists. Updating an
+        existing binding requires one strong quoted `If-Match` revision;
+        supplying both headers is invalid. No automatic refresh or mutation
+        retry. The whole operation is bounded to 120 seconds.
       x-contractor-implementation: implemented
       parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
@@ -758,7 +778,7 @@ paths:
           schema:
             type: array
             maxItems: 32
-            items: {type: string, minLength: 3, maxLength: 320, pattern: '^[^=]+=.+'}
+            items: {type: string, minLength: 2, maxLength: 320, pattern: '^[^=]+=[\s\S]*$'}
       responses:
         '200':
           description: Stable newest-first Project Run page
@@ -1188,11 +1208,11 @@ paths:
     get:
       operationId: getAuditReport
       tags: [Audits]
-      summary: Read the exact accepted Audit report or its generation state
+      summary: Read the exact proposed or accepted Audit report or its generation state
       x-contractor-implementation: implemented
       responses:
         '200':
-          description: Report state with exact artifacts and content when ready
+          description: Report state with exact artifacts and content when proposed or ready; proposed reports include their review request
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
             Cache-Control: {$ref: '#/components/headers/NoStore'}
@@ -1630,7 +1650,7 @@ paths:
           schema:
             type: array
             maxItems: 32
-            items: {type: string, minLength: 3, maxLength: 320, pattern: '^[^=]+=.+'}
+            items: {type: string, minLength: 2, maxLength: 320, pattern: '^[^=]+=[\s\S]*$'}
       responses:
         '200':
           description: Stable Run page
@@ -2443,7 +2463,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/RuntimeConfigDocument'}
+            schema: {$ref: '#/components/schemas/RuntimeConfigAuthorDocument'}
       responses:
         '201':
           description: Immutable normalized RuntimeConfig metadata and document
@@ -4351,6 +4371,10 @@ components:
       type: object
       additionalProperties: false
       required: [status]
+      # Reject proposed reports without review.
+      not:
+        properties: {status: {enum: [proposed]}}
+        not: {required: [review]}
       properties:
         review: {$ref: '#/components/schemas/AuditReviewRequest'}
         status: {$ref: '#/components/schemas/AuditReportStatus'}
@@ -4702,14 +4726,33 @@ components:
       properties:
         expiresAt: {type: string, format: date-time}
     DecideAuditFindingRequest:
+      oneOf:
+        - $ref: '#/components/schemas/DecideAuditFindingTruePositiveRequest'
+        - $ref: '#/components/schemas/DecideAuditFindingDuplicateRequest'
+        - $ref: '#/components/schemas/DecideAuditFindingOtherRequest'
+    DecideAuditFindingTruePositiveRequest:
+      type: object
+      additionalProperties: false
+      required: [verdict, severity, rationale]
+      properties:
+        verdict: {type: string, const: true_positive}
+        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+    DecideAuditFindingDuplicateRequest:
+      type: object
+      additionalProperties: false
+      required: [verdict, duplicateTargetId, rationale]
+      properties:
+        verdict: {type: string, const: duplicate}
+        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+    DecideAuditFindingOtherRequest:
       type: object
       additionalProperties: false
       required: [verdict, rationale]
       properties:
-        verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
-        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        verdict: {type: string, enum: [false_positive, reopen, needs_evidence]}
         rationale: {type: string, minLength: 1, maxLength: 65536}
-        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
     DecideAuditActionRequest:
       type: object
       additionalProperties: false
@@ -5164,6 +5207,19 @@ components:
         maxAttempts: {type: integer, minimum: 1, maximum: 10, description: Defaults to 2 total attempts per batch.}
         maxPendingSpans: {type: integer, minimum: 1, maximum: 2048, description: Defaults to 2048 spans.}
         maxPendingBytes: {type: integer, minimum: 1048576, maximum: 67108864, description: Defaults to 67108864 bytes (64 MiB).}
+        retry:
+          $ref: '#/components/schemas/WorkerTelemetryRetryConfig'
+    WorkerTelemetryRetryConfig:
+      type: object
+      additionalProperties: false
+      description: >-
+        Optional bounded backoff settings. When this block is supplied, omitted
+        fields default to 100 and 1000 milliseconds respectively. After applying
+        defaults, initialBackoffMilliseconds must not exceed maxBackoffMilliseconds;
+        the Server validates this relationship. Absence preserves the stored document.
+      properties:
+        initialBackoffMilliseconds: {type: integer, minimum: 1, maximum: 60000, description: Defaults to 100 milliseconds.}
+        maxBackoffMilliseconds: {type: integer, minimum: 1, maximum: 60000, description: Defaults to 1000 milliseconds.}
     RuntimeHTTPProxyConfig:
       type: object
       additionalProperties: false
@@ -5191,16 +5247,60 @@ components:
           $ref: '#/components/schemas/RuntimeCredentialId'
         caBundlePem: {type: string, minLength: 1, maxLength: 65536}
         requestTimeoutSeconds: {type: integer, minimum: 1, maximum: 120}
+    RuntimeLLMGatewayAuthorPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        gateway:
+          $ref: '#/components/schemas/Selector'
+        credential:
+          oneOf:
+            - {$ref: '#/components/schemas/ConfigId'}
+            - {type: 'null'}
+    RuntimeWorkerAuthorPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        llmGateway:
+          $ref: '#/components/schemas/RuntimeLLMGatewayAuthorPatch'
+        telemetry:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeTelemetryConfig'}
+            - {type: 'null'}
+        httpProxy:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeHTTPProxyConfig'}
+            - {type: 'null'}
+        caido:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeCaidoConfig'}
+            - {type: 'null'}
+    RuntimeConfigAuthorSpec:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        worker: {$ref: '#/components/schemas/RuntimeWorkerAuthorPatch'}
+        planner: {$ref: '#/components/schemas/RuntimePlannerPatch'}
+    RuntimeConfigAuthorDocument:
+      type: object
+      description: Publication input. Gateway selections use exact name@version strings, resolved by the Server before storage. At least one patch operation is required.
+      additionalProperties: false
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion: {type: string, const: contractor/v1alpha1}
+        kind: {type: string, const: RuntimeConfig}
+        metadata: {$ref: '#/components/schemas/RuntimeConfigMetadata'}
+        spec: {$ref: '#/components/schemas/RuntimeConfigAuthorSpec'}
     RuntimeLLMGatewayPatch:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
         gateway:
-          oneOf:
-            - {$ref: '#/components/schemas/LLMGatewayConfigRef'}
-            - {$ref: '#/components/schemas/Selector'}
-            - {type: 'null'}
+          $ref: '#/components/schemas/LLMGatewayConfigRef'
         credential:
           oneOf:
             - {$ref: '#/components/schemas/ConfigId'}
@@ -5211,9 +5311,7 @@ components:
       minProperties: 1
       properties:
         llmGateway:
-          oneOf:
-            - {$ref: '#/components/schemas/RuntimeLLMGatewayPatch'}
-            - {type: 'null'}
+          $ref: '#/components/schemas/RuntimeLLMGatewayPatch'
         telemetry:
           oneOf:
             - {$ref: '#/components/schemas/RuntimeTelemetryConfig'}
@@ -5243,6 +5341,7 @@ components:
         planner: {$ref: '#/components/schemas/RuntimePlannerPatch'}
     RuntimeConfigDocument:
       type: object
+      description: Immutable normalized read document. Gateway selections contain exact resolved refs. The built-in document may have an empty spec.
       additionalProperties: false
       required: [apiVersion, kind, metadata, spec]
       properties:
@@ -5609,8 +5708,14 @@ components:
         inputs:
           type: object
           additionalProperties: {$ref: '#/components/schemas/ExactArtifactRef'}
-        attempts: {type: array, maxItems: 1024, items: {$ref: '#/components/schemas/StageAttempt'}}
-        transitions: {type: array, maxItems: 1024, items: {$ref: '#/components/schemas/StageTransition'}}
+        attempts:
+          type: array
+          description: Complete retained attempt history, including automatic retries. No fixed item cap or truncation is applied by this endpoint.
+          items: {$ref: '#/components/schemas/StageAttempt'}
+        transitions:
+          type: array
+          description: Complete retained transition history. No fixed item cap or truncation is applied by this endpoint.
+          items: {$ref: '#/components/schemas/StageTransition'}
         outputs:
           type: object
           maxProperties: 128
@@ -6171,6 +6276,7 @@ components:
       additionalProperties: false
       required: [modelPolicy, contextWindowRatio]
       properties:
+        instructions: {$ref: '#/components/schemas/InstructionsRef'}
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         cumulativeBudget: {type: integer, minimum: 1, maximum: 100000000}
         contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
@@ -6403,7 +6509,12 @@ components:
       required: [username, password]
       properties:
         username: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
-        password: {type: string, minLength: 12, maxLength: 1024, writeOnly: true}
+        password:
+          type: string
+          writeOnly: true
+          description: Password must contain 12 through 1024 UTF-8 bytes. The server validates byte length, rather than Unicode character count.
+          x-min-utf8-bytes: 12
+          x-max-utf8-bytes: 1024
 
     SnapshotCursor:
       type: object

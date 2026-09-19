@@ -170,7 +170,7 @@ func (c *CLI) createRun(ctx context.Context, client *publicclient.Client, printe
 			return &UsageError{Message: "invalid --param: " + err.Error()}
 		}
 		if len(parsedParameters) != 0 {
-			body.Parameters = &parsedParameters
+			body.Parameters.Set(parsedParameters)
 		}
 		parsedLabels, err := assignments(labels)
 		if err != nil {
@@ -197,14 +197,14 @@ func (c *CLI) createRun(ctx context.Context, client *publicclient.Client, printe
 				}
 				artifact := publicapi.ArtifactRef{Namespace: namespace, Name: name}
 				if revision != "" {
-					artifact.Revision = &revision
+					artifact.Revision.Set(revision)
 				}
 				if _, duplicate := parsedArtifacts[slot]; duplicate {
 					return &UsageError{Message: "duplicate Artifact input slot " + slot}
 				}
 				parsedArtifacts[slot] = artifact
 			}
-			body.Artifacts = &parsedArtifacts
+			body.Artifacts.Set(parsedArtifacts)
 		}
 	}
 	if strings.TrimSpace(body.Workflow) == "" {
@@ -331,7 +331,7 @@ func (c *CLI) cancelRun(ctx context.Context, client *publicclient.Client, printe
 	}
 	body := publicapi.CancelRunRequest{}
 	if reason != "" {
-		body.Reason = &reason
+		body.Reason.Set(reason)
 	}
 	response, err := client.API.CancelRunWithResponse(ctx, positionals[0], &publicapi.CancelRunParams{}, body)
 	if err != nil {

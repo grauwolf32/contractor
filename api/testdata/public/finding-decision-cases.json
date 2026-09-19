@@ -1,0 +1,20 @@
+[
+  {"name":"true-positive","valid":true,"request":{"verdict":"true_positive","severity":"high","rationale":"Observed evidence"}},
+  {"name":"false-positive","valid":true,"request":{"verdict":"false_positive","rationale":"Observed evidence"}},
+  {"name":"duplicate","valid":true,"request":{"verdict":"duplicate","duplicateTargetId":"finding-original","rationale":"Observed evidence"}},
+  {"name":"reopen","valid":true,"request":{"verdict":"reopen","rationale":"Observed evidence"}},
+  {"name":"needs-evidence","valid":true,"request":{"verdict":"needs_evidence","rationale":"Observed evidence"}},
+  {"name":"true-positive-without-severity","valid":false,"request":{"verdict":"true_positive","rationale":"Observed evidence"}},
+  {"name":"true-positive-with-duplicate-target","valid":false,"request":{"verdict":"true_positive","severity":"high","duplicateTargetId":"finding-original","rationale":"Observed evidence"}},
+  {"name":"false-positive-with-severity","valid":false,"request":{"verdict":"false_positive","severity":"high","rationale":"Observed evidence"}},
+  {"name":"false-positive-with-duplicate-target","valid":false,"request":{"verdict":"false_positive","duplicateTargetId":"finding-original","rationale":"Observed evidence"}},
+  {"name":"duplicate-without-target","valid":false,"request":{"verdict":"duplicate","rationale":"Observed evidence"}},
+  {"name":"duplicate-with-severity","valid":false,"request":{"verdict":"duplicate","severity":"high","duplicateTargetId":"finding-original","rationale":"Observed evidence"}},
+  {"name":"reopen-with-severity","valid":false,"request":{"verdict":"reopen","severity":"high","rationale":"Observed evidence"}},
+  {"name":"reopen-with-duplicate-target","valid":false,"request":{"verdict":"reopen","duplicateTargetId":"finding-original","rationale":"Observed evidence"}},
+  {"name":"needs-evidence-with-severity","valid":false,"request":{"verdict":"needs_evidence","severity":"high","rationale":"Observed evidence"}},
+  {"name":"needs-evidence-with-duplicate-target","valid":false,"request":{"verdict":"needs_evidence","duplicateTargetId":"finding-original","rationale":"Observed evidence"}},
+  {"name":"unknown-verdict","valid":false,"request":{"verdict":"approve","rationale":"Observed evidence"}},
+  {"name":"invalid-severity","valid":false,"request":{"verdict":"true_positive","severity":"urgent","rationale":"Observed evidence"}},
+  {"name":"missing-rationale","valid":false,"request":{"verdict":"true_positive","severity":"high"}}
+]

@@ -203,6 +203,14 @@ export function safeConfigurationResource(
                 summarizer: {
                   modelPolicy: modelPolicyRef(body.summarizer.modelPolicy),
                   contextWindowRatio: body.summarizer.contextWindowRatio,
+                  ...(body.summarizer.instructions === undefined
+                    ? {}
+                    : {
+                        instructions: {
+                          ref: body.summarizer.instructions.ref,
+                          digest: body.summarizer.instructions.digest,
+                        },
+                      }),
                   ...(body.summarizer.cumulativeBudget === undefined
                     ? {}
                     : { cumulativeBudget: body.summarizer.cumulativeBudget }),

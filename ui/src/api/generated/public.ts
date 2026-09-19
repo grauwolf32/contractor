@@ -63,7 +63,11 @@ export interface paths {
         put?: never;
         /**
          * Import one bounded Git snapshot as an exact source ZIP artifact
-         * @description Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+         * @description Omitting both precondition headers or sending `If-None-Match: *` creates
+         *     an absent binding and conflicts if it already exists. Updating an
+         *     existing binding requires one strong quoted `If-Match` revision;
+         *     supplying both headers is invalid. No automatic refresh or mutation
+         *     retry. The whole operation is bounded to 120 seconds.
          */
         post: operations["importGitArtifact"];
         delete?: never;
@@ -87,7 +91,11 @@ export interface paths {
         put?: never;
         /**
          * Import one bounded Git snapshot as an exact source ZIP artifact
-         * @description Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+         * @description Omitting both precondition headers or sending `If-None-Match: *` creates
+         *     an absent binding and conflicts if it already exists. Updating an
+         *     existing binding requires one strong quoted `If-Match` revision;
+         *     supplying both headers is invalid. No automatic refresh or mutation
+         *     retry. The whole operation is bounded to 120 seconds.
          */
         post: operations["importProjectGitArtifact"];
         delete?: never;
@@ -648,7 +656,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read the exact accepted Audit report or its generation state */
+        /** Read the exact proposed or accepted Audit report or its generation state */
         get: operations["getAuditReport"];
         put?: never;
         post?: never;
@@ -2678,11 +2686,23 @@ export interface components {
             /** Format: date-time */
             expiresAt?: string;
         };
-        DecideAuditFindingRequest: {
-            verdict: components["schemas"]["AuditAnalystVerdict"];
-            severity?: components["schemas"]["AuditFindingSeverity"];
+        DecideAuditFindingRequest: components["schemas"]["DecideAuditFindingTruePositiveRequest"] | components["schemas"]["DecideAuditFindingDuplicateRequest"] | components["schemas"]["DecideAuditFindingOtherRequest"];
+        DecideAuditFindingTruePositiveRequest: {
+            /** @constant */
+            verdict: "true_positive";
+            severity: components["schemas"]["AuditFindingSeverity"];
             rationale: string;
-            duplicateTargetId?: components["schemas"]["ResourceId"];
+        };
+        DecideAuditFindingDuplicateRequest: {
+            /** @constant */
+            verdict: "duplicate";
+            duplicateTargetId: components["schemas"]["ResourceId"];
+            rationale: string;
+        };
+        DecideAuditFindingOtherRequest: {
+            /** @enum {string} */
+            verdict: "false_positive" | "reopen" | "needs_evidence";
+            rationale: string;
         };
         DecideAuditActionRequest: {
             action: components["schemas"]["AuditReviewAction"];
@@ -2969,6 +2989,14 @@ export interface components {
             maxPendingSpans?: number;
             /** @description Defaults to 67108864 bytes (64 MiB). */
             maxPendingBytes?: number;
+            retry?: components["schemas"]["WorkerTelemetryRetryConfig"];
+        };
+        /** @description Optional bounded backoff settings. When this block is supplied, omitted fields default to 100 and 1000 milliseconds respectively. After applying defaults, initialBackoffMilliseconds must not exceed maxBackoffMilliseconds; the Server validates this relationship. Absence preserves the stored document. */
+        WorkerTelemetryRetryConfig: {
+            /** @description Defaults to 100 milliseconds. */
+            initialBackoffMilliseconds?: number;
+            /** @description Defaults to 1000 milliseconds. */
+            maxBackoffMilliseconds?: number;
         };
         RuntimeHTTPProxyConfig: {
             /** @constant */
@@ -2988,12 +3016,35 @@ export interface components {
             caBundlePem?: string;
             requestTimeoutSeconds?: number;
         };
+        RuntimeLLMGatewayAuthorPatch: {
+            gateway?: components["schemas"]["Selector"];
+            credential?: components["schemas"]["ConfigId"] | null;
+        };
+        RuntimeWorkerAuthorPatch: {
+            llmGateway?: components["schemas"]["RuntimeLLMGatewayAuthorPatch"];
+            telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
+            httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
+            caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
+        };
+        RuntimeConfigAuthorSpec: {
+            worker?: components["schemas"]["RuntimeWorkerAuthorPatch"];
+            planner?: components["schemas"]["RuntimePlannerPatch"];
+        };
+        /** @description Publication input. Gateway selections use exact name@version strings, resolved by the Server before storage. At least one patch operation is required. */
+        RuntimeConfigAuthorDocument: {
+            /** @constant */
+            apiVersion: "contractor/v1alpha1";
+            /** @constant */
+            kind: "RuntimeConfig";
+            metadata: components["schemas"]["RuntimeConfigMetadata"];
+            spec: components["schemas"]["RuntimeConfigAuthorSpec"];
+        };
         RuntimeLLMGatewayPatch: {
-            gateway?: components["schemas"]["LLMGatewayConfigRef"] | components["schemas"]["Selector"] | null;
+            gateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["ConfigId"] | null;
         };
         RuntimeWorkerPatch: {
-            llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"] | null;
+            llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"];
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
             caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
@@ -3005,6 +3056,7 @@ export interface components {
             worker?: components["schemas"]["RuntimeWorkerPatch"];
             planner?: components["schemas"]["RuntimePlannerPatch"];
         };
+        /** @description Immutable normalized read document. Gateway selections contain exact resolved refs. The built-in document may have an empty spec. */
         RuntimeConfigDocument: {
             /** @constant */
             apiVersion: "contractor/v1alpha1";
@@ -3251,7 +3303,9 @@ export interface components {
             inputs?: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
             };
+            /** @description Complete retained attempt history, including automatic retries. No fixed item cap or truncation is applied by this endpoint. */
             attempts: components["schemas"]["StageAttempt"][];
+            /** @description Complete retained transition history. No fixed item cap or truncation is applied by this endpoint. */
             transitions: components["schemas"]["StageTransition"][];
             outputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
@@ -3717,6 +3771,7 @@ export interface components {
             tools: components["schemas"]["ConfigId"][];
         };
         WorkerSummarizerConfigBody: {
+            instructions?: components["schemas"]["InstructionsRef"];
             modelPolicy: components["schemas"]["ModelPolicyRef"];
             cumulativeBudget?: number;
             contextWindowRatio: number;
@@ -3849,6 +3904,7 @@ export interface components {
         };
         LoginRequest: {
             username: string;
+            /** @description Password must contain 12 through 1024 UTF-8 bytes. The server validates byte length, rather than Unicode character count. */
             password: string;
         };
         SnapshotCursor: {
@@ -4762,7 +4818,12 @@ export interface operations {
     replaceGitKey: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4785,7 +4846,12 @@ export interface operations {
     deleteGitKey: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4810,6 +4876,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
                 "If-Match"?: string;
             };
@@ -4860,6 +4930,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
                 "If-Match"?: string;
             };
@@ -6038,7 +6112,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Report state with exact artifacts and content when ready */
+            /** @description Report state with exact artifacts and content when proposed or ready; proposed reports include their review request */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -7527,7 +7601,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RuntimeConfigDocument"];
+                "application/json": components["schemas"]["RuntimeConfigAuthorDocument"];
             };
         };
         responses: {

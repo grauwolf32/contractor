@@ -1,0 +1,79 @@
+schema_version: '1.0'
+id: V59-005
+title: Verify and integrate all public API review corrections
+milestone: public-api-review-corrections
+priority: P1
+status: in_progress
+depends_on:
+- V59-001
+- V59-002
+- V59-003
+- V59-004
+languages:
+- go
+- typescript
+- markdown
+goal: Verify and integrate all public API review corrections.
+context:
+  authority: User requested detailed analysis, concrete correction tasks and implementation of the public
+    OpenAPI review.
+  review: docs/research/2026-09-19-public-openapi-review.md
+  design: docs/plans/2026-09-19-public-openapi-corrections.md
+  finding_ids: []
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+scope:
+  in:
+  - Record the detailed resolution of R01-R12 and task-to-finding mapping.
+  - Run generated-client reproducibility, meaningful contract regressions, Go consumer tests and full
+    UI validation.
+  - Integrate verified commits into local main preserving concurrent planning and implementation work.
+  out:
+  - Change ordinary Worker finalization, LLM budgets or eval/toolset implementation.
+  - Change published execution policy, credential authority, owner checks or CAS semantics beyond the
+    named contract corrections.
+  - Deploy services or run live models.
+acceptance_criteria:
+- id: A1
+  text: Every review finding has an implemented and tested resolution or a documented evidence-based correction;
+    no unsupported completion claims.
+- id: A2
+  text: Pinned Go/TypeScript generation is reproducible and all specified Go/UI checks pass.
+- id: A3
+  text: Public pagination boundary tests execute with isolated PostgreSQL rather than being skipped.
+- id: A4
+  text: Task completion metadata records original implementation hashes and a durable verification record.
+tests:
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/runtimeconfig
+    ./internal/publicclient/... ./internal/cli ./internal/config ./internal/auth
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd ui && corepack pnpm --config.verify-deps-before-run=false typecheck && corepack pnpm --config.verify-deps-before-run=false
+    lint && corepack pnpm --config.verify-deps-before-run=false test --run && corepack pnpm --config.verify-deps-before-run=false
+    build
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: git diff --check
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make verify-public-api-postgres
+  covers:
+  - A3
+verification_requirements:
+- Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
+- Keep implementation and subsequent completion metadata commits separate.

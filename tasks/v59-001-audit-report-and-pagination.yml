@@ -1,0 +1,98 @@
+schema_version: '1.0'
+id: V59-001
+title: Restore Audit report review and full-size public pages
+milestone: public-api-review-corrections
+priority: P1
+status: completed
+implementation_commit: 7a618fb1f9d7db14fe79a946c9432b97d07ab84d
+depends_on: []
+languages:
+- go
+- yaml
+goal: Restore Audit report review and full-size public pages.
+context:
+  authority: User requested detailed analysis, concrete correction tasks and implementation of the public
+    OpenAPI review.
+  review: docs/research/2026-09-19-public-openapi-review.md
+  design: docs/plans/2026-09-19-public-openapi-corrections.md
+  finding_ids:
+  - R01
+  - R05
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/19-audits.md
+scope:
+  in:
+  - Project pending review from the Audit service into proposed report responses and require review for
+    proposed status in the response schema.
+  - Support public limit=200 for findings, reviews and provenance, including the extra cursor sentinel
+    and receipt hydration.
+  out:
+  - Change ordinary Worker finalization, LLM budgets or eval/toolset implementation.
+  - Change published execution policy, credential authority, owner checks or CAS semantics beyond the
+    named contract corrections.
+  - Deploy services or run live models.
+acceptance_criteria:
+- id: A1
+  text: Proposed report preserves review identity/revision/state through authenticated HTTP and remains
+    schema-valid; other report statuses remain valid.
+- id: A2
+  text: A real PostgreSQL fixture with at least 201 records yields 199/200 sized pages and correct next
+    cursors with no duplicate or missing records; 201 public limit is rejected.
+- id: A3
+  text: Internal extra-row admission does not relax the external page bound or owner/revision checks.
+tests:
+- command: go test -count=1 ./internal/httpapi/public ./internal/auditservice
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -count=1 ./internal/httpapi/public -run PublicAuditPaginationBoundary
+  covers:
+  - A2
+  - A3
+- command: go test -count=1 ./internal/httpapi/public -run PublicAuditReportPreservesProposedReview
+  covers:
+  - A1
+verification_requirements:
+- Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
+- Keep implementation and subsequent completion metadata commits separate.
+- PostgreSQL acceptance requires CONTRACTOR_TEST_DATABASE_URL pointing to an isolated test database;
+  a skipped TestPublicAuditPaginationBoundary is not acceptance evidence.
+verification:
+  verified_on: '2026-09-19'
+  database: Dedicated disposable local PostgreSQL 17 database with isolated per-test schemas and repository migrations.
+  acceptance:
+    A1: >-
+      Passed through the authenticated HTTP router with a service projection fixture:
+      proposed review identity, subject, revision and pending state survive serialization;
+      all four report statuses validate, proposed without review is rejected, and
+      unauthenticated access returns 401. Existing accepted-report content tests also pass.
+    A2: >-
+      Passed on real PostgreSQL: 201 distinct findings and retained receipts, 201 reviews,
+      and 201 provenance records yield full 199/200 pages followed by 2/1 records,
+      correct cursors and 201 distinct identities. Each returned finding has its exact
+      hydrated proposal document and Audit hold. All three public lists reject limit=201.
+    A3: >-
+      Passed: the private fetch bound permits at most one sentinel (201), receipt
+      hydration retains its independent 200-record batch bound, foreign-owner reads
+      with the internal limit return not-found, and stale Audit revision cursors return 409.
+  executed:
+  - command: go test -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/findingintake ./internal/publicclient/...
+    environment: CONTRACTOR_TEST_DATABASE_URL set to the disposable local test database.
+    result: PASS; public 18.732s, auditservice 18.286s, findingintake 0.007s, publicclient 0.030s; generated package compiled.
+  - command: go test -count=1 ./internal/httpapi/public -run PublicAuditPaginationBoundary
+    environment: CONTRACTOR_TEST_DATABASE_URL set; PostgreSQL fixture executed, not skipped.
+    result: PASS in 4.361s.
+  - command: go test -race -count=1 ./internal/httpapi/public ./internal/auditservice -run '^(TestPublicAuditReportPreservesProposedReview|TestPublicAuditPaginationBoundary|TestFindingPageValidatorsAllowOnlyOneCursorSentinel)$'
+    environment: CONTRACTOR_TEST_DATABASE_URL set to the same disposable local test database.
+    result: PASS; public 15.960s, auditservice 1.060s.
+  - command: go generate ./internal/publicclient/generated
+    result: PASS using pinned oapi-codegen v2.8.0; generated DTO shape unchanged.
+  - command: openapi-typescript api/openapi/contractor-public-v1.yaml -o ui/src/api/generated/public.ts
+    result: PASS using pinned openapi-typescript 7.13.0 from the workspace UI installation; generated DTO shape unchanged.
+  - command: git diff --check
+    result: PASS; changed Go files also pass gofmt checks.
+  boundaries:
+  - No live Workers, models, production database or deployed service was used.
+  - V59-005 owns final combined-schema client and UI verification and the mandatory-database acceptance gate.

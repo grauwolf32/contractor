@@ -6,3 +6,4 @@ generate:
 output-options:
   skip-prune: false
   resolve-type-name-collisions: true
+  nullable-type: true

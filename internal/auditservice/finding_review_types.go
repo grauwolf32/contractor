@@ -18,6 +18,9 @@ const (
 	ReportAcceptanceReviewKind = "report-acceptance"
 )
 
+// Public lists fetch one extra row to determine whether to issue a cursor.
+const maxFindingListRows = MaxFindingPageSize + 1
+
 func (kind ReviewSubjectKind) Valid() bool {
 	return kind == ReviewSubjectFinding || kind == ReviewSubjectItemAction ||
 		kind == ReviewSubjectReport

@@ -1,0 +1,84 @@
+schema_version: '1.0'
+id: V59-002
+title: Align public configuration schemas with actual projections
+milestone: public-api-review-corrections
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+- yaml
+- typescript
+goal: Align public configuration schemas with actual projections.
+context:
+  authority: User requested detailed analysis, concrete correction tasks and implementation of the public
+    OpenAPI review.
+  review: docs/research/2026-09-19-public-openapi-review.md
+  design: docs/plans/2026-09-19-public-openapi-corrections.md
+  finding_ids:
+  - R02
+  - R03
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/15-worker-summarization.md
+scope:
+  in:
+  - Describe optional summarizer instructions as a safe exact reference.
+  - Describe optional Worker telemetry export retry settings with actual bounds and defaults; keep legacy
+    documents valid.
+  - Preserve supported summarizer references and bounded retry fields through UI normalization, rejecting
+    unknown nested retry data.
+  out:
+  - Change ordinary Worker finalization, LLM budgets or eval/toolset implementation.
+  - Change published execution policy, credential authority, owner checks or CAS semantics beyond the
+    named contract corrections.
+  - Deploy services or run live models.
+acceptance_criteria:
+- id: A1
+  text: All repository AgentTemplate/ModelPolicy/Gateway public projections validate against their public
+    response schemas.
+- id: A2
+  text: Supported telemetry retry request and normalized response validate; invalid retry settings and
+    unknown properties are rejected.
+- id: A3
+  text: Both generated clients expose supported optional fields without weakening closed objects.
+- id: A4
+  text: UI publication/read normalization preserves retry and safe summarizer refs; defaults remain optional
+    in generated request types.
+tests:
+- command: go test -count=1 ./internal/httpapi/public -run PublicConfigurationProjectionContracts
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api
+  covers:
+  - A1
+  - A2
+  - A3
+- command: cd ui && corepack pnpm --config.verify-deps-before-run=false typecheck
+  covers:
+  - A3
+  - A4
+- command: cd ui && corepack pnpm --config.verify-deps-before-run=false test --run src/api/configuration-contracts.test.ts
+    src/api/operations.test.ts src/api/workflows.test.ts
+  covers:
+  - A3
+  - A4
+verification_requirements:
+- Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
+- Keep implementation and subsequent completion metadata commits separate.
+implementation_commit: 0dc366b4e468173b32c78e6a68ab317366866bbb
+verification:
+  results:
+  - All repository catalog list/detail responses conform, including 30 AgentTemplate versions with summarizer
+    instructions; generated Go references remain intact.
+  - Five telemetry export cases cover legacy omission, empty retry defaults, custom values, minimum and
+    maximum through authenticated publication/list/detail and generated Go types.
+  - Invalid scalar/unknown/null retry schema cases and three server-enforced ordering/default cases are
+    rejected.
+  - Public HTTP and publicclient packages pass; make verify-public-api passes.
+  - 36 focused UI tests across three files pass; both TypeScript projects and changed-file ESLint/Prettier
+    pass.
+  toolchain: Go 1.25.6; oapi-codegen2.8.0; openapi-typescript7.13.0; Node26.7.0/pnpm11.24.0. Existing
+    shared locked modules used with pnpm verify-deps-before-run=false to prevent worktree symlink reinstall.
