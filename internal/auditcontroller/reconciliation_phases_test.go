@@ -2,8 +2,9 @@ package auditcontroller
 
 import (
 	"context"
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
 type waitingCollector struct{ err error }

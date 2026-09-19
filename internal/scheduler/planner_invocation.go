@@ -3,11 +3,12 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"time"
 )
 
 func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, stageDeadline time.Time, prepared *preparedStageWorkers) error {

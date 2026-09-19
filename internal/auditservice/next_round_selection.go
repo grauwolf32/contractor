@@ -3,10 +3,11 @@ package auditservice
 import (
 	"context"
 	"fmt"
+	"sort"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"sort"
 )
 
 func (s *Service) selectNextProposalChecks(

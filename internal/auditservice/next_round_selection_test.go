@@ -1,10 +1,11 @@
 package auditservice
 
 import (
+	"testing"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"testing"
 )
 
 func TestProposalPageSelectionBoundaries(t *testing.T) {

@@ -2,9 +2,10 @@ package public
 
 import (
 	"context"
+	"testing"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/runservice"
-	"testing"
 )
 
 // Test embeddings compose the same explicit service boundary as the app.

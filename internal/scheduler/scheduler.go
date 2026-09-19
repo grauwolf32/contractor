@@ -6,12 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"io"
 	"log/slog"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (

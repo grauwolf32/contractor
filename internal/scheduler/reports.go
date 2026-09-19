@@ -2,12 +2,13 @@ package scheduler
 
 import (
 	"context"
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"time"
 )
 
 func (s *Scheduler) persistReports(

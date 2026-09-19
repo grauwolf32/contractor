@@ -3,14 +3,15 @@ package app
 import (
 	"errors"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auth"
-	workflowconfig "github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/gitimport"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auth"
+	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
 // effectiveConfig applies derived defaults and validates the final flag-overridden

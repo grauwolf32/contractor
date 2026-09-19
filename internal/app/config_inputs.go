@@ -2,10 +2,11 @@ package app
 
 import (
 	"errors"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // serveConfigInputs is transient parse state. Unlike ServerConfig, it may hold

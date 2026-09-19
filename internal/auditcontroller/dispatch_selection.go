@@ -3,6 +3,7 @@ package auditcontroller
 import (
 	"context"
 	"errors"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 )
