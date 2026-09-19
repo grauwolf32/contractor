@@ -3,7 +3,8 @@ id: "V46-002"
 title: "Accept valid aggregate intervals at Performance history window boundaries"
 milestone: "operations-performance-and-profiling"
 priority: "P2"
-status: "in_progress"
+status: "completed"
+implementation_commit: 352663fb660d7558f656b76aba0b6ed92ca882a8
 depends_on: ["V32-006"]
 languages: ["typescript", "go"]
 goal: >-
@@ -70,3 +71,23 @@ tests:
   - name: "diff"
     command: "git diff --check"
     covers: ["A1", "A2"]
+verification:
+  verified_on: "2026-09-19"
+  evidence:
+    - >-
+      Aggregate validation uses half-open interval overlap; fine samples keep
+      point-based bounds. The original query window, ordering, kind/step checks
+      and point-count limits are preserved. The boundary rule is documented in
+      docs/spec/22-performance-metrics-and-profiling.md.
+    - >-
+      API and chart suite passed 15 tests, including overlapping first intervals
+      for 24h/7d, aligned/empty histories, invalid records, out-of-range intervals
+      and fine-sample endpoints. The four new overlap/chart cases failed before
+      the correction and passed afterward.
+    - >-
+      go test -tags=integration -count=1 -json ./internal/performance passed
+      52 cases including subtests, with zero skips, against an isolated disposable
+      PostgreSQL 17 database supplied through CONTRACTOR_TEST_DATABASE_URL.
+      ReadService.History returned partial first aggregates without including
+      excluded minute records or changing coverage. The test container was removed.
+    - make ui-typecheck and git diff --check passed; the final complete UI suite passed 377 tests.

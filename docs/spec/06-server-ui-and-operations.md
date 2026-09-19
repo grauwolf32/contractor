@@ -116,9 +116,10 @@ V37-001 through V37-009 deliver draft continuity, accessible dialogs, primary
 actions, reviewed input suggestions, Catalog discovery, repeat Run drafts and
 primary result preview. Contextual Audit review, the Operations layout and the
 connected desktop/mobile/keyboard release gate remain V37-010 through V37-012.
-V46-001–004 separately track draft-submission races, Performance interval
-boundaries, direct Project Run routes and Catalog Previous pagination. Those
-pending fixes must not be inferred complete from the earlier feature delivery.
+V46-001–004 deliver generation-safe Run draft completion, overlapping Performance
+history intervals, direct Project Run shell routes and Catalog cursor-based
+Previous navigation. Their task files record focused regressions, real PostgreSQL
+history verification and the complete UI checks independently of V37 delivery.
 
 Implementation tasks own the necessary amendments to focused contracts. A
 media-type recommendation under [17](17-projects-and-queue.md) does not

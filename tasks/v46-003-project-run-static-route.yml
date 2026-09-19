@@ -3,7 +3,8 @@ id: "V46-003"
 title: "Serve Project Run setup when its URL is opened directly or refreshed"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
+status: "completed"
+implementation_commit: a9b6851819eff83ae5b056407388dab4b83bebea
 depends_on: ["V37-008"]
 languages: ["javascript", "typescript"]
 goal: >-
@@ -63,3 +64,15 @@ tests:
   - name: "diff"
     command: "git diff --check"
     covers: ["A1", "A2"]
+verification:
+  verified_on: "2026-09-19"
+  evidence:
+    - >-
+      Registered the Project Workflow Run shell route, including URL-encoded
+      colons in valid Project IDs. Direct GET/HEAD tests cover ordinary selectors,
+      queries, maximum segment lengths and matching headers without HEAD bodies.
+      Malformed, oversized, traversal and unrelated paths remain rejected.
+    - >-
+      Static-server suite passed all 8 tests with no skips; required
+      draft/Run/Project suite passed 107 tests. git diff --check passed.
+      Existing deployment processes were not restarted by this verification.

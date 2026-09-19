@@ -3,7 +3,8 @@ id: "V46-001"
 title: "Preserve replacement Run drafts when an earlier submission finishes"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
+status: "completed"
+implementation_commit: a6c13b50ffc47854eae267abddb6227d5b19b668
 depends_on: ["V37-002"]
 languages: ["typescript"]
 goal: >-
@@ -63,3 +64,17 @@ tests:
   - name: "diff"
     command: "git diff --check"
     covers: ["A1", "A2"]
+verification:
+  verified_on: "2026-09-19"
+  evidence:
+    - >-
+      Entry-based discard ignores stale generations. Successful submissions
+      still invalidate Run and Project caches, then recheck draft identity
+      before cleanup and navigation after asynchronous invalidation completes.
+    - >-
+      Six new store/form cases reproduced the old failures and now pass for
+      standalone and Project drafts, including replacement during invalidation,
+      exact input retention, ambiguous replacement submissions and retry keys.
+    - >-
+      Required draft/workflow/project suite passed 91 tests; final complete UI
+      suite passed 377 tests. make ui-typecheck and git diff --check passed.

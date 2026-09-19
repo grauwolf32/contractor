@@ -3,7 +3,8 @@ id: "V46-004"
 title: "Navigate to the previous Catalog result page independently of browser history"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
+status: "completed"
+implementation_commit: 0de2d0ea741d572f3217e8042d91748f8529879c
 depends_on: ["V37-007"]
 languages: ["typescript"]
 goal: >-
@@ -74,3 +75,20 @@ tests:
   - name: "diff"
     command: "git diff --check"
     covers: ["A1", "A2", "A3"]
+verification:
+  verified_on: "2026-09-19"
+  evidence:
+    - >-
+      Agent discovery and usage share query/route-bound predecessor cursor state.
+      Item return links preserve it; Previous targets a result cursor rather than
+      browser history. Unknown predecessors disable Previous and expose First
+      page. Search/filter/Agent-version changes discard incompatible history.
+    - >-
+      Regressions cover three-page detail return, browser Back/Forward, direct
+      links, learning a predecessor after a direct link, query/context changes,
+      usage-to-Workflow return and both Workflow card links' search/return state.
+      Workflow families retain their complete-inventory presentation.
+    - >-
+      Required Catalog/Workflow suite passed 40 tests. Final UI verification
+      passed 377 Vitest tests, 8 static-server tests, make ui-typecheck,
+      make ui-lint and make ui-build. git diff --check passed.

@@ -711,13 +711,22 @@ server_maintainability_planning:
 
 review_followups_planning:
   planned_on: "2026-09-07"
+  status: implemented
+  verified_on: "2026-09-19"
   reviewed_range: "2c490bc8..d1fac206"
   authority: User-requested tasks for four reproduced code-review findings.
   task_ids: [V46-001, V46-002, V46-003, V46-004]
   constraints: >-
     Each task records its reproduction, acceptance criteria and regression
-    commands. These are pending bug fixes; recording them does not mark their
-    implementation complete or reorder existing in-progress work.
+    commands and has a separate implementation commit. All four fixes passed
+    their focused regressions and the complete UI checks. V46-002 additionally
+    passed isolated PostgreSQL history verification with zero skipped cases.
+  verification:
+    ui: 377 Vitest tests, 8 static-server tests, typecheck, lint and production build passed.
+    postgres: 52 performance cases including subtests passed on disposable PostgreSQL 17.
+    workflow_catalog: >-
+      Existing complete-inventory Workflow family cards retain search and return
+      state. Cursor pagination applies to Agent discovery and exact Agent usage.
 
 memory_audit_followups_planning:
   planned_on: "2026-09-07"
