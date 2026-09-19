@@ -3,8 +3,8 @@ id: V58-013
 title: Restore full Finding descriptions and improve expanded history layouts
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c030303ab81a80665836ccc484dae7e45e3ed504
 depends_on:
 - V58-012
 languages:
@@ -43,3 +43,11 @@ tests:
   covers: [A1, A2, A4, A5, A6]
 - command: Read-only browser checks for full descriptions, expanded allocation metrics and delete-button containment at 1440, 1024, 768, 390 and 320 px; repeat affected routes on the deployed UI.
   covers: [A1, A2, A3, A4, A5, A6]
+verification_results:
+- Full Finding Markdown is visible in both Audit and Project Findings; review navigation no longer covers description text.
+- Exact source artifact revision links and return-to-Finding navigation passed against the live model; no file/line reference was invented.
+- All 47 focused UI tests, ESLint/Prettier, both TypeScript projects and production build passed.
+- 21 affected route/width captures passed before and after deployment; six viewport sizes passed delete-button, label and allocation layout checks without document overflow.
+- At 1920 px the first expanded allocation card widened from 341 to 1189 px and shortened from 677 to 230 px; all six metric values were retained.
+- UI 0.3.1 was merged into local main and deployed; queue, scheduler, 147 Runs, four Runtime identities, backend PIDs and core release were preserved.
+- Existing unrelated local edits were preserved; evidence is in tasks/evidence/v58-013.json and .local/ui-design-implementation/phase-013.
