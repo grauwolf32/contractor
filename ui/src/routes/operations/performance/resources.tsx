@@ -1,4 +1,5 @@
 import "./reading.css";
+import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
@@ -50,6 +51,65 @@ function averageCores(item: AllocationResourceSummary): number | undefined {
   );
 }
 
+function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+
+  return (
+    <>
+      <tr className={expanded ? "allocation-row-expanded" : undefined}>
+        <td data-label="Stage / agent">
+          <div className="allocation-history-stage">
+            <strong>{item.stage}</strong>
+            <small>{item.logicalAgent}</small>
+            <button
+              className="allocation-metrics-toggle"
+              type="button"
+              aria-label={`Metrics for ${item.allocationId}`}
+              aria-expanded={expanded}
+              aria-controls={detailsId}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+              <span>Metrics and exact identity</span>
+            </button>
+          </div>
+        </td>
+        <td data-label="Run">
+          <Link
+            to={`/runs/${encodeURIComponent(item.runId)}`}
+            title={item.runId}
+            aria-label={item.runId}
+          >
+            {item.runId.length > 24
+              ? `${item.runId.slice(0, 12)}…${item.runId.slice(-8)}`
+              : item.runId}
+          </Link>
+        </td>
+        <td data-label="Outcome">
+          <OperationsState state={item.outcome} />
+        </td>
+        <td data-label="Measurements">
+          <span>{item.status.replaceAll("_", " ")}</span>
+        </td>
+        <td data-label="Finished">{formatTimestamp(item.finishedAt)}</td>
+      </tr>
+      {expanded ? (
+        <tr className="allocation-metrics-row">
+          <td colSpan={5}>
+            <section
+              id={detailsId}
+              aria-label={`Metrics for ${item.allocationId}`}
+            >
+              <AllocationResourceList items={[item]} showRunLink={false} />
+            </section>
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
 export function AllocationResourceList({
   items,
   showRunLink = true,
@@ -74,39 +134,7 @@ export function AllocationResourceList({
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.allocationId}>
-                <td data-label="Stage / agent">
-                  <strong>{item.stage}</strong>
-                  <small>{item.logicalAgent}</small>
-                  <details>
-                    <summary>Metrics and exact identity</summary>
-                    <AllocationResourceList
-                      items={[item]}
-                      showRunLink={false}
-                    />
-                  </details>
-                </td>
-                <td data-label="Run">
-                  <Link
-                    to={`/runs/${encodeURIComponent(item.runId)}`}
-                    title={item.runId}
-                    aria-label={item.runId}
-                  >
-                    {item.runId.length > 24
-                      ? `${item.runId.slice(0, 12)}…${item.runId.slice(-8)}`
-                      : item.runId}
-                  </Link>
-                </td>
-                <td data-label="Outcome">
-                  <OperationsState state={item.outcome} />
-                </td>
-                <td data-label="Measurements">
-                  <span>{item.status.replaceAll("_", " ")}</span>
-                </td>
-                <td data-label="Finished">
-                  {formatTimestamp(item.finishedAt)}
-                </td>
-              </tr>
+              <CompletedAllocationRow key={item.allocationId} item={item} />
             ))}
           </tbody>
         </table>

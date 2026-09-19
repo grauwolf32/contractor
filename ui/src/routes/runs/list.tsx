@@ -17,6 +17,7 @@ import {
   listRuns,
   TERMINAL_RUN_STATES,
   type WorkflowRunState,
+  type RunSummary,
 } from "../../api/runs";
 import {
   CursorControls,
@@ -346,6 +347,123 @@ function RunLabelFilters({
   );
 }
 
+function CompletedRunRow({
+  run,
+  onDelete,
+}: {
+  run: RunSummary;
+  onDelete: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const contextId = useId();
+  return (
+    <>
+      <tr className={expanded ? "run-row-expanded" : undefined}>
+        <td className="run-list-id-cell" data-label="Run">
+          <ContextLink
+            returnLabel="Completed Runs"
+            className="run-list-id-link"
+            to={`/runs/${encodeURIComponent(run.runId)}`}
+            aria-label={run.runId}
+            title={run.runId}
+          >
+            {compactRunId(run.runId)}
+          </ContextLink>
+        </td>
+        <td className="run-list-workflow-cell" data-label="Workflow">
+          <span className="run-list-mobile-label">Workflow</span>
+          <code>{run.workflow}</code>
+        </td>
+        <td className="run-list-state-cell" data-label="State">
+          <StateBadge state={run.state} />
+        </td>
+        <td className="run-list-labels-cell" data-label="Context">
+          <button
+            type="button"
+            className="run-context-toggle"
+            aria-label={`Context for ${run.runId}`}
+            aria-expanded={expanded}
+            aria-controls={contextId}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+            {run.labels["eval.name"] ??
+              run.labels.purpose ??
+              (Object.keys(run.labels).length
+                ? `${Object.keys(run.labels).length} labels`
+                : "Details")}
+          </button>
+        </td>
+        <td className="run-list-finished-cell" data-label="Finished">
+          {run.finishedAt === undefined ? (
+            "—"
+          ) : (
+            <time dateTime={run.finishedAt}>
+              {formatTimestamp(run.finishedAt)}
+            </time>
+          )}
+        </td>
+        <td className="run-list-actions-cell" data-label="Actions">
+          {run.deletable === true ? (
+            <button
+              className="run-delete-trigger"
+              type="button"
+              aria-label={`Delete Run ${run.runId}`}
+              title="Delete completed Run"
+              onClick={onDelete}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+              >
+                <path
+                  d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
+        </td>
+      </tr>
+      {expanded ? (
+        <tr className="run-context-row">
+          <td colSpan={6}>
+            <section
+              className="run-context-details"
+              id={contextId}
+              aria-label={`Context for ${run.runId}`}
+            >
+              <RunMetadataLabelChips labels={run.labels} />
+              <dl className="compact-record-facts">
+                <div>
+                  <dt>Run ID</dt>
+                  <dd>
+                    <code>{run.runId}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>{formatTimestamp(run.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt>Updated</dt>
+                  <dd>{formatTimestamp(run.updatedAt)}</dd>
+                </div>
+              </dl>
+            </section>
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
 export function CompletedRunsPanel() {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -476,93 +594,14 @@ export function CompletedRunsPanel() {
             </thead>
             <tbody>
               {query.data.items.map((run) => (
-                <tr key={run.runId}>
-                  <td className="run-list-id-cell" data-label="Run">
-                    <ContextLink
-                      returnLabel="Completed Runs"
-                      className="run-list-id-link"
-                      to={`/runs/${encodeURIComponent(run.runId)}`}
-                      aria-label={run.runId}
-                      title={run.runId}
-                    >
-                      {compactRunId(run.runId)}
-                    </ContextLink>
-                  </td>
-                  <td className="run-list-workflow-cell" data-label="Workflow">
-                    <span className="run-list-mobile-label">Workflow</span>
-                    <code>{run.workflow}</code>
-                  </td>
-                  <td className="run-list-state-cell" data-label="State">
-                    <StateBadge state={run.state} />
-                  </td>
-                  <td className="run-list-labels-cell" data-label="Context">
-                    <details>
-                      <summary>
-                        {run.labels["eval.name"] ??
-                          run.labels.purpose ??
-                          (Object.keys(run.labels).length
-                            ? `${Object.keys(run.labels).length} labels`
-                            : "Details")}
-                      </summary>
-                      <RunMetadataLabelChips labels={run.labels} />
-                      <dl className="compact-record-facts">
-                        <div>
-                          <dt>Run ID</dt>
-                          <dd>
-                            <code>{run.runId}</code>
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Created</dt>
-                          <dd>{formatTimestamp(run.createdAt)}</dd>
-                        </div>
-                        <div>
-                          <dt>Updated</dt>
-                          <dd>{formatTimestamp(run.updatedAt)}</dd>
-                        </div>
-                      </dl>
-                    </details>
-                  </td>
-                  <td className="run-list-finished-cell" data-label="Finished">
-                    {run.finishedAt === undefined ? (
-                      "—"
-                    ) : (
-                      <time dateTime={run.finishedAt}>
-                        {formatTimestamp(run.finishedAt)}
-                      </time>
-                    )}
-                  </td>
-                  <td className="run-list-actions-cell" data-label="Actions">
-                    {run.deletable === true ? (
-                      <button
-                        className="run-delete-trigger"
-                        type="button"
-                        aria-label={`Delete Run ${run.runId}`}
-                        title="Delete completed Run"
-                        onClick={() => {
-                          deletion.reset();
-                          setDeleteTarget(run.runId);
-                        }}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          width="18"
-                          height="18"
-                        >
-                          <path
-                            d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
+                <CompletedRunRow
+                  key={run.runId}
+                  run={run}
+                  onDelete={() => {
+                    deletion.reset();
+                    setDeleteTarget(run.runId);
+                  }}
+                />
               ))}
             </tbody>
           </table>

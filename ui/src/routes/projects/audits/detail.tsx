@@ -1217,6 +1217,16 @@ export function AuditFindingCard({
   reviewError?: unknown;
   onRetryReview?: () => void;
 }) {
+  const sources = [
+    ...new Map(
+      Object.entries(audit.inputs)
+        .filter(
+          ([name, artifact]) =>
+            name === "source" || artifact.ref.namespace === "sources",
+        )
+        .map(([, artifact]) => [JSON.stringify(artifact.ref), artifact]),
+    ).values(),
+  ];
   return (
     <article
       className="panel audit-finding-card"
@@ -1238,20 +1248,43 @@ export function AuditFindingCard({
         </div>
         <StateBadge state={finding.state} />
       </div>
-      <p className="audit-finding-excerpt">
-        {finding.firstProposal.document.description.slice(0, 280)}
-        {finding.firstProposal.document.description.length > 280 ? "…" : ""}
-      </p>
       <a
         className="audit-decision-jump"
         href={`#decision-${audit.auditId}-${finding.findingId}`}
       >
         Review decision ↓
       </a>
-      <details className="audit-record-details finding-evidence">
-        <summary>Read full finding and evidence</summary>
+      <div className="audit-finding-description">
         <AuditMarkdown source={finding.firstProposal.document.description} />
-      </details>
+      </div>
+      {sources.length === 0 ? null : (
+        <section
+          className="audit-finding-sources"
+          aria-label="Source artifacts"
+        >
+          <h4>Sources used by this Audit</h4>
+          <ul>
+            {sources.map((artifact) => (
+              <li key={JSON.stringify(artifact.ref)}>
+                <ContextLink
+                  returnLabel="Finding"
+                  returnHash={`#finding-${audit.auditId}-${finding.findingId}`}
+                  to={exactArtifactLink(audit.projectId, artifact)}
+                  title={`Exact revision ${artifact.ref.revision}`}
+                >
+                  {artifact.ref.namespace}/{artifact.ref.name}
+                </ContextLink>
+                <small>
+                  {artifact.sizeBytes === undefined
+                    ? null
+                    : `${formatBytes(artifact.sizeBytes)} · `}
+                  Exact source revision
+                </small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <dl className="metadata-grid">
         <div>
           <dt>Model suggestion</dt>

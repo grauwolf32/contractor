@@ -987,16 +987,12 @@
 .audit-check-card .audit-record-details > summary {
   cursor: pointer;
 }
-.audit-finding-excerpt,
 .audit-result-excerpt {
   color: var(--muted-strong);
   overflow-wrap: anywhere;
   line-height: 1.65;
 }
 .audit-decision-jump {
-  position: sticky;
-  top: 0.5rem;
-  z-index: 2;
   display: block;
   width: fit-content;
   border: 1px solid var(--line);
@@ -1019,4 +1015,33 @@
 }
 .audit-result-reading > summary {
   cursor: pointer;
+}
+
+.audit-finding-sources {
+  margin: 1rem 0;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.8rem 1rem;
+  background: var(--surface-subtle);
+}
+.audit-finding-sources h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.audit-finding-sources ul {
+  display: grid;
+  gap: 0.7rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.6rem 0 0;
+}
+.audit-finding-sources li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  overflow-wrap: anywhere;
+}
+.audit-finding-sources small {
+  color: var(--muted-strong);
 }
