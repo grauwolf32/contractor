@@ -92,7 +92,9 @@
   "integration": {
     "target": "local main",
     "unrelated_work": "Preserve latest uncommitted architecture planning and do not include active V38/V40/V55/V56 branches.",
-    "completion": "A subsequent metadata update records actual merge commit."
+    "completion": "Merged into local main; runtime/API/gate source matches reviewed branch; original unrelated planning changes preserved.",
+    "status": "merged",
+    "merge_commit": "8053b7840a8c52bf42672b488cd2c5cc45ca820a"
   },
   "independent_reviews": [
     "Root reviewed auth, provenance and gate implementations.",
