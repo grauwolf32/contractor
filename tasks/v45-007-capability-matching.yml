@@ -3,7 +3,7 @@ id: V45-007
 title: Isolate deterministic capability matching from Registry
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -53,3 +53,4 @@ verification:
   - go test -race -count=1 ./internal/controlplane — passed.
   - Exhaustive candidate graphs up to three bindings and three agents agree with independent assignment search; stable augmentation leaves the graph unchanged.
   - git diff --check — passed.
+implementation_commit: c0e2bf43873c6faba6db4cd415a5083190db31d2

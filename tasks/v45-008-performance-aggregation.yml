@@ -3,7 +3,7 @@ id: V45-008
 title: Extract metric accumulators and share HTTP merging
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
