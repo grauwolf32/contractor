@@ -111,6 +111,11 @@ func TestAuditCompletionRejectsInvalidTargetsAndTrustedMappings(t *testing.T) {
 			r.From.Namespace = "foreign"
 			s.Result.Artifacts["result"] = r
 		},
+		"duplicate-required-input": func(b *ResolvedAuditWorkflowBinding) {
+			s := b.Workflow.Stages["check"]
+			s.Context.Artifacts["duplicate_task"] = s.Context.Artifacts["task"]
+		},
+
 		"optional-input": func(b *ResolvedAuditWorkflowBinding) {
 			s := b.Workflow.Stages["check"]
 			v := s.Context.Artifacts["task"]

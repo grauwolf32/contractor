@@ -50,3 +50,8 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+  - go test -race -count=1 ./internal/config ./internal/httpapi/public — passed.
+  - Regression verifies byte-identical cursor fingerprints, exact revision isolation, detached bounded pages and duplicate required input rejection.
+  - git diff --check — passed.

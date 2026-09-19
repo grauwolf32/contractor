@@ -10,6 +10,7 @@ import (
 // Snapshot is an immutable, dependency-resolved view of one successful load.
 // Its maps are private and every accessor returns a deep copy.
 type Snapshot struct {
+	workflowBindings map[string]AgentTemplateWorkflowBindings
 	workflows        map[string]ResolvedWorkflow
 	templates        map[string]contracts.ResolvedAgentTemplate
 	policies         map[string]contracts.ResolvedModelPolicy
@@ -64,6 +65,7 @@ func newSnapshot(
 	for key, source := range sources {
 		result.sources[key] = source
 	}
+	result.buildWorkflowBindingIndex()
 	return result
 }
 

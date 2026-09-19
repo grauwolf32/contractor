@@ -102,6 +102,12 @@ func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageNam
 	}
 	// Input names are mappings, not fixed aliases; each trusted source must be
 	// required by the Workflow and passed as a required input into this Stage.
+	requiredInputs := make(map[string]int)
+	for _, artifact := range stage.Context.Artifacts {
+		if artifact.Namespace == "inputs" && artifact.Required {
+			requiredInputs[artifact.Name]++
+		}
+	}
 	for _, source := range []AuditWorkflowInputSource{AuditInputFromItemPackage, AuditInputFromExecutionManifest} {
 		count, mappedCount := 0, 0
 		for slot, mapping := range binding.Inputs {
@@ -112,11 +118,7 @@ func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageNam
 			if !binding.Workflow.Inputs[slot].Required {
 				return fmt.Errorf("workerCompletion input must be required")
 			}
-			for _, context := range stage.Context.Artifacts {
-				if context.Namespace == "inputs" && context.Name == slot && context.Required {
-					count++
-				}
-			}
+			count += requiredInputs[slot]
 		}
 		if mappedCount != 1 || count != 1 {
 			return fmt.Errorf("workerCompletion requires one mapped task and execution manifest")

@@ -212,80 +212,18 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 		result.WorkerRuntimes[raw] = struct{}{}
 	}
 	for raw, descriptor := range input.SandboxProfiles {
-		if _, err := ParseSelector(raw); err != nil {
-			return Descriptors{}, fmt.Errorf("invalid SandboxProfile descriptor %q: %w", raw, err)
+		value, err := normalizeSandboxProfileDescriptor(raw, descriptor)
+		if err != nil {
+			return Descriptors{}, err
 		}
-		if descriptor.WorkspaceMode != "" && descriptor.WorkspaceMode != contracts.WorkspaceModeDirect && descriptor.WorkspaceMode != contracts.WorkspaceModeOverlay {
-			return Descriptors{}, fmt.Errorf("invalid workspace mode for SandboxProfile %q", raw)
-		}
-		if descriptor.WorkspaceStorage != "" && (descriptor.WorkspaceMode == "" || (descriptor.WorkspaceStorage != contracts.WorkspaceStorageLocal && descriptor.WorkspaceStorage != contracts.WorkspaceStorageMemory)) {
-			return Descriptors{}, fmt.Errorf("invalid workspace storage for SandboxProfile %q", raw)
-		}
-		result.SandboxProfiles[raw] = descriptor
+		result.SandboxProfiles[raw] = value
 	}
 	for raw, descriptor := range input.Toolsets {
-		if raw == "code-execution@1" && !validExecutionDescriptor(descriptor) {
-			return Descriptors{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
-		}
-		if descriptor.RequiredSandboxProfile != "" {
-			if _, ok := result.SandboxProfiles[descriptor.RequiredSandboxProfile]; !ok {
-				return Descriptors{}, fmt.Errorf("Toolset %q requires an unknown SandboxProfile", raw)
-			}
-		}
-		if _, err := ParseSelector(raw); err != nil {
-			return Descriptors{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
-		}
-		seen := make(map[string]struct{}, len(descriptor.Tools))
-		tools := append([]string(nil), descriptor.Tools...)
-		for _, tool := range tools {
-			if err := validateIdentifier("Toolset tool", tool); err != nil {
-				return Descriptors{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
-			}
-			if _, exists := seen[tool]; exists {
-				return Descriptors{}, fmt.Errorf("Toolset descriptor %q exports duplicate tool %q", raw, tool)
-			}
-			seen[tool] = struct{}{}
-		}
-		sort.Strings(tools)
-		channels := make(map[string][]ToolInfrastructureChannel, len(descriptor.InfrastructureChannels))
-		for tool, rawChannels := range descriptor.InfrastructureChannels {
-			if _, ok := seen[tool]; !ok {
-				return Descriptors{}, fmt.Errorf("Toolset descriptor %q describes channels for unknown tool %q", raw, tool)
-			}
-			if len(rawChannels) == 0 {
-				return Descriptors{}, fmt.Errorf("Toolset descriptor %q has empty channels for tool %q", raw, tool)
-			}
-			selected := append([]ToolInfrastructureChannel(nil), rawChannels...)
-			sort.Slice(selected, func(i, j int) bool { return selected[i] < selected[j] })
-			for index, channel := range selected {
-				if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher &&
-					channel != CaidoGraphQLClient && channel != SandboxExecution {
-					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has invalid channel for tool %q", raw, tool)
-				}
-				if index > 0 && channel == selected[index-1] {
-					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has duplicate channel for tool %q", raw, tool)
-				}
-			}
-			for _, channel := range selected {
-				if channel == SandboxExecution && (raw != "code-execution@1" || tool != "exec_command" || len(selected) != 1 || descriptor.RequiredSandboxProfile != "podman@1") {
-					return Descriptors{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
-				}
-			}
-			channels[tool] = selected
-		}
-		active, err := normalizeToolClassification(raw, "active-check", descriptor.ActiveCheckTools, seen)
+		value, err := normalizeToolsetDescriptor(raw, descriptor, result.SandboxProfiles)
 		if err != nil {
 			return Descriptors{}, err
 		}
-		findings, err := normalizeToolClassification(raw, "finding-proposal", descriptor.FindingProposalTools, seen)
-		if err != nil {
-			return Descriptors{}, err
-		}
-		result.Toolsets[raw] = ToolsetDescriptor{
-			RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
-			Tools:                  tools, InfrastructureChannels: channels,
-			ActiveCheckTools: active, FindingProposalTools: findings,
-		}
+		result.Toolsets[raw] = value
 	}
 
 	return result, nil
@@ -356,4 +294,81 @@ func RequiredRuntimeAdaptersForTemplate(
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
 	return result, nil
+}
+
+func normalizeSandboxProfileDescriptor(raw string, descriptor SandboxProfileDescriptor) (SandboxProfileDescriptor, error) {
+	if _, err := ParseSelector(raw); err != nil {
+		return SandboxProfileDescriptor{}, fmt.Errorf("invalid SandboxProfile descriptor %q: %w", raw, err)
+	}
+	if descriptor.WorkspaceMode != "" && descriptor.WorkspaceMode != contracts.WorkspaceModeDirect && descriptor.WorkspaceMode != contracts.WorkspaceModeOverlay {
+		return SandboxProfileDescriptor{}, fmt.Errorf("invalid workspace mode for SandboxProfile %q", raw)
+	}
+	if descriptor.WorkspaceStorage != "" && (descriptor.WorkspaceMode == "" || (descriptor.WorkspaceStorage != contracts.WorkspaceStorageLocal && descriptor.WorkspaceStorage != contracts.WorkspaceStorageMemory)) {
+		return SandboxProfileDescriptor{}, fmt.Errorf("invalid workspace storage for SandboxProfile %q", raw)
+	}
+	return descriptor, nil
+}
+func normalizeToolsetDescriptor(raw string, descriptor ToolsetDescriptor, sandboxProfiles map[string]SandboxProfileDescriptor) (ToolsetDescriptor, error) {
+	if raw == "code-execution@1" && !validExecutionDescriptor(descriptor) {
+		return ToolsetDescriptor{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
+	}
+	if descriptor.RequiredSandboxProfile != "" {
+		if _, ok := sandboxProfiles[descriptor.RequiredSandboxProfile]; !ok {
+			return ToolsetDescriptor{}, fmt.Errorf("Toolset %q requires an unknown SandboxProfile", raw)
+		}
+	}
+	if _, err := ParseSelector(raw); err != nil {
+		return ToolsetDescriptor{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
+	}
+	seen := make(map[string]struct{}, len(descriptor.Tools))
+	tools := append([]string(nil), descriptor.Tools...)
+	for _, tool := range tools {
+		if err := validateIdentifier("Toolset tool", tool); err != nil {
+			return ToolsetDescriptor{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
+		}
+		if _, exists := seen[tool]; exists {
+			return ToolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q exports duplicate tool %q", raw, tool)
+		}
+		seen[tool] = struct{}{}
+	}
+	sort.Strings(tools)
+	channels := make(map[string][]ToolInfrastructureChannel, len(descriptor.InfrastructureChannels))
+	for tool, rawChannels := range descriptor.InfrastructureChannels {
+		if _, ok := seen[tool]; !ok {
+			return ToolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q describes channels for unknown tool %q", raw, tool)
+		}
+		if len(rawChannels) == 0 {
+			return ToolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q has empty channels for tool %q", raw, tool)
+		}
+		selected := append([]ToolInfrastructureChannel(nil), rawChannels...)
+		sort.Slice(selected, func(i, j int) bool { return selected[i] < selected[j] })
+		for index, channel := range selected {
+			if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher &&
+				channel != CaidoGraphQLClient && channel != SandboxExecution {
+				return ToolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q has invalid channel for tool %q", raw, tool)
+			}
+			if index > 0 && channel == selected[index-1] {
+				return ToolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q has duplicate channel for tool %q", raw, tool)
+			}
+		}
+		for _, channel := range selected {
+			if channel == SandboxExecution && (raw != "code-execution@1" || tool != "exec_command" || len(selected) != 1 || descriptor.RequiredSandboxProfile != "podman@1") {
+				return ToolsetDescriptor{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
+			}
+		}
+		channels[tool] = selected
+	}
+	active, err := normalizeToolClassification(raw, "active-check", descriptor.ActiveCheckTools, seen)
+	if err != nil {
+		return ToolsetDescriptor{}, err
+	}
+	findings, err := normalizeToolClassification(raw, "finding-proposal", descriptor.FindingProposalTools, seen)
+	if err != nil {
+		return ToolsetDescriptor{}, err
+	}
+	return ToolsetDescriptor{
+		RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
+		Tools:                  tools, InfrastructureChannels: channels,
+		ActiveCheckTools: active, FindingProposalTools: findings,
+	}, nil
 }

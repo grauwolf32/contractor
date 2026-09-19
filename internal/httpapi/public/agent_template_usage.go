@@ -3,18 +3,13 @@ package public
 import (
 	"fmt"
 	"net/http"
-	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config"
 )
 
 const agentTemplateWorkflowBindingsCursorKind = "agent-template-workflow-bindings"
 
-type agentTemplateWorkflowBindingResponse struct {
-	Workflow      config.WorkflowRef `json:"workflow"`
-	Stage         string             `json:"stage"`
-	LogicalWorker string             `json:"logicalWorker"`
-}
+type agentTemplateWorkflowBindingResponse = config.AgentTemplateWorkflowBinding
 
 type agentTemplateWorkflowBindingPageResponse struct {
 	Items []agentTemplateWorkflowBindingResponse `json:"items"`
@@ -35,48 +30,20 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 		h.handleError(w, fmt.Errorf("%w: invalid AgentTemplate selector", errInvalidRequest))
 		return
 	}
-	template, err := h.dependencies.Config.Configuration(config.ConfigurationAgentTemplates, selector)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-
-	workflows := h.dependencies.Config.Workflows()
-	sourceFingerprint, err := catalogSourceFingerprint(struct {
-		Template  config.ConfigurationRef
-		Workflows []config.ResolvedWorkflow
-	}{Template: template.Ref, Workflows: workflows})
+	index, err := h.dependencies.Config.AgentTemplateWorkflowBindings(selector)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	cursorKind := catalogPageCursorKind(
 		agentTemplateWorkflowBindingsCursorKind+":"+selector,
-		catalogQuery{}, sourceFingerprint,
+		catalogQuery{}, index.SourceFingerprint,
 	)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 3)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-
-	items := make([]agentTemplateWorkflowBindingResponse, 0)
-	for _, workflow := range workflows {
-		for stageName, stage := range workflow.Stages {
-			for logicalWorker, binding := range stage.Agents {
-				if binding.Template.Ref.TemplateID == template.Ref.Name &&
-					binding.Template.Ref.Version == template.Ref.Version &&
-					binding.Template.Ref.Digest == template.Ref.Digest {
-					items = append(items, agentTemplateWorkflowBindingResponse{
-						Workflow: workflow.Ref, Stage: stageName, LogicalWorker: logicalWorker,
-					})
-				}
-			}
-		}
-	}
-	sort.Slice(items, func(left, right int) bool {
-		return workflowBindingLess(items[left], items[right])
-	})
 
 	after := agentTemplateWorkflowBindingResponse{}
 	if len(cursor) != 0 {
@@ -90,16 +57,11 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 			Stage:    cursor[1], LogicalWorker: cursor[2],
 		}
 	}
-	pageItems := make([]agentTemplateWorkflowBindingResponse, 0, min(limit+1, len(items)))
-	for _, item := range items {
-		if len(cursor) != 0 && !workflowBindingLess(after, item) {
-			continue
-		}
-		pageItems = append(pageItems, item)
-		if len(pageItems) == limit+1 {
-			break
-		}
+	var afterBinding *agentTemplateWorkflowBindingResponse
+	if len(cursor) != 0 {
+		afterBinding = &after
 	}
+	pageItems := index.Page(afterBinding, limit+1)
 	page := pageInfoResponse{}
 	if len(pageItems) > limit {
 		pageItems = pageItems[:limit]
@@ -120,19 +82,6 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 	writeJSON(w, http.StatusOK, agentTemplateWorkflowBindingPageResponse{
 		Items: pageItems, Page: page,
 	})
-}
-
-func workflowBindingLess(left, right agentTemplateWorkflowBindingResponse) bool {
-	if left.Workflow.Name != right.Workflow.Name {
-		return left.Workflow.Name < right.Workflow.Name
-	}
-	if left.Workflow.Version != right.Workflow.Version {
-		return left.Workflow.Version < right.Workflow.Version
-	}
-	if left.Stage != right.Stage {
-		return left.Stage < right.Stage
-	}
-	return left.LogicalWorker < right.LogicalWorker
 }
 
 func splitWorkflowSelector(selector string) (string, string, bool) {

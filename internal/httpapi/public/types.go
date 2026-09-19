@@ -137,6 +137,7 @@ type RunCancellationNotifier interface {
 // public API. Both a bootstrap Snapshot and the managed configuration Manager
 // implement it.
 type ConfigurationCatalog interface {
+	AgentTemplateWorkflowBindings(string) (config.AgentTemplateWorkflowBindings, error)
 	AgentInstructions(string) (config.AgentInstructions, error)
 	Workflow(string) (config.ResolvedWorkflow, error)
 	Workflows() []config.ResolvedWorkflow
