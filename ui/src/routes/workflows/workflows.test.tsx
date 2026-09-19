@@ -162,6 +162,8 @@ function apiResponse(value: unknown, options: ResponseInit = {}): Response {
 }
 
 function inventoryResponse(path: string): Response | undefined {
+  if (path === "/v1/workflows")
+    return apiResponse({ items: [workflow], page: { hasMore: false } });
   if (path === "/v1/artifacts") {
     return apiResponse({
       items: [sourceArtifact],
@@ -261,6 +263,12 @@ function inventoryResponse(path: string): Response | undefined {
   return undefined;
 }
 
+async function openRunSetup() {
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("button", { name: "Configure Run" }));
+}
+
 function renderWorkflowApplication(api: PublicAPI, path: string) {
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],
@@ -270,6 +278,206 @@ function renderWorkflowApplication(api: PublicAPI, path: string) {
     router,
   };
 }
+
+describe("Workflow overview and Run drawer", () => {
+  const first = { ...workflow, ref: { ...workflow.ref, version: "1" } };
+  const second = { ...workflow, ref: { ...workflow.ref, version: "2" } };
+  const route = `/catalog/workflows/${workflow.ref.name}`;
+  function overviewAPI(paths: string[] = [], versionsUnavailable = false) {
+    return new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        paths.push(url.pathname);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === "/v1/workflows") {
+          if (versionsUnavailable)
+            return apiResponse(
+              { code: "unavailable", message: "Unavailable", retryable: false },
+              { status: 503 },
+            );
+          return url.searchParams.has("cursor")
+            ? apiResponse({ items: [second], page: { hasMore: false } })
+            : apiResponse({
+                items: [first],
+                page: { hasMore: true, nextCursor: "older-page" },
+              });
+        }
+        if (url.pathname === `/v1/workflows/${workflow.ref.name}/versions/1`)
+          return apiResponse(first);
+        if (url.pathname === `/v1/workflows/${workflow.ref.name}/versions/2`)
+          return apiResponse(second);
+        const inventory = inventoryResponse(url.pathname);
+        if (inventory) return inventory;
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+  }
+
+  it("shows the contract before setup, loads all versions and preserves a pinned older route", async () => {
+    const paths: string[] = [];
+    const { router } = renderWorkflowApplication(
+      overviewAPI(paths),
+      `${route}/1`,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Inputs and results" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Artifact inputs" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Declared outputs" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("No authored description."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Start Workflow Run" }),
+    ).not.toBeInTheDocument();
+    expect(paths).not.toContain("/v1/artifacts");
+    expect(await screen.findByText("Earlier version")).toBeVisible();
+    expect(
+      screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
+    ).toHaveValue("1");
+    expect(router.state.location.pathname).toBe(`${route}/1`);
+    expect(paths.filter((path) => path === "/v1/workflows")).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
+      "2",
+    );
+    expect(await screen.findByText("Latest")).toBeVisible();
+    expect(router.state.location.pathname).toBe(`${route}/2`);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("retains optional and required values across closing, nested dialogs and exact version changes", async () => {
+    renderWorkflowApplication(overviewAPI(), `${route}/1`);
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole("button", {
+      name: "Configure Run",
+    });
+    await user.click(trigger);
+    let drawer = screen.getByRole("dialog", { name: "Configure Run" });
+    expect(
+      within(drawer).getByRole("button", { name: "Close Run setup" }),
+    ).toHaveFocus();
+    const objective = within(drawer).getByLabelText(/^objective/);
+    const source = within(drawer).getByLabelText(/^source/);
+    expect(
+      source.compareDocumentPosition(objective) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.type(objective, "Retained version one");
+    await user.click(
+      within(drawer).getByText("Optional parameters", { exact: true }),
+    );
+    await user.click(
+      within(drawer).getByLabelText(/Include optional audience/),
+    );
+    await user.type(
+      within(drawer).getByLabelText("audience"),
+      "Security reviewers",
+    );
+    await user.click(
+      within(drawer).getByRole("button", {
+        name: "Upload local file for source",
+      }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Upload local file for source" }),
+    ).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Configure Run" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    await screen.findByText("Earlier version");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
+      "2",
+    );
+    await screen.findByText("Latest");
+    await openRunSetup();
+    expect(screen.getByLabelText(/^objective/)).toHaveValue("");
+    await user.keyboard("{Escape}");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
+      "1",
+    );
+    await screen.findByText("Earlier version");
+    await openRunSetup();
+    drawer = screen.getByRole("dialog", { name: "Configure Run" });
+    expect(within(drawer).getByLabelText(/^objective/)).toHaveValue(
+      "Retained version one",
+    );
+    expect(within(drawer).getByLabelText("audience")).toBeVisible();
+    expect(within(drawer).getByLabelText("audience")).toHaveValue(
+      "Security reviewers",
+    );
+  });
+
+  it("keeps exact setup available if the version inventory fails without claiming Latest", async () => {
+    renderWorkflowApplication(overviewAPI([], true), `${route}/1`);
+    await screen.findByRole("button", { name: "Retry versions" });
+    expect(
+      screen.getByRole("combobox", { name: `Version of ${workflow.ref.name}` }),
+    ).toHaveValue("1");
+    expect(screen.queryByText("Latest")).not.toBeInTheDocument();
+    await openRunSetup();
+    expect(screen.getByRole("dialog", { name: "Configure Run" })).toBeVisible();
+  });
+
+  it("protects pending submission and preserves the exact retry identity after reopening", async () => {
+    const noInputs = { ...first, parameters: {}, inputs: {} };
+    let rejectSubmission: (error: Error) => void = () => {};
+    const keys: (string | null)[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return apiResponse(session);
+        if (path === `/v1/workflows/${workflow.ref.name}/versions/1`)
+          return apiResponse(noInputs);
+        if (path === "/v1/runs" && request.method === "POST") {
+          keys.push(request.headers.get("Idempotency-Key"));
+          if (keys.length === 1)
+            return new Promise<Response>((_, reject) => {
+              rejectSubmission = reject;
+            });
+          throw new TypeError("response lost");
+        }
+        const inventory = inventoryResponse(path);
+        if (inventory) return inventory;
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderWorkflowApplication(api, `${route}/1#workflow-run-setup`);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Start Workflow Run" }),
+    );
+    await waitFor(() => expect(keys).toHaveLength(1));
+    expect(
+      screen.getByRole("button", { name: "Close Run setup" }),
+    ).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Configure Run" })).toBeVisible();
+    rejectSubmission(new TypeError("response lost"));
+    await screen.findByRole("button", { name: "Retry exact request" });
+    await user.keyboard("{Escape}");
+    await openRunSetup();
+    await user.click(
+      screen.getByRole("button", { name: "Retry exact request" }),
+    );
+    await waitFor(() => expect(keys).toHaveLength(2));
+    expect(keys[0]).toMatch(/^run-ui-/);
+    expect(keys[1]).toBe(keys[0]);
+  });
+});
 
 describe("Workflow routes", () => {
   it("requires slot-by-slot review when one MIME candidate is suggested twice", async () => {
@@ -614,6 +822,7 @@ describe("Workflow routes", () => {
       screen.queryByRole("button", { name: /escalate/i }),
     ).not.toBeInTheDocument();
 
+    await openRunSetup();
     const user = userEvent.setup();
     await user.click(screen.getByText("Runtime placement", { exact: true }));
     expect(
@@ -745,9 +954,15 @@ describe("Workflow routes", () => {
       }),
     );
     renderWorkflowApplication(api, workflowRoute);
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByText("Agents, execution settings and transitions"),
+      );
     expect(
       await screen.findByRole("link", { name: "skills/openapi-analysis" }),
     ).toHaveAttribute("href", "/artifacts/skills/openapi-analysis");
+    await openRunSetup();
     await screen.findByRole("option", { name: /projects\/source@revision-7/ });
     const user = userEvent.setup();
     await user.click(
@@ -811,6 +1026,7 @@ describe("Workflow routes", () => {
       }),
     );
     const { router } = renderWorkflowApplication(api, workflowRoute);
+    await openRunSetup();
     const user = userEvent.setup();
     const objective = await screen.findByLabelText(/^objective/i);
     await user.type(objective, "Initial objective");
@@ -837,6 +1053,7 @@ describe("Workflow routes", () => {
     await router.navigate("/artifacts");
     await screen.findByRole("heading", { name: "Artifacts" });
     await router.navigate(workflowRoute);
+    await openRunSetup();
     expect(await screen.findByLabelText(/^objective/i)).toHaveValue(
       "Initial objective",
     );
@@ -893,6 +1110,7 @@ describe("Workflow routes", () => {
       }),
     );
     renderWorkflowApplication(api, workflowRoute);
+    await openRunSetup();
     const user = userEvent.setup();
     await user.type(
       await screen.findByLabelText(/^objective/i),
@@ -1000,6 +1218,7 @@ describe("Workflow routes", () => {
       }),
     );
     renderWorkflowApplication(api, workflowRoute);
+    await openRunSetup();
     const user = userEvent.setup();
     await user.type(
       await screen.findByLabelText(/^objective/i),
@@ -1090,6 +1309,7 @@ describe("Workflow routes", () => {
       }),
     );
     renderWorkflowApplication(api, workflowRoute);
+    await openRunSetup();
     const user = userEvent.setup();
     await user.type(
       await screen.findByLabelText(/^objective/i),
@@ -1149,6 +1369,7 @@ describe("Workflow routes", () => {
       }),
     );
     renderWorkflowApplication(api, workflowRoute);
+    await openRunSetup();
     const user = userEvent.setup();
     await user.type(
       await screen.findByLabelText(/^objective/i),

@@ -254,6 +254,10 @@ async function installFixture(page: Page, apiOrigin: string) {
       );
       return;
     }
+    if (path === "/v1/workflows") {
+      await json(route, { items: [workflow], page: { hasMore: false } });
+      return;
+    }
     if (path === "/v1/workflows/repeat-workflow/versions/1") {
       await json(route, workflow);
       return;

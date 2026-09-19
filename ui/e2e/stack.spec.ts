@@ -259,10 +259,16 @@ async function startRun(
   metadataLabels: Record<string, string> = {},
 ): Promise<string> {
   await page.goto(`/workflows/${workflow.replace("@", "/")}`);
-  await expect(page.getByRole("heading", { name: workflow })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: workflow.split("@")[0]!, exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Configure Run", exact: true })
+    .click();
   for (const [name, value] of Object.entries(parameters)) {
     const input = page.locator(`input[name="parameter-${name}"]`);
     if (await input.isDisabled()) {
+      await openDetails(page.locator("details.workflow-optional-parameters"));
       await page.getByLabel(`Include optional ${name}`).check();
     }
     await input.fill(value);

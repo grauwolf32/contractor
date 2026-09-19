@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Outlet, useLocation } from "react-router";
+import { Navigate, NavLink, Outlet, useLocation, useMatch } from "react-router";
 
 import "./catalog.css";
 
@@ -17,6 +17,13 @@ export function CatalogIndexRedirect() {
 }
 
 export function CatalogLayoutRoute() {
+  const workflowDetail = useMatch("/catalog/workflows/:name/:version");
+  if (workflowDetail)
+    return (
+      <div className="catalog-page">
+        <Outlet />
+      </div>
+    );
   return (
     <div className="catalog-page">
       <header>

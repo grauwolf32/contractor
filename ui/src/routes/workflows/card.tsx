@@ -4,19 +4,8 @@ import type { WorkflowSummary } from "../../api/workflows";
 import { Icon } from "../../app/icon";
 import type { WorkflowCompatibility } from "../projects/recommendations";
 import { workflowDisplayName, workflowSelector } from "./presentation";
+import { workflowFormats } from "./formats";
 import "./cards.css";
-
-const formats: Record<string, string> = {
-  "application/json": "JSON",
-  "application/zip": "ZIP",
-  "application/yaml": "YAML",
-  "text/plain": "Text",
-  "text/markdown": "Markdown",
-  "text/vnd.likec4": "LikeC4",
-  "text/x-diff": "Diff",
-  "application/vnd.contractor.workspace-overlay+json": "Workspace overlay",
-  "application/vnd.contractor.findings-collection+zip": "Findings ZIP",
-};
 
 function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
   return Object.keys(slots).length === 0 ? (
@@ -39,7 +28,7 @@ function Slots({ slots }: { slots: WorkflowSummary["outputs"] }) {
             </dt>
             <dd title={slot.mediaTypes.join(", ")}>
               {slot.mediaTypes
-                .map((value) => formats[value] ?? value)
+                .map((value) => workflowFormats[value] ?? value)
                 .join(" · ")}
             </dd>
           </div>

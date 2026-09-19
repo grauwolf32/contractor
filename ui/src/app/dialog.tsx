@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 const FOCUSABLE_SELECTOR = [
   "a[href]",
   "button",
+  "summary",
   "input:not([type='hidden'])",
   "select",
   "textarea",
@@ -38,6 +39,18 @@ function isDisabled(element: HTMLElement): boolean {
   return element.matches(":disabled") || element.closest("[inert]") !== null;
 }
 
+function insideClosedDetails(element: HTMLElement): boolean {
+  let parent = element.parentElement;
+  while (parent !== null) {
+    if (parent instanceof HTMLDetailsElement && !parent.open) {
+      const summary = parent.querySelector(":scope > summary");
+      if (!summary?.contains(element)) return true;
+    }
+    parent = parent.parentElement;
+  }
+  return false;
+}
+
 function focusableElements(root: ParentNode): HTMLElement[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
@@ -45,6 +58,7 @@ function focusableElements(root: ParentNode): HTMLElement[] {
     (element) =>
       element.isConnected &&
       !isDisabled(element) &&
+      !insideClosedDetails(element) &&
       element.closest("[hidden], [aria-hidden='true']") === null,
   );
 }
@@ -192,6 +206,7 @@ function registerLayer(layer: DialogLayer): () => void {
 export interface DialogProps {
   children: ReactNode;
   className: string;
+  backdropClassName?: string;
   labelledBy: string;
   onRequestClose: () => void;
   describedBy?: string;
@@ -202,6 +217,7 @@ export interface DialogProps {
 export function Dialog({
   children,
   className,
+  backdropClassName,
   labelledBy,
   onRequestClose,
   describedBy,
@@ -240,7 +256,7 @@ export function Dialog({
 
   return createPortal(
     <div
-      className="project-dialog-backdrop"
+      className={`project-dialog-backdrop ${backdropClassName ?? ""}`}
       role="presentation"
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}

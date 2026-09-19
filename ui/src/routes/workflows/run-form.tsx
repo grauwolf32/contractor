@@ -570,6 +570,8 @@ function RepeatRunReview({
 }
 
 interface WorkflowRunFormProps {
+  presentation?: "page" | "drawer";
+  onSubmittingChange?: (pending: boolean) => void;
   workflow: WorkflowResource;
   projectId?: string;
   initialArtifactSelections?: Readonly<Record<string, string>>;
@@ -730,6 +732,8 @@ function DiscardRunDraftDialog({
 }
 
 function WorkflowRunFormBody({
+  presentation = "page",
+  onSubmittingChange,
   workflow,
   projectId,
   draftEntry,
@@ -763,6 +767,11 @@ function WorkflowRunFormBody({
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+  const [optionalParametersOpen, setOptionalParametersOpen] = useState(() =>
+    Object.entries(workflow.parameters).some(
+      ([name, slot]) => !slot.required && draft.parameters[name] !== undefined,
+    ),
+  );
   const [runtimeOptionsOpen, setRuntimeOptionsOpen] = useState(
     () =>
       draft.runtimeLabels.length > 0 ||
@@ -1065,6 +1074,10 @@ function WorkflowRunFormBody({
     },
   });
 
+  useEffect(() => {
+    onSubmittingChange?.(mutation.isPending);
+  }, [mutation.isPending, onSubmittingChange]);
+
   function clearError(key: string): void {
     setValidationErrors((current) => {
       if (!(key in current)) {
@@ -1159,6 +1172,7 @@ function WorkflowRunFormBody({
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (mutation.isPending) return;
     mutation.reset();
     if (draft.repeat !== undefined && !draft.repeat.reviewed) {
       setValidationErrors((current) => ({
@@ -1183,6 +1197,13 @@ function WorkflowRunFormBody({
     setValidationErrors(validation.errors);
     if (validation.request === undefined) {
       const errorKeys = Object.keys(validation.errors);
+      if (
+        Object.entries(workflow.parameters).some(
+          ([name, slot]) =>
+            !slot.required && errorKeys.includes(`parameter:${name}`),
+        )
+      )
+        setOptionalParametersOpen(true);
       if (errorKeys.includes("runtimeLabels")) {
         setRuntimeOptionsOpen(true);
       }
@@ -1279,6 +1300,89 @@ function WorkflowRunFormBody({
             ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
             : "Review highlighted settings";
 
+  function renderParameters(
+    slots: [string, WorkflowResource["parameters"][string]][],
+    title: string,
+  ) {
+    return (
+      <fieldset className="run-draft-section">
+        <legend>{title}</legend>
+        {slots.length === 0 ? (
+          <p className="compact-empty">This Workflow declares no parameters.</p>
+        ) : (
+          <div className="run-field-grid">
+            {slots
+              .sort(([left], [right]) => left.localeCompare(right))
+              .map(([name, slot]) => {
+                const error = validationErrors[`parameter:${name}`];
+                const included = parameters[name] !== undefined;
+                return (
+                  <div className="run-field" key={name}>
+                    {!slot.required ? (
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={included}
+                          onChange={(event) => {
+                            setParameters((current) => ({
+                              ...current,
+                              [name]: event.target.checked ? "" : undefined,
+                            }));
+                            clearError(`parameter:${name}`);
+                          }}
+                        />
+                        Include optional <code>{name}</code>
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>
+                        {name}{" "}
+                        {slot.required ? <strong>required</strong> : null}
+                      </span>
+                      <input
+                        name={`parameter-${name}`}
+                        type="text"
+                        disabled={!slot.required && !included}
+                        value={parameters[name] ?? ""}
+                        aria-invalid={error === undefined ? undefined : true}
+                        aria-describedby={
+                          error === undefined
+                            ? undefined
+                            : `parameter-${name}-error`
+                        }
+                        onChange={(event) => {
+                          setParameters((current) => ({
+                            ...current,
+                            [name]: event.target.value,
+                          }));
+                          clearError(`parameter:${name}`);
+                        }}
+                      />
+                    </label>
+                    {error === undefined ? null : (
+                      <p
+                        className="field-error"
+                        id={`parameter-${name}-error`}
+                        role="alert"
+                      >
+                        {error}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </fieldset>
+    );
+  }
+
+  const parameterSlots = Object.entries(workflow.parameters);
+  const requiredParameters = parameterSlots.filter(([, slot]) => slot.required);
+  const optionalParameters = parameterSlots.filter(
+    ([, slot]) => !slot.required,
+  );
+
   return (
     <form
       className="run-draft"
@@ -1342,30 +1446,37 @@ function WorkflowRunFormBody({
           onDiscard={onDiscardDraft}
         />
       ) : null}
-      <div className="section-heading run-draft-heading">
-        <div>
-          <p className="eyebrow">Run setup</p>
-          <h3>
-            {projectId === undefined
-              ? "Start Workflow Run"
-              : "Start Project Workflow Run"}
-          </h3>
-          <p className="run-draft-intro">
-            Complete the declared inputs. Optional settings keep the published
-            Workflow defaults until you change them.
-          </p>
-          <code className="run-draft-workflow">
-            {workflow.ref.name}@{workflow.ref.version}
-          </code>
+      {presentation === "page" ? (
+        <div className="section-heading run-draft-heading">
+          <div>
+            <p className="eyebrow">Run setup</p>
+            <h3>
+              {projectId === undefined
+                ? "Start Workflow Run"
+                : "Start Project Workflow Run"}
+            </h3>
+            <p className="run-draft-intro">
+              Complete the declared inputs. Optional settings keep the published
+              Workflow defaults until you change them.
+            </p>
+            <code className="run-draft-workflow">
+              {workflow.ref.name}@{workflow.ref.version}
+            </code>
+          </div>
+          <span
+            className={`run-draft-readiness ${draftReady ? "is-ready" : ""}`}
+            aria-live="polite"
+          >
+            <strong>{readinessValue}</strong>
+            <small>{readinessCopy}</small>
+          </span>
         </div>
-        <span
-          className={`run-draft-readiness ${draftReady ? "is-ready" : ""}`}
-          aria-live="polite"
-        >
+      ) : (
+        <p className="workflow-drawer-readiness" aria-live="polite">
           <strong>{readinessValue}</strong>
-          <small>{readinessCopy}</small>
-        </span>
-      </div>
+          <span>{readinessCopy}</span>
+        </p>
+      )}
 
       {draft.repeat === undefined ? null : (
         <RepeatRunReview
@@ -1377,75 +1488,9 @@ function WorkflowRunFormBody({
         />
       )}
 
-      <fieldset className="run-draft-section">
-        <legend>String parameters</legend>
-        {Object.entries(workflow.parameters).length === 0 ? (
-          <p className="compact-empty">This Workflow declares no parameters.</p>
-        ) : (
-          <div className="run-field-grid">
-            {Object.entries(workflow.parameters)
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([name, slot]) => {
-                const error = validationErrors[`parameter:${name}`];
-                const included = parameters[name] !== undefined;
-                return (
-                  <div className="run-field" key={name}>
-                    {!slot.required ? (
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={included}
-                          onChange={(event) => {
-                            setParameters((current) => ({
-                              ...current,
-                              [name]: event.target.checked ? "" : undefined,
-                            }));
-                            clearError(`parameter:${name}`);
-                          }}
-                        />
-                        Include optional <code>{name}</code>
-                      </label>
-                    ) : null}
-                    <label>
-                      <span>
-                        {name}{" "}
-                        {slot.required ? <strong>required</strong> : null}
-                      </span>
-                      <input
-                        name={`parameter-${name}`}
-                        type="text"
-                        disabled={!slot.required && !included}
-                        value={parameters[name] ?? ""}
-                        aria-invalid={error === undefined ? undefined : true}
-                        aria-describedby={
-                          error === undefined
-                            ? undefined
-                            : `parameter-${name}-error`
-                        }
-                        onChange={(event) => {
-                          setParameters((current) => ({
-                            ...current,
-                            [name]: event.target.value,
-                          }));
-                          clearError(`parameter:${name}`);
-                        }}
-                      />
-                    </label>
-                    {error === undefined ? null : (
-                      <p
-                        className="field-error"
-                        id={`parameter-${name}-error`}
-                        role="alert"
-                      >
-                        {error}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </fieldset>
+      {presentation === "page"
+        ? renderParameters(parameterSlots, "String parameters")
+        : null}
 
       <fieldset className="run-draft-section">
         <legend>
@@ -1462,7 +1507,12 @@ function WorkflowRunFormBody({
         ) : (
           <div className="run-field-grid">
             {Object.entries(workflow.inputs)
-              .sort(([left], [right]) => left.localeCompare(right))
+              .sort(
+                ([left, leftSlot], [right, rightSlot]) =>
+                  (presentation === "drawer"
+                    ? Number(rightSlot.required) - Number(leftSlot.required)
+                    : 0) || left.localeCompare(right),
+              )
               .map(([name, slot]) => {
                 const artifactError = validationErrors[`artifact:${name}`];
                 const reviewError = validationErrors[`artifactReview:${name}`];
@@ -1685,6 +1735,33 @@ function WorkflowRunFormBody({
           </button>
         ) : null}
       </fieldset>
+      {presentation === "drawer" ? (
+        <>
+          {requiredParameters.length > 0
+            ? renderParameters(requiredParameters, "Required parameters")
+            : null}
+          {optionalParameters.length > 0 ? (
+            <details
+              className="run-draft-disclosure workflow-optional-parameters"
+              open={optionalParametersOpen}
+              onToggle={(event) =>
+                setOptionalParametersOpen(event.currentTarget.open)
+              }
+            >
+              <summary>
+                <span className="run-draft-disclosure-title">
+                  <strong>Optional parameters</strong>
+                  <small>Keep omitted unless needed</small>
+                </span>
+                <span className="run-draft-disclosure-status">
+                  {optionalParameters.length}
+                </span>
+              </summary>
+              {renderParameters(optionalParameters, "Optional strings")}
+            </details>
+          ) : null}
+        </>
+      ) : null}
 
       <div className="run-draft-advanced-heading">
         <div>

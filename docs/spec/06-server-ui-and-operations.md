@@ -1243,3 +1243,31 @@ retained snapshot counts. Execution state, coverage assessments and human
 acceptance remain separate. Profile/scope remain expanded for drafts; immutable
 baseline details are available through disclosure. No Evals experiment API or
 comparison metrics are added by these UI changes.
+
+### Workflow detail overview and Run setup
+
+An exact Workflow detail route starts with an overview: one identity heading,
+version selector, input/output contracts and published stage objectives. It uses
+Catalog card formats and version ordering. Loading the version inventory never
+replaces the version specified by the URL; Latest/Earlier labels require a complete
+numeric family containing that exact version. Inventory failure leaves the exact
+contract available with an explicit retry. Authored descriptions and primary-output
+flags are shown only when published. Entry is identified independently of list
+order; multi-stage summaries do not imply a linear execution graph. Exact Agents,
+resolved execution settings and transitions remain accessible in a disclosure.
+
+Configure Run opens a standalone UserScope drawer on desktop and a full-width
+panel on mobile. The view itself does not acquire a Run draft or fetch input
+inventories until setup opens. Artifact inputs and required parameters precede
+collapsed optional parameters and advanced settings. The drawer reuses the shared
+modal stack, inert background, keyboard focus containment and focus restoration;
+closed disclosure contents are excluded from the focus loop. Nested upload,
+Git import and discard dialogs close independently.
+
+The existing `#workflow-run-setup` destination opens the drawer directly, including
+Run-repeat drafts. Closing it preserves the session-memory draft for its exact
+Workflow version and scope. Included optional values reopen visibly, including an
+explicit empty string. Required input review, repeat review, ambiguous-response
+recovery and exact-request idempotency remain unchanged. Close and Escape cannot
+dismiss setup while its submission is pending. Project Run setup retains its
+ProjectScope form and exact version semantics.

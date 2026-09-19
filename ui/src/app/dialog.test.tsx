@@ -46,6 +46,29 @@ function ParentDialog({ children }: { children: ReactNode }) {
 }
 
 describe("Dialog", () => {
+  it("includes disclosure summaries but excludes controls inside closed disclosures from the focus loop", () => {
+    render(
+      <ParentDialog>
+        <button>First</button>
+        <details>
+          <summary>Optional settings</summary>
+          <input aria-label="Hidden input" />
+          <details open>
+            <summary>Hidden nested summary</summary>
+            <button>Hidden last</button>
+          </details>
+        </details>
+      </ParentDialog>,
+    );
+    const first = screen.getByRole("button", { name: "First" });
+    const summary = screen.getByText("Optional settings");
+    first.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(summary).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(first).toHaveFocus();
+  });
+
   it("makes the background inert, contains focus and restores its trigger", async () => {
     const view = render(<BasicDialogHarness />);
     const user = userEvent.setup();

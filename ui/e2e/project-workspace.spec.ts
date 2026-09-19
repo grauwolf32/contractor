@@ -469,7 +469,7 @@ test("Project primary actions open Sources, focus analysis and keep deletion sec
   await expect(deleteProject).toBeFocused();
 });
 
-test("Workflow Run setup leads while technical contract remains disclosed on demand", async ({
+test("Workflow overview leads with Run setup in a dismissible drawer", async ({
   page,
 }, testInfo) => {
   const configuredBaseURL = testInfo.project.use.baseURL;
@@ -492,20 +492,31 @@ test("Workflow Run setup leads while technical contract remains disclosed on dem
   const technical = page.locator("details.workflow-technical-details");
   await expect(configure).toBeInViewport();
   await expect(
-    setup.getByRole("heading", { name: "Start Workflow Run" }),
+    page.getByRole("heading", { name: "Inputs and results" }),
   ).toBeInViewport();
+  await expect(setup).toHaveCount(0);
   await expect(technical).not.toHaveAttribute("open", "");
-  await page.screenshot({
-    path: testInfo.outputPath("workflow-run-first-desktop.png"),
-  });
-
   await configure.click();
-  await expect(setup).toBeFocused();
-  await technical.getByText("Technical Workflow contract").click();
-  await expect(technical).toHaveAttribute("open", "");
+  const drawer = page.getByRole("dialog", { name: "Configure Run" });
+  await expect(drawer).toBeVisible();
   await expect(
-    technical.getByText("Artifact inputs", { exact: true }),
-  ).toBeVisible();
+    drawer.getByRole("button", { name: "Close Run setup" }),
+  ).toBeFocused();
+  await drawer
+    .getByLabel(/^source/)
+    .selectOption("sources/browser-source@revision-browser-1");
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(configure).toBeFocused();
+  await configure.click();
+  await expect(drawer.getByLabel(/^source/)).toHaveValue(
+    "sources/browser-source@revision-browser-1",
+  );
+  await page.keyboard.press("Escape");
+  await technical
+    .getByText("Agents, execution settings and transitions")
+    .click();
+  await expect(technical).toHaveAttribute("open", "");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
