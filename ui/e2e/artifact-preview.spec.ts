@@ -176,83 +176,94 @@ async function openPreview(page: Page, name: ArtifactName): Promise<void> {
   await expect(page.getByRole("tab", { name: "Rendered" })).toBeVisible();
 }
 
-test("renders Markdown, diff, OpenAPI and LikeC4 artifacts locally", async ({
-  page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const uiOrigin = new URL(configuredBaseURL).origin;
-  const externalRequests: string[] = [];
-  const consoleErrors: string[] = [];
-  const pageErrors: string[] = [];
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (url.origin !== uiOrigin) {
-      externalRequests.push(request.url());
-    }
+for (const viewport of [
+  { width: 1440, height: 1000 },
+  { width: 390, height: 844 },
+]) {
+  test.describe(`${viewport.width}px previews`, () => {
+    test.use({ viewport });
+
+    test("renders Markdown, diff, OpenAPI and LikeC4 artifacts locally", async ({
+      page,
+    }, testInfo) => {
+      const configuredBaseURL = testInfo.project.use.baseURL;
+      if (typeof configuredBaseURL !== "string") {
+        throw new Error("Playwright baseURL is required");
+      }
+      const uiOrigin = new URL(configuredBaseURL).origin;
+      const externalRequests: string[] = [];
+      const consoleErrors: string[] = [];
+      const pageErrors: string[] = [];
+      page.on("request", (request) => {
+        const url = new URL(request.url());
+        if (url.origin !== uiOrigin) {
+          externalRequests.push(request.url());
+        }
+      });
+      page.on("console", (message) => {
+        if (message.type() === "error") {
+          consoleErrors.push(message.text());
+        }
+      });
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      await installArtifactAPI(page, uiOrigin);
+
+      await openPreview(page, "markdown");
+      await expect(
+        page.getByRole("heading", { name: "Rendered report" }),
+      ).toBeVisible();
+      await expect(page.getByText("Image omitted: Remote image")).toBeVisible();
+      await expect(page.locator(".markdown-artifact-preview img")).toHaveCount(
+        0,
+      );
+      await expect(
+        page.locator(".markdown-artifact-preview script"),
+      ).toHaveCount(0);
+      await page.getByRole("tab", { name: "Source" }).click();
+      await expect(page.locator("pre.artifact-preview")).toContainText(
+        "<script>document.body.dataset.injected",
+      );
+
+      await openPreview(page, "workspace-diff");
+      await expect(page.getByText("1 file changed")).toBeVisible();
+      await expect(page.getByText("+2 additions")).toBeVisible();
+      await expect(page.getByText("−1 deletion")).toBeVisible();
+      await expect(page.locator(".diff-line-addition")).toHaveCount(2);
+      await expect(page.locator(".diff-line-deletion")).toHaveCount(1);
+      await expect(page.locator(".diff-line-hunk")).toContainText(
+        "@@ -1,3 +1,4 @@",
+      );
+
+      await openPreview(page, "openapi");
+      await expect(
+        page.getByText("Preview API", { exact: true }).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "List pets", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/external references and requests are disabled/i),
+      ).toBeVisible();
+      await expect(
+        page.locator('link[rel="stylesheet"][href*="/assets/openapi-"]'),
+      ).toHaveCount(1);
+
+      await openPreview(page, "architecture");
+      await expect(page.getByLabel("View")).toBeVisible();
+      await expect(page.locator(".likec4-artifact-canvas")).toBeVisible();
+      await expect(
+        page.locator(".likec4-artifact-canvas .react-flow.dark"),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Contractor API", { exact: true }).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Customer", { exact: true }).first(),
+      ).toBeVisible();
+
+      expect(externalRequests).toEqual([]);
+      expect(consoleErrors).toEqual([]);
+      expect(pageErrors).toEqual([]);
+    });
   });
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleErrors.push(message.text());
-    }
-  });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  await installArtifactAPI(page, uiOrigin);
-
-  await openPreview(page, "markdown");
-  await expect(
-    page.getByRole("heading", { name: "Rendered report" }),
-  ).toBeVisible();
-  await expect(page.getByText("Image omitted: Remote image")).toBeVisible();
-  await expect(page.locator(".markdown-artifact-preview img")).toHaveCount(0);
-  await expect(page.locator(".markdown-artifact-preview script")).toHaveCount(
-    0,
-  );
-  await page.getByRole("tab", { name: "Source" }).click();
-  await expect(page.locator("pre.artifact-preview")).toContainText(
-    "<script>document.body.dataset.injected",
-  );
-
-  await openPreview(page, "workspace-diff");
-  await expect(page.getByText("1 file changed")).toBeVisible();
-  await expect(page.getByText("+2 additions")).toBeVisible();
-  await expect(page.getByText("−1 deletion")).toBeVisible();
-  await expect(page.locator(".diff-line-addition")).toHaveCount(2);
-  await expect(page.locator(".diff-line-deletion")).toHaveCount(1);
-  await expect(page.locator(".diff-line-hunk")).toContainText(
-    "@@ -1,3 +1,4 @@",
-  );
-
-  await openPreview(page, "openapi");
-  await expect(
-    page.getByText("Preview API", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByText("List pets", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByText(/external references and requests are disabled/i),
-  ).toBeVisible();
-  await expect(
-    page.locator('link[rel="stylesheet"][href*="/assets/openapi-"]'),
-  ).toHaveCount(1);
-
-  await openPreview(page, "architecture");
-  await expect(page.getByLabel("View")).toBeVisible();
-  await expect(page.locator(".likec4-artifact-canvas")).toBeVisible();
-  await expect(
-    page.locator(".likec4-artifact-canvas .react-flow.dark"),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Contractor API", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Customer", { exact: true }).first(),
-  ).toBeVisible();
-
-  expect(externalRequests).toEqual([]);
-  expect(consoleErrors).toEqual([]);
-  expect(pageErrors).toEqual([]);
-});
+}

@@ -64,7 +64,26 @@ async function json(
   });
 }
 
-async function installFixture(page: Page, apiOrigin: string) {
+async function installFixture(
+  page: Page,
+  apiOrigin: string,
+  withResult = false,
+) {
+  const report = {
+    namespace: "outputs",
+    name: "report",
+    revision: "report-r1",
+  };
+  const source =
+    "Retained primary result\n<script>document.body.dataset.injected = 'yes'</script>";
+  const selectedWorkflow = withResult
+    ? {
+        ...workflow,
+        outputs: {
+          report: { primary: true, required: true, mediaTypes: ["text/plain"] },
+        },
+      }
+    : workflow;
   const created: Array<{ body: unknown; idempotencyKey: string | null }> = [];
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
@@ -108,7 +127,7 @@ async function installFixture(page: Page, apiOrigin: string) {
       await json(route, {
         runId: "run-repeat-browser",
         workflow: "repeat-workflow@1",
-        state: "failed",
+        state: withResult ? "succeeded" : "failed",
         deletable: true,
         runtimeLabels: [],
         labels: { "eval.id": "sample-1", purpose: "eval" },
@@ -123,12 +142,40 @@ async function installFixture(page: Page, apiOrigin: string) {
         },
         attempts: [],
         transitions: [],
-        outputs: {},
+        outputs: withResult ? { report } : {},
         outputPublications: [],
         createdAt: timestamp,
         updatedAt: timestamp,
         finishedAt: timestamp,
       });
+      return;
+    }
+    if (
+      withResult &&
+      path.startsWith("/v1/runs/run-repeat-browser/artifacts/outputs/report")
+    ) {
+      expect(new URL(request.url()).searchParams.get("revision")).toBe(
+        report.revision,
+      );
+      if (path.endsWith("/metadata")) {
+        await json(route, {
+          artifact: report,
+          mediaType: "text/plain",
+          size: Buffer.byteLength(source),
+          current: true,
+          frozen: true,
+          createdAt: timestamp,
+        });
+      } else {
+        await route.fulfill({
+          body: source,
+          headers: {
+            ...headers(request.headers().origin),
+            "content-type": "text/plain",
+            "content-length": String(Buffer.byteLength(source)),
+          },
+        });
+      }
       return;
     }
     if (path === "/v1/runs/run-repeat-browser/repeat-draft") {
@@ -255,11 +302,14 @@ async function installFixture(page: Page, apiOrigin: string) {
       return;
     }
     if (path === "/v1/workflows") {
-      await json(route, { items: [workflow], page: { hasMore: false } });
+      await json(route, {
+        items: [selectedWorkflow],
+        page: { hasMore: false },
+      });
       return;
     }
     if (path === "/v1/workflows/repeat-workflow/versions/1") {
-      await json(route, workflow);
+      await json(route, selectedWorkflow);
       return;
     }
     if (path === "/v1/artifacts") {
@@ -298,72 +348,116 @@ async function installFixture(page: Page, apiOrigin: string) {
   return created;
 }
 
-test("terminal Run creates a reviewed exact repeat draft and preserves conflicts", async ({
-  page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  const apiOrigin = new URL(configuredBaseURL).origin;
-  const created = await installFixture(page, apiOrigin);
-  await page.goto("/runs/run-repeat-browser");
-  await page.getByRole("button", { name: "Configure another Run" }).click();
+for (const viewport of [
+  { width: 1440, height: 1000 },
+  { width: 390, height: 844 },
+]) {
+  test.describe(`${viewport.width}px journeys`, () => {
+    test.use({ viewport });
 
-  await expect(page).toHaveURL(
-    /\/catalog\/workflows\/repeat-workflow\/1#workflow-run-setup$/,
-  );
-  await expect(page.locator('[name="parameter-objective"]')).toHaveValue(
-    "Inspect original source",
-  );
-  await expect(page.locator('[name="artifact-source"]')).toHaveValue(
-    "sources/service@source-r1",
-  );
-  await expect(
-    page.getByText("evaluation_labels_require_review"),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Start Workflow Run" }),
-  ).toBeDisabled();
+    test("terminal Run creates a reviewed exact repeat draft and preserves conflicts", async ({
+      page,
+    }, testInfo) => {
+      const configuredBaseURL = testInfo.project.use.baseURL;
+      if (typeof configuredBaseURL !== "string") {
+        throw new Error("Playwright baseURL is required");
+      }
+      const apiOrigin = new URL(configuredBaseURL).origin;
+      const created = await installFixture(page, apiOrigin);
+      await page.goto("/runs/run-repeat-browser");
+      await page.getByRole("button", { name: "Configure another Run" }).click();
 
-  await page
-    .locator('[name="parameter-objective"]')
-    .fill("Local reviewed edit");
-  await page.getByRole("link", { name: "Source Run" }).click();
-  await page.getByRole("button", { name: "Configure another Run" }).click();
-  await expect(page.getByText("Existing draft preserved")).toBeVisible();
-  await page.getByRole("link", { name: "Open the existing draft" }).click();
-  await expect(page.locator('[name="parameter-objective"]')).toHaveValue(
-    "Local reviewed edit",
-  );
+      await expect(page).toHaveURL(
+        /\/catalog\/workflows\/repeat-workflow\/1#workflow-run-setup$/,
+      );
+      await expect(page.locator('[name="parameter-objective"]')).toHaveValue(
+        "Inspect original source",
+      );
+      await expect(page.locator('[name="artifact-source"]')).toHaveValue(
+        "sources/service@source-r1",
+      );
+      await expect(
+        page.getByText("evaluation_labels_require_review"),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Start Workflow Run" }),
+      ).toBeDisabled();
 
-  await page
-    .getByLabel(/I reviewed the retained inputs, labels and execution settings/)
-    .check();
-  await page
-    .getByRole("button", { name: "Confirm exact input for source" })
-    .click();
-  await page.getByRole("button", { name: "Start Workflow Run" }).click();
-  await expect.poll(() => created.length).toBe(1);
-  expect(created[0]?.body).toEqual({
-    workflow: "repeat-workflow@1",
-    runtimeLabels: [],
-    labels: { "eval.id": "sample-1", purpose: "eval" },
-    parameters: { objective: "Local reviewed edit" },
-    artifacts: { source: exactSource },
+      await page
+        .locator('[name="parameter-objective"]')
+        .fill("Local reviewed edit");
+      await page.getByRole("link", { name: "Source Run" }).click();
+      await page.getByRole("button", { name: "Configure another Run" }).click();
+      await expect(page.getByText("Existing draft preserved")).toBeVisible();
+      await page.getByRole("link", { name: "Open the existing draft" }).click();
+      await expect(page.locator('[name="parameter-objective"]')).toHaveValue(
+        "Local reviewed edit",
+      );
+
+      await page
+        .getByLabel(
+          /I reviewed the retained inputs, labels and execution settings/,
+        )
+        .check();
+      await page
+        .getByRole("button", { name: "Confirm exact input for source" })
+        .click();
+      await page.getByRole("button", { name: "Start Workflow Run" }).click();
+      await expect.poll(() => created.length).toBe(1);
+      expect(created[0]?.body).toEqual({
+        workflow: "repeat-workflow@1",
+        runtimeLabels: [],
+        labels: { "eval.id": "sample-1", purpose: "eval" },
+        parameters: { objective: "Local reviewed edit" },
+        artifacts: { source: exactSource },
+      });
+      expect(created[0]?.idempotencyKey).toMatch(/^run-ui-[0-9a-f]{32}$/);
+    });
+
+    test("primary output previews in place before preparing an exact repeat", async ({
+      page,
+    }, testInfo) => {
+      const apiOrigin = new URL(testInfo.project.use.baseURL!).origin;
+      const created = await installFixture(page, apiOrigin, true);
+      const reads: string[] = [];
+      page.on("request", (request) => {
+        if (request.url().includes("/artifacts/outputs/report"))
+          reads.push(request.url());
+      });
+      await page.goto("/runs/run-repeat-browser");
+      const result = page.locator(".run-result-primary");
+      await expect(result.getByText("Primary", { exact: true })).toBeVisible();
+      expect(reads).toHaveLength(0);
+      await result.getByRole("button", { name: "Preview result" }).click();
+      await expect(result.locator("pre.artifact-preview")).toContainText(
+        "Retained primary result",
+      );
+      await expect(page).toHaveURL(/\/runs\/run-repeat-browser$/);
+      expect(reads).toHaveLength(2);
+      expect(
+        await page.evaluate(() => document.body.dataset.injected),
+      ).toBeUndefined();
+      await page.getByRole("button", { name: "Configure another Run" }).click();
+      await expect(page.locator('[name="artifact-source"]')).toHaveValue(
+        "sources/service@source-r1",
+      );
+      await expect(
+        page.getByRole("button", { name: "Start Workflow Run" }),
+      ).toBeDisabled();
+      expect(created).toHaveLength(0);
+    });
+
+    test("Audit-managed Run returns to the owning Audit", async ({
+      page,
+    }, testInfo) => {
+      const configuredBaseURL = testInfo.project.use.baseURL;
+      if (typeof configuredBaseURL !== "string") {
+        throw new Error("Playwright baseURL is required");
+      }
+      await installFixture(page, new URL(configuredBaseURL).origin);
+      await page.goto("/runs/run-audit-browser");
+      await page.getByRole("button", { name: "Configure another Run" }).click();
+      await expect(page).toHaveURL("/projects/project-audit/audits/audit-one");
+    });
   });
-  expect(created[0]?.idempotencyKey).toMatch(/^run-ui-[0-9a-f]{32}$/);
-});
-
-test("Audit-managed Run returns to the owning Audit", async ({
-  page,
-}, testInfo) => {
-  const configuredBaseURL = testInfo.project.use.baseURL;
-  if (typeof configuredBaseURL !== "string") {
-    throw new Error("Playwright baseURL is required");
-  }
-  await installFixture(page, new URL(configuredBaseURL).origin);
-  await page.goto("/runs/run-audit-browser");
-  await page.getByRole("button", { name: "Configure another Run" }).click();
-  await expect(page).toHaveURL("/projects/project-audit/audits/audit-one");
-});
+}

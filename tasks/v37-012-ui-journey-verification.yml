@@ -3,7 +3,7 @@ id: "V37-012"
 title: "Verify connected UI journeys across desktop, mobile and keyboard interaction"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on:
   - "V37-001"

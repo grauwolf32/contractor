@@ -199,7 +199,8 @@
   font-size: 0.8rem;
 }
 
-.workflow-overview-page .workflow-technical-details > summary::after {
+.workflow-overview-page .workflow-technical-details > summary::after,
+.workflow-overview-page .workflow-technical-details[open] > summary::after {
   content: none;
 }
 

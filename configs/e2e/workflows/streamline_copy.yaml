@@ -17,6 +17,7 @@ spec:
 
   outputs:
     result:
+      primary: true
       required: true
       mediaTypes: [text/plain]
 

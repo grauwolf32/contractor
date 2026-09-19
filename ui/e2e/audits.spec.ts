@@ -1163,7 +1163,9 @@ for (const viewport of [
       page.getByRole("heading", { name: "Retained authorization bypass" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Show provenance" }).click();
-    await expect(page.getByText("source-review")).toBeVisible();
+    await expect(
+      page.getByText("source-review", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText(/Run deleted/u)).toBeVisible();
     await page
       .getByRole("combobox", { name: "Severity", exact: true })

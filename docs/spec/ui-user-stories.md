@@ -1,11 +1,16 @@
 # Contractor UI: user stories and improvement plan
 
-Status: **planned; implementation tracked by task**. Updated: 2026-09-18.
+Status: **V37 implemented and verified; separate follow-up scope remains**.
+Updated: 2026-09-19.
 
 This document records user goals and usability criteria. The
 [UI specification](06-server-ui-and-operations.md) describes current behavior
 and protocols. A story's presence here does not mean it is fully implemented.
 Implementation status is tracked in the [tasks](../../tasks/index.yml).
+The [V37 acceptance report](../plans/2026-09-19-v37-journey-verification.md)
+records connected browser journeys and real Server/Runtime/PostgreSQL
+verification. Fixture evidence is separate from real API evidence. No participant
+usability study has been performed; US-10 remains outside V37.
 
 ## Users and scope
 
@@ -212,6 +217,13 @@ Publishing a RuntimeConfig is not presented as changing an allocation already
 in progress. Revision/snapshot details are available in diagnostics. Permissions
 and the disabled state of metrics reflect Server's state.
 
+The readiness overview distinguishes observed idle/busy/reserved/draining/fenced
+states; idle alone is not a promise of compatible capacity. Binding forms show
+the current exact version beside the proposal. A stale revision blocks saving
+until an explicit authoritative reload, which retains the proposed version for
+review and retry. Scope copy distinguishes new Run snapshots from future
+Agent-label allocation resolution; prepared allocations keep pinned settings.
+
 In Runs Configuration, named icon actions open RuntimeConfig publication and
 Runtime credential dialogs. Bindings open for the exact selected version and
 show whether bindings already exist. Closing a credential dialog clears its
@@ -228,7 +240,8 @@ This plan does not add a new pprof toggle to the UI.
 
 ## Implementation order
 
-All new tasks start with `status: pending`. Their `priority: P2` follows the
+The original implementation waves below are complete for V37. New tasks start
+with `status: pending`. Their `priority: P2` follows the
 repository policy of "after the first releasable slice". The urgency identified
 in the UX-01…UX-11 study is expressed by the waves below, without overriding
 that policy. Each YAML file contains the exact dependencies, scope, criteria
@@ -250,22 +263,28 @@ and verification commands.
 | V37 acceptance | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
 | Separate phase | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Experiment contract and Evals implementation tasks | UX-11 / US-10 |
 
-Work can start with V37-001 and V37-003 because they do not depend on new APIs.
-After Dialog, proceed with V37-002 and V37-005, then V37-004 using the preserved
-draft. The V37-006 catalog contract can be prepared independently. V37-008 and
-V37-010 include the necessary bounded Server read projections if current data
-is insufficient; the plan is not a promise to deliver everything through
-JSX/CSS changes alone.
+The implemented sequence began with independent Dialog and Project actions,
+then added draft continuity, confirmations and input review. V37-006 added the
+catalog contract; V37-008 and V37-010 include Server read projections for repeat
+setup and bounded Audit review. The final V37-012 gate verifies these behaviors
+together.
 
 V35-004 already adds Git Settings/import; V37 uses that implementation. V32-006
 continues to own the Performance UI. V37-011 neither depends on charts being
-available nor duplicates them. Timing estimates are not fixed yet: the main
-uncertainties are the completeness of data for repeating Runs and the
-search/review APIs.
+available nor duplicates them. V37 verification covers the implemented repeat
+and bounded review contracts; it does not establish performance at production
+inventory sizes.
 
 ## Verification
 
-For each wave, verify a connected journey rather than only an individual screen:
+The completed [acceptance report](../plans/2026-09-19-v37-journey-verification.md)
+records 379 UI unit tests, 36 fixture browser scenarios, the real UI-stack test
+and PostgreSQL/API checks. Run drafts, primary previews, repeat setup, nested
+keyboard dialogs, Audit review and Operations forms pass at 1440×1000 and
+390×844. These results verify behavior, not human task-success rates.
+
+The repeatable acceptance approach is to verify a connected journey rather than
+only an individual screen:
 choose a Workflow → missing file → fill in the form → navigate away and return →
 launch; error → new draft; completed Run → primary result; waiting_review →
 evidence → decision; dismiss Audit confirmation without mutation.

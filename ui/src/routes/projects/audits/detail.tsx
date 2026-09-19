@@ -1,4 +1,5 @@
-import { AuditQueueError, AuditQueuePage, useAuditQueue } from "./queue";
+import { AuditQueueError, AuditQueuePage } from "./queue";
+import { useAuditQueue } from "./queue-state";
 import { AuditProgress } from "./progress";
 import { ContextLink, ReturnLink } from "../../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

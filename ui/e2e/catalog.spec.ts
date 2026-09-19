@@ -143,7 +143,13 @@ test("Catalog discovers exact Workflows and Agent usage while preserving legacy 
   await expect(
     page.getByText("Build an API contract from one exact source artifact."),
   ).toBeVisible();
-  await expect(page.getByText("openapi-from-source@1")).toBeVisible();
+  await expect(page.getByLabel("Version of openapi-from-source")).toHaveValue(
+    "1",
+  );
+  await page.getByText("Technical details", { exact: true }).click();
+  await expect(
+    page.getByText("openapi-from-source@1", { exact: true }),
+  ).toBeVisible();
   await page.getByLabel("Search workflows").fill("API contract");
   await expect(page).toHaveURL(/q=API\+contract/);
   await expect(

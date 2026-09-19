@@ -302,10 +302,11 @@ func TestBrowserOperationsStack(t *testing.T) {
 	assertEnvironmentHasNoSecrets(t, playwrightEnvironment, secrets)
 	runChecked(
 		t, filepath.Join(repositoryRoot, "ui"), playwrightEnvironment,
-		"corepack", "pnpm", "exec", "playwright", "test",
+		"corepack", "pnpm", "exec", "playwright", "test", "e2e/stack.spec.ts",
 	)
 	tracePaths := filesNamed(t, playwrightOutput, "trace.zip")
 
+	stack.assertRunOwnerBoundaries(userID)
 	stack.assertCredentialLifecycle()
 	stack.assertSecretBoundaries(evidencePath, tracePaths, screenshotPath)
 	calls, completedStages, gatewayFailures := modelGateway.snapshot()
@@ -317,6 +318,79 @@ func TestBrowserOperationsStack(t *testing.T) {
 	if creates != 1 || deletes != 1 || len(managerFailures) != 0 {
 		t.Fatalf("credential manager creates/deletes/failures = %d/%d/%v, want 1/1/none", creates, deletes, managerFailures)
 	}
+}
+
+// After the browser signs out, restart the isolated Server with a different
+// local-auth owner and verify that the same database does not expose the first
+// owner's Runs or repeat drafts. No alternate credential enters the browser.
+func (s *uiStack) assertRunOwnerBoundaries(ownerID string) {
+	s.t.Helper()
+	otherOwner := ownerID + "-other-owner"
+	writeLocalAuth(s.t, s.temporaryRoot, otherOwner)
+	for index, entry := range s.serverEnv {
+		if strings.HasPrefix(entry, "CONTRACTOR_PUBLIC_USER_ID=") {
+			s.serverEnv[index] = "CONTRACTOR_PUBLIC_USER_ID=" + otherOwner
+		}
+	}
+	if err := s.restartServer(); err != nil {
+		s.t.Fatal(err)
+	}
+	rows, err := s.pool.Query(s.ctx, "SELECT run_id, owner_id FROM workflow_runs ORDER BY run_id")
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	defer rows.Close()
+	client := &http.Client{Timeout: 5 * time.Second}
+	check := func(path string, status int) []byte {
+		request, err := http.NewRequestWithContext(s.ctx, http.MethodGet, s.serverInternalURL+path, nil)
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		request.Header.Set("Authorization", "Bearer "+publicBearerCanary)
+		response, err := client.Do(request)
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(io.LimitReader(response.Body, 64*1024))
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		if response.StatusCode != status {
+			s.t.Fatalf("other-owner GET %s: status %d, want %d", path, response.StatusCode, status)
+		}
+		return body
+	}
+	count := 0
+	for rows.Next() {
+		var runID, actualOwner string
+		if err := rows.Scan(&runID, &actualOwner); err != nil {
+			s.t.Fatal(err)
+		}
+		if actualOwner != ownerID {
+			s.t.Fatalf("Run owner = %q, want browser owner", actualOwner)
+		}
+		check("/v1/runs/"+runID, http.StatusNotFound)
+		check("/v1/runs/"+runID+"/repeat-draft", http.StatusNotFound)
+		check("/v1/runs/"+runID+"/artifacts", http.StatusNotFound)
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		s.t.Fatal(err)
+	}
+	if count != 2 {
+		s.t.Fatalf("created %d Runs, want 2 (idempotent replay and repeat draft must not create Runs)", count)
+	}
+	var list struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(check("/v1/runs", http.StatusOK), &list); err != nil {
+		s.t.Fatal(err)
+	}
+	if len(list.Items) != 0 {
+		s.t.Fatal("other owner can list browser Runs")
+	}
+	check("/v1/artifacts/inputs/ui-stack-text/metadata", http.StatusNotFound)
 }
 
 func filesNamed(t *testing.T, root, name string) []string {
@@ -720,7 +794,7 @@ func stageUIStackConfiguration(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(target, "workflows", "streamline_copy.yaml"), streamlineBytes, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(target, "workflows", "streamline_copy.yaml"), bytes.ReplaceAll(streamlineBytes, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@2")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if !gatewayUpdated || !managerUpdated {

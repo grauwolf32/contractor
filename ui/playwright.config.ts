@@ -27,6 +27,7 @@ export default defineConfig({
   reporter: [["line"]],
   use: {
     ...devices["Desktop Chrome"],
+    viewport: { width: 1440, height: 1000 },
     baseURL,
     ignoreHTTPSErrors: true,
     actionTimeout: 15_000,

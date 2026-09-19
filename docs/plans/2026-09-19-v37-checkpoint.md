@@ -1,4 +1,10 @@
-# V37 checkpoint — paused at the user's request
+# V37 checkpoint — historical pause record
+
+Resumed and completed on 2026-09-19. V37-011 was completed in `efbf7a7f`;
+V37-012 passed its fixture and real-stack gates. See the
+[final verification report](2026-09-19-v37-journey-verification.md) and task files
+for current status. The sections below preserve the state at the pause and are
+not outstanding work.
 
 Work branch: `feat/v37-ui-journeys`. No merge or deployment was performed.
 

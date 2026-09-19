@@ -185,38 +185,6 @@ async function login(page: Page, username: string, password: string) {
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 }
 
-async function uploadArtifact(
-  page: Page,
-  input: {
-    name: string;
-    mediaType: string;
-    path?: string;
-    payload?: Buffer;
-  },
-) {
-  await page.locator("details.artifact-create-disclosure > summary").click();
-  const form = page.locator("form.artifact-form");
-  await form.getByLabel("Namespace", { exact: true }).fill("projects");
-  await form.getByLabel("Name", { exact: true }).fill(input.name);
-  await form.getByLabel("Media type", { exact: true }).fill(input.mediaType);
-  if (input.path !== undefined) {
-    await form.getByLabel("Drop a file here").setInputFiles(input.path);
-  } else {
-    await form.getByLabel("Drop a file here").setInputFiles({
-      name: `${input.name}.txt`,
-      mimeType: input.mediaType,
-      buffer: input.payload ?? Buffer.from(""),
-    });
-  }
-  await form.getByRole("button", { name: "Create binding" }).click();
-  await expect(
-    page.getByRole("link", {
-      name: `projects/${input.name}`,
-      exact: true,
-    }),
-  ).toBeVisible();
-}
-
 async function uploadProjectArtifact(
   page: Page,
   shortcut: "Sources" | "OpenAPI",
@@ -228,6 +196,11 @@ async function uploadProjectArtifact(
     payload?: Buffer;
   },
 ) {
+  await page
+    .getByRole("navigation", { name: "Project sections" })
+    .getByRole("link", { name: "Artifacts", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Add artifact", exact: true }).click();
   await page.getByRole("button", { name: shortcut, exact: true }).click();
   const dialog = page.getByRole("dialog", { name: shortcut });
   if (input.path !== undefined) {
@@ -249,55 +222,6 @@ async function uploadProjectArtifact(
       exact: true,
     }),
   ).toBeVisible();
-}
-
-async function startRun(
-  page: Page,
-  workflow: string,
-  parameters: Record<string, string>,
-  artifacts: Record<string, string>,
-  metadataLabels: Record<string, string> = {},
-): Promise<string> {
-  await page.goto(`/workflows/${workflow.replace("@", "/")}`);
-  await expect(
-    page.getByRole("heading", { name: workflow.split("@")[0]!, exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Configure Run", exact: true })
-    .click();
-  for (const [name, value] of Object.entries(parameters)) {
-    const input = page.locator(`input[name="parameter-${name}"]`);
-    if (await input.isDisabled()) {
-      await openDetails(page.locator("details.workflow-optional-parameters"));
-      await page.getByLabel(`Include optional ${name}`).check();
-    }
-    await input.fill(value);
-  }
-  for (const [name, binding] of Object.entries(artifacts)) {
-    await selectOptionContaining(
-      page.locator(`select[name="artifact-${name}"]`),
-      binding,
-    );
-  }
-  let metadataIndex = 0;
-  if (Object.keys(metadataLabels).length > 0) {
-    await openDetails(
-      page.locator("details.run-draft-disclosure").filter({
-        has: page.getByText("Run metadata", { exact: true }),
-      }),
-    );
-  }
-  for (const [key, value] of Object.entries(metadataLabels)) {
-    metadataIndex += 1;
-    await page.getByRole("button", { name: "Add metadata label" }).click();
-    await page.getByLabel(`Run metadata label key ${metadataIndex}`).fill(key);
-    await page
-      .getByLabel(`Run metadata label value ${metadataIndex}`)
-      .fill(value);
-  }
-  await page.getByRole("button", { name: "Start Workflow Run" }).click();
-  await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
-  return new URL(page.url()).pathname.split("/").at(-1)!;
 }
 
 async function waitForUI(client: APIRequestContext, baseURL: string) {
@@ -472,25 +396,123 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     await hostile.dispose();
   }
 
-  await page.goto("/artifacts");
-  await uploadArtifact(page, {
-    name: "ui-stack-text",
-    mediaType: "text/plain",
-    payload: Buffer.from("browser-driven streamline input\n"),
+  // Real connected V37 journey: select exact Workflow, fill its missing input,
+  // leave and return in the same tab, then submit the retained exact request.
+  await page.goto("/catalog/workflows");
+  await page
+    .getByRole("link", { name: "streamline-copy", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Configure Run", exact: true })
+    .click();
+  const runSetup = page.getByRole("dialog", { name: "Configure Run" });
+  await expect(runSetup.locator('[name="artifact-source"]')).toHaveValue("");
+  await runSetup.locator('[name="parameter-mode"]').fill("streamline-strict");
+  await runSetup
+    .getByRole("button", { name: "Upload local file for source" })
+    .click();
+  const localUpload = page.getByRole("dialog", {
+    name: "Upload local file for source",
   });
-
-  const streamlineRunID = await startRun(
-    page,
-    "streamline-copy@1",
-    { mode: "streamline-strict" },
-    { source: "ui-stack-text" },
+  await localUpload.getByLabel("Drop a file here").setInputFiles({
+    name: "ui-stack-text.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("browser-driven streamline input\n"),
+  });
+  await localUpload
+    .getByRole("button", { name: "Upload and select exact revision" })
+    .click();
+  await expect(localUpload).toBeHidden();
+  const exactInput = await runSetup
+    .locator('[name="artifact-source"]')
+    .inputValue();
+  expect(exactInput).toMatch(/^inputs\/ui-stack-text@.+/);
+  await expect(
+    runSetup.getByRole("region", { name: "Exact input review for source" }),
+  ).toContainText("Confirmed");
+  await openDetails(
+    runSetup
+      .locator("details.run-draft-disclosure")
+      .filter({ has: page.getByText("Run metadata", { exact: true }) }),
+  );
+  const labels = {
+    purpose: "eval",
+    "eval.name": "ui-stack-smoke",
+    "eval.id": "ui-stack-eval-01",
+    "eval.leg": "a",
+  };
+  for (const [index, [key, value]] of Object.entries(labels).entries()) {
+    await runSetup.getByRole("button", { name: "Add metadata label" }).click();
+    await runSetup.getByLabel(`Run metadata label key ${index + 1}`).fill(key);
+    await runSetup
+      .getByLabel(`Run metadata label value ${index + 1}`)
+      .fill(value);
+  }
+  await runSetup.getByRole("button", { name: "Close Run setup" }).click();
+  await page.getByRole("link", { name: "Artifacts", exact: true }).click();
+  await expect(page).toHaveURL(/\/artifacts$/);
+  await page.goBack();
+  await page
+    .getByRole("button", { name: "Configure Run", exact: true })
+    .click();
+  await expect(runSetup.locator('[name="parameter-mode"]')).toHaveValue(
+    "streamline-strict",
+  );
+  await expect(runSetup.locator('[name="artifact-source"]')).toHaveValue(
+    exactInput,
+  );
+  await expect(runSetup.getByLabel("Run metadata label value 3")).toHaveValue(
+    "ui-stack-eval-01",
+  );
+  const createRequest = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/runs",
+  );
+  await runSetup.getByRole("button", { name: "Start Workflow Run" }).click();
+  const submitted = await createRequest;
+  const exactSource = submitted.postDataJSON().artifacts.source;
+  expect(submitted.postDataJSON()).toMatchObject({
+    workflow: "streamline-copy@1",
+    parameters: { mode: "streamline-strict" },
+    labels,
+  });
+  expect(
+    `${exactSource.namespace}/${exactSource.name}@${exactSource.revision}`,
+  ).toBe(exactInput);
+  expect(submitted.headers()["idempotency-key"]).toMatch(
+    /^run-ui-[0-9a-f]{32}$/,
+  );
+  await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
+  const streamlineRunID = new URL(page.url()).pathname.split("/").at(-1)!;
+  // Replay the same accepted request against the real Server: it must return
+  // the existing Run, even while execution is progressing.
+  const replay = await page.evaluate(
+    async ({ origin, body, key }) => {
+      const session = await (
+        await fetch(`${origin}/v1/auth/session`, { credentials: "include" })
+      ).json();
+      const response = await fetch(`${origin}/v1/runs`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": session.csrfToken,
+          "Idempotency-Key": key,
+        },
+        body: JSON.stringify(body),
+      });
+      return { status: response.status, body: await response.json() };
+    },
     {
-      purpose: "eval",
-      "eval.name": "ui-stack-smoke",
-      "eval.id": "ui-stack-eval-01",
-      "eval.leg": "a",
+      origin: apiURL,
+      body: submitted.postDataJSON(),
+      key: submitted.headers()["idempotency-key"]!,
     },
   );
+  expect(replay.status).toBe(202);
+  expect(replay.body.runId).toBe(streamlineRunID);
+
   await expect(
     page.getByRole("heading", { name: /STREAMLINE_E2E_GLOBAL/ }),
   ).toBeVisible();
@@ -527,13 +549,14 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   expect(runAfterRejectedCancel.cancellation).toBeUndefined();
 
   await page.getByRole("link", { name: "Operations" }).click();
+  await openDetails(page.locator("details.operations-snapshot-record"));
   await expect(page.getByText(/Operations events: live/)).toBeVisible();
   await page.getByRole("link", { name: "Runtime Agents", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Runtime Agents" }),
   ).toBeVisible();
   await expect(
-    page.locator(".operations-library table tbody tr").first(),
+    page.locator("article.runtime-principal-card").first(),
   ).toBeVisible();
   await page.getByRole("link", { name: "Allocations" }).click();
   const allocation = page.locator("details.allocation-card").first();
@@ -641,6 +664,12 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .locator(".run-result-card")
     .filter({ hasText: "outputs/result@" });
   await streamlineOutput
+    .getByRole("button", { name: "Preview result" })
+    .click();
+  await expect(
+    streamlineOutput.locator(".run-output-preview-body"),
+  ).toContainText("browser-driven streamline input");
+  await streamlineOutput
     .getByRole("link", { name: /^Open outputs\/result@/ })
     .click();
   const streamlineDownloadPromise = page.waitForEvent("download");
@@ -649,6 +678,25 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   expect((await readFile(await streamlineDownload.path())).toString()).toBe(
     "browser-driven streamline input\n",
   );
+
+  await page.goto(`/runs/${streamlineRunID}`);
+  await page.getByRole("button", { name: "Configure another Run" }).click();
+  await expect(page).toHaveURL(
+    /\/catalog\/workflows\/streamline-copy\/1#workflow-run-setup$/,
+  );
+  await expect(runSetup.locator('[name="parameter-mode"]')).toHaveValue(
+    "streamline-strict",
+  );
+  await expect(runSetup.locator('[name="artifact-source"]')).toHaveValue(
+    exactInput,
+  );
+  await expect(
+    runSetup.getByRole("button", { name: "Start Workflow Run" }),
+  ).toBeDisabled();
+  await expect(
+    runSetup.getByRole("button", { name: "Confirm exact input for source" }),
+  ).toBeVisible();
+  await runSetup.getByRole("button", { name: "Close Run setup" }).click();
 
   await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).first().click();
@@ -682,13 +730,26 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   });
 
   await page
-    .getByRole("button", { name: "Run openapi-from-workspace@5" })
+    .getByRole("navigation", { name: "Project sections" })
+    .getByRole("link", { name: "Workflows", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "All workflows", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Version of openapi-from-workspace", { exact: true }),
+  ).toHaveValue("7");
+  await page
+    .getByLabel("Version of openapi-from-workspace", { exact: true })
+    .selectOption("5");
+  await page
+    .getByRole("button", { name: "Configure openapi-from-workspace@5" })
     .click();
   const workflowDialog = page.getByRole("dialog", {
-    name: "openapi-from-workspace",
+    name: "Configure Run",
   });
   await expect(
-    workflowDialog.locator(".project-dialog-heading code"),
+    workflowDialog.locator(".workflow-drawer-heading code"),
   ).toHaveText("openapi-from-workspace@5");
   await workflowDialog
     .getByRole("button", { name: "Confirm exact input for source" })
@@ -696,6 +757,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await workflowDialog
     .getByRole("button", { name: "Confirm exact input for existing_openapi" })
     .click();
+  await openDetails(
+    workflowDialog.locator("details.workflow-optional-parameters"),
+  );
   await workflowDialog.getByLabel("Include optional objective").check();
   await workflowDialog
     .locator('input[name="parameter-objective"]')
@@ -764,11 +828,20 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   expect(openAPIBytes.toString()).toContain("/widgets/{widget_id}");
   expect(openAPIRunID).toMatch(/^run_/);
 
-  await page.goto(projectURL);
+  await page.goto(`${projectURL}/artifacts`);
   await expect(
     page.getByRole("link", { name: "outputs/openapi", exact: true }),
   ).toBeVisible();
-  await openDetails(page.locator("details.project-all-workflows"));
+  await page
+    .getByRole("navigation", { name: "Project sections" })
+    .getByRole("link", { name: "Workflows", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "All workflows", exact: true })
+    .click();
+  await page
+    .getByLabel("Version of openapi-from-workspace", { exact: true })
+    .selectOption("5");
   await expect(
     page.getByRole("button", { name: "Run again openapi-from-workspace@5" }),
   ).toBeVisible();
@@ -776,7 +849,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto("/operations/configurations");
   const workerRow = page
     .getByRole("row")
-    .filter({ has: page.getByText("worker@1", { exact: true }) });
+    .filter({ has: page.getByText("worker@2", { exact: true }) });
   await workerRow.getByRole("link", { name: "Inspect / clone" }).click();
   await page.getByLabel("New immutable version").fill("ui-stack-1");
   await page.getByRole("button", { name: "Publish immutable version" }).click();
@@ -802,7 +875,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await credentialForm.getByLabel(/RPM limit/).fill("20");
   await credentialForm.getByLabel(/Parallel requests/).fill("2");
   await credentialForm
-    .getByLabel(/^worker@1 ·/)
+    .getByLabel(/^worker@2 ·/)
     .first()
     .check();
   await credentialForm
@@ -851,6 +924,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(
     page.getByRole("heading", { name: "RuntimeConfig versions" }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Add Runtime credential", exact: true })
+    .click();
   const runtimeCredentialForm = page.locator("form.runtime-credential-form");
   await runtimeCredentialForm
     .getByLabel("Runtime credential ID")
@@ -871,6 +947,12 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     0,
   );
 
+  await page
+    .getByRole("button", { name: "Close Runtime credential form" })
+    .click();
+  await page
+    .getByRole("button", { name: "Publish RuntimeConfig", exact: true })
+    .click();
   await page.getByLabel("RuntimeConfig name").fill("ui-stack-debug");
   const workerTelemetry = page.getByRole("group", {
     name: /Worker telemetry/,
@@ -888,6 +970,10 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("button", { name: "Publish immutable RuntimeConfig" })
     .click();
   await expect(page.getByText(/Published ui-stack-debug@1/)).toBeVisible();
+  await page.getByRole("button", { name: "Close RuntimeConfig form" }).click();
+  await page
+    .getByRole("button", { name: "Manage bindings for ui-stack-debug@1" })
+    .click();
   const runtimeLabelForm = page.locator("form.runtime-label-create");
   await runtimeLabelForm.getByLabel("New label").fill("ui-stack-debug");
   await selectOptionContaining(
@@ -903,15 +989,19 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
       .filter({ hasText: "ui-stack-debug" }),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: "Close Runtime bindings" }).click();
   await page.goto("/operations/runtime-agents");
   const principal = page.locator("article.runtime-principal-card").first();
   await expect(principal).toBeVisible();
-  await principal.getByLabel(/ui-stack-debug/).check();
-  await principal
-    .getByRole("button", { name: "Replace labels with current revision" })
-    .click();
-  await expect(principal.getByLabel(/ui-stack-debug/)).toBeChecked();
-  await expect(principal.getByText(/future allocations/)).toBeVisible();
+  await principal.getByRole("button", { name: "Edit labels" }).click();
+  const agentLabels = page.getByRole("dialog", { name: "Edit Agent labels" });
+  await expect(agentLabels.getByText(/future allocations/)).toBeVisible();
+  await agentLabels.getByLabel(/ui-stack-debug/).check();
+  await agentLabels.getByRole("button", { name: "Save labels" }).click();
+  await expect(agentLabels).toBeHidden();
+  await expect(principal.locator(".runtime-agent-label-chips")).toContainText(
+    "ui-stack-debug",
+  );
 
   await page.goto("/operations");
   const generationBefore = await page
