@@ -5,9 +5,10 @@
 коде; completion metadata не меняла рассматриваемые runtime paths.
 
 Первый проход охватил три направления: execution/runtime, data/Audit/product
-и auth/quality/operations. Найдены **четыре воспроизведённых дефекта**, сгруппированные
-в три correction tasks. Это не завершённое ревью всех подсистем. Углублённые
-проверки V60-005–010 остаются отдельной очередью.
+и auth/quality/operations. Первоначально воспроизведены четыре дефекта;
+интеграционный прогон и независимая проверка добавили ещё два. Итого —
+**шесть подтверждённых замечаний**. Это не завершённое ревью всех подсистем.
+Углублённые проверки V60-005–010 остаются отдельной очередью.
 
 [Evidence первого прохода](../../tasks/evidence/v60-001.json) содержит точные
 команды выполненных проверок, исходные результаты probes, snapshot параллельных
@@ -97,7 +98,53 @@ framework identity/status и редактировать диагностичес
 соединять subprocess capture и verifier, включая отсутствие секретов в логах,
 skip/fail/missing/malformed и nonzero exit.
 
-## Подозрения, которые не следует выдавать за дефекты
+## Дополнительные подтверждённые замечания
+
+### Дополнение PR-05 — P1: обязательная matrix отстала от V57-004
+
+Реальный `make test-audit-completion-e2e` выполнил 331 Python-тест успешно,
+затем отверг отсутствие обязательного
+`test_artifact_observations_survive_a_reminder_and_join_verified_publication`.
+История `7f553b22` показывает: тест переименован в
+`test_audit_typed_assembly_preserves_reminder_publication_and_refs_without_model_decode`,
+его прежние assertions сохранены и усилены, а matrix не обновлена.
+
+Это пропуск интеграции V57-004. [V60-011](../../tasks/v60-011-audit-gate-runtime-matrix.yml)
+сохраняет обязательный минимум `1` у действующего усиленного теста. Новый
+offline AST-check сравнивает matrix с реальными объявлениями Python-тестов:
+он падает на старой записи и проходит после её исправления. Синтетические
+JUnit-пробы сами копировали имена из matrix, поэтому такой drift не обнаруживали.
+AST не доказывает collection/execution: это по-прежнему обязанность полного gate.
+
+### Дополнение PR-06 — P2: удаление Run не инвалидирует Audit revision
+
+`internal/runstore/delete_store.go:98,120–133` меняет execution tombstone и receipt
+retention без изменения Audit revision. Spec 19:1571–1576 требует продвижения
+ревизии для projection-visible execution/receipt/provenance изменений.
+
+Проба с настоящим PostgreSQL использовала production `ImportIntoAudit`, затем
+`DeleteReleasedTerminalRun` между чтениями provenance. Прежние caller pins
+приняты, хотя `Origin.RunDeleted` изменился `false → true`; Audit revision
+осталась `2`, finding revision — `1`. Это отдельная upstream invalidation-ошибка:
+сравнение корректно фиксируемых ревизий в V60-003 не может обнаружить мутацию,
+которая сама не продвигает ревизию.
+
+[V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml) оставлена pending
+следующей задачей. Нужно охватить managed execution, нативные receipts и все
+destination Audit holds, согласовать порядок блокировок с import/purge, затем
+проверить rollback и report finalization. Нельзя автоматически приравнивать
+`Attempt.RunDeleted` к `Origin.RunDeleted`: эти поля могут относиться к разным Run.
+
+Причина отдельной задачи конкретна: report importer записывает immutable
+`report.json`/`report.md` до revision CAS, а байты содержат `Audit.UpdatedAt`.
+По коду `auditimport/report.go:223,262–325` и `auditimport/artifacts.go:166–167`,
+наивный revision/timestamp bump между записью и CAS способен оставить прежнее
+immutable имя с несовместимыми байтами при повторе. Это вывод из пути кода,
+не выполненная fault-проба; V60-012 требует её до выбора исправления.
+Pending report review сравнивает subject с сохранённым candidate, поэтому
+нельзя вводить для него новую проверку равенства текущей Audit revision.
+
+## Принятые решения и отклонённые подозрения
 
 | Путь | Проверенное основание | Классификация / следующий шаг |
 | --- | --- | --- |

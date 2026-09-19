@@ -19,6 +19,10 @@ V58-013 включена. [Результаты V59](../research/2026-09-20-publ
 2. **Исправить подтверждённые локальные дефекты — V60-002–004.** Не ждать конца
    большого ревью, если причина, контракт и проверка уже известны. Каждый
    исправленный дефект получает регрессию и отдельный implementation commit.
+   Фактический интеграционный прогон дополнительно выявил устаревшее имя
+   обязательного Runtime-теста — V60-011. Независимое ревью обнаружило отдельную
+   invalidation-ошибку при удалении Run — V60-012; её исправление требует
+   согласованной проверки import/delete/report finalization и идёт следующей.
 3. **Углубить проверки по сценариям — V60-005–010.** Выполнить приведённые ниже
    fault, database, transport и browser проверки. Перед началом каждой задачи
    обновить базовый commit и проверить пересечения с параллельной работой.
@@ -137,6 +141,13 @@ Task priority использует принятую в `tasks/index.yml` policy 
 | PR-02 | Provenance handler может подписать новые данные старыми Audit/finding revisions при конкурентной мутации. | [V60-003](../../tasks/v60-003-provenance-consistent-reads.yml): revision fence и regression interleaving. |
 | PR-03 | Provenance hydration запрашивает receipt из пула, пока прежние rows удерживают connection; подтверждено на PostgreSQL с pool=1. | V60-003: закрыть rows перед hydration и закрепить воспроизведение с настоящим PostgreSQL. |
 | PR-04 | Audit completion gate редактирует пароль во всей JSON-строке. CI password `contractor` портит Package, `pass` портит Action; валидные результаты не проходят gate. | [V60-004](../../tasks/v60-004-audit-gate-event-redaction.yml): отделить identity/status от redacted diagnostics и проверить их композицию. |
+| PR-05 | После V57-004 обязательная Runtime matrix ссылается на прежнее имя усиленного теста; реальный gate отвергает его отсутствие после 331 успешного Python-теста. | [V60-011](../../tasks/v60-011-audit-gate-runtime-matrix.yml): сохранить требуемое поведение под действующим именем, проверять объявления тестов и выполнить полный gate. |
+| PR-06 | Удаление source Run меняет retained provenance без повышения Audit revision; прежние pins остаются допустимыми. | [V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml), pending: атомарная invalidation всех затронутых Audits с проверкой import/delete/purge и immutable report retry. |
+
+V60-012 поставлена перед широкими новыми оптимизациями: это подтверждённая
+ошибка, но добавление одного revision UPDATE без проверки report finalization
+может создать immutable binding collision при повторе. Её acceptance включает
+конкретные DB-interleavings; вопрос не требует переписывать проект целиком.
 
 Подробные наблюдения, отклонённые подозрения и фактически выполненные проверки
 ведутся в [отчёте первого прохода](../research/2026-09-20-project-review-first-pass.md).

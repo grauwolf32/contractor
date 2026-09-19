@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V60-011
+title: Keep mandatory Audit Runtime matrix aligned after test renames
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on:
+- V57-004
+- V60-004
+languages:
+- go
+- python
+- json
+- markdown
+goal: Restore the actual Audit release gate without dropping any required Runtime behavior and detect stale Python
+  test names earlier.
+context:
+  authority: User requested project review and correction work; the first actual combined Audit gate reproduced
+    a stale mandatory case after V57-004.
+  specification:
+  - docs/spec/25-audit-worker-finalization.md
+  design: docs/plans/2026-09-20-project-review.md
+  finding_ids:
+  - PR-05
+  history: 7f553b2295051b8ad88a2cea98972727b41afaf8 strengthened and renamed the existing artifact-observation/reminder/publication
+    test but left its old name in the required matrix.
+  reproduction: make test-audit-completion-e2e ran all331 selected Python tests successfully and then rejected the
+    missing old test_artifact_observations_survive_a_reminder_and_join_verified_publication.
+scope:
+  in:
+  - Point the unchanged mandatory minimum to the stronger renamed Runtime regression after comparing its assertions
+    with the original.
+  - Add an offline matrix-to-declared-Python-test check to existing gate meta-tests so a rename cannot pass normal
+    Go verification unnoticed.
+  - Run the real full Audit completion gate with isolated PostgreSQL and the CI password collision case; retain
+    all skip/fail/missing rejection behavior.
+  out:
+  - Rename or weaken production Runtime semantics or remove a required behavior.
+  - Use synthetic reports as a substitute for the actual Runtime/PostgreSQL gate.
+  - Modify active eval or toolset work.
+acceptance_criteria:
+- id: A1
+  text: The mandatory matrix names the actual stronger V57-004 test and retains its minimum execution count.
+- id: A2
+  text: The new offline declaration check fails on the stale parent matrix and passes after the correction.
+- id: A3
+  text: The actual full gate passes required Python and Go cases with no selected skips using the fixed redactor
+    and disposable PostgreSQL.
+tests:
+- command: go test -count=1 ./tests/e2e -run AuditCompletion
+  covers:
+  - A1
+  - A2
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A3
+- command: git diff --check
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Record the initial real gate failure, assertion-level comparison to the renamed test, exact subsequent gate counts
+  and original implementation hash.
+- Full gate must set explicit disposable CONTRACTOR_TEST_DATABASE_URL; existing locked Python env may use UV_NO_SYNC
+  and reviewed PYTHONPATH.
+- Keep implementation and subsequent completion metadata commits separate.
