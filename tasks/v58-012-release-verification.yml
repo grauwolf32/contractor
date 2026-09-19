@@ -66,3 +66,10 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+verification_results:
+- All 32 findings resolved; individual outcomes and task mappings are in docs/research/2026-09-19-ui-design-implementation-results.md.
+- Full generated-contract, lint/format, both TypeScript projects, 413 UI tests, 9 static-server tests and production build passed.
+- 105 browser states at 1440/390 px plus 8 critical 320 px states passed; 218 captures and 16878 semantic elements recorded.
+- Live UI 0.3.0 release a894fba6f1b0621e42d7f651a95b0e908ed3c785 passed loopback/LAN health, routes, assets, config and 404 checks plus 16 post-deployment browser states.
+- Queue, scheduler, Runs, Runtime identities, Server/Runtime/proxy PIDs and main Server release link were unchanged; concurrent local task planning was preserved.
+- Evidence is recorded in tasks/evidence/v58-012.json and .local/ui-design-implementation/phase-012.
