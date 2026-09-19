@@ -3,7 +3,7 @@ id: V45-007
 title: Isolate deterministic capability matching from Registry
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go

@@ -3,7 +3,7 @@ id: V45-006
 title: Extract Audit reconciliation phases and batch selection
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -56,3 +56,4 @@ verification:
   - go test -race -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditimport — passed.
   - Regression tests preserve collection no-op phase barriers, exact holds, scheduled checks, selection capacity and scan bounds.
   - git diff --check — passed.
+implementation_commit: d0f6252e402a55d5e50f0a09530e70cbcc4e8360
