@@ -49,3 +49,9 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+- Required Scheduler/controlplane/Planner race suite passed.
+- Lifecycle code split into supervision, Run execution, Stage preparation, Planner invocation, termination, finalization, reservations, release and reports.
+- Preparation and Planner share one computed Stage deadline; telemetry closure remains after finalization and allocation ownership checks retain their order.
+- Existing cancellation, claim-loss, allocation fencing, retry and release recovery regressions passed; git diff --check passed.
