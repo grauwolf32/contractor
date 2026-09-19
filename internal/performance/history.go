@@ -229,19 +229,7 @@ func (b *historyBuilder) add(m Minute) error {
 		p.Status = Partial
 	}
 	if m.HTTP != nil {
-		if p.HTTP == nil {
-			p.HTTP = &[2]HTTPSurface{{Surface: Public}, {Surface: Private}}
-		}
-		for i, source := range m.HTTP {
-			target := &p.HTTP[i]
-			target.InFlight = source.InFlight
-			for method, classes := range source.Counts {
-				for class, n := range classes {
-					target.Counts[method][class] += n
-				}
-			}
-			target.Duration.Merge(source.Duration)
-		}
+		mergeHTTPSurfaces(&p.HTTP, *m.HTTP)
 	}
 	if m.CPU != nil {
 		if p.CPU == nil {

@@ -50,3 +50,8 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+  - go test -race -count=1 ./internal/performance — passed.
+  - Minute/history comparison covers every HTTP counter dimension and histogram, with detached output; existing CPU, freshness, overlap and GPU regressions pass.
+  - git diff --check — passed.
