@@ -302,6 +302,14 @@ token charge for this work. Exact receipts from this trusted finalizer are an
 explicit extension of tool-observed artifact projection, not an invitation to
 accept model-authored artifact refs.
 
+Trusted completion fields enter the common Runtime result assembly directly,
+without a synthetic model-JSON wrapper. Runtime validates fresh text/identity
+fields, projects artifacts against the request's bindings, and retains the
+actual text, result and WorkerCompletion bounds. The size of an intermediate
+ASCII-escaped JSON representation is not an additional Audit completion limit.
+Ordinary finalizer and terminal summarizer outputs still pass through the
+bounded model-JSON decoder before the same result assembly.
+
 The common lifecycle path still applies cancellation/write fencing, terminal
 State, cleanup and WorkerCompletion publication. If cancellation wins after the
 artifact write, the artifact may remain for diagnostics but cannot imply Run
