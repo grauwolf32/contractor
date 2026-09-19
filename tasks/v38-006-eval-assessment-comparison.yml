@@ -3,7 +3,7 @@ id: "V38-006"
 title: "Collect eval results and build attributed complete comparisons"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 implementation_repository: "contractor"
 depends_on: ["V38-005"]
