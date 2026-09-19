@@ -2443,7 +2443,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/RuntimeConfigDocument'}
+            schema: {$ref: '#/components/schemas/RuntimeConfigAuthorDocument'}
       responses:
         '201':
           description: Immutable normalized RuntimeConfig metadata and document
@@ -5208,16 +5208,60 @@ components:
           $ref: '#/components/schemas/RuntimeCredentialId'
         caBundlePem: {type: string, minLength: 1, maxLength: 65536}
         requestTimeoutSeconds: {type: integer, minimum: 1, maximum: 120}
+    RuntimeLLMGatewayAuthorPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        gateway:
+          $ref: '#/components/schemas/Selector'
+        credential:
+          oneOf:
+            - {$ref: '#/components/schemas/ConfigId'}
+            - {type: 'null'}
+    RuntimeWorkerAuthorPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        llmGateway:
+          $ref: '#/components/schemas/RuntimeLLMGatewayAuthorPatch'
+        telemetry:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeTelemetryConfig'}
+            - {type: 'null'}
+        httpProxy:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeHTTPProxyConfig'}
+            - {type: 'null'}
+        caido:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeCaidoConfig'}
+            - {type: 'null'}
+    RuntimeConfigAuthorSpec:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        worker: {$ref: '#/components/schemas/RuntimeWorkerAuthorPatch'}
+        planner: {$ref: '#/components/schemas/RuntimePlannerPatch'}
+    RuntimeConfigAuthorDocument:
+      type: object
+      description: Publication input. Gateway selections use exact name@version strings, resolved by the Server before storage. At least one patch operation is required.
+      additionalProperties: false
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion: {type: string, const: contractor/v1alpha1}
+        kind: {type: string, const: RuntimeConfig}
+        metadata: {$ref: '#/components/schemas/RuntimeConfigMetadata'}
+        spec: {$ref: '#/components/schemas/RuntimeConfigAuthorSpec'}
     RuntimeLLMGatewayPatch:
       type: object
       additionalProperties: false
       minProperties: 1
       properties:
         gateway:
-          oneOf:
-            - {$ref: '#/components/schemas/LLMGatewayConfigRef'}
-            - {$ref: '#/components/schemas/Selector'}
-            - {type: 'null'}
+          $ref: '#/components/schemas/LLMGatewayConfigRef'
         credential:
           oneOf:
             - {$ref: '#/components/schemas/ConfigId'}
@@ -5228,9 +5272,7 @@ components:
       minProperties: 1
       properties:
         llmGateway:
-          oneOf:
-            - {$ref: '#/components/schemas/RuntimeLLMGatewayPatch'}
-            - {type: 'null'}
+          $ref: '#/components/schemas/RuntimeLLMGatewayPatch'
         telemetry:
           oneOf:
             - {$ref: '#/components/schemas/RuntimeTelemetryConfig'}
@@ -5260,6 +5302,7 @@ components:
         planner: {$ref: '#/components/schemas/RuntimePlannerPatch'}
     RuntimeConfigDocument:
       type: object
+      description: Immutable normalized read document. Gateway selections contain exact resolved refs. The built-in document may have an empty spec.
       additionalProperties: false
       required: [apiVersion, kind, metadata, spec]
       properties:

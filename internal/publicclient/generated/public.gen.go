@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -605,6 +606,36 @@ func (e RuntimeCaidoConfigAdapter) Valid() bool {
 	}
 }
 
+// Defines values for RuntimeConfigAuthorDocumentApiVersion.
+const (
+	RuntimeConfigAuthorDocumentApiVersionContractorv1alpha1 RuntimeConfigAuthorDocumentApiVersion = "contractor/v1alpha1"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeConfigAuthorDocumentApiVersion enum.
+func (e RuntimeConfigAuthorDocumentApiVersion) Valid() bool {
+	switch e {
+	case RuntimeConfigAuthorDocumentApiVersionContractorv1alpha1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeConfigAuthorDocumentKind.
+const (
+	RuntimeConfigAuthorDocumentKindRuntimeConfig RuntimeConfigAuthorDocumentKind = "RuntimeConfig"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeConfigAuthorDocumentKind enum.
+func (e RuntimeConfigAuthorDocumentKind) Valid() bool {
+	switch e {
+	case RuntimeConfigAuthorDocumentKindRuntimeConfig:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RuntimeConfigDocumentApiVersion.
 const (
 	RuntimeConfigDocumentApiVersionContractorv1alpha1 RuntimeConfigDocumentApiVersion = "contractor/v1alpha1"
@@ -622,13 +653,13 @@ func (e RuntimeConfigDocumentApiVersion) Valid() bool {
 
 // Defines values for RuntimeConfigDocumentKind.
 const (
-	RuntimeConfig RuntimeConfigDocumentKind = "RuntimeConfig"
+	RuntimeConfigDocumentKindRuntimeConfig RuntimeConfigDocumentKind = "RuntimeConfig"
 )
 
 // Valid indicates whether the value is a known member of the RuntimeConfigDocumentKind enum.
 func (e RuntimeConfigDocumentKind) Valid() bool {
 	switch e {
-	case RuntimeConfig:
+	case RuntimeConfigDocumentKindRuntimeConfig:
 		return true
 	default:
 		return false
@@ -1173,9 +1204,9 @@ type ArtifactPage struct {
 
 // ArtifactRef defines model for ArtifactRef.
 type ArtifactRef struct {
-	Name      ArtifactName `json:"name"`
-	Namespace ArtifactName `json:"namespace"`
-	Revision  *Revision    `json:"revision,omitempty"`
+	Name      ArtifactName                `json:"name"`
+	Namespace ArtifactName                `json:"namespace"`
+	Revision  nullable.Nullable[Revision] `json:"revision,omitempty"`
 }
 
 // ArtifactSlot defines model for ArtifactSlot.
@@ -2000,7 +2031,7 @@ type CaidoBearerMaterial struct {
 
 // CancelRunRequest defines model for CancelRunRequest.
 type CancelRunRequest struct {
-	Reason *string `json:"reason,omitempty"`
+	Reason nullable.Nullable[string] `json:"reason,omitempty"`
 }
 
 // CancelRunResponse defines model for CancelRunResponse.
@@ -2106,12 +2137,12 @@ type CreateProjectRequest struct {
 
 // CreateRunRequest defines model for CreateRunRequest.
 type CreateRunRequest struct {
-	Artifacts       *map[string]ArtifactRef `json:"artifacts,omitempty"`
-	ExecutionConfig *ExecutionConfigPatch   `json:"executionConfig,omitempty"`
-	Labels          *RunMetadataLabels      `json:"labels,omitempty"`
-	Parameters      *map[string]string      `json:"parameters,omitempty"`
-	RuntimeLabels   *[]ConfigId             `json:"runtimeLabels,omitempty"`
-	Workflow        Selector                `json:"workflow"`
+	Artifacts       nullable.Nullable[map[string]ArtifactRef] `json:"artifacts,omitempty"`
+	ExecutionConfig *ExecutionConfigPatch                     `json:"executionConfig,omitempty"`
+	Labels          *RunMetadataLabels                        `json:"labels,omitempty"`
+	Parameters      nullable.Nullable[map[string]string]      `json:"parameters,omitempty"`
+	RuntimeLabels   *[]ConfigId                               `json:"runtimeLabels,omitempty"`
+	Workflow        Selector                                  `json:"workflow"`
 }
 
 // CreateRunResponse defines model for CreateRunResponse.
@@ -2321,16 +2352,16 @@ type ExecutionConfigRef struct {
 
 // ExecutionConfigSelection defines model for ExecutionConfigSelection.
 type ExecutionConfigSelection struct {
-	Credential  *CredentialRef       `json:"credential,omitempty"`
-	LlmGateway  *LLMGatewayConfigRef `json:"llmGateway,omitempty"`
-	ModelPolicy *ModelPolicyRef      `json:"modelPolicy,omitempty"`
+	Credential  nullable.Nullable[CredentialRef] `json:"credential,omitempty"`
+	LlmGateway  *LLMGatewayConfigRef             `json:"llmGateway,omitempty"`
+	ModelPolicy *ModelPolicyRef                  `json:"modelPolicy,omitempty"`
 }
 
 // ExecutionSelectionPatch defines model for ExecutionSelectionPatch.
 type ExecutionSelectionPatch struct {
-	Credential  *ConfigId `json:"credential,omitempty"`
-	LlmGateway  *Selector `json:"llmGateway,omitempty"`
-	ModelPolicy *Selector `json:"modelPolicy,omitempty"`
+	Credential  nullable.Nullable[ConfigId] `json:"credential,omitempty"`
+	LlmGateway  *Selector                   `json:"llmGateway,omitempty"`
+	ModelPolicy *Selector                   `json:"modelPolicy,omitempty"`
 }
 
 // FindingAuditHold defines model for FindingAuditHold.
@@ -2495,10 +2526,10 @@ type GitKeyState struct {
 
 // GitSource defines model for GitSource.
 type GitSource struct {
-	ImportedAt     time.Time `json:"importedAt"`
-	RepositoryUrl  string    `json:"repositoryUrl"`
-	RequestedRef   *string   `json:"requestedRef"`
-	ResolvedCommit string    `json:"resolvedCommit"`
+	ImportedAt     time.Time                 `json:"importedAt"`
+	RepositoryUrl  string                    `json:"repositoryUrl"`
+	RequestedRef   nullable.Nullable[string] `json:"requestedRef"`
+	ResolvedCommit string                    `json:"resolvedCommit"`
 }
 
 // HTTPOriginBasicMaterial defines model for HTTPOriginBasicMaterial.
@@ -3409,7 +3440,27 @@ type RuntimeCaidoConfigAdapter string
 // RuntimeCapabilityRef defines model for RuntimeCapabilityRef.
 type RuntimeCapabilityRef = string
 
-// RuntimeConfigDocument defines model for RuntimeConfigDocument.
+// RuntimeConfigAuthorDocument Publication input. Gateway selections use exact name@version strings, resolved by the Server before storage. At least one patch operation is required.
+type RuntimeConfigAuthorDocument struct {
+	ApiVersion RuntimeConfigAuthorDocumentApiVersion `json:"apiVersion"`
+	Kind       RuntimeConfigAuthorDocumentKind       `json:"kind"`
+	Metadata   RuntimeConfigMetadata                 `json:"metadata"`
+	Spec       RuntimeConfigAuthorSpec               `json:"spec"`
+}
+
+// RuntimeConfigAuthorDocumentApiVersion defines model for RuntimeConfigAuthorDocument.ApiVersion.
+type RuntimeConfigAuthorDocumentApiVersion string
+
+// RuntimeConfigAuthorDocumentKind defines model for RuntimeConfigAuthorDocument.Kind.
+type RuntimeConfigAuthorDocumentKind string
+
+// RuntimeConfigAuthorSpec defines model for RuntimeConfigAuthorSpec.
+type RuntimeConfigAuthorSpec struct {
+	Planner *RuntimePlannerPatch      `json:"planner,omitempty"`
+	Worker  *RuntimeWorkerAuthorPatch `json:"worker,omitempty"`
+}
+
+// RuntimeConfigDocument Immutable normalized read document. Gateway selections contain exact resolved refs. The built-in document may have an empty spec.
 type RuntimeConfigDocument struct {
 	ApiVersion RuntimeConfigDocumentApiVersion `json:"apiVersion"`
 	Kind       RuntimeConfigDocumentKind       `json:"kind"`
@@ -3444,11 +3495,13 @@ type RuntimeConfigRef struct {
 
 // RuntimeConfigResource defines model for RuntimeConfigResource.
 type RuntimeConfigResource struct {
-	BuiltIn   bool                  `json:"builtIn"`
-	CreatedAt time.Time             `json:"createdAt"`
-	CreatedBy AuditActor            `json:"createdBy"`
-	Document  RuntimeConfigDocument `json:"document"`
-	Ref       RuntimeConfigRef      `json:"ref"`
+	BuiltIn   bool       `json:"builtIn"`
+	CreatedAt time.Time  `json:"createdAt"`
+	CreatedBy AuditActor `json:"createdBy"`
+
+	// Document Immutable normalized read document. Gateway selections contain exact resolved refs. The built-in document may have an empty spec.
+	Document RuntimeConfigDocument `json:"document"`
+	Ref      RuntimeConfigRef      `json:"ref"`
 }
 
 // RuntimeConfigSpec defines model for RuntimeConfigSpec.
@@ -3514,15 +3567,16 @@ type RuntimeHTTPProxyConfigAdapter string
 // RuntimeInfrastructureId defines model for RuntimeInfrastructureId.
 type RuntimeInfrastructureId = string
 
-// RuntimeLLMGatewayPatch defines model for RuntimeLLMGatewayPatch.
-type RuntimeLLMGatewayPatch struct {
-	Credential *ConfigId                       `json:"credential,omitempty"`
-	Gateway    *RuntimeLLMGatewayPatch_Gateway `json:"gateway,omitempty"`
+// RuntimeLLMGatewayAuthorPatch defines model for RuntimeLLMGatewayAuthorPatch.
+type RuntimeLLMGatewayAuthorPatch struct {
+	Credential nullable.Nullable[ConfigId] `json:"credential,omitempty"`
+	Gateway    *Selector                   `json:"gateway,omitempty"`
 }
 
-// RuntimeLLMGatewayPatch_Gateway defines model for RuntimeLLMGatewayPatch.Gateway.
-type RuntimeLLMGatewayPatch_Gateway struct {
-	union json.RawMessage
+// RuntimeLLMGatewayPatch defines model for RuntimeLLMGatewayPatch.
+type RuntimeLLMGatewayPatch struct {
+	Credential nullable.Nullable[ConfigId] `json:"credential,omitempty"`
+	Gateway    *LLMGatewayConfigRef        `json:"gateway,omitempty"`
 }
 
 // RuntimeLabelBinding defines model for RuntimeLabelBinding.
@@ -3558,7 +3612,7 @@ type RuntimeLabelPage struct {
 
 // RuntimePlannerPatch defines model for RuntimePlannerPatch.
 type RuntimePlannerPatch struct {
-	Telemetry *RuntimeTelemetryConfig `json:"telemetry,omitempty"`
+	Telemetry nullable.Nullable[RuntimeTelemetryConfig] `json:"telemetry,omitempty"`
 }
 
 // RuntimeResourceSummary Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
@@ -3625,12 +3679,20 @@ type RuntimeToolsetCapability struct {
 	Tools []ConfigId           `json:"tools"`
 }
 
+// RuntimeWorkerAuthorPatch defines model for RuntimeWorkerAuthorPatch.
+type RuntimeWorkerAuthorPatch struct {
+	Caido      nullable.Nullable[RuntimeCaidoConfig]     `json:"caido,omitempty"`
+	HttpProxy  nullable.Nullable[RuntimeHTTPProxyConfig] `json:"httpProxy,omitempty"`
+	LlmGateway *RuntimeLLMGatewayAuthorPatch             `json:"llmGateway,omitempty"`
+	Telemetry  nullable.Nullable[RuntimeTelemetryConfig] `json:"telemetry,omitempty"`
+}
+
 // RuntimeWorkerPatch defines model for RuntimeWorkerPatch.
 type RuntimeWorkerPatch struct {
-	Caido      *RuntimeCaidoConfig     `json:"caido,omitempty"`
-	HttpProxy  *RuntimeHTTPProxyConfig `json:"httpProxy,omitempty"`
-	LlmGateway *RuntimeLLMGatewayPatch `json:"llmGateway,omitempty"`
-	Telemetry  *RuntimeTelemetryConfig `json:"telemetry,omitempty"`
+	Caido      nullable.Nullable[RuntimeCaidoConfig]     `json:"caido,omitempty"`
+	HttpProxy  nullable.Nullable[RuntimeHTTPProxyConfig] `json:"httpProxy,omitempty"`
+	LlmGateway *RuntimeLLMGatewayPatch                   `json:"llmGateway,omitempty"`
+	Telemetry  nullable.Nullable[RuntimeTelemetryConfig] `json:"telemetry,omitempty"`
 }
 
 // SafeReason defines model for SafeReason.
@@ -3828,9 +3890,9 @@ type UpdateOwnerQueueControlRequest struct {
 
 // UpdateProjectRequest defines model for UpdateProjectRequest.
 type UpdateProjectRequest struct {
-	Description *string            `json:"description,omitempty"`
-	HttpTarget  *ProjectHTTPTarget `json:"httpTarget,omitempty"`
-	Name        *string            `json:"name,omitempty"`
+	Description *string                              `json:"description,omitempty"`
+	HttpTarget  nullable.Nullable[ProjectHTTPTarget] `json:"httpTarget,omitempty"`
+	Name        *string                              `json:"name,omitempty"`
 }
 
 // UpdateSchedulerSettingsRequest defines model for UpdateSchedulerSettingsRequest.
@@ -4991,7 +5053,7 @@ type CreateCredentialJSONRequestBody = CreateCredentialRequest
 type ReplaceRuntimeAgentPrincipalLabelsJSONRequestBody = RuntimeAgentLabelsMutation
 
 // PublishRuntimeConfigJSONRequestBody defines body for PublishRuntimeConfig for application/json ContentType.
-type PublishRuntimeConfigJSONRequestBody = RuntimeConfigDocument
+type PublishRuntimeConfigJSONRequestBody = RuntimeConfigAuthorDocument
 
 // CreateRuntimeCredentialJSONRequestBody defines body for CreateRuntimeCredential for application/json ContentType.
 type CreateRuntimeCredentialJSONRequestBody = CreateRuntimeCredentialRequest
@@ -5965,68 +6027,6 @@ func (t PublishConfigurationRequest) MarshalJSON() ([]byte, error) {
 }
 
 func (t *PublishConfigurationRequest) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsLLMGatewayConfigRef returns the union data inside the RuntimeLLMGatewayPatch_Gateway as a LLMGatewayConfigRef
-func (t RuntimeLLMGatewayPatch_Gateway) AsLLMGatewayConfigRef() (LLMGatewayConfigRef, error) {
-	var body LLMGatewayConfigRef
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromLLMGatewayConfigRef overwrites any union data inside the RuntimeLLMGatewayPatch_Gateway as the provided LLMGatewayConfigRef
-func (t *RuntimeLLMGatewayPatch_Gateway) FromLLMGatewayConfigRef(v LLMGatewayConfigRef) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeLLMGatewayConfigRef performs a merge with any union data inside the RuntimeLLMGatewayPatch_Gateway, using the provided LLMGatewayConfigRef
-func (t *RuntimeLLMGatewayPatch_Gateway) MergeLLMGatewayConfigRef(v LLMGatewayConfigRef) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSelector returns the union data inside the RuntimeLLMGatewayPatch_Gateway as a Selector
-func (t RuntimeLLMGatewayPatch_Gateway) AsSelector() (Selector, error) {
-	var body Selector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSelector overwrites any union data inside the RuntimeLLMGatewayPatch_Gateway as the provided Selector
-func (t *RuntimeLLMGatewayPatch_Gateway) FromSelector(v Selector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSelector performs a merge with any union data inside the RuntimeLLMGatewayPatch_Gateway, using the provided Selector
-func (t *RuntimeLLMGatewayPatch_Gateway) MergeSelector(v Selector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t RuntimeLLMGatewayPatch_Gateway) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *RuntimeLLMGatewayPatch_Gateway) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

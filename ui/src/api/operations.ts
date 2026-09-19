@@ -63,6 +63,8 @@ export type CredentialResource = components["schemas"]["CredentialResource"];
 export type CredentialPage = components["schemas"]["CredentialPage"];
 export type CreateCredentialRequest =
   components["schemas"]["CreateCredentialRequest"];
+export type RuntimeConfigAuthorDocument =
+  components["schemas"]["RuntimeConfigAuthorDocument"];
 export type RuntimeConfigDocument =
   components["schemas"]["RuntimeConfigDocument"];
 export type RuntimeConfigResource =
@@ -117,6 +119,9 @@ function requireExactRuntimeKeys(
   required: readonly string[],
   optional: readonly string[] = [],
 ): void {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("Runtime configuration API response shape is invalid");
+  }
   const keys = Object.keys(value);
   const allowed = new Set([...required, ...optional]);
   if (
@@ -277,12 +282,9 @@ function safeRuntimeDocument(
       [],
       ["llmGateway", "telemetry", "httpProxy", "caido"],
     );
-    if (worker.llmGateway !== undefined && worker.llmGateway !== null) {
+    if (worker.llmGateway !== undefined) {
       requireExactRuntimeKeys(worker.llmGateway, [], ["gateway", "credential"]);
-      if (
-        typeof worker.llmGateway.gateway === "object" &&
-        worker.llmGateway.gateway !== null
-      ) {
+      if (worker.llmGateway.gateway !== undefined) {
         requireExactRuntimeKeys(worker.llmGateway.gateway, [
           "gatewayId",
           "version",
@@ -323,35 +325,14 @@ function safeRuntimeDocument(
               ...(worker.llmGateway === undefined
                 ? {}
                 : {
-                    llmGateway:
-                      worker.llmGateway === null
-                        ? null
-                        : {
-                            ...(worker.llmGateway.gateway === undefined
-                              ? {}
-                              : {
-                                  gateway:
-                                    typeof worker.llmGateway.gateway ===
-                                    "string"
-                                      ? worker.llmGateway.gateway
-                                      : worker.llmGateway.gateway === null
-                                        ? null
-                                        : {
-                                            gatewayId:
-                                              worker.llmGateway.gateway
-                                                .gatewayId,
-                                            version:
-                                              worker.llmGateway.gateway.version,
-                                            digest:
-                                              worker.llmGateway.gateway.digest,
-                                          },
-                                }),
-                            ...(worker.llmGateway.credential === undefined
-                              ? {}
-                              : {
-                                  credential: worker.llmGateway.credential,
-                                }),
-                          },
+                    llmGateway: {
+                      ...(worker.llmGateway.gateway === undefined
+                        ? {}
+                        : { gateway: { ...worker.llmGateway.gateway } }),
+                      ...(worker.llmGateway.credential === undefined
+                        ? {}
+                        : { credential: worker.llmGateway.credential }),
+                    },
                   }),
               ...(worker.telemetry === undefined
                 ? {}
@@ -1306,7 +1287,7 @@ export async function getRuntimeConfig(
 
 export async function publishRuntimeConfig(
   api: PublicAPI,
-  document: RuntimeConfigDocument,
+  document: RuntimeConfigAuthorDocument,
   idempotencyKey: string,
 ): Promise<RuntimeConfigResource> {
   const header = idempotencyHeader(api, idempotencyKey);

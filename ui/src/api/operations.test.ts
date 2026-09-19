@@ -27,7 +27,7 @@ import {
   putRuntimeLabel,
   replaceRuntimeAgentPrincipalLabels,
   type CreateCredentialRequest,
-  type RuntimeConfigDocument,
+  type RuntimeConfigAuthorDocument,
 } from "./operations";
 
 const runtimeConfig: RuntimeConfig = {
@@ -471,7 +471,7 @@ describe("Operations API", () => {
   ])(
     "preserves Caido patches in RuntimeConfig list, detail and publication responses: %j",
     async (caido) => {
-      const document: RuntimeConfigDocument = {
+      const document: RuntimeConfigAuthorDocument = {
         apiVersion: "contractor/v1alpha1",
         kind: "RuntimeConfig",
         metadata: { name: "caido-debug", version: "1" },

@@ -4,7 +4,11 @@ import { createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
-import type { RuntimeAgentPrincipal } from "../../api/operations";
+import type {
+  RuntimeAgentPrincipal,
+  RuntimeConfigAuthorDocument,
+  RuntimeConfigResource,
+} from "../../api/operations";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
 import type { RuntimeConfig } from "../../config/runtime-config";
@@ -508,7 +512,7 @@ describe("Operations routes", () => {
 
   it("publishes typed Runtime configuration, erases secrets, and exposes stale binding CAS", async () => {
     const secret = "Bearer runtime-secret-canary";
-    const baseResource = {
+    const baseResource: RuntimeConfigResource = {
       ref: { name: "contractor-empty", version: "1", digest },
       document: {
         apiVersion: "contractor/v1alpha1",
@@ -532,6 +536,7 @@ describe("Operations routes", () => {
     let publishedResource: typeof baseResource | undefined;
     let debugBinding: typeof defaultBinding | undefined;
     let runtimeCredentialBody: unknown;
+    let runtimeConfigBody: RuntimeConfigAuthorDocument | undefined;
     let bindingWrites = 0;
     const api = new PublicAPI(
       runtimeConfig,
@@ -542,20 +547,60 @@ describe("Operations routes", () => {
         const path = new URL(request.url).pathname;
         if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
         if (path === "/v1/configurations/llm-gateways") {
-          return apiResponse({ items: [], page: { hasMore: false } });
+          return apiResponse({
+            items: [
+              {
+                ref: {
+                  kind: "llm-gateways",
+                  name: "local-litellm",
+                  version: "1",
+                  digest,
+                },
+                body: {
+                  protocol: "openai-compatible@1",
+                  url: "https://gateway.example/v1",
+                },
+                source: "operator",
+              },
+            ],
+            page: { hasMore: false },
+          });
         }
         if (path === "/v1/operations/runtime-configs") {
           if (request.method === "POST") {
             const document = (await request
               .clone()
-              .json()) as typeof baseResource.document;
+              .json()) as RuntimeConfigAuthorDocument;
+            runtimeConfigBody = document;
+            if (
+              document.spec.worker?.llmGateway?.gateway !== "local-litellm@1"
+            ) {
+              throw new Error(
+                "RuntimeConfig publication requires a gateway selector",
+              );
+            }
             publishedResource = {
               ref: {
                 name: document.metadata.name,
                 version: document.metadata.version,
                 digest: secondDigest,
               },
-              document,
+              document: {
+                ...document,
+                spec: {
+                  ...document.spec,
+                  worker: {
+                    ...document.spec.worker,
+                    llmGateway: {
+                      gateway: {
+                        gatewayId: "local-litellm",
+                        version: "1",
+                        digest,
+                      },
+                    },
+                  },
+                },
+              },
               builtIn: false,
               createdBy: "user_local",
               createdAt: "2026-08-31T12:01:00Z",
@@ -668,6 +713,11 @@ describe("Operations routes", () => {
       screen.getByRole("button", { name: "Publish RuntimeConfig" }),
     );
     await user.type(screen.getByLabelText("RuntimeConfig name"), "debug");
+    await user.click(screen.getByLabelText("Worker LLM Gateway route"));
+    await user.selectOptions(
+      screen.getByLabelText("Exact LLM Gateway"),
+      screen.getByRole("option", { name: /local-litellm@1/ }),
+    );
     const telemetryGroup = screen.getByRole("group", {
       name: /Worker telemetry/,
     });
@@ -703,8 +753,14 @@ describe("Operations routes", () => {
       }),
     );
     expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
+    expect(runtimeConfigBody?.spec.worker?.llmGateway?.gateway).toBe(
+      "local-litellm@1",
+    );
     expect(publishedResource!.document.spec).toMatchObject({
       worker: {
+        llmGateway: {
+          gateway: { gatewayId: "local-litellm", version: "1", digest },
+        },
         telemetry: {
           captureContent: true,
           flushTimeoutSeconds: 10,
