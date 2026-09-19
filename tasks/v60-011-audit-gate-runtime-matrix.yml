@@ -3,7 +3,7 @@ id: V60-011
 title: Keep mandatory Audit Runtime matrix aligned after test renames
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V57-004
 - V60-004
@@ -66,3 +66,12 @@ verification_requirements:
 - Full gate must set explicit disposable CONTRACTOR_TEST_DATABASE_URL; existing locked Python env may use UV_NO_SYNC
   and reviewed PYTHONPATH.
 - Keep implementation and subsequent completion metadata commits separate.
+implementation_commit: f2267844f5510c4d913a92cf1d9d084249106535
+verification:
+  evidence: tasks/evidence/v60-011.json
+  results:
+  - Reproduced actual full-gate failure after331Python passes; matrix named a test renamed and strengthened in V57-004.
+  - New matrix-to-source declaration regression failed before correction; complete AuditCompletion meta-suite passed after correction.
+  - Mandatory minimum remains1 and all original behavior assertions are preserved in the stronger named test.
+  - Actual Audit completion gate passed158Go cases and331Runtime cases with no selected skips, disposable PostgreSQL and CIpassword collision.
+  - Independent review and whitespace check passed; no Runtime behavior or required-case weakening.
