@@ -3,7 +3,8 @@ id: V59-004
 title: Correct request conditions, labels, password units and Git/history documentation
 milestone: public-api-review-corrections
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d2daa5382da2340936e8d19729d97c68bab7ee7b
 depends_on: []
 languages:
 - go
@@ -69,3 +70,25 @@ tests:
 verification_requirements:
 - Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
 - Keep implementation and subsequent completion metadata commits separate.
+verification:
+  verified_on: '2026-09-19'
+  evidence: tasks/evidence/v59-004.json
+  acceptance:
+    A1: Passed; 18 shared positive/negative cases agree between the OpenAPI union and the domain validator;
+      generated Go builders preserve all five valid verdict bodies and the TypeScript consumer narrows
+      by verdict.
+    A2: Passed; authenticated general and Project Run handlers and request/response validation accept
+      empty a=/triaged= selectors, embedded equals signs and newline values with exact filtering.
+    A3: Passed; real bootstrap/login accepts 12-byte and 1024-byte multibyte passwords and rejects 10/1028
+      bytes. The login UI sends valid multibyte passwords without the incompatible HTML minimum.
+    A4: Passed; four Git mutations expose browser headers in both clients; real session middleware
+      requires Origin/CSRF for cookie requests while bearer calls remain valid without them. Import
+      precondition tests preserve implicit create and exact update CAS.
+    A5: Passed; real configuration loading accepts automatic retry maxAttempts=1025, and the authenticated
+      public handler returns 1025 fixture attempts/transitions without truncation or schema rejection.
+  boundaries:
+  - Domain persistence and remote Git are faked in focused HTTP checks; PostgreSQL-dependent tests were
+    skipped because CONTRACTOR_TEST_DATABASE_URL was unset. Final database integration belongs to V59-005.
+  - History verification uses fixture persisted rows and does not execute 1025 Scheduler retries.
+  - UI checks passed with Node 26.7.0 and pnpm 11.24.0; the package declares Node 24.20.x. Shared dependencies
+    were reused without installation via verify-deps-before-run=false.
