@@ -134,7 +134,7 @@
     "tests.test_audit_completion_diagnostics::test_real_runtime_reports_counts_phases_and_no_fictitious_calls": 7,
     "tests.test_audit_completion_diagnostics::test_shared_completion_diagnostics_contract": 52,
     "tests.test_audit_completion_runtime::test_allocation_preparation_and_registration_require_positive_completion_support": 1,
-    "tests.test_audit_completion_runtime::test_artifact_observations_survive_a_reminder_and_join_verified_publication": 1,
+    "tests.test_audit_completion_runtime::test_audit_typed_assembly_preserves_reminder_publication_and_refs_without_model_decode": 1,
     "tests.test_audit_completion_runtime::test_cancellation_discards_collection_and_finishes_state_once": 2,
     "tests.test_audit_completion_runtime::test_cancellation_during_normal_discard_keeps_ownership_until_cleanup_settles": 1,
     "tests.test_audit_completion_runtime::test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract": 1,

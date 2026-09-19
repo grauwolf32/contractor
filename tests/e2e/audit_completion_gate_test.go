@@ -79,6 +79,34 @@ func TestAuditCompletionGateRejectsFalseGreenGoReports(t *testing.T) {
 }
 
 func TestAuditCompletionGateRejectsIncompleteRuntimeReports(t *testing.T) {
+	t.Run("matrix-references-declared-tests", func(t *testing.T) {
+		// Synthetic JUnit reports cannot detect a stale matrix entry: they copy
+		// its names. Check the actual source declarations without importing the
+		// Runtime or requiring its dependencies in this offline meta-test.
+		const probe = `
+import ast
+import json
+from pathlib import Path
+
+root = Path('../..')
+required = json.loads((root / 'scripts/audit-completion-matrix.json').read_text())['python']
+declared = {}
+missing = []
+for case, minimum in required.items():
+    module, name = case.split('::')
+    assert isinstance(minimum, int) and minimum > 0, 'invalid required case count: ' + case
+    path = root / 'runtime' / (module.replace('.', '/') + '.py')
+    if path not in declared:
+        tree = ast.parse(path.read_text(), filename=str(path))
+        declared[path] = {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    if name not in declared[path]:
+        missing.append(case)
+assert not missing, 'mandatory Runtime tests are not declared: ' + ', '.join(sorted(missing))
+`
+		if output, err := exec.Command("python3", "-c", probe).CombinedOutput(); err != nil {
+			t.Fatalf("Runtime matrix/source mismatch: %v %s", err, output)
+		}
+	})
 	_, required := completionGateMatrix(t)
 	var cases []string
 	for name, count := range required {
