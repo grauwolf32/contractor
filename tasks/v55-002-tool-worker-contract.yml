@@ -3,7 +3,8 @@ id: V55-002
 title: Specify deterministic tool Worker inputs and model-free execution
 milestone: scan-tools-first-slice
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 906e59b2f419c51ede3b3d430779b766847bb948
 depends_on: [V55-001]
 languages: [markdown, yaml, json]
 goal: Define an implementable cross-language contract for tool@1 before enabling it in production catalogs.
@@ -37,3 +38,7 @@ tests:
     covers: [A1, A2, A3]
 verification_requirements:
   - Review each normative example and the complete failure/replay matrix against the acceptance criteria.
+verification:
+  - Specification 29 fixes typed sources, bounds, model-free resolution and the durable receipt/report failure matrix.
+  - Both YAML examples parsed and reviewed; Go configuration/contracts tests and all 129 Python contract tests passed.
+  - git diff --check passed; tool@1 is not advertised by this documentation-only task.

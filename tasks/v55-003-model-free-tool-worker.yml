@@ -3,7 +3,7 @@ id: V55-003
 title: Execute nuclei and naabu through model-free tool Workers
 milestone: scan-tools-first-slice
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V55-002]
 languages: [go, python, yaml, json, typescript]
 goal: Run a selected tool through ordinary passthrough Workflow allocation and publish its report without any model service.
