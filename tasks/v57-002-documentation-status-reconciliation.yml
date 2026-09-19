@@ -1,0 +1,142 @@
+schema_version: "1.0"
+id: V57-002
+title: Reconcile current documentation status with authoritative task evidence
+milestone: architecture-review-corrections
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [yaml, markdown]
+goal: >-
+  Remove misleading current pending/planned claims for delivered work while
+  preserving dated plans, task authority and genuinely unfinished follow-ups.
+context:
+  authority: User requested rechecking the architecture recommendations and planning justified follow-up tasks; this review narrowed R04 to demonstrated documentation inconsistencies.
+  verified_problem: >-
+    tasks/index.yml ui_usability_planning still says status planned and all new
+    tasks pending although V37-001 through V37-012 are completed. The specification
+    index and docs/spec/25-audit-worker-finalization.md still describe V39-007 as
+    pending although its task records completion and release evidence. The dated
+    active_delivery_order retains delivered queues and needs an explicit reading
+    boundary if presented as current active work; historical sequencing itself
+    is not incorrect merely because its tasks later completed.
+  authority_boundary: >-
+    Read each referenced task file for its actual status and recorded evidence.
+    completed and complete mean finished; archived is deferred, not completed
+    and not active backlog. Existing task IDs, statuses, implementation commits,
+    dependencies, ownership and manual priority choices are not changed by this
+    task. Updating this task's own lifecycle metadata follows normal repository rules.
+  limits: >-
+    Completed V37 does not complete V38 Evals UX; completed V39 does not imply
+    default catalog activation or rollout; completed V41 is offline format
+    readiness and does not complete V40 live instruction evaluation. Archived
+    V53 incidents are not fixed and must not be returned to active work.
+    Check current files again during implementation instead of freezing today's
+    status of concurrently edited tasks into a new source of authority.
+  informative_references:
+    - docs/research/2026-09-19-architecture-evolution-review.md
+    - docs/plans/2026-09-19-architecture-review-followups.md
+    - docs/spec/ui-user-stories.md
+    - docs/testing/release-gates.md
+scope:
+  in:
+    - Reconcile the current V37 summary in tasks/index.yml with its task files, keeping V38 separate.
+    - Correct V39 completion/release-gate status in the specification entry points and retain its opt-in activation and compatibility boundaries.
+    - Label dated delivery/planning summaries as historical where appropriate, or attach an explicitly dated current status summary sourced from task files.
+    - Review adjacent touched overview claims for the V38/V40/V41 and archived V53 boundaries, changing only demonstrated inconsistencies.
+    - Retain links to authoritative task evidence and verify indexed task references without creating another task-state store.
+  out:
+    - Roadmap generators, automatic prioritization, new execution queues, inferred completion from file or commit existence, and mandatory test infrastructure for prose.
+    - Changes to other task statuses, implementation commits, dependencies, owners or priorities; rewriting historical test observations as present verification.
+    - Production code, Runtime/Server configuration, specification behavior changes, model limits, live execution and deployment.
+deliverables:
+  - path: tasks/index.yml
+    description: Reconciled current status prose and explicit historical/current boundaries without changing task authority or queue priorities.
+  - path: docs/spec/README.md
+    description: Correct V39 release status and preserved distinction between implemented, opt-in and planned capabilities.
+  - path: docs/spec/25-audit-worker-finalization.md
+    description: Status introduction reflects completed V39-007 with its actual verification scope and opt-in limitations.
+  - path: docs
+    description: Only directly related overview status corrections justified by a source task; no broad documentation rewrite.
+requirements:
+  - id: R1
+    text: Every changed current status assertion cites or maps to authoritative task status/evidence; dated plans remain understandable as historical plans.
+  - id: R2
+    text: Keep genuinely pending/in-progress work and archived incidents distinct from delivered features and avoid claims of automatic deployment or model-quality proof.
+  - id: R3
+    text: Do not replace manual priorities with dependency-derived ordering or use summary maintenance to take over another task.
+acceptance_criteria:
+  - id: A1
+    given: Authoritative V37 task files and the still-separate V38 scope.
+    when: A reader follows the current task/specification overviews.
+    then: V37 implementation is accurately represented and no current summary says all of those delivered tasks are pending; V38 remains described according to its own task.
+  - id: A2
+    given: V39-007 completion evidence and the opt-in completion contract.
+    when: The specification index and completion introduction are read.
+    then: They agree that the release gate was completed, identify its recorded scope, and do not imply ordinary finalization replacement or deployment.
+  - id: A3
+    given: Dated delivery waves, V40/V41 boundaries and archived V53 tasks.
+    when: Current and historical summaries are compared with task files.
+    then: Historical intent is labelled, current statements agree with authoritative statuses, offline readiness is not live quality, and archived work is neither completed nor active backlog.
+  - id: A4
+    given: The documentation-only change and existing indexed task references.
+    when: YAML/reference checks and the change review finish.
+    then: Index references resolve to matching unique task IDs, task authority/ownership/priority metadata is unchanged, and no production or behavioral contract change is included.
+tests:
+  - command: |
+      runtime/.venv/bin/python - <<'PY'
+      from pathlib import Path
+      import yaml
+      root = Path("tasks")
+      index = yaml.safe_load((root / "index.yml").read_text())
+      seen = set()
+      for entry in index["tasks"]:
+          document = yaml.safe_load((root / entry["file"]).read_text())
+          assert document["id"] == entry["id"], entry
+          assert entry["id"] not in seen, entry["id"]
+          seen.add(entry["id"])
+          if document["id"].startswith(("V37-", "V38-", "V39-", "V40-", "V41-", "V53-")):
+              print(document["id"], document["status"], document.get("implementation_commit"))
+      PY
+    covers: [A1, A2, A3, A4]
+  - command: git diff --check
+    covers: [A4]
+test_prerequisites:
+  - The prepared runtime/.venv provides the repository's YAML parser; no database, browser, model or service is required.
+verification_requirements:
+  - Review the printed authoritative inventory against every changed prose assertion; successful YAML parsing or reference existence alone does not establish status consistency.
+  - Record a concise changed-claim to source-task mapping in this task's implementation evidence, including the explicit historical/current interpretation.
+  - Review the diff to confirm no other task lifecycle/priority/dependency/ownership metadata or production files were changed by this task; preserve concurrent work.
+  - Keep implementation_commit null and status pending/in_progress until the documentation changes and required verification are complete.
+verification:
+  recorded_on: "2026-09-19"
+  implementation_state: Documentation changes and verification are ready for review; final commit and completion metadata remain pending.
+  changed_claims:
+    - locations: [tasks/index.yml ui_usability_planning]
+      claim: V37 delivery is implemented and its original waves are historical; V38 remains a separate workstream whose status is owned by its task files.
+      sources: [V37-001, V37-002, V37-003, V37-004, V37-005, V37-006, V37-007, V37-008, V37-009, V37-010, V37-011, V37-012, V38-001]
+      evidence: All twelve V37 task files are completed and V37-012 records journey verification. V38-001 is pending in the reviewed main tree at dc4d6f3a; a parallel V38 worktree has newer development, so the new summary deliberately does not hardcode its pending status.
+    - locations: [docs/spec/README.md, docs/spec/25-audit-worker-finalization.md, tasks/index.yml fixed_decisions.audits.worker_completion, tasks/index.yml fixed_decisions.worker_model_boundary.model_output]
+      claim: The opt-in completion implementation includes the completed V39-007 deterministic release gate.
+      sources: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
+      evidence: V39-007 records its passed PostgreSQL/restart and Runtime-to-importer gate on 2026-09-19 with zero selected skips; its scripted-model and test-orchestrated Scheduler boundaries remain explicit.
+    - locations: [tasks/index.yml active_delivery_order.interpretation]
+      claim: The 2026-09-06 queue ordering is historical and does not redefine current status, priorities or ownership; offline readiness is separate from live quality and archived incidents remain outside active work.
+      sources: [V40-002, V40-003, V41-008, V53-001, V53-002]
+      evidence: V40-002 remains in_progress, V40-003 pending, V41-008 completed for offline readiness, and both V53 tasks archived without a claimed correction; original queue ranks and task lists are unchanged.
+    - locations: [docs/spec/ui-user-stories.md US-11 performance reference]
+      claim: The charts and allocation metrics referenced by the V37-011 layout story were implemented by V32-006.
+      sources: [V32-006, V37-011]
+      evidence: Both task files are completed; only the stale planned wording and source link changed, with no change to metric intervals or UI scope.
+  checks:
+    - command: The inline YAML/index task-reference inventory command in tests above.
+      result: Passed; 341 indexed entries resolved to unique matching task IDs, and all printed V37/V38/V39/V40/V41/V53 statuses were checked against the changed assertions.
+    - command: git diff --check
+      result: Passed.
+    - command: One-off parsed-index and text-diff comparison with /tmp/contractor-v57-002-before.
+      result: Execution policy, indexed task references, queue ranks/order and unrelated planning are preserved. The Audit completion summary was renamed without semantic changes and its adjacent model-output description now says implemented opt-in rather than planned.
+  boundaries:
+    - Only tasks/index.yml, three specification overview files and this task's own lifecycle/evidence were edited; no other task status, commit, dependency, priority or ownership was changed.
+    - Existing uncommitted planning, research and Runtime memory changes were preserved; pre-edit copies of all five touched files are retained under /tmp/contractor-v57-002-before.
+    - No model, database, browser, release gate or deployment was executed; referenced historical verification was read rather than rerun.
+    - Three-way text merge previews of tasks/index.yml, docs/spec/README.md and docs/spec/ui-user-stories.md against feat/v38-managed-evals at 859852cf were clean; the V38 status is deliberately not hardcoded in the new current summary.

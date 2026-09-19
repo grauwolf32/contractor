@@ -1,10 +1,16 @@
 # Audit Worker completion contracts
 
-Status: **Implemented opt-in through V39-006; release gate V39-007 pending.**
+Status: **Implemented opt-in; deterministic release gate V39-007 completed.**
 V39-001–006 implement contracts, Server pinning and capability-aware placement,
 incremental collection, deterministic ZIP publication, common Runtime completion,
-bounded diagnostics and versioned examples. The required PostgreSQL/restart and
-real Runtime-to-importer release gate remains V39-007.
+bounded diagnostics and versioned examples.
+[V39-007](../../tasks/v39-007-audit-completion-release-gate.yml) records the
+completed PostgreSQL/restart checks and real Runtime-to-importer bridge on
+2026-09-19. The gate uses a scripted model and test-orchestrated Scheduler
+driving; it does not establish live-model quality or a full Server/Planner/A2A
+deployment test. See the [release-gate guide](../testing/release-gates.md#audit-completion-release-gate)
+for its exact verification boundary.
+
 Existing deployed Runs and immutable snapshots keep their current behavior until
 an explicitly versioned configuration selects this contract.
 

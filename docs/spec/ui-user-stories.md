@@ -232,8 +232,9 @@ explicit-null overlay semantics under
 [06](06-server-ui-and-operations.md#runtime-labels-and-infrastructure-configuration)
 and [11](11-http-and-caido-tools.md).
 
-Layout task: V37-011. Server/PostgreSQL charts and final allocation metrics are
-already planned in V32-006; the 15-second / 60-second / 5-minute intervals,
+Layout task: V37-011. Server/PostgreSQL charts and final allocation metrics were
+implemented by [V32-006](../../tasks/v32-006-operations-performance-ui.yml);
+the 15-second / 60-second / 5-minute intervals,
 disabling metrics and independent Go profiling are defined by the
 [separate specification](22-performance-metrics-and-profiling.md).
 This plan does not add a new pprof toggle to the UI.
