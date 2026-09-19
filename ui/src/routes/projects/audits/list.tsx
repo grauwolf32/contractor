@@ -1,3 +1,4 @@
+import { compareWorkflowVersions } from "../../workflows/families";
 import { ContextLink } from "../../../app/context-navigation";
 import {
   useInfiniteQuery,
@@ -117,10 +118,20 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
     hasNextArtifactPage,
     isFetchingArtifacts,
   ]);
-  const profileItems = useMemo(
-    () => profiles.data?.pages.flatMap((page) => page.items) ?? [],
-    [profiles.data],
-  );
+  const profileItems = useMemo(() => {
+    const families = new Map<string, AuditProfile[]>();
+    for (const profile of profiles.data?.pages.flatMap((page) => page.items) ??
+      []) {
+      const family = families.get(profile.ref.name) ?? [];
+      family.push(profile);
+      families.set(profile.ref.name, family);
+    }
+    return [...families.values()].flatMap((family) =>
+      family.sort((a, b) =>
+        compareWorkflowVersions(b.ref.version, a.ref.version),
+      ),
+    );
+  }, [profiles.data]);
   const artifactItems = useMemo(
     () => artifacts.data?.pages.flatMap((page) => page.items) ?? [],
     [artifacts.data],
@@ -270,7 +281,14 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
                 value={profileOption(candidate)}
               >
                 {candidate.ref.name}@{candidate.ref.version}
-                {candidate.serverCompatible ? "" : " — unsupported"}
+                {candidate.serverCompatible
+                  ? profileItems.find(
+                      (p) =>
+                        p.ref.name === candidate.ref.name && p.serverCompatible,
+                    ) === candidate
+                    ? " · latest loaded version"
+                    : ""
+                  : " — unsupported"}
               </option>
             ))}
           </select>

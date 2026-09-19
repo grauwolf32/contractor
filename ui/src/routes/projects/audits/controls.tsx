@@ -304,7 +304,13 @@ export function AuditControls({
     buttons.push({ action: "delete", label: "Delete Audit", dangerous: true });
   }
   return (
-    <div className="audit-controls">
+    <div className="audit-controls" id={compact ? undefined : "audit-controls"}>
+      {!compact && audit.stopReason?.code === "deadline_exhausted" ? (
+        <p className="audit-control-reason">
+          <strong>Time limit reached.</strong> Continue with a longer limit;
+          collected results are retained.
+        </p>
+      ) : null}
       {buttons.map((button) => (
         <button
           key={button.action}
@@ -313,7 +319,10 @@ export function AuditControls({
               ? "danger-button delete-icon-button"
               : button.dangerous
                 ? `danger-button ${compact ? "icon-button" : ""}`
-                : "secondary-button icon-button"
+                : (button.action === "start" || button.action === "resume") &&
+                    !compact
+                  ? "primary-button"
+                  : "secondary-button icon-button"
           }
           type="button"
           aria-label={button.label}
@@ -344,7 +353,10 @@ export function AuditControls({
           ) : button.action === "pause" ? (
             <Icon name="pause" />
           ) : button.action === "start" || button.action === "resume" ? (
-            <Icon name="play" />
+            <>
+              <Icon name="play" />
+              {compact ? null : <span>{button.label}</span>}
+            </>
           ) : compact ? (
             <Icon name="stop" />
           ) : (

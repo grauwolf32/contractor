@@ -948,3 +948,75 @@
   display: grid;
   gap: 0.5rem;
 }
+.audit-coverage-outcome {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+}
+.audit-coverage-outcome.is-partial {
+  border-color: #e2b66e;
+}
+.audit-coverage-outcome > strong {
+  font-size: 1.15rem;
+}
+.audit-coverage-outcome p {
+  margin: 0;
+  color: var(--muted-strong);
+}
+.audit-coverage-outcome progress {
+  width: 100%;
+  height: 0.6rem;
+  accent-color: #e2b66e;
+}
+.audit-control-reason {
+  flex-basis: 100%;
+  margin: 0 0 0.5rem;
+  color: var(--muted-strong);
+}
+.audit-controls .primary-button {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.audit-check-card:target {
+  scroll-margin-top: 1rem;
+}
+.audit-check-card .audit-record-details > summary {
+  cursor: pointer;
+}
+.audit-finding-excerpt,
+.audit-result-excerpt {
+  color: var(--muted-strong);
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+.audit-decision-jump {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 2;
+  display: block;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--surface-raised, #1a2330);
+  margin-bottom: 0.5rem;
+}
+.audit-finding-decision {
+  scroll-margin-top: 1rem;
+}
+.audit-report-view .artifact-markdown h1 {
+  font-size: 1.6rem;
+  overflow-wrap: anywhere;
+}
+.audit-report-view .audit-artifact-list {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.audit-result-reading > summary {
+  cursor: pointer;
+}

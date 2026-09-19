@@ -1,4 +1,6 @@
 import { MobileSectionPicker } from "../../../app/mobile-section-picker";
+import { useAuditCoverage } from "./coverage-data";
+import { auditCheckTitle } from "./check-title";
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
 import { AuditProgress } from "./progress";
@@ -430,6 +432,8 @@ function AuditChecks({
   api: ReturnType<typeof usePublicAPI>;
 }) {
   const items = useAuditItems(audit, api, true);
+  const { hash } = useLocation();
+  const coverage = useAuditCoverage(audit);
   if (items.isPending) return <p className="loading-copy">Loading checks…</p>;
   if (items.error !== null) return <ErrorNotice error={items.error} />;
   if (items.data.length === 0) {
@@ -454,90 +458,107 @@ function AuditChecks({
               <p className="eyebrow">
                 {item.kind} · #{item.ordinal + 1}
               </p>
-              <h3>{item.subjectKey}</h3>
+              <h3 title={item.subjectKey}>
+                {auditCheckTitle(
+                  coverage.data?.find((row) => row.itemId === item.itemId) ??
+                    item,
+                )}
+              </h3>
             </div>
             <StateBadge state={item.state} />
           </div>
-          <dl className="metadata-grid">
-            <div>
-              <dt>Item key</dt>
-              <dd>
-                <code>{item.itemKey}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Workflow role</dt>
-              <dd>{item.workflowRole}</dd>
-            </div>
-            <div>
-              <dt>Disposition</dt>
-              <dd>{item.finalDisposition ?? "pending"}</dd>
-            </div>
-            <div>
-              <dt>Origin</dt>
-              <dd>
-                {item.origin.entryKey}
-                {item.origin.entryVersion === undefined
-                  ? ""
-                  : `@${item.origin.entryVersion}`}
-              </dd>
-            </div>
-            {item.origin.standard === undefined ? null : (
+          <p className="muted-copy">
+            {item.workflowRole} ·{" "}
+            {item.finalDisposition ?? "Pending assessment"} ·{" "}
+            {item.attempts.length} attempts
+          </p>
+          <details
+            className="audit-record-details"
+            open={hash === `#check-${item.itemId}`}
+          >
+            <summary>Attempts, artifacts and exact identity</summary>
+            <dl className="metadata-grid">
               <div>
-                <dt>Causal standard mapping</dt>
+                <dt>Item key</dt>
                 <dd>
-                  <code>
-                    {item.origin.standard.scheme}@{item.origin.standard.version}
-                    /{item.origin.standard.mappingKey}
-                  </code>
+                  <code>{item.itemKey}</code>
                 </dd>
               </div>
-            )}
-          </dl>
-          <div className="audit-artifact-list">
-            <ExactArtifactLink
-              projectId={audit.projectId}
-              artifact={item.task}
-              label="Task package"
-            />
-            {item.acceptedResult === undefined ? null : (
+              <div>
+                <dt>Workflow role</dt>
+                <dd>{item.workflowRole}</dd>
+              </div>
+              <div>
+                <dt>Disposition</dt>
+                <dd>{item.finalDisposition ?? "pending"}</dd>
+              </div>
+              <div>
+                <dt>Origin</dt>
+                <dd>
+                  {item.origin.entryKey}
+                  {item.origin.entryVersion === undefined
+                    ? ""
+                    : `@${item.origin.entryVersion}`}
+                </dd>
+              </div>
+              {item.origin.standard === undefined ? null : (
+                <div>
+                  <dt>Causal standard mapping</dt>
+                  <dd>
+                    <code>
+                      {item.origin.standard.scheme}@
+                      {item.origin.standard.version}/
+                      {item.origin.standard.mappingKey}
+                    </code>
+                  </dd>
+                </div>
+              )}
+            </dl>
+            <div className="audit-artifact-list">
               <ExactArtifactLink
                 projectId={audit.projectId}
-                artifact={item.acceptedResult}
-                label="Accepted result"
+                artifact={item.task}
+                label="Task package"
               />
+              {item.acceptedResult === undefined ? null : (
+                <ExactArtifactLink
+                  projectId={audit.projectId}
+                  artifact={item.acceptedResult}
+                  label="Accepted result"
+                />
+              )}
+            </div>
+            <h4>Attempts</h4>
+            {item.attempts.length === 0 ? (
+              <p className="muted-copy">No Run submitted.</p>
+            ) : (
+              <ol className="audit-attempt-list">
+                {item.attempts.map((attempt) => (
+                  <li key={attempt.executionItemId}>
+                    <span>
+                      Attempt {attempt.itemAttempt} · {attempt.state}
+                    </span>
+                    <span>
+                      {attempt.terminalOutcome ?? "not terminal"} ·{" "}
+                      {attempt.collectionDisposition ?? "not collected"}
+                    </span>
+                    {attempt.runId === undefined ? (
+                      <span>No child Run</span>
+                    ) : (
+                      <ContextLink
+                        returnLabel="Audit"
+                        to={`/runs/${encodeURIComponent(attempt.runId)}`}
+                      >
+                        {attempt.runDeleted
+                          ? "Deleted Run provenance"
+                          : attempt.runId}
+                      </ContextLink>
+                    )}
+                  </li>
+                ))}
+              </ol>
             )}
-          </div>
-          <h4>Attempts</h4>
-          {item.attempts.length === 0 ? (
-            <p className="muted-copy">No Run submitted.</p>
-          ) : (
-            <ol className="audit-attempt-list">
-              {item.attempts.map((attempt) => (
-                <li key={attempt.executionItemId}>
-                  <span>
-                    Attempt {attempt.itemAttempt} · {attempt.state}
-                  </span>
-                  <span>
-                    {attempt.terminalOutcome ?? "not terminal"} ·{" "}
-                    {attempt.collectionDisposition ?? "not collected"}
-                  </span>
-                  {attempt.runId === undefined ? (
-                    <span>No child Run</span>
-                  ) : (
-                    <ContextLink
-                      returnLabel="Audit"
-                      to={`/runs/${encodeURIComponent(attempt.runId)}`}
-                    >
-                      {attempt.runDeleted
-                        ? "Deleted Run provenance"
-                        : attempt.runId}
-                    </ContextLink>
-                  )}
-                </li>
-              ))}
-            </ol>
-          )}
+          </details>
         </article>
       ))}
     </div>
@@ -1224,7 +1245,20 @@ export function AuditFindingCard({
         </div>
         <StateBadge state={finding.state} />
       </div>
-      <AuditMarkdown source={finding.firstProposal.document.description} />
+      <p className="audit-finding-excerpt">
+        {finding.firstProposal.document.description.slice(0, 280)}
+        {finding.firstProposal.document.description.length > 280 ? "…" : ""}
+      </p>
+      <a
+        className="audit-decision-jump"
+        href={`#decision-${audit.auditId}-${finding.findingId}`}
+      >
+        Review decision ↓
+      </a>
+      <details className="audit-record-details finding-evidence">
+        <summary>Read full finding and evidence</summary>
+        <AuditMarkdown source={finding.firstProposal.document.description} />
+      </details>
       <dl className="metadata-grid">
         <div>
           <dt>Model suggestion</dt>
@@ -1287,27 +1321,32 @@ export function AuditFindingCard({
         </dl>
       </details>
       <FindingProvenanceView audit={audit} finding={finding} />
-      {reviewLoading ? (
-        <p className="loading-copy">Loading review status…</p>
-      ) : reviewError !== null ? (
-        <div className="audit-finding-review-actions">
-          <ErrorNotice error={reviewError} />
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={onRetryReview}
-          >
-            Retry review status
-          </button>
-        </div>
-      ) : (
-        <FindingReviewControls
-          audit={audit}
-          finding={finding}
-          findings={findings}
-          {...(pendingReview === undefined ? {} : { pendingReview })}
-        />
-      )}
+      <div
+        className="audit-finding-decision"
+        id={`decision-${audit.auditId}-${finding.findingId}`}
+      >
+        {reviewLoading ? (
+          <p className="loading-copy">Loading review status…</p>
+        ) : reviewError !== null ? (
+          <div className="audit-finding-review-actions">
+            <ErrorNotice error={reviewError} />
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={onRetryReview}
+            >
+              Retry review status
+            </button>
+          </div>
+        ) : (
+          <FindingReviewControls
+            audit={audit}
+            finding={finding}
+            findings={findings}
+            {...(pendingReview === undefined ? {} : { pendingReview })}
+          />
+        )}
+      </div>
     </article>
   );
 }
@@ -1685,8 +1724,12 @@ function AuditRuns({
                       <ContextLink
                         returnLabel="Audit"
                         to={`/runs/${encodeURIComponent(attempt.runId)}`}
+                        title={attempt.runId}
+                        aria-label={attempt.runId}
                       >
-                        {attempt.runId}
+                        {attempt.runId.length > 24
+                          ? `${attempt.runId.slice(0, 12)}…${attempt.runId.slice(-8)}`
+                          : attempt.runId}
                       </ContextLink>
                     )}
                   </td>
@@ -1742,14 +1785,22 @@ function AuditReportView({
     URL.revokeObjectURL(url);
   }
   return (
-    <section className="panel audit-section-panel">
+    <section className="panel audit-section-panel audit-report-view">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Server-generated projection</p>
           <h3>Audit report</h3>
         </div>
         <StateBadge state={report.data.status} />
       </div>
+      <p className="muted-copy">
+        Read the conclusion and its limitations. Full coverage and accepted
+        findings are separate from execution status.
+      </p>
+      <Link
+        to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/coverage?result=uncertain`}
+      >
+        Review coverage gaps →
+      </Link>
       {requestedReview !== null &&
       report.data.review?.requestId !== requestedReview ? (
         <div className="notice notice-error" role="status">
@@ -1777,6 +1828,18 @@ function AuditReportView({
               </p>
             </div>
           ) : null}
+          {report.data.summary === undefined ? null : (
+            <div className="audit-report-summary">
+              <h4>Summary</h4>
+              {report.data.summaryArtifact?.mediaType === "text/markdown" ? (
+                <Suspense fallback={<p>Loading Markdown preview…</p>}>
+                  <MarkdownArtifactPreview source={report.data.summary} />
+                </Suspense>
+              ) : (
+                <p style={{ whiteSpace: "pre-wrap" }}>{report.data.summary}</p>
+              )}
+            </div>
+          )}
           <div className="audit-artifact-list">
             {report.data.machineArtifact === undefined ? null : (
               <div className="audit-download-row">
@@ -1827,18 +1890,6 @@ function AuditReportView({
               </div>
             )}
           </div>
-          {report.data.summary === undefined ? null : (
-            <div className="audit-report-summary">
-              <h4>Summary</h4>
-              {report.data.summaryArtifact?.mediaType === "text/markdown" ? (
-                <Suspense fallback={<p>Loading Markdown preview…</p>}>
-                  <MarkdownArtifactPreview source={report.data.summary} />
-                </Suspense>
-              ) : (
-                <p style={{ whiteSpace: "pre-wrap" }}>{report.data.summary}</p>
-              )}
-            </div>
-          )}
         </>
       )}
       {report.data.status === "proposed" &&

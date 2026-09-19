@@ -3,7 +3,7 @@ id: V58-005
 title: Clarify Audit coverage and bring finding decisions into context
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-002
@@ -63,3 +63,9 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 40 tests passed, including exact profile ordering, preserved older choices, partial-coverage progress and finding decisions from both scopes.
+- TypeScript, targeted ESLint and production build passed.
+- 16 live browser states at 1440 and 390 px passed without overflow or JavaScript errors; all mutations blocked.
+- Checks now show retained HTTP methods and paths. Check history reduced from 16641 to 5762 px; Project findings fit in 1995 px on desktop.

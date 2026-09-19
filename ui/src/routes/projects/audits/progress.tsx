@@ -32,7 +32,7 @@ export function AuditProgress({ audit }: { audit: Audit }) {
       to: `coverage?${revision}`,
     },
     {
-      label: "Issues found",
+      label: "Checks with issues",
       count: value?.issues,
       to: `coverage?result=issues&${revision}`,
     },
@@ -61,9 +61,6 @@ export function AuditProgress({ audit }: { audit: Audit }) {
     <section className="panel audit-section-panel" aria-label="Audit progress">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">
-            Current round progress · Whole-Audit decisions
-          </p>
           <h3>Progress and decisions</h3>
         </div>
         <Link
@@ -74,6 +71,33 @@ export function AuditProgress({ audit }: { audit: Audit }) {
           Open report →
         </Link>
       </div>
+      {value !== undefined && value.totalChecks > 0 ? (
+        <div
+          className={`audit-coverage-outcome ${value.completedChecks < value.totalChecks || value.gaps > 0 || value.unchecked > 0 ? "is-partial" : ""}`}
+        >
+          <strong>
+            {value.completedChecks < value.totalChecks ||
+            value.gaps > 0 ||
+            value.unchecked > 0
+              ? "Partial coverage"
+              : "Checks concluded"}
+          </strong>
+          <span>
+            {value.completedChecks} of {value.totalChecks} checks concluded ·{" "}
+            {Math.round((value.completedChecks / value.totalChecks) * 100)}%
+          </span>
+          <progress
+            aria-label="Concluded checks"
+            max={value.totalChecks}
+            value={value.completedChecks}
+          />
+          <p>
+            {value.gaps} need follow-up · {value.unchecked} not checked.
+            Findings awaiting an analyst decision are candidates, not confirmed
+            issues.
+          </p>
+        </div>
+      ) : null}
       <div className="audit-progress-grid">
         {metrics.map((metric) => (
           <Link

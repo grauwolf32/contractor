@@ -87,6 +87,7 @@ export function ProjectFindingsRoute({
   const query = (filters.get("q") ?? "").trim().toLocaleLowerCase();
   const selectedAudit = filters.get("audit") ?? "";
   const severity = filters.get("severity") ?? "";
+  const verdict = filters.get("verdict") ?? "";
   const rows = sources.flatMap((audit, index) =>
     (findings[index]?.data ?? []).map((finding) => ({ audit, finding, index })),
   );
@@ -95,6 +96,10 @@ export function ProjectFindingsRoute({
       const document = finding.firstProposal.document;
       return (
         (selectedAudit === "" || audit.auditId === selectedAudit) &&
+        (verdict === "" ||
+          (verdict === "unreviewed"
+            ? finding.analystVerdict === undefined
+            : finding.analystVerdict === verdict)) &&
         (severity === "" ||
           (finding.analystSeverity ?? document.severity_suggestion) ===
             severity) &&
@@ -113,6 +118,8 @@ export function ProjectFindingsRoute({
     })
     .sort(
       (a, b) =>
+        Number(a.finding.analystVerdict !== undefined) -
+          Number(b.finding.analystVerdict !== undefined) ||
         b.finding.createdAt.localeCompare(a.finding.createdAt) ||
         a.finding.findingId.localeCompare(b.finding.findingId),
     );
@@ -235,6 +242,18 @@ export function ProjectFindingsRoute({
                 )}
               </select>
             </label>
+            <label>
+              Analyst verdict
+              <select
+                value={verdict}
+                onChange={(event) => setFilter("verdict", event.target.value)}
+              >
+                <option value="">All verdicts · unreviewed first</option>
+                <option value="unreviewed">Unreviewed</option>
+                <option value="true_positive">True positive</option>
+                <option value="false_positive">False positive</option>
+              </select>
+            </label>
           </section>
           <div className="section-heading audit-findings-count" role="status">
             <span>
@@ -242,7 +261,7 @@ export function ProjectFindingsRoute({
               {loading || failed.length > 0 ? " loaded" : ""} · {sources.length}{" "}
               audits
             </span>
-            {selectedAudit || severity || query ? (
+            {selectedAudit || severity || query || verdict ? (
               <button
                 className="secondary-button"
                 type="button"

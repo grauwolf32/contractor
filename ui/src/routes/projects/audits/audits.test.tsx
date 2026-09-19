@@ -534,6 +534,24 @@ describe("Project Audit routes", () => {
     });
   });
 
+  it("selects the highest loaded numeric profile version and preserves an explicit older version", async () => {
+    const older = { ...profile, ref: { ...profile.ref, version: "2" } };
+    const latest = { ...profile, ref: { ...profile.ref, version: "10" } };
+    const user = await openAuditCreateForm({
+      profiles: [older, latest],
+      loadArtifacts: () =>
+        jsonResponse({ items: [sourceArtifact], page: { hasMore: false } }),
+    });
+    const select = screen.getByLabelText("Exact Audit profile");
+    expect(select).toHaveValue(JSON.stringify([profile.ref.name, "10"]));
+    await user.selectOptions(select, JSON.stringify([profile.ref.name, "2"]));
+    await user.type(
+      screen.getByLabelText("Objective"),
+      "Use the retained contract",
+    );
+    expect(select).toHaveValue(JSON.stringify([profile.ref.name, "2"]));
+  });
+
   it.each(["application/zip", "text/plain"])(
     "waits for all Project pages before selecting when a later artifact is %s",
     async (mediaType) => {
@@ -785,7 +803,7 @@ describe("Project Audit routes", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Checks & results" }),
+      await screen.findByRole("heading", { name: "Coverage and results" }),
     ).toBeVisible();
     const rows = screen.getAllByRole("article");
     expect(within(rows[0]!).getByText("Issue found")).toBeVisible();
@@ -793,6 +811,7 @@ describe("Project Audit routes", () => {
     expect(
       await screen.findByText("Missing authorization check"),
     ).toBeVisible();
+    fireEvent.click(within(rows[1]!).getByText("Read task and result"));
     expect(screen.getByText("tests unavailable")).toBeVisible();
     const readsBeforePoll = auditReads;
     await vi.advanceTimersByTimeAsync(1_100);
@@ -875,13 +894,22 @@ describe("Project Audit routes", () => {
       "/projects/project_example/audits/audit_example/coverage",
     );
     const user = userEvent.setup();
+    await user.click(
+      within(
+        await screen.findByRole("article", { name: "custom-check" }),
+      ).getByText("Read task and result"),
+    );
     expect(
       await screen.findByText(
         "Verify that expired invitations cannot be reused.",
       ),
     ).toBeVisible();
     expect(
-      await screen.findByText("An expired invitation can still be accepted."),
+      within(
+        screen
+          .getByRole("article", { name: "custom-check" })
+          .querySelector(".audit-result-reading") as HTMLElement,
+      ).getByText("An expired invitation can still be accepted."),
     ).toBeVisible();
     expect(screen.getByText("Showing 2 of 2 checks")).toBeVisible();
     expect(cursors).toEqual([null, "next-check"]);
@@ -905,10 +933,12 @@ describe("Project Audit routes", () => {
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByText("Fully traced")).toBeVisible();
     expect(
-      screen.getByText(
-        "All requested parts of this operation were traced. This is not a security verdict.",
-      ),
-    ).toBeVisible();
+      screen
+        .getAllByText(
+          "All requested parts of this operation were traced. This is not a security verdict.",
+        )
+        .some((element) => element.classList.contains("audit-result-excerpt")),
+    ).toBe(true);
     expect(
       within(
         screen.getByRole("navigation", { name: "Audit sections" }),
@@ -1393,6 +1423,7 @@ describe("Project Audit routes", () => {
         }),
       ).toBeVisible();
       expect(screen.getByText("Unreviewed", { selector: "dd" })).toBeVisible();
+      await user.click(screen.getByText("Read full finding and evidence"));
       expect(
         await screen.findByText("order endpoint", { selector: "strong" }),
       ).toBeVisible();
@@ -2103,6 +2134,10 @@ describe("Project Audit routes", () => {
     const progress = await screen.findByRole("region", {
       name: "Audit progress",
     });
+    expect(await within(progress).findByText("Partial coverage")).toBeVisible();
+    expect(
+      within(progress).getByRole("progressbar", { name: "Concluded checks" }),
+    ).toHaveAttribute("value", "1");
     expect(
       await within(progress).findByRole("link", {
         name: "Completed / total checks: 1 / 3",

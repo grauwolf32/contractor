@@ -3,8 +3,8 @@ id: V58-004
 title: Make Run results primary and history compact
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ddba9e7b922bccee0683e469d440482a9c81ffbc
 depends_on:
 - V58-001
 - V58-002

@@ -1,6 +1,7 @@
 import { ContextLink } from "../../../app/context-navigation";
 import { ASSESSMENTS, GROUPS } from "./assessments";
 import { useAuditCoverage } from "./coverage-data";
+import { auditCheckTitle } from "./check-title";
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 
@@ -43,7 +44,7 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
       <div className="audit-result-heading">
         <div>
           <p className="eyebrow">Check {row.ordinal + 1}</p>
-          <h4>{row.subjectKey}</h4>
+          <h4 title={row.subjectKey}>{auditCheckTitle(row)}</h4>
         </div>
         <span
           className={`audit-assessment audit-assessment-${assessment.group}`}
@@ -52,47 +53,57 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
           {assessment.label}
         </span>
       </div>
-      <div className="audit-result-columns">
-        <section>
-          <h5>Task given to the model</h5>
-          {details?.objective ? (
-            <AuditMarkdown source={details.objective} />
-          ) : (
-            <p className="muted-copy">
-              Task text is unavailable for this check.
+      <p className="audit-result-excerpt">
+        {(conclusion ?? details?.objective ?? assessment.description).slice(
+          0,
+          280,
+        )}
+        {(conclusion ?? details?.objective ?? "").length > 280 ? "…" : ""}
+      </p>
+      <details className="audit-record-details audit-result-reading">
+        <summary>Read task and result</summary>
+        <div className="audit-result-columns">
+          <section>
+            <h5>Task given to the model</h5>
+            {details?.objective ? (
+              <AuditMarkdown source={details.objective} />
+            ) : (
+              <p className="muted-copy">
+                Task text is unavailable for this check.
+              </p>
+            )}
+            {details?.methods.length ? (
+              <p className="audit-check-method">
+                Method: {details.methods.map(readable).join(", ")}
+              </p>
+            ) : null}
+          </section>
+          <section>
+            <h5>Result</h5>
+            <p className="audit-assessment-description">
+              {assessment.description}
             </p>
-          )}
-          {details?.methods.length ? (
-            <p className="audit-check-method">
-              Method: {details.methods.map(readable).join(", ")}
-            </p>
-          ) : null}
-        </section>
-        <section>
-          <h5>Result</h5>
-          <p className="audit-assessment-description">
-            {assessment.description}
-          </p>
-          {conclusion ? (
-            <AuditMarkdown source={conclusion} />
-          ) : row.result ? (
-            <p className="muted-copy">No written conclusion is available.</p>
-          ) : null}
-          {row.coverage.rationale && row.coverage.rationale !== conclusion ? (
-            <AuditMarkdown source={row.coverage.rationale} />
-          ) : null}
-          {row.coverage.gaps.length ? (
-            <div className="audit-evidence-gaps">
-              <strong>Limitations & missing evidence</strong>
-              <ul>
-                {row.coverage.gaps.map((gap, index) => (
-                  <li key={index}>{gap}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </section>
-      </div>
+            {conclusion ? (
+              <AuditMarkdown source={conclusion} />
+            ) : row.result ? (
+              <p className="muted-copy">No written conclusion is available.</p>
+            ) : null}
+            {row.coverage.rationale && row.coverage.rationale !== conclusion ? (
+              <AuditMarkdown source={row.coverage.rationale} />
+            ) : null}
+            {row.coverage.gaps.length ? (
+              <div className="audit-evidence-gaps">
+                <strong>Limitations & missing evidence</strong>
+                <ul>
+                  {row.coverage.gaps.map((gap, index) => (
+                    <li key={index}>{gap}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      </details>
       <div className="audit-evidence-checklist" aria-label="Evidence coverage">
         {evidence.length ? (
           evidence.map((value) => (
@@ -245,7 +256,7 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Current round · Tasks and outcomes</p>
-          <h3>Checks & results</h3>
+          <h3>Coverage and results</h3>
           <p className="muted-copy">
             Read the task, the conclusion and the evidence for each check.
           </p>
