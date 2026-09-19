@@ -919,7 +919,7 @@ describe("Project Audit routes", () => {
     );
   });
 
-  it("shows audit cards and deletion directly in the project workspace", async () => {
+  it("shows audit cards and deletion in the Project Audits section", async () => {
     const completed = auditAt("completed", 4);
     const api = new PublicAPI(
       runtimeConfig,
@@ -934,7 +934,7 @@ describe("Project Audit routes", () => {
         return jsonResponse({ items: [], page: { hasMore: false } });
       }),
     );
-    renderApplication(api, "/projects/project_example");
+    renderApplication(api, "/projects/project_example/audits");
     const user = userEvent.setup();
     expect(
       await screen.findByRole("link", { name: "View checks & results →" }),

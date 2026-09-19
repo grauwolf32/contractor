@@ -303,6 +303,11 @@ test("Project file-drop uploads exact bytes directly to Go API", async ({
   await expect(
     page.getByRole("heading", { name: "Browser workspace" }),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project sections" })
+    .getByRole("link", { name: "Artifacts", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Add artifact", exact: true }).click();
   await page.getByRole("button", { name: "Sources", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Sources" });
   await dialog.getByLabel("Drop a file here").setInputFiles({
@@ -345,6 +350,10 @@ test("Project dashboard remains usable at 320px", async ({
   );
 
   await openProjectFromShell(page);
+  await page
+    .getByRole("combobox", { name: "Project section", exact: true })
+    .selectOption("artifacts");
+  await page.getByRole("button", { name: "Add artifact", exact: true }).click();
   await expect(page.getByRole("button", { name: "Other" })).toBeVisible();
   await page.getByRole("button", { name: "Other" }).click();
   await expect(page.getByRole("dialog", { name: "Other" })).toBeVisible();
@@ -371,11 +380,17 @@ test("Project recommendation launches an exact Project Run", async ({
   });
 
   await openProjectFromShell(page);
-  await page.getByRole("button", { name: "Run openapi-from-source@1" }).click();
+  await page
+    .getByRole("navigation", { name: "Project sections" })
+    .getByRole("link", { name: "Workflows", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Configure openapi-from-source@1" })
+    .click();
   const dialog = page.getByRole("dialog", {
-    name: "openapi-from-source",
+    name: "Configure Run",
   });
-  await expect(dialog.locator(".project-dialog-heading code")).toHaveText(
+  await expect(dialog.locator(".workflow-drawer-heading code")).toHaveText(
     "openapi-from-source@1",
   );
   await expect(
@@ -412,7 +427,7 @@ test("Project recommendation launches an exact Project Run", async ({
   });
 });
 
-test("Project primary actions open Sources, focus analysis and keep deletion secondary", async ({
+test("Project sections open inputs and Run setup, while deletion stays in its menu", async ({
   page,
 }, testInfo) => {
   const configuredBaseURL = testInfo.project.use.baseURL;
@@ -430,33 +445,49 @@ test("Project primary actions open Sources, focus analysis and keep deletion sec
   );
 
   await openProjectFromShell(page);
-  const addSources = page.getByRole("button", { name: "Add sources" });
-  const runAnalysis = page.getByRole("button", { name: "Run analysis" });
-  await expect(addSources).toBeInViewport();
-  await expect(runAnalysis).toBeInViewport();
+  const navigation = page.getByRole("navigation", { name: "Project sections" });
+  await expect(navigation).toBeInViewport();
+  await expect(
+    page.getByRole("heading", { name: "Overview", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Delete Project" }),
   ).toBeHidden();
-  await page.screenshot({
-    path: testInfo.outputPath("project-primary-actions-desktop.png"),
-  });
-
-  await addSources.click();
+  await page.getByRole("link", { name: "Add sources →" }).click();
+  const chooser = page.getByRole("dialog", { name: "Add artifact" });
+  await expect(chooser).toBeVisible();
+  await chooser.getByRole("button", { name: "Sources", exact: true }).click();
   const upload = page.getByRole("dialog", { name: "Sources" });
-  await expect(upload).toBeVisible();
   await expect(
     upload.getByRole("button", { name: "Close upload dialog" }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(upload).toBeHidden();
-  await expect(addSources).toBeFocused();
-
-  await runAnalysis.click();
   await expect(
-    page.getByRole("button", { name: "Run openapi-from-source@1" }),
+    chooser.getByRole("button", { name: "Sources", exact: true }),
   ).toBeFocused();
-
-  await page.getByText("Additional actions", { exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(chooser).toBeHidden();
+  await expect(page).not.toHaveURL(/add=artifact/);
+  await navigation
+    .getByRole("link", { name: "Workflows", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Configure openapi-from-source@1" })
+    .click();
+  const setup = page.getByRole("dialog", { name: "Configure Run" });
+  await expect(setup).toBeVisible();
+  await expect(
+    setup.getByText("Inputs come from this project (ProjectScope).", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(setup).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Configure openapi-from-source@1" }),
+  ).toBeFocused();
+  await page.getByLabel("Project actions", { exact: true }).click();
   const deleteProject = page.getByRole("button", { name: "Delete Project" });
   await expect(deleteProject).toBeVisible();
   await deleteProject.click();

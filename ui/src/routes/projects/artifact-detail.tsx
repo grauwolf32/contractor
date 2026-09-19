@@ -312,7 +312,7 @@ function ProjectArtifactDetailRouteView({
       <header className="route-header-row">
         <div>
           <ReturnLink
-            to={`${detailRoot}/${encodeURIComponent(projectId)}#project-artifacts`}
+            to={`${detailRoot}/${encodeURIComponent(projectId)}${detailRoot === "/projects" ? "/artifacts" : "#project-artifacts"}`}
             label={
               detailRoot === "/evals" ? "Eval Artifacts" : "Project Artifacts"
             }

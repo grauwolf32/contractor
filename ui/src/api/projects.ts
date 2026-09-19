@@ -2,7 +2,13 @@ import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
 import { safeRunMetadataLabels } from "./run-metadata-labels";
-import { RUN_PAGE_SIZE, type RunPage } from "./runs";
+import {
+  RUN_PAGE_SIZE,
+  RUN_STATES,
+  type RunPage,
+  type WorkflowRunState,
+  type WorkflowRunLifecycle,
+} from "./runs";
 
 export const PROJECT_PAGE_SIZE = 50;
 export const PROJECT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
@@ -48,6 +54,9 @@ export interface DeleteProjectOptions {
 export interface ProjectRunPageRequest {
   projectId: string;
   cursor?: string;
+  limit?: number;
+  state?: WorkflowRunState;
+  lifecycle?: WorkflowRunLifecycle;
 }
 
 function requireData<T>(result: {
@@ -321,12 +330,30 @@ export async function listProjectRuns(
   request: ProjectRunPageRequest,
 ): Promise<RunPage> {
   requireProjectID(request.projectId);
+  if (
+    request.limit !== undefined &&
+    (!Number.isInteger(request.limit) ||
+      request.limit < 1 ||
+      request.limit > 100)
+  )
+    throw new TypeError("Run page size is invalid");
+  if (request.state !== undefined && !RUN_STATES.includes(request.state))
+    throw new TypeError("Run state is invalid");
+  if (
+    request.lifecycle !== undefined &&
+    !["active", "terminal"].includes(request.lifecycle)
+  )
+    throw new TypeError("Run lifecycle is invalid");
   const result = await api.request((client) =>
     client.GET("/v1/projects/{projectId}/runs", {
       params: {
         path: { projectId: request.projectId },
         query: {
-          limit: RUN_PAGE_SIZE,
+          limit: request.limit ?? RUN_PAGE_SIZE,
+          ...(request.state === undefined ? {} : { state: request.state }),
+          ...(request.lifecycle === undefined
+            ? {}
+            : { lifecycle: request.lifecycle }),
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
         },
       },

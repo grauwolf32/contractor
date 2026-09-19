@@ -1208,8 +1208,9 @@ outputs suppress recommendations but remain available through All workflows;
 the UI never silently selects an older compatible version. Missing authored
 presentation is not replaced with an invented purpose or a placeholder paragraph.
 
-Project navigation leads to Audits, Overview, Artifacts, Workflows and Runs.
-Add sources is a contextual Artifacts action; Workflow cards open exact Run setup.
+Project navigation leads to Overview, Artifacts, Workflows, Runs, Audits,
+Findings and Settings at independent URLs under `/projects/:projectId`.
+Add artifact is a contextual Artifacts action; Workflow cards open exact Run setup.
 The compact Project actions menu contains metadata refresh and the existing
 confirmed deletion action. The duplicate Audits/Run analysis header shortcuts
 are removed. Cards are content-sized and do not stretch merely to match a larger
@@ -1271,3 +1272,34 @@ explicit empty string. Required input review, repeat review, ambiguous-response
 recovery and exact-request idempotency remain unchanged. Close and Escape cannot
 dismiss setup while its submission is pending. Project Run setup retains its
 ProjectScope form and exact version semantics.
+
+### Project section navigation
+
+The Project root is a bounded Overview, rather than a concatenation of every
+workspace collection. It requests five recent Runs, three successful Runs, three
+recent Audits, three Audits waiting for review and three current Artifacts. These
+samples are not total counts. Recent results resolve exact successful Run outputs
+and published Workflow output roles; missing or unavailable primary outputs are
+not replaced with guessed results. Result links retain their RunScope and exact
+revision. Overview does not load the complete input or Workflow inventories.
+
+Artifacts, Workflows, Runs, Audits, Findings and Settings mount only when selected.
+They share the Project header, actions and section navigation; mobile navigation
+uses a labelled select. Settings contains metadata and application access. Adding
+an Artifact opens a chooser with existing upload and Git import flows. Workflow
+setup uses the shared drawer in ProjectScope, retains the selected exact version
+and keeps its draft across close and section navigation in the current tab.
+
+Project Runs use pages of 25 and Server-backed lifecycle/state filters. Workflow,
+state, Audit origin and update time remain visible; full identity and metadata
+labels are disclosed on demand. Text search across all Project Runs remains
+deferred pending an explicit Server query contract. No page-local text filter is
+presented as a complete history search.
+
+Section URLs preserve filters and cursor stacks through reload and detail return.
+Navigation between sections retains each section's query in browser history state;
+filters and explicit Workflow versions remain in that section's URL. Legacy root
+anchors redirect with their query and return context: `#project-overview` to
+Settings (the former metadata area), and Artifacts/Workflows/Runs/Audits anchors to
+their corresponding sections. Eval workspaces retain their existing layout and
+scope. The static server accepts direct requests for every new section URL.

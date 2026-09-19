@@ -1,3 +1,4 @@
+import { ProjectRunHistory } from "./run-history";
 import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -11,7 +12,7 @@ import {
   ErrorNotice,
   formatTimestamp,
 } from "../artifacts/common";
-import { RunMetadataLabelChips, StateBadge } from "../runs/components";
+import { StateBadge } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
 
@@ -99,13 +100,7 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
   );
 }
 
-export function ProjectRunsRegion({
-  projectId,
-  evaluation,
-}: {
-  projectId: string;
-  evaluation: boolean;
-}) {
+function EvaluationRunsRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
   const [cursors, setCursors] = useState<Array<string | undefined>>([
     undefined,
@@ -123,64 +118,23 @@ export function ProjectRunsRegion({
   return (
     <ProjectRegion
       eyebrow="Execution history"
-      title={evaluation ? "Eval Runs" : "Project Runs"}
+      title="Eval Runs"
       id="project-runs"
       action={<Link to="/runs">All Runs →</Link>}
     >
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">
-          Loading {evaluation ? "Eval" : "Project"} Runs…
+          Loading Eval Runs…
         </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : query.data.items.length === 0 ? (
         <div className="compact-empty">
-          <strong>
-            No Workflow Runs belong to this {evaluation ? "Eval" : "Project"}.
-          </strong>
+          <strong>No Workflow Runs belong to this Eval.</strong>
           <p>Launch one compatible Workflow when inputs are ready.</p>
         </div>
-      ) : evaluation ? (
-        <EvaluationRuns runs={query.data.items} />
       ) : (
-        <div className="table-scroll">
-          <table className="responsive-table project-run-table">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Workflow</th>
-                <th>State</th>
-                <th>Labels</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {query.data.items.map((run) => (
-                <tr key={run.runId}>
-                  <td data-label="Run">
-                    <ContextLink
-                      returnLabel="Project Runs"
-                      returnHash="#project-runs"
-                      to={`/runs/${encodeURIComponent(run.runId)}`}
-                    >
-                      {run.runId}
-                    </ContextLink>
-                  </td>
-                  <td data-label="Workflow">
-                    <code>{run.workflow}</code>
-                  </td>
-                  <td data-label="State">
-                    <StateBadge state={run.state} />
-                  </td>
-                  <td data-label="Labels">
-                    <RunMetadataLabelChips labels={run.labels} />
-                  </td>
-                  <td data-label="Updated">{formatTimestamp(run.updatedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <EvaluationRuns runs={query.data.items} />
       )}
       <CursorControls
         label="Project Run pages"
@@ -197,5 +151,19 @@ export function ProjectRunsRegion({
         onNext={(next) => setCursors((current) => [...current, next])}
       />
     </ProjectRegion>
+  );
+}
+
+export function ProjectRunsRegion({
+  projectId,
+  evaluation,
+}: {
+  projectId: string;
+  evaluation: boolean;
+}) {
+  return evaluation ? (
+    <EvaluationRunsRegion projectId={projectId} />
+  ) : (
+    <ProjectRunHistory projectId={projectId} />
   );
 }

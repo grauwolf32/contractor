@@ -217,14 +217,21 @@ test("standalone Run draft survives SPA navigation without browser storage", asy
     process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
   await installFixture(page, apiOrigin);
   await page.goto(`/catalog/workflows/${WORKFLOW_NAME}/${WORKFLOW_VERSION}`);
+  await page
+    .getByRole("button", { name: "Configure Run", exact: true })
+    .click();
   await page.locator('[name="parameter-objective"]').fill("Resume this Run");
   await page
     .locator('[name="artifact-source"]')
     .selectOption("sources/existing@revision-existing");
 
+  await page.getByRole("button", { name: "Close Run setup" }).click();
   await page.getByRole("link", { name: "Artifacts", exact: true }).click();
   await expect(page).toHaveURL(/\/artifacts$/);
   await page.goBack();
+  await page
+    .getByRole("button", { name: "Configure Run", exact: true })
+    .click();
 
   await expect(page.locator('[name="parameter-objective"]')).toHaveValue(
     "Resume this Run",
@@ -246,13 +253,13 @@ test("Project Run draft survives close and binds a local upload to its source sl
   const apiOrigin =
     process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
   const uploads = await installFixture(page, apiOrigin);
-  await page.goto(`/projects/${PROJECT_ID}`);
+  await page.goto(`/projects/${PROJECT_ID}/workflows`);
   const launcher = page.getByRole("button", {
-    name: `Run ${WORKFLOW_SELECTOR}`,
+    name: `Configure ${WORKFLOW_SELECTOR}`,
   });
   await launcher.click();
-  let runDialog = page.getByRole("dialog", { name: WORKFLOW_NAME });
-  await expect(runDialog.locator(".project-dialog-heading code")).toHaveText(
+  let runDialog = page.getByRole("dialog", { name: "Configure Run" });
+  await expect(runDialog.locator(".workflow-drawer-heading code")).toHaveText(
     WORKFLOW_SELECTOR,
   );
   await runDialog
@@ -266,12 +273,15 @@ test("Project Run draft survives close and binds a local upload to its source sl
       name: "Confirm exact input for source",
     }),
   ).toBeVisible();
-  await runDialog
-    .getByRole("button", { name: "Close Workflow Run dialog" })
-    .click();
+  await runDialog.getByRole("button", { name: "Close Run setup" }).click();
 
+  const navigation = page.getByRole("navigation", { name: "Project sections" });
+  await navigation.getByRole("link", { name: "Settings", exact: true }).click();
+  await navigation
+    .getByRole("link", { name: "Workflows", exact: true })
+    .click();
   await launcher.click();
-  runDialog = page.getByRole("dialog", { name: WORKFLOW_NAME });
+  runDialog = page.getByRole("dialog", { name: "Configure Run" });
   await expect(runDialog.locator('[name="parameter-objective"]')).toHaveValue(
     "Keep Project setup",
   );
@@ -311,11 +321,9 @@ test("Project Run draft survives close and binds a local upload to its source sl
   expect(uploads[0]!.headers["x-csrf-token"]).toBe("a".repeat(43));
   expect(uploads[0]!.body.toString()).toBe("zip");
 
-  await runDialog
-    .getByRole("button", { name: "Close Workflow Run dialog" })
-    .click();
+  await runDialog.getByRole("button", { name: "Close Run setup" }).click();
   await launcher.click();
-  runDialog = page.getByRole("dialog", { name: WORKFLOW_NAME });
+  runDialog = page.getByRole("dialog", { name: "Configure Run" });
   await expect(runDialog.locator('[name="artifact-source"]')).toHaveValue(
     "artifacts/replacement@revision-uploaded",
   );

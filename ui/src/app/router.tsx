@@ -15,7 +15,7 @@ import {
 } from "../routes/projects/detail";
 import { EvaluationListRoute, ProjectListRoute } from "../routes/projects/list";
 import { ProjectAuditDetailRoute } from "../routes/projects/audits/detail";
-import { ProjectAuditListRoute } from "../routes/projects/audits/list";
+import { ProjectSectionRoute } from "../routes/projects/sections";
 import { ProjectFindingsRoute } from "../routes/projects/audits/findings";
 import { ProjectWorkflowRunRoute } from "../routes/projects/workflow-run";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
@@ -76,6 +76,36 @@ export function applicationRoutes(): RouteObject[] {
             {
               path: "/projects/:projectId",
               element: <ProjectDetailRoute />,
+              children: [
+                {
+                  index: true,
+                  element: <ProjectSectionRoute section="overview" />,
+                },
+                {
+                  path: "artifacts",
+                  element: <ProjectSectionRoute section="artifacts" />,
+                },
+                {
+                  path: "workflows",
+                  element: <ProjectSectionRoute section="workflows" />,
+                },
+                {
+                  path: "runs",
+                  element: <ProjectSectionRoute section="runs" />,
+                },
+                {
+                  path: "audits",
+                  element: <ProjectSectionRoute section="audits" />,
+                },
+                {
+                  path: "findings",
+                  element: <ProjectFindingsRoute embedded />,
+                },
+                {
+                  path: "settings",
+                  element: <ProjectSectionRoute section="settings" />,
+                },
+              ],
             },
             {
               path: "/projects/:projectId/artifacts/:namespace/:name",
@@ -84,14 +114,6 @@ export function applicationRoutes(): RouteObject[] {
             {
               path: "/projects/:projectId/workflows/:name/:version/run",
               element: <ProjectWorkflowRunRoute />,
-            },
-            {
-              path: "/projects/:projectId/audits",
-              element: <ProjectAuditListRoute />,
-            },
-            {
-              path: "/projects/:projectId/findings",
-              element: <ProjectFindingsRoute />,
             },
             {
               path: "/projects/:projectId/audits/:auditId",

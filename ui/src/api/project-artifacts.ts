@@ -19,6 +19,7 @@ import { PublicAPIError, publicAPIError } from "./error";
 import { requireProjectID } from "./projects";
 
 export interface ProjectArtifactPageRequest extends ArtifactPageRequest {
+  limit?: number;
   projectId: string;
 }
 
@@ -92,6 +93,13 @@ export async function listProjectArtifacts(
 ): Promise<ArtifactPage> {
   requireProjectID(request.projectId);
   if (
+    request.limit !== undefined &&
+    (!Number.isInteger(request.limit) ||
+      request.limit < 1 ||
+      request.limit > 100)
+  )
+    throw new TypeError("Artifact page size is invalid");
+  if (
     request.namespace !== undefined &&
     !ARTIFACT_NAME_PATTERN.test(request.namespace)
   ) {
@@ -102,7 +110,7 @@ export async function listProjectArtifacts(
       params: {
         path: { projectId: request.projectId },
         query: {
-          limit: ARTIFACT_PAGE_SIZE,
+          limit: request.limit ?? ARTIFACT_PAGE_SIZE,
           ...(request.namespace === undefined
             ? {}
             : { namespace: request.namespace }),

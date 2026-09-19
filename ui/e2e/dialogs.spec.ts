@@ -156,21 +156,21 @@ test("nested Project and Git dialogs isolate focus, forms and Escape", async ({
     process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
   await installDialogFixture(page, apiOrigin);
 
-  await page.goto(`/projects/${PROJECT_ID}`);
+  await page.goto(`/projects/${PROJECT_ID}/workflows`);
   const launcher = page.getByRole("button", {
-    name: `Run ${WORKFLOW_NAME}@${WORKFLOW_VERSION}`,
+    name: `Configure ${WORKFLOW_NAME}@${WORKFLOW_VERSION}`,
   });
   await launcher.click();
 
   const parent = page.getByRole("dialog", {
-    name: WORKFLOW_NAME,
+    name: "Configure Run",
   });
   await expect(parent).toBeVisible();
-  await expect(parent.locator(".project-dialog-heading code")).toHaveText(
+  await expect(parent.locator(".workflow-drawer-heading code")).toHaveText(
     `${WORKFLOW_NAME}@${WORKFLOW_VERSION}`,
   );
   await expect(
-    parent.getByRole("button", { name: "Close Workflow Run dialog" }),
+    parent.getByRole("button", { name: "Close Run setup" }),
   ).toBeFocused();
   await expect(page.locator("#root")).toHaveAttribute("inert", "");
   await expect(

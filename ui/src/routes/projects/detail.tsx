@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { Link, Outlet, useParams } from "react-router";
 import { ActionMenu } from "../../app/action-menu";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
@@ -15,10 +15,11 @@ import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { useProjectDeletion } from "./use-project-deletion";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
-import { ProjectAuditWorkspace } from "./audits/list";
+import { ProjectNavigation, ProjectLegacySectionRedirect } from "./navigation";
 import { AuditAnchor } from "./audits/shared";
 
 import "../primary-actions.css";
+import "./workspace.css";
 
 function ProjectWorkspaceRoute({
   expectedKind,
@@ -69,7 +70,7 @@ function ProjectWorkspaceRoute({
 
   return (
     <section
-      className={`route-page projects-page project-detail-page ${expectedKind === "evaluation" ? "eval-detail-page" : ""}`}
+      className={`route-page projects-page project-detail-page ${expectedKind === "evaluation" ? "eval-detail-page" : "project-section-layout"}`}
     >
       <header className="route-header-row">
         <div>
@@ -85,7 +86,8 @@ function ProjectWorkspaceRoute({
           <p className="lede">
             {expectedKind === "evaluation"
               ? "Each sample remains an ordinary isolated Workflow Run; eval labels group it without changing execution semantics."
-              : "Sources, audits and results in one workspace."}
+              : project.data?.description ||
+                "Sources, audits and results in one workspace."}
           </p>
         </div>
         <ActionMenu
@@ -141,56 +143,27 @@ function ProjectWorkspaceRoute({
         />
       ) : project.data.lifecycle === "deleting" ? (
         <ProjectDeletionProgress project={project.data} />
+      ) : expectedKind === "project" ? (
+        <>
+          <ProjectNavigation projectId={projectId} />
+          <ProjectLegacySectionRedirect projectId={projectId}>
+            <Outlet context={project.data} />
+          </ProjectLegacySectionRedirect>
+        </>
       ) : (
         <>
           <nav
             className="project-local-navigation section-navigation"
             aria-label="Project sections"
           >
-            {expectedKind === "project" ? (
-              <a href="#project-audits">Audits</a>
-            ) : null}
             <a href="#project-overview">Overview</a>
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-workflows">Workflows</a>
-            {expectedKind === "project" ? (
-              <>
-                <Link
-                  to={`/projects/${encodeURIComponent(projectId)}/findings`}
-                >
-                  Findings
-                </Link>
-              </>
-            ) : null}
             <a href="#project-runs">Runs</a>
           </nav>
           <AuditAnchor />
-          {expectedKind === "project" ? (
-            <ProjectRegion
-              eyebrow="Project security"
-              title="Audits"
-              id="project-audits"
-              action={
-                <Link
-                  to={`/projects/${encodeURIComponent(projectId)}/findings`}
-                >
-                  All project findings →
-                </Link>
-              }
-            >
-              <ProjectAuditWorkspace
-                key={project.data.projectId}
-                projectId={project.data.projectId}
-                projectName={project.data.name}
-              />
-            </ProjectRegion>
-          ) : null}
           <ProjectRegion
-            eyebrow={
-              expectedKind === "evaluation"
-                ? "Evaluation metadata"
-                : "Project metadata"
-            }
+            eyebrow="Evaluation metadata"
             title="Overview"
             id="project-overview"
           >
@@ -205,13 +178,10 @@ function ProjectWorkspaceRoute({
           </ProjectRegion>
           <ProjectArtifactRegion
             projectId={project.data.projectId}
-            detailRoot={expectedKind === "evaluation" ? "/evals" : "/projects"}
+            detailRoot="/evals"
           />
           <ProjectWorkflowRecommendations projectId={project.data.projectId} />
-          <ProjectRunsRegion
-            projectId={project.data.projectId}
-            evaluation={expectedKind === "evaluation"}
-          />
+          <ProjectRunsRegion projectId={project.data.projectId} evaluation />
         </>
       )}
       {deleteOpen && activeProject !== undefined ? (

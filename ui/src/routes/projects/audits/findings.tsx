@@ -1,6 +1,6 @@
 import { ReturnLink } from "../../../app/context-navigation";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router";
+import { useLocation, Link, useParams, useSearchParams } from "react-router";
 
 import { collectAuditPages } from "../../../api/audit-collections";
 import {
@@ -19,10 +19,15 @@ import { AuditAnchor, ProjectAuditNavigation } from "./shared";
 
 import "./styles.css";
 
-export function ProjectFindingsRoute() {
+export function ProjectFindingsRoute({
+  embedded = false,
+}: {
+  embedded?: boolean;
+}) {
   const api = usePublicAPI();
   const { projectId = "" } = useParams();
   const [filters, setFilters] = useSearchParams();
+  const location = useLocation();
   const validProject = PROJECT_ID_PATTERN.test(projectId);
   const project = useQuery({
     queryKey: queryKeys.projects.detail(projectId),
@@ -126,7 +131,7 @@ export function ProjectFindingsRoute() {
         else next.set(name, value);
         return next;
       },
-      { replace: true },
+      { replace: true, state: location.state },
     );
   }
 
@@ -142,11 +147,13 @@ export function ProjectFindingsRoute() {
     <section className="route-page audit-page project-findings-page">
       <header className="route-header-row">
         <div>
-          <ReturnLink
-            to={`/projects/${encodeURIComponent(projectId)}`}
-            label={project.data?.name ?? "Project"}
-          />
-          <p className="eyebrow">Project findings</p>
+          {embedded ? null : (
+            <ReturnLink
+              to={`/projects/${encodeURIComponent(projectId)}`}
+              label={project.data?.name ?? "Project"}
+            />
+          )}
+          {embedded ? null : <p className="eyebrow">Project findings</p>}
           <h2>Findings</h2>
           <p className="lede">
             Findings from every audit in this project, with their source,
@@ -168,7 +175,9 @@ export function ProjectFindingsRoute() {
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </header>
-      <ProjectAuditNavigation projectId={projectId} current="findings" />
+      {embedded ? null : (
+        <ProjectAuditNavigation projectId={projectId} current="findings" />
+      )}
       {project.error !== null ? (
         <ErrorNotice error={project.error} />
       ) : project.isPending ? (
@@ -237,7 +246,9 @@ export function ProjectFindingsRoute() {
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => setFilters({}, { replace: true })}
+                onClick={() =>
+                  setFilters({}, { replace: true, state: location.state })
+                }
               >
                 Clear filters
               </button>

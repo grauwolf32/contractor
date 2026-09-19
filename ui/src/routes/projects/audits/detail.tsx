@@ -1698,7 +1698,7 @@ export function ProjectAuditDetailRoute() {
       <header className="route-header-row">
         <div>
           <ReturnLink
-            to={`/projects/${encodeURIComponent(projectId)}#project-audits`}
+            to={`/projects/${encodeURIComponent(projectId)}/audits`}
             label={`${project.data?.name ?? "Project"} Audits`}
           />
           <p className="eyebrow">{project.data?.name ?? "Audit"}</p>

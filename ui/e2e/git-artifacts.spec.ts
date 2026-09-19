@@ -260,9 +260,12 @@ for (const project of [false, true]) {
       new URL(String(info.project.use.baseURL)).origin,
     );
     if (project) {
-      await page.goto("/projects/git-project");
-      await page.getByRole("button", { name: "Run git-review@1" }).click();
-    } else await page.goto("/catalog/workflows/git-review/1");
+      await page.goto("/projects/git-project/workflows");
+      await page
+        .getByRole("button", { name: "Configure git-review@1" })
+        .click();
+    } else
+      await page.goto("/catalog/workflows/git-review/1#workflow-run-setup");
     await page.locator('[name="parameter-note"]').fill("keep this draft");
     await page
       .locator('[name="artifact-context"]')
@@ -308,7 +311,7 @@ test("Project import validates ASCII names, reports host errors and restores foc
     new URL(String(info.project.use.baseURL)).origin,
     { failImport: true },
   );
-  await page.goto("/projects/git-project");
+  await page.goto("/projects/git-project/artifacts?add=artifact");
   const trigger = page.getByRole("button", {
     name: "Import Git repository",
     exact: true,
@@ -339,8 +342,8 @@ test("cancelling a pending Git import keeps the Project Workflow form open", asy
     new URL(String(info.project.use.baseURL)).origin,
     { pendingImport: true },
   );
-  await page.goto("/projects/git-project");
-  await page.getByRole("button", { name: "Run git-review@1" }).click();
+  await page.goto("/projects/git-project/workflows");
+  await page.getByRole("button", { name: "Configure git-review@1" }).click();
   await page.locator('[name="parameter-note"]').fill("preserved");
   await page.getByRole("button", { name: "Import Git for source" }).click();
   const dialog = page.getByRole("dialog", { name: "Import Git repository" });
@@ -357,11 +360,13 @@ test("cancelling a pending Git import keeps the Project Workflow form open", asy
   ).toBe(true);
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole("dialog", { name: "git-review" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Configure Run" }),
+  ).toBeVisible();
   await expect(
     page
-      .getByRole("dialog", { name: "git-review" })
-      .locator(".project-dialog-heading code"),
+      .getByRole("dialog", { name: "Configure Run" })
+      .locator(".workflow-drawer-heading code"),
   ).toHaveText("git-review@1");
   await expect(page.locator('[name="parameter-note"]')).toHaveValue(
     "preserved",

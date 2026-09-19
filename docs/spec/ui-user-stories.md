@@ -40,6 +40,13 @@ analysis, with clear section navigation; after an upload or Git import, the stor
 next step are clear. Deletion is available through secondary actions with the
 existing confirmation.
 
+The Project root is a short Overview of decisions, recent results and activity.
+Artifacts, Workflows, Runs, Audits, Findings and Settings are independent screens
+with common navigation. The Run history has Server-backed state filters and
+compact rows; upload and exact Project Run setup open on demand. Filters,
+selected versions and return context survive the corresponding navigation.
+See the [Project section plan](../plans/2026-09-project-section-navigation.md).
+
 Project cards also expose a named Delete icon. Confirmation requires the
 current Project name; pending deletion disables repeat submission and provides
 a link to deletion status. A stale revision requires refreshed data and a new

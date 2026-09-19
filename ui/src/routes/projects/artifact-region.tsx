@@ -1,3 +1,4 @@
+import { Dialog } from "../../app/dialog";
 import { ContextLink } from "../../app/context-navigation";
 import {
   GitImportDialog,
@@ -10,8 +11,9 @@ import {
   type FormEvent,
   useImperativeHandle,
   useState,
+  useId,
 } from "react";
-import { useSearchParams } from "react-router";
+import { useLocation, Link, useSearchParams } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
   type ArtifactWriteResponse,
@@ -56,10 +58,27 @@ export const ProjectArtifactRegion = forwardRef<
   {
     projectId: string;
     detailRoot: "/projects" | "/evals";
+    compact?: boolean;
   }
->(function ProjectArtifactRegion({ projectId, detailRoot }, ref) {
+>(function ProjectArtifactRegion(
+  { projectId, detailRoot, compact = false },
+  ref,
+) {
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
+  const location = useLocation();
+  const addHeading = useId();
+  const [addOpen, setAddOpen] = useState(
+    () => compact && filters.get("add") === "artifact",
+  );
+  function closeAdd() {
+    setAddOpen(false);
+    if (filters.has("add")) {
+      const next = new URLSearchParams(filters);
+      next.delete("add");
+      setFilters(next, { replace: true, state: location.state });
+    }
+  }
   const namespace = filters.get("artifactsNamespace") || undefined;
   const cursors: Array<string | undefined> = [
     undefined,
@@ -76,14 +95,14 @@ export const ProjectArtifactRegion = forwardRef<
       ? update(cursors)
       : update)
       if (cursor !== undefined) next.append("artifactsCursor", cursor);
-    setFilters(next, { preventScrollReset: true });
+    setFilters(next, { preventScrollReset: true, state: location.state });
   }
   function setNamespaceFilter(value: string) {
     const next = new URLSearchParams(filters);
     next.delete("artifactsCursor");
     if (value === "") next.delete("artifactsNamespace");
     else next.set("artifactsNamespace", value);
-    setFilters(next, { preventScrollReset: true });
+    setFilters(next, { preventScrollReset: true, state: location.state });
   }
   const [shortcut, setShortcut] = useState<ShortcutDefinition | null>(null);
   const [gitOpen, setGitOpen] = useState(false);
@@ -129,7 +148,12 @@ export const ProjectArtifactRegion = forwardRef<
   function finishUpload(result: ArtifactWriteResponse): void {
     setWritten(result);
     setShortcut(null);
-    setNamespaceFilter("");
+    setAddOpen(false);
+    const next = new URLSearchParams(filters);
+    next.delete("add");
+    next.delete("artifactsNamespace");
+    next.delete("artifactsCursor");
+    setFilters(next, { replace: true, state: location.state });
   }
 
   return (
@@ -138,15 +162,18 @@ export const ProjectArtifactRegion = forwardRef<
       title="Artifacts"
       id="project-artifacts"
       action={
-        <div className="button-row">
+        <div className="button-row project-region-actions">
           <button
             type="button"
             onClick={() => {
-              setGitOpen(false);
-              setShortcut(SOURCE_SHORTCUT);
+              if (compact) setAddOpen(true);
+              else {
+                setGitOpen(false);
+                setShortcut(SOURCE_SHORTCUT);
+              }
             }}
           >
-            Add sources
+            {compact ? "Add artifact" : "Add sources"}
           </button>
           <button
             className="secondary-button"
@@ -159,26 +186,65 @@ export const ProjectArtifactRegion = forwardRef<
         </div>
       }
     >
-      <p className="muted-copy">
-        Shortcuts suggest useful names and media types. Every field remains
-        editable, and Other accepts any supported Artifact.
-      </p>
-      <ProjectArtifactShortcutGrid
-        onSelect={setShortcut}
-        onImportGit={() => setGitOpen(true)}
-      />
+      {compact ? (
+        addOpen ? (
+          <Dialog
+            className="project-dialog project-add-artifact-dialog panel"
+            labelledBy={addHeading}
+            onRequestClose={closeAdd}
+          >
+            <div className="project-dialog-heading">
+              <div>
+                <p className="eyebrow">Project materials</p>
+                <h2 id={addHeading}>Add artifact</h2>
+              </div>
+              <button
+                className="project-dialog-close"
+                type="button"
+                aria-label="Close artifact choices"
+                onClick={closeAdd}
+              >
+                ×
+              </button>
+            </div>
+            <p className="muted-copy">
+              Upload a file or import a Git repository into this project.
+            </p>
+            <ProjectArtifactShortcutGrid
+              onSelect={setShortcut}
+              onImportGit={() => setGitOpen(true)}
+            />
+          </Dialog>
+        ) : null
+      ) : (
+        <>
+          <p className="muted-copy">
+            Shortcuts suggest useful names and media types. Every field remains
+            editable, and Other accepts any supported Artifact.
+          </p>
+          <ProjectArtifactShortcutGrid
+            onSelect={setShortcut}
+            onImportGit={() => setGitOpen(true)}
+          />
+        </>
+      )}
 
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Project Artifact revision stored.</strong>
           <ContextLink
             returnLabel="Project Artifacts"
-            returnHash="#project-artifacts"
+            {...(compact ? {} : { returnHash: "#project-artifacts" })}
             to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
           >
             Open {written.artifact.namespace}/{written.artifact.name}@
             {written.artifact.revision}
           </ContextLink>
+          {compact ? (
+            <Link to={`/projects/${encodeURIComponent(projectId)}/workflows`}>
+              Choose a Workflow for this project →
+            </Link>
+          ) : null}
           {"gitSource" in written ? (
             <GitSourceDetails source={written.gitSource} />
           ) : null}
@@ -220,7 +286,11 @@ export const ProjectArtifactRegion = forwardRef<
         ) : query.data.items.length === 0 ? (
           <div className="compact-empty">
             <strong>No Artifact bindings in this view.</strong>
-            <p>Use a shortcut above to add an exact Project input.</p>
+            <p>
+              {compact
+                ? "Add an artifact to prepare the inputs for your next analysis."
+                : "Use a shortcut above to add an exact Project input."}
+            </p>
           </div>
         ) : (
           <div className="table-scroll">
@@ -240,7 +310,9 @@ export const ProjectArtifactRegion = forwardRef<
                     <td data-label="Binding">
                       <ContextLink
                         returnLabel="Project Artifacts"
-                        returnHash="#project-artifacts"
+                        {...(compact
+                          ? {}
+                          : { returnHash: "#project-artifacts" })}
                         to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.namespace}/{item.artifact.name}

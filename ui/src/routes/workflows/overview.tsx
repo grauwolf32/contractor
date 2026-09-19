@@ -1,8 +1,8 @@
-import { useId, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import type { WorkflowResource } from "../../api/workflows";
 import { ActionMenu } from "../../app/action-menu";
-import { Dialog } from "../../app/dialog";
+import { WorkflowRunDrawer } from "./run-drawer";
 import { Icon } from "../../app/icon";
 import { ErrorNotice } from "../artifacts/common";
 import { catalogReturnState } from "../catalog/navigation";
@@ -59,57 +59,6 @@ function OverviewSlots({
         </dl>
       )}
     </section>
-  );
-}
-
-function RunDrawer({
-  workflow,
-  onClose,
-}: {
-  workflow: WorkflowResource;
-  onClose: () => void;
-}) {
-  const heading = useId();
-  const description = useId();
-  const [submitting, setSubmitting] = useState(false);
-  return (
-    <Dialog
-      className="workflow-run-drawer"
-      backdropClassName="workflow-run-backdrop"
-      labelledBy={heading}
-      describedBy={description}
-      onRequestClose={() => {
-        if (!submitting) onClose();
-      }}
-    >
-      <header className="workflow-drawer-heading">
-        <div>
-          <p className="eyebrow">Standalone Run</p>
-          <h2 id={heading}>Configure Run</h2>
-          <code>{workflowSelector(workflow)}</code>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Run setup"
-          disabled={submitting}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </header>
-      <p className="workflow-drawer-description" id={description}>
-        Inputs come from your library (UserScope). Your draft is kept in this
-        tab when you close this panel.
-      </p>
-      <div id="workflow-run-setup" className="workflow-drawer-body">
-        <WorkflowRunForm
-          workflow={workflow}
-          presentation="drawer"
-          onSubmittingChange={setSubmitting}
-        />
-      </div>
-    </Dialog>
   );
 }
 
@@ -362,7 +311,7 @@ export function WorkflowOverview({
         </aside>
       </div>
       {open ? (
-        <RunDrawer
+        <WorkflowRunDrawer
           workflow={workflow}
           onClose={() =>
             void navigate(
@@ -374,7 +323,15 @@ export function WorkflowOverview({
               { replace: true, state: location.state },
             )
           }
-        />
+        >
+          {(onSubmittingChange) => (
+            <WorkflowRunForm
+              workflow={workflow}
+              presentation="drawer"
+              onSubmittingChange={onSubmittingChange}
+            />
+          )}
+        </WorkflowRunDrawer>
       ) : null}
     </section>
   );

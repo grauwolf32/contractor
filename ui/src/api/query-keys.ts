@@ -83,7 +83,22 @@ export const queryKeys = {
         ] as const,
     },
     runs: (projectId: string, cursor?: string) =>
-      ["projects", "detail", projectId, "runs", cursor ?? null] as const,
+      [
+        "projects",
+        "detail",
+        projectId,
+        "runs",
+        ...(cursor === undefined ? [] : [cursor]),
+      ] as const,
+    runView: (
+      projectId: string,
+      options: {
+        cursor?: string;
+        state?: string;
+        lifecycle?: string;
+        limit: number;
+      },
+    ) => ["projects", "detail", projectId, "runs", "view", options] as const,
     audits: {
       all: (projectId: string) =>
         ["projects", "detail", projectId, "audits"] as const,

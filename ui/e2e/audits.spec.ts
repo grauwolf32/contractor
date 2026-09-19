@@ -318,6 +318,10 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   await page.getByRole("button", { name: "Create Audit draft" }).click();
   await expect(page).toHaveURL(/\/audits\/audit_browser$/u);
   await page.getByRole("button", { name: "Start Audit" }).click();
+  await page
+    .getByRole("dialog", { name: "Start Audit" })
+    .getByRole("button", { name: "Start Audit", exact: true })
+    .click();
   await expect(page.getByText("revision 2")).toBeVisible();
   await page.getByRole("link", { name: "Coverage" }).click();
   await expect(page.getByText("Inconclusive")).toBeVisible();

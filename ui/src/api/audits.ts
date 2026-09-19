@@ -42,6 +42,7 @@ export interface PageRequest {
 }
 
 export interface ProjectAuditPageRequest extends PageRequest {
+  limit?: number;
   projectId: string;
   state?: AuditState;
   profile?: string;
@@ -279,12 +280,19 @@ export async function listProjectAudits(
   request: ProjectAuditPageRequest,
 ): Promise<AuditPage> {
   requireProjectID(request.projectId);
+  if (
+    request.limit !== undefined &&
+    (!Number.isInteger(request.limit) ||
+      request.limit < 1 ||
+      request.limit > 100)
+  )
+    throw new TypeError("Audit page size is invalid");
   const result = await api.request((client) =>
     client.GET("/v1/projects/{projectId}/audits", {
       params: {
         path: { projectId: request.projectId },
         query: {
-          limit: AUDIT_PAGE_SIZE,
+          limit: request.limit ?? AUDIT_PAGE_SIZE,
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
           ...(request.state === undefined ? {} : { state: request.state }),
           ...(request.profile === undefined

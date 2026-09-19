@@ -32,7 +32,7 @@ export function ProjectWorkflowRunRoute() {
   const backPath =
     project.data?.kind === "evaluation"
       ? `/evals/${encodeURIComponent(projectId)}`
-      : `/projects/${encodeURIComponent(projectId)}`;
+      : `/projects/${encodeURIComponent(projectId)}/workflows`;
 
   if (!valid) {
     return (

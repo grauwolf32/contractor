@@ -62,6 +62,123 @@ function renderProjectApplication(api: PublicAPI, path: string) {
 }
 
 describe("Project routes", () => {
+  it("loads bounded Overview summaries and preserves section filters through navigation", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const url = new URL(
+          (input instanceof Request ? input : new Request(input)).url,
+        );
+        requests.push(url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderProjectApplication(
+      api,
+      "/projects/project_example",
+    );
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Prepare your first analysis" });
+    const summaries = requests.filter((url) =>
+      /\/(runs|audits|artifacts)$/.test(url.pathname),
+    );
+    expect(summaries).toHaveLength(5);
+    expect(
+      summaries.every((url) => Number(url.searchParams.get("limit")) <= 5),
+    ).toBe(true);
+    expect(requests.some((url) => url.pathname === "/v1/workflows")).toBe(
+      false,
+    );
+    const nav = within(
+      screen.getByRole("navigation", { name: "Project sections" }),
+    );
+    await user.click(nav.getByRole("link", { name: "Runs" }));
+    await user.click(await screen.findByRole("button", { name: "Completed" }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "State" }),
+      "failed",
+    );
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (url) =>
+            url.searchParams.get("state") === "failed" &&
+            url.searchParams.get("lifecycle") === "terminal" &&
+            url.searchParams.get("limit") === "25",
+        ),
+      ).toBe(true),
+    );
+    const filtered = router.state.location.search;
+    await user.click(nav.getByRole("link", { name: "Settings" }));
+    await screen.findByRole("button", { name: "Edit metadata" });
+    expect(screen.queryByRole("heading", { name: "Recent Runs" })).toBeNull();
+    await user.click(nav.getByRole("link", { name: "Runs" }));
+    expect(router.state.location.search).toBe(filtered);
+    expect(await screen.findByRole("combobox", { name: "State" })).toHaveValue(
+      "failed",
+    );
+  });
+
+  it("redirects legacy Run anchors, sends cursors to the filtered API and resets pages when the view changes", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const url = new URL(
+          (input instanceof Request ? input : new Request(input)).url,
+        );
+        requests.push(url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderProjectApplication(
+      api,
+      "/projects/project_example?view=completed&state=succeeded&cursor=page2#project-runs",
+    );
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Runs" });
+    expect(router.state.location.pathname).toBe(
+      "/projects/project_example/runs",
+    );
+    expect(router.state.location.hash).toBe("");
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (url) =>
+            url.pathname.endsWith("/runs") &&
+            url.searchParams.get("cursor") === "page2" &&
+            url.searchParams.get("state") === "succeeded",
+        ),
+      ).toBe(true),
+    );
+    expect(
+      requests.some(
+        (url) =>
+          url.pathname.endsWith("/artifacts") ||
+          url.pathname.endsWith("/audits"),
+      ),
+    ).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Active" }));
+    expect(router.state.location.search).toBe("?view=active");
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (url) =>
+            url.searchParams.get("lifecycle") === "active" &&
+            !url.searchParams.has("cursor") &&
+            !url.searchParams.has("state"),
+        ),
+      ).toBe(true),
+    );
+  });
+
   it("deletes from the Project list after confirmation and removes the completed deletion without navigation", async () => {
     const deleteRequests: Request[] = [];
     let deleting = false;
@@ -275,7 +392,7 @@ describe("Project routes", () => {
       const factory = vi
         .spyOn(queryClientFactory, "createApplicationQueryClient")
         .mockReturnValueOnce(queryClient);
-      renderProjectApplication(api, "/projects/project_example");
+      renderProjectApplication(api, "/projects/project_example/settings");
       factory.mockRestore();
       const user = userEvent.setup();
       await screen.findByRole("heading", { name: "Payment service" });
@@ -572,10 +689,13 @@ describe("Project routes", () => {
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderProjectApplication(
+      api,
+      "/projects/project_example/artifacts?add=artifact",
+    );
     const user = userEvent.setup();
 
-    await screen.findByRole("heading", { name: "Payment service" });
+    await screen.findByRole("dialog", { name: "Add artifact" });
     await user.click(screen.getByRole("button", { name: /Sources/ }));
     const dialog = screen.getByRole("dialog", { name: "Sources" });
     const file = new File(["zip"], "payment-service.zip", {
@@ -649,7 +769,7 @@ describe("Project routes", () => {
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderProjectApplication(api, "/projects/project_example/settings");
     const user = userEvent.setup();
 
     await screen.findByRole("heading", { name: "Payment service" });
@@ -734,7 +854,12 @@ describe("Project routes", () => {
       await screen.findByText("Artifact storage is temporarily unavailable"),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Sources" })).toBeEnabled();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("link", { name: "Add sources →" }));
+    expect(
+      await screen.findByRole("button", { name: "Sources" }),
+    ).toBeEnabled();
     const git = screen.getByRole("button", { name: "Import Git repository" });
     expect(git).toHaveClass("project-shortcut");
     expect(git.querySelector("svg")).not.toBeNull();
@@ -953,7 +1078,7 @@ describe("Project routes", () => {
     );
     const { router } = renderProjectApplication(
       api,
-      "/projects/project_example",
+      "/projects/project_example/workflows",
     );
     const user = userEvent.setup();
 
@@ -976,7 +1101,7 @@ describe("Project routes", () => {
       screen.getByRole("button", { name: "Configure openapi-from-source@1" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "OpenAPI contract",
+      name: "Configure Run",
     });
     expect(
       within(dialog).getByRole("combobox", { name: /source required/ }),
@@ -1082,7 +1207,7 @@ describe("Project routes", () => {
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
     );
-    renderProjectApplication(api, "/projects/project_example");
+    renderProjectApplication(api, "/projects/project_example/workflows");
     const user = userEvent.setup();
 
     expect(

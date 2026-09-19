@@ -6,7 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import {
@@ -20,7 +20,6 @@ import {
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { listProjectArtifacts } from "../../../api/project-artifacts";
-import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import {
@@ -31,7 +30,6 @@ import {
 import { AuditControls } from "./controls";
 import { auditProfileLabel } from "./labels";
 import { StateBadge } from "../../runs/components";
-import { ProjectAuditNavigation } from "./shared";
 
 import "./styles.css";
 
@@ -475,9 +473,15 @@ export function ProjectAuditWorkspace({
 }) {
   const api = usePublicAPI();
   const [showCreate, setShowCreate] = useState(false);
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const cursors = params.getAll("auditCursor");
+  function setCursors(values: string[]) {
+    const next = new URLSearchParams(params);
+    next.delete("auditCursor");
+    for (const value of values) next.append("auditCursor", value);
+    setParams(next, { state: location.state });
+  }
   const cursor = cursors.at(-1);
   const audits = useQuery({
     queryKey: queryKeys.projects.audits.list(projectId, cursor),
@@ -637,59 +641,14 @@ export function ProjectAuditWorkspace({
       )}
       <CursorControls
         label="Project Audit pages"
-        canGoBack={cursors.length > 1}
+        canGoBack={cursors.length > 0}
         {...(audits.data?.page.hasMore === true &&
         audits.data.page.nextCursor !== undefined
           ? { nextCursor: audits.data.page.nextCursor }
           : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        onBack={() => setCursors(cursors.slice(0, -1))}
+        onNext={(next) => setCursors([...cursors, next])}
       />
     </div>
-  );
-}
-
-export function ProjectAuditListRoute() {
-  const api = usePublicAPI();
-  const { projectId = "" } = useParams();
-  const validProject = PROJECT_ID_PATTERN.test(projectId);
-  const project = useQuery({
-    queryKey: queryKeys.projects.detail(projectId),
-    queryFn: () => getProject(api, projectId),
-    enabled: validProject,
-  });
-  if (!validProject)
-    return (
-      <section className="route-page">
-        <ErrorNotice error={new Error("Project Audit route is invalid")} />
-        <Link to="/projects">Return to Projects</Link>
-      </section>
-    );
-  return (
-    <section className="route-page audit-page">
-      <header className="route-header-row">
-        <div>
-          <Link
-            className="back-link"
-            to={`/projects/${encodeURIComponent(projectId)}#project-audits`}
-          >
-            ← {project.data?.name ?? "Project"}
-          </Link>
-          <p className="eyebrow">{project.data?.name ?? "Project"}</p>
-          <h2>Audits</h2>
-        </div>
-      </header>
-      {project.error === null ? null : <ErrorNotice error={project.error} />}
-      <ProjectAuditNavigation projectId={projectId} current="audits" />
-      <ProjectAuditWorkspace
-        key={projectId}
-        projectId={projectId}
-        {...(project.data ? { projectName: project.data.name } : {})}
-      />
-    </section>
   );
 }

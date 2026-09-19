@@ -1,3 +1,5 @@
+import { useLocation, useSearchParams } from "react-router";
+import { WorkflowRunDrawer } from "../workflows/run-drawer";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -29,8 +31,10 @@ function ProjectWorkflowLauncher({
   projectId,
   selection,
   onClose,
+  drawer,
 }: {
   projectId: string;
+  drawer: boolean;
   selection: WorkflowCompatibility;
   onClose: () => void;
 }) {
@@ -60,6 +64,35 @@ function ProjectWorkflowLauncher({
       ).values(),
     );
   }, [selection]);
+  function renderForm(onSubmittingChange?: (pending: boolean) => void) {
+    return workflow.isPending ? (
+      <p className="loading-copy" aria-live="polite">
+        Loading exact Workflow contract…
+      </p>
+    ) : workflow.error !== null ? (
+      <ErrorNotice error={workflow.error} />
+    ) : (
+      <WorkflowRunForm
+        key={`${projectId}:${selector(selection)}`}
+        workflow={workflow.data}
+        projectId={projectId}
+        initialArtifactSelections={selection.preselected}
+        initialArtifacts={initialArtifacts}
+        presentation={drawer ? "drawer" : "page"}
+        {...(onSubmittingChange ? { onSubmittingChange } : {})}
+      />
+    );
+  }
+  if (drawer)
+    return (
+      <WorkflowRunDrawer
+        workflow={selection.workflow}
+        projectId={projectId}
+        onClose={onClose}
+      >
+        {renderForm}
+      </WorkflowRunDrawer>
+    );
   return (
     <Dialog
       className="project-dialog project-workflow-dialog panel"
@@ -83,21 +116,7 @@ function ProjectWorkflowLauncher({
           ×
         </button>
       </div>
-      {workflow.isPending ? (
-        <p className="loading-copy" aria-live="polite">
-          Loading exact Workflow contract…
-        </p>
-      ) : workflow.error !== null ? (
-        <ErrorNotice error={workflow.error} />
-      ) : (
-        <WorkflowRunForm
-          key={`${projectId}:${selector(selection)}`}
-          workflow={workflow.data}
-          projectId={projectId}
-          initialArtifactSelections={selection.preselected}
-          initialArtifacts={initialArtifacts}
-        />
-      )}
+      {renderForm()}
     </Dialog>
   );
 }
@@ -105,9 +124,11 @@ function ProjectWorkflowLauncher({
 export function ProjectWorkflowRecommendations({
   projectId,
   focusRequest = 0,
+  drawer = false,
 }: {
   projectId: string;
   focusRequest?: number;
+  drawer?: boolean;
 }) {
   const section = useRef<HTMLElement>(null);
   const handledFocusRequest = useRef(0);
@@ -122,14 +143,42 @@ export function ProjectWorkflowRecommendations({
     [artifactItems, workflows.data],
   );
   const { families, selectVersion } = useWorkflowFamilies(workflows.data ?? []);
-  const [filter, setFilter] = useState("recommended");
-  const [search, setSearch] = useState("");
-  const selectedItems = families.map((family) => ({
-    ...family,
-    matching: compatibility.find(
-      (item) => selector(item) === workflowSelector(family.workflow),
-    )!,
-  }));
+  const [filters, setFilters] = useSearchParams();
+  const location = useLocation();
+  const filter = ["recommended", "all", "missing"].includes(
+    filters.get("workflowFilter") ?? "",
+  )
+    ? filters.get("workflowFilter")!
+    : "recommended";
+  const search = filters.get("workflowQ") ?? "";
+  function updateFilter(key: string, value: string) {
+    setFilters(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (value === "") next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true, preventScrollReset: true, state: location.state },
+    );
+  }
+  const setFilter = (value: string) => updateFilter("workflowFilter", value);
+  const setSearch = (value: string) => updateFilter("workflowQ", value);
+  const selectedItems = families.map((family) => {
+    const selected =
+      family.versions.find(
+        (workflow) =>
+          workflow.ref.version ===
+          filters.get(`workflowVersion.${family.name}`),
+      ) ?? family.workflow;
+    return {
+      ...family,
+      workflow: selected,
+      matching: compatibility.find(
+        (item) => selector(item) === workflowSelector(selected),
+      )!,
+    };
+  });
   const recommended = selectedItems.filter(
     ({ matching }) => matching.compatible && !matching.suppressed,
   );
@@ -266,8 +315,19 @@ export function ProjectWorkflowRecommendations({
             className="secondary-button"
             type="button"
             onClick={() => {
-              setFilter("all");
-              setSearch("");
+              setFilters(
+                (current) => {
+                  const next = new URLSearchParams(current);
+                  next.set("workflowFilter", "all");
+                  next.delete("workflowQ");
+                  return next;
+                },
+                {
+                  replace: true,
+                  preventScrollReset: true,
+                  state: location.state,
+                },
+              );
             }}
           >
             Show all workflows
@@ -280,7 +340,10 @@ export function ProjectWorkflowRecommendations({
               key={name}
               workflow={workflow}
               versions={versions}
-              onVersion={(version) => selectVersion(name, version)}
+              onVersion={(version) => {
+                selectVersion(name, version);
+                updateFilter(`workflowVersion.${name}`, version);
+              }}
               matching={matching}
               onConfigure={() => setSelection(matching)}
             />
@@ -296,6 +359,7 @@ export function ProjectWorkflowRecommendations({
         <ProjectWorkflowLauncher
           projectId={projectId}
           selection={selection}
+          drawer={drawer}
           onClose={() => setSelection(null)}
         />
       )}
