@@ -1,5 +1,10 @@
 # Public OpenAPI corrections — V59
 
+Implemented and verified on 2026-09-20. See the
+[finding-by-finding results](../research/2026-09-20-public-openapi-corrections-results.md)
+and [durable verification record](../../tasks/evidence/v59-005.json).
+Task files record implementation hashes and integration completion separately.
+
 The user authorized detailed analysis, task creation and implementation of the
 [2026-09-19 review](../research/2026-09-19-public-openapi-review.md). This plan
 records the selected corrections to the current implementation. Existing domain

@@ -3,7 +3,7 @@ id: V59-005
 title: Verify and integrate all public API review corrections
 milestone: public-api-review-corrections
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V59-001
 - V59-002
@@ -57,8 +57,9 @@ tests:
   - A2
   - A3
   - A4
-- command: cd ui && corepack pnpm typecheck && corepack pnpm lint && corepack pnpm test --run && corepack
-    pnpm build
+- command: cd ui && corepack pnpm --config.verify-deps-before-run=false typecheck && corepack pnpm --config.verify-deps-before-run=false
+    lint && corepack pnpm --config.verify-deps-before-run=false test --run && corepack pnpm --config.verify-deps-before-run=false
+    build
   covers:
   - A1
   - A2
@@ -70,6 +71,9 @@ tests:
   - A2
   - A3
   - A4
+- command: make verify-public-api-postgres
+  covers:
+  - A3
 verification_requirements:
 - Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
 - Keep implementation and subsequent completion metadata commits separate.

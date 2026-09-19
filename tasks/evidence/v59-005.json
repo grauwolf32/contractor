@@ -1,0 +1,206 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V59-005",
+  "verified_on": "2026-09-20",
+  "review_base": "b779dedf285f5d6645f064d423e8873b5c382ab6",
+  "verified_source_commit": "5dee04719bcdd8ea3c6e4451529796fe1cae1de5",
+  "concurrent_main_included": "64bf8134741b1e04c98bb5e76ce96eb48f2b4856",
+  "implementation_commits": {
+    "V59-001": "7a618fb1f9d7db14fe79a946c9432b97d07ab84d",
+    "V59-002": "0dc366b4e468173b32c78e6a68ab317366866bbb",
+    "V59-003": "ccecdf6370f11d6e1e5e11d91075aa713caf3299",
+    "V59-004": "d2daa5382da2340936e8d19729d97c68bab7ee7b"
+  },
+  "findings_resolved": [
+    "R01",
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10",
+    "R11",
+    "R12"
+  ],
+  "environment": {
+    "go": "1.25.6",
+    "node": "26.7.0",
+    "declared_node": "24.20.x",
+    "pnpm": "11.24.0",
+    "oapi_codegen": "2.8.0",
+    "openapi_typescript": "7.13.0",
+    "postgres": "17-alpine; dedicated disposable loopback-only Podman container; isolated test schemas",
+    "dependencies": "Existing locked UI node_modules and Runtime .venv linked into isolated worktree; pnpm verify-deps-before-run=false prevents automatic installation through symlink."
+  },
+  "schema": {
+    "openapi": "3.1.0",
+    "yaml_dialect": "1.2",
+    "unique_keys": true,
+    "paths": 88,
+    "operations": 111,
+    "component_schemas": 346,
+    "meta_schema_validation": "Draft202012 PASS"
+  },
+  "generation": {
+    "reproducible": true,
+    "sha256": {
+      "internal/publicclient/generated/public.gen.go": "6226daeabf1292f3a498f9920838b7ac16e2c9bc1e7867018382a9dc5fbfb006",
+      "ui/src/api/generated/public.ts": "3217bd4be7216e2129a5b0571260f9621139451d52abf8637c7ee36252a1e532"
+    }
+  },
+  "go_checks": [
+    {
+      "name": "public-api",
+      "command": "make verify-public-api",
+      "exit_code": 0,
+      "seconds": 16.08,
+      "postgres": true
+    },
+    {
+      "name": "audit-pagination",
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "seconds": 25.708,
+      "postgres": true
+    },
+    {
+      "name": "go-postgres",
+      "command": "go test -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/runtimeconfig ./internal/publicclient/... ./internal/cli ./internal/config ./internal/auth",
+      "exit_code": 0,
+      "seconds": 31.926,
+      "postgres": true
+    },
+    {
+      "command": "go test -count=1 ./...",
+      "exit_code": 0,
+      "seconds": 18.128,
+      "postgres": false,
+      "setup": "Existing locked runtime/.venv linked into the isolated worktree."
+    }
+  ],
+  "ui_checks_before_concurrent_merge": [
+    {
+      "name": "typecheck",
+      "command": "corepack pnpm --config.verify-deps-before-run=false typecheck",
+      "exit_code": 0,
+      "seconds": 33.943
+    },
+    {
+      "name": "lint",
+      "command": "corepack pnpm --config.verify-deps-before-run=false lint",
+      "exit_code": 0,
+      "seconds": 20.035
+    },
+    {
+      "name": "ui-tests",
+      "command": "corepack pnpm --config.verify-deps-before-run=false test --run",
+      "exit_code": 0,
+      "seconds": 31.225
+    },
+    {
+      "name": "ui-build",
+      "command": "corepack pnpm --config.verify-deps-before-run=false build",
+      "exit_code": 0,
+      "seconds": 2.307
+    },
+    {
+      "name": "static-server",
+      "command": "corepack pnpm --config.verify-deps-before-run=false test:server",
+      "exit_code": 0,
+      "seconds": 0.667
+    }
+  ],
+  "ui_checks_after_concurrent_merge": [
+    {
+      "name": "typecheck",
+      "command": "corepack pnpm --config.verify-deps-before-run=false typecheck",
+      "exit_code": 0,
+      "seconds": 14.548
+    },
+    {
+      "name": "lint",
+      "command": "corepack pnpm --config.verify-deps-before-run=false lint",
+      "exit_code": 0,
+      "seconds": 15.313
+    },
+    {
+      "name": "ui-tests",
+      "command": "corepack pnpm --config.verify-deps-before-run=false test --run",
+      "exit_code": 0,
+      "seconds": 24.838
+    },
+    {
+      "name": "ui-build",
+      "command": "corepack pnpm --config.verify-deps-before-run=false build",
+      "exit_code": 0,
+      "seconds": 2.093
+    },
+    {
+      "name": "static-server",
+      "command": "corepack pnpm --config.verify-deps-before-run=false test:server",
+      "exit_code": 0,
+      "seconds": 0.631
+    }
+  ],
+  "ui_counts": {
+    "vitest_files": 62,
+    "vitest_tests": 435,
+    "static_server_tests": 9
+  },
+  "additional_checks": [
+    {
+      "command": "go vet ./...",
+      "result": "passed"
+    },
+    {
+      "command": "gofmt on changed Go files; git diff --check",
+      "result": "passed"
+    },
+    {
+      "command": "make verify-public-api-postgres with CONTRACTOR_TEST_DATABASE_URL unset",
+      "result": "expected nonzero rejection; required database guard works"
+    }
+  ],
+  "initial_setup_failure": {
+    "command": "go test -count=1 ./...",
+    "reason": "TestProjectWorkflowModelSelection could not locate runtime/.venv/bin/python in isolated worktree.",
+    "resolution": "Linked existing locked runtime/.venv; isolated workflow-model test and then full Go suite passed. No code change."
+  },
+  "independent_review": [
+    "execution_review reviewed V59-002 outside its own implementation; no material findings.",
+    "quality_ops_review reviewed merged Audit, request/history and final gate changes outside its own implementation; no material findings.",
+    "Root reviewed all tasks and corrected label newline pattern before V59-004 completion."
+  ],
+  "integration": {
+    "method": "Isolated task worktrees merged into one branch; V58-013 concurrent UI release included, source conflict only in task index resolved by retaining both task groups; full UI checks repeated.",
+    "target": "local main",
+    "preserve": "Uncommitted architecture/toolset planning files are not part of V59 commits.",
+    "completion_record": "tasks/v59-005-verification-and-integration.yml records actual main integration and full implementation hash in a subsequent metadata commit."
+  },
+  "limitations": [
+    "Full Go suite without database environment may skip database-gated tests; separately listed targeted packages and Audit pagination gate ran with real isolated PostgreSQL.",
+    "UI validated on Node 26.7.0, not declared 24.20.x.",
+    "HTTP contract fixtures do not prove all handler/service combinations; the PostgreSQL test explicitly exercises pagination persistence and hydration.",
+    "No live models, browser E2E, deployment or production workload testing; no model-quality or performance improvement claim."
+  ],
+  "log_sha256": {
+    "audit-pagination.log": "ca97693c2f48935962ffc16a7dc765708ce293bbc0d3ca69eaf374f903bc05ac",
+    "go-all-after-setup.log": "439e7e4a530d98546e702f7cf27f5be4fcc7233672254a69e6b712fccdc01460",
+    "go-all.log": "ab0a98b2b4c4e029fa6549ca860d192e58f5197767dd16ae13d3cb4897f042e7",
+    "go-postgres.log": "e113f1825335501647576dd27e76b95bdbd48d59a7c2caee5a10dca989ebb08d",
+    "lint.log": "20383cbe00aab33ec6ad27901e4b742e643f6b2995d68e8fe396bd7cb5eccd56",
+    "post-v58-lint.log": "20383cbe00aab33ec6ad27901e4b742e643f6b2995d68e8fe396bd7cb5eccd56",
+    "post-v58-static-server.log": "95c84a77a8ff80f9a88a6b99421af4a28c49e93d54d6e58e408e9ef1c0af5a37",
+    "post-v58-typecheck.log": "30d71f218531cb471197f431be4ffadbeeb70be7700681039860e3e9ce0cb369",
+    "post-v58-ui-build.log": "66467162105a0516bce909deb038ea0bc23f29b236cdaa266021f4545e55b5ca",
+    "post-v58-ui-tests.log": "4c0f1d5349b5d862c075e382cbf71e64d3fcdd485c33ee6cfc5369b4524912d1",
+    "public-api.log": "c30330a0441b405258efa093653f94a7e086a049acc184fd59930cbc0ec231fa",
+    "static-server.log": "7880db42c4680287506bb02dc0062730ded099fe801e12fede811cdd5aca23e4",
+    "typecheck.log": "30d71f218531cb471197f431be4ffadbeeb70be7700681039860e3e9ce0cb369",
+    "ui-build.log": "7ff102912b44107793b7c51e025fa188f6a321242dd1ac48c10dd3711fb591f6",
+    "ui-tests.log": "423aa0930ea90f176b043c86c9fd7e4a479fdd73856851bb14f8d7181472efa3"
+  }
+}

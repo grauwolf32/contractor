@@ -31,5 +31,23 @@ validator checks OpenAPI structure, examples, formats and patterns, verifies
 that the YAML is self-contained, validates the standalone Draft 2020-12 event
 schema and examples, enforces the public/private and secret-free boundaries,
 and validates every currently implemented handler's success and shared error
-responses. No derived bundle is committed, so there is no second generated
+responses. The gate also checks actual repository configuration projections,
+RuntimeConfig author/read distinctions, generated-client field preservation,
+finding decision variants, multibyte passwords, label selectors and retained
+Run history. These fixtures establish their tested cases, not exhaustive
+equivalence between every schema and domain validator.
+
+`make verify-public-api-postgres` requires an explicit disposable
+`CONTRACTOR_TEST_DATABASE_URL` and checks Audit pagination at its maximum page
+size, including receipt hydration, next cursors and owner/revision fences. It
+runs with the race detector and is included in `make release-verify`; skipping
+the database test is not acceptance of that boundary.
+
+RuntimeConfig publication uses `RuntimeConfigAuthorDocument` with exact Gateway
+selector strings. Read responses use `RuntimeConfigDocument` with resolved refs.
+The Go generator preserves absent/null/value using `nullable.Nullable[T]` for
+supported nullable patches; callers must deliberately choose omission, `SetNull`
+or `Set(value)`. The typed request tests verify emitted HTTP JSON.
+
+No derived bundle is committed, so there is no second generated
 contract that can drift from the YAML source of truth.
