@@ -148,7 +148,7 @@ type ExternalRegistration struct {
 }
 type CreateExperiment struct {
 	Name         string                `json:"name"`
-	ControlMode  string                `json:"controlMode"`
+	ControlMode  ControlMode           `json:"controlMode"`
 	Draft        *Draft                `json:"draft,omitempty"`
 	Registration *ExternalRegistration `json:"registration,omitempty"`
 }
@@ -157,8 +157,8 @@ type DraftUpdate struct {
 	Draft Draft  `json:"draft"`
 }
 type Command struct {
-	Kind       string `json:"kind"`
-	PlanSHA256 string `json:"planSha256,omitempty"`
+	Kind       CommandKind `json:"kind"`
+	PlanSHA256 string      `json:"planSha256,omitempty"`
 }
 type Submission struct {
 	PlanSHA256 string `json:"planSha256"`

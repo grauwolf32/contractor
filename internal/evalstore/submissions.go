@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
 )
@@ -25,66 +26,64 @@ func (s *Store) Submission(ctx context.Context, owner, id, member string) (Submi
 	return v, normalize(err)
 }
 func (s *Store) Admit(ctx context.Context, p Admission) (Receipt, error) {
-	return s.mutate(ctx, p.Scope, p.ExperimentID+":"+p.MemberID, "submission", p.Mutation, func() (Reference, error) {
+	return mutate(ctx, s, p.Scope, p.ExperimentID+":"+p.MemberID, "submission", p.Mutation, func() (AcceptedSubmissionReceipt, error) {
 		e, err := s.locked(ctx, p.Scope, p.ExperimentID)
 		if err != nil {
-			return Reference{}, err
+			return AcceptedSubmissionReceipt{}, err
 		}
 		if e.DeletionRequestedAt != nil {
-			return Reference{}, evaldomain.Failure("eval_project_deleting")
+			return AcceptedSubmissionReceipt{}, evaldomain.Failure("eval_project_deleting")
 		}
 		if p.Claim != nil {
 			if e.ControlMode != "server" {
-				return Reference{}, evaldomain.Failure("eval_external_control")
+				return AcceptedSubmissionReceipt{}, evaldomain.Failure("eval_external_control")
 			}
 			if err = s.checkClaim(ctx, e.ID, *p.Claim); err != nil {
-				return Reference{}, err
+				return AcceptedSubmissionReceipt{}, err
 			}
 		} else if e.ControlMode != "external" {
-			return Reference{}, evaldomain.Failure("eval_external_control")
+			return AcceptedSubmissionReceipt{}, evaldomain.Failure("eval_external_control")
 		}
 		plan, err := s.FrozenPlan(ctx, e.OwnerID, e.ID)
 		if err != nil {
-			return Reference{}, err
+			return AcceptedSubmissionReceipt{}, err
 		}
 		if plan.SHA256 != p.PlanSHA256 {
-			return Reference{}, evaldomain.Failure("eval_pin_mismatch")
+			return AcceptedSubmissionReceipt{}, evaldomain.Failure("eval_pin_mismatch")
 		}
 		var eligible, key string
 		err = s.db.QueryRow(ctx, `SELECT eligibility,submission_key FROM eval_members WHERE experiment_id=$1 AND member_id=$2`, e.ID, p.MemberID).Scan(&eligible, &key)
 		if err != nil {
-			return Reference{}, normalize(err)
+			return AcceptedSubmissionReceipt{}, normalize(err)
 		}
 		var existing string
 		err = s.db.QueryRow(ctx, `SELECT state FROM eval_submissions WHERE experiment_id=$1 AND member_id=$2`, e.ID, p.MemberID).Scan(&existing)
 		if err == nil {
-			return Reference{ID: key, Revision: e.Revision, State: existing}, nil
+			return AcceptedSubmissionReceipt{SubmissionKey: key, ExperimentRevision: e.Revision, State: existing}, nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return Reference{}, err
+			return AcceptedSubmissionReceipt{}, err
 		}
-		if eligible != "eligible" || !(e.State == "running" || e.ControlMode == "external" && e.State == "ready") {
-			return Reference{}, evaldomain.Failure("eval_not_ready")
+		if eligible != "eligible" {
+			return AcceptedSubmissionReceipt{}, evaldomain.Failure("eval_not_ready")
 		}
 		var expired bool
 		err = s.db.QueryRow(ctx, `SELECT COALESCE(deadline_at<=clock_timestamp(),false) FROM eval_experiments WHERE experiment_id=$1`, e.ID).Scan(&expired)
 		if err != nil {
-			return Reference{}, err
+			return AcceptedSubmissionReceipt{}, err
 		}
-		if expired || e.TokenLimit != nil && e.ObservedTokens >= *e.TokenLimit {
-			return Reference{}, evaldomain.Failure("eval_budget_exhausted")
-		}
-		if e.Outstanding >= e.MaxInFlight {
-			return Reference{}, evaldomain.Failure("eval_not_ready")
+		exhausted := expired || e.TokenLimit != nil && e.ObservedTokens >= *e.TokenLimit
+		if err := e.Lifecycle().ValidateAdmission(exhausted, e.MaxInFlight); err != nil {
+			return AcceptedSubmissionReceipt{}, err
 		}
 		_, err = s.db.Exec(ctx, `INSERT INTO eval_submissions(experiment_id,member_id,state,actor_id,execution_kind) SELECT $1,$2,'intent',$3,execution_kind FROM eval_members WHERE experiment_id=$1 AND member_id=$2`, e.ID, p.MemberID, p.Scope.OwnerID)
 		if err != nil {
-			return Reference{}, normalize(err)
+			return AcceptedSubmissionReceipt{}, normalize(err)
 		}
 		_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state='running',outstanding_count=outstanding_count+1,
     started_at=COALESCE(started_at,statement_timestamp()),deadline_at=COALESCE(deadline_at,statement_timestamp()+wall_ms*interval '1 millisecond'),
     last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp() ELSE last_producer_activity_at END,`+advance+` WHERE experiment_id=$1`, e.ID)
-		return Reference{ID: key, Revision: e.Revision + 1, State: "intent"}, err
+		return AcceptedSubmissionReceipt{SubmissionKey: key, ExperimentRevision: e.Revision + 1, State: "intent"}, err
 	})
 }
 

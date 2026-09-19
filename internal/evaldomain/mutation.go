@@ -70,10 +70,8 @@ func CheckMutation(incoming MutationIdentity, stored *MutationIdentity, currentR
 	return false, nil
 }
 
-func CheckControlMode(mode, command string) error {
-	server := map[string]bool{"prepare": true, "start": true, "pause": true, "resume": true, "cancel": true, "duplicate": true}
-	external := map[string]bool{"cancel": true, "finalize": true}
-	if mode == "server" && server[command] || mode == "external" && external[command] {
+func CheckControlMode(mode ControlMode, command CommandKind) error {
+	if mode.Allows(command) {
 		return nil
 	}
 	return Failure("eval_external_control")

@@ -80,5 +80,15 @@ func validateChart(v map[string]any) error {
 			return Failure("eval_invalid")
 		}
 	}
-	return validateNested(v)
+	if quality, exists := v["quality"]; exists {
+		for _, arm := range asObject(quality) {
+			if err := validateQuality(asObject(arm)); err != nil {
+				return err
+			}
+		}
+	}
+	if page, exists := v["page"]; exists {
+		return typedCheck(page, validatePage)
+	}
+	return nil
 }

@@ -115,7 +115,7 @@ func validateSemantics(kind string, v map[string]any) error {
 	case "playground.plan/v1":
 		return validatePortablePlan(v)
 	}
-	return validateNested(v)
+	return validateChildren(kind, v)
 }
 
 func validateCase(c Case) error {

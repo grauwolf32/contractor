@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
@@ -53,15 +55,8 @@ func scope(e evalstore.Experiment) evalstore.Scope {
 }
 func diagnostic(code string) json.RawMessage {
 	d := evaldomain.Failure(code)
-	b, _ := json.Marshal(map[string]any{"code": d.Code, "field": "", "recovery": d.Recovery})
+	b, _ := json.Marshal(safeDiagnostic{Code: d.Code, Recovery: d.Recovery})
 	return b
-}
-func failureCode(err error) string {
-	var d *evaldomain.Error
-	if errors.As(err, &d) {
-		return d.Code
-	}
-	return "eval_not_ready"
 }
 
 func (s *Service) prepare(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) error {
@@ -138,17 +133,7 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 	}
 	if e.State == "preparing" {
 		if err = s.prepare(ctx, e, claim); err != nil {
-			if ctx.Err() != nil || errors.Is(err, evalstore.ErrClaimLost) {
-				return false, err
-			}
-			code := failureCode(err)
-			transitionErr := s.tx(ctx, func(st *evalstore.Store) error {
-				return st.Transition(ctx, scope(e), e.ID, claim, "preparing", "draft", e.ObservedTokens, diagnostic(code))
-			})
-			if transitionErr != nil {
-				return false, transitionErr
-			}
-			return true, s.finishCommands(ctx, e, claim, false, diagnostic(code), "prepare")
+			return s.preparationFailed(ctx, e, claim, err)
 		}
 		return true, s.finishCommands(ctx, e, claim, true, nil, "prepare")
 	}
@@ -179,15 +164,13 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 	}
 	expired := e.DeadlineAt != nil && !s.now().Before(*e.DeadlineAt)
 	exhausted := e.TokenLimit != nil && e.ObservedTokens >= *e.TokenLimit
-	if (expired || exhausted) && (e.State == "running" || e.State == "paused" || e.State == "pausing") {
-		target := "cancelling"
-		if e.Outstanding == 0 {
-			target = "settling"
-		}
-		return true, s.tx(ctx, func(st *evalstore.Store) error {
+	if target, stop := e.Lifecycle().BudgetStop(expired || exhausted); stop {
+		transitionErr := s.tx(ctx, func(st *evalstore.Store) error {
 			return st.Transition(ctx, scope(e), e.ID, claim, e.State, target, e.ObservedTokens, diagnostic("eval_budget_exhausted"))
 		})
+		return true, errors.Join(append(reconcileErrors, transitionErr)...)
 	}
+
 	if len(reconcileErrors) > 0 {
 		return true, errors.Join(reconcileErrors...)
 	}
@@ -259,6 +242,28 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 	return len(outstanding) > 0, nil
 }
 
+// Unknown failures retain the pending command for retry. Only a classified
+// configuration failure returns the experiment to its editable draft. The
+// original cause always reaches the coordinator, even when persistence succeeds.
+func (s *Service) preparationFailed(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim, cause error) (bool, error) {
+	if ctx.Err() != nil || errors.Is(cause, evalstore.ErrClaimLost) {
+		return false, cause
+	}
+	target, code := evaldomain.StatePreparing, "eval_preparation_unavailable"
+	var domain *evaldomain.Error
+	if errors.As(cause, &domain) && domain.Status < 500 {
+		target, code = evaldomain.StateDraft, domain.Code
+	}
+	detail := diagnostic(code)
+	persistErr := s.tx(ctx, func(st *evalstore.Store) error {
+		return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StatePreparing, target, e.ObservedTokens, detail)
+	})
+	if persistErr == nil && target == evaldomain.StateDraft {
+		persistErr = s.finishCommands(ctx, e, claim, false, detail, "prepare")
+	}
+	return persistErr == nil, errors.Join(fmt.Errorf("prepare evaluation %s: %w", e.ID, cause), persistErr)
+}
+
 // A crash can occur after committing a transition but before acknowledging its
 // command. Ready and terminal experiments with pending commands remain claimable.
 func (s *Service) recoverCommands(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim) error {
@@ -267,31 +272,18 @@ func (s *Service) recoverCommands(ctx context.Context, e evalstore.Experiment, c
 		return err
 	}
 	for _, cmd := range rows {
-		done, success := false, false
-		switch cmd.Kind {
-		case "start", "resume":
-			done, success = true, true
-		case "prepare":
-			if e.State != "preparing" {
-				_, planErr := evalstore.NewPostgresStore(s.pool).FrozenPlan(ctx, e.OwnerID, e.ID)
-				if planErr != nil && !notFound(planErr) {
-					return planErr
-				}
-				done, success = true, planErr == nil
-			}
-		case "pause":
-			done, success = e.State != "pausing", e.State == "paused"
-		case "cancel":
-			done, success = e.State != "cancelling", e.State == "cancelled"
-		case "finalize":
-			done, success = e.State != "settling", e.State == "finished"
-		}
-		if !done {
+		completion := e.Lifecycle().Completion(cmd.Kind)
+		if completion == evaldomain.CommandPending {
 			continue
 		}
+		success := completion == evaldomain.CommandSucceeded
+
 		var detail json.RawMessage
 		if !success {
-			detail = diagnostic("eval_not_ready")
+			detail = e.Diagnostic
+			if len(detail) == 0 {
+				detail = diagnostic("eval_not_ready")
+			}
 		}
 		if err = s.tx(ctx, func(st *evalstore.Store) error {
 			return st.CompleteCommand(ctx, scope(e), e.ID, cmd.ID, claim, success, detail)
@@ -301,13 +293,13 @@ func (s *Service) recoverCommands(ctx context.Context, e evalstore.Experiment, c
 	}
 	return nil
 }
-func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim, success bool, detail json.RawMessage, kinds ...string) error {
+func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim, success bool, detail json.RawMessage, kinds ...evaldomain.CommandKind) error {
 	rows, err := evalstore.NewPostgresStore(s.pool).PendingCommands(ctx, e.OwnerID, e.ID)
 	if err != nil {
 		return err
 	}
 	for _, c := range rows {
-		if contains(kinds, c.Kind) {
+		if slices.Contains(kinds, c.Kind) {
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
 				return st.CompleteCommand(ctx, scope(e), e.ID, c.ID, claim, success, detail)
 			}); err != nil {

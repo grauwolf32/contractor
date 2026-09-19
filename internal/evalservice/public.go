@@ -3,37 +3,38 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"time"
 )
 
 type ExperimentView struct {
-	ID                     string            `json:"experimentId"`
-	PortableID             string            `json:"portableExperimentId"`
-	ProjectID              string            `json:"projectId"`
-	Name                   string            `json:"name"`
-	ControlMode            string            `json:"controlMode"`
-	ExecutionKind          string            `json:"executionKind"`
-	State                  string            `json:"state"`
-	Revision               int64             `json:"revision"`
-	PlanSHA256             *string           `json:"planSha256"`
-	ViewSnapshot           *string           `json:"viewSnapshot"`
-	Summary                json.RawMessage   `json:"summary"`
-	UpdatedAt              time.Time         `json:"updatedAt"`
-	LastProducerActivityAt *time.Time        `json:"lastProducerActivityAt"`
-	Draft                  json.RawMessage   `json:"draft,omitempty"`
-	Setup                  json.RawMessage   `json:"setup,omitempty"`
-	Expected               int               `json:"expectedMembers"`
-	AllowedCommands        []string          `json:"allowedCommands"`
-	Diagnostics            []json.RawMessage `json:"diagnostics"`
-	StartedAt              *time.Time        `json:"startedAt"`
-	DeadlineAt             *time.Time        `json:"deadlineAt"`
-	ObservedTokens         int64             `json:"observedTokens"`
-	DeletionRequestedAt    *time.Time        `json:"deletionRequestedAt"`
+	ID                     string                   `json:"experimentId"`
+	PortableID             string                   `json:"portableExperimentId"`
+	ProjectID              string                   `json:"projectId"`
+	Name                   string                   `json:"name"`
+	ControlMode            evaldomain.ControlMode   `json:"controlMode"`
+	ExecutionKind          string                   `json:"executionKind"`
+	State                  evaldomain.State         `json:"state"`
+	Revision               int64                    `json:"revision"`
+	PlanSHA256             *string                  `json:"planSha256"`
+	ViewSnapshot           *string                  `json:"viewSnapshot"`
+	Summary                json.RawMessage          `json:"summary"`
+	UpdatedAt              time.Time                `json:"updatedAt"`
+	LastProducerActivityAt *time.Time               `json:"lastProducerActivityAt"`
+	Draft                  json.RawMessage          `json:"draft,omitempty"`
+	Setup                  json.RawMessage          `json:"setup,omitempty"`
+	Expected               int                      `json:"expectedMembers"`
+	AllowedCommands        []evaldomain.CommandKind `json:"allowedCommands"`
+	Diagnostics            []json.RawMessage        `json:"diagnostics"`
+	StartedAt              *time.Time               `json:"startedAt"`
+	DeadlineAt             *time.Time               `json:"deadlineAt"`
+	ObservedTokens         int64                    `json:"observedTokens"`
+	DeletionRequestedAt    *time.Time               `json:"deletionRequestedAt"`
 }
 
 func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, error) {
@@ -44,7 +45,24 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 		if err != nil {
 			return err
 		}
-		out = ExperimentView{ID: e.ID, PortableID: e.PortableID, ProjectID: e.ProjectID, Name: e.Name, ControlMode: e.ControlMode, State: e.State, Revision: e.Revision, UpdatedAt: e.UpdatedAt, LastProducerActivityAt: e.LastProducerActivityAt, Expected: e.Expected, AllowedCommands: []string{}, Diagnostics: []json.RawMessage{}, StartedAt: e.StartedAt, DeadlineAt: e.DeadlineAt, ObservedTokens: e.ObservedTokens, DeletionRequestedAt: e.DeletionRequestedAt}
+		out = ExperimentView{
+			ID:                     e.ID,
+			PortableID:             e.PortableID,
+			ProjectID:              e.ProjectID,
+			Name:                   e.Name,
+			ControlMode:            e.ControlMode,
+			State:                  e.State,
+			Revision:               e.Revision,
+			UpdatedAt:              e.UpdatedAt,
+			LastProducerActivityAt: e.LastProducerActivityAt,
+			Expected:               e.Expected,
+			AllowedCommands:        []evaldomain.CommandKind{},
+			Diagnostics:            []json.RawMessage{},
+			StartedAt:              e.StartedAt,
+			DeadlineAt:             e.DeadlineAt,
+			ObservedTokens:         e.ObservedTokens,
+			DeletionRequestedAt:    e.DeletionRequestedAt,
+		}
 		if len(e.Diagnostic) > 0 {
 			out.Diagnostics = append(out.Diagnostics, e.Diagnostic)
 		}
@@ -69,7 +87,7 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 				}
 				out.ExecutionKind = draft.Variants[0].Kind
 				out.Expected = len(draft.CaseIDs) * draft.Repetitions * 2
-				out.Setup, err = jsonBytes(map[string]any{"dataset": draft.Dataset, "caseIds": draft.CaseIDs, "repetitions": draft.Repetitions, "variants": draft.Variants, "checks": draft.Checks, "comparison": draft.Comparison, "budgets": draft.Budgets})
+				out.Setup, err = jsonBytes(draft.Setup())
 				if err != nil {
 					return err
 				}
@@ -88,26 +106,7 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 				out.ExecutionKind = setup.Variants[0].Kind
 			}
 		}
-		if e.DeletionRequestedAt == nil {
-			if e.ControlMode == "server" {
-				out.AllowedCommands = append(out.AllowedCommands, "duplicate")
-				switch e.State {
-				case "draft":
-					out.AllowedCommands = append(out.AllowedCommands, "prepare")
-				case "ready":
-					out.AllowedCommands = append(out.AllowedCommands, "start")
-				case "running":
-					out.AllowedCommands = append(out.AllowedCommands, "pause")
-				case "paused", "interrupted":
-					out.AllowedCommands = append(out.AllowedCommands, "resume")
-				}
-			} else if e.State == "ready" || e.State == "running" {
-				out.AllowedCommands = append(out.AllowedCommands, "finalize")
-			}
-			if out.PlanSHA256 != nil && e.State != "finished" && e.State != "cancelled" && e.State != "cancelling" {
-				out.AllowedCommands = append(out.AllowedCommands, "cancel")
-			}
-		}
+		out.AllowedCommands = e.Lifecycle().AllowedCommands()
 		raw, err := jsonBytes(out)
 		if err != nil {
 			return err

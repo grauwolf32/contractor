@@ -2,20 +2,21 @@ package evalstore
 
 import (
 	"context"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func (s *Store) BeginDeletion(ctx context.Context, scope Scope, id string, mutation evaldomain.MutationIdentity) (Receipt, error) {
-	return s.mutate(ctx, scope, id, "delete", mutation, func() (Reference, error) {
+	return mutate(ctx, s, scope, id, "delete", mutation, func() (ExperimentReceipt, error) {
 		e, err := s.locked(ctx, scope, id)
 		if err != nil {
-			return Reference{}, err
+			return ExperimentReceipt{}, err
 		}
 		if err = checkMutable(e, mutation); err != nil {
-			return Reference{}, err
+			return ExperimentReceipt{}, err
 		}
 		_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET deletion_requested_at=clock_timestamp(),state='cancelling',`+advance+` WHERE experiment_id=$1`, id)
-		return Reference{ID: id, Revision: e.Revision + 1, State: "cancelling"}, err
+		return ExperimentReceipt{ExperimentID: id, Revision: e.Revision + 1, State: "cancelling"}, err
 	})
 }
 

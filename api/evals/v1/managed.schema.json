@@ -3254,6 +3254,7 @@
             "eval_limit_exceeded",
             "eval_not_found",
             "eval_not_ready",
+            "eval_preparation_unavailable",
             "eval_pin_mismatch",
             "eval_external_control",
             "eval_view_changed",

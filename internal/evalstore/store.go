@@ -43,13 +43,10 @@ type Receipt struct {
 	Response json.RawMessage
 	Replayed bool
 }
-type Reference struct {
-	ID       string `json:"id"`
-	Revision int64  `json:"revision"`
-	State    string `json:"state,omitempty"`
-}
 type Experiment struct {
-	ID, OwnerID, ProjectID, PortableID, ControlMode, Name, State       string
+	ID, OwnerID, ProjectID, PortableID, Name                           string
+	State                                                              evaldomain.State
+	ControlMode                                                        evaldomain.ControlMode
 	Revision                                                           int64
 	DatasetID, DatasetRevision                                         *string
 	Draft                                                              evaldomain.Frozen `json:"-"`
@@ -61,6 +58,14 @@ type Experiment struct {
 	Diagnostic                                                         json.RawMessage
 	ViewGeneration                                                     int64
 	CreatedAt, UpdatedAt                                               time.Time
+}
+
+func (e Experiment) Lifecycle() evaldomain.Lifecycle {
+	return evaldomain.Lifecycle{
+		State: e.State, ControlMode: e.ControlMode, Outstanding: e.Outstanding,
+		HasPlan: e.Expected > 0, HasDraft: e.Draft.Kind() == "Draft",
+		DeletionRequested: e.DeletionRequestedAt != nil,
+	}
 }
 
 const experimentColumns = `experiment_id,owner_id,project_id,portable_id,control_mode,name,state,revision,draft,dataset_id,dataset_revision,expected_count,outstanding_count,max_in_flight,wall_ms,token_limit,observed_tokens,started_at,deadline_at,last_producer_activity_at,deletion_requested_at,diagnostic,view_generation,created_at,updated_at`
@@ -119,7 +124,7 @@ func (s *Store) project(ctx context.Context, scope Scope, lock bool) (bool, erro
 // revision and deletion rejection, but ownership is always verified first.
 var sha256Pattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
-func (s *Store) mutate(ctx context.Context, scope Scope, resource, operation string, id evaldomain.MutationIdentity, fn func() (Reference, error)) (Receipt, error) {
+func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation string, id evaldomain.MutationIdentity, fn func() (json.RawMessage, error)) (Receipt, error) {
 	if err := s.requireTx(); err != nil {
 		return Receipt{}, err
 	}
@@ -149,11 +154,7 @@ func (s *Store) mutate(ctx context.Context, scope Scope, resource, operation str
 	if !active {
 		return Receipt{}, evaldomain.Failure("eval_project_deleting")
 	}
-	ref, err := fn()
-	if err != nil {
-		return Receipt{}, err
-	}
-	response, err = json.Marshal(ref)
+	response, err = fn()
 	if err != nil {
 		return Receipt{}, err
 	}

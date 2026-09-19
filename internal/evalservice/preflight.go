@@ -62,14 +62,15 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 			if err != nil {
 				return err
 			}
+			catalogLookup := &preflightCredentialLookup{CredentialLookup: lookup}
 			artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 			workflows := map[string]config.ResolvedWorkflow{}
 			slots := map[string]config.ArtifactSlot{}
 			modelFree := true
 			if v.Kind == "workflow" {
-				workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, v.ExecutionConfig, lookup)
+				workflow, err := r.Catalog.ResolveRunWorkflow(ctx, v.Selector, v.ExecutionConfig, catalogLookup)
 				if err != nil {
-					return evaldomain.Failure("eval_not_ready")
+					return catalogLookup.catalogError(err)
 				}
 				snapshot.Workflow = &workflow
 				workflows["workflow"] = workflow
@@ -84,7 +85,10 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 					return evaldomain.Failure("eval_not_ready")
 				}
 				profile, err := r.Catalog.AuditProfile(v.Selector)
-				if err != nil || !auditservice.ProfileCompatibility(profile).ServerCompatible {
+				if err != nil {
+					return errors.Join(evaldomain.Failure("eval_not_ready"), err)
+				}
+				if !auditservice.ProfileCompatibility(profile).ServerCompatible {
 					return evaldomain.Failure("eval_not_ready")
 				}
 				snapshot.Audit = &profile
@@ -102,7 +106,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 				for _, standard := range profile.Standards {
 					resolved, err := catalog.Resolve(ctx, owner, auditstandards.Reference{Scheme: standard.Scheme, Version: standard.Version})
 					if err != nil {
-						return evaldomain.Failure("eval_not_ready")
+						return preflightDependencyError(err)
 					}
 					snapshot.Standards = append(snapshot.Standards, resolved.Source)
 					resolvedStandards = append(resolvedStandards, resolved)
@@ -111,12 +115,12 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 			skillRefs := map[string]contracts.ArtifactRef{}
 			var skillSets [][]string
 			for _, workflow := range workflows {
-				if err = config.ValidateResolvedWorkflowCredentials(ctx, workflow, lookup); err != nil {
-					return evaldomain.Failure("eval_not_ready")
+				if err = config.ValidateResolvedWorkflowCredentials(ctx, workflow, catalogLookup); err != nil {
+					return catalogLookup.catalogError(err)
 				}
 				refs, err := config.WorkflowSkillRefs(workflow)
 				if err != nil {
-					return evaldomain.Failure("eval_not_ready")
+					return errors.Join(evaldomain.Failure("eval_not_ready"), err)
 				}
 				for _, ref := range refs {
 					skillRefs[ref.Name] = ref
@@ -133,7 +137,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 			}
 			runtime, err := runtimeconfig.PinRunSnapshot(ctx, tx, v.RuntimeLabels, credentials.NewRuntimeCredentialRepository(tx), lookup, modelFree)
 			if err != nil {
-				return evaldomain.Failure("eval_not_ready")
+				return preflightDependencyError(err)
 			}
 			snapshot.Runtime = runtime
 			refs := make([]contracts.ArtifactRef, 0, len(skillRefs))
@@ -148,10 +152,10 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 				}
 				snapshot.Skills, err = catalog.SelectRunSources(ctx, owner, refs)
 				if err != nil {
-					return evaldomain.Failure("eval_not_ready")
+					return preflightDependencyError(err)
 				}
 				if err = agentskills.ValidateSelectedLimits(snapshot.Skills, skillSets); err != nil {
-					return evaldomain.Failure("eval_not_ready")
+					return errors.Join(evaldomain.Failure("eval_not_ready"), err)
 				}
 				for _, skill := range snapshot.Skills {
 					if skill.Source == nil {
@@ -187,7 +191,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 						}
 						read, err := store.Read(ctx, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision})
 						if err != nil {
-							return evaldomain.Failure("eval_evidence_unavailable")
+							return preflightDependencyError(err)
 						}
 						if evaldomain.Digest(read.Payload.Data) != ref.SHA256 {
 							return evaldomain.Failure("eval_pin_mismatch")
@@ -210,7 +214,7 @@ func (r *Resolver) Resolve(ctx context.Context, owner string, v evaldomain.Varia
 				if err != nil {
 					return err
 				}
-				out.Pins[dimension] = Pin{digest, "observed"}
+				out.Pins[dimension] = observedPin(digest)
 			}
 			// A selected model policy does not prove a provider's deployed revision.
 			out.Pins["model-revision"] = Pin{nil, "unavailable"}
@@ -233,7 +237,7 @@ func verifyArtifact(ctx context.Context, db pg.DBTX, service *artifacts.Service,
 		store, err = service.User(owner)
 	case "project":
 		if _, err = projectstore.NewPostgresStore(db).Get(ctx, owner, ref.ScopeID); err != nil {
-			return evaldomain.Failure("eval_not_found")
+			return preflightDependencyError(err)
 		}
 		store, err = service.Project(ref.ScopeID)
 	default:
@@ -244,7 +248,7 @@ func verifyArtifact(ctx context.Context, db pg.DBTX, service *artifacts.Service,
 	}
 	metadata, err := store.Metadata(ctx, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision})
 	if err != nil {
-		return evaldomain.Failure("eval_evidence_unavailable")
+		return preflightDependencyError(err)
 	}
 	if metadata.Digest != ref.SHA256 || metadata.MediaType != ref.MediaType || metadata.Size != ref.SizeBytes {
 		return evaldomain.Failure("eval_pin_mismatch")

@@ -212,7 +212,7 @@ func (h *evalAPIHarness) get(t *testing.T, id string) evalservice.ExperimentView
 func (h *evalAPIHarness) command(t *testing.T, id, kind string) *httptest.ResponseRecorder {
 	t.Helper()
 	e := h.get(t, id)
-	command := evaldomain.Command{Kind: kind}
+	command := evaldomain.Command{Kind: evaldomain.CommandKind(kind)}
 	if e.PlanSHA256 != nil {
 		command.PlanSHA256 = *e.PlanSHA256
 	}

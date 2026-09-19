@@ -30,6 +30,8 @@ func Failure(code string) *Error {
 		e.Message, e.Recovery = "The operation key is already bound to another request.", "retry_same_request"
 	case "eval_not_ready":
 		e.Message, e.Recovery = "The experiment is not ready.", "edit_draft"
+	case "eval_preparation_unavailable":
+		e.Status, e.Message, e.Recovery = 503, "Experiment preparation is temporarily unavailable.", "wait"
 	case "eval_pin_mismatch":
 		e.Message, e.Recovery = "Required evaluation pins do not match.", "duplicate"
 	case "eval_external_control":

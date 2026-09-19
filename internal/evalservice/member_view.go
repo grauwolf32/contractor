@@ -3,40 +3,16 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
-	"time"
 )
 
-type MemberIdentity struct {
-	ID            string  `json:"memberId"`
-	SuiteID       string  `json:"suiteId"`
-	CaseID        string  `json:"caseId"`
-	Sample        int     `json:"sample"`
-	VariantID     string  `json:"variantId"`
-	CaseSHA256    string  `json:"caseSha256"`
-	BindingSHA256 string  `json:"bindingSha256"`
-	Eligibility   string  `json:"eligibility"`
-	Reason        *string `json:"reason"`
-}
-type ExecutionView struct {
-	Ref        *evaldomain.ExecutionRef `json:"ref"`
-	State      string                   `json:"state"`
-	StartedAt  *time.Time               `json:"startedAt"`
-	FinishedAt *time.Time               `json:"finishedAt"`
-	Reason     *string                  `json:"reason"`
-}
-type MemberView struct {
-	Member           MemberIdentity    `json:"member"`
-	Execution        *ExecutionView    `json:"execution"`
-	ResultSHA256     *string           `json:"resultSha256"`
-	AssessmentSHA256 *string           `json:"assessmentSha256"`
-	Conflicting      bool              `json:"conflicting"`
-	Assessment       string            `json:"assessment"`
-	Usage            *evaldomain.Usage `json:"usage"`
-}
+type MemberIdentity = evaldomain.MemberIdentity
+type ExecutionView = evaldomain.ExecutionView
+type MemberView = evaldomain.MemberView
 type MemberPageParams struct {
 	OwnerID, ExperimentID, Snapshot, Filter, VariantID string
 	AfterOrdinal, Limit                                int
@@ -98,46 +74,54 @@ func isTerminal(state string) bool {
 }
 func executionMember(r evalstore.ExecutionObservation) MemberView {
 	ex := executionView(r)
-	return MemberView{Member: MemberIdentity{r.MemberID, r.SuiteID, r.CaseID, r.Sample, r.VariantID, r.CaseSHA256, r.BindingSHA256, r.Eligibility, r.Reason}, Execution: &ex, Assessment: "unscored"}
+	return MemberView{
+		Member: MemberIdentity{
+			ID: r.MemberID, SuiteID: r.SuiteID, CaseID: r.CaseID, Sample: r.Sample, VariantID: r.VariantID,
+			CaseSHA256: r.CaseSHA256, BindingSHA256: r.BindingSHA256, Eligibility: r.Eligibility, Reason: r.Reason,
+		},
+		Execution:  &ex,
+		Assessment: "unscored",
+	}
 }
-func ratio(n, d int) map[string]any {
+func ratio(n, d int) evaldomain.Ratio {
 	var value *float64
 	if d > 0 {
 		v := float64(n) / float64(d)
 		value = &v
 	}
-	return map[string]any{"numerator": n, "denominator": d, "value": value}
+	return evaldomain.Ratio{Numerator: n, Denominator: d, Value: value}
 }
 
 // Execution summaries report only observed execution facts. Result/assessment
 // records and their selected view are incorporated by the collection reducer.
 func executionSummary(rows []evalstore.ExecutionObservation) (json.RawMessage, error) {
-	counts := map[string]map[string]int{}
+	counts := map[string]evaldomain.Counts{}
 	pairs := map[string]int{}
 	for _, r := range rows {
 		c := counts[r.VariantID]
-		if c == nil {
-			c = map[string]int{}
-			for _, name := range []string{"expected", "eligible", "unsupported", "blocked", "submitted", "terminal", "missing", "conflicting", "collectionComplete", "scored", "qualityPassed", "executionSucceeded", "endToEndPassed"} {
-				c[name] = 0
-			}
-			counts[r.VariantID] = c
+		c.Expected++
+		switch r.Eligibility {
+		case "eligible":
+			c.Eligible++
+		case "unsupported":
+			c.Unsupported++
+		case "blocked":
+			c.Blocked++
 		}
-		c["expected"]++
-		c[r.Eligibility]++
 		if r.ExecutionID != nil {
-			c["submitted"]++
+			c.Submitted++
 		} else {
-			c["missing"]++
+			c.Missing++
 		}
 		ex := executionView(r)
 		if r.ExecutionID != nil && (isTerminal(ex.State) || r.SubmissionState != nil && *r.SubmissionState == "terminal") {
-			c["terminal"]++
+			c.Terminal++
 			pairs[r.PairID]++
 		}
 		if ex.State == "succeeded" {
-			c["executionSucceeded"]++
+			c.ExecutionSucceeded++
 		}
+		counts[r.VariantID] = c
 	}
 	terminalPairs := 0
 	for _, n := range pairs {
@@ -145,11 +129,11 @@ func executionSummary(rows []evalstore.ExecutionObservation) (json.RawMessage, e
 			terminalPairs++
 		}
 	}
-	quality := map[string]any{}
+	quality := map[string]evaldomain.Quality{}
 	for arm, c := range counts {
-		quality[arm] = map[string]any{"executionSuccess": ratio(c["executionSucceeded"], c["expected"]), "endToEndPass": ratio(0, c["expected"]), "conditionalQuality": ratio(0, 0)}
+		quality[arm] = evaldomain.Quality{ExecutionSuccess: ratio(c.ExecutionSucceeded, c.Expected), EndToEndPass: ratio(0, c.Expected), ConditionalQuality: ratio(0, 0)}
 	}
-	out, err := jsonBytes(map[string]any{"counts": counts, "quality": quality, "terminalPairs": terminalPairs, "completeQualityPairs": 0, "completeTokenPairs": 0, "conclusion": "inconclusive"})
+	out, err := jsonBytes(evaldomain.Summary{Counts: counts, Quality: quality, TerminalPairs: terminalPairs, Conclusion: "inconclusive"})
 	if err != nil {
 		return nil, err
 	}

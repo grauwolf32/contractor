@@ -2453,7 +2453,7 @@ export interface components {
         });
         EvalAPIError: {
             /** @enum {string} */
-            code: "eval_invalid" | "eval_limit_exceeded" | "eval_not_found" | "eval_not_ready" | "eval_pin_mismatch" | "eval_external_control" | "eval_view_changed" | "eval_member_conflict" | "eval_evidence_unavailable" | "eval_producer_stale" | "eval_budget_exhausted" | "eval_project_deleting" | "eval_precondition_required" | "eval_revision_mismatch" | "eval_idempotency_conflict";
+            code: "eval_invalid" | "eval_limit_exceeded" | "eval_not_found" | "eval_not_ready" | "eval_preparation_unavailable" | "eval_pin_mismatch" | "eval_external_control" | "eval_view_changed" | "eval_member_conflict" | "eval_evidence_unavailable" | "eval_producer_stale" | "eval_budget_exhausted" | "eval_project_deleting" | "eval_precondition_required" | "eval_revision_mismatch" | "eval_idempotency_conflict";
             message: string;
             /** @enum {string} */
             recovery: "edit_draft" | "reload" | "retry_same_request" | "inspect_execution" | "wait" | "duplicate" | "none";

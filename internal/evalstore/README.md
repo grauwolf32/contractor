@@ -1,6 +1,10 @@
 # Managed Eval persistence
 
-V38-003 supplies PostgreSQL authority, not runtime dispatch or HTTP routes.
+This package owns PostgreSQL authority and bounded execution metric reads.
+`evaldomain.Lifecycle` defines typed command targets, observed transitions,
+admission, budget enforcement and command recovery; store methods apply those
+rules under locks. `evalservice` owns orchestration, with separate Workflow/Audit
+adapters and a shared durable operation mechanism.
 Every multi-statement mutation uses `NewTxStore(pgx.Tx)` in a caller-owned
 transaction. Returning an error requires the caller to roll back. Reads and
 single-statement claim operations use `NewPostgresStore(DBTX)`.
@@ -36,7 +40,10 @@ ordinary Project drain waits for unresolved intents and exact Audit workspaces.
 Deleting a child workspace cancels dispatch while retaining its parent experiment.
 Purge removes only Eval private state after drain; it does not delete Runs/Audits.
 Mutation receipts survive an experiment purge until its Project is purged, so a
-retry cannot resurrect the experiment. Referenced dataset revisions are protected
+retry cannot resurrect the experiment. New receipts have distinct dataset,
+experiment, command and submission types. Legacy immutable receipt bytes are
+converted only when read; no dataset revision is stored in a new state field.
+Referenced dataset revisions are protected
 by foreign keys. Tables for immutable evidence, selection, view generations and
 progress are reserved for the V38-006 reducer.
 

@@ -67,8 +67,8 @@ func (h *handler) evalBody(w http.ResponseWriter, r *http.Request, kind string, 
 	return doc, mutation, true
 }
 func (h *handler) evalReceipt(w http.ResponseWriter, status int, r evalstore.Receipt) {
-	var ref evalstore.Reference
-	if err := json.Unmarshal(r.Response, &ref); err != nil {
+	ref, err := r.Experiment()
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
@@ -76,7 +76,7 @@ func (h *handler) evalReceipt(w http.ResponseWriter, status int, r evalstore.Rec
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(ref.Revision, 10)))
-	h.evalJSON(w, status, "ExperimentReceipt", map[string]any{"experimentId": ref.ID, "revision": ref.Revision, "state": ref.State})
+	h.evalJSON(w, status, "ExperimentReceipt", map[string]any{"experimentId": ref.ExperimentID, "revision": ref.Revision, "state": ref.State})
 	if h.dependencies.EvalNotifier != nil {
 		h.dependencies.EvalNotifier.Wake()
 	}

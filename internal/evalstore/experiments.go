@@ -3,8 +3,9 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"reflect"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 type CreateParams struct {
@@ -26,38 +27,38 @@ func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
 	if err := evaldomain.Validate("Id", bytesOf(p.PortableID)); err != nil {
 		return Receipt{}, err
 	}
-	return s.mutate(ctx, p.Scope, "experiments", "experiment-create", p.Mutation, func() (Reference, error) {
+	return mutate(ctx, s, p.Scope, "experiments", "experiment-create", p.Mutation, func() (ExperimentReceipt, error) {
 		var draft []byte
 		var datasetID, datasetRevision *string
 		var budgets evaldomain.Budgets
-		state := "draft"
+		state := evaldomain.StateDraft
 		if input.Draft != nil {
 			draft = bytesOf(input.Draft)
 			datasetID = &input.Draft.Dataset.ID
 			datasetRevision = &input.Draft.Dataset.Revision
 			budgets = input.Draft.Budgets
 			if _, err := s.Dataset(ctx, p.Scope, *datasetID, *datasetRevision); err != nil {
-				return Reference{}, err
+				return ExperimentReceipt{}, err
 			}
 		} else {
 			budgets = input.Registration.Budgets
 			state = "ready"
 			if p.PortableID != input.Registration.Manifest.ExperimentID {
-				return Reference{}, evaldomain.Failure("eval_member_conflict")
+				return ExperimentReceipt{}, evaldomain.Failure("eval_member_conflict")
 			}
 		}
 		_, err := s.db.Exec(ctx, `INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, p.ID, p.Scope.OwnerID, p.Scope.ProjectID, p.PortableID, input.ControlMode, input.Name, state, draft, datasetID, datasetRevision, budgets.MaxInFlight, budgets.WallMS, budgets.MaxObservedTotalTokens)
 		if err != nil {
-			return Reference{}, normalize(err)
+			return ExperimentReceipt{}, normalize(err)
 		}
 		if _, err = s.db.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) VALUES($1)`, p.ID); err != nil {
-			return Reference{}, err
+			return ExperimentReceipt{}, err
 		}
 		revision := int64(1)
 		if input.Registration != nil {
 			reg, err := evaldomain.Freeze("ExternalRegistration", bytesOf(input.Registration))
 			if err != nil {
-				return Reference{}, err
+				return ExperimentReceipt{}, err
 			}
 			setup := bytesOf(map[string]any{"variants": input.Registration.Variants, "checks": input.Registration.Checks, "comparison": input.Registration.Comparison, "budgets": budgets, "source": input.Registration.Source})
 			recipes := make(map[string]evaldomain.Case, len(input.Registration.Recipes))
@@ -66,17 +67,17 @@ func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
 			}
 			e, err := s.locked(ctx, p.Scope, p.ID)
 			if err != nil {
-				return Reference{}, err
+				return ExperimentReceipt{}, err
 			}
 			if err = s.persistPlan(ctx, e, reg, setup, recipes); err != nil {
-				return Reference{}, err
+				return ExperimentReceipt{}, err
 			}
 			if err = s.putResources(ctx, p.ID, p.Resources); err != nil {
-				return Reference{}, err
+				return ExperimentReceipt{}, err
 			}
 			revision++
 		}
-		return Reference{ID: p.ID, Revision: revision, State: state}, nil
+		return ExperimentReceipt{ExperimentID: p.ID, Revision: revision, State: state}, nil
 	})
 }
 func (s *Store) UpdateDraft(ctx context.Context, scope Scope, id string, document evaldomain.Frozen, mutation evaldomain.MutationIdentity) (Receipt, error) {
@@ -87,25 +88,25 @@ func (s *Store) UpdateDraft(ctx context.Context, scope Scope, id string, documen
 	if err := evaldomain.DecodeInto("DraftUpdate", document.Bytes(), &input); err != nil {
 		return Receipt{}, err
 	}
-	return s.mutate(ctx, scope, id, "draft-update", mutation, func() (Reference, error) {
+	return mutate(ctx, s, scope, id, "draft-update", mutation, func() (ExperimentReceipt, error) {
 		e, err := s.locked(ctx, scope, id)
 		if err != nil {
-			return Reference{}, err
+			return ExperimentReceipt{}, err
 		}
 		if err = checkMutable(e, mutation); err != nil {
-			return Reference{}, err
+			return ExperimentReceipt{}, err
 		}
 		if e.ControlMode != "server" {
-			return Reference{}, evaldomain.Failure("eval_external_control")
+			return ExperimentReceipt{}, evaldomain.Failure("eval_external_control")
 		}
 		if e.State != "draft" {
-			return Reference{}, evaldomain.Failure("eval_not_ready")
+			return ExperimentReceipt{}, evaldomain.Failure("eval_not_ready")
 		}
 		if _, err = s.Dataset(ctx, scope, input.Draft.Dataset.ID, input.Draft.Dataset.Revision); err != nil {
-			return Reference{}, err
+			return ExperimentReceipt{}, err
 		}
 		_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET name=$2,draft=$3,dataset_id=$4,dataset_revision=$5,max_in_flight=$6,wall_ms=$7,token_limit=$8,`+advance+` WHERE experiment_id=$1`, id, input.Name, bytesOf(input.Draft), input.Draft.Dataset.ID, input.Draft.Dataset.Revision, input.Draft.Budgets.MaxInFlight, input.Draft.Budgets.WallMS, input.Draft.Budgets.MaxObservedTotalTokens)
-		return Reference{ID: id, Revision: e.Revision + 1, State: e.State}, normalize(err)
+		return ExperimentReceipt{ExperimentID: id, Revision: e.Revision + 1, State: e.State}, normalize(err)
 	})
 }
 
@@ -240,7 +241,7 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		}
 		ordinals[id] = i
 	}
-	_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',expected_count=$2,`+advance+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
+	_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',diagnostic=NULL,expected_count=$2,`+advance+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
 	if err != nil {
 		return err
 	}

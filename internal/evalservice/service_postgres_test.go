@@ -7,6 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -23,11 +29,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"os"
-	"path/filepath"
-	"sync"
-	"testing"
-	"time"
 )
 
 type testCredentials struct{ gateway contracts.LLMGatewayConfigRef }
@@ -244,15 +245,15 @@ func (h *serviceHarness) create(t *testing.T, kind string) evalstore.Experiment 
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := decodeReference(receipt)
+	ref, err := receipt.Experiment()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return h.get(t, ref.ID)
+	return h.get(t, ref.ExperimentID)
 }
 func (h *serviceHarness) command(t *testing.T, e evalstore.Experiment, kind string) evalstore.Receipt {
 	t.Helper()
-	c := evaldomain.Command{Kind: kind}
+	c := evaldomain.Command{Kind: evaldomain.CommandKind(kind)}
 	if kind != "prepare" && kind != "duplicate" {
 		p, err := evalstore.NewPostgresStore(h.pool).FrozenPlan(t.Context(), e.OwnerID, e.ID)
 		if err != nil {
@@ -351,6 +352,12 @@ func (h *serviceHarness) finishAudits(t *testing.T) {
 			if err == nil {
 				_, err = store.TransitionClaimed(t.Context(), auditstore.ClaimedTransitionParams{Claim: claim, ExpectedRevision: a.Revision, ExpectedState: a.State, TargetState: auditstore.AuditFailed})
 			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if a.State == auditstore.AuditCancelling {
+			_, err = store.TransitionClaimed(t.Context(), auditstore.ClaimedTransitionParams{Claim: claim, ExpectedRevision: a.Revision, ExpectedState: a.State, TargetState: auditstore.AuditCancelled})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -462,11 +469,11 @@ func TestPostgresPauseResumeKeepsClockAndDuplicateStartsFresh(t *testing.T) {
 		t.Fatal("resume reset allowance")
 	}
 	receipt := h.command(t, e, "duplicate")
-	ref, err := decodeReference(receipt)
+	ref, err := receipt.Experiment()
 	if err != nil {
 		t.Fatal(err)
 	}
-	duplicate := h.get(t, ref.ID)
+	duplicate := h.get(t, ref.ExperimentID)
 	if duplicate.State != "draft" || duplicate.ID == e.ID || duplicate.PortableID == e.PortableID || duplicate.StartedAt != nil || duplicate.Outstanding != 0 || duplicate.Expected != 0 {
 		t.Fatal("duplicate reused execution state")
 	}
@@ -510,7 +517,9 @@ func TestPostgresPrepareFailureRetainsSchemaValidDiagnostic(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.command(t, e, "prepare")
-	tick(t, h.coordinator(t, "controller"))
+	if _, err := h.coordinator(t, "controller").RunOnce(t.Context()); err == nil {
+		t.Fatal("preparation failure did not reach coordinator")
+	}
 	e = h.get(t, e.ID)
 	if e.State != "draft" || evaldomain.Validate("Diagnostic", e.Diagnostic) != nil {
 		t.Fatalf("invalid preparation failure: %s %s", e.State, e.Diagnostic)
@@ -555,7 +564,7 @@ func TestPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMe
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := decodeReference(receipt)
+	ref, err := receipt.Experiment()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -563,7 +572,7 @@ func TestPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMissingMe
 	for n := 0; n < 3; n++ {
 		tick(t, c)
 	}
-	e := h.get(t, ref.ID)
+	e := h.get(t, ref.ExperimentID)
 	if e.State != "ready" || e.StartedAt != nil || count(t, h.pool, "eval_submissions") != 0 {
 		t.Fatal("native dispatch took over external mode")
 	}

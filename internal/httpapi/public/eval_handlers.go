@@ -2,13 +2,14 @@ package public
 
 import (
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/evaldomain"
-	"github.com/grauwolf32/contractor/internal/evalservice"
-	"github.com/grauwolf32/contractor/internal/evalstore"
 	"net/http"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/evalservice"
+	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
 func evalScope(r *http.Request) evalstore.Scope {
@@ -107,12 +108,12 @@ func (h *handler) importEvalDataset(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	var ref evalstore.Reference
-	if err = json.Unmarshal(receipt.Response, &ref); err != nil {
+	ref, err := receipt.Dataset()
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	data, err := h.dependencies.Evals.Dataset(r.Context(), evalScope(r), ref.ID, ref.State)
+	data, err := h.dependencies.Evals.Dataset(r.Context(), evalScope(r), ref.DatasetID, ref.DatasetRevision)
 	if err != nil {
 		h.evalError(w, err)
 		return
@@ -338,20 +339,20 @@ func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) 
 		h.evalReceipt(w, 201, receipt)
 		return
 	}
-	var ref evalstore.Reference
-	if err = json.Unmarshal(receipt.Response, &ref); err != nil {
+	ref, err := receipt.Command()
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	if receipt.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(ref.Revision, 10)))
+	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(ref.ExperimentRevision, 10)))
 	var digest *string
 	if command.PlanSHA256 != "" {
 		digest = &command.PlanSHA256
 	}
-	h.evalJSON(w, 202, "CommandReceipt", map[string]any{"commandId": ref.ID, "experimentId": r.PathValue("id"), "kind": command.Kind, "state": ref.State, "experimentRevision": ref.Revision, "planSha256": digest, "diagnostics": []any{}})
+	h.evalJSON(w, 202, "CommandReceipt", map[string]any{"commandId": ref.CommandID, "experimentId": r.PathValue("id"), "kind": command.Kind, "state": ref.State, "experimentRevision": ref.ExperimentRevision, "planSha256": digest, "diagnostics": []any{}})
 	if h.dependencies.EvalNotifier != nil {
 		h.dependencies.EvalNotifier.Wake()
 	}
@@ -395,8 +396,8 @@ func (h *handler) submitEvalMember(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	var ref evalstore.Reference
-	if err = json.Unmarshal(receipt.Response, &ref); err != nil {
+	ref, err := receipt.Submission()
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}

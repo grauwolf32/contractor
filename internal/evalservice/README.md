@@ -1,7 +1,20 @@
 # Managed experiment orchestration
 
 `Service` prepares exact native plans and accepts native commands or external
-registrations/submissions. `Driver` reconciles only previously admitted members.
+registrations/submissions. `Driver` reconciles only previously admitted members
+through separate Workflow and Audit adapters. Shared operation persistence owns
+intent/replay/acknowledgement; member resources own artifact copying and Audit
+workspaces. Metric SQL lives in `evalstore`, not in execution adapters.
+
+`evaldomain.Lifecycle` owns command targets, allowed UI actions, observed
+transitions, admission, budget stops and command recovery. Deadline/token stops
+continue through settling until all accepted work drains. Unknown preparation
+failures stay pending for retry, with a safe diagnostic and the original cause
+returned to the coordinator. Confirmed configuration failures return to draft.
+
+Portable documents and operation receipts have named types. Plan construction
+uses separate check/case/variant/member builders. Nested validation follows known
+DTO fields; arbitrary output roles and producer data never choose a validator.
 `evalcoordinator` claims experiments in PostgreSQL and calls bounded ticks; the
 ordinary Scheduler and Audit controller continue to own execution.
 
@@ -57,7 +70,11 @@ test -n "$CONTRACTOR_TEST_DATABASE_URL" &&
 The integration fixtures call real ordinary Run/Audit services but never run
 models or contact targets. Tests lose committed creation/start responses, replace
 coordinators, enforce pin checks and deletion fences, exercise native/external
-ownership, and verify eight-member plans without duplicate effects.
+ownership, and verify eight-member plans without duplicate effects. Regression
+checks cover deadline/token cancellation of eight active members already in
+settling (Workflow and Audit), a real PostgreSQL preparation failure followed by
+recovery, safe diagnostics, legacy receipt replay and dataset role names that
+coincide with Summary fields.
 
 Public authoring/control and bounded observation routes are provided through the
 ordinary authenticated HTTP adapter (V38-005). Mutation responses are retained

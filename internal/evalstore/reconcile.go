@@ -4,17 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
-	"time"
 )
 
 type CommandRecord struct {
-	ID, ExperimentID, Kind, State string
-	Revision                      int64
-	Diagnostic                    json.RawMessage
-	CreatedAt                     time.Time
-	FinishedAt                    *time.Time
+	ID, ExperimentID, State string
+	Kind                    evaldomain.CommandKind
+	Revision                int64
+	Diagnostic              json.RawMessage
+	CreatedAt               time.Time
+	FinishedAt              *time.Time
 }
 
 func (s *Store) PendingCommands(ctx context.Context, owner, id string) ([]CommandRecord, error) {

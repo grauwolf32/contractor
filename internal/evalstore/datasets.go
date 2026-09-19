@@ -3,6 +3,7 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -19,13 +20,13 @@ func (s *Store) PutDataset(ctx context.Context, scope Scope, revision string, do
 	if err := evaldomain.DecodeInto("DatasetInput", document.Bytes(), &input); err != nil {
 		return Receipt{}, err
 	}
-	return s.mutate(ctx, scope, "datasets", "dataset-create", id, func() (Reference, error) {
+	return mutate(ctx, s, scope, "datasets", "dataset-create", id, func() (DatasetReceipt, error) {
 		metadata, err := evaldomain.DatasetProjection(input, scope.ProjectID, revision)
 		if err != nil {
-			return Reference{}, err
+			return DatasetReceipt{}, err
 		}
 		_, err = s.db.Exec(ctx, `INSERT INTO eval_dataset_revisions(owner_id,project_id,dataset_id,revision,document,metadata) VALUES($1,$2,$3,$4,$5,$6)`, scope.OwnerID, scope.ProjectID, input.DatasetID, revision, document.Bytes(), bytesOf(metadata))
-		return Reference{ID: input.DatasetID, State: revision}, normalize(err)
+		return DatasetReceipt{DatasetID: input.DatasetID, DatasetRevision: revision}, normalize(err)
 	})
 }
 func (s *Store) Dataset(ctx context.Context, scope Scope, id, revision string) (DatasetRevision, error) {

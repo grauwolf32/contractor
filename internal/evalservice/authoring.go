@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -115,7 +114,17 @@ func bindingDocument(v evaldomain.Variant, p Preflight) (evaldomain.Frozen, erro
 	if capabilities == nil {
 		capabilities = []string{}
 	}
-	raw, err := jsonBytes(map[string]any{"schema_version": "playground.binding/v1", "id": v.ID, "provider": "contractor@1", "capabilities": capabilities, "connection": "managed", "settings": map[string]any{"variant": v, "snapshot": p.Snapshot}, "input_mapping": inputs, "output_mapping": outputs, "normalizers": []any{}})
+	raw, err := jsonBytes(portableBinding{
+		SchemaVersion: portableBindingSchema,
+		ID:            v.ID,
+		Provider:      managedProvider,
+		Capabilities:  capabilities,
+		Connection:    managedConnection,
+		Settings:      bindingSettings{Variant: v, Snapshot: p.Snapshot},
+		InputMapping:  inputs,
+		OutputMapping: outputs,
+		Normalizers:   []documentRef{},
+	})
 	if err != nil {
 		return evaldomain.Frozen{}, err
 	}
@@ -151,10 +160,4 @@ func (s *Service) Submit(ctx context.Context, scope evalstore.Scope, id, member 
 		return err
 	})
 	return result, err
-}
-
-func decodeReference(receipt evalstore.Receipt) (evalstore.Reference, error) {
-	var ref evalstore.Reference
-	err := json.Unmarshal(receipt.Response, &ref)
-	return ref, err
 }

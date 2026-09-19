@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	evalschema "github.com/grauwolf32/contractor/api/evals/v1"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	evalschema "github.com/grauwolf32/contractor/api/evals/v1"
 )
 
 const fixtureDir = "../../api/testdata/evals"
@@ -224,10 +225,19 @@ func TestEvalPortableGatesAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison, extensions := PortableComparison(request.Draft.Comparison)
-	if _, ok := comparison["gates"]; ok {
+	var comparisonJSON, extensionsJSON map[string]any
+	encoded, _ := json.Marshal(comparison)
+	if err := json.Unmarshal(encoded, &comparisonJSON); err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ = json.Marshal(extensions)
+	if err := json.Unmarshal(encoded, &extensionsJSON); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := comparisonJSON["gates"]; ok {
 		t.Fatal("modified closed portable comparison shape")
 	}
-	gate := extensions["playground:comparison-gates"].(map[string]any)
+	gate := extensionsJSON["playground:comparison-gates"]
 	if !reflect.DeepEqual(gate, map[string]any{"min_candidate_end_to_end_pass": float64(1), "max_quality_drop": float64(0)}) {
 		t.Fatal(gate)
 	}

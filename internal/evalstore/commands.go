@@ -3,6 +3,8 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
+	"errors"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -21,86 +23,61 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 	if err := evaldomain.Validate("Command", bytesOf(p.Command)); err != nil {
 		return Receipt{}, err
 	}
-	return s.mutate(ctx, p.Scope, p.ExperimentID, "command", p.Mutation, func() (Reference, error) {
+	return s.mutateJSON(ctx, p.Scope, p.ExperimentID, "command", p.Mutation, func() (json.RawMessage, error) {
 		e, err := s.locked(ctx, p.Scope, p.ExperimentID)
 		if err != nil {
-			return Reference{}, err
+			return nil, err
 		}
 		if err = checkMutable(e, p.Mutation); err != nil {
-			return Reference{}, err
+			return nil, err
 		}
-		if err = evaldomain.CheckControlMode(e.ControlMode, p.Command.Kind); err != nil {
-			return Reference{}, err
+		target, err := e.Lifecycle().CommandTarget(p.Command.Kind)
+		if err != nil {
+			return nil, err
 		}
 		if p.Command.Kind != "prepare" && (p.Command.Kind != "duplicate" || p.Command.PlanSHA256 != "") {
 			plan, err := s.FrozenPlan(ctx, e.OwnerID, e.ID)
 			if err != nil {
-				return Reference{}, err
+				return nil, err
 			}
 			if plan.SHA256 != p.Command.PlanSHA256 {
-				return Reference{}, evaldomain.Failure("eval_pin_mismatch")
+				return nil, evaldomain.Failure("eval_pin_mismatch")
 			}
 		}
 		if p.Command.Kind == "duplicate" {
 			if !resourceID.MatchString(p.DuplicateID) || evaldomain.Validate("Id", bytesOf(p.DuplicatePortableID)) != nil || e.Draft.Kind() != "Draft" {
-				return Reference{}, evaldomain.Failure("eval_invalid")
+				return nil, evaldomain.Failure("eval_invalid")
 			}
 			// Copy authoring intent only: no member, receipt, clock or frozen plan is reused.
 			_, err = s.db.Exec(ctx, `INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit)
  SELECT $2,owner_id,project_id,$3,'server',name,'draft',draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit FROM eval_experiments WHERE experiment_id=$1`, e.ID, p.DuplicateID, p.DuplicatePortableID)
 			if err != nil {
-				return Reference{}, normalize(err)
+				return nil, normalize(err)
 			}
 			if _, err = s.db.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) VALUES($1)`, p.DuplicateID); err != nil {
-				return Reference{}, err
+				return nil, err
 			}
-			return Reference{ID: p.DuplicateID, Revision: 1, State: "draft"}, nil
+			return json.Marshal(ExperimentReceipt{ExperimentID: p.DuplicateID, Revision: 1, State: evaldomain.StateDraft})
 		}
-		target := ""
-		switch p.Command.Kind {
-		case "prepare":
-			if e.State == "draft" {
-				target = "preparing"
-			}
-		case "start":
-			if e.State == "ready" {
-				target = "running"
-			}
-		case "pause":
-			if e.State == "running" {
-				target = "pausing"
-			}
-		case "resume":
-			if e.State == "paused" || e.State == "interrupted" {
-				target = "running"
-			}
-		case "cancel":
-			if e.State != "finished" && e.State != "cancelled" {
-				target = "cancelling"
-			}
-		case "finalize":
-			if e.State == "ready" || e.State == "running" {
-				target = "settling"
-			}
-		}
-		if target == "" {
-			return Reference{}, evaldomain.Failure("eval_not_ready")
-		}
+
 		_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state=$2,
    started_at=CASE WHEN $3 THEN COALESCE(started_at,statement_timestamp()) ELSE started_at END,
    deadline_at=CASE WHEN $3 THEN COALESCE(deadline_at,statement_timestamp()+wall_ms*interval '1 millisecond') ELSE deadline_at END,
    last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp() ELSE last_producer_activity_at END,`+advance+` WHERE experiment_id=$1`, e.ID, target, p.Command.Kind == "start")
 		if err != nil {
-			return Reference{}, err
+			return nil, err
 		}
 		_, err = s.db.Exec(ctx, `INSERT INTO eval_commands(command_id,experiment_id,actor_id,kind,state,accepted_revision) VALUES($1,$2,$3,$4,'accepted',$5)`, p.CommandID, e.ID, p.Scope.OwnerID, p.Command.Kind, e.Revision+1)
-		return Reference{ID: p.CommandID, Revision: e.Revision + 1, State: "accepted"}, normalize(err)
+		if err != nil {
+			return nil, normalize(err)
+		}
+		return json.Marshal(AcceptedCommandReceipt{CommandID: p.CommandID, ExperimentRevision: e.Revision + 1, State: "accepted"})
 	})
 }
 
 // Transition commits observed progress, not an arbitrary caller lifecycle edit.
 // Recovery needs the current epoch even when it only records terminal drain.
-func (s *Store) Transition(ctx context.Context, scope Scope, id string, claim Claim, from, to string, observedTokens int64, diagnostic json.RawMessage) error {
+func (s *Store) Transition(ctx context.Context, scope Scope, id string, claim Claim, from, to evaldomain.State, observedTokens int64, diagnostic json.RawMessage) error {
 	if err := s.requireTx(); err != nil {
 		return err
 	}
@@ -117,20 +94,16 @@ func (s *Store) Transition(ctx context.Context, scope Scope, id string, claim Cl
 	if e.State != from {
 		return evaldomain.Failure("eval_not_ready")
 	}
-	allowed := map[string]map[string]bool{
-		"preparing": {"draft": true, "interrupted": true}, "running": {"running": true, "settling": true, "cancelling": true, "interrupted": true},
-		"pausing": {"paused": true, "settling": true, "cancelling": true, "interrupted": true}, "paused": {"cancelling": true, "settling": true},
-		"settling": {"finished": true, "cancelling": true, "interrupted": true}, "cancelling": {"cancelled": true, "interrupted": true}, "interrupted": {"cancelling": true},
-	}
-	if !allowed[from][to] || observedTokens < e.ObservedTokens {
+	if observedTokens < e.ObservedTokens {
 		return evaldomain.Failure("eval_invalid")
 	}
-	if e.DeletionRequestedAt != nil && to != "cancelled" && to != "cancelling" && to != "interrupted" {
-		return evaldomain.Failure("eval_project_deleting")
+	if err := e.Lifecycle().ValidateObservation(to); err != nil {
+		if errors.Is(err, evaldomain.ErrOutstandingExecutions) {
+			return ErrDrain
+		}
+		return err
 	}
-	if (to == "paused" || to == "finished" || to == "cancelled") && e.Outstanding != 0 {
-		return ErrDrain
-	}
+
 	if diagnostic != nil {
 		if err := evaldomain.Validate("Diagnostic", diagnostic); err != nil {
 			return err

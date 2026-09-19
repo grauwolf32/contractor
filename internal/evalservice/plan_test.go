@@ -3,10 +3,11 @@ package evalservice
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func readFixture(t *testing.T, name string, out any) {
@@ -138,8 +139,8 @@ func TestPlanPinsAndUnsupportedMembersRemainExplicit(t *testing.T) {
 	if _, err = BuildPlan("native-1", time.Now(), d, data, pre); err == nil {
 		t.Fatal("unknown required pin accepted")
 	}
-	pre["a"].Pins["model-revision"] = Pin{"claimed", "operator_supplied"}
-	pre["b"].Pins["model-revision"] = Pin{"claimed", "operator_supplied"}
+	pre["a"].Pins["model-revision"] = Pin{Value: stringPointer("claimed"), Origin: "operator_supplied"}
+	pre["b"].Pins["model-revision"] = Pin{Value: stringPointer("claimed"), Origin: "operator_supplied"}
 	if _, err = BuildPlan("native-1", time.Now(), d, data, pre); err == nil {
 		t.Fatal("producer claim treated as observation")
 	}
@@ -158,3 +159,5 @@ func TestPlanSeededOrderIsRetainedAndRepeatable(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func stringPointer(value string) *string { return &value }

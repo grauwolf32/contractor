@@ -181,7 +181,12 @@ follow the selected kind; they never suggest an Audit is just one child Run.
 Keep lifecycle distinct from result quality:
 
 `draft → preparing → ready → running → settling → finished`.
-Preparation failure returns to draft with retained diagnostic and no Run/Audit.
+A confirmed preparation/configuration failure returns to draft with a retained
+safe diagnostic and no Run/Audit. Unknown infrastructure failures keep the prepare
+command pending in `preparing`, expose `eval_preparation_unavailable` with `wait`,
+and retry through the coordinator. The original internal cause reaches coordinator
+logging even when persisting the diagnostic or failed command succeeds. Successful
+retry clears the transient diagnostic.
 Frozen ready plans cannot be edited. Duplicate is native-only and creates a new
 native draft with new identity; it requires another Prepare and Start. An external
 producer creates a new portable invocation/registration itself, since Contractor
@@ -235,6 +240,9 @@ Run concurrency and Audit limits remain unchanged. Token thresholds account for
 known cumulative usage once, include retries/planners/workers/finalizers when
 available, and expose missing scope. A reached threshold stops new work and
 requests cancellation according to the frozen policy; active work may overshoot.
+Deadline and token enforcement remains active through `settling` and recovery
+until all accepted executions have drained. Entering `settling` only closes new
+admission; it does not release the frozen allowance for active Runs/Audits.
 Pause does not extend wall time. Limits are explicit, not new global defaults.
 
 ### Common managed submissions
@@ -618,7 +626,7 @@ storage is not left behind after Project purge. Lifecycle uncertainty blocks pur
 rather than claiming external work was undone.
 
 Reuse standard error envelopes. Stable additional reasons include
-`eval_not_ready`, `eval_pin_mismatch`, `eval_external_control`,
+`eval_not_ready`, `eval_preparation_unavailable`, `eval_pin_mismatch`, `eval_external_control`,
 `eval_view_changed`, `eval_member_conflict`, `eval_evidence_unavailable`,
 `eval_producer_stale`, `eval_budget_exhausted` and `eval_project_deleting`.
 Errors include safe recovery actions, not raw source/credential details. Public

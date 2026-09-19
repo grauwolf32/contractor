@@ -66,13 +66,12 @@ func validatePortablePlan(v map[string]any) error {
 
 // PortableComparison keeps gates in the established experiment extension, not
 // in plan/v1's closed comparison object. It never rewrites existing plan bytes.
-func PortableComparison(c Comparison) (map[string]any, map[string]any) {
-	comparison := map[string]any{"baseline": c.Baseline, "candidate": c.Candidate, "required_equal": c.RequiredEqual, "allowed_differences": c.AllowedDifferences}
-	gates := map[string]any{"min_candidate_end_to_end_pass": c.Gates.MinCandidateEndToEndPass, "max_quality_drop": c.Gates.MaxQualityDrop}
-	if c.Gates.MaxTotalTokensRatio != nil {
-		gates["max_total_tokens_ratio"] = *c.Gates.MaxTotalTokensRatio
-	}
-	return comparison, map[string]any{"playground:comparison-gates": gates}
+func PortableComparison(c Comparison) (PortableComparisonPolicy, PortableExperimentExtensions) {
+	return PortableComparisonPolicy{Baseline: c.Baseline, Candidate: c.Candidate, RequiredEqual: c.RequiredEqual, AllowedDifferences: c.AllowedDifferences}, PortableExperimentExtensions{ComparisonGates: PortableComparisonGates{
+		MinCandidateEndToEndPass: c.Gates.MinCandidateEndToEndPass,
+		MaxQualityDrop:           c.Gates.MaxQualityDrop,
+		MaxTotalTokensRatio:      c.Gates.MaxTotalTokensRatio,
+	}}
 }
 
 func PublicPlanProjection(plan Frozen) (PublicPlan, error) {
@@ -87,7 +86,14 @@ func PublicPlanProjection(plan Frozen) (PublicPlan, error) {
 	if err := json.Unmarshal(plan.Bytes(), &value); err != nil {
 		return PublicPlan{}, Failure("eval_invalid")
 	}
-	out := PublicPlan{SchemaVersion: "playground.public-projection/v1", SourceSchemaVersion: plan.Kind(), SourceRecordSHA256: plan.Digest(), ExperimentID: value.ExperimentID, CreatedAt: value.CreatedAt, Members: value.Members}
+	out := PublicPlan{
+		SchemaVersion:       "playground.public-projection/v1",
+		SourceSchemaVersion: plan.Kind(),
+		SourceRecordSHA256:  plan.Digest(),
+		ExperimentID:        value.ExperimentID,
+		CreatedAt:           value.CreatedAt,
+		Members:             value.Members,
+	}
 	data, err := json.Marshal(out)
 	if err != nil {
 		return PublicPlan{}, Failure("eval_invalid")

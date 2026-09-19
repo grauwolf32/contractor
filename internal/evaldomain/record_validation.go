@@ -1,7 +1,6 @@
 package evaldomain
 
 import (
-	"encoding/json"
 	"math"
 	"reflect"
 	"time"
@@ -106,121 +105,178 @@ func validateResult(v map[string]any) error {
 		return nil
 	})
 }
-func validateExecution(ex map[string]any) error {
-	if ex["state"] == "not_submitted" && ex["ref"] != nil || ex["state"] != "not_submitted" && ex["state"] != "unknown" && ex["ref"] == nil {
+func validateExecution(v map[string]any) error { return typedCheck(v, checkExecution) }
+func checkExecution(ex ExecutionView) error {
+	if ex.State == "not_submitted" && ex.Ref != nil || ex.State != "not_submitted" && ex.State != "unknown" && ex.Ref == nil {
 		return Failure("eval_member_conflict")
 	}
-	if terminal(ex["state"]) != (ex["finishedAt"] != nil) {
+	if terminal(ex.State) != (ex.FinishedAt != nil) {
 		return Failure("eval_invalid")
 	}
-	if ex["startedAt"] != nil && ex["finishedAt"] != nil {
-		s, _ := time.Parse(time.RFC3339Nano, ex["startedAt"].(string))
-		e, _ := time.Parse(time.RFC3339Nano, ex["finishedAt"].(string))
-		if e.Before(s) {
+	if ex.StartedAt != nil && ex.FinishedAt != nil && ex.FinishedAt.Before(*ex.StartedAt) {
+		return Failure("eval_invalid")
+	}
+	return nil
+}
+func validateCounts(v map[string]any) error { return typedCheck(v, checkCounts) }
+func checkCounts(c Counts) error {
+	for _, n := range []int{c.Eligible, c.Unsupported, c.Blocked, c.Submitted, c.Terminal, c.Missing, c.Conflicting, c.CollectionComplete, c.Scored, c.QualityPassed, c.ExecutionSucceeded, c.EndToEndPassed} {
+		if n > c.Expected {
 			return Failure("eval_invalid")
 		}
 	}
-	return nil
-}
-func validateCounts(c map[string]any) error {
-	expected := numeric(c["expected"])
-	for _, value := range c {
-		if numeric(value) > expected {
-			return Failure("eval_invalid")
-		}
-	}
-	if numeric(c["eligible"])+numeric(c["unsupported"])+numeric(c["blocked"]) != expected || numeric(c["terminal"]) > numeric(c["submitted"]) || numeric(c["qualityPassed"]) > numeric(c["scored"]) || numeric(c["endToEndPassed"]) > numeric(c["executionSucceeded"]) || numeric(c["endToEndPassed"]) > numeric(c["qualityPassed"]) || numeric(c["endToEndPassed"]) > numeric(c["collectionComplete"]) || numeric(c["endToEndPassed"]) > numeric(c["eligible"]) {
+	if c.Eligible+c.Unsupported+c.Blocked != c.Expected || c.Terminal > c.Submitted || c.QualityPassed > c.Scored || c.EndToEndPassed > c.ExecutionSucceeded || c.EndToEndPassed > c.QualityPassed || c.EndToEndPassed > c.CollectionComplete || c.EndToEndPassed > c.Eligible {
 		return Failure("eval_invalid")
 	}
 	return nil
 }
-func validateRatio(v map[string]any) error {
-	n, d := numeric(v["numerator"]), numeric(v["denominator"])
-	if n > d || d == 0 && v["value"] != nil || d > 0 && (v["value"] == nil || math.Abs(n/d-numeric(v["value"])) > 1e-12) {
+func validateRatio(v map[string]any) error { return typedCheck(v, checkRatio) }
+func checkRatio(r Ratio) error {
+	if r.Numerator > r.Denominator || r.Denominator == 0 && r.Value != nil {
+		return Failure("eval_invalid")
+	}
+	if r.Denominator > 0 && (r.Value == nil || math.Abs(float64(r.Numerator)/float64(r.Denominator)-*r.Value) > 1e-12) {
 		return Failure("eval_invalid")
 	}
 	return nil
 }
-func validateSummary(v map[string]any) error {
-	counts, quality := asObject(v["counts"]), asObject(v["quality"])
-	if len(counts) != 2 || len(quality) != 2 {
+func validateSummary(v map[string]any) error { return typedCheck(v, checkSummary) }
+func checkSummary(s Summary) error {
+	if len(s.Counts) != 2 || len(s.Quality) != 2 {
 		return Failure("eval_invalid")
 	}
-	for arm, raw := range counts {
-		c := asObject(raw)
-		if err := validateCounts(c); err != nil {
+	for arm, c := range s.Counts {
+		if err := checkCounts(c); err != nil {
 			return err
 		}
-		qraw, ok := quality[arm]
+		q, ok := s.Quality[arm]
 		if !ok {
 			return Failure("eval_invalid")
 		}
-		q := asObject(qraw)
-		for name, pair := range map[string][2]string{"executionSuccess": {"executionSucceeded", "expected"}, "endToEndPass": {"endToEndPassed", "expected"}, "conditionalQuality": {"qualityPassed", "scored"}} {
-			r := asObject(q[name])
-			if err := validateRatio(r); err != nil {
+		ratios := []struct {
+			ratio                  Ratio
+			numerator, denominator int
+		}{
+			{q.ExecutionSuccess, c.ExecutionSucceeded, c.Expected},
+			{q.EndToEndPass, c.EndToEndPassed, c.Expected},
+			{q.ConditionalQuality, c.QualityPassed, c.Scored},
+		}
+		for _, item := range ratios {
+			if err := checkRatio(item.ratio); err != nil {
 				return err
 			}
-			if numeric(r["numerator"]) != numeric(c[pair[0]]) || numeric(r["denominator"]) != numeric(c[pair[1]]) {
+			if item.ratio.Numerator != item.numerator || item.ratio.Denominator != item.denominator {
 				return Failure("eval_invalid")
 			}
 		}
-		if numeric(v["terminalPairs"]) > numeric(c["terminal"]) || numeric(v["completeQualityPairs"]) > numeric(c["scored"]) || numeric(v["completeTokenPairs"]) > numeric(c["expected"]) {
+		if s.TerminalPairs > c.Terminal || s.CompleteQualityPairs > c.Scored || s.CompleteTokenPairs > c.Expected {
 			return Failure("eval_invalid")
 		}
-		if v["conclusion"] != "inconclusive" && (numeric(c["expected"]) != numeric(c["scored"]) || numeric(c["expected"]) != numeric(c["terminal"]) || numeric(c["expected"]) != numeric(c["collectionComplete"]) || numeric(c["conflicting"]) > 0) {
+		if s.Conclusion != "inconclusive" && (c.Expected != c.Scored || c.Expected != c.Terminal || c.Expected != c.CollectionComplete || c.Conflicting > 0) {
 			return Failure("eval_invalid")
 		}
 	}
 	return nil
 }
+
+type pairValidation struct {
+	SuiteID string     `json:"suiteId"`
+	CaseID  string     `json:"caseId"`
+	Sample  int        `json:"sample"`
+	A       MemberView `json:"a"`
+	B       MemberView `json:"b"`
+}
+
 func validatePair(v map[string]any) error {
-	a, b := asObject(asObject(v["a"])["member"]), asObject(asObject(v["b"])["member"])
-	if a["memberId"] == b["memberId"] || a["variantId"] == b["variantId"] {
-		return Failure("eval_member_conflict")
-	}
-	for _, key := range []string{"suiteId", "caseId", "sample"} {
-		if a[key] != v[key] || b[key] != v[key] {
+	return typedCheck(v, func(p pairValidation) error {
+		a, b := p.A.Member, p.B.Member
+		if a.ID == b.ID || a.VariantID == b.VariantID || a.SuiteID != p.SuiteID || b.SuiteID != p.SuiteID || a.CaseID != p.CaseID || b.CaseID != p.CaseID || a.Sample != p.Sample || b.Sample != p.Sample {
 			return Failure("eval_member_conflict")
 		}
-	}
-	return validateNested(v)
+		if err := checkMemberView(p.A); err != nil {
+			return err
+		}
+		return checkMemberView(p.B)
+	})
 }
-func validateNested(value any) error {
-	switch v := value.(type) {
-	case map[string]any:
-		if _, ok := v["hasMore"]; ok {
-			if v["hasMore"] == true && v["nextCursor"] == nil || v["hasMore"] == false && v["nextCursor"] != nil {
-				return Failure("eval_invalid")
-			}
-		}
-		if _, ok := v["denominator"].(json.Number); ok {
-			if err := validateRatio(v); err != nil {
-				return err
-			}
-		}
-		if _, ok := v["counts"].(map[string]any); ok {
-			if _, ok = v["conclusion"]; ok {
-				if err := validateSummary(v); err != nil {
-					return err
-				}
-			}
-		}
-		for key, child := range v {
-			if key == "parameters" || key == "expected" || key == "extensions" {
-				continue
-			}
-			if err := validateNested(child); err != nil {
-				return err
-			}
-		}
-	case []any:
-		for _, child := range v {
-			if err := validateNested(child); err != nil {
-				return err
-			}
-		}
 
+// Nested semantics follow the declared DTO and its known child fields. Case
+// role names, producer data and arbitrary maps never select a validator.
+func validateChildren(kind string, value map[string]any) error {
+	switch kind {
+	case "Page":
+		return typedCheck(value, validatePage)
+	case "Ratio":
+		return validateRatio(value)
+	case "Counts":
+		return validateCounts(value)
+	case "Quality":
+		return validateQuality(value)
+	case "Execution":
+		return validateExecution(value)
+	case "MemberView":
+		return validateMemberView(value)
+	case "Experiment":
+		if summary := value["summary"]; summary != nil {
+			return validateSummary(asObject(summary))
+		}
+	case "Report":
+		return validateSummary(asObject(value["summary"]))
+	case "MemberPage", "PairPage":
+		if err := validateSummary(asObject(value["experimentSummary"])); err != nil {
+			return err
+		}
+		for _, row := range asRows(value["items"]) {
+			var err error
+			if kind == "MemberPage" {
+				err = validateMemberView(asObject(row))
+			} else {
+				err = validatePair(asObject(row))
+			}
+			if err != nil {
+				return err
+			}
+		}
+		return typedCheck(value["page"], validatePage)
+	case "DatasetPage", "CasePage", "ExperimentPage", "ExecutionPage", "Capabilities":
+		if page, exists := value["page"]; exists {
+			return typedCheck(page, validatePage)
+		}
+	}
+	return nil
+}
+
+type pageValidation struct {
+	HasMore    bool    `json:"hasMore"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+func validatePage(page pageValidation) error {
+	if page.HasMore != (page.NextCursor != nil) {
+		return Failure("eval_invalid")
+	}
+	return nil
+}
+
+func validateQuality(v map[string]any) error {
+	return typedCheck(v, func(q Quality) error {
+		for _, r := range []Ratio{q.ExecutionSuccess, q.EndToEndPass, q.ConditionalQuality} {
+			if err := checkRatio(r); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+func validateMemberView(v map[string]any) error { return typedCheck(v, checkMemberView) }
+func checkMemberView(v MemberView) error {
+	if v.Execution != nil {
+		if err := checkExecution(*v.Execution); err != nil {
+			return err
+		}
+	}
+	if v.Usage != nil {
+		return validateUsage(*v.Usage, v.Member.ID)
 	}
 	return nil
 }
