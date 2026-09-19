@@ -28,16 +28,24 @@ def matrix() -> dict:
     return json.loads((ROOT / "scripts/audit-completion-matrix.json").read_text())
 
 
+def parse_go_event(line: str) -> dict:
+    try:
+        event = json.loads(line)
+    except ValueError as error:
+        raise GateError("Go report is not a JSON event stream") from error
+    if not isinstance(event, dict) or not isinstance(event.get("Action"), str):
+        raise GateError("Go report contains an invalid event")
+    for field in ("Package", "Test", "Output"):
+        if field in event and not isinstance(event[field], str):
+            raise GateError("Go report contains an invalid event field")
+    return event
+
+
 def verify_go_report(path: Path) -> list[str]:
     required = matrix()["go"]
     started, passed, packages = set(), set(), set()
     for line in path.read_text().splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError as error:
-            raise GateError("Go report is not a JSON event stream") from error
-        if not isinstance(event, dict):
-            raise GateError("Go report contains an invalid event")
+        event = parse_go_event(line)
         package, action, test = event.get("Package"), event.get("Action"), event.get("Test")
         if action in {"skip", "fail"}:
             raise GateError(f"Go case did not pass: {package}/{test or ''} ({action})")
@@ -115,16 +123,32 @@ def run_command(command: list[str], *, cwd: Path, report: Path, go: bool = False
         )
         assert process.stdout is not None
         for line in process.stdout:
-            line = redact(line)
-            saved.write(line)
             if go:
                 try:
-                    event = json.loads(line)
-                    if event.get("Action") == "output":
-                        print(event.get("Output", ""), end="", flush=True)
-                except (ValueError, AttributeError):
+                    event = parse_go_event(line)
+                except GateError:
+                    # Keep malformed/unstructured output invalid for verification,
+                    # even if redaction happens to turn its contents into JSON.
+                    line = "Invalid Go event: " + redact(line)
+                    saved.write(line)
                     print(line, end="", flush=True)
+                else:
+                    # Framework identity is evidence, not diagnostic text: a password
+                    # such as "pass" or "contractor" must not change it. Do not copy
+                    # arbitrary extra fields into the retained report.
+                    saved_event = {
+                        field: event[field]
+                        for field in ("Action", "Package", "Test")
+                        if field in event
+                    }
+                    if "Output" in event:
+                        saved_event["Output"] = redact(event["Output"])
+                    saved.write(json.dumps(saved_event) + "\n")
+                    if event.get("Action") == "output":
+                        print(saved_event.get("Output", ""), end="", flush=True)
             else:
+                line = redact(line)
+                saved.write(line)
                 print(line, end="", flush=True)
         status = process.wait()
     if status:

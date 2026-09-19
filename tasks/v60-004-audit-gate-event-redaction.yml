@@ -1,7 +1,8 @@
 schema_version: '1.0'
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 34d9fc7a40dfb935e401088a170a7ff15579c636
 depends_on:
 - V59-005
 languages:
@@ -55,3 +56,35 @@ tests:
 verification_requirements:
 - Choose regression placement matching existing Audit completion script tests and record its exact offline command.
 - Keep implementation and subsequent completion metadata separate, recording full original hash.
+verification:
+  verified_on: '2026-09-20'
+  acceptance:
+    A1: >-
+      Passed through a real offline subprocess, run_command and verify_go_report using the unchanged
+      54-case Go matrix. All required case and package identities survive passwords contractor and
+      pass, and a password containing a quote and backslash. The new composition cases are nested
+      under the already-mandatory TestAuditCompletionGateRedactsDatabaseCredentials.
+    A2: >-
+      Passed checks of displayed diagnostics and saved reports for plain passwords, JSON-escaped
+      passwords, percent-encoded URL credentials, complete DSNs and JSON-escaped DSNs. Diagnostic
+      Output is redacted after parsing; unstructured stderr remains redacted rejecting evidence.
+      Unrecognized event keys and values are omitted from the saved report.
+    A3: >-
+      Passed rejection cases for skip, fail, missing run, missing test pass, missing package pass,
+      an unexpected selected skip, malformed JSON, non-object events and invalid event field types.
+      A complete verifier-valid stream with exit 7 is rejected by run_command solely because of the
+      subprocess status. The existing direct Go and Python report rejection tests also pass.
+  executed:
+  - command: go test -count=1 ./tests/e2e -run AuditCompletion
+    result: PASS in 2.148s, including all 14 new subprocess-composition cases; no database or model required.
+    log: /tmp/contractor-project-review/v60-004/audit-completion-tests.log
+  - command: /home/ruslan/src/contractor/runtime/.venv/bin/ruff check --config runtime/pyproject.toml scripts/test-audit-completion-e2e.py
+    result: PASS using the prepared shared Runtime environment.
+  - command: /home/ruslan/src/contractor/runtime/.venv/bin/ruff format --check --config runtime/pyproject.toml scripts/test-audit-completion-e2e.py
+    result: PASS; script already formatted.
+  - command: git diff --check
+    result: PASS; changed Go file also formatted with gofmt.
+  boundaries:
+  - Framework Action, Package and Test remain exact evidence; only diagnostic text is redacted.
+  - Required-case matrix, CI credentials and subprocess-status enforcement are unchanged.
+  - Full PostgreSQL and Runtime Audit gate execution is the combined integration check; this task used offline subprocess fixtures.
