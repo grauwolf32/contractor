@@ -50,3 +50,8 @@ tests:
   covers:
   - A1
   - A2
+
+verification:
+  - CONTRACTOR_TEST_DATABASE_URL configured for isolated PostgreSQL 17; go test -race -count=1 ./internal/auditstore ./internal/auditcontroller ./internal/auditimport — passed.
+  - Both SQL expressions compared with their originals; CTEs and parameter order preserved. Projection regressions cover exact artifact accounting, empty arrays, member order and detached optional identities.
+  - git diff --check — passed.
