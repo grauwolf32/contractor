@@ -3,7 +3,7 @@ id: "V38-001"
 title: "Define the Evals experiment and comparison experience before implementation"
 milestone: "evals-experience-design"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V23-009", "V20-006"]
 languages: ["markdown", "yaml"]
