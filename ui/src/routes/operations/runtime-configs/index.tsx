@@ -484,7 +484,11 @@ function RuntimeConfigPublishForm({
           ] as const
         ).map(
           ([enabled, title, endpoint, credential, timeout, captureContent]) => (
-            <fieldset className="runtime-config-block" key={enabled}>
+            <fieldset
+              className="runtime-config-block"
+              key={enabled}
+              aria-label={title}
+            >
               <legend>
                 <label className="checkbox-label">
                   <input

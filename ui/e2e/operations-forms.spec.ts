@@ -78,7 +78,7 @@ async function installOperations(page: Page, authorized = true) {
             softwareVersion: "1.0.0",
             supportedRuntimes: ["adk@1"],
             supportedToolsets: [],
-            supportedSandboxProfiles: [],
+            supportedSandboxProfiles: ["local-workdir@1"],
             supportedRuntimeAdapters: [],
             observedState: "idle",
             slotState: "idle",
@@ -205,6 +205,11 @@ for (const viewport of [
     await dialog
       .getByLabel("RuntimeConfig name", { exact: true })
       .fill("proposed");
+    await dialog.getByRole("checkbox", { name: /^Worker telemetry/ }).check();
+    await dialog
+      .getByRole("group", { name: "Worker telemetry" })
+      .getByLabel("OTLP traces endpoint", { exact: true })
+      .fill("http://collector.test/v1/traces");
     await dialog
       .getByRole("button", { name: "Publish immutable RuntimeConfig" })
       .click();
@@ -271,8 +276,10 @@ for (const viewport of [
     await dialog
       .getByLabel("Runtime credential ID", { exact: true })
       .fill("review-only");
-    const secret = dialog.getByRole("textbox", { name: /Header value/ });
-    // Password inputs intentionally have no textbox role.
+    await expect(dialog.getByLabel(/Header value/)).toHaveAttribute(
+      "type",
+      "password",
+    );
     await dialog.getByLabel(/Header value/).fill("fixture-secret-discarded");
     await dialog
       .getByRole("button", { name: "Create active Runtime credential" })
@@ -281,7 +288,6 @@ for (const viewport of [
       dialog.getByText("Credential creation denied by Server"),
     ).toBeVisible();
     await expect(dialog.getByLabel(/Header value/)).toHaveValue("");
-    await expect(secret).toHaveCount(0);
     await dialog.getByLabel(/Header value/).fill("fixture-secret-close");
     await page.keyboard.press("Escape");
     await expect(credential).toBeFocused();

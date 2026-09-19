@@ -871,6 +871,26 @@ Closing the credential dialog clears its unsaved secret fields. Icon actions
 retain accessible names and tooltips, and keyboard focus follows the shared
 Dialog contract. Publishing a version and binding it remain separate actions.
 
+Operations Overview leads with observed idle, reserved/busy and draining/fenced
+slots. Idle count does not establish compatible capacity for a particular Run;
+navigation exposes Runtime Agents, configuration and Server-owned Run wait
+reasons. Snapshot generation/revision and live-connection details are disclosed
+under Diagnostics, independently from readiness.
+
+Binding dialogs show current and proposed exact versions, including digests.
+A CAS conflict disables another write until the authoritative binding is
+reloaded. Reload preserves the proposal even when another operator moved the
+binding to a different version; it never silently submits that proposal. The
+dialog lists current bindings independently of the version used to open it.
+Publication errors likewise retain the unpublished proposal. Secret fields are
+cleared on credential submission, kind change and dialog close, including
+rejected submissions.
+
+Effect copy distinguishes new Run snapshots from Agent-label settings resolved
+for future allocations (including allocations of an existing Run). Already
+prepared allocations keep their pinned settings. Publishing an immutable
+version alone does not change a binding.
+
 RuntimeConfig list, detail and publication responses preserve the optional
 `worker.caido` patch, including explicit `null`. A non-null patch requires
 `adapter` and `endpoint` and permits only `credential`, `caBundlePem` and
