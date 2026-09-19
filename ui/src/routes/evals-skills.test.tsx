@@ -158,6 +158,16 @@ describe("Evals and global Skills routes", () => {
     expect(within(grouped!).getByText("a")).toBeInTheDocument();
     expect(within(grouped!).getByText("b")).toBeInTheDocument();
     expect(screen.getByText(/ordinary isolated Workflow Run/i)).toBeVisible();
+    expect(
+      screen.getByText(/succeeded only describes execution/u),
+    ).toBeVisible();
+    expect(
+      screen
+        .getByRole("heading", { name: "Eval Runs" })
+        .compareDocumentPosition(
+          screen.getByText("Workspace settings", { selector: "summary" }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("uses only UserScope Artifact APIs for global Skill packages", async () => {

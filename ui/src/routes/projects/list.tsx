@@ -1,4 +1,5 @@
 import { RecordedTime } from "../../app/recorded-time";
+import { EvaluationActivity } from "./evaluation-activity";
 import "./collection.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useState } from "react";
@@ -231,6 +232,9 @@ function ProjectCollectionRoute({
                     : project.description}
                 </p>
               </div>
+              {presentation.kind === "evaluation" ? (
+                <EvaluationActivity projectId={project.projectId} />
+              ) : null}
               <dl className="project-card-meta">
                 <div>
                   <dt>Updated</dt>
@@ -348,7 +352,7 @@ export function EvaluationListRoute() {
         kind: "evaluation",
         heading: "Evals",
         pageEyebrow: "Evaluation workspaces",
-        lede: "Organize ordinary isolated Workflow Runs by eval metadata while retaining exact Project inputs and provenance.",
+        lede: "Compare execution history across evaluation workspaces. A succeeded Run is an execution status; review outputs for the evaluation result.",
         createLabel: "New Eval",
         createHeading: "Create Eval workspace",
         collectionHeading: "Evaluation workspaces",

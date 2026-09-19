@@ -63,7 +63,11 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
                         returnHash="#project-runs"
                         to={`/runs/${encodeURIComponent(run.runId)}`}
                       >
-                        {run.runId}
+                        <span title={run.runId}>
+                          {run.runId.length > 24
+                            ? `${run.runId.slice(0, 12)}…${run.runId.slice(-8)}`
+                            : run.runId}
+                        </span>
                       </ContextLink>
                     </td>
                     <td data-label="Leg">
@@ -122,6 +126,11 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
       id="project-runs"
       action={<Link to="/runs">All Runs →</Link>}
     >
+      <p className="muted-copy">
+        Evaluation verdicts are not available in this workspace view. Open
+        recorded outputs to assess the result; succeeded only describes
+        execution.
+      </p>
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">
           Loading Eval Runs…

@@ -39,3 +39,30 @@
 .project-finding-summary.has-findings {
   border-color: #e2b66e;
 }
+.eval-card-activity {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0;
+  border-block: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+}
+.eval-card-activity > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.eval-card-activity a,
+.eval-card-labels {
+  overflow-wrap: anywhere;
+}
+.eval-workspace-settings > summary {
+  cursor: pointer;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  font-weight: 600;
+}
+.eval-workspace-settings .project-region {
+  margin-top: 0.5rem;
+}

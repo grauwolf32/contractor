@@ -3,7 +3,7 @@ id: V58-008
 title: Put Eval execution results and distinguishing context first
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-004
@@ -50,3 +50,8 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 16 affected Eval, Skill and Project tests passed; TypeScript, targeted ESLint and production build passed.
+- 4 live browser states at desktop and mobile passed without overflow, JavaScript errors or writes.
+- Last execution and case/leg/sample labels distinguish Eval cards; Run history now precedes settings, with explicit separation from evaluation verdicts.

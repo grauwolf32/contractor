@@ -156,32 +156,35 @@ function ProjectWorkspaceRoute({
             className="project-local-navigation section-navigation"
             aria-label="Project sections"
           >
-            <a href="#project-overview">Overview</a>
+            <a href="#project-runs">Runs</a>
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-workflows">Workflows</a>
-            <a href="#project-runs">Runs</a>
+            <a href="#project-overview">Workspace settings</a>
           </nav>
           <AuditAnchor />
-          <ProjectRegion
-            eyebrow="Evaluation metadata"
-            title="Overview"
-            id="project-overview"
-          >
-            <ProjectMetadataEditor
-              key={project.data.projectId}
-              project={project.data}
-            />
-            <ProjectHTTPTargetEditor
-              key={`target-${project.data.projectId}`}
-              project={project.data}
-            />
-          </ProjectRegion>
+          <ProjectRunsRegion projectId={project.data.projectId} evaluation />
+          <details className="eval-workspace-settings" id="project-overview">
+            <summary>Workspace settings</summary>
+            <ProjectRegion
+              eyebrow="Evaluation metadata"
+              title="Overview"
+              id="eval-metadata"
+            >
+              <ProjectMetadataEditor
+                key={project.data.projectId}
+                project={project.data}
+              />
+              <ProjectHTTPTargetEditor
+                key={`target-${project.data.projectId}`}
+                project={project.data}
+              />
+            </ProjectRegion>
+          </details>
           <ProjectArtifactRegion
             projectId={project.data.projectId}
             detailRoot="/evals"
           />
           <ProjectWorkflowRecommendations projectId={project.data.projectId} />
-          <ProjectRunsRegion projectId={project.data.projectId} evaluation />
         </>
       )}
       {deleteOpen && activeProject !== undefined ? (

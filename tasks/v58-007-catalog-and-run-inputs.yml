@@ -3,8 +3,8 @@ id: V58-007
 title: Improve catalog discovery and parameter authoring
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 846b1c1197c075916324c585ee964f24edec9386
 depends_on:
 - V58-002
 languages:
