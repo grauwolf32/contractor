@@ -244,6 +244,7 @@ func cloneLLMGatewayConfig(
 
 func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
 	result := source
+	result.Execution = source.Execution.Clone()
 	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
 	if source.Summarizer != nil {
 		summarizer := *source.Summarizer

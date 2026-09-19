@@ -1,0 +1,126 @@
+{
+  "agentTemplate": {
+    "ref": {
+      "templateId": "nuclei-scan",
+      "version": "1",
+      "digest": "sha256:9c95c918d7c6bf31bf347aa0bddf7a9ed3540fa2e5c03dca1c1224cae89f2673"
+    },
+    "description": "Scan one supplied target with installed nuclei templates.",
+    "runtime": {
+      "runtimeId": "tool",
+      "version": "1"
+    },
+    "execution": {
+      "tool": "scan_nuclei",
+      "arguments": {
+        "url": {
+          "source": "parameter",
+          "name": "target"
+        },
+        "rate_limit": {
+          "source": "literal",
+          "value": 10
+        }
+      },
+      "resultArtifact": "report",
+      "timeoutSeconds": 300
+    },
+    "toolsets": [
+      {
+        "ref": {
+          "toolsetId": "scan",
+          "version": "1"
+        },
+        "tools": [
+          "scan_nuclei"
+        ]
+      }
+    ],
+    "sandboxProfile": {
+      "sandboxProfileId": "local-workdir",
+      "version": "1"
+    }
+  },
+  "allocationId": "019c-allocation-1",
+  "apiVersion": "contractor/v1alpha1",
+  "leaseExpiresAt": "2026-08-29T10:01:00Z",
+  "logicalAgentName": "builder",
+  "namespace": "builder",
+  "resolvedRuntimeConfigProvenance": {
+    "agentLabels": [
+      {
+        "bindingRevision": 5,
+        "config": {
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "name": "site_proxy",
+          "version": "1"
+        },
+        "label": "site_proxy"
+      }
+    ],
+    "default": {
+      "bindingRevision": 1,
+      "config": {
+        "digest": "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f",
+        "name": "contractor-empty",
+        "version": "1"
+      },
+      "label": "default"
+    },
+    "runLabels": [
+      {
+        "bindingRevision": 3,
+        "config": {
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "name": "debug",
+          "version": "2"
+        },
+        "label": "debug"
+      }
+    ],
+    "runtimeAdapters": [
+      "caido-graphql@1",
+      "http-proxy@1",
+      "otlp-http@1"
+    ],
+    "runtimeCredentialRefs": [
+      {
+        "credentialId": "caido_api",
+        "kind": "caido-bearer@1"
+      },
+      {
+        "credentialId": "caido_proxy",
+        "kind": "http-proxy-basic@1"
+      },
+      {
+        "credentialId": "langfuse_otel",
+        "kind": "otlp-headers@1"
+      }
+    ]
+  },
+  "resolvedSkills": [],
+  "runId": "019c-run-1",
+  "runMetadataLabels": {
+    "eval.id": "eval_01",
+    "purpose": "eval"
+  },
+  "runtimeSettings": {
+    "artifactApiUrl": "https://127.0.0.1:8443/private/v1",
+    "requestTimeoutSeconds": 30
+  },
+  "stageExecutionId": "019c-stage-1",
+  "workerSessionMode": "isolated",
+  "modelPolicy": {
+    "maxModelCalls": 8,
+    "maxOutputTokens": 4096,
+    "maxToolCalls": 16,
+    "maxTotalTokens": 32768,
+    "model": "worker-model",
+    "ref": {
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "policyId": "worker",
+      "version": "1"
+    },
+    "temperature": 0.1
+  }
+}

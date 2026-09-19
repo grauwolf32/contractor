@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -47,6 +48,10 @@ func (l *loader) resolveWorkflowExecutionConfig(
 			Agents: make(map[string]ResolvedConsumerExecutionConfig, len(stage.Agents)),
 		}
 		for logicalName, binding := range stage.Agents {
+			if binding.Template.IsToolWorker() {
+				resolved.Agents[logicalName] = ResolvedConsumerExecutionConfig{}
+				continue
+			}
 			resolved.Agents[logicalName] = ResolvedConsumerExecutionConfig{
 				ModelPolicy: cloneModelPolicy(binding.Template.ModelPolicy),
 				Origins:     ExecutionConfigOrigins{ModelPolicy: originAgentTemplate},
@@ -203,6 +208,9 @@ func applyResolvedStageExecutionConfigOverride(
 		if !ok {
 			return fmt.Errorf("agents names unknown logical Agent %q", logicalName)
 		}
+		if stage.Agents[logicalName].Template.IsToolWorker() {
+			return fmt.Errorf("tool@1 does not accept model execution overrides")
+		}
 		if err := applyResolvedExecutionSelectionOverride(
 			&selection, patch, origin+".agents."+logicalName,
 		); err != nil {
@@ -283,6 +291,9 @@ func (l *loader) applyExecutionConfigPatch(
 		}
 		if patch.Workers != nil {
 			for _, logicalName := range sortedPatchKeys(stage.ExecutionConfig.Agents) {
+				if stage.Agents[logicalName].Template.IsToolWorker() {
+					return fmt.Errorf("tool@1 does not accept Worker model defaults")
+				}
 				selection := stage.ExecutionConfig.Agents[logicalName]
 				if err := l.applySelection(
 					&selection, *patch.Workers, originPrefix+".workers",
@@ -313,6 +324,9 @@ func (l *loader) applyExecutionConfigPatch(
 			}
 		}
 		for _, logicalName := range sortedPatchKeys(stagePatch.Agents) {
+			if stage.Agents[logicalName].Template.IsToolWorker() {
+				return fmt.Errorf("tool@1 does not accept model execution overrides")
+			}
 			selection, ok := stage.ExecutionConfig.Agents[logicalName]
 			if !ok {
 				return fmt.Errorf("stages.%s.agents names unknown logical Agent %q", stageName, logicalName)
@@ -490,6 +504,34 @@ func optionalStringFromYAML(
 
 func validateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
 	for stageName, stage := range workflow.Stages {
+		for _, binding := range stage.Agents {
+			if !binding.Template.IsToolWorker() {
+				continue
+			}
+			execution := binding.Template.Execution
+			if execution == nil {
+				return fmt.Errorf("tool@1 requires execution")
+			}
+			for _, source := range execution.Arguments {
+				switch source.Source {
+				case "parameter":
+					if _, ok := workflow.Parameters[source.Name]; !ok {
+						return fmt.Errorf("tool@1 argument names undeclared parameter")
+					}
+				case "artifact":
+					if _, ok := stage.Context.Artifacts[source.Name]; !ok {
+						return fmt.Errorf("tool@1 argument names undeclared context artifact")
+					}
+				}
+			}
+			output, ok := stage.Result.Artifacts[execution.ResultArtifact]
+			if !ok || !output.Required || output.From == nil || output.From.Namespace != binding.Namespace || strings.HasPrefix(output.From.Name, "tool-invocation.") {
+				return fmt.Errorf("tool@1 requires an owned report result binding")
+			}
+			if !slices.Contains(output.MediaTypes, "application/json") {
+				return fmt.Errorf("tool@1 report must accept application/json")
+			}
+		}
 		if err := validateStageExecutionConfig(stageName, stage); err != nil {
 			return err
 		}
@@ -520,6 +562,15 @@ func validateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 			return fmt.Errorf("Stage %q Agent %q has no executionConfig", stageName, logicalName)
 		}
 		hasTools := len(binding.Template.Toolsets) > 0 || len(binding.Template.Skills) > 0
+		if binding.Template.IsToolWorker() {
+			if !selection.ModelPolicy.IsZero() || selection.LLMGateway != nil || selection.Credential != nil || selection.Origins != (ExecutionConfigOrigins{}) {
+				return fmt.Errorf("tool@1 does not accept model execution configuration")
+			}
+			if stage.Context.Workspace != nil {
+				return fmt.Errorf("tool@1 does not support project workspace")
+			}
+			continue
+		}
 		if err := validateConsumerExecutionConfig(selection, false, hasTools); err != nil {
 			return fmt.Errorf("Stage %q Agent %q executionConfig: %w", stageName, logicalName, err)
 		}

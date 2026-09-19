@@ -96,6 +96,11 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 			"version":          template.SandboxProfile.Version,
 		},
 	}
+	if template.IsToolWorker() {
+		delete(spec, "instructions")
+		delete(spec, "modelPolicy")
+		spec["execution"] = template.Execution
+	}
 	if len(template.Skills) > 0 {
 		skills := make([]any, len(template.Skills))
 		for index, skill := range template.Skills {

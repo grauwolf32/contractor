@@ -5242,7 +5242,6 @@ components:
     ConsumerExecutionConfig:
       type: object
       additionalProperties: false
-      required: [modelPolicy]
       properties:
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
@@ -5250,7 +5249,6 @@ components:
         origins:
           type: object
           additionalProperties: false
-          required: [modelPolicy]
           properties:
             modelPolicy: {type: string, minLength: 1, maxLength: 256}
             llmGateway: {type: string, minLength: 1, maxLength: 256}
@@ -5933,8 +5931,16 @@ components:
     AgentTemplateBody:
       type: object
       additionalProperties: false
-      required: [description, runtime, instructions, modelPolicy, toolsets, sandboxProfile]
+      required: [description, runtime, toolsets, sandboxProfile]
+      if: {properties: {runtime: {const: 'tool@1'}}}
+      then:
+        required: [execution]
+        properties: {instructions: {not: {}}, modelPolicy: {not: {}}, summarizer: {not: {}}}
+      else:
+        required: [instructions, modelPolicy]
+        properties: {execution: {not: {}}}
       properties:
+        execution: {$ref: '#/components/schemas/ToolExecutionConfig'}
         description: {type: string, maxLength: 4096}
         runtime: {$ref: '#/components/schemas/Selector'}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
@@ -5947,6 +5953,36 @@ components:
           items: {$ref: '#/components/schemas/AgentSkillRef'}
         toolsets: {type: array, maxItems: 128, items: {$ref: '#/components/schemas/ToolsetSelection'}}
         sandboxProfile: {$ref: '#/components/schemas/Selector'}
+    ToolExecutionConfig:
+      type: object
+      additionalProperties: false
+      required: [tool, arguments, resultArtifact, timeoutSeconds]
+      properties:
+        tool: {type: string, pattern: '^[A-Za-z_][A-Za-z0-9_]{0,63}$'}
+        resultArtifact: {type: string, minLength: 1, maxLength: 128}
+        timeoutSeconds: {type: integer, minimum: 1, maximum: 3600}
+        arguments:
+          type: object
+          maxProperties: 32
+          propertyNames: {pattern: '^[A-Za-z_][A-Za-z0-9_]{0,63}$'}
+          additionalProperties:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [source, name]
+                properties:
+                  source: {type: string, enum: [parameter, artifact]}
+                  name: {type: string, minLength: 1, maxLength: 128}
+              - type: object
+                additionalProperties: false
+                required: [source, value]
+                properties:
+                  source: {type: string, const: literal}
+                  value:
+                    oneOf:
+                      - {type: string, maxLength: 8192}
+                      - {type: boolean}
+                      - {type: number, minimum: -9007199254740991, maximum: 9007199254740991}
     ExecutionConfigSelection:
       type: object
       additionalProperties: false

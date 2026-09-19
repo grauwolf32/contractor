@@ -114,21 +114,34 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
           <code>{body.runtime}</code>
         </dd>
       </div>
-      <div>
-        <dt>Instructions</dt>
-        <dd className="nested-value">
-          <code>{body.instructions.ref}</code>
-          <code>{body.instructions.digest}</code>
-        </dd>
-      </div>
-      <div>
-        <dt>Default ModelPolicy</dt>
-        <dd>
-          <ConfigurationRefLink
-            value={exactConfigurationRef(body.modelPolicy)}
-          />
-        </dd>
-      </div>
+      {body.instructions === undefined ? null : (
+        <div>
+          <dt>Instructions</dt>
+          <dd className="nested-value">
+            <code>{body.instructions.ref}</code>
+            <code>{body.instructions.digest}</code>
+          </dd>
+        </div>
+      )}
+      {body.modelPolicy === undefined ? null : (
+        <div>
+          <dt>Default ModelPolicy</dt>
+          <dd>
+            <ConfigurationRefLink
+              value={exactConfigurationRef(body.modelPolicy)}
+            />
+          </dd>
+        </div>
+      )}
+      {body.execution === undefined ? null : (
+        <div>
+          <dt>Tool execution</dt>
+          <dd>
+            <code>{body.execution.tool}</code> · {body.execution.timeoutSeconds}
+            s
+          </dd>
+        </div>
+      )}
       <div>
         <dt>Sandbox profile</dt>
         <dd>

@@ -139,6 +139,7 @@ type LLMCredentialAuthorization struct {
 }
 
 type ResolveRuntimeConfigInput struct {
+	ModelFree             bool
 	ModelPolicy           contracts.ResolvedModelPolicy
 	SummarizerModelPolicy *contracts.ResolvedModelPolicy
 	Default               PinnedRuntimeConfig
@@ -155,8 +156,9 @@ type ResolveRuntimeConfigInput struct {
 // ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
 // secret material is deliberately resolved only after placement by V8-007.
 type ResolvedRuntimeConfig struct {
-	ModelPolicy              contracts.ResolvedModelPolicy             `json:"modelPolicy"`
-	LLMGateway               contracts.ResolvedLLMGatewayConfig        `json:"llmGateway"`
+	ModelFree                bool                                      `json:"modelFree,omitempty"`
+	ModelPolicy              contracts.ResolvedModelPolicy             `json:"modelPolicy,omitzero"`
+	LLMGateway               contracts.ResolvedLLMGatewayConfig        `json:"llmGateway,omitzero"`
 	LLMCredential            *contracts.LLMCredentialRef               `json:"llmCredential,omitempty"`
 	WorkerTelemetry          *TelemetryConfig                          `json:"workerTelemetry,omitempty"`
 	HTTPProxy                *HTTPProxyConfig                          `json:"httpProxy,omitempty"`
@@ -169,11 +171,17 @@ type ResolvedRuntimeConfig struct {
 }
 
 func (r ResolvedRuntimeConfig) Validate() error {
-	if err := r.ModelPolicy.Validate(); err != nil {
-		return resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
-	}
-	if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != contracts.OpenAICompatibleProtocol {
-		return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
+	if r.ModelFree {
+		if !r.ModelPolicy.IsZero() || r.LLMGateway != (contracts.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
+			return resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
+		}
+	} else {
+		if err := r.ModelPolicy.Validate(); err != nil {
+			return resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+		}
+		if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != contracts.OpenAICompatibleProtocol {
+			return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
+		}
 	}
 	if err := r.Origins.Validate(); err != nil {
 		return err
@@ -181,7 +189,7 @@ func (r ResolvedRuntimeConfig) Validate() error {
 	if err := r.Provenance.Validate(); err != nil {
 		return resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
 	}
-	if r.Provenance.LLMGatewayConfig == nil || *r.Provenance.LLMGatewayConfig != r.LLMGateway.Ref ||
+	if (!r.ModelFree && (r.Provenance.LLMGatewayConfig == nil || *r.Provenance.LLMGatewayConfig != r.LLMGateway.Ref)) ||
 		!sameCredentialRef(r.Provenance.LLMCredential, r.LLMCredential) ||
 		!sameRuntimeAdapters(r.Provenance.RuntimeAdapters, r.RequiredRuntimeAdapters) {
 		return resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
@@ -207,8 +215,17 @@ type layerOrigins struct {
 // Input maps are immutable catalogs owned by the caller for the duration of
 // the call; the result owns every returned slice and pointer.
 func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfig, error) {
-	if err := input.ModelPolicy.Validate(); err != nil {
-		return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+	if input.ModelFree {
+		if !input.ModelPolicy.IsZero() || input.SummarizerModelPolicy != nil || input.Workflow != (WorkerRoutePatch{}) || input.RunOverride != (WorkerRoutePatch{}) || input.Escalation != (WorkerRoutePatch{}) {
+			return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
+		}
+		input.Default = WithoutWorkerModel(input.Default)
+		input.RunLabels = withoutWorkerModels(input.RunLabels)
+		input.AgentLabels = withoutWorkerModels(input.AgentLabels)
+	} else {
+		if err := input.ModelPolicy.Validate(); err != nil {
+			return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+		}
 	}
 	if input.SummarizerModelPolicy != nil {
 		if err := input.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
@@ -220,11 +237,11 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if err := validatePinned(input.Default, DefaultLabel); err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
-	runSpec, runOrigins, runPins, err := mergePinnedLayer(input.RunLabels, LayerRunLabels, false)
+	runSpec, runOrigins, runPins, err := mergePinnedLayer(input.RunLabels, LayerRunLabels, false, input.ModelFree)
 	if err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
-	agentSpec, agentOrigins, agentPins, err := mergePinnedLayer(input.AgentLabels, LayerAgentLabels, true)
+	agentSpec, agentOrigins, agentPins, err := mergePinnedLayer(input.AgentLabels, LayerAgentLabels, true, input.ModelFree)
 	if err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
@@ -249,25 +266,31 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	applyRoutePatch(&effective, input.Escalation, RuntimeFieldOrigin{Layer: LayerEscalation})
 	applyWorkerSpec(&effective, agentSpec.Worker, agentOrigins)
 
-	if effective.gateway == nil {
-		return ResolvedRuntimeConfig{}, resolutionError(
-			ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
-		)
-	}
-	gateway, ok := input.Gateways[*effective.gateway]
-	if !ok || gateway.Ref != *effective.gateway {
-		return ResolvedRuntimeConfig{}, resolutionError(
-			ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
-		)
-	}
-	if err := gateway.Validate(); err != nil || gateway.Protocol != contracts.OpenAICompatibleProtocol {
-		return ResolvedRuntimeConfig{}, resolutionError(
-			ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid,
-		)
-	}
+	var gateway contracts.ResolvedLLMGatewayConfig
+	var gatewayRef *contracts.LLMGatewayConfigRef
+	if !input.ModelFree {
+		if effective.gateway == nil {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
+			)
+		}
+		var ok bool
+		gateway, ok = input.Gateways[*effective.gateway]
+		if !ok || gateway.Ref != *effective.gateway {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionIncomplete, "worker.llmGateway.gateway", ErrInvalid,
+			)
+		}
+		if err := gateway.Validate(); err != nil || gateway.Protocol != contracts.OpenAICompatibleProtocol {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid,
+			)
+		}
 
-	if err := validateLLMRoute(input, gateway.Ref, effective.credential); err != nil {
-		return ResolvedRuntimeConfig{}, err
+		if err := validateLLMRoute(input, gateway.Ref, effective.credential); err != nil {
+			return ResolvedRuntimeConfig{}, err
+		}
+		gatewayRef = &gateway.Ref
 	}
 	workerCredentials, plannerCredential, adapters, err := validateAdapterSettings(input, effective)
 	if err != nil {
@@ -278,7 +301,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		RunLabels:             bindingProvenanceList(runPins),
 		AgentLabels:           bindingProvenanceList(agentPins),
 		RuntimeAdapters:       append([]contracts.RuntimeAdapterRef{}, adapters...),
-		LLMGatewayConfig:      cloneGatewayRef(&gateway.Ref),
+		LLMGatewayConfig:      cloneGatewayRef(gatewayRef),
 		LLMCredential:         cloneCredentialRef(effective.credential),
 		RuntimeCredentialRefs: workerCredentials,
 	}
@@ -286,6 +309,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
 	}
 	result := ResolvedRuntimeConfig{
+		ModelFree:                input.ModelFree,
 		ModelPolicy:              cloneResolvedModelPolicy(input.ModelPolicy),
 		LLMGateway:               cloneResolvedGateway(gateway),
 		LLMCredential:            cloneCredentialRef(effective.credential),
@@ -305,7 +329,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 }
 
 func mergePinnedLayer(
-	values []PinnedRuntimeConfig, layer RuntimeLayer, agent bool,
+	values []PinnedRuntimeConfig, layer RuntimeLayer, agent bool, modelFree bool,
 ) (Spec, layerOrigins, []PinnedRuntimeConfig, error) {
 	ordered := append([]PinnedRuntimeConfig{}, values...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Label < ordered[j].Label })
@@ -321,7 +345,7 @@ func mergePinnedLayer(
 		previous = value.Label
 		spec := value.Spec
 		if agent {
-			if !workerApplicable(spec.Worker) {
+			if !modelFree && !workerApplicable(spec.Worker) {
 				return Spec{}, layerOrigins{}, nil, resolutionError(
 					ResolutionInvalid, "agent_labels.worker", ErrInvalid,
 				)
@@ -341,6 +365,34 @@ func mergePinnedLayer(
 		return Spec{}, layerOrigins{}, nil, resolutionError(ResolutionConflict, path, err)
 	}
 	return merged, originsForPinned(layer, ordered), ordered, nil
+}
+
+// WithoutWorkerModel keeps immutable provenance while projecting irrelevant
+// model leaves out before merge and catalog/credential lookups for tool Workers.
+func WithoutWorkerModel(value PinnedRuntimeConfig) PinnedRuntimeConfig {
+	value.Spec.Worker.LLMGateway = LLMGatewayPatch{}
+	proxy := value.Spec.Worker.HTTPProxy
+	if proxy.Present && !proxy.Clear {
+		proxy.Value.Targets = nil
+		for _, target := range value.Spec.Worker.HTTPProxy.Value.Targets {
+			if target != string(contracts.ProxyTargetLLMGateway) {
+				proxy.Value.Targets = append(proxy.Value.Targets, target)
+			}
+		}
+		if len(proxy.Value.Targets) == 0 {
+			proxy = AtomicPatch[HTTPProxyConfig]{}
+		}
+		value.Spec.Worker.HTTPProxy = proxy
+	}
+	return value
+}
+
+func withoutWorkerModels(values []PinnedRuntimeConfig) []PinnedRuntimeConfig {
+	result := make([]PinnedRuntimeConfig, len(values))
+	for i, value := range values {
+		result[i] = WithoutWorkerModel(value)
+	}
+	return result
 }
 
 func validatePinned(value PinnedRuntimeConfig, expectedLabel string) error {

@@ -131,7 +131,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         work_root = tmp_path / "work"
         snapshot = await discover_capabilities(built_in_factories(work_root))
 
-        assert snapshot.runtimes == ("adk@1",)
+        assert snapshot.runtimes == ("adk@1", "tool@1")
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
         assert snapshot.runtime_adapters == (
             "caido-graphql@1",

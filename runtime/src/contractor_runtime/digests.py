@@ -24,11 +24,13 @@ class GatewayDigestMismatch(ValueError):
 
 
 def verify_template_digests(template: ResolvedAgentTemplate) -> None:
-    instruction_digest = _digest_bytes(template.instructions.text.encode("utf-8"))
-    if instruction_digest != template.instructions.digest:
-        raise TemplateDigestMismatch("resolved instruction digest does not match its text")
+    if template.instructions is not None:
+        instruction_digest = _digest_bytes(template.instructions.text.encode("utf-8"))
+        if instruction_digest != template.instructions.digest:
+            raise TemplateDigestMismatch("resolved instruction digest does not match its text")
 
-    verify_model_policy_digest(template.model_policy)
+    if template.model_policy is not None:
+        verify_model_policy_digest(template.model_policy)
 
     if template.summarizer is not None:
         verify_model_policy_digest(template.summarizer.model_policy)
@@ -111,10 +113,14 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
                 "version": template.runtime.version,
             },
             "instructions": {
-                "ref": template.instructions.ref,
-                "digest": template.instructions.digest,
+                "ref": template.instructions.ref if template.instructions else "",
+                "digest": template.instructions.digest if template.instructions else "",
             },
-            "modelPolicy": _resolved_model_policy_value(template.model_policy),
+            "modelPolicy": (
+                _resolved_model_policy_value(template.model_policy)
+                if template.model_policy
+                else None
+            ),
             "toolsets": toolsets,
             "sandboxProfile": {
                 "sandboxProfileId": template.sandbox_profile.sandbox_profile_id,
@@ -122,6 +128,10 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
             },
         },
     }
+    if template.is_tool_worker:
+        del manifest["spec"]["instructions"]
+        del manifest["spec"]["modelPolicy"]
+        manifest["spec"]["execution"] = template.execution.model_dump(by_alias=True)
     if template.skills:
         manifest["spec"]["skills"] = [
             {"namespace": skill.namespace, "name": skill.name} for skill in template.skills

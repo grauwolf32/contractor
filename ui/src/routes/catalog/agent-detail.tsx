@@ -130,6 +130,7 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
       );
       const body = resource.body as AgentTemplateBody;
       if (
+        body.instructions === undefined ||
         result.template.digest !== resource.ref.digest ||
         result.instructions.digest !== body.instructions.digest ||
         result.instructions.ref !== body.instructions.ref
@@ -343,10 +344,17 @@ export function AgentDetailRoute() {
       ) : (
         <>
           <AgentVersionSelector resource={query.data} />
-          <AgentPrompt
-            key={`prompt:${query.data.ref.digest}`}
-            resource={query.data}
-          />
+          {(query.data.body as AgentTemplateBody).runtime === "tool@1" ? (
+            <p>
+              This agent runs its configured tool directly without a model or
+              prompt.
+            </p>
+          ) : (
+            <AgentPrompt
+              key={`prompt:${query.data.ref.digest}`}
+              resource={query.data}
+            />
+          )}
           <AgentUsage
             key={`usage:${query.data.ref.digest}`}
             resource={query.data}

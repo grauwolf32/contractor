@@ -59,7 +59,8 @@ func MVPDescriptors() Descriptors {
 			"router@1":      {},
 		},
 		WorkerRuntimes: map[string]struct{}{
-			"adk@1": {},
+			"adk@1":  {},
+			"tool@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
 			"code-execution@1": {

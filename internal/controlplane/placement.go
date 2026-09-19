@@ -346,6 +346,15 @@ func (a *PlacementAllocator) resolveCandidate(
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
+	if binding.AgentTemplate.IsToolWorker() {
+		defaultConfig = runtimeconfig.WithoutWorkerModel(defaultConfig)
+		for i := range runConfigs {
+			runConfigs[i] = runtimeconfig.WithoutWorkerModel(runConfigs[i])
+		}
+		for i := range agentConfigs {
+			agentConfigs[i] = runtimeconfig.WithoutWorkerModel(agentConfigs[i])
+		}
+	}
 	allConfigs := append([]runtimeconfig.PinnedRuntimeConfig{defaultConfig}, runConfigs...)
 	allConfigs = append(allConfigs, agentConfigs...)
 	gateways, err := a.gatewayCatalog(*binding.RuntimeSelection, allConfigs)
@@ -362,6 +371,7 @@ func (a *PlacementAllocator) resolveCandidate(
 		summarizerModelPolicy = &policy
 	}
 	return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
+		ModelFree:   binding.AgentTemplate.IsToolWorker(),
 		ModelPolicy: binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,
 		Default:  defaultConfig,
 		Workflow: workflowPatch, RunLabels: runConfigs, RunOverride: runPatch,

@@ -2990,11 +2990,11 @@ export interface components {
             digest: components["schemas"]["Digest"];
         };
         ConsumerExecutionConfig: {
-            modelPolicy: components["schemas"]["ModelPolicyRef"];
+            modelPolicy?: components["schemas"]["ModelPolicyRef"];
             llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["CredentialRef"];
             origins?: {
-                modelPolicy: string;
+                modelPolicy?: string;
                 llmGateway?: string;
                 credential?: string;
             };
@@ -3556,14 +3556,31 @@ export interface components {
             contextWindowRatio: number;
         };
         AgentTemplateBody: {
+            execution?: components["schemas"]["ToolExecutionConfig"];
             description: string;
             runtime: components["schemas"]["Selector"];
-            instructions: components["schemas"]["InstructionsRef"];
-            modelPolicy: components["schemas"]["ModelPolicyRef"];
+            instructions?: components["schemas"]["InstructionsRef"];
+            modelPolicy?: components["schemas"]["ModelPolicyRef"];
             summarizer?: components["schemas"]["WorkerSummarizerConfigBody"];
             skills?: components["schemas"]["AgentSkillRef"][];
             toolsets: components["schemas"]["ToolsetSelection"][];
             sandboxProfile: components["schemas"]["Selector"];
+        };
+        ToolExecutionConfig: {
+            tool: string;
+            resultArtifact: string;
+            timeoutSeconds: number;
+            arguments: {
+                [key: string]: {
+                    /** @enum {string} */
+                    source: "parameter" | "artifact";
+                    name: string;
+                } | {
+                    /** @constant */
+                    source: "literal";
+                    value: string | boolean | number;
+                };
+            };
         };
         ExecutionConfigSelection: {
             modelPolicy?: components["schemas"]["ModelPolicyRef"];

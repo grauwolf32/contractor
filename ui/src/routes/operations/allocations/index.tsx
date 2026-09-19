@@ -100,11 +100,16 @@ export function AllocationListRoute() {
                     <div>
                       <dt>ModelPolicy</dt>
                       <dd>
-                        <ConfigurationRefLink
-                          value={exactConfigurationRef(
-                            allocation.executionConfig.modelPolicy,
-                          )}
-                        />
+                        {allocation.executionConfig.modelPolicy ===
+                        undefined ? (
+                          <span>No model</span>
+                        ) : (
+                          <ConfigurationRefLink
+                            value={exactConfigurationRef(
+                              allocation.executionConfig.modelPolicy,
+                            )}
+                          />
+                        )}
                       </dd>
                     </div>
                     <div>
@@ -112,7 +117,10 @@ export function AllocationListRoute() {
                       <dd>
                         {allocation.executionConfig.llmGateway === undefined ? (
                           <span className="muted-copy">
-                            Awaiting route resolution
+                            {allocation.executionConfig.modelPolicy ===
+                            undefined
+                              ? "Not required"
+                              : "Awaiting route resolution"}
                           </span>
                         ) : (
                           <ConfigurationRefLink
@@ -128,7 +136,10 @@ export function AllocationListRoute() {
                       <dd>
                         {allocation.executionConfig.credential === undefined ? (
                           <span className="muted-copy">
-                            Unauthenticated Gateway access
+                            {allocation.executionConfig.modelPolicy ===
+                            undefined
+                              ? "Not required"
+                              : "Unauthenticated Gateway access"}
                           </span>
                         ) : (
                           <Link

@@ -56,6 +56,46 @@ function response(
 }
 
 describe("Operations API", () => {
+  it("accepts a tool allocation without a model route and still requires routes for modeled Workers", async () => {
+    const allocation = {
+      allocationId: "scan-allocation",
+      runId: "scan-run",
+      stageExecutionId: "scan-stage",
+      runtimeAgentInstanceId: "scan-runtime",
+      logicalWorker: "scanner",
+      agentTemplate: { templateId: "nuclei-scan", version: "1", digest },
+      executionConfig: {} as { modelPolicy?: typeof policy },
+      authoritativePhase: "ready",
+      observedPhase: "ready",
+      metrics: {
+        reportsComplete: false,
+        modelCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        toolCalls: 1,
+        toolFailures: 0,
+        errorCount: 0,
+        truncated: false,
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          cursor: { generation: "operations-generation-1", revision: "7" },
+          runtimeAgents: [],
+          allocations: [allocation],
+        }),
+      ),
+    );
+    expect(
+      (await getOperationsSnapshot(api)).allocations[0]?.executionConfig,
+    ).toEqual({});
+    allocation.executionConfig.modelPolicy = policy;
+    await expect(getOperationsSnapshot(api)).rejects.toBeDefined();
+  });
+
   it("reads one authoritative snapshot and cursor-pinned pages", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(

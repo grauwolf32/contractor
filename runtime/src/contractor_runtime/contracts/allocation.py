@@ -120,7 +120,9 @@ class AllocationSpec(VersionedWireModel):
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
     resolved_skills: list[ResolvedSkill] = Field(max_length=32)
-    model_policy: ResolvedModelPolicy
+    model_policy: ResolvedModelPolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     runtime_settings: RuntimeSettings
     resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenance
     workspace: AllocationWorkspaceSpec | None = None
@@ -153,6 +155,24 @@ class AllocationSpec(VersionedWireModel):
             raise ValueError("resolvedSkills must be sorted and unique")
         if names != [skill.name for skill in self.agent_template.skills]:
             raise ValueError("resolvedSkills must exactly match AgentTemplate skills")
+        if self.agent_template.is_tool_worker:
+            if (
+                "model_policy" in self.model_fields_set
+                or "completion_contract" in self.model_fields_set
+                or "llm_gateway_url" in self.runtime_settings.model_fields_set
+                or self.runtime_settings.llm_gateway_url is not None
+                or self.runtime_settings.llm_gateway_token is not None
+                or self.resolved_runtime_config_provenance.llm_gateway_config is not None
+                or self.resolved_runtime_config_provenance.llm_credential is not None
+                or self.workspace is not None
+                or self.completion_contract is not None
+            ):
+                raise ValueError(
+                    "tool@1 allocation forbids model access, workspace and completion contracts"
+                )
+            return self
+        if self.model_policy is None or self.runtime_settings.llm_gateway_url is None:
+            raise ValueError("modeled allocation requires modelPolicy and llmGatewayUrl")
         _require_worker_policy(
             self.model_policy,
             has_tools=bool(

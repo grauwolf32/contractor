@@ -3,7 +3,7 @@ id: V55-004
 title: Scan a complete prepared HTTP request with sqlmap
 milestone: scan-tools-first-slice
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V55-003]
 languages: [python, yaml, markdown]
 goal: Preserve the method, URL, headers and body of one supplied HTTP request when invoking sqlmap.

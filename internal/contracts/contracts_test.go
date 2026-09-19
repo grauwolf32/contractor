@@ -20,6 +20,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"agent-heartbeat.json":                         roundTrip[AgentHeartbeat],
 		"heartbeat-response.json":                      roundTrip[HeartbeatResponse],
 		"llm-gateway-config.json":                      roundTrip[ResolvedLLMGatewayConfig],
+		"allocation-spec-tool.json":                    roundTrip[AllocationSpec],
 		"allocation-spec.json":                         roundTrip[AllocationSpec],
 		"allocation-spec-summarizer.json":              roundTrip[AllocationSpec],
 		"allocation-spec-summarizer-instructions.json": roundTrip[AllocationSpec],
@@ -58,6 +59,8 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 	cases := map[string]func([]byte) error{
 		"registration-missing-labels.json":        reject[AgentRegistration],
 		"registration-missing-adapters.json":      reject[AgentRegistration],
+		"allocation-spec-tool-model.json":         reject[AllocationSpec],
+		"allocation-spec-adk-no-model.json":       reject[AllocationSpec],
 		"allocation-spec-missing-provenance.json": reject[AllocationSpec],
 
 		"agent-state-zero-revision.json":                      reject[AgentStateSnapshot],

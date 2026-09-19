@@ -1209,7 +1209,7 @@ func verifyReservations(
 		} else {
 			resolved := reservation.ResolvedRuntimeConfig
 			selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
-			if resolved.Validate() != nil || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+			if resolved.Validate() != nil || resolved.ModelFree != binding.Template.IsToolWorker() || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
 				reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
 				reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
 				(reservation.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested) !=

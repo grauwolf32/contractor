@@ -208,6 +208,11 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 		"sandboxProfile": template.SandboxProfile.SandboxProfileID + "@" +
 			template.SandboxProfile.Version,
 	}
+	if template.IsToolWorker() {
+		delete(result, "instructions")
+		delete(result, "modelPolicy")
+		result["execution"] = template.Execution.Clone()
+	}
 	if len(template.Skills) > 0 {
 		result["skills"] = append([]contracts.ArtifactRef(nil), template.Skills...)
 	}

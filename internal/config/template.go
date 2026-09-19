@@ -27,23 +27,30 @@ func (l *loader) resolveAgentTemplate(
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.runtime selects unknown WorkerRuntime %q", runtime)
 	}
 
-	instructions, err := l.resolveInstructions(spec.Instructions)
-	if err != nil {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.instructions: %w", err)
-	}
+	var instructions contracts.ResolvedInstructions
+	var policy contracts.ResolvedModelPolicy
+	var summarizer *contracts.WorkerSummarizerConfig
+	if runtime.String() != "tool@1" {
+		instructions, err = l.resolveInstructions(spec.Instructions)
+		if err != nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.instructions: %w", err)
+		}
 
-	policySelector, err := ParseSelector(spec.ModelPolicy)
-	if err != nil {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
-	}
-	policy, ok := l.policies[policySelector.String()]
-	if !ok {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy selects unknown ModelPolicy %q", policySelector)
-	}
-	policy = cloneModelPolicy(policy)
-	summarizer, err := l.resolveWorkerSummarizer(spec.Summarizer, policy)
-	if err != nil {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.summarizer: %w", err)
+		policySelector, err := ParseSelector(spec.ModelPolicy)
+		if err != nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
+		}
+		resolvedPolicy, ok := l.policies[policySelector.String()]
+		if !ok {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy selects unknown ModelPolicy %q", policySelector)
+		}
+		policy = cloneModelPolicy(resolvedPolicy)
+		summarizer, err = l.resolveWorkerSummarizer(spec.Summarizer, policy)
+		if err != nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.summarizer: %w", err)
+		}
+	} else if spec.Instructions != nil || spec.ModelPolicy != "" || spec.Summarizer != nil || spec.Skills != nil {
+		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("tool@1 forbids instructions, modelPolicy, summarizer and skills")
 	}
 
 	toolsets, err := l.resolveToolsets(spec.Toolsets)
@@ -54,8 +61,10 @@ func (l *loader) resolveAgentTemplate(
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
-	if err := policy.ValidateForWorker(len(toolsets) > 0 || len(skills) > 0); err != nil {
-		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
+	if runtime.String() != "tool@1" {
+		if err := policy.ValidateForWorker(len(toolsets) > 0 || len(skills) > 0); err != nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy: %w", err)
+		}
 	}
 	if len(skills) > 0 {
 		for _, toolset := range toolsets {
@@ -85,12 +94,16 @@ func (l *loader) resolveAgentTemplate(
 		Instructions: instructions,
 		ModelPolicy:  policy,
 		Summarizer:   summarizer,
+		Execution:    spec.Execution.Clone(),
 		Toolsets:     toolsets,
 		Skills:       skills,
 		SandboxProfile: contracts.SandboxProfileRef{
 			SandboxProfileID: sandbox.ID,
 			Version:          sandbox.Version,
 		},
+	}
+	if err := result.ValidateToolExecution(); err != nil {
+		return contracts.ResolvedAgentTemplate{}, err
 	}
 	if err := l.descriptors.ValidateSandboxToolCompatibility(result); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err

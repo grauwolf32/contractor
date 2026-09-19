@@ -564,7 +564,7 @@ const AllocationRuntimeConfigurationSchemaVersion = "contractor.runtime-config-p
 // outside PostgreSQL; immutable refs, origins and adapter requirements remain
 // available for audit and report attribution.
 type AllocationRuntimeConfiguration struct {
-	ModelPolicy contracts.ModelPolicyRef                   `json:"modelPolicy"`
+	ModelPolicy contracts.ModelPolicyRef                   `json:"modelPolicy,omitzero"`
 	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
 	Provenance  contracts.ResolvedRuntimeConfigProvenance  `json:"provenance"`
 }

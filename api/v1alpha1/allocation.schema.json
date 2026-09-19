@@ -413,6 +413,15 @@
     },
     "allocationSpec": {
       "additionalProperties": false,
+      "if": {"properties": {"agentTemplate": {"properties": {"runtime": {"properties": {"runtimeId": {"const": "tool"}, "version": {"const": "1"}}}}}}},
+      "then": {"properties": {
+        "modelPolicy": false,
+        "workspace": {"type": "null"},
+        "completionContract": false,
+        "runtimeSettings": {"properties": {"llmGatewayUrl": false, "llmGatewayToken": {"type": "null"}}},
+        "resolvedRuntimeConfigProvenance": {"properties": {"llmGatewayConfig": {"type": "null"}, "llmCredential": {"type": "null"}}}
+      }},
+      "else": {"required": ["modelPolicy"], "properties": {"runtimeSettings": {"required": ["llmGatewayUrl"]}}},
       "properties": {
         "apiVersion": {
           "$ref": "common.schema.json#/$defs/apiVersion"
@@ -509,7 +518,6 @@
         "leaseExpiresAt",
         "agentTemplate",
         "resolvedSkills",
-        "modelPolicy",
         "runtimeSettings",
         "resolvedRuntimeConfigProvenance"
       ],
@@ -1117,7 +1125,6 @@
         }
       },
       "required": [
-        "llmGatewayUrl",
         "artifactApiUrl",
         "requestTimeoutSeconds"
       ],

@@ -67,7 +67,11 @@ func PinRunSnapshot(
 	explicitLabels []string,
 	runtimeCredentials RuntimeCredentialValidator,
 	llmCredentials TransactionLLMCredentialLookup,
+	modelFree ...bool,
 ) (RunSnapshot, error) {
+	if len(modelFree) > 1 {
+		return RunSnapshot{}, invalid("Run RuntimeConfig pinning accepts at most one model-free selection")
+	}
 	labels, err := NormalizeRunLabels(explicitLabels)
 	if err != nil {
 		return RunSnapshot{}, err
@@ -102,6 +106,9 @@ func PinRunSnapshot(
 		version, getErr := repository.GetVersionByRef(ctx, binding.Ref)
 		if getErr != nil {
 			return RunSnapshot{}, getErr
+		}
+		if len(modelFree) == 1 && modelFree[0] {
+			version.Spec = WithoutWorkerModel(PinnedRuntimeConfig{Spec: version.Spec}).Spec
 		}
 		if validateErr := validateSpecRuntimeCredentials(ctx, version.Spec, runtimeCredentials); validateErr != nil {
 			return RunSnapshot{}, validateErr

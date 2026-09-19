@@ -42,6 +42,9 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	if err := allocation.RuntimeConfiguration.Validate(); err != nil {
 		return invalidf("allocation Runtime configuration is invalid: %v", err)
 	}
+	if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (allocation.RuntimeConfiguration.ModelPolicy == (contracts.ModelPolicyRef{})) {
+		return invalidf("allocation model policy does not match Worker runtime")
+	}
 	if err := allocation.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
 		return invalidf("allocation performance collection policy is invalid")
 	}
@@ -249,6 +252,9 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 			if err := json.Unmarshal(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
 				return nil, fmt.Errorf("decode persisted allocation Runtime configuration")
 			}
+			if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (configuration.ModelPolicy == (contracts.ModelPolicyRef{})) {
+				return nil, fmt.Errorf("persisted allocation model policy does not match Worker runtime")
+			}
 			allocation.RuntimeAgentID = *runtimeAgentID
 			allocation.RuntimeAgentLabelRevision = revision
 			allocation.RuntimeConfigurationSchemaVersion = *runtimeConfigurationVersion
@@ -269,8 +275,14 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 }
 
 func (c AllocationRuntimeConfiguration) Validate() error {
-	if err := c.ModelPolicy.ValidateRef(); err != nil {
-		return err
+	if c.ModelPolicy == (contracts.ModelPolicyRef{}) {
+		if c.Provenance.LLMGatewayConfig != nil || c.Provenance.LLMCredential != nil || c.Origins.LLMGateway != nil || c.Origins.LLMCredential != nil {
+			return fmt.Errorf("model-free allocation cannot retain model route provenance")
+		}
+	} else {
+		if err := c.ModelPolicy.ValidateRef(); err != nil {
+			return err
+		}
 	}
 	if err := c.Origins.Validate(); err != nil {
 		return err

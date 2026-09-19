@@ -27,6 +27,8 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
     WorkerSummarizerConfig,
 )
+from contractor_runtime.contracts.settings import AgentTemplateRef
+from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
@@ -55,6 +57,7 @@ from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotations
 from contractor_runtime.toolsets.text_artifacts.tools import TextArtifactsToolsetFactory
 from contractor_runtime.toolsets.workspace_changes.tools import WorkspaceChangesToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.tool_runtime import ToolWorkerRuntimeFactory
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 if TYPE_CHECKING:
@@ -96,12 +99,14 @@ class WorkerBuildContext:
     description: str
     instruction: str
     card_version: str
-    model_policy: ResolvedModelPolicy
+    model_policy: ResolvedModelPolicy | None
     workspace: AllocationWorkspace
     tools: Mapping[str, ToolInstance]
     state: Any
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
+    execution: ToolExecutionConfig | None = None
+    template_ref: AgentTemplateRef | None = None
     summarizer: WorkerSummarizerConfig | None = None
     completion_contract: WorkerCompletionContract | None = None
     adapter_handles: AdapterHandles = field(
@@ -244,7 +249,10 @@ def built_in_factories(
             ref: factory for ref, factory in runtime_adapters.items() if ref in enabled
         }
     return FactoryRegistry(
-        worker_runtimes={runtime.ref: runtime},
+        worker_runtimes={
+            runtime.ref: runtime,
+            "tool@1": ToolWorkerRuntimeFactory(artifact_client_factory),
+        },
         toolsets={
             **(
                 {
