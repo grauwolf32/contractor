@@ -104,25 +104,31 @@ describe("application session shell", () => {
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
   });
 
-  it("logs in and clears the transient password field", async () => {
-    const api: SessionAPI = {
-      getSession: vi.fn(async () => null),
-      login: vi.fn(async () => session),
-      logout: vi.fn(async () => undefined),
-    };
-    const { router } = renderApplication(api, "/login");
-    const user = userEvent.setup();
-    await screen.findByRole("region", { name: "Sign in" });
-    await user.type(screen.getByLabelText("Username"), "owner");
-    await user.type(screen.getByLabelText("Password"), "a-long-local-password");
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
+  it.each(["a-long-local-password", "пароль", "🔐".repeat(256)])(
+    "logs in with a valid UTF-8 password without character-count rejection (%#)",
+    async (password) => {
+      const api: SessionAPI = {
+        getSession: vi.fn(async () => null),
+        login: vi.fn(async () => session),
+        logout: vi.fn(async () => undefined),
+      };
+      const { router } = renderApplication(api, "/login");
+      const user = userEvent.setup();
+      await screen.findByRole("region", { name: "Sign in" });
+      await user.type(screen.getByLabelText("Username"), "owner");
+      const passwordInput = screen.getByLabelText("Password");
+      expect(passwordInput).not.toHaveAttribute("minlength");
+      await user.click(passwordInput);
+      await user.paste(password);
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(api.login).toHaveBeenCalledWith({
-      username: "owner",
-      password: "a-long-local-password",
-    });
-  });
+      await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+      expect(api.login).toHaveBeenCalledWith({
+        username: "owner",
+        password,
+      });
+    },
+  );
 });
 
 it("returns to sign in when a domain request loses its session", async () => {

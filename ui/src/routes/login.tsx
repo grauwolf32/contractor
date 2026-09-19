@@ -97,7 +97,6 @@ export function LoginRoute() {
               name="password"
               type="password"
               autoComplete="current-password"
-              minLength={12}
               maxLength={1024}
               required
               value={password}

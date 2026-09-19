@@ -106,6 +106,9 @@ paths:
       tags: [Settings]
       summary: Validate and replace the owner's encrypted Git SSH private key
       x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
       requestBody:
         required: true
         content:
@@ -128,6 +131,9 @@ paths:
       tags: [Settings]
       summary: Remove the owner's configured Git key without changing imported artifacts
       x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
       responses:
         '204':
           description: Key is absent
@@ -146,9 +152,16 @@ paths:
       operationId: importGitArtifact
       tags: [Artifacts]
       summary: Import one bounded Git snapshot as an exact source ZIP artifact
-      description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+      description: |
+        Omitting both precondition headers or sending `If-None-Match: *` creates
+        an absent binding and conflicts if it already exists. Updating an
+        existing binding requires one strong quoted `If-Match` revision;
+        supplying both headers is invalid. No automatic refresh or mutation
+        retry. The whole operation is bounded to 120 seconds.
       x-contractor-implementation: implemented
       parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
@@ -192,9 +205,16 @@ paths:
       operationId: importProjectGitArtifact
       tags: [Artifacts]
       summary: Import one bounded Git snapshot as an exact source ZIP artifact
-      description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+      description: |
+        Omitting both precondition headers or sending `If-None-Match: *` creates
+        an absent binding and conflicts if it already exists. Updating an
+        existing binding requires one strong quoted `If-Match` revision;
+        supplying both headers is invalid. No automatic refresh or mutation
+        retry. The whole operation is bounded to 120 seconds.
       x-contractor-implementation: implemented
       parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
         - name: If-None-Match
           in: header
           schema: {type: string, const: '*'}
@@ -758,7 +778,7 @@ paths:
           schema:
             type: array
             maxItems: 32
-            items: {type: string, minLength: 3, maxLength: 320, pattern: '^[^=]+=.+'}
+            items: {type: string, minLength: 2, maxLength: 320, pattern: '^[^=]+=[\s\S]*$'}
       responses:
         '200':
           description: Stable newest-first Project Run page
@@ -1630,7 +1650,7 @@ paths:
           schema:
             type: array
             maxItems: 32
-            items: {type: string, minLength: 3, maxLength: 320, pattern: '^[^=]+=.+'}
+            items: {type: string, minLength: 2, maxLength: 320, pattern: '^[^=]+=[\s\S]*$'}
       responses:
         '200':
           description: Stable Run page
@@ -4702,14 +4722,33 @@ components:
       properties:
         expiresAt: {type: string, format: date-time}
     DecideAuditFindingRequest:
+      oneOf:
+        - $ref: '#/components/schemas/DecideAuditFindingTruePositiveRequest'
+        - $ref: '#/components/schemas/DecideAuditFindingDuplicateRequest'
+        - $ref: '#/components/schemas/DecideAuditFindingOtherRequest'
+    DecideAuditFindingTruePositiveRequest:
+      type: object
+      additionalProperties: false
+      required: [verdict, severity, rationale]
+      properties:
+        verdict: {type: string, const: true_positive}
+        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+    DecideAuditFindingDuplicateRequest:
+      type: object
+      additionalProperties: false
+      required: [verdict, duplicateTargetId, rationale]
+      properties:
+        verdict: {type: string, const: duplicate}
+        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+    DecideAuditFindingOtherRequest:
       type: object
       additionalProperties: false
       required: [verdict, rationale]
       properties:
-        verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
-        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        verdict: {type: string, enum: [false_positive, reopen, needs_evidence]}
         rationale: {type: string, minLength: 1, maxLength: 65536}
-        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
     DecideAuditActionRequest:
       type: object
       additionalProperties: false
@@ -5609,8 +5648,14 @@ components:
         inputs:
           type: object
           additionalProperties: {$ref: '#/components/schemas/ExactArtifactRef'}
-        attempts: {type: array, maxItems: 1024, items: {$ref: '#/components/schemas/StageAttempt'}}
-        transitions: {type: array, maxItems: 1024, items: {$ref: '#/components/schemas/StageTransition'}}
+        attempts:
+          type: array
+          description: Complete retained attempt history, including automatic retries. No fixed item cap or truncation is applied by this endpoint.
+          items: {$ref: '#/components/schemas/StageAttempt'}
+        transitions:
+          type: array
+          description: Complete retained transition history. No fixed item cap or truncation is applied by this endpoint.
+          items: {$ref: '#/components/schemas/StageTransition'}
         outputs:
           type: object
           maxProperties: 128
@@ -6403,7 +6448,12 @@ components:
       required: [username, password]
       properties:
         username: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'}
-        password: {type: string, minLength: 12, maxLength: 1024, writeOnly: true}
+        password:
+          type: string
+          writeOnly: true
+          description: Password must contain 12 through 1024 UTF-8 bytes. The server validates byte length, rather than Unicode character count.
+          x-min-utf8-bytes: 12
+          x-max-utf8-bytes: 1024
 
     SnapshotCursor:
       type: object

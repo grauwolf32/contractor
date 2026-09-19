@@ -63,7 +63,11 @@ export interface paths {
         put?: never;
         /**
          * Import one bounded Git snapshot as an exact source ZIP artifact
-         * @description Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+         * @description Omitting both precondition headers or sending `If-None-Match: *` creates
+         *     an absent binding and conflicts if it already exists. Updating an
+         *     existing binding requires one strong quoted `If-Match` revision;
+         *     supplying both headers is invalid. No automatic refresh or mutation
+         *     retry. The whole operation is bounded to 120 seconds.
          */
         post: operations["importGitArtifact"];
         delete?: never;
@@ -87,7 +91,11 @@ export interface paths {
         put?: never;
         /**
          * Import one bounded Git snapshot as an exact source ZIP artifact
-         * @description Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+         * @description Omitting both precondition headers or sending `If-None-Match: *` creates
+         *     an absent binding and conflicts if it already exists. Updating an
+         *     existing binding requires one strong quoted `If-Match` revision;
+         *     supplying both headers is invalid. No automatic refresh or mutation
+         *     retry. The whole operation is bounded to 120 seconds.
          */
         post: operations["importProjectGitArtifact"];
         delete?: never;
@@ -2678,11 +2686,23 @@ export interface components {
             /** Format: date-time */
             expiresAt?: string;
         };
-        DecideAuditFindingRequest: {
-            verdict: components["schemas"]["AuditAnalystVerdict"];
-            severity?: components["schemas"]["AuditFindingSeverity"];
+        DecideAuditFindingRequest: components["schemas"]["DecideAuditFindingTruePositiveRequest"] | components["schemas"]["DecideAuditFindingDuplicateRequest"] | components["schemas"]["DecideAuditFindingOtherRequest"];
+        DecideAuditFindingTruePositiveRequest: {
+            /** @constant */
+            verdict: "true_positive";
+            severity: components["schemas"]["AuditFindingSeverity"];
             rationale: string;
-            duplicateTargetId?: components["schemas"]["ResourceId"];
+        };
+        DecideAuditFindingDuplicateRequest: {
+            /** @constant */
+            verdict: "duplicate";
+            duplicateTargetId: components["schemas"]["ResourceId"];
+            rationale: string;
+        };
+        DecideAuditFindingOtherRequest: {
+            /** @enum {string} */
+            verdict: "false_positive" | "reopen" | "needs_evidence";
+            rationale: string;
         };
         DecideAuditActionRequest: {
             action: components["schemas"]["AuditReviewAction"];
@@ -3251,7 +3271,9 @@ export interface components {
             inputs?: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
             };
+            /** @description Complete retained attempt history, including automatic retries. No fixed item cap or truncation is applied by this endpoint. */
             attempts: components["schemas"]["StageAttempt"][];
+            /** @description Complete retained transition history. No fixed item cap or truncation is applied by this endpoint. */
             transitions: components["schemas"]["StageTransition"][];
             outputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
@@ -3849,6 +3871,7 @@ export interface components {
         };
         LoginRequest: {
             username: string;
+            /** @description Password must contain 12 through 1024 UTF-8 bytes. The server validates byte length, rather than Unicode character count. */
             password: string;
         };
         SnapshotCursor: {
@@ -4762,7 +4785,12 @@ export interface operations {
     replaceGitKey: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4785,7 +4813,12 @@ export interface operations {
     deleteGitKey: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4810,6 +4843,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
                 "If-Match"?: string;
             };
@@ -4860,6 +4897,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
                 "If-None-Match"?: "*";
                 "If-Match"?: string;
             };
