@@ -3,8 +3,8 @@ id: V58-012
 title: Verify and deploy the complete design review implementation
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 44af478a74d998daba0fb1de87c90c704b6c929c
 depends_on:
 - V58-001
 - V58-002
