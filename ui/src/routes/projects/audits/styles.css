@@ -52,6 +52,26 @@
   gap: 1rem;
 }
 
+.audit-create-form,
+.audit-profile-contract,
+.audit-input-fields {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.audit-create-form label,
+.audit-create-form select,
+.audit-profile-summary > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 760px) {
+  .audit-create-form .audit-profile-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .audit-policy-mark {
   border: 1px solid var(--line);
   border-radius: 999px;

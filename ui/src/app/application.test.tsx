@@ -4,6 +4,7 @@ import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI, type AuthSession } from "../api/client";
+import { UI_VERSION } from "../build";
 import type { RuntimeConfig } from "../config/runtime-config";
 import type { SessionAPI } from "../auth/session";
 import { Application } from "./application";
@@ -60,7 +61,7 @@ describe("application session shell", () => {
     expect(
       await screen.findByRole("region", { name: "Sign in" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("v.2.0")).toBeVisible();
+    expect(screen.getByText(`UI ${UI_VERSION}`)).toBeVisible();
     const username = screen.getByLabelText("Username") as HTMLInputElement;
     expect(() => new RegExp(username.pattern, "v")).not.toThrow();
   });

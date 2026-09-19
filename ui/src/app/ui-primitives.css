@@ -3,6 +3,167 @@
   --control-radius: 0.55rem;
 }
 
+/* Form fields share their appearance inside the page and portal dialogs. */
+:is(.route-page form, .project-dialog, .mobile-section-picker)
+  :is(
+    input:not(
+      [type="checkbox"],
+      [type="radio"],
+      [type="file"],
+      [type="hidden"]
+    ),
+    select,
+    textarea
+  ) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--control-radius);
+  background: var(--surface-subtle);
+  color: var(--text);
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+:is(.route-page form, .project-dialog)
+  label:has(
+    > :is(
+      input:not(
+        [type="checkbox"],
+        [type="radio"],
+        [type="file"],
+        [type="hidden"]
+      ),
+      select,
+      textarea
+    )
+  ) {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+:is(.route-page form, .project-dialog) fieldset {
+  min-inline-size: 0;
+}
+
+:is(.route-page form, .project-dialog) :is(input, textarea)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+:is(.route-page form, .project-dialog)
+  :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-color: var(--focus);
+}
+
+:is(.route-page form, .project-dialog)
+  :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+:is(.route-page form, .project-dialog)
+  input:is([type="checkbox"], [type="radio"]) {
+  accent-color: var(--accent);
+}
+
+.inline-actions,
+.project-form-actions,
+.skill-upload-actions,
+.run-delete-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.project-dialog .inline-actions {
+  margin-top: 1rem;
+}
+
+.project-dialog form,
+.project-dialog-heading > div {
+  min-width: 0;
+}
+
+.run-output-publication-list li,
+.run-output-publication-list li > div,
+.run-output-publication-list a,
+.run-output-publication-list code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-dialog-heading h2 {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  line-height: 1.25;
+}
+
+.content {
+  padding: clamp(1rem, 2.2vw, 2rem);
+}
+
+.route-page > .route-header-row,
+.catalog-page > .route-header-row {
+  margin-bottom: 1.25rem;
+}
+
+.route-page > .route-header-row h2 {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  line-height: 1.2;
+}
+
+.route-header-row .lede {
+  margin: 0.5rem 0 0;
+  line-height: 1.5;
+}
+
+.route-page .eyebrow,
+.project-dialog .eyebrow {
+  color: var(--muted-strong);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+}
+
+.delete-icon-button {
+  border-color: var(--line);
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+}
+
+.delete-icon-button:not(:disabled):hover {
+  border-color: var(--danger);
+  background: #301d22;
+  color: var(--danger);
+}
+
+.mobile-section-picker {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .section-navigation:has(+ .mobile-section-picker) {
+    display: none;
+  }
+
+  .mobile-section-picker {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0 0 1rem;
+    color: var(--muted-strong);
+    font-size: 0.8rem;
+  }
+}
+
 .section-navigation {
   display: flex;
   width: fit-content;

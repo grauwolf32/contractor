@@ -1,3 +1,4 @@
+import { MobileSectionPicker } from "../../../app/mobile-section-picker";
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
 import { AuditProgress } from "./progress";
@@ -2012,6 +2013,19 @@ export function ProjectAuditDetailRoute() {
           );
         })}
       </nav>
+      <MobileSectionPicker
+        label="Audit section"
+        value={
+          section === "overview"
+            ? `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`
+            : `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/${section}`
+        }
+        options={SECTIONS.map((candidate) => ({
+          to: `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}${candidate.id === "overview" ? "" : `/${candidate.id}`}`,
+          label: candidate.label,
+        }))}
+        state={location.state}
+      />
       {content}
     </section>
   );

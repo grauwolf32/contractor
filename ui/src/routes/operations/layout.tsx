@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 
+import { MobileSectionPicker } from "../../app/mobile-section-picker";
 import { usePublicAPI } from "../../api/context";
 import {
   getOperationsSnapshot,
@@ -167,7 +168,6 @@ export function OperationsLayoutRoute() {
     <section className="route-page operations-page">
       <header className="route-header-row">
         <div>
-          <p className="eyebrow">Control Plane observation and configuration</p>
           <h2>Operations</h2>
           <p className="lede">
             Monitor Runtime Agents, inspect allocations and manage execution
@@ -203,6 +203,22 @@ export function OperationsLayoutRoute() {
             </NavLink>
           ))}
       </nav>
+      <MobileSectionPicker
+        label="Operations section"
+        value={
+          [...navigation]
+            .reverse()
+            .find(
+              (item) =>
+                normalizedPath === item.to ||
+                normalizedPath.startsWith(item.to + "/"),
+            )?.to ?? "/operations"
+        }
+        options={navigation.filter(
+          (item) => authorized || item.to === "/operations/settings",
+        )}
+        state={location.state}
+      />
 
       {independentRead || personalSettings ? (
         <Outlet />

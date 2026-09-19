@@ -54,6 +54,17 @@
   background: #243143;
 }
 
+.archive-file-button:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: #304157;
+  color: var(--text);
+}
+
+.archive-file-button[aria-pressed="true"]:not(:disabled):hover {
+  border-color: var(--accent);
+  background: #304157;
+}
+
 .archive-file-button span,
 .archive-file-heading span {
   flex-shrink: 0;

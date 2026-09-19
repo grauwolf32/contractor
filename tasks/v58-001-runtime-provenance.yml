@@ -3,8 +3,8 @@ id: V58-001
 title: Restore Run viewing with current runtime provenance
 milestone: ui-design-review
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: bc489b1586a4c4bb04d6e32e1f3f988a3debdad6
 depends_on: []
 languages:
 - typescript
@@ -43,3 +43,7 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+verification:
+  focused_tests: 25 tests passed across 3 files; includes Caido projection and malformed/secret-bearing
+    origin isolation.
+  typecheck: Passed both UI and browser-test TypeScript projects.

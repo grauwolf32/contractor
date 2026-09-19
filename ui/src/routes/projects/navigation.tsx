@@ -67,6 +67,7 @@ export function ProjectNavigation({ projectId }: { projectId: string }) {
       <label className="project-section-picker">
         Project section
         <select
+          aria-label="Project section"
           value={current}
           onChange={(event) =>
             void navigate(destination(event.target.value), {

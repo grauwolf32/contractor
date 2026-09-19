@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
 import contractorLogoUrl from "../assets/contractor-logo.png";
+import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
 import { LoginBackdrop } from "./login-backdrop";
 
@@ -66,7 +67,8 @@ export function LoginRoute() {
       <LoginBackdrop />
       <section className="login-card" aria-label="Sign in">
         <p className="login-product">
-          Contractor <span className="login-product-version">v.2.0</span>
+          Contractor{" "}
+          <span className="login-product-version">UI {UI_VERSION}</span>
         </p>
         <img
           className="brand-mark"
