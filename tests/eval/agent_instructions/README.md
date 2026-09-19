@@ -288,7 +288,8 @@ API checks; no model quality eval or benchmark campaign runs in that phase.
    then run all implemented cases and held-out variants with three repetitions
    per arm under a separately recorded budget.
 
-The plan prepared by V40-002 is the immutable pilot. Confirmation and any revised
+The live plan required by V40-002 is the immutable pilot. A recorded preparation
+control is not that pilot (see the readiness report below). Confirmation and any revised
 candidate use new experiment IDs, immutable versions and separate bundle paths;
 they never overwrite pilot inputs or reinterpret its samples. Record both sets
 of plan/run commands. V43 finding tools/instructions are a separate feature:
@@ -315,3 +316,61 @@ experiment: current candidates still use `audit-results@1`. Evaluate the new
 completion contract in a distinct experiment after V39 is implemented. V38 Evals
 UI design may reuse the comparison record, but is not a prerequisite for this CLI
 experiment; avoid building a second experiment service here.
+
+## V40-002 preparation and readiness (2026-09-19)
+
+Preparation is retained on `feat/agent-instruction-pilot-plan` in both paired
+repositories. **V40-002 remains in progress; no model executions or release
+publication occurred.** The live strict A/B acceptance criteria cannot yet pass.
+
+`evaluation-configs/manifest.json` pins twelve immutable Workflow wrappers and
+two A1 AuditProfiles generated from the original frozen catalog plus candidate
+overlay. `evaluation_configs_test.go` loads that closure and proves resolved
+contract equality after only permitted instruction/reference differences.
+Neither the original snapshots nor default configs are changed. See
+`evaluation-configs/README.md` for regeneration and release boundaries.
+
+The paired playground now contains:
+
+- `experiments/agent-instructions.yaml` and the existing CLI's frozen
+  `experiments/agent-instructions/plan.json`: **recorded preparation control**,
+  six cases × two arms × two repeats = 24 members, alternating A/B, 90 minutes,
+  one in flight, 2M observed tokens. This is not a live pilot or model evidence.
+- Exact, schema-valid Contractor binding drafts under
+  `evals/bindings/agent-instructions`, plus six strict per-scenario specs.
+- `experiments/agent-instructions-readiness/preflight-2026-09-19.json`: 27
+  GET-only demo requests. New releases are absent; the baseline metadata probe
+  confirms unavailable model/revision, sampling, tools, Skills content,
+  effective-budget and runtime-build pins. Operator values cannot replace them.
+- `experiments/README-agent-instructions.md`: complete commands, provenance,
+  capability translation limited to recorded controls and live blocker details.
+
+The live gaps include one-binding-per-arm dispatch for six different programs,
+unsupported V40-001 capability names, evaluator source roles vs Workflow inputs,
+required target/checklist mappings, and absent trusted output normalization and
+review/observation receipts. A1 must aggregate three items over batchSize=2
+without changing controller/importer policies. Publishing wrappers alone does
+not resolve these issues. Generic format/runner changes remain outside V40-002.
+
+Fresh-checkout validation also found Python bytecode caches inside V40-001's
+source ZIPs. Playground now excludes root and nested caches and uses dataset
+revision `v40-002-source-clean-1`; authored source, tasks, truth and scorers are
+unchanged. The original dataset stays in its V40-001 commit. The first unexecuted
+recorded plan is archived; `agent-instructions-recorded-preparation-v2` uses the
+corrected source hashes and preserves a separate immutable identity.
+
+Actual preparation commands, run from the playground checkout:
+
+```sh
+uv run --project evals python ../contractor/tests/eval/agent_instructions/prepare_configs.py
+uv run --project evals python evals/scripts/prepare_instruction_experiment.py --contractor ../contractor
+uv run --project evals playground-eval validate
+uv run --project evals playground-eval experiment plan --spec experiments/agent-instructions.yaml --out experiments/agent-instructions --environment experiments/agent-instructions-recorded-environment.json
+uv run --project evals --extra dev pytest evals/tests/test_instruction_experiment.py
+```
+
+`--environment` is required by the implemented CLI. The retained bundle was
+created once; repeat CLI validation with a fresh output directory. Regression
+tests reproduce its original timestamp and verify the full bundle. Source,
+tasks, truth, scorers and prepared catalog pins match; live-required pins stay
+unavailable, and tests verify that requiring them prevents a strict plan.

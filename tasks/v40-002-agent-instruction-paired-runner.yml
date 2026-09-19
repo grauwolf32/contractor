@@ -3,7 +3,7 @@ id: V40-002
 title: "Prepare instruction experiment bindings and a frozen plan after format readiness"
 milestone: agent-instruction-evaluation
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: ["V40-001", "V41-008"]
 languages: ["python", "json", "yaml", "go"]
@@ -76,7 +76,40 @@ acceptance_criteria:
 tests:
   - command: "cd ../playground-v2/evals && uv run playground-eval validate"
     covers: ["A1", "A2"]
-  - command: "cd ../playground-v2/evals && uv run playground-eval experiment plan --spec ../experiments/agent-instructions.yaml --out ../experiments/agent-instructions"
+  - command: 'cd ../playground-v2/evals && uv run playground-eval experiment plan --spec ../experiments/agent-instructions.yaml --out "$(mktemp -d)" --environment ../experiments/agent-instructions-recorded-environment.json'
+    covers: ["A1", "A2", "A3"]
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_instruction_experiment.py"
     covers: ["A1", "A2", "A3"]
   - command: "go test ./tests/eval/agent_instructions ./internal/config"
     covers: ["A1", "A3"]
+
+preparation_progress:
+  date: "2026-09-19"
+  branch: feat/agent-instruction-pilot-plan
+  playground_preparation_commit: d97ddc553497ff2673976bc8f4a143ca133621d9
+  playground_archive_fix_commit: 869127d8e222df48868dda610983d69ecc728c4e
+  state: "Artifacts prepared; strict live plan remains blocked, task not completed."
+  contractor_release: tests/eval/agent_instructions/evaluation-configs/manifest.json
+  playground_report: ../playground-v2/experiments/README-agent-instructions.md
+  recorded_plan_sha256: "sha256:eb20c3a0e5d0f85e4ac0a456388eb6402aa71180e11a8448f9a15a8ca1b001a3"
+  dataset_revision: "v40-002-source-clean-1; excludes checkout-specific Python bytecode."
+  recorded_members: 24
+  verification:
+    - "go test ./tests/eval/agent_instructions ./internal/config: passed."
+    - "playground-eval validate: valid, 212 projects and 10 catalog suites."
+    - "Existing experiment plan CLI: passed; 24 recorded members, including fresh-output repeat."
+    - "Full playground evals pytest suite: 433 passed, including 13 instruction preparation checks."
+    - "Ruff on changed Python files and git diff --check: passed."
+    - "Whole-tree Ruff has three pre-existing F401/E402 issues in webexploit_runner.py; unrelated file unchanged."
+  live_ready: false
+  provider_check: "27 GET-only demo requests; no publishing, model Runs/Audits or targets."
+  open_acceptance:
+    - "A1: live model/revision, sampling, tools/docstrings, Skills content, effective budgets and runtime build pins unavailable."
+    - "A2: recorded control is frozen; no strict live matrix with all required pins."
+  blockers:
+    - "New exact wrapper and candidate dependency versions are unpublished."
+    - "Current experiment/Contractor binding selects one program per arm; six-program matrix needs aggregate dispatch and budget support."
+    - "V40-001 source-inspection capability is unsupported; only derived recorded controls translate it."
+    - "Source citation roles, mandatory Workflow target and Audit checklist inputs need a reviewed live mapping."
+    - "Trusted analysis normalization, media conversion and observation/review receipt collection are absent."
+    - "A1 evidence must aggregate three items across unchanged batchSize=2 child Runs."
