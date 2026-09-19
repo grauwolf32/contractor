@@ -113,3 +113,8 @@ verification_result:
     both Project deletion race orders, Audit workspace dependencies, frozen deadlines,
     optional token thresholds, bounded pages, revision invalidation and private purge.
     Runtime dispatch and portable resource resolution remain for V38-004.
+
+review_followup:
+  date: "2026-09-20"
+  implementation_commit: "e7183230bda98cea2b84c3f457394d00472b80c7"
+  evidence: "docs/plans/2026-09-20-managed-evals-core-review.md"

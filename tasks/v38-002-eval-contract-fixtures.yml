@@ -120,3 +120,8 @@ verification_result:
     eight-member comparison arithmetic and multi-role Audit retry accounting.
     go test -race -count=1 ./internal/evaldomain and go vet ./internal/evaldomain
     ./api/evals/v1 passed. HTTP endpoints remain for V38-005/006.
+
+review_followup:
+  date: "2026-09-20"
+  implementation_commit: "e7183230bda98cea2b84c3f457394d00472b80c7"
+  evidence: "docs/plans/2026-09-20-managed-evals-core-review.md"

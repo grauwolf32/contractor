@@ -118,3 +118,8 @@ verification_result:
     pause/resume clock preservation, observed-token high-water limits, deadline
     cancellation, stale claims, command acknowledgement recovery, deleted-execution
     tombstones and Project deletion waiting on uncertain accepted work.
+
+review_followup:
+  date: "2026-09-20"
+  implementation_commit: "e7183230bda98cea2b84c3f457394d00472b80c7"
+  evidence: "docs/plans/2026-09-20-managed-evals-core-review.md"
