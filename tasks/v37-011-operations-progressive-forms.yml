@@ -3,8 +3,8 @@ id: "V37-011"
 title: "Separate Operations observation from explicit configuration changes"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "efbf7a7f68dbaf5e093c7d29ac148d1b2956ce88"
 depends_on: ["V37-001", "V27-004", "V31-001"]
 languages: ["typescript"]
 goal: >-
