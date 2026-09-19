@@ -172,7 +172,7 @@ cases:
     acceptance: [A2, A3, A5]
     faults: []
     expected: The independently served UI displays exact finding provenance and review history, decides a human request, reads the proposed report, and performs CAS-bound cancellation and deletion from authoritative state.
-    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: Audit UI reviews exact evidence and completes destructive lifecycle controls}
+    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: 'Audit UI reviews exact evidence and completes destructive lifecycle controls at ${viewport.width}px'}
   - id: ordinary_workflow_regression
     category: regression
     acceptance: [A4]
