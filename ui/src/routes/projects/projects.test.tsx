@@ -1219,9 +1219,7 @@ describe("Project routes", () => {
     renderProjectApplication(api, "/projects/project_example/workflows");
     const user = userEvent.setup();
 
-    expect(
-      await screen.findByText("No new format matches."),
-    ).toBeVisible();
+    expect(await screen.findByText("No new format matches.")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Configure openapi-from-source@1" }),
     ).not.toBeInTheDocument();

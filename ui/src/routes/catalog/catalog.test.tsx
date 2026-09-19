@@ -340,9 +340,9 @@ describe("Catalog", () => {
     await waitFor(() =>
       expect(router.state.location.search).toBe("?keep=yes&q=researcher"),
     );
-    expect(
-      await screen.findByRole("button", { name: "Previous" }),
-    ).toBeDisabled();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled(),
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Page 2");
     await user.click(await screen.findByRole("button", { name: "Previous" }));

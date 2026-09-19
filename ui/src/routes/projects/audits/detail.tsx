@@ -155,18 +155,11 @@ function AuditOverview({ audit }: { audit: Audit }) {
   const baseline = audit.baseline;
   return (
     <div className="audit-detail-stack">
-      {audit.stopReason === undefined ? null : (
+      {audit.stopReason === undefined ||
+      audit.stopReason.code === "deadline_exhausted" ? null : (
         <section className="notice notice-error audit-stop-reason" role="alert">
-          <strong>
-            {audit.stopReason.code === "deadline_exhausted"
-              ? "Time limit reached"
-              : audit.stopReason.code}
-          </strong>
-          <p>
-            {audit.stopReason.code === "deadline_exhausted"
-              ? "Continue this audit with a longer limit or no time limit. Accepted results are retained."
-              : audit.stopReason.message}
-          </p>
+          <strong>{audit.stopReason.code}</strong>
+          <p>{audit.stopReason.message}</p>
         </section>
       )}
       <AuditProgress audit={audit} />
@@ -1677,6 +1670,7 @@ function AuditRuns({
   api: ReturnType<typeof usePublicAPI>;
 }) {
   const items = useAuditItems(audit, api, true);
+  const coverage = useAuditCoverage(audit);
   const attempts = useMemo(
     () =>
       items.data?.flatMap((item) =>
@@ -1715,7 +1709,19 @@ function AuditRuns({
             <tbody>
               {attempts.map(({ item, attempt }) => (
                 <tr key={attempt.executionItemId}>
-                  <td data-label="Check">{item.subjectKey}</td>
+                  <td data-label="Check">
+                    <ContextLink
+                      returnLabel="Audit Runs"
+                      to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${encodeURIComponent(item.itemId)}`}
+                      title={item.subjectKey}
+                    >
+                      {auditCheckTitle(
+                        coverage.data?.find(
+                          (row) => row.itemId === item.itemId,
+                        ) ?? item,
+                      )}
+                    </ContextLink>
+                  </td>
                   <td data-label="Attempt">{attempt.itemAttempt}</td>
                   <td data-label="Run">
                     {attempt.runId === undefined ? (

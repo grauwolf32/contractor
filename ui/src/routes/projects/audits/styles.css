@@ -1008,8 +1008,8 @@
 .audit-finding-decision {
   scroll-margin-top: 1rem;
 }
-.audit-report-view .artifact-markdown h1 {
-  font-size: 1.6rem;
+.audit-report-view .markdown-artifact-preview h1 {
+  font-size: 1.3rem;
   overflow-wrap: anywhere;
 }
 .audit-report-view .audit-artifact-list {

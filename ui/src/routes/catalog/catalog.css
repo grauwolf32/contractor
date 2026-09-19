@@ -337,6 +337,17 @@
 .catalog-agent-version select {
   width: auto;
   min-width: 5rem;
+  min-height: var(--control-height);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--control-radius);
+  background: var(--surface-subtle);
+  color: var(--text);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+}
+.catalog-agent-version select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .catalog-agent-version small {
   margin-left: auto;

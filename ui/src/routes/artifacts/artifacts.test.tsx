@@ -95,9 +95,7 @@ describe("Artifact routes", () => {
     ).toBeVisible();
     expect(
       within(
-        screen
-          .getByRole("button", { name: "Apply", exact: true })
-          .closest("form")!,
+        screen.getByRole("button", { name: "Apply" }).closest("form")!,
       ).getByLabelText("Namespace"),
     ).toHaveValue("projects");
     expect(
