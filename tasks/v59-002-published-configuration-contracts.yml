@@ -3,7 +3,7 @@ id: V59-002
 title: Align public configuration schemas with actual projections
 milestone: public-api-review-corrections
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -68,3 +68,17 @@ tests:
 verification_requirements:
 - Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
 - Keep implementation and subsequent completion metadata commits separate.
+implementation_commit: 0dc366b4e468173b32c78e6a68ab317366866bbb
+verification:
+  results:
+  - All repository catalog list/detail responses conform, including 30 AgentTemplate versions with summarizer
+    instructions; generated Go references remain intact.
+  - Five telemetry export cases cover legacy omission, empty retry defaults, custom values, minimum and
+    maximum through authenticated publication/list/detail and generated Go types.
+  - Invalid scalar/unknown/null retry schema cases and three server-enforced ordering/default cases are
+    rejected.
+  - Public HTTP and publicclient packages pass; make verify-public-api passes.
+  - 36 focused UI tests across three files pass; both TypeScript projects and changed-file ESLint/Prettier
+    pass.
+  toolchain: Go 1.25.6; oapi-codegen2.8.0; openapi-typescript7.13.0; Node26.7.0/pnpm11.24.0. Existing
+    shared locked modules used with pnpm verify-deps-before-run=false to prevent worktree symlink reinstall.
