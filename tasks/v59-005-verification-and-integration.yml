@@ -3,7 +3,7 @@ id: V59-005
 title: Verify and integrate all public API review corrections
 milestone: public-api-review-corrections
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V59-001
 - V59-002
@@ -77,3 +77,15 @@ tests:
 verification_requirements:
 - Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
 - Keep implementation and subsequent completion metadata commits separate.
+implementation_commit: 75e9758c66fa6f5418d1cf647844588f1620a275
+verification:
+  evidence: tasks/evidence/v59-005.json
+  integrated_into: main
+  integration_commit: 63369040e71ea922427ff1ea1ebb99972e79e4d2
+  results:
+  - All R01-R12 corrected; task and finding mapping recorded with actual evidence boundaries.
+  - Full Go test suite and vet passed; public API and affected packages also passed with isolated PostgreSQL.
+  - Required database pagination gate passed under race detector; missing database environment is rejected.
+  - UI typecheck, lint, 435 Vitest tests, build and 9 static-server tests passed, repeated after concurrent V58-013 integration.
+  - Pinned Go and TypeScript generation is byte-reproducible; schema, links and implementation hashes validated.
+  - Verified implementation merged into local main; unrelated uncommitted planning preserved.
