@@ -1,7 +1,8 @@
 schema_version: '1.0'
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 85845acab28fc64bfe5429118700b89b26502691
 depends_on:
 - V59-005
 languages:
@@ -62,3 +63,19 @@ verification_requirements:
   local test database.
 - If a candidate does not reproduce, record it as rejected rather than implementing a speculative correction.
 - Keep an implementation commit and later metadata commit with full original implementation hash.
+verification:
+  verified_on: '2026-09-20'
+  evidence: tasks/evidence/v60-003.json
+  acceptance:
+    A1: Passed; joined owner-scoped Audit/finding revision snapshots reject changes before service read,
+      before provenance SQL and during exact receipt hydration, including current assessment and empty pages.
+    A2: Passed; real PostgreSQL MaxConns=1 preserves source/attempt/direct history, exact retained refs,
+      201 unique receipts, repeated receipt records, owner isolation and all-or-error unavailable receipts.
+    A3: Passed; V59 199/200 page sizes, 201 HTTP rejection and signed continuation checks passed under race;
+      both original pre-fix failures are recorded in evidence.
+  boundaries:
+  - The fence detects Audit/finding revision changes. Upstream Run deletion failing to advance these
+    revisions is independently confirmed PR-06 and is separate work; this task does not add deletion invalidation.
+  - Attempt and proposal origin can name different Runs; their RunDeleted fields remain independent.
+  - Tests use isolated real PostgreSQL schemas and retained artifact fixtures, without live models,
+    external services or a production-load benchmark.
