@@ -1,0 +1,71 @@
+schema_version: '1.0'
+id: V59-004
+title: Correct request conditions, labels, password units and Git/history documentation
+milestone: public-api-review-corrections
+priority: P2
+status: in_progress
+depends_on: []
+languages:
+- go
+- yaml
+- typescript
+goal: Correct request conditions, labels, password units and Git/history documentation.
+context:
+  authority: User requested detailed analysis, concrete correction tasks and implementation of the public
+    OpenAPI review.
+  review: docs/research/2026-09-19-public-openapi-review.md
+  design: docs/plans/2026-09-19-public-openapi-corrections.md
+  finding_ids:
+  - R06
+  - R07
+  - R08
+  - R10
+  - R11
+  - R12
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/00-workflow-and-planner.md
+scope:
+  in:
+  - Encode finding verdict-specific required and forbidden fields.
+  - Allow empty-value label selectors in Run and Project Run queries.
+  - Describe byte-based login password policy without changing accepted credentials.
+  - Declare conditional browser Origin and CSRF headers for all four Git mutations.
+  - Remove unsupported RunStatus history array cap and document implicit Git create while preserving update
+    CAS.
+  out:
+  - Change ordinary Worker finalization, LLM budgets or eval/toolset implementation.
+  - Change published execution policy, credential authority, owner checks or CAS semantics beyond the
+    named contract corrections.
+  - Deploy services or run live models.
+acceptance_criteria:
+- id: A1
+  text: Finding verdict requests validate exactly for the supported conditional field combinations.
+- id: A2
+  text: General and Project Run endpoints accept empty-label filters and schema validation agrees.
+- id: A3
+  text: Existing valid multibyte passwords authenticate without schema or client character-count rejection.
+- id: A4
+  text: Git operations declare browser mutation requirements and current create/CAS semantics; session
+    protections stay enforced.
+- id: A5
+  text: A valid automatic retry configuration and more than 1024 returned attempts remain schema-valid
+    without truncation.
+tests:
+- command: go test -count=1 ./internal/httpapi/public ./internal/auth ./internal/config
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: cd ui && corepack pnpm typecheck
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+verification_requirements:
+- Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
+- Keep implementation and subsequent completion metadata commits separate.
