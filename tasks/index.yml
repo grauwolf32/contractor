@@ -14,6 +14,7 @@ execution_policy:
     in_progress: Taken into development; implementation or verification is ongoing.
     completed: Finished under completion_rule and implementation_commit_rule.
     complete: Legacy alias of completed; existing task files remain valid.
+    archived: Deferred out of the active backlog; retained evidence does not imply completion.
   task_status_rule: >-
     Set status to in_progress in the task file before beginning implementation.
     Keep it in_progress while implementation or required verification remains;
@@ -22,6 +23,9 @@ execution_policy:
     Treat complete and completed as finished when checking dependencies; pending
     and in_progress are unfinished. Do not independently take an in_progress
     task already being worked on unless explicitly assigned to continue it.
+    Exclude archived tasks from active work and backlog counts; they do not
+    satisfy dependencies. Retain their original scope and evidence together
+    with the archive date, previous status and reason in the task file.
   dependency_rule: >-
     A task may start only after every ID in depends_on is complete. The worker
     may inspect code produced by those dependencies. Each task states its scope,

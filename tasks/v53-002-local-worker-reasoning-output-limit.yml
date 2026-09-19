@@ -3,7 +3,21 @@ id: V53-002
 title: Diagnose local Worker reasoning-only output-limit failures
 milestone: real-project-audit-stability
 priority: P1
-status: in_progress
+status: archived
+archive:
+  date: "2026-09-19"
+  previous_status: in_progress
+  reason: >-
+    Deferred at the user's request because this work is not currently important.
+    The user considers 100 million total tokens for one Audit acceptable and
+    does not want to tighten limits at this stage. This is a prioritization
+    decision, not evidence that the per-response output-limit failure is resolved.
+  acceptable_total_tokens_per_audit: 100000000
+  runtime_limits_changed: false
+  disposition: >-
+    Preserve the incident, selected experiment and open acceptance criteria
+    below as historical context. No successful experiment result is claimed
+    and no further experiment is scheduled while this task is archived.
 implementation_commit: null
 depends_on: []
 languages: [python, yaml, markdown]
