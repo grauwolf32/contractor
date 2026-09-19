@@ -43,9 +43,14 @@ export type WorkflowRunState = components["schemas"]["WorkflowRunState"];
 export type WorkflowRunLifecycle =
   components["schemas"]["WorkflowRunLifecycle"];
 export type RunPage = components["schemas"]["RunPage"];
-export type RunStatus = components["schemas"]["RunStatus"];
+export type RunStatus = Omit<components["schemas"]["RunStatus"], "attempts"> & {
+  attempts: StageAttempt[];
+};
 export type RunSummary = components["schemas"]["RunSummary"];
-export type StageAttempt = components["schemas"]["StageAttempt"];
+export type StageAttempt = components["schemas"]["StageAttempt"] & {
+  /** Client-only marker; an unverified optional projection is never cached. */
+  runtimeConfigurationUnavailable?: true;
+};
 export type StageTransition = components["schemas"]["StageTransition"];
 export type PlannerPlan = components["schemas"]["PlannerPlan"];
 export type CancelRunResponse = components["schemas"]["CancelRunResponse"];
@@ -214,7 +219,22 @@ export async function getRun(
   ) {
     throw invalidRunResponse(result.response.status);
   }
-  const attempts = run.attempts.map((attempt) => {
+  const attempts = run.attempts.map((attempt): StageAttempt => {
+    const { runtimeConfiguration: rawConfiguration, ...attemptData } = attempt;
+    let runtimeProjection: Pick<
+      StageAttempt,
+      "runtimeConfiguration" | "runtimeConfigurationUnavailable"
+    > = {};
+    if (rawConfiguration !== undefined) {
+      try {
+        runtimeProjection = {
+          runtimeConfiguration: safeStageRuntimeConfiguration(rawConfiguration),
+        };
+      } catch (error) {
+        if (!(error instanceof TypeError)) throw error;
+        runtimeProjection = { runtimeConfigurationUnavailable: true };
+      }
+    }
     const resources = (attempt.resources ?? []).map((resource) =>
       safeAllocationResourceSummary(resource, result.response.status),
     );
@@ -230,15 +250,9 @@ export async function getRun(
       throw invalidRunResponse(result.response.status);
     }
     return {
-      ...attempt,
+      ...attemptData,
       ...(attempt.resources === undefined ? {} : { resources }),
-      ...(attempt.runtimeConfiguration === undefined
-        ? {}
-        : {
-            runtimeConfiguration: safeStageRuntimeConfiguration(
-              attempt.runtimeConfiguration,
-            ),
-          }),
+      ...runtimeProjection,
     };
   });
   return {

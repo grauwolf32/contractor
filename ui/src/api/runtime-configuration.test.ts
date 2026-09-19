@@ -37,8 +37,9 @@ describe("safe Runtime configuration projections", () => {
                 config: { name: "debug", version: "1", digest },
               },
             ],
-            runtimeAdapters: ["otlp-http@1"],
+            runtimeAdapters: ["caido-graphql@1", "otlp-http@1"],
             origins: {
+              caido: { layer: "run_execution_config" },
               workerTelemetry: {
                 layer: "agent_labels",
                 configs: [{ name: "debug", version: "1", digest }],
@@ -52,7 +53,10 @@ describe("safe Runtime configuration projections", () => {
       allocations: [
         {
           logicalAgent: "reviewer",
-          origins: { workerTelemetry: { layer: "agent_labels" } },
+          origins: {
+            caido: { layer: "run_execution_config" },
+            workerTelemetry: { layer: "agent_labels" },
+          },
         },
       ],
     });

@@ -92,13 +92,17 @@ export function safeStageRuntimeConfiguration(
     "escalation_execution_config",
     "agent_labels",
   ]);
-  const originKeys = [
-    "llmGateway",
-    "llmCredential",
-    "workerTelemetry",
-    "httpProxy",
-    "plannerTelemetry",
-  ] as const;
+  const originKeys = Object.keys({
+    llmGateway: true,
+    llmCredential: true,
+    workerTelemetry: true,
+    httpProxy: true,
+    caido: true,
+    plannerTelemetry: true,
+  } satisfies Record<
+    keyof components["schemas"]["StageRuntimeOrigins"],
+    true
+  >) as (keyof components["schemas"]["StageRuntimeOrigins"])[];
   const allocations = value.allocations.map((candidate) => {
     if (!isRecord(candidate)) {
       throw new TypeError("Stage Runtime allocation is invalid");

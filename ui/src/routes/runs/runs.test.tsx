@@ -1275,6 +1275,7 @@ describe("Run routes", () => {
                     configs: [{ name: "debug", version: "1", digest }],
                   },
                   llmGateway: { layer: "run_execution_config" },
+                  caido: { layer: "run_execution_config" },
                 },
                 status: "released",
               },
@@ -1381,6 +1382,7 @@ describe("Run routes", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("reviewer").length).toBeGreaterThan(0);
     expect(screen.getByText("Final Agent labels")).toBeInTheDocument();
+    expect(screen.getByText("caido")).toBeInTheDocument();
     expect(screen.getByText("otlp-http@1")).toBeInTheDocument();
     expect(
       view.container.querySelector(".runtime-agent-override"),

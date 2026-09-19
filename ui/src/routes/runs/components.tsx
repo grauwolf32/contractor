@@ -170,6 +170,14 @@ function ExecutionConfigView({ attempt }: { attempt: StageAttempt }) {
 }
 
 function RuntimeConfigurationView({ attempt }: { attempt: StageAttempt }) {
+  if (attempt.runtimeConfigurationUnavailable) {
+    return (
+      <p className="notice notice-warning" role="status">
+        Runtime configuration details could not be verified. Results remain
+        available. Refresh this Run to retry.
+      </p>
+    );
+  }
   const configuration = attempt.runtimeConfiguration;
   if (configuration === undefined) {
     return null;

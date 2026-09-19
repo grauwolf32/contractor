@@ -40,6 +40,82 @@ function response(
 }
 
 describe("Run API", () => {
+  it.each([
+    { origin: { layer: "run_execution_config" }, readable: true },
+    {
+      origin: { layer: "run_execution_config", token: "never-cache-this" },
+      readable: false,
+    },
+    { origin: { layer: "unknown-layer" }, readable: false },
+  ])(
+    "preserves Run results with optional Caido provenance: $readable",
+    async ({ origin, readable }) => {
+      const pinned = {
+        default: {
+          label: "default",
+          bindingRevision: "1",
+          config: {
+            name: "local",
+            version: "1",
+            digest: `sha256:${"0".repeat(64)}`,
+          },
+        },
+        labels: [],
+      };
+      const output = { namespace: "outputs", name: "report", revision: "r1" };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () =>
+          response({
+            runId: "run-1",
+            workflow: "analysis@1",
+            state: "succeeded",
+            deletable: true,
+            runtimeLabels: [],
+            labels: {},
+            runtimeConfiguration: pinned,
+            attempts: [
+              {
+                stageExecutionId: "stage-1",
+                stage: "analysis",
+                attempt: 1,
+                state: "succeeded",
+                runtimeConfiguration: {
+                  allocations: [
+                    {
+                      logicalAgent: "analyst",
+                      agentLabels: [],
+                      runtimeAdapters: ["caido-graphql@1"],
+                      origins: { caido: origin },
+                      status: "released",
+                    },
+                  ],
+                },
+              },
+            ],
+            transitions: [],
+            outputs: { report: output },
+          }),
+        ),
+      );
+      const run = await getRun(api, "run-1");
+      expect(run.state).toBe("succeeded");
+      expect(run.outputs.report).toEqual(output);
+      expect(run.runtimeConfiguration).toEqual(pinned);
+      expect(JSON.stringify(run)).not.toContain("never-cache-this");
+      const attempt = run.attempts[0]!;
+      if (readable) {
+        expect(
+          attempt.runtimeConfiguration?.allocations[0]?.origins.caido,
+        ).toEqual(origin);
+        expect(attempt.runtimeConfigurationUnavailable).toBeUndefined();
+      } else {
+        expect(attempt.runtimeConfiguration).toBeUndefined();
+        expect(attempt.runtimeConfigurationUnavailable).toBe(true);
+      }
+    },
+  );
+
   it("uses exact list/detail and RunScope Artifact query paths", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(
