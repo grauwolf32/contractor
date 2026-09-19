@@ -1,0 +1,149 @@
+schema_version: "1.0"
+id: V57-001
+title: Honor the selected Worker model in the legacy live workflow harness
+milestone: architecture-review-corrections
+priority: P2
+status: completed
+implementation_commit: ed3c4771df1a958eb830c6c3dd81b194c6c2755d
+depends_on: []
+languages: [go, python, markdown]
+goal: >-
+  Restore the documented Worker model override for both existing live project
+  workflows and record only the model identity actually established by the harness.
+context:
+  authority: User requested self-contained follow-up tasks after the architecture review was checked against original decisions and current code.
+  original_requirement: >-
+    V2-008 requires environment overrides for Gateway URL, token and model.
+    Its failure-only evidence retention was intentional and remains unchanged.
+  verified_problem: >-
+    tests/eval/project_workflows/live_process_test.go copyLiveConfiguration only
+    substitutes domain_worker.yaml, domain_worker_v2.yaml and strong_domain_worker.yaml.
+    The selected openapi-from-workspace@5 and likec4-from-workspace@5 Workflows
+    currently pin executionConfig.workers.modelPolicy worker@2. createLiveRun
+    supplies no execution override. ModelSHA256 is calculated from the requested
+    environment value even when that value did not select the effective Worker model.
+  implementation_boundary: >-
+    Use the existing configuration resolution and Runtime gateway adapter with
+    an isolated temporary harness catalog or supported execution override.
+    Identify effective policies by resolved Workflow/Stage configuration, not
+    legacy filenames. This task changes the test harness and its documentation,
+    not production configuration, Runtime behavior, model budgets or public APIs.
+    Preflight only checks locally resolvable configuration; no new provider
+    model-discovery API is required. Upstream rejection is checked with a
+    controlled response and must not trigger a fallback model request.
+  provenance: >-
+    A requested model string, the effective ModelPolicy identity/digest, the
+    Gateway route and a verified upstream model revision are distinct facts.
+    Preserve the existing safe diagnostic envelope or extend it narrowly;
+    do not call a hash of an alias proof of upstream weights or revision.
+    Unavailable upstream identity remains explicitly unknown. Never retain
+    Gateway credentials, credential-bearing URLs, prompts or provider bodies.
+  informative_references:
+    - docs/research/2026-09-19-architecture-evolution-review.md
+    - docs/plans/2026-09-19-architecture-review-followups.md
+    - tasks/v2-008-project-workflows-live-eval.yml
+    - tasks/v40-002-agent-instruction-paired-runner.yml
+scope:
+  in:
+    - Correct effective Worker model selection for both Workflows already selected by the harness.
+    - Reject missing or unresolved selected policy/route mappings before execution instead of silently using the catalog default.
+    - Add offline regressions that carry the harness-resolved configuration into the actual Runtime gateway adapter and inspect its outgoing request model.
+    - Keep separately configured summarizer and other model roles explicit; do not silently repoint every policy in the copied catalog.
+    - Correct safe failure-evidence model attribution and update the documented environment override behavior.
+  out:
+    - Success evidence retention, a new evaluator/runner, V40 planning or quality decisions, live model probes, provider benchmarking and target campaigns.
+    - Production catalog changes, model budgets or instructions, private/public protocol changes, deployment and user Run/Audit creation.
+deliverables:
+  - path: tests/eval/project_workflows
+    description: Corrected configuration selection and provenance, plus offline regression fixtures using the existing harness entry path.
+  - path: runtime/tests
+    description: A minimal offline gateway-adapter bridge or reused helper only if required to observe actual Runtime requests from the harness-resolved configuration.
+  - path: docs/testing/live-models.md
+    description: Accurate Worker override semantics and limits of alias-based model provenance.
+requirements:
+  - id: R1
+    text: The chosen model must reach an actual Runtime gateway-adapter request for each selected Workflow; a test that manually builds the expected HTTP body or checks only a YAML string is insufficient.
+  - id: R2
+    text: An absent or unresolved selected policy/route fails explicitly before any fallback model request; a controlled gateway rejection must also remain a failure without fallback.
+  - id: R3
+    text: Offline verification uses controlled loopback or in-memory transport and real configuration/adapter code; it never needs a live provider, target, shared database or demo deployment.
+  - id: R4
+    text: Preserve original production catalog bytes, unrelated policy roles, source/scorer semantics, bounded failure retention and no-live behavior of ordinary checks.
+acceptance_criteria:
+  - id: A1
+    given: Each of openapi-from-workspace@5 and likec4-from-workspace@5 and a requested model distinct from the catalog default.
+    when: The existing harness resolves its isolated configuration and the Runtime gateway adapter issues a controlled request.
+    then: The observed outgoing Worker request uses that selected model and the recorded effective policy agrees with the resolved execution configuration.
+  - id: A2
+    given: A missing selected policy/route or a controlled gateway rejection for the selected model.
+    when: Preparation or invocation runs.
+    then: Failure is explicit, no default-model request occurs, and diagnostics contain no credentials or provider response bodies.
+  - id: A3
+    given: A requested alias with no independently available upstream revision.
+    when: Safe failure evidence is produced.
+    then: Requested/effective known identities are distinguished and upstream revision is unknown; no alias digest is represented as a verified upstream model identity.
+  - id: A4
+    given: The production catalog, existing scorer fixtures and both isolated test cases.
+    when: Offline regressions finish.
+    then: Catalog bytes and other model roles remain unchanged, existing semantic scorers pass, no live execution occurs, and failure-only evidence retention remains intact.
+tests:
+  - command: go test -count=1 ./tests/eval/project_workflows -skip '^TestLive'
+    covers: [A1, A2, A3, A4]
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_openai_gateway_llm.py
+    covers: [A1, A2]
+  - command: go test ./internal/config
+    covers: [A4]
+  - command: git diff --check
+    covers: [A4]
+test_prerequisites:
+  - Go and the already prepared locked runtime/.venv; missing bridge prerequisites must fail the selected offline regression rather than skip it.
+  - The project_workflows command must include new model-selection/provenance tests added by this task; today's scorer-only pass does not establish A1-A3.
+verification_requirements:
+  - Record the actually executed offline cases for both Workflows, observed model assertions, negative-route results and catalog-preservation evidence.
+  - Do not run make test-project-workflows-live or infer live quality, V40 readiness or upstream model weights from these fixtures.
+  - Keep implementation_commit null and status pending/in_progress until implementation and all required verification are complete.
+verification:
+  recorded_on: "2026-09-19"
+  isolated_baseline: dc4d6f3aa58522dbdf67b7c2164d7dfb638a0316
+  isolation: >-
+    Verified in a detached worktree containing only this task's harness/bridge
+    and documentation changes, with uv sync --locked using the baseline lock.
+    Parallel Runtime LLM-client and memory changes in the shared working tree
+    were excluded from the implementation and its baseline verification.
+  checks:
+    - command: go test -count=1 -v ./tests/eval/project_workflows -skip '^TestLive'
+      result: >-
+        Passed. Both four-Stage Workflows produced eight effective Worker
+        selections and sixteen actual factory/adapter HTTP requests (one
+        success and one 404 per selection), without fallback. Renamed policy
+        and Gateway manifests and a changed prior model alias remained valid.
+        Missing policy, Gateway and selected Workflow each failed before
+        execution. Existing source/scorer cases passed.
+    - command: runtime/.venv/bin/pytest -W error runtime/tests/test_openai_gateway_llm.py
+      result: Passed; 24 tests on the isolated baseline.
+    - command: go test ./internal/config
+      result: Passed on both the isolated baseline and the shared tree.
+    - command: runtime/.venv/bin/ruff check --config runtime/pyproject.toml tests/eval/project_workflows/testdata/gateway_model_probe.py
+      result: Passed; format --check with the same config also passed.
+    - command: git diff --check
+      result: Passed.
+  provenance_and_scope: >-
+    Regression checks preserve source catalog bytes, unselected manifests,
+    policy limits/sampling and separate summarizer policies. Failure-summary
+    schema 1.1 distinguishes requested/effective alias hashes and exact
+    resolved policy/Gateway refs; its basis is resolved_configuration and
+    upstreamModelRevision is null. Raw aliases, Gateway URLs/credentials and
+    provider-body canaries are absent from the saved summary. Failure-only
+    retention is unchanged. No live provider, database, target campaign or
+    deployment was used.
+  review: >-
+    Independent code review found no material correctness issues. V38 managed
+    Evals and V40/Playground work use different implementation files; this task
+    does not change their format, runner, task status or ownership.
+  shared_tree_compatibility: >-
+    After the parallel Runtime client and its tests were updated, the same
+    offline harness passed again against that working tree and its Gateway
+    suite passed 33 tests. An earlier run during the concurrent edit failed
+    20 tests because it observed an intermediate client/test combination;
+    no unrelated Runtime files were changed to resolve it. This extra check
+    does not include those parallel changes in the V57-001 implementation.

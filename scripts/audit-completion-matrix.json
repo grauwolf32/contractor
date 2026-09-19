@@ -113,7 +113,7 @@
     "tests.test_adk_runtime::test_cancellation_during_session_cleanup_cannot_publish_success": 1,
     "tests.test_adk_runtime::test_cleanup_failure_does_not_mask_cancelled_invocation": 1,
     "tests.test_adk_runtime::test_finalize_and_abort_never_start_an_idle_terminal_summarizer": 1,
-    "tests.test_adk_runtime::test_gateway_model_bounds_sdk_retries_and_aggregate_timeout": 1,
+    "tests.test_adk_runtime::test_gateway_model_bounds_transport_retries_and_aggregate_timeout": 1,
     "tests.test_adk_runtime::test_invocation_ownership_cleans_up_all_execution_outcomes": 6,
     "tests.test_adk_runtime::test_partial_invocation_acquisition_releases_session_and_preserves_error": 2,
     "tests.test_adk_runtime::test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity": 1,

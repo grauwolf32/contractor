@@ -116,12 +116,17 @@ FastAPI service with authenticated GET/POST routes, PostgreSQL persistence, and
 an outbound Inventory HTTP client. Both workflows start from source only, with
 no prebuilt OpenAPI or LikeC4 seed.
 
-The current harness rewrites model names only in legacy `domain_worker`
-policy files. It does not rewrite `worker.yaml`, which these Workflows now use.
-Consequently `CONTRACTOR_WORKFLOWS_LIVE_MODEL` alone does not select their actual
-Worker model. Configure the Gateway's `worker-model` alias to the intended
-backend and verify that mapping before interpreting a result. The checked-in
-[LiteLLM profile](../../deploy/litellm/litellm_config.yaml) supplies that alias.
+`CONTRACTOR_WORKFLOWS_LIVE_MODEL` selects the Worker model alias sent to the
+Gateway. The harness resolves the selected Workflows, updates their effective
+Worker policies and Gateway URLs in an isolated catalog, then reloads that
+catalog to recompute exact identities. Selection uses manifest identities,
+not policy filenames or the previous model alias. Production catalog files,
+policy limits, sampling settings and separate Planner/summarizer models stay
+unchanged. An unresolved policy/route fails before stack startup; a Worker
+policy shared with another model role is rejected instead of silently changing
+that role. The selected alias must exist at the Gateway; rejection does not
+switch to the default model. The checked-in
+[LiteLLM profile](../../deploy/litellm/litellm_config.yaml) exposes `worker-model`.
 
 ```shell
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
@@ -141,6 +146,28 @@ codes, and counters below ignored `.local/eval-results/`. It deliberately does
 not persist the source archive, Gateway URL/token, prompts, or provider response
 bodies. A successful run removes its isolated schema, certificates, processes,
 and Runtime workspaces without retaining evaluation artifacts.
+
+Failure-summary schema `1.1` replaces the ambiguous `modelSha256` field with
+`requestedModelAliasSha256` and per-Workflow/Stage/Worker `modelSelections`:
+effective ModelPolicy and Gateway refs/digests plus `modelAliasSha256`.
+`modelSelectionBasis: resolved_configuration` identifies what was observed;
+`upstreamModelRevision: null` means the harness cannot attest backend weights
+or revision from a Gateway alias. These are configuration provenance, not
+proof of model quality or evidence that every configured Stage executed.
+
+The selection regression can be checked offline with the locked Runtime
+environment installed:
+
+```shell
+go test -count=1 ./tests/eval/project_workflows -skip '^TestLive'
+```
+
+It sends all eight resolved Worker selections through the actual Python
+Gateway factory using an in-memory HTTP transport, checks successful requests
+and model-not-found responses without fallback, and verifies safe provenance
+and unchanged catalog bytes. It requires no database or model service and
+fails, rather than skips, if the Python bridge prerequisites are absent.
+
 During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
 `openapi-from-workspace@5` or `likec4-from-workspace@5`; the default and documented
 quality gate always execute both.

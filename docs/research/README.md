@@ -6,6 +6,11 @@ It is documentation and an evaluation control-plane input, not production
 configuration. Production packages must not import hypothesis IDs or make
 Scheduler decisions from these records.
 
+## Completed experiments
+
+- [V57-005: A2A invocation connection reuse](2026-09-19-a2a-connection-reuse-decision.md) —
+  local TLS measurements and fault matrix; decision: keep production transport unchanged.
+
 ## Drafts and evaluation design
 
 - [Annotation participation index](annotation-index-proposal.md) — proposed

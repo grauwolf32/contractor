@@ -3,8 +3,6 @@ package projectworkflows
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -134,27 +132,39 @@ type liveWorkflowEvidence struct {
 }
 
 type liveEvaluationEvidence struct {
-	SchemaVersion string                 `json:"schemaVersion"`
-	ModelSHA256   string                 `json:"modelSha256"`
-	StartedAt     time.Time              `json:"startedAt"`
-	FinishedAt    time.Time              `json:"finishedAt"`
-	Workflows     []liveWorkflowEvidence `json:"workflows"`
+	SchemaVersion             string                 `json:"schemaVersion"`
+	RequestedModelAliasSHA256 string                 `json:"requestedModelAliasSha256"`
+	ModelSelectionBasis       string                 `json:"modelSelectionBasis"`
+	ModelSelections           []liveModelSelection   `json:"modelSelections"`
+	UpstreamModelRevision     *string                `json:"upstreamModelRevision"`
+	StartedAt                 time.Time              `json:"startedAt"`
+	FinishedAt                time.Time              `json:"finishedAt"`
+	Workflows                 []liveWorkflowEvidence `json:"workflows"`
+}
+
+func newLiveEvaluationEvidence(settings liveSettings) liveEvaluationEvidence {
+	return liveEvaluationEvidence{
+		SchemaVersion: "1.1", RequestedModelAliasSHA256: liveAliasSHA256(settings.model),
+		ModelSelectionBasis: "resolved_configuration", ModelSelections: []liveModelSelection{},
+		StartedAt: time.Now().UTC(), Workflows: make([]liveWorkflowEvidence, 0, len(settings.workflows)),
+	}
 }
 
 type liveStack struct {
-	ctx            context.Context
-	repositoryRoot string
-	databaseURL    string
-	publicBaseURL  string
-	runtimeBaseURL string
-	publicToken    string
-	client         *http.Client
-	controlClient  *http.Client
-	server         *liveProcess
-	runtime        *liveProcess
-	workRoot       string
-	workspaceRoot  string
-	pool           *pgxpool.Pool
+	ctx             context.Context
+	repositoryRoot  string
+	databaseURL     string
+	publicBaseURL   string
+	runtimeBaseURL  string
+	publicToken     string
+	client          *http.Client
+	controlClient   *http.Client
+	server          *liveProcess
+	runtime         *liveProcess
+	workRoot        string
+	workspaceRoot   string
+	pool            *pgxpool.Pool
+	modelSelections []liveModelSelection
 }
 
 func TestLiveProjectWorkflows(t *testing.T) {
@@ -168,13 +178,7 @@ func TestLiveProjectWorkflows(t *testing.T) {
 		}
 	}
 
-	digest := sha256.Sum256([]byte(settings.model))
-	evidence := liveEvaluationEvidence{
-		SchemaVersion: "1.0",
-		ModelSHA256:   hex.EncodeToString(digest[:]),
-		StartedAt:     time.Now().UTC(),
-		Workflows:     make([]liveWorkflowEvidence, 0, len(settings.workflows)),
-	}
+	evidence := newLiveEvaluationEvidence(settings)
 	repositoryRoot := liveRepositoryRoot(t)
 	defer func() {
 		evidence.FinishedAt = time.Now().UTC()
@@ -190,6 +194,7 @@ func TestLiveProjectWorkflows(t *testing.T) {
 	}()
 
 	stack := startLiveStack(t, settings)
+	evidence.ModelSelections = stack.modelSelections
 	source, err := SourceArchive()
 	if err != nil {
 		t.Fatal("build live source fixture")
@@ -255,9 +260,12 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 	temporaryRoot := t.TempDir()
 	setupContext, cancelSetup := context.WithTimeout(context.Background(), 2*time.Minute)
 	t.Cleanup(cancelSetup)
-	databaseURL := liveIsolatedDatabase(t, setupContext, settings.databaseURL)
 	configRoot := filepath.Join(temporaryRoot, "configs")
-	copyLiveConfiguration(t, repositoryRoot, configRoot, settings.model, settings.gatewayURL)
+	modelSelections, err := copyLiveConfiguration(repositoryRoot, configRoot, settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	databaseURL := liveIsolatedDatabase(t, setupContext, settings.databaseURL)
 	serverBinary := filepath.Join(temporaryRoot, "contractor-server")
 	runLiveChecked(t, repositoryRoot, nil, "go", "build", "-o", serverBinary, "./cmd/contractor-server")
 	runLiveChecked(t, repositoryRoot, map[string]string{
@@ -346,7 +354,7 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 		ctx: context.Background(), repositoryRoot: repositoryRoot, databaseURL: databaseURL,
 		publicBaseURL: publicBaseURL, runtimeBaseURL: runtimeBaseURL, publicToken: publicToken,
 		client: publicClient, controlClient: controlClient, server: server, runtime: runtimeProcess,
-		workRoot: workRoot, workspaceRoot: workspaceRoot, pool: pool,
+		workRoot: workRoot, workspaceRoot: workspaceRoot, pool: pool, modelSelections: modelSelections,
 	}
 }
 
@@ -771,7 +779,7 @@ func writeLiveLocalAuth(t *testing.T, root, userID string) string {
 
 func persistLiveEvidence(repositoryRoot string, evidence liveEvaluationEvidence) (string, error) {
 	root := filepath.Join(repositoryRoot, ".local", "eval-results")
-	name := evidence.FinishedAt.UTC().Format("20060102T150405Z") + "-" + evidence.ModelSHA256[:12]
+	name := evidence.FinishedAt.UTC().Format("20060102T150405Z") + "-" + evidence.RequestedModelAliasSHA256[:12]
 	directory := filepath.Join(root, name)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", err

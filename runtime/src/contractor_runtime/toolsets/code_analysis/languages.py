@@ -402,7 +402,7 @@ def parse_symbols(
                             line=current.start_point[0] + 1,
                             end_line=current.end_point[0] + 1,
                             column=current.start_point[1],
-                            node_type=current.type,
+                            node_type=spec.node_type,
                             language=language.value,
                             start_byte=current.start_byte,
                             end_byte=current.end_byte,

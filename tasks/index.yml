@@ -84,8 +84,8 @@ fixed_decisions:
     model_output: >-
       Main Worker authors bounded terminal semantic text without output_schema;
       one mandatory tool-free ADK result finalizer copies the exact subtask ID
-      and text into strict WorkerModelResult for ordinary completion. Planned
-      V39 adds an explicit Audit-check strategy at the same completion boundary;
+      and text into strict WorkerModelResult for ordinary completion. Implemented
+      V39 provides an opt-in Audit-check strategy at the same completion boundary;
       it validates collected per-item data and constructs ZIP/WorkerResult in
       code without changing ordinary completion or the optional summarizer.
     result_projection: >-
@@ -204,7 +204,7 @@ fixed_decisions:
       Technical Run outcome, observation, requirement/hypothesis assessment,
       finding triage and Audit completion remain distinct. Empty, partial or
       inconclusive work never implies a clean security or compliance verdict.
-    worker_completion_planned: >-
+    worker_completion: >-
       V39 pins audit-check-results@1 from an explicit AuditProfile check binding
       to one passthrough Worker selecting audit-results@2. Runtime collects
       validated items with revisioned corrections, gives at most two same-budget
@@ -764,6 +764,14 @@ memory_audit_followups_planning:
 
 active_delivery_order:
   prioritized_on: "2026-09-06"
+  interpretation: >-
+    Historical delivery sequence, not a current active-backlog list. Completed
+    queues remain here to preserve the original prioritization. Individual task
+    files own current status, dependencies and implementation evidence; this
+    summary neither changes priorities nor takes over in-progress work.
+    V41 completion establishes offline format readiness, not V40 live instruction
+    quality. Archived tasks, including V53-001 and V53-002, remain outside active
+    work and are not implied to be fixed by a completed delivery queue.
   rationale: >-
     Deliver the reusable findings producer/reader path first. Prepare portable
     eval infrastructure before measuring new behavior. Audit completion is a
@@ -836,7 +844,13 @@ audit_worker_completion_planning:
 
 ui_usability_planning:
   planned_on: "2026-09-06"
-  status: planned
+  status: implemented
+  reviewed_on: "2026-09-19"
+  status_scope: >-
+    V37-001 through V37-012 are completed, including the recorded V37-012 journey
+    verification. V38 remains a separate Evals workstream; it is not completed
+    by the V37 delivery. Read individual task files for current status
+    and verification evidence.
   user_stories: docs/spec/ui-user-stories.md
   delivery_order:
     - {wave: 1, tasks: [V37-001, V37-002, V37-003, V37-004, V37-005]}
@@ -845,7 +859,7 @@ ui_usability_planning:
     - {wave: verification, tasks: [V37-012]}
     - {wave: separate_design, tasks: [V38-001]}
   boundaries:
-    - All new tasks are pending; priority P2 follows repository milestone policy.
+    - The waves above retain the original V37 delivery sequence; they are not a list of current pending work.
     - Follow each task dependency list; waves express sequencing preference, not additional prerequisites.
     - V35-004 already owns Git Settings/import; V37 reuses its dialogs and exact refs.
     - V32-006 owns Performance UI and is not duplicated or required by the Operations layout task.
@@ -2678,6 +2692,9 @@ tasks:
   - {id: V55-008, file: v55-008-deterministic-scan-planner.yml}
   - {id: V55-009, file: v55-009-scan-candidate-ranking.yml}
   - {id: V55-010, file: v55-010-katana-scan-adapter.yml}
+  - {id: V57-001, file: v57-001-live-harness-effective-model.yml}
+  - {id: V57-002, file: v57-002-documentation-status-reconciliation.yml}
+  - {id: V57-005, file: v57-005-a2a-connection-reuse-experiment.yml}
   - {id: V58-001, file: v58-001-runtime-provenance.yml}
   - {id: V58-002, file: v58-002-shared-layout-and-forms.yml}
   - {id: V58-003, file: v58-003-artifact-and-skill-reading.yml}

@@ -160,9 +160,10 @@ resolves the exact input Artifact revision before allocation. The ordinary
 `worker@1` model policy uses the configured `local-litellm@1` gateway and
 `development-worker` credential; those are host-side deployment prerequisites,
 not container credentials. Runtime talks to that shared Gateway directly through
-its `openai-compatible@1` endpoint and does not load the LiteLLM Python SDK in
-each agent process. The allocation-owned OpenAI client makes at most one initial
-attempt plus three SDK retries, with the complete series bounded by the normal
+its `openai-compatible@1` endpoint using a narrow HTTPX client. Neither the
+OpenAI nor LiteLLM Python SDK is installed in the Runtime dependency set.
+The allocation-owned client makes at most one initial attempt plus three
+transport retries, with the complete series bounded by the normal
 request timeout plus 60 seconds. A user-triggered Run uses that real model. For
 a reproducible check **without a model service or live credentials**, run from
 the repository root:

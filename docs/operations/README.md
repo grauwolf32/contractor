@@ -15,6 +15,7 @@ The references below cover ongoing operation and component-specific settings.
 | Deploy the independent Node UI | [UI deployment](../../deploy/ui/README.md) |
 | Provision allocation-scoped Podman execution | [Podman deployment](../../deploy/podman/README.md), [Runtime policy](../../runtime/PODMAN.md) |
 | Inspect metrics, retention and missing data | [Operations performance](performance.md) |
+| Understand Runtime memory costs and workspace digest optimization | [Runtime memory investigation](runtime-memory-2026-09-19.md) |
 | Enable and use loopback Go profiling | [Go profiling](go-profiling.md) |
 | Verify a deployment change | [Testing](../testing/README.md) |
 

@@ -506,8 +506,9 @@ backend, not a required Contractor component; a compatible backend can replace
 it without changing Workflow, AgentTemplate or allocation semantics.
 
 The Python Runtime implements `openai-compatible@1` with a Contractor-owned ADK
-`BaseLlm` adapter and an allocation-owned `AsyncOpenAI` client. It does not
-import a LiteLLM client SDK: LiteLLM, when selected, remains the one shared
+`BaseLlm` adapter and an allocation-owned HTTPX Chat Completions client. The
+Runtime dependency set excludes the OpenAI and LiteLLM Python SDKs: LiteLLM,
+when selected, remains the one shared
 external Gateway. The adapter sends the exact resolved model alias, translates
 ADK text and function-call history, tools and strict response schemas to Chat
 Completions, and projects model text/reasoning, function calls, finish reason and
@@ -515,10 +516,10 @@ provider-reported usage back to ADK. Non-text task data remains an Artifact; an
 unsupported inline content part fails closed instead of disappearing from the
 model request.
 
-The OpenAI client uses `max_retries=3`, meaning one initial HTTP attempt and at
-most three SDK retries. Its standard retry classification includes connection
+The Gateway client uses `max_retries=3`, meaning one initial HTTP attempt and at
+most three transport retries. Its retry classification includes connection
 loss/timeouts and retryable HTTP statuses such as 408, 409, 429 and 5xx. One
-outer Runtime deadline caps the entire SDK attempt series at the resolved
+outer Runtime deadline caps the entire attempt series at the resolved
 `requestTimeoutSeconds` plus 60 seconds; an enclosing Stage cancellation or
 deadline can stop it earlier. Every attempt retains the same allocation-owned
 Gateway route and never falls back around a configured proxy. The series is one
@@ -528,9 +529,17 @@ work and billing are possible and only the accepted final response's usage can
 be added to the Worker token counters. Gateway-side quotas therefore remain the
 hard authority for all physical attempts.
 
+Transport retries honor `retry-after-ms`, numeric or HTTP-date `Retry-After`,
+and explicit `x-should-retry` overrides. Finite server delays over 120 seconds
+stop transport retries; invalid or nonpositive delays use bounded exponential
+backoff with jitter. The outer deadline includes retry waits. Neither request
+payloads nor provider responses are logged by the client, and provider response
+buffers are released before retry waits. Successful JSON responses are projected
+directly into ADK types without constructing general-purpose SDK models.
+
 ### Gateway failure classification
 
-After the SDK attempt series ends, Runtime classifies the final failure from
+After the transport attempt series ends, Runtime classifies the final failure from
 bounded error metadata. Connection failures/timeouts and HTTP 408, 409, 429 or
 5xx are retryable. Other HTTP errors, including 400, 401, 403, 404, 413 and 422,
 are non-retryable. Explicit `insufficient_quota`, `budget_exceeded` and
@@ -542,7 +551,7 @@ The ordinary Worker and result finalizer preserve that flag under
 `worker_summarization_failed`. Wrapping an error never grants another semantic
 attempt. Cancellation propagates through the existing lifecycle. Workflow policy
 decides whether a retryable failure creates a fresh StageExecution; this flag is
-separate from the SDK's own bounded transport retries.
+separate from the client's bounded transport retries.
 
 Secret fields are accepted only over the private mTLS control channel, retained
 in memory for the active allocation and redacted from logs, Agent Cards,

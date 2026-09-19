@@ -499,12 +499,19 @@ class DirectWorkspaceSession:
 
 
 def workspace_digest(directories: set[str], text_files: dict[str, str]) -> str:
-    document = {
-        "directories": sorted(directories),
-        "files": [{"path": path, "text": text_files[path]} for path in sorted(text_files)],
-    }
-    encoded = jcs.canonicalize(document)
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    # Preserve the canonical document byte for byte without materializing a
+    # second copy of the entire workspace. These fixed keys are in JCS order;
+    # each file still uses JCS for string escaping and Unicode encoding.
+    digest = hashlib.sha256()
+    digest.update(b'{"directories":')
+    digest.update(jcs.canonicalize(sorted(directories)))
+    digest.update(b',"files":[')
+    for index, path in enumerate(sorted(text_files)):
+        if index:
+            digest.update(b",")
+        digest.update(jcs.canonicalize({"path": path, "text": text_files[path]}))
+    digest.update(b"]}")
+    return "sha256:" + digest.hexdigest()
 
 
 def _snapshot(
