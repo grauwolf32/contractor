@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -72,10 +71,14 @@ const allocationResourceHistorySQL = `WITH candidates AS (
 SELECT candidate.allocation_id, candidate.run_id, candidate.stage_execution_id,
        candidate.stage_name, candidate.logical_agent_name, candidate.state,
        candidate.terminal_at, candidate.performance_collection_policy,
-       candidate.release_completed_at, effective.report
+       candidate.release_completed_at, effective.report_id IS NOT NULL,
+       effective.reported_allocation_id, effective.resources
 FROM candidates AS candidate
 LEFT JOIN LATERAL (
-    SELECT report.report
+    SELECT report.report_id,
+           CASE WHEN jsonb_typeof(report.report->'allocationId') = 'string'
+                THEN report.report->>'allocationId' END AS reported_allocation_id,
+           report.report->'runtime'->'resources' AS resources
     FROM allocation_execution_reports AS report
     WHERE report.allocation_id = candidate.allocation_id
       AND report.expires_at > statement_timestamp()
@@ -120,13 +123,17 @@ const stageAllocationResourcesSQL = `SELECT allocation.allocation_id, execution.
        execution.stage_execution_id, execution.stage_name,
        allocation.logical_agent_name, execution.state, execution.terminal_at,
        allocation.performance_collection_policy, allocation.release_completed_at,
-       effective.report
+       effective.report_id IS NOT NULL, effective.reported_allocation_id,
+       effective.resources
 FROM workflow_runs AS run
 JOIN stage_executions AS execution ON execution.run_id = run.run_id
 JOIN stage_allocations AS allocation
   ON allocation.stage_execution_id = execution.stage_execution_id
 LEFT JOIN LATERAL (
-    SELECT report.report
+    SELECT report.report_id,
+           CASE WHEN jsonb_typeof(report.report->'allocationId') = 'string'
+                THEN report.report->>'allocationId' END AS reported_allocation_id,
+           report.report->'runtime'->'resources' AS resources
     FROM allocation_execution_reports AS report
     WHERE report.allocation_id = allocation.allocation_id
       AND report.expires_at > statement_timestamp()
@@ -204,24 +211,33 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 		var item AllocationResourceSummary
 		var persistedPolicy *string
 		var releaseCompletedAt *time.Time
-		var encodedReport []byte
+		var hasReport bool
+		var reportedAllocationID *string
+		var encodedResources []byte
 		if err := rows.Scan(
 			&item.AllocationID, &item.RunID, &item.StageExecutionID,
 			&item.Stage, &item.LogicalAgent, &item.Outcome, &item.FinishedAt,
-			&persistedPolicy, &releaseCompletedAt, &encodedReport,
+			&persistedPolicy, &releaseCompletedAt, &hasReport,
+			&reportedAllocationID, &encodedResources,
 		); err != nil {
 			return nil, fmt.Errorf("scan allocation resource summary: %w", err)
 		}
 		item.FinishedAt = item.FinishedAt.UTC()
-		var report *contracts.AllocationFinalReport
-		if len(encodedReport) != 0 {
-			var decoded contracts.AllocationFinalReport
-			if err := json.Unmarshal(encodedReport, &decoded); err != nil || decoded.Validate() != nil || decoded.AllocationID != item.AllocationID {
+		var resources *contracts.RuntimeResources
+		if hasReport {
+			if reportedAllocationID == nil || *reportedAllocationID != item.AllocationID {
 				return nil, errors.New("decode persisted allocation resource report")
 			}
-			report = &decoded
+			// Full reports are validated on ingestion. Decode only the optional
+			// resource block here, preserving RuntimeReport's omission of malformed
+			// resources without allocating unrelated Worker detail on every read.
+			if len(encodedResources) != 0 {
+				if decoded, err := contracts.DecodePrivateStrict[contracts.RuntimeResources](encodedResources); err == nil {
+					resources = &decoded
+				}
+			}
 		}
-		projectAllocationResources(&item, persistedPolicy, releaseCompletedAt, report)
+		projectAllocationResources(&item, persistedPolicy, releaseCompletedAt, hasReport, resources)
 		result = append(result, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -234,7 +250,8 @@ func projectAllocationResources(
 	item *AllocationResourceSummary,
 	persistedPolicy *string,
 	releaseCompletedAt *time.Time,
-	report *contracts.AllocationFinalReport,
+	hasReport bool,
+	resources *contracts.RuntimeResources,
 ) {
 	if persistedPolicy == nil {
 		item.CollectionPolicy = contracts.PerformanceCollectionLegacy
@@ -257,7 +274,7 @@ func projectAllocationResources(
 		item.CollectionPolicy = contracts.PerformanceCollectionLegacy
 		return
 	}
-	if report == nil {
+	if !hasReport {
 		if releaseCompletedAt == nil {
 			item.Status = AllocationResourcePending
 		} else {
@@ -266,7 +283,6 @@ func projectAllocationResources(
 		}
 		return
 	}
-	resources := report.Runtime.Resources
 	if resources == nil {
 		item.Status = AllocationResourceUnavailable
 		item.Reason = allocationResourceReason(AllocationResourceReportMissing)
