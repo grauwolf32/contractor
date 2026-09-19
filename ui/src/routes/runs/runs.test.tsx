@@ -627,10 +627,19 @@ describe("Run routes", () => {
     const firstRow = screen
       .getByRole("link", { name: "run-leg-a" })
       .closest("tr");
-    expect(firstRow).toHaveTextContent("eval.id:eval-group=01");
-    expect(firstRow).toHaveTextContent("eval.leg:a");
-
     const user = userEvent.setup();
+    const contextToggle = within(firstRow!).getByRole("button", {
+      name: "Context for run-leg-a",
+    });
+    expect(contextToggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(contextToggle);
+    const context = screen.getByRole("region", {
+      name: "Context for run-leg-a",
+    });
+    expect(context).toBeVisible();
+    expect(context).toHaveTextContent("eval.id:eval-group=01");
+    expect(context).toHaveTextContent("eval.leg:a");
+    expect(contextToggle).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(
       await screen.findByRole("link", { name: "run-leg-a-page-2" }),

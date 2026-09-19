@@ -38,27 +38,51 @@
 .allocation-history-table th:nth-child(2) {
   width: 21%;
 }
-.allocation-history-table summary {
-  cursor: pointer;
-  margin-top: 0.4rem;
+.allocation-history-stage {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.allocation-history-stage > small {
   color: var(--muted-strong);
+}
+.allocation-metrics-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  justify-self: start;
+  gap: 0.35rem;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.3rem 0;
+  color: var(--muted-strong);
+  text-align: left;
+  font: inherit;
   font-size: 0.8rem;
 }
-.allocation-history-table details[open] {
-  min-width: 0;
+.allocation-metrics-toggle:not(:disabled):hover {
+  background: transparent;
+  color: var(--text);
 }
-.allocation-history-table .allocation-resource-card {
-  margin-top: 0.75rem;
-  padding: 0.7rem;
+.allocation-history-table .allocation-row-expanded td {
+  border-bottom: 0;
+}
+.allocation-history-table .allocation-resource-list {
+  margin: 0;
 }
 .allocation-history-table .allocation-resource-metrics {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
 }
 .allocation-history-table .allocation-resource-identity {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
 }
 .allocation-history-table .allocation-resource-card header {
   flex-wrap: wrap;
+}
+.allocation-history-table .allocation-resource-card header code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 1000px) {
   .performance-summary-grid {
@@ -68,5 +92,24 @@
 @media (max-width: 760px) {
   .performance-summary-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .allocation-history-table .allocation-row-expanded {
+    border-bottom: 0;
+    border-radius: 0.7rem 0.7rem 0 0;
+  }
+  .allocation-history-table .allocation-metrics-row {
+    margin-top: -0.75rem;
+    border-top: 0;
+    border-radius: 0 0 0.7rem 0.7rem;
+  }
+  .allocation-history-table .allocation-metrics-row > td {
+    display: block;
+    padding-top: 0;
+  }
+  .allocation-history-table .allocation-metrics-row > td::before {
+    display: none;
   }
 }

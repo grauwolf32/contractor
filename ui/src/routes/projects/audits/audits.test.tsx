@@ -1208,6 +1208,12 @@ describe("Project Audit routes", () => {
       const requests: Request[] = [];
       let currentAudit = auditAt("completed", 2);
       let currentFinding = findingAt("proposed", 1);
+      currentFinding.firstProposal.document.description +=
+        "\n\n" +
+        "Retained evidence must remain readable without another action. ".repeat(
+          8,
+        ) +
+        "\n\nThe final paragraph contains the complete remediation context.";
       let reviews: AuditReviewRequest[] = [];
       const pendingReview: AuditReviewRequest = {
         requestId: "review_example",
@@ -1423,11 +1429,23 @@ describe("Project Audit routes", () => {
         }),
       ).toBeVisible();
       expect(screen.getByText("Unreviewed", { selector: "dd" })).toBeVisible();
-      await user.click(screen.getByText("Read full finding and evidence"));
+      expect(
+        await screen.findByText(
+          "The final paragraph contains the complete remediation context.",
+        ),
+      ).toBeVisible();
       expect(
         await screen.findByText("order endpoint", { selector: "strong" }),
       ).toBeVisible();
       expect(screen.getByText("ownerId", { selector: "code" })).toBeVisible();
+      const sourceLink = within(
+        screen.getByRole("region", { name: "Source artifacts" }),
+      ).getByRole("link");
+      expect(sourceLink).toHaveAttribute(
+        "href",
+        `/projects/project_example/artifacts/sources/${sourceArtifact.artifact.name}?revision=${sourceArtifact.artifact.revision}`,
+      );
+
       await user.click(screen.getByRole("button", { name: "Show provenance" }));
       expect(
         await screen.findByText(

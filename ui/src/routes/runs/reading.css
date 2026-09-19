@@ -14,7 +14,11 @@
   width: 18%;
 }
 .compact-run-history th:last-child {
-  width: 3rem;
+  width: 4.75rem;
+}
+.compact-run-history .run-delete-trigger {
+  width: var(--control-height);
+  min-height: var(--control-height);
 }
 .compact-run-history td {
   vertical-align: top;
@@ -83,6 +87,13 @@
   .compact-run-history tr {
     gap: 0.4rem 0.6rem;
   }
+  .compact-run-history.run-list-table:has(.run-list-actions-cell)
+    .run-list-workflow-cell {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+    padding-right: 0;
+  }
   .compact-run-history .run-list-labels-cell {
     display: block;
     grid-column: 1 / -1;
@@ -109,4 +120,71 @@
   cursor: pointer;
   color: var(--muted-strong);
   font-size: 0.85rem;
+}
+
+.run-context-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.3rem 0;
+  color: var(--muted-strong);
+  text-align: left;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.run-context-toggle:not(:disabled):hover {
+  background: transparent;
+  color: var(--text);
+}
+.compact-run-history .run-row-expanded td {
+  border-bottom: 0;
+}
+.run-context-details {
+  min-width: 0;
+  padding-bottom: 0.5rem;
+}
+.run-context-details .run-metadata-label-chips {
+  margin: 0;
+  align-items: flex-start;
+}
+.run-context-details .run-metadata-label-chip {
+  max-width: 100%;
+  flex-wrap: wrap;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.6rem;
+}
+.run-context-details .run-metadata-label-chip strong {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.run-context-details .run-metadata-label-chip span {
+  min-width: 0;
+}
+.run-context-details .compact-record-facts {
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+@media (max-width: 760px) {
+  .compact-run-history .run-row-expanded {
+    border-bottom: 0;
+    border-radius: 0.7rem 0.7rem 0 0;
+  }
+  .compact-run-history .run-context-row {
+    display: block;
+    margin-top: -0.75rem;
+    border-top: 0;
+    border-radius: 0 0 0.7rem 0.7rem;
+    padding-top: 0.25rem;
+  }
+  .compact-run-history .run-context-row > td {
+    width: 100%;
+    padding: 0;
+  }
+  .run-context-details .compact-record-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

@@ -1,0 +1,277 @@
+{
+  "task": "V58-013",
+  "implementationCommit": "c030303ab81a80665836ccc484dae7e45e3ed504",
+  "uiVersion": "0.3.1",
+  "verifiedAt": "2026-09-19T21:01:29.661929+00:00",
+  "checks": {
+    "focusedUITests": {
+      "passed": 47,
+      "files": 3,
+      "command": "cd ui && corepack pnpm test --run src/routes/projects/audits/audits.test.tsx src/routes/runs/runs.test.tsx src/routes/operations/performance/performance.test.tsx"
+    },
+    "eslintAndPrettier": "passed",
+    "typescriptAppAndE2E": "passed",
+    "productionBuild": "passed",
+    "diffWhitespaceAndTaskYAML": "passed"
+  },
+  "browser": {
+    "previewCaptures": 21,
+    "deployedCaptures": 21,
+    "states": 7,
+    "captureWidths": [
+      1440,
+      390,
+      320
+    ],
+    "geometryWidths": [
+      1920,
+      1440,
+      1024,
+      768,
+      390,
+      320
+    ],
+    "runs": [
+      {
+        "width": 1920,
+        "deleteButtonsChecked": 50,
+        "containmentViolations": 0,
+        "expandedRowsChecked": 2,
+        "labelKeysUnbroken": true
+      },
+      {
+        "width": 1440,
+        "deleteButtonsChecked": 50,
+        "containmentViolations": 0,
+        "expandedRowsChecked": 2,
+        "labelKeysUnbroken": true
+      },
+      {
+        "width": 1024,
+        "deleteButtonsChecked": 50,
+        "containmentViolations": 0,
+        "expandedRowsChecked": 2,
+        "labelKeysUnbroken": true
+      },
+      {
+        "width": 768,
+        "deleteButtonsChecked": 50,
+        "containmentViolations": 0,
+        "expandedRowsChecked": 2,
+        "labelKeysUnbroken": true
+      },
+      {
+        "width": 390,
+        "deleteButtonsChecked": 50,
+        "containmentViolations": 0,
+        "expandedRowsChecked": 2,
+        "labelKeysUnbroken": true
+      },
+      {
+        "width": 320,
+        "deleteButtonsChecked": 50,
+        "containmentViolations": 0,
+        "expandedRowsChecked": 2,
+        "labelKeysUnbroken": true
+      }
+    ],
+    "allocationMeasurements": [
+      {
+        "viewport": 1920,
+        "before": {
+          "width": 341.16,
+          "height": 677.44,
+          "columns": 1
+        },
+        "after": {
+          "width": 1189.44,
+          "height": 230.02,
+          "columns": 6
+        },
+        "metricValuesUnchanged": true
+      },
+      {
+        "viewport": 1440,
+        "before": {
+          "width": 298.16,
+          "height": 694.75,
+          "columns": 1
+        },
+        "after": {
+          "width": 1046.09,
+          "height": 284.31,
+          "columns": 5
+        },
+        "metricValuesUnchanged": true
+      },
+      {
+        "viewport": 1024,
+        "before": {
+          "width": 186.05,
+          "height": 779.72,
+          "columns": 1
+        },
+        "after": {
+          "width": 672.41,
+          "height": 347.48,
+          "columns": 3
+        },
+        "metricValuesUnchanged": true
+      },
+      {
+        "viewport": 768,
+        "before": {
+          "width": 178.97,
+          "height": 795.73,
+          "columns": 1
+        },
+        "after": {
+          "width": 648.78,
+          "height": 380.59,
+          "columns": 3
+        },
+        "metricValuesUnchanged": true
+      },
+      {
+        "viewport": 390,
+        "before": {
+          "width": 186.83,
+          "height": 777.17,
+          "columns": 1
+        },
+        "after": {
+          "width": 301.22,
+          "height": 701.83,
+          "columns": 1
+        },
+        "metricValuesUnchanged": true
+      },
+      {
+        "viewport": 320,
+        "before": {
+          "width": 116.83,
+          "height": 995.62,
+          "columns": 1
+        },
+        "after": {
+          "width": 231.22,
+          "height": 717.84,
+          "columns": 1
+        },
+        "metricValuesUnchanged": true
+      }
+    ],
+    "findingViews": [
+      {
+        "id": "audit-findings",
+        "descriptions": [
+          {
+            "length": 2199,
+            "visible": true,
+            "clipped": false,
+            "collapsed": false,
+            "formatted": 41
+          }
+        ],
+        "sourceHref": "/projects/project_26f02cc01364ebe6d382dd6cc3091122/artifacts/sources/nextcloud-daa077b4a0b14c26?revision=rev_7f36b9f9d8091a41eda9010931fac817",
+        "returnHash": "#finding-audit_7c3e325123f7fae785a69a03fcadcd99-finding-receipt-eed469946cb74390d9d03b16e2842003e63ade2bd10840882e3447f61580ed17"
+      },
+      {
+        "id": "project-findings",
+        "descriptions": [
+          {
+            "length": 2199,
+            "visible": true,
+            "clipped": false,
+            "collapsed": false,
+            "formatted": 41
+          },
+          {
+            "length": 1864,
+            "visible": true,
+            "clipped": false,
+            "collapsed": false,
+            "formatted": 0
+          }
+        ],
+        "sourceHref": "/projects/project_26f02cc01364ebe6d382dd6cc3091122/artifacts/sources/nextcloud-daa077b4a0b14c26?revision=rev_7f36b9f9d8091a41eda9010931fac817",
+        "returnHash": "#finding-audit_7c3e325123f7fae785a69a03fcadcd99-finding-receipt-eed469946cb74390d9d03b16e2842003e63ade2bd10840882e3447f61580ed17"
+      }
+    ],
+    "javascriptErrors": [],
+    "apiErrors": [],
+    "attemptedWrites": [],
+    "documentOverflow": false
+  },
+  "deployment": {
+    "revision": "c030303ab81a80665836ccc484dae7e45e3ed504",
+    "version": "0.3.1",
+    "release": "/home/ruslan/src/contractor/.local/demo/releases/ui-finding-history-c030303a-20260919T205900Z",
+    "coreRelease": "/home/ruslan/src/contractor/.local/demo/releases/main-be33cebb-20260919T192159Z",
+    "status": "deployed",
+    "beforePids": {
+      "contractor-demo-ui": "266185",
+      "contractor-demo-server": "205180",
+      "contractor-demo-runtime-a": "205215",
+      "contractor-demo-runtime-b": "205216",
+      "contractor-demo-lan-proxy": "39982"
+    },
+    "createdAt": "2026-09-19T20:59:00.773Z",
+    "queueBefore": {
+      "paused": true,
+      "revision": "29",
+      "updatedAt": "2026-09-08T05:42:17.868911Z"
+    },
+    "counts": {
+      "runs": 147,
+      "agents": 4,
+      "onlineAgents": 2
+    },
+    "deployedAt": "2026-09-19T20:59:01.361Z",
+    "smoke": [
+      {
+        "origin": "http://127.0.0.1:4173",
+        "version": "0.3.1",
+        "health": "ok",
+        "routes": 4,
+        "assets": 4,
+        "browser404": "ok"
+      },
+      {
+        "origin": "http://192.168.1.217:4173",
+        "version": "0.3.1",
+        "health": "ok",
+        "routes": 4,
+        "assets": 4,
+        "browser404": "ok"
+      }
+    ],
+    "pids": {
+      "contractor-demo-ui": "303918",
+      "contractor-demo-server": "205180",
+      "contractor-demo-runtime-a": "205215",
+      "contractor-demo-runtime-b": "205216",
+      "contractor-demo-lan-proxy": "39982"
+    },
+    "queueAfter": {
+      "paused": true,
+      "revision": "29",
+      "updatedAt": "2026-09-08T05:42:17.868911Z"
+    },
+    "serverStateUnchanged": true,
+    "coreReleaseUnchanged": true
+  },
+  "limits": [
+    "Finding has no structured file/line reference. Source links use exact artifacts recorded in Audit inputs, without inferring paths from generated prose.",
+    "The browser harness substituted an authenticated UI session and made real authorized REST reads; it blocked mutations. Password login and authenticated WebSocket were not exercised.",
+    "Existing archive preview limits and Server contracts are unchanged."
+  ],
+  "evidenceRoot": ".local/ui-design-implementation/phase-013",
+  "gallery": ".local/ui-design-implementation/phase-013/index.html",
+  "integration": {
+    "before": "b779dedf285f5d6645f064d423e8873b5c382ab6",
+    "after": "c030303ab81a80665836ccc484dae7e45e3ed504",
+    "existingTaskPlanningPreserved": true,
+    "unrelatedChangesPreserved": true
+  }
+}
