@@ -20,6 +20,7 @@ context:
     After the second incident, LM Studio still advertised the model as loaded
     while GPU utilization stayed at zero and model calls stopped advancing.
   deployment: LM Studio qwen/qwen3.8-27b on RTX 5090 via local-litellm@1.
+  closure_report: docs/operations/local-model-recovery-2026-09-08.md
 scope:
   in:
     - Capture content-free process, GPU and gateway evidence.
@@ -42,5 +43,8 @@ tests:
 verification:
   - LM Studio automatically replaced the affected llama-server process; no manual restart or workstation reboot was necessary.
   - Fresh FastAPI Run run_50409a0ec8f4b373d6866a2ad3e7171d advanced from one to eight model calls and twenty tool calls after replacement.
-  - A bounded content-free inference probe and final workflow outcomes are being recorded in the baseline report.
+  - Historical report records a successful HTTP 200 inference probe in 6.47 seconds after automatic recovery.
+  - Retained repeat result rechecked on 2026-09-19; passed with score 1.0, 4/4 annotations and a nonempty diff.
+  - Failed and successful envelopes retain identical case, source, project manifest, suite, Workflow and Runtime labels.
+  - Task-specific evidence and original file hashes retained in docs/operations/local-model-recovery-2026-09-08.md; git diff --check passed.
   - The repeated Xid root cause remains unproven; recovery does not establish driver/backend stability.
