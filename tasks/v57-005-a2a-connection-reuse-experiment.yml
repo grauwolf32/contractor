@@ -3,8 +3,8 @@ id: V57-005
 title: Measure and fault-test invocation-scoped A2A connection reuse
 milestone: architecture-review-followups
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 6f2bc0968a439cba944cbce0fab160a13a37c89d
 depends_on: []
 languages: [go, markdown]
 goal: >-
