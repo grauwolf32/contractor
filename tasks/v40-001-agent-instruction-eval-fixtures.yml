@@ -3,8 +3,8 @@ id: V40-001
 title: "Reuse playground-v2 evals and cover missing instruction-quality cases"
 milestone: agent-instruction-evaluation
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 99d9071bfb12b2191a986d8b66cb8192ddfeb248
 depends_on: ["V41-008"]
 languages: ["go", "python", "yaml"]
 
