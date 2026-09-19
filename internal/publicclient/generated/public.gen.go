@@ -3856,9 +3856,10 @@ type WorkerCompletionDiagnosticsPhase string
 
 // WorkerSummarizerConfigBody defines model for WorkerSummarizerConfigBody.
 type WorkerSummarizerConfigBody struct {
-	ContextWindowRatio float32        `json:"contextWindowRatio"`
-	CumulativeBudget   *int           `json:"cumulativeBudget,omitempty"`
-	ModelPolicy        ModelPolicyRef `json:"modelPolicy"`
+	ContextWindowRatio float32          `json:"contextWindowRatio"`
+	CumulativeBudget   *int             `json:"cumulativeBudget,omitempty"`
+	Instructions       *InstructionsRef `json:"instructions,omitempty"`
+	ModelPolicy        ModelPolicyRef   `json:"modelPolicy"`
 }
 
 // WorkerTelemetryExportConfig Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.
@@ -3874,6 +3875,18 @@ type WorkerTelemetryExportConfig struct {
 
 	// MaxPendingSpans Defaults to 2048 spans.
 	MaxPendingSpans *int `json:"maxPendingSpans,omitempty"`
+
+	// Retry Optional bounded backoff settings. When this block is supplied, omitted fields default to 100 and 1000 milliseconds respectively. After applying defaults, initialBackoffMilliseconds must not exceed maxBackoffMilliseconds; the Server validates this relationship. Absence preserves the stored document.
+	Retry *WorkerTelemetryRetryConfig `json:"retry,omitempty"`
+}
+
+// WorkerTelemetryRetryConfig Optional bounded backoff settings. When this block is supplied, omitted fields default to 100 and 1000 milliseconds respectively. After applying defaults, initialBackoffMilliseconds must not exceed maxBackoffMilliseconds; the Server validates this relationship. Absence preserves the stored document.
+type WorkerTelemetryRetryConfig struct {
+	// InitialBackoffMilliseconds Defaults to 100 milliseconds.
+	InitialBackoffMilliseconds *int `json:"initialBackoffMilliseconds,omitempty"`
+
+	// MaxBackoffMilliseconds Defaults to 1000 milliseconds.
+	MaxBackoffMilliseconds *int `json:"maxBackoffMilliseconds,omitempty"`
 }
 
 // WorkflowAgentBinding defines model for WorkflowAgentBinding.

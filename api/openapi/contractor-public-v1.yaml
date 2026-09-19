@@ -5164,6 +5164,19 @@ components:
         maxAttempts: {type: integer, minimum: 1, maximum: 10, description: Defaults to 2 total attempts per batch.}
         maxPendingSpans: {type: integer, minimum: 1, maximum: 2048, description: Defaults to 2048 spans.}
         maxPendingBytes: {type: integer, minimum: 1048576, maximum: 67108864, description: Defaults to 67108864 bytes (64 MiB).}
+        retry:
+          $ref: '#/components/schemas/WorkerTelemetryRetryConfig'
+    WorkerTelemetryRetryConfig:
+      type: object
+      additionalProperties: false
+      description: >-
+        Optional bounded backoff settings. When this block is supplied, omitted
+        fields default to 100 and 1000 milliseconds respectively. After applying
+        defaults, initialBackoffMilliseconds must not exceed maxBackoffMilliseconds;
+        the Server validates this relationship. Absence preserves the stored document.
+      properties:
+        initialBackoffMilliseconds: {type: integer, minimum: 1, maximum: 60000, description: Defaults to 100 milliseconds.}
+        maxBackoffMilliseconds: {type: integer, minimum: 1, maximum: 60000, description: Defaults to 1000 milliseconds.}
     RuntimeHTTPProxyConfig:
       type: object
       additionalProperties: false
@@ -6171,6 +6184,7 @@ components:
       additionalProperties: false
       required: [modelPolicy, contextWindowRatio]
       properties:
+        instructions: {$ref: '#/components/schemas/InstructionsRef'}
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         cumulativeBudget: {type: integer, minimum: 1, maximum: 100000000}
         contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}

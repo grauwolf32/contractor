@@ -201,8 +201,34 @@ function safeRuntimeTelemetry(
     requireExactRuntimeKeys(
       value.export,
       [],
-      ["batchSizeBytes", "maxAttempts", "maxPendingSpans", "maxPendingBytes"],
+      [
+        "batchSizeBytes",
+        "maxAttempts",
+        "maxPendingSpans",
+        "maxPendingBytes",
+        "retry",
+      ],
     );
+    if (value.export.retry !== undefined) {
+      requireExactRuntimeKeys(
+        value.export.retry,
+        [],
+        ["initialBackoffMilliseconds", "maxBackoffMilliseconds"],
+      );
+      const initial = value.export.retry.initialBackoffMilliseconds ?? 100;
+      const maximum = value.export.retry.maxBackoffMilliseconds ?? 1000;
+      if (
+        value.export.retry.initialBackoffMilliseconds === null ||
+        value.export.retry.maxBackoffMilliseconds === null ||
+        !Number.isInteger(initial) ||
+        !Number.isInteger(maximum) ||
+        initial < 1 ||
+        maximum > 60000 ||
+        initial > maximum
+      ) {
+        throw new TypeError("Runtime telemetry retry backoff is invalid");
+      }
+    }
   }
   if (
     !["http:", "https:"].includes(endpoint.protocol) ||
@@ -223,7 +249,16 @@ function safeRuntimeTelemetry(
     ...(value.flushTimeoutSeconds === undefined
       ? {}
       : { flushTimeoutSeconds: value.flushTimeoutSeconds }),
-    ...(value.export === undefined ? {} : { export: { ...value.export } }),
+    ...(value.export === undefined
+      ? {}
+      : {
+          export: {
+            ...value.export,
+            ...(value.export.retry === undefined
+              ? {}
+              : { retry: { ...value.export.retry } }),
+          },
+        }),
   };
 }
 

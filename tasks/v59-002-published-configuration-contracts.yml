@@ -26,6 +26,8 @@ scope:
   - Describe optional summarizer instructions as a safe exact reference.
   - Describe optional Worker telemetry export retry settings with actual bounds and defaults; keep legacy
     documents valid.
+  - Preserve supported summarizer references and bounded retry fields through UI normalization, rejecting
+    unknown nested retry data.
   out:
   - Change ordinary Worker finalization, LLM budgets or eval/toolset implementation.
   - Change published execution policy, credential authority, owner checks or CAS semantics beyond the
@@ -40,6 +42,9 @@ acceptance_criteria:
     unknown properties are rejected.
 - id: A3
   text: Both generated clients expose supported optional fields without weakening closed objects.
+- id: A4
+  text: UI publication/read normalization preserves retry and safe summarizer refs; defaults remain optional
+    in generated request types.
 tests:
 - command: go test -count=1 ./internal/httpapi/public -run PublicConfigurationProjectionContracts
   covers:
@@ -51,6 +56,15 @@ tests:
   - A1
   - A2
   - A3
+- command: cd ui && corepack pnpm --config.verify-deps-before-run=false typecheck
+  covers:
+  - A3
+  - A4
+- command: cd ui && corepack pnpm --config.verify-deps-before-run=false test --run src/api/configuration-contracts.test.ts
+    src/api/operations.test.ts src/api/workflows.test.ts
+  covers:
+  - A3
+  - A4
 verification_requirements:
 - Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
 - Keep implementation and subsequent completion metadata commits separate.

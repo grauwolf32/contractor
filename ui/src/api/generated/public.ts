@@ -2969,6 +2969,14 @@ export interface components {
             maxPendingSpans?: number;
             /** @description Defaults to 67108864 bytes (64 MiB). */
             maxPendingBytes?: number;
+            retry?: components["schemas"]["WorkerTelemetryRetryConfig"];
+        };
+        /** @description Optional bounded backoff settings. When this block is supplied, omitted fields default to 100 and 1000 milliseconds respectively. After applying defaults, initialBackoffMilliseconds must not exceed maxBackoffMilliseconds; the Server validates this relationship. Absence preserves the stored document. */
+        WorkerTelemetryRetryConfig: {
+            /** @description Defaults to 100 milliseconds. */
+            initialBackoffMilliseconds?: number;
+            /** @description Defaults to 1000 milliseconds. */
+            maxBackoffMilliseconds?: number;
         };
         RuntimeHTTPProxyConfig: {
             /** @constant */
@@ -3717,6 +3725,7 @@ export interface components {
             tools: components["schemas"]["ConfigId"][];
         };
         WorkerSummarizerConfigBody: {
+            instructions?: components["schemas"]["InstructionsRef"];
             modelPolicy: components["schemas"]["ModelPolicyRef"];
             cumulativeBudget?: number;
             contextWindowRatio: number;
