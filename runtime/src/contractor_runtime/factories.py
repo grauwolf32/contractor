@@ -45,6 +45,7 @@ from contractor_runtime.toolsets.likec4.tools import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi.tools import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory
 from contractor_runtime.toolsets.security_findings.tools import (
     SecurityFindingsToolsetFactory,
     SecurityFindingsV2ToolsetFactory,
@@ -218,6 +219,7 @@ def built_in_factories(
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
+    scan_toolset = ScanToolsetFactory()
     taint_annotations_toolset = TaintAnnotationsToolsetFactory()
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
@@ -267,6 +269,7 @@ def built_in_factories(
             memory_toolset.ref: memory_toolset,
             openapi_toolset.ref: openapi_toolset,
             source_toolset.ref: source_toolset,
+            scan_toolset.ref: scan_toolset,
             taint_annotations_toolset.ref: taint_annotations_toolset,
             text_toolset.ref: text_toolset,
             workspace_changes_toolset.ref: workspace_changes_toolset,

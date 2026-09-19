@@ -161,6 +161,15 @@ func MVPDescriptors() Descriptors {
 			"run-artifacts@1": {
 				Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			},
+			"scan@1": {
+				Tools: []string{"scan_naabu", "scan_nuclei", "scan_sqlmap"},
+				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
+					"scan_naabu":  {RuntimeSubprocessLauncher},
+					"scan_nuclei": {RuntimeSubprocessLauncher},
+					"scan_sqlmap": {RuntimeSubprocessLauncher},
+				},
+				ActiveCheckTools: []string{"scan_naabu", "scan_nuclei", "scan_sqlmap"},
+			},
 			"source-analysis@1": {
 				Tools: []string{"list_source_files", "open_source_archive", "read_source", "search_source"},
 			},

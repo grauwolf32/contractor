@@ -26,6 +26,10 @@ toolsets:
   openapi@1:
     validate_openapi: [runtime-subprocess-launcher]
   run-artifacts@1: {}
+  scan@1:
+    scan_naabu: [runtime-subprocess-launcher]
+    scan_nuclei: [runtime-subprocess-launcher]
+    scan_sqlmap: [runtime-subprocess-launcher]
   security-findings@1: {}
   security-findings@2: {}
   source-analysis@1: {}

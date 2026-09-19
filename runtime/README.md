@@ -237,6 +237,66 @@ is removed after every outcome. Includes and multi-file projects, layout,
 rendering, export, and the development server are outside the `likec4@1`
 contract.
 
+## CLI scanners
+
+`scan@1` exposes `scan_nuclei`, `scan_sqlmap` and `scan_naabu`. Select the exact
+operations in an AgentTemplate:
+
+```yaml
+toolsets:
+  - ref: scan@1
+    tools: [scan_nuclei, scan_sqlmap, scan_naabu]
+```
+
+Provision the executables on the Runtime service's `PATH` before startup.
+Each binary is checked independently with `nuclei -version`, `sqlmap --version`
+or `naabu -version`, under a two-second deadline. Missing, non-executable,
+failing or timed-out binaries omit only their own tool from advertised
+capabilities. If all three are unavailable, `scan@1` is absent. Installation
+alone is insufficient: the version command must exit successfully. Restart
+the Runtime after changing installed scanners to refresh its frozen snapshot.
+
+Nuclei uses operator-provisioned templates in `NUCLEI_TEMPLATES_DIR` (default
+`~/nuclei-templates`, resolved at Runtime startup). Binary capability does not
+prove template availability: a missing directory returns
+`nuclei_templates_unavailable`. Calls select HTTP templates using IDs, tags and
+severity; automatic updates/downloads, redirects and external OAST callbacks
+are disabled. SQLMap uses batch mode and a fresh per-call session, accepts URL,
+parameter selection, POST data, cookie, level and risk, and performs injection
+detection. Naabu uses TCP CONNECT scanning on one hostname/IP and explicit ports.
+See upstream CLI references for [nuclei](https://github.com/projectdiscovery/nuclei),
+[sqlmap](https://github.com/sqlmapproject/sqlmap/wiki/usage) and
+[naabu](https://github.com/projectdiscovery/naabu).
+
+Calls use fixed argument arrays without a shell, a private allocation-local
+temporary directory and a minimal child environment. Calls within one toolset
+are serialized. The maximum deadline is 3600 seconds; timeout, cancellation,
+allocation close and output overflow terminate the process group before scratch
+cleanup. Combined process output is capped at 1 MiB, previews at 32 KiB per
+stream, and JSONL results at 100 records / 128 KiB. Every result carries process
+status, error code, exit code and truncation information. A completed process
+does not certify a clean target; partial results and SQLMap diagnostics require
+interpretation. Results are not automatically persisted or published as findings.
+
+These fixed scanner processes run on the Runtime host and need network access.
+They do not use the offline Podman execution sandbox. The initial implementation
+rejects calls with `scan_proxy_unsupported` when a subprocess proxy is assigned;
+it never silently falls back to direct routing. Scanner arguments and output
+are excluded from tool metrics. Install binaries/templates as deployment
+dependencies; the Runtime does not install them during allocation.
+
+To add a scanner, implement a `ScanTool` adapter (or `JSONLinesScanTool` for
+JSONL output) and register its class in `SCANNERS`. The adapter declares the
+exported name, executable, version arguments and typed callable; `prepare`
+creates private per-call files and `observation` decodes output. Shared process
+launch, deadlines, cleanup and metrics do not branch on scanner names. Update
+the Go toolset descriptor and descriptor-parity fixture with the new operation.
+The registry is trusted Runtime configuration, never invocation input.
+
+The model-free `tool@1` Worker, artifact reports, full HTTP request input and
+ffuf wordlists are tracked separately in the
+[ScanTools implementation plan](../docs/plans/2026-09-19-scan-tools.md).
+
 ## Tool descriptions
 
 The [tool-description contract](../docs/spec/01-agent-template.md#model-visible-tool-descriptions)

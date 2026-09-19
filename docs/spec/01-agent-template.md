@@ -470,6 +470,14 @@ add either Toolset. `caido@1` requires the private `caido-graphql@1` adapter
 resolved for the allocation. The complete transport and bounded operation
 contract is owned by [11](11-http-and-caido-tools.md).
 
+`scan@1` exports `scan_nuclei`, `scan_sqlmap` and `scan_naabu` through the same
+explicit allowlist. Runtime startup probes each optional executable separately;
+only tools whose version commands succeed are advertised. Missing scanners do
+not prevent Runtime registration, and an empty ScanToolset is omitted. All three
+operations are active checks for Audit compatibility. The initial CLI contract
+and provisioning requirements are documented in the
+[Runtime README](../../runtime/README.md#cli-scanners).
+
 Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
 Server-side grant, bypass the `outputs` Namespace reservation or cross the
