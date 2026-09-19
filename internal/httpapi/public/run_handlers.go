@@ -365,7 +365,7 @@ func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	requestedBy := principalUserID(r.Context())
-	run, err = h.dependencies.Runs.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
+	run, err = h.dependencies.RunLifecycle.RequestRunCancellation(r.Context(), run.RunID, runstore.WorkflowRunCancellation{
 		Code:        runstore.CancellationUserRequested,
 		RequestedAt: h.dependencies.Now().UTC().Round(0),
 		RequestedBy: &requestedBy,
@@ -415,7 +415,7 @@ func (h *handler) resumeRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	result, err := h.dependencies.Runs.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
+	result, err := h.dependencies.RunLifecycle.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -432,7 +432,7 @@ func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
-	if err := h.dependencies.Runs.DeleteReleasedTerminalRun(
+	if err := h.dependencies.RunLifecycle.DeleteReleasedTerminalRun(
 		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
 	); err != nil {
 		h.handleError(w, err)

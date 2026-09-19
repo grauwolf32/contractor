@@ -603,7 +603,7 @@ func newHandlerFixtureWithAuth(
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projects,
 		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, Artifacts: service, Transactions: unit,
+		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, Artifacts: service,
 		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
 		Performance: performance.NewReadService(false, nil, nil, nil, func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
@@ -616,7 +616,6 @@ func newHandlerFixtureWithAuth(
 		NewRequestID:            func() (string, error) { return "request-fixed", nil },
 		RunNotifier:             notifier,
 		ProjectDeletionNotifier: notifier,
-		RunSkills:               runSkills,
 		Logger:                  logger,
 		Now: func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
@@ -624,6 +623,9 @@ func newHandlerFixtureWithAuth(
 	}
 	for _, apply := range configure {
 		apply(&dependencies)
+	}
+	if dependencies.RunCreator == nil {
+		dependencies.RunCreator = newTestRunCreator(t, dependencies, runs, unit, true)
 	}
 	handler, err := NewHandler(dependencies)
 	if err != nil {

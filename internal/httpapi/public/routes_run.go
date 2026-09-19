@@ -1,0 +1,32 @@
+package public
+
+import "net/http"
+
+func (h *handler) registerRunRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("POST /v1/runs", h.createRun)
+	mux.HandleFunc("GET /v1/runs", h.listRuns)
+	mux.HandleFunc("POST /v1/runs/{runID}/cancel", h.cancelRun)
+	mux.HandleFunc("POST /v1/runs/{runID}/resume", h.resumeRun)
+	mux.HandleFunc("DELETE /v1/runs/{runID}", h.deleteRun)
+	mux.HandleFunc("GET /v1/runs/{runID}", h.getRun)
+	mux.HandleFunc("GET /v1/runs/{runID}/repeat-draft", h.getRunRepeatDraft)
+	mux.HandleFunc("GET /v1/runs/{runID}/outputs/{slot}", h.getRunOutput)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts", h.listRunArtifacts)
+	mux.HandleFunc("GET /v1/runs/{runID}/finding-proposals", h.listRunFindingProposals)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}", h.getRunArtifact)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}/metadata", h.getRunArtifactMetadata)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}/versions", h.listRunArtifactVersions)
+	mux.HandleFunc("GET /v1/runs/{runID}/artifacts/{namespace}/{name}/lineage", h.listRunArtifactLineage)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}/metadata", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}/versions", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}/lineage", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts/{namespace}/{name}", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/artifacts", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/finding-proposals", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/outputs/{slot}", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/cancel", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/resume", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}/repeat-draft", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs/{runID}", h.methodNotAllowed)
+	mux.HandleFunc("/v1/runs", h.methodNotAllowed)
+}

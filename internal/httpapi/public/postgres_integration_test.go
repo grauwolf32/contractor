@@ -65,7 +65,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(eventHub.Close)
-	handler, err := NewHandler(Dependencies{
+	dependencies := Dependencies{
 		Authentication: authentication, BrowserOrigins: origins,
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
@@ -73,9 +73,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 &fakeAuditManagement{},
-		Runs:                   runs, Artifacts: service,
-		Transactions: integrationUnitOfWork{pool: pool, credentials: managedCredentials},
-		Operations:   operations, OperationsInvalidator: operations,
+		Runs:                   runs, RunQueue: runs, RunLifecycle: runs, Artifacts: service,
+		Operations: operations, OperationsInvalidator: operations,
 		Performance: performance.NewReadService(
 			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,
 		),
@@ -84,7 +83,9 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },
-	})
+	}
+	dependencies.RunCreator = newTestRunCreator(t, dependencies, runs, integrationUnitOfWork{pool: pool, credentials: managedCredentials}, false)
+	handler, err := NewHandler(dependencies)
 	if err != nil {
 		t.Fatal(err)
 	}

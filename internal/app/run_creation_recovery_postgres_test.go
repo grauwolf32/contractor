@@ -15,7 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
-	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -83,7 +82,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 				Runs: runstore.NewPostgresStore(pool), Workflows: manager, LLMCredentials: provider,
 				CredentialGuard: guard, RuntimeCredentials: guard, Projects: projectstore.NewPostgresStore(pool),
 				PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
-					return uow.Do(ctx, func(writer publicapi.RunWriter, artifactService *artifacts.Service) error {
+					return uow.Do(ctx, func(writer runservice.PublicRunWriter, artifactService *artifacts.Service) error {
 						if err := fn(writer, artifactService); err != nil {
 							return err
 						}

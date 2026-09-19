@@ -37,45 +37,30 @@ import (
 
 type RunReader interface {
 	ResumableStage(context.Context, string, string) (*string, error)
-	ResumeFailedRun(context.Context, string, string, string, string) (runstore.ResumeRunResult, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
-	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
 	RunDeletionBlocker(context.Context, string, string) (*runstore.RunNotDeletableReason, error)
-	DeleteReleasedTerminalRun(context.Context, string, string) error
-	ListRunQueue(context.Context, runstore.ListRunQueueParams) ([]runstore.WorkflowRunQueueItem, error)
-	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
-	UpdateOwnerQueueControl(context.Context, runstore.UpdateOwnerQueueControlParams) (runstore.OwnerQueueControl, error)
 	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
-	ListRunEvents(context.Context, string, int64, int) ([]runstore.WorkflowRunEvent, error)
+}
+
+type RunQueue interface {
+	ListRunQueue(context.Context, runstore.ListRunQueueParams) ([]runstore.WorkflowRunQueueItem, error)
+	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
+	UpdateOwnerQueueControl(context.Context, runstore.UpdateOwnerQueueControlParams) (runstore.OwnerQueueControl, error)
+}
+
+type RunLifecycle interface {
+	ResumeFailedRun(context.Context, string, string, string, string) (runstore.ResumeRunResult, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
 }
 
 type PlannerPlanReader interface {
 	LoadPlan(context.Context, planner.SessionIdentity) (planner.PlannerPlanProjection, bool, error)
-}
-
-type RunWriter interface {
-	PinRuntimeLabels(
-		context.Context, []string, ...bool,
-	) (runtimeconfig.RunSnapshot, error)
-	CreateRun(context.Context, runstore.CreateRunParams) (runstore.WorkflowRun, error)
-	CreateRunIdempotent(
-		context.Context,
-		runstore.CreateRunIdempotentParams,
-	) (runstore.WorkflowRun, bool, error)
-	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
-	TransitionRun(
-		context.Context,
-		string,
-		runstore.WorkflowRunState,
-		runstore.WorkflowRunState,
-		runstore.Reason,
-	) (runstore.WorkflowRun, error)
 }
 
 type MetricsReader interface {
@@ -111,22 +96,12 @@ type SchedulerSettingsManagement interface {
 	) (settingsstore.SchedulerSettings, error)
 }
 
-// UnitOfWork supplies transaction-bound Run and Artifact stores. The callback
-// commits only when it returns nil.
-type UnitOfWork interface {
-	Do(context.Context, func(RunWriter, *artifacts.Service) error) error
-}
-
 type RunNotifier interface {
 	Wake()
 }
 
 type RunCreationService interface {
 	CreatePublic(context.Context, runservice.PublicCreateParams) (runservice.CreateResult, error)
-}
-
-type RunSkillInitializer interface {
-	InitializeRunSkills(context.Context, string) (runstore.WorkflowRun, error)
 }
 
 type RunCancellationNotifier interface {
@@ -253,6 +228,8 @@ type Dependencies struct {
 	FindingProposals        FindingProposalManagement
 	FindingCollections      FindingCollectionManagement
 	Runs                    RunReader
+	RunQueue                RunQueue
+	RunLifecycle            RunLifecycle
 	RunCreator              RunCreationService
 	PlannerPlans            PlannerPlanReader
 	Metrics                 MetricsReader
@@ -263,13 +240,11 @@ type Dependencies struct {
 	SchedulerSettings       SchedulerSettingsManagement
 	Events                  *publicevents.Hub
 	Artifacts               *artifacts.Service
-	Transactions            UnitOfWork
 	BearerToken             contracts.SecretString
 	NewID                   func(string) (string, error)
 	NewRequestID            func() (string, error)
 	RunNotifier             RunNotifier
 	ProjectDeletionNotifier RunNotifier
-	RunSkills               RunSkillInitializer
 	Now                     func() time.Time
 	Logger                  *slog.Logger
 }

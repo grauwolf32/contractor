@@ -11,7 +11,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
-	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -142,7 +141,7 @@ type postgresPublicUnitOfWork struct {
 
 func (u postgresPublicUnitOfWork) Do(
 	ctx context.Context,
-	fn func(publicapi.RunWriter, *artifacts.Service) error,
+	fn func(runservice.PublicRunWriter, *artifacts.Service) error,
 ) error {
 	return persistencepostgres.InTxWithRetry(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(

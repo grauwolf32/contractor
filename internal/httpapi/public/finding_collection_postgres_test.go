@@ -50,7 +50,8 @@ func TestFindingCollectionHTTPPublicationAndOrdinaryRunInput(t *testing.T) {
 	}
 	fixture := newHandlerFixtureWithAuth(t, root, newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) {
 		d.Runs, d.Artifacts, d.Projects = runs, artifactService, projectstore.NewPostgresStore(pool)
-		d.Transactions = integrationUnitOfWork{pool: pool, credentials: d.Credentials}
+		d.RunQueue, d.RunLifecycle = runs, runs
+		d.RunCreator = newTestRunCreator(t, *d, runs, integrationUnitOfWork{pool: pool, credentials: d.Credentials}, true)
 		d.FindingCollections = publisher
 	})
 	workflow, err := fixture.configs.Workflow("artifact-copy@1")

@@ -20,7 +20,7 @@ func (h *handler) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	control, err := h.dependencies.Runs.GetOwnerQueueControl(
+	control, err := h.dependencies.RunQueue.GetOwnerQueueControl(
 		r.Context(), principalUserID(r.Context()),
 	)
 	if err != nil {
@@ -59,7 +59,7 @@ func (h *handler) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: Queue control paused is required", errInvalidRequest))
 		return
 	}
-	control, err := h.dependencies.Runs.UpdateOwnerQueueControl(
+	control, err := h.dependencies.RunQueue.UpdateOwnerQueueControl(
 		r.Context(),
 		runstore.UpdateOwnerQueueControlParams{
 			OwnerID: principalUserID(r.Context()), ExpectedRevision: revision,
@@ -149,7 +149,7 @@ func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
 		params.AfterCreatedAt = &after
 		params.AfterRunID = cursor[1]
 	}
-	runs, err := h.dependencies.Runs.ListRunQueue(r.Context(), params)
+	runs, err := h.dependencies.RunQueue.ListRunQueue(r.Context(), params)
 	if err != nil {
 		h.handleError(w, err)
 		return

@@ -65,11 +65,12 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure finding collection publisher: %w", err)
 	}
+	runStore := runstore.NewPostgresStore(pool)
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
 		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
-		Runs: runstore.NewPostgresStore(pool), RunCreator: audits.runs, Artifacts: catalogs.artifacts,
+		Runs: runStore, RunQueue: runStore, RunLifecycle: runStore, RunCreator: audits.runs, Artifacts: catalogs.artifacts,
 		Credentials: credentialSet.provider, ManagedCredentials: credentialSet.lifecycle,
 		RuntimeConfigs: control.runtimeConfigurations, RuntimeCredentials: credentialSet.runtime,
 		GitKeys:                credentialSet.gitKeys,
@@ -87,13 +88,9 @@ func configureHTTP(
 		OperationsInvalidator:  control.registry,
 		SchedulerSettings:      workflows.settings,
 		Events:                 eventHub,
-		Transactions: postgresPublicUnitOfWork{
-			pool: pool, transactionLLMCredentials: credentialSet.transactionLookup,
-		},
-		BearerToken: cfg.PublicBearerToken,
-		RunNotifier: workflows.scheduler, Logger: logger,
+		BearerToken:            cfg.PublicBearerToken,
+		RunNotifier:            workflows.scheduler, Logger: logger,
 		ProjectDeletionNotifier: workflows.projectDeletion,
-		RunSkills:               &runSkillInitializer{pool: pool},
 	})
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure public API: %w", err)
