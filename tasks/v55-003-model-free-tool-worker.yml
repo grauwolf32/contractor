@@ -9,7 +9,7 @@ languages: [go, python, yaml, json, typescript]
 goal: Run a selected tool through ordinary passthrough Workflow allocation and publish its report without any model service.
 context:
   authority: User requested runtime pseudoagents and server support for deterministic scan dispatch.
-  specification: docs/spec/01-agent-template.md
+  specification: docs/spec/29-tool-workers.md
   design: docs/plans/2026-09-19-scan-tools.md
 scope:
   in:

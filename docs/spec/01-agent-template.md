@@ -24,6 +24,11 @@ Agent.
 
 ## Minimal contract
 
+The model-free `tool@1` variant and its explicit `execution` bindings are
+specified in [29 — Deterministic tool Workers](29-tool-workers.md). The model
+fields below describe `adk@1`; they are absent in the tool variant. V55-003 owns
+activation of that variant in catalogs and runtime capabilities.
+
 ```python
 class AgentTemplateRef(BaseModel):
     template_id: str

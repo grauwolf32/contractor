@@ -3,7 +3,7 @@ id: V55-002
 title: Specify deterministic tool Worker inputs and model-free execution
 milestone: scan-tools-first-slice
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V55-001]
 languages: [markdown, yaml, json]
 goal: Define an implementable cross-language contract for tool@1 before enabling it in production catalogs.
