@@ -3,8 +3,8 @@ id: V57-002
 title: Reconcile current documentation status with authoritative task evidence
 milestone: architecture-review-corrections
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: f6494a55d67abb02f44d0af3a89942dce9c4ee4a
 depends_on: []
 languages: [yaml, markdown]
 goal: >-
@@ -110,7 +110,7 @@ verification_requirements:
   - Keep implementation_commit null and status pending/in_progress until the documentation changes and required verification are complete.
 verification:
   recorded_on: "2026-09-19"
-  implementation_state: Documentation changes and verification are ready for review; final commit and completion metadata remain pending.
+  implementation_state: Documentation changes and required verification are complete; implementation is recorded in the commit above.
   changed_claims:
     - locations: [tasks/index.yml ui_usability_planning]
       claim: V37 delivery is implemented and its original waves are historical; V38 remains a separate workstream whose status is owned by its task files.

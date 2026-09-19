@@ -3,8 +3,8 @@ id: V57-001
 title: Honor the selected Worker model in the legacy live workflow harness
 milestone: architecture-review-corrections
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ed3c4771df1a958eb830c6c3dd81b194c6c2755d
 depends_on: []
 languages: [go, python, markdown]
 goal: >-
