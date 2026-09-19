@@ -179,6 +179,32 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
   assert.equal(response.headers.get("x-frame-options"), "DENY");
 });
 
+test("Project Workflow Run URLs serve the shell directly on GET and HEAD", async (t) => {
+  const { origin } = await fixture(t);
+  for (const path of [
+    "/projects/project-1/workflows/artifact-copy/1/run",
+    "/projects/project%3A1/workflows/artifact-copy/v2.1/run?source=repeat",
+    `/projects/${"p".repeat(256)}/workflows/${"w".repeat(128)}/${"v".repeat(64)}/run`,
+  ]) {
+    const get = await rawRequest(origin, path);
+    assert.equal(get.status, 200, path);
+    assert.equal(get.body, "<!doctype html><title>UI</title>");
+    assert.equal(get.headers["cache-control"], "no-store");
+    assert.match(get.headers["content-type"], /text\/html/);
+    const head = await rawRequest(origin, path, "HEAD");
+    assert.equal(head.status, 200, path);
+    assert.equal(head.body, "");
+    for (const header of [
+      "content-type",
+      "content-length",
+      "cache-control",
+      "content-security-policy",
+    ]) {
+      assert.equal(head.headers[header], get.headers[header], header);
+    }
+  }
+});
+
 test("runtime config, health and hashed assets have distinct cache policy", async (t) => {
   const { origin } = await fixture(t);
   const configResponse = await fetch(`${origin}/runtime-config.json`);
@@ -233,6 +259,15 @@ test("API-looking, missing asset, extension and unknown routes never fall back",
     "/catalog/agents/worker/1/extra",
     "/catalog/workflows/name/1/extra",
     "/projects/project_example/extra",
+    "/projects/_invalid/workflows/artifact-copy/1/run",
+    "/projects/project-1/workflows/_invalid/1/run",
+    "/projects/project-1/workflows/artifact-copy/_invalid/run",
+    "/projects/project-1/workflows/artifact-copy/1",
+    "/projects/project-1/workflows/artifact-copy/1/run/extra",
+    "/evals/project-1/workflows/artifact-copy/1/run",
+    `/projects/${"p".repeat(257)}/workflows/artifact-copy/1/run`,
+    `/projects/project-1/workflows/${"w".repeat(129)}/1/run`,
+    `/projects/project-1/workflows/artifact-copy/${"v".repeat(65)}/run`,
     "/projects/project_example/findings/extra",
     "/evals/evaluation_example/findings",
     "/projects/project_example/artifacts/sources/service/extra",
@@ -256,6 +291,11 @@ test("API-looking, missing asset, extension and unknown routes never fall back",
   const traversal = await rawRequest(origin, "/v1/%2e%2e/runs");
   assert.equal(traversal.status, 400);
   assert.equal(traversal.body, "invalid request target\n");
+  const projectTraversal = await rawRequest(
+    origin,
+    "/projects/project-1/workflows/%2e%2e/1/run",
+  );
+  assert.equal(projectTraversal.status, 400);
   const absoluteForm = await rawRequest(origin, "http://attacker.invalid/runs");
   assert.equal(absoluteForm.status, 400);
 });

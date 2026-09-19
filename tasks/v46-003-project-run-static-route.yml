@@ -3,7 +3,7 @@ id: "V46-003"
 title: "Serve Project Run setup when its URL is opened directly or refreshed"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 depends_on: ["V37-008"]
 languages: ["javascript", "typescript"]
 goal: >-
