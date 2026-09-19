@@ -3,8 +3,8 @@ id: "V38-001"
 title: "Define the Evals experiment and comparison experience before implementation"
 milestone: "evals-experience-design"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "3a73e8fe993c5dc3134ae47230f878d115dbda7f"
 depends_on: ["V23-009", "V20-006"]
 languages: ["markdown", "yaml"]
 goal: >-
@@ -131,4 +131,4 @@ design_progress:
     dependency graph; nine new tasks are pending with acceptance/test coverage.
     New documentation links and API JSON examples validate. Spec 26 is unchanged.
     Evidence is recorded in docs/evals-experience-design.md.
-  remaining: "Record the primary design completion commit; implementation remains in V38-002 through V38-010."
+  remaining: "No design work remains; implementation is pending in V38-002 through V38-010."
