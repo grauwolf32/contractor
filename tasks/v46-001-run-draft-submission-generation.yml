@@ -3,7 +3,7 @@ id: "V46-001"
 title: "Preserve replacement Run drafts when an earlier submission finishes"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 depends_on: ["V37-002"]
 languages: ["typescript"]
 goal: >-

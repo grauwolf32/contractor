@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, MemoryRouter } from "react-router";
+import { createMemoryRouter, MemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
@@ -12,6 +12,11 @@ import { Application } from "../../app/application";
 import { createApplicationQueryClient } from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import { RunDraftProvider } from "../../run-drafts/provider";
+import { RunDraftStoreContext } from "../../run-drafts/context";
+import {
+  initialRunDraftState,
+  RunDraftMemoryStore,
+} from "../../run-drafts/memory";
 import type { WorkflowResource } from "../../api/workflows";
 import { WorkflowRunForm } from "./run-form";
 
@@ -480,6 +485,182 @@ describe("Workflow overview and Run drawer", () => {
 });
 
 describe("Workflow routes", () => {
+  it.each([
+    { projectId: undefined, resolveBeforeReplacement: false },
+    { projectId: "project_example", resolveBeforeReplacement: false },
+    { projectId: undefined, resolveBeforeReplacement: true },
+    { projectId: "project_example", resolveBeforeReplacement: true },
+  ])(
+    "preserves the replacement form after an earlier success: %j",
+    async ({ projectId, resolveBeforeReplacement }) => {
+      let resolveSubmission!: (response: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        resolveSubmission = resolve;
+      });
+      const submissions: Request[] = [];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const path = new URL(request.url).pathname;
+          if (path.endsWith("/artifacts")) {
+            return apiResponse({
+              items: [sourceArtifact],
+              page: { hasMore: false },
+            });
+          }
+          if (request.method === "POST") {
+            submissions.push(request);
+            if (submissions.length === 1) return pending;
+            throw new TypeError("replacement response lost");
+          }
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      const queryClient = createApplicationQueryClient();
+      api.csrf.replace(session.csrfToken);
+      let finishInvalidation!: () => void;
+      const invalidation = new Promise<void>((resolve) => {
+        finishInvalidation = resolve;
+      });
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      if (resolveBeforeReplacement) invalidate.mockReturnValue(invalidation);
+      const store = new RunDraftMemoryStore("user_local");
+      const formPath =
+        projectId === undefined
+          ? `${workflowRoute}/run`
+          : `/projects/${projectId}/workflows/${workflow.ref.name}/${workflow.ref.version}/run`;
+      const router = createMemoryRouter(
+        [
+          {
+            path: formPath,
+            element: (
+              <WorkflowRunForm
+                workflow={workflow}
+                {...(projectId === undefined ? {} : { projectId })}
+              />
+            ),
+          },
+          { path: "/away", element: <p>Away</p> },
+          { path: "/runs/:runId", element: <p>Created Run</p> },
+        ],
+        { initialEntries: [formPath] },
+      );
+      render(
+        <QueryClientProvider client={queryClient}>
+          <PublicAPIProvider api={api}>
+            <RunDraftStoreContext.Provider value={store}>
+              <RouterProvider router={router} />
+            </RunDraftStoreContext.Provider>
+          </PublicAPIProvider>
+        </QueryClientProvider>,
+      );
+      const user = userEvent.setup();
+      async function edit(objective: string) {
+        await user.type(await screen.findByLabelText(/^objective/i), objective);
+        await screen.findByRole("option", {
+          name: /projects\/source@revision-7/,
+        });
+        await user.selectOptions(
+          screen.getByLabelText(/^source/i),
+          "projects/source@revision-7",
+        );
+      }
+      await edit("Original request");
+      await user.click(
+        screen.getByRole("button", { name: /^Start (Project )?Workflow Run$/ }),
+      );
+      await waitFor(() => expect(submissions).toHaveLength(1));
+      const success = () =>
+        resolveSubmission(
+          apiResponse(
+            {
+              runId: "run_old",
+              ...(projectId === undefined ? {} : { projectId }),
+              state: "running",
+              runtimeLabels: [],
+              labels: {},
+              runtimeConfiguration: pinnedRuntimeConfiguration,
+            },
+            { status: 202 },
+          ),
+        );
+      if (resolveBeforeReplacement) {
+        await act(async () => {
+          success();
+        });
+        await waitFor(() => expect(invalidate).toHaveBeenCalled());
+      }
+      await act(async () => {
+        await router.navigate("/away");
+      });
+      await act(async () => {
+        await router.navigate(formPath);
+      });
+      await user.click(
+        await screen.findByRole("button", { name: "Discard saved draft" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Discard Run draft" }),
+      );
+      await edit("Replacement request");
+      await user.click(
+        screen.getByRole("button", { name: /^Start (Project )?Workflow Run$/ }),
+      );
+      await screen.findByRole("button", { name: "Retry exact request" });
+      const acquisition = store.acquire(
+        {
+          workflowName: workflow.ref.name,
+          workflowVersion: workflow.ref.version,
+          ...(projectId === undefined ? {} : { projectId }),
+        },
+        initialRunDraftState(),
+      );
+      if (acquisition.kind !== "acquired")
+        throw new Error("missing replacement");
+      const replacement = acquisition.entry;
+      const replacementState = structuredClone(replacement.state);
+      await act(async () => {
+        if (!resolveBeforeReplacement) success();
+        finishInvalidation();
+      });
+      await waitFor(() =>
+        expect(invalidate).toHaveBeenCalledTimes(
+          projectId === undefined ? 1 : 3,
+        ),
+      );
+      expect(router.state.location.pathname).toBe(formPath);
+      expect(store.isCurrent(replacement)).toBe(true);
+      expect(replacement.state).toEqual(replacementState);
+      expect(replacement.ambiguousSubmission).toBe(true);
+      expect(screen.getByLabelText(/^objective/i)).toHaveValue(
+        "Replacement request",
+      );
+      expect(screen.getByLabelText(/^source/i)).toHaveValue(
+        "projects/source@revision-7",
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Retry exact request" }),
+      );
+      await waitFor(() => expect(submissions).toHaveLength(3));
+      expect(submissions[2]!.headers.get("Idempotency-Key")).toBe(
+        submissions[1]!.headers.get("Idempotency-Key"),
+      );
+      expect(submissions[1]!.headers.get("Idempotency-Key")).not.toBe(
+        submissions[0]!.headers.get("Idempotency-Key"),
+      );
+      expect(
+        submissions.every(
+          (request) =>
+            new URL(request.url).pathname ===
+            (projectId === undefined
+              ? "/v1/runs"
+              : `/v1/projects/${projectId}/runs`),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it("requires slot-by-slot review when one MIME candidate is suggested twice", async () => {
     const reportArtifact = {
       ...sourceArtifact,

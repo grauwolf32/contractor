@@ -318,6 +318,7 @@ export class RunDraftMemoryStore {
     const key = typeof entryOrKey === "string" ? entryOrKey : entryOrKey.key;
     const entry = this.#entries.get(key);
     if (entry === undefined) return;
+    if (typeof entryOrKey !== "string" && entryOrKey !== entry) return;
     this.#entries.delete(key);
     entry.current = false;
   }

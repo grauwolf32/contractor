@@ -109,6 +109,41 @@ describe("RunDraftMemoryStore", () => {
     expect(replacement.state.artifactSelections.source).toBeUndefined();
   });
 
+  it.each([undefined, "project-a"])(
+    "preserves a replacement after a stale discard in scope %s",
+    (projectId) => {
+      const store = new RunDraftMemoryStore("owner-a");
+      const stale = acquired(store, "inspect", projectId);
+      store.markSubmitted(stale);
+      store.discard(stale);
+      const replacement = acquired(store, "inspect", projectId);
+      const state = structuredClone(replacement.state);
+      state.parameters.objective = "New investigation";
+      state.artifactSelections.source = "sources/new@r2";
+      store.replaceState(replacement, state);
+      const request = {
+        workflow: "inspect@1",
+        parameters: { objective: "New investigation" },
+      };
+      const key = replacement.keyring.keyFor(
+        request,
+        projectId ?? "standalone",
+      );
+      store.setAmbiguousSubmission(replacement, true);
+
+      store.discard(stale);
+
+      expect(store.isCurrent(replacement)).toBe(true);
+      expect(replacement.state).toEqual(state);
+      expect(replacement.ambiguousSubmission).toBe(true);
+      expect(
+        replacement.keyring.keyFor(request, projectId ?? "standalone"),
+      ).toBe(key);
+      store.discard(replacement.key);
+      expect(store.isCurrent(replacement)).toBe(false);
+    },
+  );
+
   it("does not touch browser persistence APIs", () => {
     const local = vi.spyOn(Storage.prototype, "setItem");
     const session = vi.spyOn(Storage.prototype, "removeItem");

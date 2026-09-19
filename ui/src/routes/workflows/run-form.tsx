@@ -1052,7 +1052,6 @@ function WorkflowRunFormBody({
         ? createRun(api, request, idempotencyKey)
         : createProjectRun(api, projectId, request, idempotencyKey),
     onSuccess: async (result) => {
-      draftStore.discard(draftEntry);
       await queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
       if (projectId !== undefined) {
         await Promise.all([
@@ -1064,6 +1063,10 @@ function WorkflowRunFormBody({
           }),
         ]);
       }
+      // Refresh confirmed server state even for an old submission, but only
+      // finish this form if its draft survived the asynchronous refresh.
+      if (!draftStore.isCurrent(draftEntry)) return;
+      draftStore.discard(draftEntry);
       await navigate(`/runs/${encodeURIComponent(result.runId)}`);
     },
     onError: (error) => {
