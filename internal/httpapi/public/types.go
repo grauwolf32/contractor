@@ -61,7 +61,7 @@ type PlannerPlanReader interface {
 
 type RunWriter interface {
 	PinRuntimeLabels(
-		context.Context, []string,
+		context.Context, []string, ...bool,
 	) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, runstore.CreateRunParams) (runstore.WorkflowRun, error)
 	CreateRunIdempotent(
@@ -678,7 +678,7 @@ type stageExecutionConfigResponse struct {
 }
 
 type consumerExecutionConfigRefsResponse struct {
-	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy"`
+	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy,omitzero"`
 	LLMGateway  *contracts.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
 	Credential  *contracts.LLMCredentialRef    `json:"credential,omitempty"`
 	Origins     config.ExecutionConfigOrigins  `json:"origins"`

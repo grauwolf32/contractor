@@ -93,7 +93,8 @@ def validate_spec(
         )
     try:
         verify_template_digests(spec.agent_template)
-        verify_model_policy_digest(spec.model_policy)
+        if spec.model_policy is not None:
+            verify_model_policy_digest(spec.model_policy)
     except TemplateDigestMismatch:
         raise AllocationError(
             "template_digest_mismatch",

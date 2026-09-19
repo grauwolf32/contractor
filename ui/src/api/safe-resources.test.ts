@@ -9,6 +9,37 @@ import {
 const digest = `sha256:${"1".repeat(64)}`;
 
 describe("safe public resource projections", () => {
+  it("preserves model-free execution and strips undeclared binding fields", () => {
+    const wire = {
+      ref: { kind: "agent-templates", name: "nuclei", version: "1", digest },
+      source: "operator",
+      body: {
+        description: "Scan",
+        runtime: "tool@1",
+        sandboxProfile: "local-workdir@1",
+        toolsets: [{ ref: "scan@1", tools: ["scan_nuclei"] }],
+        execution: {
+          tool: "scan_nuclei",
+          resultArtifact: "report",
+          timeoutSeconds: 60,
+          arguments: {
+            url: { source: "parameter", name: "target", token: "CANARY" },
+            rate_limit: { source: "literal", value: 10 },
+          },
+          secret: "CANARY",
+        },
+      },
+    } as ConfigurationResource;
+    const result = safeConfigurationResource(wire);
+    expect(result.body).not.toHaveProperty("modelPolicy");
+    expect(result.body).not.toHaveProperty("instructions");
+    expect(result.body).toHaveProperty("execution.arguments.rate_limit", {
+      source: "literal",
+      value: 10,
+    });
+    expect(JSON.stringify(result)).not.toContain("CANARY");
+  });
+
   it("drops undeclared configuration fields before cache or render state", () => {
     const wire = {
       ref: {

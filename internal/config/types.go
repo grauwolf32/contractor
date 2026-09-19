@@ -111,7 +111,7 @@ type ResolvedAgentBinding struct {
 // ExecutionConfigOrigins records which authoring layer selected each resolved
 // field. Values are safe provenance strings, never secret material.
 type ExecutionConfigOrigins struct {
-	ModelPolicy string `json:"modelPolicy"`
+	ModelPolicy string `json:"modelPolicy,omitempty"`
 	LLMGateway  string `json:"llmGateway,omitempty"`
 	Credential  string `json:"credential,omitempty"`
 }
@@ -120,7 +120,7 @@ type ExecutionConfigOrigins struct {
 // selection. Credential is a non-secret identity; token bytes never enter a
 // Workflow or Run snapshot.
 type ResolvedConsumerExecutionConfig struct {
-	ModelPolicy contracts.ResolvedModelPolicy       `json:"modelPolicy"`
+	ModelPolicy contracts.ResolvedModelPolicy       `json:"modelPolicy,omitzero"`
 	LLMGateway  *contracts.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
 	Credential  *contracts.LLMCredentialRef         `json:"credential,omitempty"`
 	Origins     ExecutionConfigOrigins              `json:"origins"`
@@ -315,14 +315,15 @@ type agentTemplateDocument struct {
 }
 
 type agentTemplateSpecSource struct {
-	Description    string                    `yaml:"description"`
-	Runtime        string                    `yaml:"runtime"`
-	Instructions   *instructionsRefSource    `yaml:"instructions"`
-	ModelPolicy    string                    `yaml:"modelPolicy"`
-	Summarizer     *workerSummarizerSource   `yaml:"summarizer,omitempty"`
-	Toolsets       *[]toolsetSelectionSource `yaml:"toolsets"`
-	Skills         *[]artifactRefSource      `yaml:"skills,omitempty"`
-	SandboxProfile string                    `yaml:"sandboxProfile"`
+	Description    string                         `yaml:"description"`
+	Runtime        string                         `yaml:"runtime"`
+	Instructions   *instructionsRefSource         `yaml:"instructions"`
+	ModelPolicy    string                         `yaml:"modelPolicy"`
+	Execution      *contracts.ToolExecutionConfig `yaml:"execution,omitempty"`
+	Summarizer     *workerSummarizerSource        `yaml:"summarizer,omitempty"`
+	Toolsets       *[]toolsetSelectionSource      `yaml:"toolsets"`
+	Skills         *[]artifactRefSource           `yaml:"skills,omitempty"`
+	SandboxProfile string                         `yaml:"sandboxProfile"`
 }
 
 type workerSummarizerSource struct {

@@ -777,7 +777,7 @@ func (f *fakeRunStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sour
 }
 
 func (f *fakeRunStore) PinRuntimeLabels(
-	ctx context.Context, labels []string,
+	ctx context.Context, labels []string, modelFree ...bool,
 ) (runtimeconfig.RunSnapshot, error) {
 	if f.pinRuntimeLabels != nil {
 		return f.pinRuntimeLabels(ctx, labels)

@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: naabu-scan, version: "1"}
+spec:
+  description: Check selected TCP ports on one host using naabu CONNECT scanning.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_naabu]
+  execution:
+    tool: scan_naabu
+    arguments:
+      host: {source: parameter, name: target}
+      ports: {source: literal, value: "80,443"}
+      rate: {source: literal, value: 100}
+    resultArtifact: report
+    timeoutSeconds: 60

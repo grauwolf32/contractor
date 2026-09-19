@@ -278,7 +278,13 @@ class AllocationService:
                         namespace=spec.namespace,
                         worker_session_mode=spec.worker_session_mode,
                         description=spec.agent_template.description,
-                        instruction=spec.agent_template.instructions.text,
+                        instruction=(
+                            spec.agent_template.instructions.text
+                            if spec.agent_template.instructions is not None
+                            else ""
+                        ),
+                        execution=spec.agent_template.execution,
+                        template_ref=spec.agent_template.ref,
                         card_version=spec.agent_template.ref.version,
                         model_policy=spec.model_policy,
                         workspace=workspace,

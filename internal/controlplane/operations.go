@@ -81,12 +81,15 @@ type MetricsSummary struct {
 // captured with the reservation so Operations never reconstructs authority
 // from a mutable configuration catalog.
 type AllocationExecutionConfig struct {
-	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy"`
-	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway"`
+	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy,omitzero"`
+	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway,omitzero"`
 	Credential  *contracts.LLMCredentialRef   `json:"credential,omitempty"`
 }
 
 func (c AllocationExecutionConfig) Validate() error {
+	if c == (AllocationExecutionConfig{}) {
+		return nil
+	}
 	if err := c.ModelPolicy.ValidateRef(); err != nil {
 		return fmt.Errorf("invalid allocation ModelPolicy ref: %w", err)
 	}

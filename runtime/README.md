@@ -276,7 +276,8 @@ cleanup. Combined process output is capped at 1 MiB, previews at 32 KiB per
 stream, and JSONL results at 100 records / 128 KiB. Every result carries process
 status, error code, exit code and truncation information. A completed process
 does not certify a clean target; partial results and SQLMap diagnostics require
-interpretation. Results are not automatically persisted or published as findings.
+interpretation. Direct tool calls return observations; `tool@1` Workers persist
+them as reports. Neither path automatically publishes security findings.
 
 These fixed scanner processes run on the Runtime host and need network access.
 They do not use the offline Podman execution sandbox. The initial implementation
@@ -293,8 +294,15 @@ launch, deadlines, cleanup and metrics do not branch on scanner names. Update
 the Go toolset descriptor and descriptor-parity fixture with the new operation.
 The registry is trusted Runtime configuration, never invocation input.
 
-The model-free `tool@1` Worker, artifact reports, full HTTP request input and
-ffuf wordlists are tracked separately in the
+The model-free `tool@1` Worker invokes one selected typed callable from pinned
+parameter, ArtifactRef and literal bindings, without a ModelPolicy or gateway.
+It publishes a bounded JSON report through the Artifact API and returns its
+exact revision in WorkerCompletion. Durable invocation receipts prevent an
+automatic rescan after cancellation, response loss or an unknown outcome.
+See the [Worker contract](../docs/spec/29-tool-workers.md) and the standalone
+[nuclei/naabu Workflow fixtures](../configs/scan/README.md).
+
+Full HTTP request input and ffuf wordlists follow in the
 [ScanTools implementation plan](../docs/plans/2026-09-19-scan-tools.md).
 
 ## Tool descriptions

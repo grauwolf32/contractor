@@ -90,6 +90,14 @@ function ConsumerConfigView({
   label: string;
   config: ConsumerConfig;
 }) {
+  if (config.modelPolicy === undefined) {
+    return (
+      <li>
+        <strong>{label}</strong>
+        <span>Tool execution · no model</span>
+      </li>
+    );
+  }
   return (
     <li>
       <strong>{label}</strong>

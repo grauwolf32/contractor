@@ -167,11 +167,36 @@ export function safeConfigurationResource(
         body: {
           description: body.description,
           runtime: body.runtime,
-          instructions: {
-            ref: body.instructions.ref,
-            digest: body.instructions.digest,
-          },
-          modelPolicy: modelPolicyRef(body.modelPolicy),
+          ...(body.instructions === undefined
+            ? {}
+            : {
+                instructions: {
+                  ref: body.instructions.ref,
+                  digest: body.instructions.digest,
+                },
+              }),
+          ...(body.modelPolicy === undefined
+            ? {}
+            : { modelPolicy: modelPolicyRef(body.modelPolicy) }),
+          ...(body.execution === undefined
+            ? {}
+            : {
+                execution: {
+                  tool: body.execution.tool,
+                  arguments: Object.fromEntries(
+                    Object.entries(body.execution.arguments).map(
+                      ([name, binding]) => [
+                        name,
+                        binding.source === "literal"
+                          ? { source: binding.source, value: binding.value }
+                          : { source: binding.source, name: binding.name },
+                      ],
+                    ),
+                  ),
+                  resultArtifact: body.execution.resultArtifact,
+                  timeoutSeconds: body.execution.timeoutSeconds,
+                },
+              }),
           ...(body.summarizer === undefined
             ? {}
             : {

@@ -1,6 +1,6 @@
 # 29 — Deterministic tool Workers
 
-Status: working agreement; V55-002 defines the contract, V55-003 enables it.
+Status: implemented by V55-003; V55-002 defines the contract.
 
 ## Template and arguments
 

@@ -696,7 +696,10 @@ function safeAllocation(value: AllocationObservation): AllocationObservation {
   const reason = safeReason(value.reason);
   const origins = value.executionConfig.origins;
   const llmGateway = value.executionConfig.llmGateway;
-  if (llmGateway === undefined) {
+  if (
+    value.executionConfig.modelPolicy !== undefined &&
+    llmGateway === undefined
+  ) {
     throw new TypeError("active Allocation has no resolved LLM Gateway");
   }
   return {
@@ -711,16 +714,24 @@ function safeAllocation(value: AllocationObservation): AllocationObservation {
       digest: value.agentTemplate.digest,
     },
     executionConfig: {
-      modelPolicy: {
-        policyId: value.executionConfig.modelPolicy.policyId,
-        version: value.executionConfig.modelPolicy.version,
-        digest: value.executionConfig.modelPolicy.digest,
-      },
-      llmGateway: {
-        gatewayId: llmGateway.gatewayId,
-        version: llmGateway.version,
-        digest: llmGateway.digest,
-      },
+      ...(value.executionConfig.modelPolicy === undefined
+        ? {}
+        : {
+            modelPolicy: {
+              policyId: value.executionConfig.modelPolicy.policyId,
+              version: value.executionConfig.modelPolicy.version,
+              digest: value.executionConfig.modelPolicy.digest,
+            },
+          }),
+      ...(llmGateway === undefined
+        ? {}
+        : {
+            llmGateway: {
+              gatewayId: llmGateway.gatewayId,
+              version: llmGateway.version,
+              digest: llmGateway.digest,
+            },
+          }),
       ...(value.executionConfig.credential === undefined
         ? {}
         : {
@@ -732,7 +743,9 @@ function safeAllocation(value: AllocationObservation): AllocationObservation {
         ? {}
         : {
             origins: {
-              modelPolicy: origins.modelPolicy,
+              ...(origins.modelPolicy === undefined
+                ? {}
+                : { modelPolicy: origins.modelPolicy }),
               ...(origins.llmGateway === undefined
                 ? {}
                 : { llmGateway: origins.llmGateway }),

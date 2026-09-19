@@ -43,13 +43,15 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 	}
 	result := make(map[string]contracts.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
 	for logicalName, selection := range stage.ExecutionConfig.Agents {
-		resolved, err := fallbackResolvedWorkerConfig(selection)
-		if reservation, ok := reservations[logicalName]; ok {
-			if reservation.ResolvedRuntimeConfig != nil {
-				resolved = reservation.ResolvedRuntimeConfig.Clone()
-			}
+		var resolved runtimeconfig.ResolvedRuntimeConfig
+		var err error
+		modelFree := stage.Agents[logicalName].Template.IsToolWorker()
+		if reservation, ok := reservations[logicalName]; ok && reservation.ResolvedRuntimeConfig != nil {
+			resolved = reservation.ResolvedRuntimeConfig.Clone()
+		} else {
+			resolved, err = fallbackResolvedWorkerConfig(selection, modelFree)
 		}
-		if err != nil || resolved.Validate() != nil {
+		if err != nil || resolved.Validate() != nil || resolved.ModelFree != modelFree {
 			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
 		}
 		runtimeSettings, err := s.materializeRuntimeSettings(ctx, resolved)
@@ -142,7 +144,18 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 
 func fallbackResolvedWorkerConfig(
 	selection workflowconfig.ResolvedConsumerExecutionConfig,
+	toolWorker ...bool,
 ) (runtimeconfig.ResolvedRuntimeConfig, error) {
+	if len(toolWorker) > 1 {
+		return runtimeconfig.ResolvedRuntimeConfig{}, fmt.Errorf("Worker configuration accepts at most one runtime selection")
+	}
+	if len(toolWorker) == 1 && toolWorker[0] {
+		return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
+			ModelFree: true, ModelPolicy: selection.ModelPolicy,
+			Default: runtimeconfig.PinnedRuntimeConfig{Label: "default", BindingRevision: 1,
+				Config: runtimeconfig.Ref{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}},
+		})
+	}
 	if selection.LLMGateway == nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, fmt.Errorf("Worker has no complete LLM Gateway route")
 	}

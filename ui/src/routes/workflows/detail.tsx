@@ -35,6 +35,14 @@ function ConsumerConfigView({
   name: string;
   config: ConsumerConfig;
 }) {
+  if (config.modelPolicy === undefined) {
+    return (
+      <li>
+        <strong>{name}</strong>
+        <span>Tool execution · no model</span>
+      </li>
+    );
+  }
   return (
     <li>
       <strong>{name}</strong>

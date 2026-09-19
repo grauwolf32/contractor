@@ -126,11 +126,45 @@
         "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"}
       }
     },
+    "toolExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "arguments", "resultArtifact", "timeoutSeconds"],
+      "properties": {
+        "tool": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
+        "resultArtifact": {"type": "string", "minLength": 1, "maxLength": 128},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "arguments": {
+          "type": "object", "maxProperties": 32,
+          "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
+          "additionalProperties": {
+            "oneOf": [
+              {"type": "object", "additionalProperties": false, "required": ["source", "name"], "properties": {
+                "source": {"enum": ["parameter", "artifact"]}, "name": {"type": "string", "minLength": 1, "maxLength": 128}
+              }},
+              {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {
+                "source": {"const": "literal"}, "value": {"oneOf": [
+                  {"type": "string", "maxLength": 8192}, {"type": "boolean"},
+                  {"type": "number", "minimum": -9007199254740991, "maximum": 9007199254740991}
+                ]}
+              }}
+            ]
+          }
+        }
+      }
+    },
     "resolvedAgentTemplate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ref", "description", "runtime", "instructions", "modelPolicy", "toolsets", "sandboxProfile"],
+      "required": ["ref", "description", "runtime", "toolsets", "sandboxProfile"],
+      "if": {"properties": {"runtime": {"properties": {"runtimeId": {"const": "tool"}, "version": {"const": "1"}}}}},
+      "then": {
+        "required": ["execution"],
+        "properties": {"instructions": false, "modelPolicy": false, "summarizer": false, "skills": {"maxItems": 0}, "toolsets": {"minItems": 1, "maxItems": 1, "items": {"properties": {"tools": {"maxItems": 1}}}}, "sandboxProfile": {"properties": {"sandboxProfileId": {"const": "local-workdir"}, "version": {"const": "1"}}}}
+      },
+      "else": {"required": ["instructions", "modelPolicy"], "properties": {"execution": false}},
       "properties": {
+        "execution": {"$ref": "#/$defs/toolExecution"},
         "ref": {"$ref": "#/$defs/agentTemplateRef"},
         "description": {"type": "string", "minLength": 1},
         "runtime": {"$ref": "#/$defs/workerRuntimeRef"},

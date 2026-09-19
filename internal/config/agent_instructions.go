@@ -19,7 +19,7 @@ func (s *Snapshot) AgentInstructions(raw string) (AgentInstructions, error) {
 		return AgentInstructions{}, err
 	}
 	template, ok := s.templates[selector.String()]
-	if !ok {
+	if !ok || template.IsToolWorker() {
 		return AgentInstructions{}, fmt.Errorf("%w: AgentTemplate %s", ErrConfigurationNotFound, selector)
 	}
 	return AgentInstructions{Template: template.Ref, Instructions: template.Instructions}, nil

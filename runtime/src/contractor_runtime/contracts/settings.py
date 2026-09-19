@@ -36,6 +36,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     _require_url,
 )
+from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 
 
 class AgentTemplateRef(WireModel):
@@ -435,7 +436,7 @@ def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
 
 
 class RuntimeSettings(WireModel):
-    llm_gateway_url: str
+    llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     llm_gateway_token: SecretStr | None = None
     artifact_api_url: str
     telemetry: TelemetrySettings | None = None
@@ -446,7 +447,10 @@ class RuntimeSettings(WireModel):
 
     @model_validator(mode="after")
     def validate_settings(self) -> Self:
-        _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
+        if self.llm_gateway_url is not None:
+            _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
+        elif self.llm_gateway_token is not None:
+            raise ValueError("LLM token requires a Gateway URL")
         if len(self.artifact_api_url.encode("utf-8")) > 2048:
             raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
         _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)
@@ -509,14 +513,25 @@ class ResolvedAgentTemplate(WireModel):
     ref: AgentTemplateRef
     description: str
     runtime: WorkerRuntimeRef
-    instructions: ResolvedInstructions
-    model_policy: ResolvedModelPolicy
+    instructions: ResolvedInstructions | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    model_policy: ResolvedModelPolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    execution: ToolExecutionConfig | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     summarizer: WorkerSummarizerConfig | None = None
     toolsets: list[ToolsetSelection]
     skills: list[ArtifactRef] = Field(
         default_factory=list, max_length=32, exclude_if=lambda value: not value
     )
     sandbox_profile: SandboxProfileRef
+
+    @property
+    def is_tool_worker(self) -> bool:
+        return self.runtime.runtime_id == "tool" and self.runtime.version == "1"
 
     @model_validator(mode="after")
     def validate_template(self) -> Self:
@@ -541,6 +556,32 @@ class ResolvedAgentTemplate(WireModel):
             raise ValueError("skills must be sorted and unique")
         if self.skills and NATIVE_SKILL_TOOL_NAMES.intersection(visible):
             raise ValueError("model-visible tool name is reserved by Agent Skills")
+        if self.is_tool_worker:
+            if (
+                self.execution is None
+                or self.model_fields_set.intersection(
+                    {"model_policy", "instructions", "summarizer"}
+                )
+                or self.model_policy is not None
+                or self.instructions is not None
+                or self.summarizer is not None
+                or self.skills
+                or visible != [self.execution.tool]
+                or self.sandbox_profile.sandbox_profile_id != "local-workdir"
+                or self.sandbox_profile.version != "1"
+            ):
+                raise ValueError(
+                    "tool@1 requires one tool/execution and forbids model fields or skills"
+                )
+            return self
+        if (
+            "execution" in self.model_fields_set
+            or self.model_policy is None
+            or self.instructions is None
+        ):
+            raise ValueError(
+                "modeled Worker requires instructions/modelPolicy and forbids execution"
+            )
         _require_worker_policy(self.model_policy, has_tools=bool(visible or self.skills))
         if self.summarizer is not None:
             _require_worker_summarizer_policy(self.summarizer.model_policy)

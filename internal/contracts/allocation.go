@@ -135,8 +135,9 @@ type ResolvedAgentTemplate struct {
 	Ref            AgentTemplateRef        `json:"ref"`
 	Description    string                  `json:"description"`
 	Runtime        WorkerRuntimeRef        `json:"runtime"`
-	Instructions   ResolvedInstructions    `json:"instructions"`
-	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy"`
+	Instructions   ResolvedInstructions    `json:"instructions,omitzero"`
+	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy,omitzero"`
+	Execution      *ToolExecutionConfig    `json:"execution,omitempty"`
 	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
 	Toolsets       []ToolsetSelection      `json:"toolsets"`
 	Skills         []ArtifactRef           `json:"skills,omitempty"`
@@ -246,14 +247,19 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 	if err := validateRuntimeRef(template.Runtime); err != nil {
 		return err
 	}
-	if strings.TrimSpace(template.Instructions.Ref) == "" || strings.TrimSpace(template.Instructions.Text) == "" {
-		return invalidf("agentTemplate instructions ref/text must not be empty")
-	}
-	if err := validateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
+	if err := template.ValidateToolExecution(); err != nil {
 		return err
 	}
-	if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
-		return err
+	if !template.IsToolWorker() {
+		if strings.TrimSpace(template.Instructions.Ref) == "" || strings.TrimSpace(template.Instructions.Text) == "" {
+			return invalidf("agentTemplate instructions ref/text must not be empty")
+		}
+		if err := validateDigest("agentTemplate.instructions.digest", template.Instructions.Digest); err != nil {
+			return err
+		}
+		if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
+			return err
+		}
 	}
 	if template.Summarizer != nil {
 		if err := validateWorkerSummarizerConfig(*template.Summarizer, template.ModelPolicy); err != nil {

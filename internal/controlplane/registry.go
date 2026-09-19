@@ -1190,6 +1190,9 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.ExecutionConfig.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid execution config for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
+		if binding.AgentTemplate.IsToolWorker() != (binding.ExecutionConfig == (AllocationExecutionConfig{})) {
+			return "", nil, fmt.Errorf("%w: execution config does not match Worker runtime", ErrInvalidRequest)
+		}
 		if binding.Workspace != nil {
 			if err := binding.Workspace.Validate(); err != nil {
 				return "", nil, fmt.Errorf("%w: invalid workspace for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
@@ -1199,7 +1202,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			return "", nil, fmt.Errorf("%w: candidate Runtime selection is incomplete", ErrInvalidRequest)
 		}
 		if binding.RuntimeSelection != nil {
-			if err := validateRuntimeSelection(*binding.RuntimeSelection); err != nil {
+			if err := validateRuntimeSelection(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker()); err != nil {
 				return "", nil, fmt.Errorf("%w: invalid Runtime selection for %q", ErrInvalidRequest, binding.LogicalAgentName)
 			}
 		}
@@ -1537,7 +1540,13 @@ func cloneReservation(source Reservation) Reservation {
 	return result
 }
 
-func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConfig) error {
+func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConfig, toolWorker bool) error {
+	if toolWorker {
+		if !value.ModelPolicy.IsZero() || value.LLMGateway != nil || value.Credential != nil || value.Origins != (workflowconfig.ExecutionConfigOrigins{}) {
+			return ErrInvalidRequest
+		}
+		return nil
+	}
 	if err := value.ModelPolicy.Validate(); err != nil || strings.TrimSpace(value.Origins.ModelPolicy) == "" {
 		return ErrInvalidRequest
 	}
@@ -1587,6 +1596,7 @@ func cloneRunSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnaps
 
 func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
 	result := source
+	result.Execution = source.Execution.Clone()
 	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
 	if source.Summarizer != nil {
 		summarizer := *source.Summarizer

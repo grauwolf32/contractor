@@ -538,7 +538,7 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
-	LLMGatewayURL         string                    `json:"llmGatewayUrl"`
+	LLMGatewayURL         string                    `json:"llmGatewayUrl,omitempty"`
 	LLMGatewayToken       *SecretString             `json:"llmGatewayToken,omitempty"`
 	ArtifactAPIURL        string                    `json:"artifactApiUrl"`
 	Telemetry             *TelemetrySettings        `json:"telemetry,omitempty"`
@@ -613,8 +613,12 @@ type WorkerExecutionSettings struct {
 }
 
 func (s RuntimeSettings) Validate() error {
-	if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
-		return err
+	if s.LLMGatewayURL != "" {
+		if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
+			return err
+		}
+	} else if s.LLMGatewayToken != nil {
+		return invalidf("LLM token requires a Gateway URL")
 	}
 	if err := validateURL("runtimeSettings.artifactApiUrl", s.ArtifactAPIURL); err != nil || len(s.ArtifactAPIURL) > 2048 {
 		return invalidf("runtimeSettings.artifactApiUrl is invalid")
@@ -747,7 +751,7 @@ type AllocationSpec struct {
 	LeaseExpiresAt                  time.Time                       `json:"leaseExpiresAt"`
 	AgentTemplate                   ResolvedAgentTemplate           `json:"agentTemplate"`
 	ResolvedSkills                  []ResolvedSkill                 `json:"resolvedSkills"`
-	ModelPolicy                     ResolvedModelPolicy             `json:"modelPolicy"`
+	ModelPolicy                     ResolvedModelPolicy             `json:"modelPolicy,omitzero"`
 	RuntimeSettings                 RuntimeSettings                 `json:"runtimeSettings"`
 	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
 	Workspace                       *AllocationWorkspaceSpec        `json:"workspace,omitempty"`
@@ -792,8 +796,18 @@ func (s AllocationSpec) Validate() error {
 	if err := ValidateResolvedSkills(s.AgentTemplate, s.ResolvedSkills); err != nil {
 		return err
 	}
-	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
-		return err
+	if s.AgentTemplate.IsToolWorker() {
+		if !s.ModelPolicy.IsZero() || s.RuntimeSettings.LLMGatewayURL != "" || s.RuntimeSettings.LLMGatewayToken != nil ||
+			s.ResolvedRuntimeConfigProvenance.LLMGatewayConfig != nil || s.ResolvedRuntimeConfigProvenance.LLMCredential != nil || s.Workspace != nil || s.CompletionContract != nil {
+			return invalidf("tool@1 allocation forbids model access, project workspace and completion contracts")
+		}
+	} else {
+		if s.RuntimeSettings.LLMGatewayURL == "" {
+			return invalidf("modeled allocation requires llmGatewayUrl")
+		}
+		if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
+			return err
+		}
 	}
 	if s.AgentTemplate.Summarizer != nil {
 		if err := validateWorkerSummarizerConfig(*s.AgentTemplate.Summarizer, s.ModelPolicy); err != nil {

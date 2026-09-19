@@ -20,7 +20,7 @@ var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,2
 // Repository is the durable boundary used by the public API and Scheduler.
 // PostgresStore implements it for both a pool and an explicit pgx transaction.
 type Repository interface {
-	PinRuntimeLabels(context.Context, []string) (runtimeconfig.RunSnapshot, error)
+	PinRuntimeLabels(context.Context, []string, ...bool) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	CreateAuditRun(context.Context, CreateAuditRunParams) (WorkflowRun, error)
@@ -156,13 +156,13 @@ func NewRunCreationPostgresStore(
 }
 
 func (s *PostgresStore) PinRuntimeLabels(
-	ctx context.Context, labels []string,
+	ctx context.Context, labels []string, modelFree ...bool,
 ) (runtimeconfig.RunSnapshot, error) {
 	if s == nil || s.runCreationTx == nil {
 		return runtimeconfig.RunSnapshot{}, errors.New("Runtime label pinning requires a Run-creation transaction store")
 	}
 	return runtimeconfig.PinRunSnapshot(
-		ctx, s.runCreationTx, labels, runtimeCredentialValidator{s.db}, s.runLLMCredentials,
+		ctx, s.runCreationTx, labels, runtimeCredentialValidator{s.db}, s.runLLMCredentials, modelFree...,
 	)
 }
 

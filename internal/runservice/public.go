@@ -93,7 +93,13 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if catalogErr != nil {
 					return catalogErr
 				}
-				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels)
+				modelFree := true
+				for _, stage := range workflow.Stages {
+					for _, binding := range stage.Agents {
+						modelFree = modelFree && binding.Template.IsToolWorker()
+					}
+				}
+				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, modelFree)
 				if pinErr != nil {
 					return pinErr
 				}
