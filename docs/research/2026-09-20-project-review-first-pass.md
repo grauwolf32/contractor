@@ -10,6 +10,11 @@
 **шесть подтверждённых замечаний**. Это не завершённое ревью всех подсистем.
 Углублённые проверки V60-005–010 остаются отдельной очередью.
 
+**Результат реализации: PR-01–05 исправлены и проверены; PR-06 запланирована
+следующей отдельной задачей V60-012.** [Общая проверка интеграции](../../tasks/evidence/v60-integration.json)
+содержит original implementation hashes, фактические команды и оставшиеся
+границы. Ниже сохранено описание дефектов в момент их обнаружения.
+
 [Evidence первого прохода](../../tasks/evidence/v60-001.json) содержит точные
 команды выполненных проверок, исходные результаты probes, snapshot параллельных
 веток и проверки task graph. Строки исходников ниже относятся к состоянию до
@@ -179,3 +184,26 @@ report/redactor/verifier, прочитал CI/gate composition и migration fenc
 Финальные исправления, исходные implementation hashes и реально выполненные
 regressions записываются в task-файлах V60-002–004 и evidence первого прохода.
 Шесть задач V60-005–010 остаются pending до отдельного углублённого исполнения.
+
+## Реализованные исправления и общая проверка
+
+| Задача | Статус / результат |
+| --- | --- |
+| V60-001 | План и первый проход завершены; принятое решение отделено от доказанного дефекта и пробела проверки. |
+| V60-002 | Завершена: 8 KiB login body, 19 новых HTTP subcases; максимальный username/escaping, Content-Length/chunked, 8192/8193, decoded bounds и safeguards. |
+| V60-003 | Завершена: optional internal pins передаются из HTTP, before/after revisions читаются owner-scoped JOIN; rows закрываются до batch hydration. PostgreSQL pool=1 проверяет 201 уникальный receipt, повторные records, missing receipt и concurrent revision changes. |
+| V60-004 | Завершена: Go event identity/status сохраняются, diagnostics редактируются после JSON parsing, arbitrary extra fields не сохраняются. 14 subprocess composition regressions дополняют существующие required tests. |
+| V60-011 | Завершена: mandatory Runtime test обновлён без ослабления assertions/minimum, offline declaration check выявляет stale names. Полный gate прошёл с PostgreSQL password, совпадающим с CI. |
+| V60-012 | Pending: атомарная invalidation при Run deletion и её согласование с import/purge/report finalization. Подтверждённый дефект не объявлен исправленным. |
+
+На объединённом коде прошли `go test -count=1 ./...`, `go vet ./...`, affected
+Go packages с настоящим PostgreSQL и `-race`, public API gate и обязательный
+pagination gate. `make test-audit-completion-e2e` прошёл **158 Go cases и
+331 Runtime tests без selected skips**. Начальный отказ из-за старого имени
+теста сохранён в [evidence V60-011](../../tasks/evidence/v60-011.json), а не скрыт
+успешным повтором. Это полный Audit completion gate, не полный `release-verify`.
+
+V60 не меняет UI или generated OpenAPI clients. Результаты 435 UI-тестов,
+typecheck/lint/build и byte-reproducible generation относятся к отдельно
+зафиксированной V59-проверке. Локальные PostgreSQL-прогоны используют собственный
+disposable контейнер и уникальные схемы; live-сервисы и модели не затрагиваются.
