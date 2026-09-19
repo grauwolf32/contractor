@@ -1,0 +1,150 @@
+schema_version: "1.0"
+id: V57-004
+title: Separate model-result decoding from trusted Worker result assembly
+milestone: architecture-review-followups
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Remove the Audit completion path's internal JSON encode/decode round trip
+  through a shared typed Runtime result assembler while preserving the current
+  ordinary finalizer, summarizer and authority checks. Remove only the synthetic
+  Audit JSON size limit, explicitly preserving actual text/result/wire bounds.
+context:
+  authority: >-
+    The user requested review of potentially redundant validation and concrete
+    bounded follow-up tasks. This task changes internal ownership of decoding
+    and assembly, not the accepted completion policy.
+  specification:
+    - docs/spec/14-worker-results-and-live-state.md
+    - docs/spec/15-worker-summarization.md
+    - docs/spec/25-audit-worker-finalization.md
+    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+  history:
+    - V17-003 established strict model results and Runtime-owned observations/artifacts.
+    - V21-001 requires the ordinary tool-free exact-copy model finalizer and its same-budget accounting.
+    - V39-005 introduced the common completion gate with independent ordinary, Audit and summarizer behavior.
+  current_code:
+    - runtime/src/contractor_runtime/worker/runtime.py
+    - runtime/src/contractor_runtime/worker/finalizer.py
+    - runtime/src/contractor_runtime/contracts/worker.py
+    - runtime/src/contractor_runtime/worker/completion.py
+  concrete_redundancy: >-
+    The Audit completion branch constructs its trusted subtaskId/result JSON
+    with json.dumps, then _build_runtime_result parses that same wrapper with
+    json.loads before projecting trusted refs. The ordinary finalizer and
+    summarizer supply genuinely model-authored JSON and still require their
+    bounded decoder, schema checks and expected-subtask validation. The user
+    explicitly selected removal of only the artificial Audit wrapper limit;
+    shared Go/Python result limits are a separate future discussion.
+  informative_review:
+    - docs/research/2026-09-19-architecture-evolution-review.md
+    - docs/plans/2026-09-19-architecture-review-followups.md
+  independence: >-
+    These review documents are informative, not normative implementation
+    specifications. V57-003 may keep the current finalizer. This refactoring
+    neither depends on that decision nor implements a proposed removal.
+  admission_rule: >-
+    This is optional maintenance, not a correctness prerequisite or product
+    release dependency. Before taking it into implementation, confirm that a
+    local extraction removes the synthetic wrapper with fewer responsibilities
+    at each call site and no new generic framework or policy switch. If that
+    bounded simplification is not achievable, leave the implementation pending
+    with the reason and revise the scope instead of forcing a refactor or
+    marking unimplemented acceptance criteria complete.
+  user_followup: >-
+    On 2026-09-19 the detailed discussion was completed and the user explicitly
+    approved implementation, while questioning the origin and small size of the
+    256 KiB bound. The user then explicitly chose to remove only the artificial
+    Audit JSON limit and discuss shared result limits separately. Do not preserve
+    the synthetic wrapper solely to reapply its encoding-size limit.
+scope:
+  in:
+    - Extract a bounded decoder for actual model-result JSON and a typed trusted WorkerResult assembly boundary.
+    - Route ordinary finalizer and summarizer results through the decoder with their existing validation, policy and safe error classification.
+    - Route validated Audit completion output to typed assembly without serializing and parsing a Runtime-created wrapper.
+    - Remove the synthetic Audit-wrapper encoded limit; preserve actual text, model JSON, assembled result and cross-language wire limits.
+    - Preserve request-owned identity, observed exact-ref ordering, verified publication refs, reserved bindings and exporter-owned slots.
+    - Preserve current model-call accounting, summarized flags, cancellation/lease checks, workspace export and terminal State ordering.
+    - Add focused regressions for previous results/errors and the explicit acceptance of typed values that only exceeded the removed synthetic wrapper limit.
+    - Document the historical origin and distinct ownership of current result size limits without raising them.
+  out:
+    - Remove the ordinary LLM finalizer, change V21 semantics or act on the outcome of V57-003.
+    - Change tools/schema capability handling, model budgets, prompts, Runtime/Planner protocols or immutable catalog versions.
+    - Relax model JSON validation, trust model-authored refs or make Audit local collection equivalent to Server evidence acceptance.
+    - Change Go validation helpers, private-wire codec behavior, duplicate-key/date parsing or global validation policy.
+    - Add an unvalidated generic dict hook, use unchecked model construction or retain mutable objects as permanently validated.
+    - Deploy services, run live models or claim measured performance gains without a separate measurement.
+deliverables:
+  - path: runtime/src/contractor_runtime/worker/runtime.py
+    description: Explicit model decode and typed assembly call sites preserving current ordinary, summarizer and Audit policies.
+  - path: runtime/tests/test_worker_completion.py
+    description: Boundary tests for typed construction, decoding, limits, correlation and trusted-ref projection; use existing helpers where appropriate.
+  - path: runtime/tests/test_audit_completion_runtime.py
+    description: Regression for direct trusted Audit assembly with unchanged gate/publication semantics and exact output.
+  - path: docs/research/2026-09-19-worker-result-assembly.md
+    description: Implemented boundary design, selected Audit limit change and researched origin of remaining limits.
+  - path: tasks/evidence/v57-004.json
+    description: Executed checks and named boundary regressions with the explicit compatibility exception.
+requirements:
+  - id: R1
+    text: Every ordinary completion still uses its required finalizer; its missing/invalid/changed ID/text errors and model-call accounting remain unchanged.
+  - id: R2
+    text: Summarizer remains an independently model-authored structured path with its current policy and summarized=true semantics; it is not followed by the ordinary finalizer.
+  - id: R3
+    text: Audit supplies only values already accepted by its trusted completion gate and verified publisher; shared assembly cannot bypass those checks or invent missing items.
+  - id: R4
+    text: Preserve existing errors, retryability and actual text/model/output/wire bounds; explicitly allow trusted completion fields formerly rejected only by the synthetic Audit JSON encoding size. This is the sole selected admission change.
+  - id: R5
+    text: The work must remain valid regardless of V57-003's decision and introduce no completion-policy switch or new externally visible mode.
+acceptance_criteria:
+  - id: A1
+    text: Ordinary valid/invalid/mismatched/oversized finalizer results produce the same WorkerCompletion or safe error with the same model-call count and budget behavior as before extraction.
+  - id: A2
+    text: Summarizer JSON/schema/subtask validation, separate budget accounting and summarized flag remain unchanged under success, failure and cancellation.
+  - id: A3
+    text: Audit output reaches assembly without a synthetic JSON round trip while preserving incomplete/reminder/failure handling, exact publisher refs and serialized successful completion content.
+  - id: A4
+    text: Empty/oversized text, actual encoded output bounds, stale or invented refs, reserved bindings, exporter slots, lease loss and cancellation retain their behavior and export-before-terminal ordering. A typed result fitting real bounds is no longer rejected solely for synthetic ASCII-escaped size.
+  - id: A5
+    text: External wire models, current semantic policies and golden fixtures remain compatible; no production default, model limit or live Run changes as part of the refactor.
+tests:
+  - name: result-decoder-and-assembly
+    command: runtime/.venv/bin/pytest -W error runtime/tests/test_worker_completion.py runtime/tests/test_result_finalizer.py runtime/tests/test_adk_runtime.py runtime/tests/test_instrumentation.py
+    covers: [A1, A4, A5]
+  - name: summarizer-and-workspace-lifecycle
+    command: runtime/.venv/bin/pytest -W error runtime/tests/test_worker_summarizer.py runtime/tests/test_workspace_auto_export.py runtime/tests/test_a2a_server.py
+    covers: [A2, A4, A5]
+  - name: audit-completion-regressions
+    command: runtime/.venv/bin/pytest -W error runtime/tests/test_audit_completion_runtime.py runtime/tests/test_audit_completion_continuation.py runtime/tests/test_audit_result_publication.py runtime/tests/test_audit_completion_diagnostics.py
+    covers: [A3, A4, A5]
+  - name: wire-contracts
+    command: make verify-wire-contracts
+    covers: [A5]
+  - name: whitespace
+    command: git diff --check
+    covers: [A5]
+  - name: lint-and-format
+    command: runtime/.venv/bin/ruff check runtime/src/contractor_runtime/worker/runtime.py runtime/tests/test_worker_completion.py runtime/tests/test_audit_completion_runtime.py && runtime/.venv/bin/ruff format --check runtime/src/contractor_runtime/worker/runtime.py runtime/tests/test_worker_completion.py runtime/tests/test_audit_completion_runtime.py
+    covers: [A1, A3, A4, A5]
+verification_requirements:
+  - Record the new boundary regression names and actual executed results, not just the unchanged suite total.
+  - Review that JSON decoding remains on both model-authored paths and that no direct assembly caller supplies unchecked model identity or artifact authority.
+
+verification:
+  verified_on: "2026-09-19"
+  evidence: tasks/evidence/v57-004.json
+  implementation_note: docs/research/2026-09-19-worker-result-assembly.md
+  selected_limit_policy: Remove only the synthetic Audit JSON bound; shared result limits remain unchanged for separate discussion.
+  acceptance:
+    A1: "Passed: unchanged ordinary finalizer path and focused decoder/schema/size/error-precedence regressions; model accounting tests pass."
+    A2: "Passed: existing summarizer facade, independent accounting and safe error mapping; summarizer/workspace/A2A suite passed."
+    A3: "Passed: strengthened real Audit runner proves no model decoder call after collection/publication, exact successful content/refs, four model calls and one terminal State."
+    A4: "Passed: 29 new boundary cases cover fresh mutable DTO fields, UTF-8/encoded limits, request authority, exact receipt ordering and exporter reservations; lifecycle suites retain cancellation/lease/export ordering."
+    A5: "Passed: 438 Python tests plus Go contracts, lint/format and whitespace checks; shared wire models, limits, prompts and budgets unchanged."
+  compatibility_exception: >-
+    Trusted completion text that only exceeded the removed synthetic JSON
+    encoding bound can now pass when the actual result fits all remaining
+    constraints. Model-authored oversized JSON is still rejected.

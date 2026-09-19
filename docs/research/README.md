@@ -6,8 +6,10 @@ It is documentation and an evaluation control-plane input, not production
 configuration. Production packages must not import hypothesis IDs or make
 Scheduler decisions from these records.
 
-## Completed experiments
+## Completed experiments and implementation reviews
 
+- [V57-004: Worker result assembly and size limits](2026-09-19-worker-result-assembly.md) —
+  typed Audit handoff, removal of its synthetic JSON bound and history of remaining limits.
 - [V57-005: A2A invocation connection reuse](2026-09-19-a2a-connection-reuse-decision.md) —
   local TLS measurements and fault matrix; decision: keep production transport unchanged.
 
