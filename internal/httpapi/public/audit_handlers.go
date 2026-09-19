@@ -190,11 +190,12 @@ type auditCoveragePageResponse struct {
 }
 
 type auditReportResponse struct {
-	Status          auditservice.ReportStatus `json:"status"`
-	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
-	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
-	Machine         json.RawMessage           `json:"machine,omitempty"`
-	Summary         string                    `json:"summary,omitempty"`
+	Status          auditservice.ReportStatus   `json:"status"`
+	Review          *auditservice.ReviewRequest `json:"review,omitempty"`
+	MachineArtifact *auditstore.ExactArtifact   `json:"machineArtifact,omitempty"`
+	SummaryArtifact *auditstore.ExactArtifact   `json:"summaryArtifact,omitempty"`
+	Machine         json.RawMessage             `json:"machine,omitempty"`
+	Summary         string                      `json:"summary,omitempty"`
 }
 
 type auditStartResponse struct {
@@ -779,7 +780,7 @@ func (h *handler) getAuditReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, auditReportResponse{
-		Status: projection.Status, MachineArtifact: projection.MachineArtifact,
+		Status: projection.Status, Review: projection.Review, MachineArtifact: projection.MachineArtifact,
 		SummaryArtifact: projection.SummaryArtifact, Machine: projection.Machine,
 		Summary: projection.Summary,
 	})

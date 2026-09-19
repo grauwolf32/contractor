@@ -648,7 +648,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read the exact accepted Audit report or its generation state */
+        /** Read the exact proposed or accepted Audit report or its generation state */
         get: operations["getAuditReport"];
         put?: never;
         post?: never;
@@ -6038,7 +6038,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Report state with exact artifacts and content when ready */
+            /** @description Report state with exact artifacts and content when proposed or ready; proposed reports include their review request */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];

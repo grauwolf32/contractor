@@ -6892,7 +6892,7 @@ type ClientInterface interface {
 	// Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
 	PauseAudit(ctx context.Context, auditId AuditId, params *PauseAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetAuditReport Read the exact accepted Audit report or its generation state
+	// GetAuditReport Read the exact proposed or accepted Audit report or its generation state
 	//
 	// Corresponds with GET /v1/audits/{auditId}/report (the `GetAuditReport` operationId).
 	GetAuditReport(ctx context.Context, auditId AuditId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -8050,7 +8050,7 @@ func (c *Client) PauseAudit(ctx context.Context, auditId AuditId, params *PauseA
 	return c.Client.Do(req)
 }
 
-// GetAuditReport Read the exact accepted Audit report or its generation state
+// GetAuditReport Read the exact proposed or accepted Audit report or its generation state
 //
 // Corresponds with GET /v1/audits/{auditId}/report (the `GetAuditReport` operationId).
 func (c *Client) GetAuditReport(ctx context.Context, auditId AuditId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -17703,7 +17703,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
 	PauseAuditWithResponse(ctx context.Context, auditId AuditId, params *PauseAuditParams, reqEditors ...RequestEditorFn) (*PauseAuditResponse, error)
 
-	// GetAuditReportWithResponse Read the exact accepted Audit report or its generation state
+	// GetAuditReportWithResponse Read the exact proposed or accepted Audit report or its generation state
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -32441,7 +32441,7 @@ func (c *ClientWithResponses) PauseAuditWithResponse(ctx context.Context, auditI
 	return ParsePauseAuditResponse(rsp)
 }
 
-// GetAuditReportWithResponse Read the exact accepted Audit report or its generation state
+// GetAuditReportWithResponse Read the exact proposed or accepted Audit report or its generation state
 //
 // Returns a wrapper object for the known response body format(s).
 //
