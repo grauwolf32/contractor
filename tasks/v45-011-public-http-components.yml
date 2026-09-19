@@ -3,7 +3,7 @@ id: V45-011
 title: Separate HTTP route groups and consumer interfaces
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V45-001
 languages:
@@ -56,3 +56,4 @@ verification:
   - CONTRACTOR_TEST_DATABASE_URL configured for isolated PostgreSQL 17; go test -race -count=1 ./internal/httpapi/public/... ./internal/app — passed.
   - Compared all 177 route registrations and handler identities with the original; middleware order preserved. Regression checks require explicit narrow Run services.
   - git diff --check — passed.
+implementation_commit: 80bd796cd748f4f1816a0b668eedb94f117a79ef
