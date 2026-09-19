@@ -3,7 +3,7 @@ id: V45-011
 title: Separate HTTP route groups and consumer interfaces
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V45-001
 languages:
