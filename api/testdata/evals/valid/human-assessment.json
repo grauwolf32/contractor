@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "contractor.eval-assessment-input/v1",
+  "source": {
+    "kind": "human"
+  },
+  "resultSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+  "checks": [
+    {
+      "id": "evidence-review",
+      "evaluator": "human-review@1",
+      "implementationSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "status": "pass",
+      "reason": "Evidence reviewed",
+      "evidenceRefs": [
+        "evidence-1"
+      ]
+    }
+  ],
+  "previousAssessmentSha256": null
+}

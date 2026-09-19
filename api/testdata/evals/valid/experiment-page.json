@@ -1,0 +1,157 @@
+{
+  "items": [
+    {
+      "experimentId": "experiment-1",
+      "portableExperimentId": "trace-1",
+      "projectId": "evaluation-1",
+      "name": "Trace instructions",
+      "controlMode": "server",
+      "executionKind": "workflow",
+      "state": "interrupted",
+      "revision": 7,
+      "planSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "viewSnapshot": "view-7",
+      "summary": {
+        "counts": {
+          "a": {
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0,
+            "submitted": 4,
+            "terminal": 4,
+            "missing": 0,
+            "conflicting": 0,
+            "collectionComplete": 3,
+            "scored": 3,
+            "qualityPassed": 3,
+            "executionSucceeded": 3,
+            "endToEndPassed": 3
+          },
+          "b": {
+            "expected": 4,
+            "eligible": 4,
+            "unsupported": 0,
+            "blocked": 0,
+            "submitted": 3,
+            "terminal": 3,
+            "missing": 1,
+            "conflicting": 0,
+            "collectionComplete": 3,
+            "scored": 3,
+            "qualityPassed": 2,
+            "executionSucceeded": 3,
+            "endToEndPassed": 2
+          }
+        },
+        "quality": {
+          "a": {
+            "executionSuccess": {
+              "numerator": 3,
+              "denominator": 4,
+              "value": 0.75
+            },
+            "endToEndPass": {
+              "numerator": 3,
+              "denominator": 4,
+              "value": 0.75
+            },
+            "conditionalQuality": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1.0
+            }
+          },
+          "b": {
+            "executionSuccess": {
+              "numerator": 3,
+              "denominator": 4,
+              "value": 0.75
+            },
+            "endToEndPass": {
+              "numerator": 2,
+              "denominator": 4,
+              "value": 0.5
+            },
+            "conditionalQuality": {
+              "numerator": 2,
+              "denominator": 3,
+              "value": 0.6666666666666666
+            }
+          }
+        },
+        "terminalPairs": 3,
+        "completeQualityPairs": 2,
+        "completeTokenPairs": 2,
+        "conclusion": "inconclusive"
+      },
+      "updatedAt": "2026-09-19T10:00:02Z",
+      "lastProducerActivityAt": null,
+      "setup": {
+        "variants": [
+          {
+            "id": "a",
+            "kind": "workflow",
+            "selector": "trace-a@1",
+            "executionConfig": {}
+          },
+          {
+            "id": "b",
+            "kind": "workflow",
+            "selector": "trace-b@1",
+            "executionConfig": {}
+          }
+        ],
+        "checks": [
+          {
+            "id": "evidence-review",
+            "evaluator": "human-review@1",
+            "rubricRevision": "r1",
+            "required": true
+          }
+        ],
+        "comparison": {
+          "baseline": "a",
+          "candidate": "b",
+          "gates": {
+            "minCandidateEndToEndPass": 1,
+            "maxQualityDrop": 0
+          },
+          "requiredEqual": [
+            "source",
+            "tasks",
+            "scorers"
+          ],
+          "allowedDifferences": [
+            "instructions"
+          ]
+        },
+        "budgets": {
+          "maxMembers": 8,
+          "maxInFlight": 1,
+          "wallMs": 5400000,
+          "maxObservedTotalTokens": null
+        },
+        "dataset": {
+          "id": "trace-small",
+          "revision": "r1"
+        },
+        "caseIds": [
+          "unsafe-query",
+          "safe-query"
+        ],
+        "repetitions": 2
+      },
+      "expectedMembers": 8,
+      "allowedCommands": [
+        "resume",
+        "cancel",
+        "duplicate"
+      ]
+    }
+  ],
+  "page": {
+    "hasMore": false,
+    "nextCursor": null
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "id": "unsafe-query",
+      "task": {
+        "kind": "trace",
+        "objective": "Inspect this exact source",
+        "parameters": {}
+      },
+      "inputs": {
+        "source": {
+          "scope": "project",
+          "scopeId": "evaluation-1",
+          "namespace": "sources",
+          "name": "trace-source",
+          "revision": "rev-1",
+          "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+          "mediaType": "application/zip",
+          "sizeBytes": 5
+        }
+      },
+      "requires": [
+        "source.archive@1"
+      ],
+      "outputs": {
+        "report": {
+          "mediaTypes": [
+            "application/json"
+          ],
+          "required": true
+        }
+      }
+    }
+  ],
+  "page": {
+    "hasMore": false,
+    "nextCursor": null
+  }
+}

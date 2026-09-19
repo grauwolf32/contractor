@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:playground:portable:binding/v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "playground.binding/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "provider": {
+      "$ref": "urn:playground:portable:common#/$defs/VersionedId"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/VersionedId"
+      },
+      "maxItems": 128,
+      "minItems": 0,
+      "uniqueItems": true
+    },
+    "connection": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "settings": {
+      "type": "object"
+    },
+    "input_mapping": {
+      "type": "object"
+    },
+    "output_mapping": {
+      "type": "object"
+    },
+    "normalizers": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/Normalizer"
+      },
+      "maxItems": 128,
+      "minItems": 0
+    },
+    "extensions": {
+      "$ref": "urn:playground:portable:common#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "provider",
+    "capabilities",
+    "connection",
+    "settings",
+    "input_mapping",
+    "output_mapping",
+    "normalizers"
+  ],
+  "additionalProperties": false
+}

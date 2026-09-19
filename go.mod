@@ -10,6 +10,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/oapi-codegen/runtime v1.6.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/ucarion/jcs v0.1.2
 	go.opentelemetry.io/proto/otlp v1.10.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
@@ -56,7 +57,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect

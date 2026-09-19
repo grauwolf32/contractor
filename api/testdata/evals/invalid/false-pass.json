@@ -1,0 +1,74 @@
+{
+  "counts": {
+    "a": {
+      "expected": 4,
+      "eligible": 4,
+      "unsupported": 0,
+      "blocked": 0,
+      "submitted": 4,
+      "terminal": 4,
+      "missing": 0,
+      "conflicting": 0,
+      "collectionComplete": 3,
+      "scored": 3,
+      "qualityPassed": 3,
+      "executionSucceeded": 3,
+      "endToEndPassed": 3
+    },
+    "b": {
+      "expected": 4,
+      "eligible": 4,
+      "unsupported": 0,
+      "blocked": 0,
+      "submitted": 3,
+      "terminal": 3,
+      "missing": 1,
+      "conflicting": 0,
+      "collectionComplete": 3,
+      "scored": 3,
+      "qualityPassed": 2,
+      "executionSucceeded": 3,
+      "endToEndPassed": 2
+    }
+  },
+  "quality": {
+    "a": {
+      "executionSuccess": {
+        "numerator": 3,
+        "denominator": 4,
+        "value": 0.75
+      },
+      "endToEndPass": {
+        "numerator": 3,
+        "denominator": 4,
+        "value": 0.75
+      },
+      "conditionalQuality": {
+        "numerator": 3,
+        "denominator": 3,
+        "value": 1.0
+      }
+    },
+    "b": {
+      "executionSuccess": {
+        "numerator": 3,
+        "denominator": 4,
+        "value": 0.75
+      },
+      "endToEndPass": {
+        "numerator": 2,
+        "denominator": 4,
+        "value": 0.5
+      },
+      "conditionalQuality": {
+        "numerator": 2,
+        "denominator": 3,
+        "value": 0.6666666666666666
+      }
+    }
+  },
+  "terminalPairs": 3,
+  "completeQualityPairs": 2,
+  "completeTokenPairs": 2,
+  "conclusion": "pass"
+}

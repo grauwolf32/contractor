@@ -110,3 +110,13 @@ tests:
     command: >-
       go test -race -count=1 ./internal/evaldomain
     covers: ["A1", "A2", "A3"]
+
+verification_result:
+  date: "2026-09-19"
+  evidence: >-
+    Embedded closed managed schemas and pinned portable schema snapshots validate 100
+    accepted/rejected fixtures without Python. Tests cover all four execution/control
+    combinations, 17 mutation examples, exact hashes, CAS replay, private projections,
+    eight-member comparison arithmetic and multi-role Audit retry accounting.
+    go test -race -count=1 ./internal/evaldomain and go vet ./internal/evaldomain
+    ./api/evals/v1 passed. HTTP endpoints remain for V38-005/006.

@@ -1,0 +1,652 @@
+[
+  {
+    "name": "dataset",
+    "kind": "DatasetInput",
+    "file": "valid/dataset.json",
+    "valid": true
+  },
+  {
+    "name": "draft",
+    "kind": "Draft",
+    "file": "valid/draft.json",
+    "valid": true
+  },
+  {
+    "name": "create-workflow",
+    "kind": "CreateExperiment",
+    "file": "valid/create-workflow.json",
+    "valid": true
+  },
+  {
+    "name": "create-audit",
+    "kind": "CreateExperiment",
+    "file": "valid/create-audit.json",
+    "valid": true
+  },
+  {
+    "name": "external-workflow",
+    "kind": "CreateExperiment",
+    "file": "valid/external-workflow.json",
+    "valid": true
+  },
+  {
+    "name": "external-audit",
+    "kind": "CreateExperiment",
+    "file": "valid/external-audit.json",
+    "valid": true
+  },
+  {
+    "name": "registration",
+    "kind": "ExternalRegistration",
+    "file": "valid/registration.json",
+    "valid": true
+  },
+  {
+    "name": "public-plan",
+    "kind": "PublicPlan",
+    "file": "valid/public-plan.json",
+    "valid": true
+  },
+  {
+    "name": "draft-update",
+    "kind": "DraftUpdate",
+    "file": "valid/draft-update.json",
+    "valid": true
+  },
+  {
+    "name": "command-prepare",
+    "kind": "Command",
+    "file": "valid/command-prepare.json",
+    "valid": true
+  },
+  {
+    "name": "command-start",
+    "kind": "Command",
+    "file": "valid/command-start.json",
+    "valid": true
+  },
+  {
+    "name": "command-pause",
+    "kind": "Command",
+    "file": "valid/command-pause.json",
+    "valid": true
+  },
+  {
+    "name": "command-resume",
+    "kind": "Command",
+    "file": "valid/command-resume.json",
+    "valid": true
+  },
+  {
+    "name": "command-cancel",
+    "kind": "Command",
+    "file": "valid/command-cancel.json",
+    "valid": true
+  },
+  {
+    "name": "command-finalize",
+    "kind": "Command",
+    "file": "valid/command-finalize.json",
+    "valid": true
+  },
+  {
+    "name": "command-duplicate",
+    "kind": "Command",
+    "file": "valid/command-duplicate.json",
+    "valid": true
+  },
+  {
+    "name": "submission",
+    "kind": "Submission",
+    "file": "valid/submission.json",
+    "valid": true
+  },
+  {
+    "name": "delete",
+    "kind": "Delete",
+    "file": "valid/delete.json",
+    "valid": true
+  },
+  {
+    "name": "result",
+    "kind": "ResultInput",
+    "file": "valid/result.json",
+    "valid": true
+  },
+  {
+    "name": "result-audit",
+    "kind": "ResultInput",
+    "file": "valid/result-audit.json",
+    "valid": true
+  },
+  {
+    "name": "human-assessment",
+    "kind": "AssessmentInput",
+    "file": "valid/human-assessment.json",
+    "valid": true
+  },
+  {
+    "name": "external-assessment",
+    "kind": "AssessmentInput",
+    "file": "valid/external-assessment.json",
+    "valid": true
+  },
+  {
+    "name": "check-request",
+    "kind": "CheckRequest",
+    "file": "valid/check-request.json",
+    "valid": true
+  },
+  {
+    "name": "selection",
+    "kind": "SelectionInput",
+    "file": "valid/selection.json",
+    "valid": true
+  },
+  {
+    "name": "summary",
+    "kind": "Summary",
+    "file": "valid/summary.json",
+    "valid": true
+  },
+  {
+    "name": "experiment",
+    "kind": "Experiment",
+    "file": "valid/experiment.json",
+    "valid": true
+  },
+  {
+    "name": "capabilities",
+    "kind": "Capabilities",
+    "file": "valid/capabilities.json",
+    "valid": true
+  },
+  {
+    "name": "dataset-page",
+    "kind": "DatasetPage",
+    "file": "valid/dataset-page.json",
+    "valid": true
+  },
+  {
+    "name": "case-page",
+    "kind": "CasePage",
+    "file": "valid/case-page.json",
+    "valid": true
+  },
+  {
+    "name": "experiment-page",
+    "kind": "ExperimentPage",
+    "file": "valid/experiment-page.json",
+    "valid": true
+  },
+  {
+    "name": "dataset-view",
+    "kind": "Dataset",
+    "file": "valid/dataset-view.json",
+    "valid": true
+  },
+  {
+    "name": "command-receipt",
+    "kind": "CommandReceipt",
+    "file": "valid/command-receipt.json",
+    "valid": true
+  },
+  {
+    "name": "submission-receipt",
+    "kind": "SubmissionReceipt",
+    "file": "valid/submission-receipt.json",
+    "valid": true
+  },
+  {
+    "name": "record-receipt",
+    "kind": "RecordReceipt",
+    "file": "valid/record-receipt.json",
+    "valid": true
+  },
+  {
+    "name": "selection-receipt",
+    "kind": "SelectionReceipt",
+    "file": "valid/selection-receipt.json",
+    "valid": true
+  },
+  {
+    "name": "member-page",
+    "kind": "MemberPage",
+    "file": "valid/member-page.json",
+    "valid": true
+  },
+  {
+    "name": "pair",
+    "kind": "Pair",
+    "file": "valid/pair.json",
+    "valid": true
+  },
+  {
+    "name": "pair-page",
+    "kind": "PairPage",
+    "file": "valid/pair-page.json",
+    "valid": true
+  },
+  {
+    "name": "execution-page",
+    "kind": "ExecutionPage",
+    "file": "valid/execution-page.json",
+    "valid": true
+  },
+  {
+    "name": "review",
+    "kind": "Review",
+    "file": "valid/review.json",
+    "valid": true
+  },
+  {
+    "name": "report",
+    "kind": "Report",
+    "file": "valid/report.json",
+    "valid": true
+  },
+  {
+    "name": "quality-chart",
+    "kind": "Chart",
+    "file": "valid/quality-chart.json",
+    "valid": true
+  },
+  {
+    "name": "tokens-chart",
+    "kind": "Chart",
+    "file": "valid/tokens-chart.json",
+    "valid": true
+  },
+  {
+    "name": "duration-chart",
+    "kind": "Chart",
+    "file": "valid/duration-chart.json",
+    "valid": true
+  },
+  {
+    "name": "deltas-chart",
+    "kind": "Chart",
+    "file": "valid/deltas-chart.json",
+    "valid": true
+  },
+  {
+    "name": "progress-chart",
+    "kind": "Chart",
+    "file": "valid/progress-chart.json",
+    "valid": true
+  },
+  {
+    "name": "error",
+    "kind": "APIError",
+    "file": "valid/error.json",
+    "valid": true
+  },
+  {
+    "name": "portable-plan",
+    "kind": "playground.plan/v1",
+    "file": "valid/portable-plan.json",
+    "valid": true
+  },
+  {
+    "name": "dataset-unknown",
+    "kind": "DatasetInput",
+    "file": "invalid/dataset-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "create-workflow-unknown",
+    "kind": "CreateExperiment",
+    "file": "invalid/create-workflow-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "external-audit-unknown",
+    "kind": "CreateExperiment",
+    "file": "invalid/external-audit-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "draft-update-unknown",
+    "kind": "DraftUpdate",
+    "file": "invalid/draft-update-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "submission-unknown",
+    "kind": "Submission",
+    "file": "invalid/submission-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "result-unknown",
+    "kind": "ResultInput",
+    "file": "invalid/result-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "human-assessment-unknown",
+    "kind": "AssessmentInput",
+    "file": "invalid/human-assessment-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "check-request-unknown",
+    "kind": "CheckRequest",
+    "file": "invalid/check-request-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "selection-unknown",
+    "kind": "SelectionInput",
+    "file": "invalid/selection-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "delete-unknown",
+    "kind": "Delete",
+    "file": "invalid/delete-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-prepare-unknown",
+    "kind": "Command",
+    "file": "invalid/command-prepare-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-start-unknown",
+    "kind": "Command",
+    "file": "invalid/command-start-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-pause-unknown",
+    "kind": "Command",
+    "file": "invalid/command-pause-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-resume-unknown",
+    "kind": "Command",
+    "file": "invalid/command-resume-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-cancel-unknown",
+    "kind": "Command",
+    "file": "invalid/command-cancel-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-finalize-unknown",
+    "kind": "Command",
+    "file": "invalid/command-finalize-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "command-duplicate-unknown",
+    "kind": "Command",
+    "file": "invalid/command-duplicate-unknown.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "mixed-kinds",
+    "kind": "CreateExperiment",
+    "file": "invalid/mixed-kinds.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "duplicate-variant",
+    "kind": "CreateExperiment",
+    "file": "invalid/duplicate-variant.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "duplicate-case",
+    "kind": "DatasetInput",
+    "file": "invalid/duplicate-case.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "private-input",
+    "kind": "DatasetInput",
+    "file": "invalid/private-input.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "unknown-owner",
+    "kind": "DatasetInput",
+    "file": "invalid/unknown-owner.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "invalid-hash",
+    "kind": "Submission",
+    "file": "invalid/invalid-hash.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "insufficient-budget",
+    "kind": "CreateExperiment",
+    "file": "invalid/insufficient-budget.json",
+    "valid": false,
+    "errorCode": "eval_limit_exceeded"
+  },
+  {
+    "name": "seed-missing",
+    "kind": "Draft",
+    "file": "invalid/seed-missing.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "pin-policy-overlap",
+    "kind": "Draft",
+    "file": "invalid/pin-policy-overlap.json",
+    "valid": false,
+    "errorCode": "eval_pin_mismatch"
+  },
+  {
+    "name": "registration-hash",
+    "kind": "ExternalRegistration",
+    "file": "invalid/registration-hash.json",
+    "valid": false,
+    "errorCode": "eval_pin_mismatch"
+  },
+  {
+    "name": "member-identity",
+    "kind": "ExternalRegistration",
+    "file": "invalid/member-identity.json",
+    "valid": false,
+    "errorCode": "eval_member_conflict"
+  },
+  {
+    "name": "missing-recipe",
+    "kind": "ExternalRegistration",
+    "file": "invalid/missing-recipe.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "provider-claim-human",
+    "kind": "AssessmentInput",
+    "file": "invalid/provider-claim-human.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "duplicate-check",
+    "kind": "AssessmentInput",
+    "file": "invalid/duplicate-check.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "duplicate-selection",
+    "kind": "SelectionInput",
+    "file": "invalid/duplicate-selection.json",
+    "valid": false,
+    "errorCode": "eval_member_conflict"
+  },
+  {
+    "name": "missing-not-zero",
+    "kind": "ResultInput",
+    "file": "invalid/missing-not-zero.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "unavailable-not-zero",
+    "kind": "ResultInput",
+    "file": "invalid/unavailable-not-zero.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "usage-foreign-member",
+    "kind": "ResultInput",
+    "file": "invalid/usage-foreign-member.json",
+    "valid": false,
+    "errorCode": "eval_member_conflict"
+  },
+  {
+    "name": "false-complete-scope",
+    "kind": "ResultInput",
+    "file": "invalid/false-complete-scope.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "wrong-unit",
+    "kind": "ResultInput",
+    "file": "invalid/wrong-unit.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "finished-before-start",
+    "kind": "ResultInput",
+    "file": "invalid/finished-before-start.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "false-pass",
+    "kind": "Summary",
+    "file": "invalid/false-pass.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "wrong-denominator",
+    "kind": "Summary",
+    "file": "invalid/wrong-denominator.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "cross-case-pair",
+    "kind": "Pair",
+    "file": "invalid/cross-case-pair.json",
+    "valid": false,
+    "errorCode": "eval_member_conflict"
+  },
+  {
+    "name": "page-missing-cursor",
+    "kind": "PairPage",
+    "file": "invalid/page-missing-cursor.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "chart-cohort-count",
+    "kind": "Chart",
+    "file": "invalid/chart-cohort-count.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "chart-too-many-bins",
+    "kind": "Chart",
+    "file": "invalid/chart-too-many-bins.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "chart-mixed-scope-unit",
+    "kind": "Chart",
+    "file": "invalid/chart-mixed-scope-unit.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "chart-extra-series",
+    "kind": "Chart",
+    "file": "invalid/chart-extra-series.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "duplicate-json-key",
+    "kind": "Command",
+    "file": "invalid/duplicate-json-key.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "lone-surrogate",
+    "kind": "CreateExperiment",
+    "file": "invalid/lone-surrogate.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "trailing-json",
+    "kind": "Command",
+    "file": "invalid/trailing-json.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "deep-json",
+    "kind": "Command",
+    "file": "invalid/deep-json.json",
+    "valid": false,
+    "errorCode": "eval_limit_exceeded"
+  },
+  {
+    "name": "failed-execution-passing-assessment",
+    "kind": "Summary",
+    "file": "valid/failed-execution-passing-assessment.json",
+    "valid": true
+  },
+  {
+    "name": "draft-experiment",
+    "kind": "Experiment",
+    "file": "valid/draft-experiment.json",
+    "valid": true
+  }
+]

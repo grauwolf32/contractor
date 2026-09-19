@@ -1,0 +1,164 @@
+{
+  "schema_version": "playground.plan/v1",
+  "experiment_id": "trace-1",
+  "created_at": "2026-09-19T10:00:00Z",
+  "experiment_ref": {
+    "resource": "experiment.json",
+    "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+  },
+  "suites": [
+    {
+      "id": "trace-small",
+      "ref": {
+        "resource": "suite.json",
+        "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      }
+    }
+  ],
+  "variants": [
+    {
+      "id": "a",
+      "binding": {
+        "resource": "bindings/a.json",
+        "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      }
+    },
+    {
+      "id": "b",
+      "binding": {
+        "resource": "bindings/b.json",
+        "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+      }
+    }
+  ],
+  "pins": {},
+  "members": [
+    {
+      "member_id": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+      "suite_id": "trace-small",
+      "case_id": "unsafe-query",
+      "variant_id": "a",
+      "sample": 1,
+      "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+      "suite_id": "trace-small",
+      "case_id": "unsafe-query",
+      "variant_id": "b",
+      "sample": 1,
+      "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+      "suite_id": "trace-small",
+      "case_id": "unsafe-query",
+      "variant_id": "a",
+      "sample": 2,
+      "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+      "suite_id": "trace-small",
+      "case_id": "unsafe-query",
+      "variant_id": "b",
+      "sample": 2,
+      "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+      "suite_id": "trace-small",
+      "case_id": "safe-query",
+      "variant_id": "a",
+      "sample": 1,
+      "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+      "suite_id": "trace-small",
+      "case_id": "safe-query",
+      "variant_id": "b",
+      "sample": 1,
+      "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+      "suite_id": "trace-small",
+      "case_id": "safe-query",
+      "variant_id": "a",
+      "sample": 2,
+      "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    },
+    {
+      "member_id": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+      "suite_id": "trace-small",
+      "case_id": "safe-query",
+      "variant_id": "b",
+      "sample": 2,
+      "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+      "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+      "eligibility": "eligible",
+      "reason": null
+    }
+  ],
+  "execution_order": [
+    "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+    "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+    "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+    "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+    "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+    "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+    "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+    "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55"
+  ],
+  "budgets": {
+    "max_members": 8,
+    "max_in_flight": 1,
+    "wall_ms": 5400000,
+    "max_observed_total_tokens": null
+  },
+  "comparison": {
+    "baseline": "a",
+    "candidate": "b",
+    "required_equal": [
+      "source",
+      "tasks",
+      "scorers"
+    ],
+    "allowed_differences": [
+      "instructions"
+    ]
+  },
+  "publication": {
+    "provider": "contractor@1",
+    "connection": "server",
+    "enabled": false
+  },
+  "extensions": {
+    "contractor:private-fixture": {
+      "credential": "SECRET_CREDENTIAL_SENTINEL",
+      "oracle": "PRIVATE_TRUTH_SENTINEL"
+    }
+  }
+}

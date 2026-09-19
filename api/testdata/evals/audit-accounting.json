@@ -1,0 +1,130 @@
+{
+  "observation": {
+    "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+    "parent": {
+      "kind": "audit",
+      "id": "audit-1"
+    },
+    "executions": [
+      {
+        "kind": "audit",
+        "id": "audit-1"
+      },
+      {
+        "kind": "run",
+        "id": "check-1"
+      },
+      {
+        "kind": "run",
+        "id": "discovery-1"
+      },
+      {
+        "kind": "run",
+        "id": "assessment-1"
+      }
+    ],
+    "inventoryComplete": true,
+    "terminal": true,
+    "startedAt": "2026-09-19T10:00:00Z",
+    "finishedAt": "2026-09-19T10:00:02Z",
+    "missing": [],
+    "parentSourceSha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149",
+    "attempts": [
+      {
+        "runId": "check-1",
+        "stageExecutionId": "failed-attempt",
+        "metrics": {
+          "inputTokens": 20,
+          "outputTokens": 0,
+          "totalTokens": 20,
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "toolFailures": 0
+        },
+        "reportsComplete": true,
+        "truncated": false,
+        "sourceSha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+      },
+      {
+        "runId": "check-1",
+        "stageExecutionId": "retry-attempt",
+        "metrics": {
+          "inputTokens": 30,
+          "outputTokens": 0,
+          "totalTokens": 30,
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "toolFailures": 0
+        },
+        "reportsComplete": true,
+        "truncated": false,
+        "sourceSha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+      },
+      {
+        "runId": "discovery-1",
+        "stageExecutionId": "discovery",
+        "metrics": {
+          "inputTokens": 10,
+          "outputTokens": 0,
+          "totalTokens": 10,
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "toolFailures": 0
+        },
+        "reportsComplete": true,
+        "truncated": false,
+        "sourceSha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+      },
+      {
+        "runId": "assessment-1",
+        "stageExecutionId": "assessment",
+        "metrics": {
+          "inputTokens": 40,
+          "outputTokens": 0,
+          "totalTokens": 40,
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "toolFailures": 0
+        },
+        "reportsComplete": true,
+        "truncated": false,
+        "sourceSha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+      },
+      {
+        "runId": "check-1",
+        "stageExecutionId": "failed-attempt",
+        "metrics": {
+          "inputTokens": 20,
+          "outputTokens": 0,
+          "totalTokens": 20,
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "toolFailures": 0
+        },
+        "reportsComplete": true,
+        "truncated": false,
+        "sourceSha256": "sha256:772c6953848bf5b19aedf9a34ccb066f31eacca29bdbfcb1b9821765f1060149"
+      }
+    ]
+  },
+  "expected": {
+    "totalTokens": 100,
+    "modelCalls": 4,
+    "wallMs": 2000,
+    "memberCount": 1
+  },
+  "childIntervals": {
+    "check-1": {
+      "startMs": 0,
+      "endMs": 1500
+    },
+    "discovery-1": {
+      "startMs": 0,
+      "endMs": 1000
+    },
+    "assessment-1": {
+      "startMs": 1200,
+      "endMs": 2000
+    }
+  }
+}
