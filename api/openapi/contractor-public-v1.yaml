@@ -1188,11 +1188,11 @@ paths:
     get:
       operationId: getAuditReport
       tags: [Audits]
-      summary: Read the exact accepted Audit report or its generation state
+      summary: Read the exact proposed or accepted Audit report or its generation state
       x-contractor-implementation: implemented
       responses:
         '200':
-          description: Report state with exact artifacts and content when ready
+          description: Report state with exact artifacts and content when proposed or ready; proposed reports include their review request
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
             Cache-Control: {$ref: '#/components/headers/NoStore'}
@@ -4351,6 +4351,10 @@ components:
       type: object
       additionalProperties: false
       required: [status]
+      # Reject proposed reports without review.
+      not:
+        properties: {status: {enum: [proposed]}}
+        not: {required: [review]}
       properties:
         review: {$ref: '#/components/schemas/AuditReviewRequest'}
         status: {$ref: '#/components/schemas/AuditReportStatus'}
