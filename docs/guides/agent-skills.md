@@ -6,6 +6,13 @@ Run commands from the repository root. API examples require the local Server
 and `CONTRACTOR_API_TOKEN` from the local-stack guide. The owning contract is
 [Agent Skills](../spec/09-agent-skills.md).
 
+In the UI, open a package from **Skills** and choose **Browse files** to inspect
+its folders. `SKILL.md` opens automatically after loading the directory. Select
+a reference or asset to view UTF-8 text up to 256 KiB; Markdown also has a source
+tab. Preview reads the selected exact revision without extracting or executing
+the package. Binary and oversized files are available in the original ZIP
+download. See the [UI archive limits](../../ui/README.md) for supported archives.
+
 ## Bundled Agent Skills
 
 Reviewable built-in Agent Skill sources live only below

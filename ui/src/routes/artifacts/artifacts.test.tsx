@@ -358,7 +358,7 @@ describe("Artifact routes", () => {
         name: "source",
         revision: "revision-1",
       },
-      mediaType: "application/zip",
+      mediaType: "application/octet-stream",
       size: 1024,
       current: true,
       frozen: false,

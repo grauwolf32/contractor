@@ -35,6 +35,8 @@ const EXTENSIONS = new Map([
   ["application/yaml", ".yaml"],
   ["application/x-yaml", ".yaml"],
   ["application/zip", ".zip"],
+  ["application/x-zip-compressed", ".zip"],
+  ["application/vnd.contractor.agent-skill+zip", ".zip"],
   ["text/markdown", ".md"],
   ["text/plain", ".txt"],
   ["text/x-diff", ".diff"],

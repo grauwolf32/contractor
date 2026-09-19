@@ -274,6 +274,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List a bounded ZIP directory at an exact artifact revision
+         * @description Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+         */
+        get: operations["getProjectArtifactArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one bounded UTF-8 archive file at an exact artifact revision
+         * @description Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+         */
+        get: operations["getProjectArtifactArchiveFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata": {
         parameters: {
             query?: never;
@@ -1032,6 +1080,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/artifacts/{namespace}/{name}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List a bounded ZIP directory at an exact artifact revision
+         * @description Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+         */
+        get: operations["getRunArtifactArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one bounded UTF-8 archive file at an exact artifact revision
+         * @description Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+         */
+        get: operations["getRunArtifactArchiveFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{runId}/artifacts/{namespace}/{name}/metadata": {
         parameters: {
             query?: never;
@@ -1130,6 +1226,52 @@ export interface paths {
          *     revision updates an existing binding. Supplying both is invalid.
          */
         put: operations["putArtifact"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/artifacts/{namespace}/{name}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List a bounded ZIP directory at an exact artifact revision
+         * @description Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+         */
+        get: operations["getArtifactArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/artifacts/{namespace}/{name}/archive/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one bounded UTF-8 archive file at an exact artifact revision
+         * @description Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+         */
+        get: operations["getArtifactArchiveFile"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2650,6 +2792,30 @@ export interface components {
             artifact: components["schemas"]["ExactArtifactRef"];
             mediaType: components["schemas"]["MediaType"];
             size: number;
+        };
+        ArtifactArchiveEntry: {
+            path: string;
+            /** @enum {string} */
+            kind: "file" | "directory";
+            size: number;
+            /** @description Fits the file read limits; UTF-8 text is checked only when opened. */
+            previewable: boolean;
+        };
+        /**
+         * @description Classic single-disk ZIP with Store/Deflate entries. Unsafe paths, links and duplicates are rejected.
+         *     Limits are 64 MiB stored, 4096 entries including implicit directories, 256 MiB declared expanded
+         *     size, 4 MiB central directory, 1024 UTF-8 bytes and 32 components per path.
+         */
+        ArtifactArchive: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            entries: components["schemas"]["ArtifactArchiveEntry"][];
+        };
+        /** @description Complete UTF-8 text, capped at 256 KiB actual output and 1 MiB compressed input with CRC validation. No recursive archive expansion or execution. */
+        ArtifactArchiveFile: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            path: string;
+            size: number;
+            text: string;
         };
         ArtifactMetadata: {
             gitSource?: components["schemas"]["GitSource"];
@@ -5130,6 +5296,79 @@ export interface operations {
             503: components["responses"]["ArtifactUnavailable"];
         };
     };
+    getProjectArtifactArchive: {
+        parameters: {
+            query: {
+                revision: components["schemas"]["Revision"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Directory entries without file bodies */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactArchive"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    getProjectArtifactArchiveFile: {
+        parameters: {
+            query: {
+                revision: components["schemas"]["Revision"];
+                path: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete text of the selected file */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactArchiveFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
     getProjectArtifactMetadata: {
         parameters: {
             query?: {
@@ -6662,6 +6901,79 @@ export interface operations {
             503: components["responses"]["ArtifactUnavailable"];
         };
     };
+    getRunArtifactArchive: {
+        parameters: {
+            query: {
+                revision: components["schemas"]["Revision"];
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Directory entries without file bodies */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactArchive"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    getRunArtifactArchiveFile: {
+        parameters: {
+            query: {
+                revision: components["schemas"]["Revision"];
+                path: string;
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete text of the selected file */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactArchiveFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
     getRunArtifactMetadata: {
         parameters: {
             query?: {
@@ -6840,6 +7152,77 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    getArtifactArchive: {
+        parameters: {
+            query: {
+                revision: components["schemas"]["Revision"];
+            };
+            header?: never;
+            path: {
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Directory entries without file bodies */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactArchive"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    getArtifactArchiveFile: {
+        parameters: {
+            query: {
+                revision: components["schemas"]["Revision"];
+                path: string;
+            };
+            header?: never;
+            path: {
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete text of the selected file */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactArchiveFile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["UnprocessableEntity"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ArtifactUnavailable"];
         };

@@ -3,6 +3,7 @@ package public
 import "net/http"
 
 func (h *handler) registerArtifactRoutes(mux *http.ServeMux) {
+	h.registerArchiveRoutes(mux, "/v1/artifacts/{namespace}/{name}", h.userArchiveStore)
 	mux.HandleFunc("GET /v1/artifacts", h.listArtifacts)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/metadata", h.getArtifactMetadata)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/versions", h.listArtifactVersions)

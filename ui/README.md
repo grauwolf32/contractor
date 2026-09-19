@@ -54,8 +54,25 @@ The `/artifacts` route manages UserScope Workflow inputs. Uploads are limited
 to 64 MiB and use explicit create/CAS preconditions; the UI never retries a
 PUT after a conflict or lost response. Version and lineage views retain exact
 revisions. Inline preview is opt-in, capped at 256 KiB, restricted to a small
-text media-type allowlist, and rendered as escaped text. Other payloads remain
-available only through exact-revision download.
+text media-type allowlist, with local document rendering and an escaped source
+view. ZIP and Skill packages also offer **Browse files**: a collapsible folder
+tree and on-demand UTF-8 file previews, including `SKILL.md`. The same viewer is
+available for User, Project and Run artifacts. Each request pins the exact
+artifact revision and rechecks its scope on Go Server. Unsupported or oversized
+files remain available through the original archive download.
+
+Archive inspection never extracts entries to disk. Directory validation happens
+before ZIP reader allocation; limits are 64 MiB stored, 4096 entries including
+implicit directories, 4 MiB central directory, 256 MiB declared expanded size,
+1024 UTF-8 bytes per path and 32 path components. A selected file is read through
+a 256 KiB output limit and a 1 MiB compressed-input limit, with size and CRC
+checks. Unsafe paths, duplicates, file/directory collisions, links, special
+files, encryption and unsupported compression are rejected. ZIP64 directories
+and split archives are download-only. Nested archives are not expanded.
+Markdown uses the existing renderer with HTML and images disabled; HTML, SVG
+and scripts are shown as escaped source. Responses are JSON with `nosniff` and
+`no-store`; the client bounds response bytes and does not retain inactive file
+previews in the query cache.
 
 The `/workflows` route lists exact published Workflow versions and renders the
 selected parameter, input, output, Stage and escalation contract. Run drafts

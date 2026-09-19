@@ -1,0 +1,83 @@
+.archive-browser {
+  display: grid;
+  grid-template-columns: minmax(13rem, 25%) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+.archive-file-list {
+  max-height: 36rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  padding: 0.5rem;
+}
+
+.archive-tree {
+  margin: 0;
+  padding: 0 0 0 0.8rem;
+  list-style: none;
+}
+
+.archive-file-list > .archive-tree {
+  padding-left: 0;
+}
+
+.archive-tree summary {
+  cursor: pointer;
+  padding: 0.45rem 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.archive-file-button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-weight: 400;
+}
+
+.archive-file-button bdi,
+.archive-file-heading bdi {
+  overflow-wrap: anywhere;
+}
+
+.archive-file-button[aria-pressed="true"] {
+  border-color: var(--line);
+  background: #243143;
+}
+
+.archive-file-button span,
+.archive-file-heading span {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+.archive-file-content {
+  min-width: 0;
+}
+
+.archive-file-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+@media (max-width: 760px) {
+  .archive-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .archive-file-list {
+    max-height: 16rem;
+  }
+}

@@ -547,6 +547,78 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/ArtifactUnavailable'}
 
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getProjectArtifactArchive
+      tags: [Artifacts]
+      summary: List a bounded ZIP directory at an exact artifact revision
+      description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/Revision'}
+      responses:
+        '200':
+          description: Directory entries without file bodies
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactArchive'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getProjectArtifactArchiveFile
+      tags: [Artifacts]
+      summary: Read one bounded UTF-8 archive file at an exact artifact revision
+      description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/Revision'}
+        - name: path
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 1024}
+      responses:
+        '200':
+          description: Complete text of the selected file
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactArchiveFile'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -1822,6 +1894,78 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/ArtifactUnavailable'}
 
+  /v1/runs/{runId}/artifacts/{namespace}/{name}/archive:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getRunArtifactArchive
+      tags: [Artifacts]
+      summary: List a bounded ZIP directory at an exact artifact revision
+      description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/Revision'}
+      responses:
+        '200':
+          description: Directory entries without file bodies
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactArchive'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getRunArtifactArchiveFile
+      tags: [Artifacts]
+      summary: Read one bounded UTF-8 archive file at an exact artifact revision
+      description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/Revision'}
+        - name: path
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 1024}
+      responses:
+        '200':
+          description: Complete text of the selected file
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactArchiveFile'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -1984,6 +2128,76 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+
+  /v1/artifacts/{namespace}/{name}/archive:
+    parameters:
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getArtifactArchive
+      tags: [Artifacts]
+      summary: List a bounded ZIP directory at an exact artifact revision
+      description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/Revision'}
+      responses:
+        '200':
+          description: Directory entries without file bodies
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactArchive'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/artifacts/{namespace}/{name}/archive/file:
+    parameters:
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getArtifactArchiveFile
+      tags: [Artifacts]
+      summary: Read one bounded UTF-8 archive file at an exact artifact revision
+      description: Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/Revision'}
+        - name: path
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 1024}
+      responses:
+        '200':
+          description: Complete text of the selected file
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactArchiveFile'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/artifacts/{namespace}/{name}/metadata:
     parameters:
@@ -4715,6 +4929,38 @@ components:
         artifact: {namespace: projects, name: source, revision: revision-1}
         mediaType: text/plain
         size: 128
+    ArtifactArchiveEntry:
+      type: object
+      additionalProperties: false
+      required: [path, kind, size, previewable]
+      properties:
+        path: {type: string, minLength: 1, maxLength: 1024}
+        kind: {type: string, enum: [file, directory]}
+        size: {type: integer, minimum: 0, maximum: 268435456}
+        previewable:
+          type: boolean
+          description: Fits the file read limits; UTF-8 text is checked only when opened.
+    ArtifactArchive:
+      type: object
+      description: |
+        Classic single-disk ZIP with Store/Deflate entries. Unsafe paths, links and duplicates are rejected.
+        Limits are 64 MiB stored, 4096 entries including implicit directories, 256 MiB declared expanded
+        size, 4 MiB central directory, 1024 UTF-8 bytes and 32 components per path.
+      additionalProperties: false
+      required: [artifact, entries]
+      properties:
+        artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
+        entries: {type: array, maxItems: 4096, items: {$ref: '#/components/schemas/ArtifactArchiveEntry'}}
+    ArtifactArchiveFile:
+      type: object
+      description: Complete UTF-8 text, capped at 256 KiB actual output and 1 MiB compressed input with CRC validation. No recursive archive expansion or execution.
+      additionalProperties: false
+      required: [artifact, path, size, text]
+      properties:
+        artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
+        path: {type: string, minLength: 1, maxLength: 1024}
+        size: {type: integer, minimum: 0, maximum: 262144}
+        text: {type: string, maxLength: 262144}
     ArtifactMetadata:
       type: object
       additionalProperties: false

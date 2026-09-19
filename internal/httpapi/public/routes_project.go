@@ -3,6 +3,7 @@ package public
 import "net/http"
 
 func (h *handler) registerProjectRoutes(mux *http.ServeMux) {
+	h.registerArchiveRoutes(mux, "/v1/projects/{projectId}/artifacts/{namespace}/{name}", h.projectArchiveStore)
 	mux.HandleFunc("POST /v1/projects", h.createProject)
 	mux.HandleFunc("GET /v1/projects", h.listProjects)
 	mux.HandleFunc("GET /v1/projects/{projectId}", h.getProject)

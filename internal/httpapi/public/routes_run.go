@@ -3,6 +3,7 @@ package public
 import "net/http"
 
 func (h *handler) registerRunRoutes(mux *http.ServeMux) {
+	h.registerArchiveRoutes(mux, "/v1/runs/{runID}/artifacts/{namespace}/{name}", h.runArchiveStore)
 	mux.HandleFunc("POST /v1/runs", h.createRun)
 	mux.HandleFunc("GET /v1/runs", h.listRuns)
 	mux.HandleFunc("POST /v1/runs/{runID}/cancel", h.cancelRun)

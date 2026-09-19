@@ -167,6 +167,7 @@ function RunOutputPreview({
             <ErrorNotice error={metadata.error} />
           ) : (
             <ArtifactPreviewPanel
+              archiveScope={{ kind: "run", id: runId }}
               key={metadata.data.artifact.revision}
               metadata={metadata.data}
               unavailableCopy="Inline preview is unavailable; exact original bytes remain available from artifact details."
@@ -408,6 +409,7 @@ function RunArtifactActions({
   return (
     <div className="artifact-actions-grid run-artifact-actions">
       <ArtifactPreviewPanel
+        archiveScope={{ kind: "run", id: runId }}
         metadata={metadata}
         unavailableCopy="Inline preview is unavailable; exact original bytes remain downloadable."
         loadPreview={() => previewRunArtifact(api, runId, metadata)}

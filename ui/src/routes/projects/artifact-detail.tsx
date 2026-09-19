@@ -61,6 +61,7 @@ function ProjectArtifactActions({
   return (
     <div className="artifact-actions-grid">
       <ArtifactPreviewPanel
+        archiveScope={{ kind: "project", id: projectId }}
         metadata={metadata}
         unavailableCopy="Inline preview is unavailable for this media type or size. The original bytes are still downloadable."
         loadPreview={() => previewProjectArtifact(api, projectId, metadata)}

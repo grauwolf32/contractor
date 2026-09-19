@@ -32,6 +32,24 @@ func (e AgentSkillRefNamespace) Valid() bool {
 	}
 }
 
+// Defines values for ArtifactArchiveEntryKind.
+const (
+	Directory ArtifactArchiveEntryKind = "directory"
+	File      ArtifactArchiveEntryKind = "file"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactArchiveEntryKind enum.
+func (e ArtifactArchiveEntryKind) Valid() bool {
+	switch e {
+	case Directory:
+		return true
+	case File:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditExecutionPolicyRoundMode.
 const (
 	FixedBarrier AuditExecutionPolicyRoundMode = "fixed-barrier"
@@ -1078,6 +1096,35 @@ type AllocationResourceSummary struct {
 	Stage            ConfigId                `json:"stage"`
 	StageExecutionId ResourceId              `json:"stageExecutionId"`
 	Status           interface{}             `json:"status"`
+}
+
+// ArtifactArchive Classic single-disk ZIP with Store/Deflate entries. Unsafe paths, links and duplicates are rejected.
+// Limits are 64 MiB stored, 4096 entries including implicit directories, 256 MiB declared expanded
+// size, 4 MiB central directory, 1024 UTF-8 bytes and 32 components per path.
+type ArtifactArchive struct {
+	Artifact ExactArtifactRef       `json:"artifact"`
+	Entries  []ArtifactArchiveEntry `json:"entries"`
+}
+
+// ArtifactArchiveEntry defines model for ArtifactArchiveEntry.
+type ArtifactArchiveEntry struct {
+	Kind ArtifactArchiveEntryKind `json:"kind"`
+	Path string                   `json:"path"`
+
+	// Previewable Fits the file read limits; UTF-8 text is checked only when opened.
+	Previewable bool `json:"previewable"`
+	Size        int  `json:"size"`
+}
+
+// ArtifactArchiveEntryKind defines model for ArtifactArchiveEntry.Kind.
+type ArtifactArchiveEntryKind string
+
+// ArtifactArchiveFile Complete UTF-8 text, capped at 256 KiB actual output and 1 MiB compressed input with CRC validation. No recursive archive expansion or execution.
+type ArtifactArchiveFile struct {
+	Artifact ExactArtifactRef `json:"artifact"`
+	Path     string           `json:"path"`
+	Size     int              `json:"size"`
+	Text     string           `json:"text"`
 }
 
 // ArtifactBinding defines model for ArtifactBinding.
@@ -4188,6 +4235,17 @@ type PutArtifactParams struct {
 // PutArtifactParamsIfNoneMatch defines parameters for PutArtifact.
 type PutArtifactParamsIfNoneMatch string
 
+// GetArtifactArchiveParams defines parameters for GetArtifactArchive.
+type GetArtifactArchiveParams struct {
+	Revision Revision `form:"revision" json:"revision"`
+}
+
+// GetArtifactArchiveFileParams defines parameters for GetArtifactArchiveFile.
+type GetArtifactArchiveFileParams struct {
+	Revision Revision `form:"revision" json:"revision"`
+	Path     string   `form:"path" json:"path"`
+}
+
 // ImportGitArtifactParams defines parameters for ImportGitArtifact.
 type ImportGitArtifactParams struct {
 	IfNoneMatch *ImportGitArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
@@ -4668,6 +4726,17 @@ type PutProjectArtifactParams struct {
 // PutProjectArtifactParamsIfNoneMatch defines parameters for PutProjectArtifact.
 type PutProjectArtifactParamsIfNoneMatch string
 
+// GetProjectArtifactArchiveParams defines parameters for GetProjectArtifactArchive.
+type GetProjectArtifactArchiveParams struct {
+	Revision Revision `form:"revision" json:"revision"`
+}
+
+// GetProjectArtifactArchiveFileParams defines parameters for GetProjectArtifactArchiveFile.
+type GetProjectArtifactArchiveFileParams struct {
+	Revision Revision `form:"revision" json:"revision"`
+	Path     string   `form:"path" json:"path"`
+}
+
 // ImportProjectGitArtifactParams defines parameters for ImportProjectGitArtifact.
 type ImportProjectGitArtifactParams struct {
 	IfNoneMatch *ImportProjectGitArtifactParamsIfNoneMatch `json:"If-None-Match,omitempty"`
@@ -4798,6 +4867,17 @@ type ListRunArtifactsParams struct {
 // DownloadRunArtifactParams defines parameters for DownloadRunArtifact.
 type DownloadRunArtifactParams struct {
 	Revision *Revision `form:"revision,omitempty" json:"revision,omitempty"`
+}
+
+// GetRunArtifactArchiveParams defines parameters for GetRunArtifactArchive.
+type GetRunArtifactArchiveParams struct {
+	Revision Revision `form:"revision" json:"revision"`
+}
+
+// GetRunArtifactArchiveFileParams defines parameters for GetRunArtifactArchiveFile.
+type GetRunArtifactArchiveFileParams struct {
+	Revision Revision `form:"revision" json:"revision"`
+	Path     string   `form:"path" json:"path"`
 }
 
 // GetRunArtifactLineageParams defines parameters for GetRunArtifactLineage.
@@ -6663,6 +6743,20 @@ type ClientInterface interface {
 	// Corresponds with PUT /v1/artifacts/{namespace}/{name} (the `PutArtifact` operationId).
 	PutArtifactWithBody(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *PutArtifactParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetArtifactArchive List a bounded ZIP directory at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive (the `GetArtifactArchive` operationId).
+	GetArtifactArchive(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetArtifactArchiveFile Read one bounded UTF-8 archive file at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive/file (the `GetArtifactArchiveFile` operationId).
+	GetArtifactArchiveFile(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ImportGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 	//
 	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -7236,6 +7330,20 @@ type ClientInterface interface {
 	// Corresponds with PUT /v1/projects/{projectId}/artifacts/{namespace}/{name} (the `PutProjectArtifact` operationId).
 	PutProjectArtifactWithBody(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *PutProjectArtifactParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetProjectArtifactArchive List a bounded ZIP directory at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive (the `GetProjectArtifactArchive` operationId).
+	GetProjectArtifactArchive(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectArtifactArchiveFile Read one bounded UTF-8 archive file at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file (the `GetProjectArtifactArchiveFile` operationId).
+	GetProjectArtifactArchiveFile(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ImportProjectGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 	//
 	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -7380,6 +7488,20 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name} (the `DownloadRunArtifact` operationId).
 	DownloadRunArtifact(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *DownloadRunArtifactParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRunArtifactArchive List a bounded ZIP directory at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive (the `GetRunArtifactArchive` operationId).
+	GetRunArtifactArchive(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRunArtifactArchiveFile Read one bounded UTF-8 archive file at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file (the `GetRunArtifactArchiveFile` operationId).
+	GetRunArtifactArchiveFile(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetRunArtifactLineage List bounded provenance edges for one Artifact binding in an owned RunScope
 	//
 	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage (the `GetRunArtifactLineage` operationId).
@@ -7519,6 +7641,40 @@ func (c *Client) DownloadArtifact(ctx context.Context, namespace ArtifactNamespa
 // Corresponds with PUT /v1/artifacts/{namespace}/{name} (the `PutArtifact` operationId).
 func (c *Client) PutArtifactWithBody(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *PutArtifactParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutArtifactRequestWithBody(c.Server, namespace, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetArtifactArchive List a bounded ZIP directory at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive (the `GetArtifactArchive` operationId).
+func (c *Client) GetArtifactArchive(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetArtifactArchiveRequest(c.Server, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetArtifactArchiveFile Read one bounded UTF-8 archive file at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive/file (the `GetArtifactArchiveFile` operationId).
+func (c *Client) GetArtifactArchiveFile(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetArtifactArchiveFileRequest(c.Server, namespace, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8992,6 +9148,40 @@ func (c *Client) PutProjectArtifactWithBody(ctx context.Context, projectId Proje
 	return c.Client.Do(req)
 }
 
+// GetProjectArtifactArchive List a bounded ZIP directory at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive (the `GetProjectArtifactArchive` operationId).
+func (c *Client) GetProjectArtifactArchive(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectArtifactArchiveRequest(c.Server, projectId, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProjectArtifactArchiveFile Read one bounded UTF-8 archive file at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file (the `GetProjectArtifactArchiveFile` operationId).
+func (c *Client) GetProjectArtifactArchiveFile(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectArtifactArchiveFileRequest(c.Server, projectId, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ImportProjectGitArtifactWithBody Import one bounded Git snapshot as an exact source ZIP artifact
 //
 // Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -9346,6 +9536,40 @@ func (c *Client) ListRunArtifacts(ctx context.Context, runId RunId, params *List
 // Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name} (the `DownloadRunArtifact` operationId).
 func (c *Client) DownloadRunArtifact(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *DownloadRunArtifactParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDownloadRunArtifactRequest(c.Server, runId, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRunArtifactArchive List a bounded ZIP directory at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive (the `GetRunArtifactArchive` operationId).
+func (c *Client) GetRunArtifactArchive(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRunArtifactArchiveRequest(c.Server, runId, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRunArtifactArchiveFile Read one bounded UTF-8 archive file at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file (the `GetRunArtifactArchiveFile` operationId).
+func (c *Client) GetRunArtifactArchiveFile(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRunArtifactArchiveFileRequest(c.Server, runId, namespace, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9858,6 +10082,142 @@ func NewPutArtifactRequestWithBody(server string, namespace ArtifactNamespace, n
 			req.Header.Set("X-CSRF-Token", headerParam3)
 		}
 
+	}
+
+	return req, nil
+}
+
+// NewGetArtifactArchiveRequest constructs an http.Request for the GetArtifactArchive method
+func NewGetArtifactArchiveRequest(server string, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/artifacts/%s/%s/archive", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetArtifactArchiveFileRequest constructs an http.Request for the GetArtifactArchiveFile method
+func NewGetArtifactArchiveFileRequest(server string, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/artifacts/%s/%s/archive/file", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -14667,6 +15027,156 @@ func NewPutProjectArtifactRequestWithBody(server string, projectId ProjectId, na
 	return req, nil
 }
 
+// NewGetProjectArtifactArchiveRequest constructs an http.Request for the GetProjectArtifactArchive method
+func NewGetProjectArtifactArchiveRequest(server string, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/artifacts/%s/%s/archive", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectArtifactArchiveFileRequest constructs an http.Request for the GetProjectArtifactArchiveFile method
+func NewGetProjectArtifactArchiveFileRequest(server string, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/artifacts/%s/%s/archive/file", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewImportProjectGitArtifactRequest calls the generic ImportProjectGitArtifact builder with application/json body
 func NewImportProjectGitArtifactRequest(server string, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *ImportProjectGitArtifactParams, body ImportProjectGitArtifactJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -16008,6 +16518,156 @@ func NewDownloadRunArtifactRequest(server string, runId RunId, namespace Artifac
 	return req, nil
 }
 
+// NewGetRunArtifactArchiveRequest constructs an http.Request for the GetRunArtifactArchive method
+func NewGetRunArtifactArchiveRequest(server string, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/runs/%s/artifacts/%s/%s/archive", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRunArtifactArchiveFileRequest constructs an http.Request for the GetRunArtifactArchiveFile method
+func NewGetRunArtifactArchiveFileRequest(server string, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/runs/%s/artifacts/%s/%s/archive/file", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetRunArtifactLineageRequest constructs an http.Request for the GetRunArtifactLineage method
 func NewGetRunArtifactLineageRequest(server string, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactLineageParams) (*http.Request, error) {
 	var err error
@@ -16856,6 +17516,24 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /v1/artifacts/{namespace}/{name} (the `PutArtifact` operationId).
 	PutArtifactWithBodyWithResponse(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *PutArtifactParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutArtifactResponse, error)
 
+	// GetArtifactArchiveWithResponse List a bounded ZIP directory at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive (the `GetArtifactArchive` operationId).
+	GetArtifactArchiveWithResponse(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveParams, reqEditors ...RequestEditorFn) (*GetArtifactArchiveResponse, error)
+
+	// GetArtifactArchiveFileWithResponse Read one bounded UTF-8 archive file at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive/file (the `GetArtifactArchiveFile` operationId).
+	GetArtifactArchiveFileWithResponse(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*GetArtifactArchiveFileResponse, error)
+
 	// ImportGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 	//
 	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -17537,6 +18215,24 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /v1/projects/{projectId}/artifacts/{namespace}/{name} (the `PutProjectArtifact` operationId).
 	PutProjectArtifactWithBodyWithResponse(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *PutProjectArtifactParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutProjectArtifactResponse, error)
 
+	// GetProjectArtifactArchiveWithResponse List a bounded ZIP directory at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive (the `GetProjectArtifactArchive` operationId).
+	GetProjectArtifactArchiveWithResponse(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveParams, reqEditors ...RequestEditorFn) (*GetProjectArtifactArchiveResponse, error)
+
+	// GetProjectArtifactArchiveFileWithResponse Read one bounded UTF-8 archive file at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file (the `GetProjectArtifactArchiveFile` operationId).
+	GetProjectArtifactArchiveFileWithResponse(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*GetProjectArtifactArchiveFileResponse, error)
+
 	// ImportProjectGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 	//
 	// Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -17704,6 +18400,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name} (the `DownloadRunArtifact` operationId).
 	DownloadRunArtifactWithResponse(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *DownloadRunArtifactParams, reqEditors ...RequestEditorFn) (*DownloadRunArtifactResponse, error)
+
+	// GetRunArtifactArchiveWithResponse List a bounded ZIP directory at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive (the `GetRunArtifactArchive` operationId).
+	GetRunArtifactArchiveWithResponse(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveParams, reqEditors ...RequestEditorFn) (*GetRunArtifactArchiveResponse, error)
+
+	// GetRunArtifactArchiveFileWithResponse Read one bounded UTF-8 archive file at an exact artifact revision
+	//
+	// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file (the `GetRunArtifactArchiveFile` operationId).
+	GetRunArtifactArchiveFileWithResponse(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*GetRunArtifactArchiveFileResponse, error)
 
 	// GetRunArtifactLineageWithResponse List bounded provenance edges for one Artifact binding in an owned RunScope
 	//
@@ -18190,6 +18904,332 @@ func (r PutArtifactResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PutArtifactResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetArtifactArchiveResponse200Headers the declared response headers of an HTTP 200 response for GetArtifactArchive
+type GetArtifactArchiveResponse200Headers struct {
+	ETag       string
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse400Headers the declared response headers of an HTTP 400 response for GetArtifactArchive
+type GetArtifactArchiveResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse401Headers the declared response headers of an HTTP 401 response for GetArtifactArchive
+type GetArtifactArchiveResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetArtifactArchiveResponse404Headers the declared response headers of an HTTP 404 response for GetArtifactArchive
+type GetArtifactArchiveResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse409Headers the declared response headers of an HTTP 409 response for GetArtifactArchive
+type GetArtifactArchiveResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse415Headers the declared response headers of an HTTP 415 response for GetArtifactArchive
+type GetArtifactArchiveResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse422Headers the declared response headers of an HTTP 422 response for GetArtifactArchive
+type GetArtifactArchiveResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse500Headers the declared response headers of an HTTP 500 response for GetArtifactArchive
+type GetArtifactArchiveResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveResponse503Headers the declared response headers of an HTTP 503 response for GetArtifactArchive
+type GetArtifactArchiveResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetArtifactArchiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ArtifactArchive
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetArtifactArchiveResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetArtifactArchiveResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetArtifactArchiveResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetArtifactArchiveResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetArtifactArchiveResponse409Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *GetArtifactArchiveResponse415Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetArtifactArchiveResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetArtifactArchiveResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetArtifactArchiveResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON200() *ArtifactArchive {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetArtifactArchiveResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetArtifactArchiveResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetArtifactArchiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetArtifactArchiveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetArtifactArchiveResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetArtifactArchiveFileResponse200Headers the declared response headers of an HTTP 200 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse200Headers struct {
+	ETag       string
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse400Headers the declared response headers of an HTTP 400 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse401Headers the declared response headers of an HTTP 401 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetArtifactArchiveFileResponse404Headers the declared response headers of an HTTP 404 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse409Headers the declared response headers of an HTTP 409 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse415Headers the declared response headers of an HTTP 415 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse422Headers the declared response headers of an HTTP 422 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse500Headers the declared response headers of an HTTP 500 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetArtifactArchiveFileResponse503Headers the declared response headers of an HTTP 503 response for GetArtifactArchiveFile
+type GetArtifactArchiveFileResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetArtifactArchiveFileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ArtifactArchiveFile
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetArtifactArchiveFileResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetArtifactArchiveFileResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetArtifactArchiveFileResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetArtifactArchiveFileResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetArtifactArchiveFileResponse409Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *GetArtifactArchiveFileResponse415Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetArtifactArchiveFileResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetArtifactArchiveFileResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetArtifactArchiveFileResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON200() *ArtifactArchiveFile {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetArtifactArchiveFileResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetArtifactArchiveFileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetArtifactArchiveFileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetArtifactArchiveFileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetArtifactArchiveFileResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -26889,6 +27929,332 @@ func (r PutProjectArtifactResponse) ContentType() string {
 	return ""
 }
 
+// GetProjectArtifactArchiveResponse200Headers the declared response headers of an HTTP 200 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse200Headers struct {
+	ETag       string
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse400Headers the declared response headers of an HTTP 400 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse401Headers the declared response headers of an HTTP 401 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetProjectArtifactArchiveResponse404Headers the declared response headers of an HTTP 404 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse409Headers the declared response headers of an HTTP 409 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse415Headers the declared response headers of an HTTP 415 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse422Headers the declared response headers of an HTTP 422 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse500Headers the declared response headers of an HTTP 500 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveResponse503Headers the declared response headers of an HTTP 503 response for GetProjectArtifactArchive
+type GetProjectArtifactArchiveResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetProjectArtifactArchiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ArtifactArchive
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetProjectArtifactArchiveResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetProjectArtifactArchiveResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetProjectArtifactArchiveResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetProjectArtifactArchiveResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetProjectArtifactArchiveResponse409Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *GetProjectArtifactArchiveResponse415Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetProjectArtifactArchiveResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetProjectArtifactArchiveResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectArtifactArchiveResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON200() *ArtifactArchive {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectArtifactArchiveResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProjectArtifactArchiveResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectArtifactArchiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectArtifactArchiveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProjectArtifactArchiveResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetProjectArtifactArchiveFileResponse200Headers the declared response headers of an HTTP 200 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse200Headers struct {
+	ETag       string
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse400Headers the declared response headers of an HTTP 400 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse401Headers the declared response headers of an HTTP 401 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse404Headers the declared response headers of an HTTP 404 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse409Headers the declared response headers of an HTTP 409 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse415Headers the declared response headers of an HTTP 415 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse422Headers the declared response headers of an HTTP 422 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse500Headers the declared response headers of an HTTP 500 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectArtifactArchiveFileResponse503Headers the declared response headers of an HTTP 503 response for GetProjectArtifactArchiveFile
+type GetProjectArtifactArchiveFileResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetProjectArtifactArchiveFileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ArtifactArchiveFile
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetProjectArtifactArchiveFileResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetProjectArtifactArchiveFileResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetProjectArtifactArchiveFileResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetProjectArtifactArchiveFileResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetProjectArtifactArchiveFileResponse409Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *GetProjectArtifactArchiveFileResponse415Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetProjectArtifactArchiveFileResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetProjectArtifactArchiveFileResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectArtifactArchiveFileResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON200() *ArtifactArchiveFile {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectArtifactArchiveFileResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProjectArtifactArchiveFileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectArtifactArchiveFileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectArtifactArchiveFileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProjectArtifactArchiveFileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ImportProjectGitArtifactResponse200Headers the declared response headers of an HTTP 200 response for ImportProjectGitArtifact
 type ImportProjectGitArtifactResponse200Headers struct {
 	ETag       *string
@@ -28888,6 +30254,332 @@ func (r DownloadRunArtifactResponse) ContentType() string {
 	return ""
 }
 
+// GetRunArtifactArchiveResponse200Headers the declared response headers of an HTTP 200 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse200Headers struct {
+	ETag       string
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse400Headers the declared response headers of an HTTP 400 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse401Headers the declared response headers of an HTTP 401 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetRunArtifactArchiveResponse404Headers the declared response headers of an HTTP 404 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse409Headers the declared response headers of an HTTP 409 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse415Headers the declared response headers of an HTTP 415 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse422Headers the declared response headers of an HTTP 422 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse500Headers the declared response headers of an HTTP 500 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveResponse503Headers the declared response headers of an HTTP 503 response for GetRunArtifactArchive
+type GetRunArtifactArchiveResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetRunArtifactArchiveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ArtifactArchive
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetRunArtifactArchiveResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetRunArtifactArchiveResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetRunArtifactArchiveResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetRunArtifactArchiveResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetRunArtifactArchiveResponse409Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *GetRunArtifactArchiveResponse415Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetRunArtifactArchiveResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetRunArtifactArchiveResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunArtifactArchiveResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON200() *ArtifactArchive {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunArtifactArchiveResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRunArtifactArchiveResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRunArtifactArchiveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRunArtifactArchiveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRunArtifactArchiveResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetRunArtifactArchiveFileResponse200Headers the declared response headers of an HTTP 200 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse200Headers struct {
+	ETag       string
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse400Headers the declared response headers of an HTTP 400 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse401Headers the declared response headers of an HTTP 401 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetRunArtifactArchiveFileResponse404Headers the declared response headers of an HTTP 404 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse409Headers the declared response headers of an HTTP 409 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse415Headers the declared response headers of an HTTP 415 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse415Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse422Headers the declared response headers of an HTTP 422 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse500Headers the declared response headers of an HTTP 500 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunArtifactArchiveFileResponse503Headers the declared response headers of an HTTP 503 response for GetRunArtifactArchiveFile
+type GetRunArtifactArchiveFileResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetRunArtifactArchiveFileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ArtifactArchiveFile
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *UnsupportedMediaType
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetRunArtifactArchiveFileResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetRunArtifactArchiveFileResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetRunArtifactArchiveFileResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetRunArtifactArchiveFileResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetRunArtifactArchiveFileResponse409Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *GetRunArtifactArchiveFileResponse415Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetRunArtifactArchiveFileResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetRunArtifactArchiveFileResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunArtifactArchiveFileResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON200() *ArtifactArchiveFile {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON415() *UnsupportedMediaType {
+	return r.JSON415
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunArtifactArchiveFileResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRunArtifactArchiveFileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRunArtifactArchiveFileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRunArtifactArchiveFileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRunArtifactArchiveFileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetRunArtifactLineageResponse200Headers the declared response headers of an HTTP 200 response for GetRunArtifactLineage
 type GetRunArtifactLineageResponse200Headers struct {
 	XRequestID RequestId
@@ -30412,6 +32104,36 @@ func (c *ClientWithResponses) PutArtifactWithBodyWithResponse(ctx context.Contex
 	return ParsePutArtifactResponse(rsp)
 }
 
+// GetArtifactArchiveWithResponse List a bounded ZIP directory at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive (the `GetArtifactArchive` operationId).
+func (c *ClientWithResponses) GetArtifactArchiveWithResponse(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveParams, reqEditors ...RequestEditorFn) (*GetArtifactArchiveResponse, error) {
+	rsp, err := c.GetArtifactArchive(ctx, namespace, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetArtifactArchiveResponse(rsp)
+}
+
+// GetArtifactArchiveFileWithResponse Read one bounded UTF-8 archive file at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/artifacts/{namespace}/{name}/archive/file (the `GetArtifactArchiveFile` operationId).
+func (c *ClientWithResponses) GetArtifactArchiveFileWithResponse(ctx context.Context, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*GetArtifactArchiveFileResponse, error) {
+	rsp, err := c.GetArtifactArchiveFile(ctx, namespace, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetArtifactArchiveFileResponse(rsp)
+}
+
 // ImportGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 //
 // Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -31627,6 +33349,36 @@ func (c *ClientWithResponses) PutProjectArtifactWithBodyWithResponse(ctx context
 	return ParsePutProjectArtifactResponse(rsp)
 }
 
+// GetProjectArtifactArchiveWithResponse List a bounded ZIP directory at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive (the `GetProjectArtifactArchive` operationId).
+func (c *ClientWithResponses) GetProjectArtifactArchiveWithResponse(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveParams, reqEditors ...RequestEditorFn) (*GetProjectArtifactArchiveResponse, error) {
+	rsp, err := c.GetProjectArtifactArchive(ctx, projectId, namespace, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectArtifactArchiveResponse(rsp)
+}
+
+// GetProjectArtifactArchiveFileWithResponse Read one bounded UTF-8 archive file at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/archive/file (the `GetProjectArtifactArchiveFile` operationId).
+func (c *ClientWithResponses) GetProjectArtifactArchiveFileWithResponse(ctx context.Context, projectId ProjectId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetProjectArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*GetProjectArtifactArchiveFileResponse, error) {
+	rsp, err := c.GetProjectArtifactArchiveFile(ctx, projectId, namespace, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectArtifactArchiveFileResponse(rsp)
+}
+
 // ImportProjectGitArtifactWithBodyWithResponse Import one bounded Git snapshot as an exact source ZIP artifact
 //
 // Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
@@ -31925,6 +33677,36 @@ func (c *ClientWithResponses) DownloadRunArtifactWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseDownloadRunArtifactResponse(rsp)
+}
+
+// GetRunArtifactArchiveWithResponse List a bounded ZIP directory at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive (the `GetRunArtifactArchive` operationId).
+func (c *ClientWithResponses) GetRunArtifactArchiveWithResponse(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveParams, reqEditors ...RequestEditorFn) (*GetRunArtifactArchiveResponse, error) {
+	rsp, err := c.GetRunArtifactArchive(ctx, runId, namespace, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRunArtifactArchiveResponse(rsp)
+}
+
+// GetRunArtifactArchiveFileWithResponse Read one bounded UTF-8 archive file at an exact artifact revision
+//
+// Read-only inspection with the same owner and namespace restrictions as artifact downloads. ZIP and Skill packages are never extracted to disk. Unsupported archives remain downloadable.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/runs/{runId}/artifacts/{namespace}/{name}/archive/file (the `GetRunArtifactArchiveFile` operationId).
+func (c *ClientWithResponses) GetRunArtifactArchiveFileWithResponse(ctx context.Context, runId RunId, namespace ArtifactNamespace, name ArtifactNameParameter, params *GetRunArtifactArchiveFileParams, reqEditors ...RequestEditorFn) (*GetRunArtifactArchiveFileResponse, error) {
+	rsp, err := c.GetRunArtifactArchiveFile(ctx, runId, namespace, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRunArtifactArchiveFileResponse(rsp)
 }
 
 // GetRunArtifactLineageWithResponse List bounded provenance edges for one Artifact binding in an owned RunScope
@@ -32587,6 +34369,398 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutArtifactResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetArtifactArchiveResponse parses an HTTP response from a GetArtifactArchiveWithResponse call
+func ParseGetArtifactArchiveResponse(rsp *http.Response) (*GetArtifactArchiveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetArtifactArchiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArtifactArchive
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetArtifactArchiveResponse200Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetArtifactArchiveResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetArtifactArchiveResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetArtifactArchiveResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetArtifactArchiveResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 415:
+		var headers GetArtifactArchiveResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetArtifactArchiveResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetArtifactArchiveResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetArtifactArchiveResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetArtifactArchiveFileResponse parses an HTTP response from a GetArtifactArchiveFileWithResponse call
+func ParseGetArtifactArchiveFileResponse(rsp *http.Response) (*GetArtifactArchiveFileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetArtifactArchiveFileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArtifactArchiveFile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetArtifactArchiveFileResponse200Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetArtifactArchiveFileResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetArtifactArchiveFileResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetArtifactArchiveFileResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetArtifactArchiveFileResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 415:
+		var headers GetArtifactArchiveFileResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetArtifactArchiveFileResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetArtifactArchiveFileResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetArtifactArchiveFileResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -43216,6 +45390,398 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 	return response, nil
 }
 
+// ParseGetProjectArtifactArchiveResponse parses an HTTP response from a GetProjectArtifactArchiveWithResponse call
+func ParseGetProjectArtifactArchiveResponse(rsp *http.Response) (*GetProjectArtifactArchiveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectArtifactArchiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArtifactArchive
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetProjectArtifactArchiveResponse200Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetProjectArtifactArchiveResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetProjectArtifactArchiveResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetProjectArtifactArchiveResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetProjectArtifactArchiveResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 415:
+		var headers GetProjectArtifactArchiveResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetProjectArtifactArchiveResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetProjectArtifactArchiveResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectArtifactArchiveResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectArtifactArchiveFileResponse parses an HTTP response from a GetProjectArtifactArchiveFileWithResponse call
+func ParseGetProjectArtifactArchiveFileResponse(rsp *http.Response) (*GetProjectArtifactArchiveFileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectArtifactArchiveFileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArtifactArchiveFile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetProjectArtifactArchiveFileResponse200Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetProjectArtifactArchiveFileResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetProjectArtifactArchiveFileResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetProjectArtifactArchiveFileResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetProjectArtifactArchiveFileResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 415:
+		var headers GetProjectArtifactArchiveFileResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetProjectArtifactArchiveFileResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetProjectArtifactArchiveFileResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectArtifactArchiveFileResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
 // ParseImportProjectGitArtifactResponse parses an HTTP response from a ImportProjectGitArtifactWithResponse call
 func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGitArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -45589,6 +48155,398 @@ func ParseDownloadRunArtifactResponse(rsp *http.Response) (*DownloadRunArtifactR
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers DownloadRunArtifactResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetRunArtifactArchiveResponse parses an HTTP response from a GetRunArtifactArchiveWithResponse call
+func ParseGetRunArtifactArchiveResponse(rsp *http.Response) (*GetRunArtifactArchiveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRunArtifactArchiveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArtifactArchive
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetRunArtifactArchiveResponse200Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetRunArtifactArchiveResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetRunArtifactArchiveResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetRunArtifactArchiveResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetRunArtifactArchiveResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 415:
+		var headers GetRunArtifactArchiveResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetRunArtifactArchiveResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetRunArtifactArchiveResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunArtifactArchiveResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetRunArtifactArchiveFileResponse parses an HTTP response from a GetRunArtifactArchiveFileWithResponse call
+func ParseGetRunArtifactArchiveFileResponse(rsp *http.Response) (*GetRunArtifactArchiveFileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRunArtifactArchiveFileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ArtifactArchiveFile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest UnsupportedMediaType
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetRunArtifactArchiveFileResponse200Headers
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetRunArtifactArchiveFileResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetRunArtifactArchiveFileResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetRunArtifactArchiveFileResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetRunArtifactArchiveFileResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 415:
+		var headers GetRunArtifactArchiveFileResponse415Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetRunArtifactArchiveFileResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetRunArtifactArchiveFileResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunArtifactArchiveFileResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
