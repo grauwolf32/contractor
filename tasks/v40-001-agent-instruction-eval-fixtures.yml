@@ -3,7 +3,7 @@ id: V40-001
 title: "Reuse playground-v2 evals and cover missing instruction-quality cases"
 milestone: agent-instruction-evaluation
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: ["V41-008"]
 languages: ["go", "python", "yaml"]
@@ -71,3 +71,33 @@ tests:
     covers: ["A1", "A2", "A3"]
   - command: "go test ./tests/eval/agent_instructions ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'"
     covers: ["A1", "A2", "A3"]
+
+verification:
+  verified_at: "2026-09-19"
+  playground_base_commit: bd2a557
+  fixture_root: ../playground-v2/projects/instruction-quality
+  fixture_matrix_sha256: "sha256:e313602705cd444db993543aca8f3e61a10385dfae80d54818ff3b8687605e05"
+  matrix_cases: 18
+  reserved_heldout_variants: 18
+  portable_case_documents: 36
+  portable_suite_documents: 36
+  required_python_tests: "126 passed"
+  full_playground_tests: "uv run --extra dev pytest tests -o addopts= -q: 419 passed"
+  playground_implementation_commit: f91693da67b70b5327baeafa61617fa45f9398dc
+  contractor_required_tests: "Passed all three packages with -skip '^TestLive'."
+  importer_conformance: "go test ./internal/auditimport: passed, real importer with in-memory storage."
+  runtime_conformance: >-
+    uv run --group dev pytest tests/test_caido_action_tools.py
+    tests/test_caido_graphql_fixtures.py tests/test_http_caido_redaction.py:
+    18 passed. Controlled local observations do not imply a live Caido campaign.
+  validators: "Real Vacuum 0.25.2 and LikeC4 1.56.0 positive/negative controls passed."
+  lint: "Ruff passed for changed evaluator code/tests; git diff --check passed."
+  model_execution: false
+  assessment_boundary: >-
+    Ground truth remains outside source ZIPs and execution projections. Missing
+    evaluator-owned observations or blinded review keeps an assessment incomplete.
+    Golden outputs/receipts are scorer controls, not measured model results.
+  next_task: >-
+    V40-002 supplies provider bindings, faithful evaluator normalization of raw
+    reports/artifacts, complete live environment/tool/validator/standard pins and
+    a frozen pilot plan. Controlled Caido capability must be resolved explicitly.

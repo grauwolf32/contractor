@@ -1,6 +1,6 @@
 # Agent instruction experiment
 
-Status: **candidate authored; compatibility checked; LLM comparison planned**.
+Status: **candidate authored; compatibility checked; V40-001 fixture gate implemented; LLM comparison planned**.
 No quality or token-efficiency improvement has been measured yet.
 
 Normative contract: [portable evaluation format](../../../docs/spec/26-portable-evaluation-format.md).
@@ -150,12 +150,12 @@ it or the accuracy of its evidence.
 
 ## Planned cases and ground truth
 
-All cases below are specifications for V40-001, not claims of implemented fixtures.
-First map them to existing playground projects, suites and scorers; add fixtures
-only for uncovered behavior. Keep small sources and closed fact/defect sets, and
-expected answers outside the source archive and model context. Each case needs
-exact source/service bytes, task inputs, allowed actions, expected facts/defects,
-forbidden claims, evidence anchors, and a scorer with negative controls.
+V40-001 now supplies all 18 cases below plus a reserved held-out variant of each
+in `../playground-v2/projects/instruction-quality` (36 cases and 36 single-case
+suites). These are offline source/service fixtures and scorer controls, not model
+quality measurements. Source ZIP bytes, task inputs, allowed actions, expected
+facts/defects, forbidden claims and evidence anchors have exact portable refs.
+Expected answers and review rubrics remain evaluator-private.
 
 | ID | Fixture/scenario | Required observations and failure checks |
 | --- | --- | --- |
@@ -177,6 +177,43 @@ forbidden claims, evidence anchors, and a scorer with negative controls.
 | A1 | Ordered Audit batch mixing supported, refuted and unresolved items | One complete ordered submission; truthful coverage/gaps and required evidence kinds; real importer outcome distinct from Run success. |
 | A2 | Single risk mapping and ASVS requirement with misleading helper/middleware names | Assess only assigned scope; correct standard identity, causal finding reference, exact evidence revision; no certification or fabricated runtime test. |
 | A3 | Unresolved operation mapping, unsupported callback, existing result binding conflict | No false completed coverage; no invented receipt or transparent retry claim; report incomplete/conflicting outcome under `audit-results@1`. |
+
+The complete [inventory and asset mapping](../../../../playground-v2/projects/instruction-quality/README.md)
+records reuse of `widget-service`, existing portable scorers, production validators,
+Audit importer conformance and Runtime Caido tests. FastAPI/VaultPay legacy sources
+are present and revision-pinned, but their imported source trees have no identified
+license file; none of their code/expectations was copied into the new fixtures.
+
+Exact case refs are in `projects/instruction-quality/bundle/private/matrix.json`.
+For each row above, lowercase the ID and select `cases/<id>-pilot.json` or
+`cases/<id>-heldout.json`, with the matching `suites/` document. Private expectations
+are `private/<id>-<split>/facts.json`, `observations.json`, `rubric.json` and the
+applicable parsed-artifact expectation. `sources/{pilot,heldout}` contains the
+small authored application, trace functions and resettable loopback service;
+`bundle/inputs/` contains the produced archives and exact visible seeds/context.
+A2 reuses only the assigned standard entries with their original license,
+attribution, source revision and originating file digest.
+
+Use explicit `instruction-facts@1`, `instruction-observations@1`,
+`instruction-review@1`, `instruction-openapi@1`, `instruction-likec4@1` and
+`instruction-diff@1` through the existing playground registration/assessment APIs.
+No legacy scorer or result schema changes meaning. `analysis` is an evaluator
+normalization role linked to raw `report` and artifacts, not a new mandatory Worker
+JSON schema. V40-002 must bind that normalization without giving hidden fact IDs
+or answers to the Worker. Every suite requires a frozen blinded-review rubric;
+missing review or evaluator-owned validator/importer observations keeps the
+assessment incomplete, even when the Run succeeded. Authored golden receipts test
+scorers only and cannot serve as receipts from actual model executions.
+
+The local job service exercises unknown remote outcomes and passive/empty-result
+controls; it does not implement Caido GraphQL. Runtime's existing protocol tests
+cover the real tool boundary. V40-002 still owns a pinned controlled Caido binding
+and complete live validator/runtime/tool dependencies, or an explicit unsupported
+capability. A passing fixture gate does not establish live target readiness.
+
+The held-out sources change route mounting, identifiers, branch conditions and
+indirect dispatch, and O3/L2 also change validator failure conditions. They were
+reserved before tuning; the first pilot must select only `*-pilot` suites.
 
 Within representative cases, place instruction-like text in comments/reports and
 assert it cannot expand the assigned task or authorization. Cover clean as well

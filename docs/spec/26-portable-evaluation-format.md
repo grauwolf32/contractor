@@ -592,7 +592,8 @@ one unchanged case/scorer across Contractor and recorded providers, complete fau
 walkthroughs, owner-safe publication and stable comparison arithmetic. It records
 exact implementation/schema/scorer build digests in the readiness report. Those
 pins identify the tested revision, including its retained specification bytes.
-V41-008 has passed; V40 may prepare instruction fixtures/bindings and a frozen
-pilot plan, but those tasks are still pending. V40-003 remains the separate future
-model-evaluation task with its own explicit budget and environment. Compatibility passing is not evidence that new
+V41-008 has passed. V40-001 supplies the pinned instruction fixtures and offline
+scorer controls; V40-002 still owns provider bindings and a frozen pilot plan.
+V40-003 remains the separate future model-evaluation task with its own explicit
+budget and environment. Compatibility passing is not evidence that new
 instructions improve model quality.
