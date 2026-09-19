@@ -3,7 +3,8 @@ id: V55-001
 title: Add extensible optional scanner tools and capability probes
 milestone: scan-tools-first-slice
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 81e476278e0ed5e9e1ff97cf187761f43e092aa9
 depends_on: []
 languages: [python, go, markdown]
 goal: >-
@@ -45,3 +46,11 @@ tests:
     covers: [A2, A4]
   - command: git diff --check
     covers: [A5]
+verification:
+  - Go internal/config tests passed, including scanner active-check classification and descriptor consistency.
+  - All 141 focused Python tests passed with warnings treated as errors, including allocation and ADK regressions.
+  - Installed nuclei scanned only the local HTTP fixture with a temporary local template and produced the expected match.
+  - Missing, inaccessible, unloadable, timed-out and nonzero-exit binaries were tested independently; empty scan capability did not prevent runtime advertisement.
+  - A fourth fixture adapter used its own binary/version command, private input preparation and custom decoder without common executor changes.
+  - Process failure, timeout, overflow, cancellation, close, child termination and scratch cleanup checks passed.
+  - Ruff lint/format and git diff checks passed; ten task files parsed with valid dependencies and context paths.
