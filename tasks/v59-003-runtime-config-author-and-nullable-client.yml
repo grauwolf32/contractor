@@ -3,7 +3,8 @@ id: V59-003
 title: Separate RuntimeConfig author/read contracts and preserve explicit null in Go
 milestone: public-api-review-corrections
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ccecdf6370f11d6e1e5e11d91075aa713caf3299
 depends_on: []
 languages:
 - go
@@ -56,3 +57,62 @@ tests:
 verification_requirements:
 - Record actual focused regressions and executed results, preserving fixture/real-database distinctions.
 - Keep implementation and subsequent completion metadata commits separate.
+
+verification:
+  verified_on: '2026-09-19'
+  implementation:
+  - RuntimeConfigAuthorDocument and its author patch/spec schemas accept gateway selectors; RuntimeConfigDocument
+    and its read schemas retain only resolved Gateway refs. Unsupported gateway/block null forms are removed.
+  - Author specs require a patch operation while immutable built-in read documents retain their empty spec.
+  - Enabled pinned oapi-codegen nullable types and promoted the already checksummed nullable v1.1.0 module
+    to a direct dependency. Updated four CLI Run construction assignments to preserve their values.
+  - UI publication now takes the author DTO and sends name@version from the selected Gateway. Read normalization
+    accepts exact Gateway refs and rejects unsupported null/selector shapes without losing supported clears.
+  focused_regressions:
+  - name: TestPublicRuntimeConfigAuthorAndReadContracts
+    result: Passed 11 forms against the operation request schema, response document schema and production
+      PreparePublication parser, including selectors, exact refs, unsupported nulls, empty blocks, credentials
+      and all supported atomic clears.
+  - name: TestPublicRuntimeConfigPublicationResolvesGatewayAndPreservesClears
+    result: Passed authenticated handler POST/GET contract validation with real normalization and Gateway
+      resolution; gateway and block nulls plus resolved-ref author requests return 400. Exact refs and all
+      clear operations survive the read document.
+  - name: TestTypedRuntimeConfigRequestsPreservePatchStates
+    result: Passed 15 cases through generated typed client HTTP requests to a local httptest server. Absent,
+      null and value bytes are distinct for Worker telemetry/proxy/Caido, Planner telemetry and Gateway
+      credential; every captured body is accepted by the production author parser.
+  - name: TestTypedRunExecutionCredentialsPreservePatchStates
+    result: Passed six generated CreateRun request-builder cases for absent/null/value credentials in
+      Planner and Worker execution selections.
+  - name: RuntimeConfig author and read contracts
+    result: Five Vitest cases passed for author selector and clear request bytes, normalized exact-ref reads,
+      and rejection of null/selector/unknown-field Gateway read shapes.
+  - name: publishes typed Runtime configuration, erases secrets, and exposes stale binding CAS
+    result: Strengthened existing routed form test passes with an actual Gateway selection; fixture rejects
+      an expanded author ref, response resolves the selector, and existing secret erasure/CAS assertions pass.
+  checks:
+  - command: go test -count=1 ./internal/publicclient/... ./internal/runtimeconfig ./internal/cli ./internal/httpapi/public
+    result: Passed all four package groups; generated package has no tests. Final public package result 7.765s.
+  - command: cd ui && corepack pnpm --config.verify-deps-before-run=false typecheck
+    result: Passed both TypeScript projects.
+  - command: cd ui && corepack pnpm --config.verify-deps-before-run=false test --run src/api/runtime-config-contract.test.ts src/api/operations.test.ts src/routes/operations/operations.test.tsx
+    result: Passed 29 tests across three files.
+  - command: cd ui && corepack pnpm --config.verify-deps-before-run=false exec prettier --check src/api/operations.ts src/api/operations.test.ts src/api/runtime-config-contract.test.ts src/routes/operations/runtime-configs/index.tsx src/routes/operations/operations.test.tsx
+    result: Passed.
+  - command: go generate ./internal/publicclient/generated
+    result: Pinned oapi-codegen v2.8.0 regeneration passed and matched the committed generated Go file.
+  - command: cd ui && corepack pnpm --config.verify-deps-before-run=false generate
+    result: Pinned openapi-typescript 7.13.0 regeneration passed and matched the committed generated TypeScript file.
+  - command: git diff --check
+    result: Passed.
+  environment:
+    go: go1.25.6 linux/amd64
+    node: v26.7.0
+    pnpm: 11.24.0
+    ui_dependencies: Existing shared node_modules used; pnpm dependency auto-install explicitly disabled.
+    node_engine: Checks passed with the package warning that the declared engine is Node 24.20.x; no Node 24 verification claimed.
+  limitations:
+  - CONTRACTOR_TEST_DATABASE_URL was unset. PostgreSQL-dependent package tests skipped; HTTP fixture storage
+    delegates to the production parser and resolver but does not establish database durability.
+  - Live models, deployment and shared demo services were not used. V59-005 owns combined regeneration and
+    adding the new contract test names to the normal verify-public-api selection.
