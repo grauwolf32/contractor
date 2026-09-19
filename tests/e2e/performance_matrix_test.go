@@ -233,7 +233,7 @@ type performanceReleaseEvidence struct {
 }
 
 func TestPerformanceReleaseEvidenceIsComplete(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "reviews", "2026-09-06-performance-v32-release.yml"))
+	data, err := os.ReadFile(filepath.Join("testdata", "2026-09-06-performance-v32-release.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}

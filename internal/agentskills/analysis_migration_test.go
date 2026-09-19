@@ -183,7 +183,7 @@ func assertMigratedAnalysisReferenceClosure(
 func assertMigratedAnalysisInventory(t *testing.T) {
 	t.Helper()
 	documentPath := filepath.Join(
-		"..", "..", "docs", "migrations", "contractor-old-agent-skills-analysis.md",
+		"testdata", "migrations", "contractor-old-agent-skills-analysis.md",
 	)
 	data, err := os.ReadFile(documentPath)
 	if err != nil {

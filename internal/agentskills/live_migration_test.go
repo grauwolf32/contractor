@@ -177,7 +177,7 @@ func assertMigratedLiveReferenceClosure(
 func assertMigratedLiveInventoryAndCompatibility(t *testing.T) {
 	t.Helper()
 	documentPath := filepath.Join(
-		"..", "..", "docs", "migrations", "contractor-old-agent-skills-live.md",
+		"testdata", "migrations", "contractor-old-agent-skills-live.md",
 	)
 	data, err := os.ReadFile(documentPath)
 	if err != nil {

@@ -114,7 +114,7 @@ func assertLikeC4ReferencesResolve(t *testing.T, skill *Package) {
 func assertLikeC4MigrationInventory(t *testing.T) {
 	t.Helper()
 	documentPath := filepath.Join(
-		"..", "..", "docs", "migrations", "contractor-old-agent-skills-likec4.md",
+		"testdata", "migrations", "contractor-old-agent-skills-likec4.md",
 	)
 	data, err := os.ReadFile(documentPath)
 	if err != nil {
