@@ -130,6 +130,9 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
+	if err := checkExpectedDigest(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+		return StartedAudit{}, err
+	}
 	projectTarget := cloneProjectTarget(project.HTTPTarget)
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
@@ -164,6 +167,13 @@ func (s *Service) startInTransaction(
 			return StartedAudit{}, err
 		}
 	}
+	expectedStandards := make([]auditstandards.ExactPackage, 0, len(pinnedStandards))
+	for _, standard := range pinnedStandards {
+		expectedStandards = append(expectedStandards, standard.Catalog)
+	}
+	if err := checkExpectedDigest(params.ExpectedStandardsSHA256, expectedStandards); err != nil {
+		return StartedAudit{}, err
+	}
 	standardLinks, err := auditStandardLinks(pinnedStandards)
 	if err != nil {
 		return StartedAudit{}, err
@@ -187,6 +197,9 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 
+	if err := checkExpectedDigest(params.ExpectedSkillsSHA256, skills); err != nil {
+		return StartedAudit{}, err
+	}
 	inputPayloads, err := readAndVerifyInputs(ctx, artifactService, audit.ProjectID, profile, selection)
 	if err != nil {
 		return StartedAudit{}, err

@@ -129,7 +129,7 @@ func createExperiment(t *testing.T, pool *pgxpool.Pool, scope Scope, id, portabl
 	doc := fixture(t, fixtureName, "CreateExperiment")
 	m := mutation(t, id, 0, doc)
 	mustTx(t, pool, func(s *Store) error {
-		_, err := s.Create(context.Background(), CreateParams{scope, id, portable, doc, m})
+		_, err := s.Create(context.Background(), CreateParams{Scope: scope, ID: id, PortableID: portable, Document: doc, Mutation: m})
 		return err
 	})
 	e, err := NewPostgresStore(pool).Get(context.Background(), scope.OwnerID, id)
@@ -367,7 +367,7 @@ func TestPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *testing.T
 	putDataset(t, pool, scope)
 	e := createExperiment(t, pool, scope, "exp", "trace-1", "create-workflow")
 	prepare := freeze(t, "Command", evaldomain.Command{Kind: "prepare"})
-	cmd := CommandParams{scope, e.ID, "prepare-command", evaldomain.Command{Kind: "prepare"}, mutation(t, "prepare", e.Revision, prepare)}
+	cmd := CommandParams{Scope: scope, ExperimentID: e.ID, CommandID: "prepare-command", Command: evaldomain.Command{Kind: "prepare"}, Mutation: mutation(t, "prepare", e.Revision, prepare)}
 	mustTx(t, pool, func(s *Store) error { _, err := s.Command(ctx, cmd); return err })
 	claim := oneClaim(t, pool)
 	reg := fixture(t, "registration", "ExternalRegistration")
@@ -390,7 +390,7 @@ func TestPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery(t *testing.T
 	}
 	start := evaldomain.Command{Kind: "start", PlanSHA256: plan.Digest()}
 	startDoc := freeze(t, "Command", start)
-	startParams := CommandParams{scope, e.ID, "start-command", start, mutation(t, "start", e.Revision, startDoc)}
+	startParams := CommandParams{Scope: scope, ExperimentID: e.ID, CommandID: "start-command", Command: start, Mutation: mutation(t, "start", e.Revision, startDoc)}
 	mustTx(t, pool, func(s *Store) error { _, err := s.Command(ctx, startParams); return err })
 	ms := members(t, pool, e)
 	if _, err = admit(t, pool, e, ms[0].MemberID, nil, "wrong-controller"); !code(err, "eval_external_control") {
@@ -631,7 +631,7 @@ func TestPostgresEvalFrozenDeadlineAndOptionalTokenAllowance(t *testing.T) {
 			doc := freeze(t, "CreateExperiment", input)
 			m := mutation(t, "create", 0, doc)
 			mustTx(t, pool, func(s *Store) error {
-				_, err := s.Create(ctx, CreateParams{scope, "exp", "trace-1", doc, m})
+				_, err := s.Create(ctx, CreateParams{Scope: scope, ID: "exp", PortableID: "trace-1", Document: doc, Mutation: m})
 				return err
 			})
 			e, err := NewPostgresStore(pool).Get(ctx, scope.OwnerID, "exp")

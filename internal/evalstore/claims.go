@@ -20,7 +20,7 @@ func (s *Store) Claim(ctx context.Context, holder string, lease time.Duration, l
 	}
 	rows, err := s.db.Query(ctx, `WITH candidates AS (
  SELECT c.experiment_id FROM eval_controller_claims c JOIN eval_experiments e USING(experiment_id)
- WHERE e.state IN ('preparing','running','settling','pausing','paused','cancelling','interrupted') AND (c.holder_id IS NULL OR c.expires_at<=clock_timestamp())
+ WHERE (e.state IN ('preparing','running','settling','pausing','paused','cancelling','interrupted') OR EXISTS (SELECT 1 FROM eval_commands cmd WHERE cmd.experiment_id=e.experiment_id AND cmd.state IN ('accepted','running'))) AND (c.holder_id IS NULL OR c.expires_at<=clock_timestamp())
  ORDER BY c.epoch,e.updated_at,e.experiment_id FOR UPDATE OF c SKIP LOCKED LIMIT $3
  ) UPDATE eval_controller_claims c SET epoch=epoch+1,holder_id=$1,expires_at=clock_timestamp()+$2::bigint*interval '1 millisecond'
  FROM candidates x WHERE c.experiment_id=x.experiment_id RETURNING c.experiment_id,c.holder_id,c.epoch,c.expires_at`, holder, lease.Milliseconds(), limit)

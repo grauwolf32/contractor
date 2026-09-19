@@ -255,6 +255,19 @@ child Run, checklist truth substitution or bypass of importer authority is allow
 Normal Run creation retains immutable input/Workflow/Runtime snapshots and labels.
 Verified member association is durable before it is exposed as successful.
 
+Case input/output mappings name the case role as key and executable slot as
+value. Unmapped input roles retain their names; collisions are invalid. Variant
+parameters override case task parameters; `$task.objective` substitutes the
+visible objective. Workflow variants use ordinary execution overrides. Audit
+variants select exact AuditProfiles and cannot supply execution overrides until
+the ordinary Audit service supports them.
+
+Managed submission keys are scoped by experiment lookup identity and member ID,
+including distinct keys for Audit creation and start. This prevents collisions
+between Projects sharing a portable invocation ID without changing the frozen
+portable CLI key format. Local binding snapshots retained during external
+registration are separate from the producer's attributed binding hashes.
+
 An external runner may finalize only after its intended submissions have been
 accounted for and all accepted operations are reconciled. Finalization fences
 new submissions, represents the rest as not submitted and drains/observes accepted

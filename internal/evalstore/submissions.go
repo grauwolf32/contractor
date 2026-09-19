@@ -112,7 +112,7 @@ func (s *Store) RegisterExecutionProject(ctx context.Context, scope Scope, id, m
 		return err
 	}
 	var ok bool
-	err := s.db.QueryRow(ctx, `SELECT true FROM projects WHERE owner_id=$1 AND project_id=$2 AND kind='project' AND lifecycle_state='active' AND request_idempotency_key=$3 FOR SHARE`, scope.OwnerID, projectID, creationKey).Scan(&ok)
+	err := s.db.QueryRow(ctx, `SELECT true FROM projects WHERE owner_id=$1 AND project_id=$2 AND kind='project' AND lifecycle_state='active' AND request_idempotency_key=$3 AND request_digest=(SELECT request_sha256 FROM eval_suboperations WHERE experiment_id=$4 AND member_id=$5 AND kind='project-create') FOR SHARE`, scope.OwnerID, projectID, creationKey, id, member).Scan(&ok)
 	if err != nil {
 		return normalize(err)
 	}
@@ -223,16 +223,16 @@ func (s *Store) BindExecution(ctx context.Context, scope Scope, id, member, exec
 	if _, err := s.recovery(ctx, scope, id, claim); err != nil {
 		return err
 	}
-	var kind, key string
-	err := s.db.QueryRow(ctx, `SELECT m.execution_kind,op.operation_key FROM eval_members m JOIN eval_suboperations op USING(experiment_id,member_id) WHERE m.experiment_id=$1 AND m.member_id=$2 AND op.kind=CASE WHEN m.execution_kind='run' THEN 'run-create' ELSE 'audit-create' END`, id, member).Scan(&kind, &key)
+	var kind, key, digest string
+	err := s.db.QueryRow(ctx, `SELECT m.execution_kind,op.operation_key,op.request_sha256 FROM eval_members m JOIN eval_suboperations op USING(experiment_id,member_id) WHERE m.experiment_id=$1 AND m.member_id=$2 AND op.kind=CASE WHEN m.execution_kind='run' THEN 'run-create' ELSE 'audit-create' END`, id, member).Scan(&kind, &key, &digest)
 	if err != nil {
 		return normalize(err)
 	}
 	var verified bool
 	if kind == "run" {
-		err = s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id=$1 AND owner_id=$2 AND project_id=$3 AND request_idempotency_key=$4 AND publication_mode='ordinary')`, executionID, scope.OwnerID, scope.ProjectID, key).Scan(&verified)
+		err = s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id=$1 AND owner_id=$2 AND project_id=$3 AND request_idempotency_key=$4 AND request_digest=$5 AND publication_mode='ordinary')`, executionID, scope.OwnerID, scope.ProjectID, key, digest).Scan(&verified)
 	} else {
-		err = s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audits a JOIN audit_idempotency i USING(audit_id) JOIN eval_project_dependencies d ON d.project_id=a.project_id WHERE a.audit_id=$1 AND a.owner_id=$2 AND d.experiment_id=$3 AND d.member_id=$4 AND i.owner_id=$2 AND i.operation='audit.create' AND i.idempotency_key=$5)`, executionID, scope.OwnerID, id, member, key).Scan(&verified)
+		err = s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audits a JOIN audit_idempotency i USING(audit_id) JOIN eval_project_dependencies d ON d.project_id=a.project_id WHERE a.audit_id=$1 AND a.owner_id=$2 AND d.experiment_id=$3 AND d.member_id=$4 AND i.owner_id=$2 AND i.operation='audit.create' AND i.idempotency_key=$5 AND i.request_digest=$6)`, executionID, scope.OwnerID, id, member, key, digest).Scan(&verified)
 	}
 	if err != nil {
 		return err
@@ -283,7 +283,15 @@ func (s *Store) Settle(ctx context.Context, scope Scope, id, member string, clai
 			err = s.db.QueryRow(ctx, `SELECT state FROM audits WHERE owner_id=$1 AND audit_id=$2 AND state IN ('completed','failed','cancelled') AND outstanding_run_count=0`, scope.OwnerID, *sub.ExecutionID).Scan(&terminal)
 		}
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrDrain
+			tombstone, tombErr := s.Tombstone(ctx, scope.OwnerID, id, member)
+			if tombErr != nil {
+				return ErrDrain
+			}
+			if tombstone.ID != *sub.ExecutionID {
+				return evaldomain.Failure("eval_member_conflict")
+			}
+			terminal = tombstone.TerminalState
+			err = nil
 		}
 		if err != nil {
 			return err
@@ -291,7 +299,7 @@ func (s *Store) Settle(ctx context.Context, scope Scope, id, member string, clai
 		state = "terminal"
 	} else {
 		var rejected bool
-		err = s.db.QueryRow(ctx, `SELECT NOT EXISTS(SELECT 1 FROM eval_suboperations WHERE experiment_id=$1 AND member_id=$2 AND kind IN ('run-create','audit-create') AND state IN ('intent','succeeded')) AND ($3 OR EXISTS(SELECT 1 FROM eval_suboperations WHERE experiment_id=$1 AND member_id=$2 AND state='rejected'))`, id, member, e.State == "cancelling").Scan(&rejected)
+		err = s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM eval_execution_tombstones WHERE experiment_id=$1 AND member_id=$2 AND never_started) OR (NOT EXISTS(SELECT 1 FROM eval_suboperations WHERE experiment_id=$1 AND member_id=$2 AND kind IN ('run-create','audit-create') AND state IN ('intent','succeeded')) AND ($3 OR EXISTS(SELECT 1 FROM eval_suboperations WHERE experiment_id=$1 AND member_id=$2 AND state='rejected')))`, id, member, e.State == "cancelling").Scan(&rejected)
 		if err != nil {
 			return err
 		}

@@ -88,6 +88,9 @@ func (s *Service) CreateDraft(
 	if err != nil {
 		return auditstore.Audit{}, false, ErrProfileNotFound
 	}
+	if err := checkExpectedDigest(params.ExpectedProfileSHA256, profile); err != nil {
+		return auditstore.Audit{}, false, err
+	}
 	project, err := projectstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.ProjectID)
 	if err != nil {
 		return auditstore.Audit{}, false, err

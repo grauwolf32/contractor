@@ -192,6 +192,10 @@ func RunCLI(
 	if err != nil {
 		return err
 	}
+	evals, err := configureEvals(pool, configurationManager, credentialSet, audits, workflows, logger)
+	if err != nil {
+		return fmt.Errorf("configure Evals: %w", err)
+	}
 	handlers, err := configureHTTP(
 		pool, configurationManager, cfg, authentication, browserOrigins, eventHub,
 		credentialSet, control, catalogs, workflows, audits, logger,
@@ -200,6 +204,7 @@ func RunCLI(
 		return err
 	}
 	runners := handlers.runners
+	runners = append(runners, evals.coordinator)
 	if profilingServer != nil {
 		runners = append(runners, profilingServer)
 	}

@@ -7,10 +7,11 @@ import (
 )
 
 type CommandParams struct {
-	Scope                   Scope
-	ExperimentID, CommandID string
-	Command                 evaldomain.Command
-	Mutation                evaldomain.MutationIdentity
+	Scope                            Scope
+	ExperimentID, CommandID          string
+	DuplicateID, DuplicatePortableID string
+	Command                          evaldomain.Command
+	Mutation                         evaldomain.MutationIdentity
 }
 
 func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
@@ -31,7 +32,7 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 		if err = evaldomain.CheckControlMode(e.ControlMode, p.Command.Kind); err != nil {
 			return Reference{}, err
 		}
-		if p.Command.Kind != "prepare" {
+		if p.Command.Kind != "prepare" && (p.Command.Kind != "duplicate" || p.Command.PlanSHA256 != "") {
 			plan, err := s.FrozenPlan(ctx, e.OwnerID, e.ID)
 			if err != nil {
 				return Reference{}, err
@@ -39,6 +40,21 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 			if plan.SHA256 != p.Command.PlanSHA256 {
 				return Reference{}, evaldomain.Failure("eval_pin_mismatch")
 			}
+		}
+		if p.Command.Kind == "duplicate" {
+			if !resourceID.MatchString(p.DuplicateID) || evaldomain.Validate("Id", bytesOf(p.DuplicatePortableID)) != nil || e.Draft.Kind() != "Draft" {
+				return Reference{}, evaldomain.Failure("eval_invalid")
+			}
+			// Copy authoring intent only: no member, receipt, clock or frozen plan is reused.
+			_, err = s.db.Exec(ctx, `INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit)
+ SELECT $2,owner_id,project_id,$3,'server',name,'draft',draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit FROM eval_experiments WHERE experiment_id=$1`, e.ID, p.DuplicateID, p.DuplicatePortableID)
+			if err != nil {
+				return Reference{}, normalize(err)
+			}
+			if _, err = s.db.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id) VALUES($1)`, p.DuplicateID); err != nil {
+				return Reference{}, err
+			}
+			return Reference{ID: p.DuplicateID, Revision: 1, State: "draft"}, nil
 		}
 		target := ""
 		switch p.Command.Kind {
@@ -103,7 +119,7 @@ func (s *Store) Transition(ctx context.Context, scope Scope, id string, claim Cl
 	}
 	allowed := map[string]map[string]bool{
 		"preparing": {"draft": true, "interrupted": true}, "running": {"running": true, "settling": true, "cancelling": true, "interrupted": true},
-		"pausing": {"paused": true, "cancelling": true, "interrupted": true}, "paused": {"cancelling": true, "settling": true},
+		"pausing": {"paused": true, "settling": true, "cancelling": true, "interrupted": true}, "paused": {"cancelling": true, "settling": true},
 		"settling": {"finished": true, "cancelling": true, "interrupted": true}, "cancelling": {"cancelled": true, "interrupted": true}, "interrupted": {"cancelling": true},
 	}
 	if !allowed[from][to] || observedTokens < e.ObservedTokens {

@@ -71,7 +71,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"audit_rounds", "audits",
 		"configuration_publications",
 		"contractor_schema_migrations", "credential_operations",
-		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_experiments", "eval_frozen_plans", "eval_members", "eval_mutation_receipts", "eval_progress_observations", "eval_project_dependencies", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_generations", "finding_proposal_audit_holds", "finding_proposal_receipts", "finding_proposal_retention",
+		"eval_collections", "eval_commands", "eval_controller_claims", "eval_dataset_revisions", "eval_execution_tombstones", "eval_experiments", "eval_frozen_plans", "eval_members", "eval_mutation_receipts", "eval_plan_resources", "eval_progress_observations", "eval_project_dependencies", "eval_records", "eval_selections", "eval_submissions", "eval_suboperations", "eval_view_generations", "finding_proposal_audit_holds", "finding_proposal_receipts", "finding_proposal_retention",
 		"git_ssh_keys", "llm_credential_identities", "llm_credential_tombstones", "llm_credentials", "owner_queue_controls",
 		"performance_minutes", "planner_events", "planner_execution_reports", "planner_sessions", "projects",
 		"run_stage_resumptions",

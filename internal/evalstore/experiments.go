@@ -8,6 +8,7 @@ import (
 )
 
 type CreateParams struct {
+	Resources      []PlanResource
 	Scope          Scope
 	ID, PortableID string
 	Document       evaldomain.Frozen
@@ -68,6 +69,9 @@ func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
 				return Reference{}, err
 			}
 			if err = s.persistPlan(ctx, e, reg, setup, recipes); err != nil {
+				return Reference{}, err
+			}
+			if err = s.putResources(ctx, p.ID, p.Resources); err != nil {
 				return Reference{}, err
 			}
 			revision++
@@ -136,7 +140,7 @@ func (s *Store) FrozenPlan(ctx context.Context, owner, id string) (Plan, error) 
 
 // FreezePrepared is called after read-only preparation, under the coordinator's
 // claim. The whole expected matrix and its exact bytes commit together.
-func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, claim Claim, document evaldomain.Frozen, setup []byte, cases map[string]evaldomain.Case) error {
+func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, claim Claim, document evaldomain.Frozen, setup []byte, cases map[string]evaldomain.Case, resources ...PlanResource) error {
 	if err := s.requireTx(); err != nil {
 		return err
 	}
@@ -160,7 +164,10 @@ func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, clai
 	if e.ControlMode != "server" || e.State != "preparing" || document.Kind() != "playground.plan/v1" {
 		return evaldomain.Failure("eval_not_ready")
 	}
-	return s.persistPlan(ctx, e, document, setup, cases)
+	if err = s.persistPlan(ctx, e, document, setup, cases); err != nil {
+		return err
+	}
+	return s.putResources(ctx, id, resources)
 }
 func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldomain.Frozen, setup []byte, cases map[string]evaldomain.Case) error {
 	if err := evaldomain.Validate("ExperimentSetup", setup); err != nil {
