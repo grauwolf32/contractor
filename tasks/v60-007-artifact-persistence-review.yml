@@ -1,0 +1,69 @@
+schema_version: '1.0'
+id: V60-007
+title: Review Artifact authority, deletion races and persistence recovery
+milestone: project-review-v60
+priority: P2
+status: pending
+depends_on:
+- V60-001
+languages:
+- go
+- python
+- typescript
+- markdown
+goal: Review Artifact authority, deletion races and persistence recovery.
+context:
+  authority: User requested a detailed project review plan and commencement after V59 corrections.
+  specification:
+  - docs/spec/03-artifact-plane.md
+  - docs/spec/08-memory-tools.md
+  - docs/spec/09-agent-skills.md
+  - docs/spec/10-runtime-filesystems-and-edit-tools.md
+  - docs/spec/17-projects-and-queue.md
+  - docs/spec/18-run-and-workspace-lifecycle-controls.md
+  - docs/spec/23-artifact-blob-backends.md
+  - docs/spec/24-git-artifacts.md
+  design: docs/plans/2026-09-20-project-review.md
+scope:
+  in:
+  - Exercise stale CAS and create/update/publication versus Project deletion with controlled transaction interleavings.
+  - Verify retained exact refs, blob corruption/backend parity and cleanup on minimal connection pools.
+  - Walk supported fresh/upgrade/interrupted migration scenarios on disposable storage; record restore evidence
+    separately.
+  out:
+  - Take over active V38 managed Evals, V40-002, V55-004 or V56 toolsets; change intentionally deferred semantics without a contract decision.
+  - Live model runs, production data mutation or deployment.
+  - Claim whole-project correctness from one review slice.
+acceptance_criteria:
+- id: A1
+  text: All scoped scenarios have source/history analysis and either executed representative verification or a precise
+    unresolved limitation; unresolved required verification keeps this task in_progress.
+- id: A2
+  text: Confirmed defects have reproduction, normative basis, priority, bounded correction task and meaningful regression;
+    accepted or rejected hypotheses are recorded separately.
+- id: A3
+  text: Required commands execute successfully on the reviewed commit; relevant database/process/browser cases must
+    not silently skip, and actual toolchain and evidence levels are recorded.
+tests:
+- command: make test-artifact-integration
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-artifact-blob-backends
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-git-artifacts
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Refresh baseline and concurrent ownership before taking this pending task.
+- Use only isolated disposable databases/directories and fake Gateways; inspect Makefile prerequisites before running
+  broad gates.
+- Read relevant decision history; list exact scenarios and test results in the project review report.
+- Keep implementation and subsequent completion metadata commits separate with the full original implementation
+  hash.

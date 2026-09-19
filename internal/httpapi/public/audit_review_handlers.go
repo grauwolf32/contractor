@@ -337,6 +337,7 @@ func (h *handler) listAuditFindingProvenance(w http.ResponseWriter, r *http.Requ
 	}
 	params := auditservice.ProvenanceListParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: findingID, Limit: limit + 1,
+		AuditRevision: &audit.Revision, FindingRevision: &finding.Revision,
 	}
 	if len(cursor) != 0 {
 		auditRevision, auditErr := strconv.ParseUint(cursor[0], 10, 64)

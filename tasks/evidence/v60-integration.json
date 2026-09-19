@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "verified_on": "2026-09-20",
+  "reviewed_source_commit": "6b14b16cb5b9a0e6ff210544f590bac0d10eb626",
+  "baseline": "3ebe07cb60fa809e1a4e748a90ca5e3c3627195f",
+  "implemented_tasks": {
+    "V60-001": "e716fca1d999367abe2d140ae478514f05917d0d",
+    "V60-002": "80ac450db32de809de62270407f149c4d7c4e11e",
+    "V60-003": "85845acab28fc64bfe5429118700b89b26502691",
+    "V60-004": "34d9fc7a40dfb935e401088a170a7ff15579c636",
+    "V60-011": "f2267844f5510c4d913a92cf1d9d084249106535"
+  },
+  "task_statuses": {
+    "V60-001": "completed",
+    "V60-002": "completed",
+    "V60-003": "completed",
+    "V60-004": "completed",
+    "V60-005": "pending",
+    "V60-006": "pending",
+    "V60-007": "pending",
+    "V60-008": "pending",
+    "V60-009": "pending",
+    "V60-010": "pending",
+    "V60-011": "completed",
+    "V60-012": "pending"
+  },
+  "finding_resolution": {
+    "PR-01": "fixed/V60-002",
+    "PR-02": "fixed/V60-003",
+    "PR-03": "fixed/V60-003",
+    "PR-04": "fixed/V60-004",
+    "PR-05": "fixed/V60-011",
+    "PR-06": "confirmed; pending V60-012, requires deletion/import/finalization coordination"
+  },
+  "go_checks": [
+    {
+      "name": "go-all",
+      "command": "go test -count=1 ./...",
+      "exit_code": 0,
+      "seconds": 31.881,
+      "postgres": false
+    },
+    {
+      "name": "go-postgres",
+      "command": "go test -race -count=1 ./internal/auditservice ./internal/httpapi/public ./internal/auth",
+      "exit_code": 0,
+      "seconds": 53.366,
+      "postgres": true
+    },
+    {
+      "name": "go-vet",
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "seconds": 1.808,
+      "postgres": false
+    },
+    {
+      "name": "public-api",
+      "command": "make verify-public-api",
+      "exit_code": 0,
+      "seconds": 5.455,
+      "postgres": true
+    },
+    {
+      "name": "pagination",
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "seconds": 9.28,
+      "postgres": true
+    }
+  ],
+  "audit_completion_gate": {
+    "command": "make test-audit-completion-e2e",
+    "exit_code": 0,
+    "seconds": 63.034,
+    "source_base": "8ec2b007a962320c61157e4782dcbb7f59e38622",
+    "uncommitted_verified_files": {
+      "scripts/audit-completion-matrix.json": "9199632ae47095f74b0e59bf3686aa3c226cd0848710111bfe4335d47550fe4c",
+      "tests/e2e/audit_completion_gate_test.go": "20ebbe4e113917b776ff1f571aa735b26d364b9dc96e99817f8d62eb2d015366"
+    },
+    "postgres": true,
+    "test_database_password_matches_ci": true,
+    "environment": "Locked existing Python env with UV_NO_SYNC=1 and PYTHONPATH pointing to reviewed source; dedicated PostgreSQL test container."
+  },
+  "actual_gate_counts": {
+    "go_cases": 158,
+    "runtime_cases": 331,
+    "selected_skips": 0
+  },
+  "generation": "No V60 OpenAPI/generated-client changes; V59 reproducible artifacts preserved.",
+  "ui": "V60 changed no UI source or package artifacts. V59 full435Vitest/9static-server/typecheck/lint/build verification is separately recorded; not claimed rerun here.",
+  "integration": {
+    "target": "local main",
+    "unrelated_work": "Preserve latest uncommitted architecture planning and do not include active V38/V40/V55/V56 branches.",
+    "completion": "A subsequent metadata update records actual merge commit."
+  },
+  "independent_reviews": [
+    "Root reviewed auth, provenance and gate implementations.",
+    "quality_ops_review independently reviewed V60-003: no material patch findings; separately reproduced PR-06.",
+    "execution_review independently reviewed V60-011 history/matrix/source-check: no material findings."
+  ],
+  "pr06_discovery": {
+    "level": "real isolated PostgreSQL with actual ImportIntoAudit and DeleteReleasedTerminalRun triggered during read",
+    "result": "Pinned request accepts Origin.RunDeleted false→true, Audit revision2→2 and finding1→1.",
+    "seconds": 1.137,
+    "scope": "One ordinary source Run and one destination Audit. Multiple Audits, managed Run and report-finalization interleavings are V60-012 acceptance, not yet verified.",
+    "probe": "/tmp/contractor-project-review/v60-provenance-delete/overlay.json",
+    "correction_constraint": "Source analysis confirms report write-before-CAS and immutable binding collision on different bytes. A naive revision/timestamp bump needs targeted retry verification; no broad deletion fix claimed."
+  },
+  "limitations": [
+    "Complete make release-verify, browser journeys, populated previous-release upgrade/restore and live-model checks not run as V60 first pass.",
+    "Full go test ./... without DB may skip gated cases; affected packages and pagination separately executed against real disposable PostgreSQL with race detector.",
+    "V60-005–010 and V60-012 remain pending; this is first-pass completion plus five corrections, not whole-project review completion."
+  ],
+  "log_sha256": {
+    "audit-completion-before-matrix.log": "69087cab717144f64838efcfcb5e252e483e31311f8a44b574f2156b78fbc6b2",
+    "audit-completion-gate.log": "39cd3418925b24ab2a025997643754f0a1fc7f57f2fc77be6abb1962540bfcc5",
+    "go-all.log": "5b6de431ee65352864b9d6ca65a1fc24f8e106df3c3fef80c49b9d0a3fab4e0d",
+    "go-postgres.log": "b7d49e0fdd7e1b536d9757bd72077512e7dd2a1a1bf4b403b62d0cd83048d68e",
+    "go-vet.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pagination.log": "6e3c232de07fb31ec7835529dabbd7686e5411878757eb4c4925dd938a464b1c",
+    "public-api.log": "dfd29e19773b0b3f50d9498c717a9e74431d01da19486ccd6cd91a4258a7cdc8"
+  },
+  "final_plan_checks": {
+    "unique_task_ids": 361,
+    "yaml_unique_keys": true,
+    "task_paths_and_dependencies": "passed",
+    "acyclic_graph": true,
+    "V59_V60_specs_acceptance_and_completed_commit_hashes": "passed",
+    "local_links_checked": 31
+  }
+}

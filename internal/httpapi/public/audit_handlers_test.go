@@ -456,7 +456,9 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 	}
 	if provenanceResponse.Code != http.StatusOK || provenancePage.AuditRevision != 9 ||
 		provenancePage.FindingRevision != 4 || len(provenancePage.Items) != 1 ||
-		provenancePage.Page.NextCursor == nil || management.provenanceParams.Limit != 2 {
+		provenancePage.Page.NextCursor == nil || management.provenanceParams.Limit != 2 ||
+		management.provenanceParams.AuditRevision == nil || *management.provenanceParams.AuditRevision != 9 ||
+		management.provenanceParams.FindingRevision == nil || *management.provenanceParams.FindingRevision != 4 {
 		t.Fatalf("provenance page = %d %+v params=%+v body=%s", provenanceResponse.Code,
 			provenancePage, management.provenanceParams, provenanceResponse.Body.String())
 	}

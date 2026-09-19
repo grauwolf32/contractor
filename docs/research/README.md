@@ -8,6 +8,9 @@ Scheduler decisions from these records.
 
 ## Completed experiments and implementation reviews
 
+- [Project review — first pass, 2026-09-20](2026-09-20-project-review-first-pass.md) —
+  reproduced defects, accepted decisions and explicit limits; [detailed V60 plan](../plans/2026-09-20-project-review.md).
+
 - [Public OpenAPI review — 2026-09-19](2026-09-19-public-openapi-review.md) —
   verified schema, handler and generated-client mismatches.
 - [Public OpenAPI corrections — 2026-09-20](2026-09-20-public-openapi-corrections-results.md) —

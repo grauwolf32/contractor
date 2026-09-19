@@ -1095,9 +1095,18 @@ cost.
 `contractor server auth hash-password` reads the password twice from an
 interactive terminal without echo and emits the bootstrap YAML; it accepts no
 password command-line argument or environment variable. Passwords are 12
-through 1,024 UTF-8 bytes, are never trimmed and are never logged. Login uses a
-2 KiB maximum JSON body, `Cache-Control: no-store` and one generic failure
-response for unknown username and bad password. Before Argon2 verification, an
+through 1,024 UTF-8 bytes, are never trimmed and are never logged. Login uses an
+8 KiB maximum raw JSON body, independently of the decoded password's UTF-8 byte
+limit. JSON escaping can represent each supported one-byte control character
+with six bytes (`\u0001`): a 1,024-byte password can occupy 6,144 encoded bytes.
+With a maximum 64-byte ASCII username and 29 bytes of compact JSON framing, the
+request occupies at most 6,237 bytes; 8 KiB admits this standard serialization
+with bounded formatting headroom. Additional whitespace or equivalent escaping
+still counts toward the raw-body limit. Requests beyond that limit are rejected
+before password verification, including when Content-Length is absent.
+
+Login uses `Cache-Control: no-store` and one generic failure response for unknown
+username and bad password. Before Argon2 verification, an
 in-memory limiter permits at most five failed attempts per rolling minute for
 one socket-peer IP and 30 process-wide; it does not trust forwarded-IP headers
 in the first slice. Excess returns `429` plus bounded `Retry-After` without

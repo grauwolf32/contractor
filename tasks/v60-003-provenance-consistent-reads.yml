@@ -1,0 +1,81 @@
+schema_version: '1.0'
+milestone: project-review-v60
+priority: P2
+status: completed
+implementation_commit: 85845acab28fc64bfe5429118700b89b26502691
+depends_on:
+- V59-005
+languages:
+- go
+- python
+- markdown
+id: V60-003
+title: Keep finding provenance reads consistent without nested pool acquisition
+goal: Return provenance pages matching their revision envelope and release SQL rows before dependent receipt hydration.
+context:
+  authority: User requested detailed project review and implementation; initial pass exposed these provenance-read
+    gaps.
+  specification:
+  - docs/spec/19-audits.md
+  - docs/spec/27-findings-tools-and-collections.md
+  design: docs/plans/2026-09-20-project-review.md
+  finding_ids:
+  - PR-02
+  - PR-03
+scope:
+  in:
+  - Verify revision interleaving and one-connection pool behavior with deterministic handler and isolated PostgreSQL
+    regressions.
+  - Reject a provenance page when its relevant Audit/finding revisions change during reading, preserving existing
+    cursor/CAS semantics.
+  - Close provenance query rows before owner-scoped receipt hydration; preserve ordering, identities, item count
+    and missing-receipt behavior.
+  out:
+  - Change database-wide isolation or enlarge connection pools to hide nested acquisition.
+  - Redesign cursor format, findings schema, review settlement or artifact retention.
+acceptance_criteria:
+- id: A1
+  text: A mutation during provenance read produces the established conflict response rather than items mislabeled
+    with older revisions.
+- id: A2
+  text: Real PostgreSQL provenance hydration completes with MaxConns=1 and preserves receipt provenance and owner
+    isolation.
+- id: A3
+  text: Maximum-size pagination and stable-cursor behavior from V59 remain valid; all reproduced defects are recorded
+    before fixes.
+tests:
+- command: go test -race -count=1 ./internal/auditservice ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api-postgres
+  covers:
+  - A2
+  - A3
+- command: git diff --check
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Database-dependent regressions must execute with CONTRACTOR_TEST_DATABASE_URL pointing only to the disposable
+  local test database.
+- If a candidate does not reproduce, record it as rejected rather than implementing a speculative correction.
+- Keep an implementation commit and later metadata commit with full original implementation hash.
+verification:
+  verified_on: '2026-09-20'
+  evidence: tasks/evidence/v60-003.json
+  acceptance:
+    A1: Passed; joined owner-scoped Audit/finding revision snapshots reject changes before service read,
+      before provenance SQL and during exact receipt hydration, including current assessment and empty pages.
+    A2: Passed; real PostgreSQL MaxConns=1 preserves source/attempt/direct history, exact retained refs,
+      201 unique receipts, repeated receipt records, owner isolation and all-or-error unavailable receipts.
+    A3: Passed; V59 199/200 page sizes, 201 HTTP rejection and signed continuation checks passed under race;
+      both original pre-fix failures are recorded in evidence.
+  boundaries:
+  - The fence detects Audit/finding revision changes. Upstream Run deletion failing to advance these
+    revisions is independently confirmed PR-06 and is separate work; this task does not add deletion invalidation.
+  - Attempt and proposal origin can name different Runs; their RunDeleted fields remain independent.
+  - Tests use isolated real PostgreSQL schemas and retained artifact fixtures, without live models,
+    external services or a production-load benchmark.

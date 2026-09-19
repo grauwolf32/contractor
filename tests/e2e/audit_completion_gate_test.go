@@ -79,6 +79,34 @@ func TestAuditCompletionGateRejectsFalseGreenGoReports(t *testing.T) {
 }
 
 func TestAuditCompletionGateRejectsIncompleteRuntimeReports(t *testing.T) {
+	t.Run("matrix-references-declared-tests", func(t *testing.T) {
+		// Synthetic JUnit reports cannot detect a stale matrix entry: they copy
+		// its names. Check the actual source declarations without importing the
+		// Runtime or requiring its dependencies in this offline meta-test.
+		const probe = `
+import ast
+import json
+from pathlib import Path
+
+root = Path('../..')
+required = json.loads((root / 'scripts/audit-completion-matrix.json').read_text())['python']
+declared = {}
+missing = []
+for case, minimum in required.items():
+    module, name = case.split('::')
+    assert isinstance(minimum, int) and minimum > 0, 'invalid required case count: ' + case
+    path = root / 'runtime' / (module.replace('.', '/') + '.py')
+    if path not in declared:
+        tree = ast.parse(path.read_text(), filename=str(path))
+        declared[path] = {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    if name not in declared[path]:
+        missing.append(case)
+assert not missing, 'mandatory Runtime tests are not declared: ' + ', '.join(sorted(missing))
+`
+		if output, err := exec.Command("python3", "-c", probe).CombinedOutput(); err != nil {
+			t.Fatalf("Runtime matrix/source mismatch: %v %s", err, output)
+		}
+	})
 	_, required := completionGateMatrix(t)
 	var cases []string
 	for name, count := range required {
@@ -145,6 +173,7 @@ func TestAuditCompletionGateRequiresPrerequisites(t *testing.T) {
 }
 
 func TestAuditCompletionGateRedactsDatabaseCredentials(t *testing.T) {
+	t.Run("subprocess-composition", testAuditCompletionGateCommandComposition)
 	for _, dsn := range []string{
 		"postgres://fixture:private-token%22@localhost/test",
 		"host=localhost dbname=test password='private-token'",
@@ -169,5 +198,118 @@ for value in [dsn, json.dumps({'Output': dsn}), 'private-token%22', 'private-tok
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("credential redaction failed: %v %s", err, output)
 		}
+	}
+}
+
+func testAuditCompletionGateCommandComposition(t *testing.T) {
+	// Exercise the saved evidence consumed by the verifier, not just redact in isolation.
+	const probe = `
+import contextlib
+import io
+import json
+import os
+from pathlib import Path
+import runpy
+import sys
+from urllib.parse import quote
+
+gate = runpy.run_path('../../scripts/test-audit-completion-e2e.py')
+mode, password, directory = sys.argv[1], sys.argv[2], Path(sys.argv[3])
+dsn = 'postgres://fixture:' + quote(password, safe='') + '@127.0.0.1/test'
+os.environ['CONTRACTOR_TEST_DATABASE_URL'] = dsn
+required = gate['matrix']()['go']
+expected = sorted(package + '/' + name for package, names in required.items() for name in names)
+events = []
+for package, names in required.items():
+    for name in names:
+        events.extend({'Package': package, 'Test': name, 'Action': action} for action in ['run', 'pass'])
+    events.append({'Package': package, 'Action': 'pass'})
+package, names = next(iter(required.items()))
+diagnostic = 'plain=' + password + ' escaped=' + json.dumps(password) + ' dsn=' + dsn + ' escaped_dsn=' + json.dumps(dsn) + '\n'
+events.insert(0, {'Action': 'output', 'Package': package, 'Output': diagnostic,
+                  'unrecognized-field-canary': {'value': 'unrecognized-value-canary', dsn: password}})
+if mode in {'skip', 'fail'}:
+    events[2]['Action'] = mode
+elif mode == 'missing-pass':
+    del events[2]
+elif mode == 'missing-run':
+    del events[1]
+elif mode == 'missing-package':
+    events = [event for event in events if event != {'Package': package, 'Action': 'pass'}]
+elif mode == 'unexpected-skip':
+    events.append({'Package': package, 'Test': 'UnexpectedCase', 'Action': 'skip'})
+elif mode == 'invalid-event':
+    events.append(['invalid-event', password])
+elif mode == 'invalid-field':
+    events.append({'Action': ['pass', password], 'Package': package})
+raw = ''.join(json.dumps(event) + '\n' for event in events)
+if mode == 'malformed':
+    raw += 'invalid-json ' + diagnostic
+stderr = diagnostic if mode == 'stderr' else ''
+emitter = directory / 'emitter.py'
+emitter.write_text('import sys\nsys.stdout.write(' + repr(raw) + ')\nsys.stdout.flush()\nsys.stderr.write(' + repr(stderr) + ')\nsys.exit(' + ('7' if mode == 'nonzero' else '0') + ')\n')
+report = directory / 'go.jsonl'
+displayed = io.StringIO()
+command_error = None
+with contextlib.redirect_stdout(displayed):
+    try:
+        gate['run_command']([sys.executable, str(emitter)], cwd=Path.cwd(), report=report, go=True)
+    except gate['GateError'] as error:
+        command_error = error
+if mode == 'nonzero':
+    assert command_error is not None and 'exit 7' in str(command_error), 'subprocess status was not enforced'
+else:
+    assert command_error is None, 'unexpected subprocess failure'
+
+def secret_free(text):
+    for secret in (password, quote(password, safe=''), dsn):
+        assert secret not in text, 'diagnostic exposed a credential'
+        assert json.dumps(secret)[1:-1] not in text, 'diagnostic exposed an escaped credential'
+
+secret_free(displayed.getvalue())
+saved = report.read_text()
+for canary in ('unrecognized-field-canary', 'unrecognized-value-canary'):
+    assert canary not in saved + displayed.getvalue(), 'arbitrary event fields were retained'
+assert dsn not in saved and json.dumps(dsn)[1:-1] not in saved, 'saved report exposed a DSN'
+assert '[redacted]' in saved and '[test database]' in saved, 'diagnostic redaction evidence is missing'
+for line in saved.splitlines():
+    try:
+        event = json.loads(line)
+    except ValueError:
+        secret_free(line)
+        continue
+    if isinstance(event, dict) and 'Output' in event:
+        secret_free(event['Output'])
+
+try:
+    verified = gate['verify_go_report'](report)
+except gate['GateError']:
+    assert mode not in {'complete', 'nonzero'}, 'valid mandatory evidence was corrupted'
+else:
+    assert mode in {'complete', 'nonzero'}, 'invalid mandatory evidence was accepted'
+    assert verified == expected, 'mandatory case identity changed'
+`
+	for _, test := range []struct{ mode, password string }{
+		{"complete", "contractor"},
+		{"complete", "pass"},
+		{"complete", "private\"token\\value"},
+		{"skip", "contractor"},
+		{"fail", "pass"},
+		{"missing-pass", "contractor"},
+		{"missing-run", "pass"},
+		{"missing-package", "contractor"},
+		{"unexpected-skip", "pass"},
+		{"malformed", "contractor"},
+		{"invalid-event", "contractor"},
+		{"invalid-field", "contractor"},
+		{"stderr", "private\"token\\value"},
+		{"nonzero", "private\"token\\value"},
+	} {
+		t.Run(test.mode+"-"+test.password, func(t *testing.T) {
+			command := exec.Command("python3", "-c", probe, test.mode, test.password, t.TempDir())
+			if output, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("subprocess/report composition failed: %v %s", err, output)
+			}
+		})
 	}
 }

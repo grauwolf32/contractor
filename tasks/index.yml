@@ -2714,3 +2714,15 @@ tasks:
   - {id: V59-003, file: v59-003-runtime-config-author-and-nullable-client.yml}
   - {id: V59-004, file: v59-004-request-and-history-contracts.yml}
   - {id: V59-005, file: v59-005-verification-and-integration.yml}
+  - {id: V60-001, file: v60-001-project-review-baseline.yml}
+  - {id: V60-002, file: v60-002-login-json-body-bound.yml}
+  - {id: V60-003, file: v60-003-provenance-consistent-reads.yml}
+  - {id: V60-004, file: v60-004-audit-gate-event-redaction.yml}
+  - {id: V60-005, file: v60-005-execution-recovery-review.yml}
+  - {id: V60-006, file: v60-006-runtime-contract-tools-review.yml}
+  - {id: V60-007, file: v60-007-artifact-persistence-review.yml}
+  - {id: V60-008, file: v60-008-audit-product-journeys-review.yml}
+  - {id: V60-009, file: v60-009-operations-security-gates-review.yml}
+  - {id: V60-010, file: v60-010-configuration-evaluation-backlog-review.yml}
+  - {id: V60-011, file: v60-011-audit-gate-runtime-matrix.yml}
+  - {id: V60-012, file: v60-012-run-deletion-audit-revisions.yml}
