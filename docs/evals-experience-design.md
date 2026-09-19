@@ -1,6 +1,6 @@
 # Evals: experiment setup, execution and comparison
 
-Status: **Product decisions resolved in V38-001; V38-002 data contracts implemented. Runtime and UI implementation follows.**
+Status: **Product decisions resolved in V38-001; V38-002 contracts and V38-003 persistence implemented. Runtime and UI implementation follows.**
 The user selected the complete browser journey and explicitly required Contractor
 to remain independent of Playground. The managed Playground service proposed in
 the earlier draft is superseded.

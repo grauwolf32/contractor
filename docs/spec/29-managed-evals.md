@@ -1,10 +1,12 @@
 # 29 — Independent managed Evals and external producers
 
-Status: **Design selected in V38-001; V38-002 data contracts implemented. Runtime and UI pending V38-003–V38-010.**
+Status: **Design selected in V38-001; V38-002 data contracts and V38-003 persistence implemented. Runtime and UI pending V38-004–V38-010.**
 
 The [embedded data catalog](../../api/evals/v1/README.md) and
 [conformance fixtures](../../api/testdata/evals/README.md) define the closed DTOs
-and portable identity mapping. They expose no HTTP endpoints by themselves.
+and portable identity mapping. The [EvalStore](../../internal/evalstore/README.md)
+persists private records, expected membership, receipts and Project deletion fences.
+These foundations expose no HTTP endpoints or dispatch loop by themselves.
 
 [Product journey](../evals-experience-design.md) ·
 [Portable evaluation format](26-portable-evaluation-format.md) ·
