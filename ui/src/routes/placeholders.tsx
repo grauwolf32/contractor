@@ -46,8 +46,12 @@ export function NotFoundRoute() {
   return (
     <main className="centered-state">
       <p className="eyebrow">404</p>
-      <h1>That UI route does not exist</h1>
-      <a href="/workflows">Return to workflows</a>
+      <h1>Page not found</h1>
+      <p>This address may be incomplete or the page may have moved.</p>
+      <nav className="action-row" aria-label="Recovery">
+        <a href="/">Home</a>
+        <a href="/projects">Projects</a>
+      </nav>
     </main>
   );
 }

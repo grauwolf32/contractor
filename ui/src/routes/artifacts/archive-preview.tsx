@@ -128,11 +128,10 @@ export function ArchivePreviewPanel({
     <div className="panel artifact-preview-panel archive-preview-panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Archive contents</p>
           <h3>Files</h3>
         </div>
         <button
-          className="secondary-button"
+          className={entries === undefined ? undefined : "secondary-button"}
           type="button"
           disabled={archive.isFetching}
           onClick={() => {

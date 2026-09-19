@@ -1,5 +1,9 @@
+import {
+  ArtifactMetadataSummary,
+  ArtifactHistoryDisclosure,
+  ArtifactHistoryButton,
+} from "./metadata-summary";
 import { ReturnLink } from "../../app/context-navigation";
-import { GitSourceDetails } from "./git-import-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router";
@@ -51,6 +55,20 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
 
   return (
     <div className="artifact-actions-grid">
+      <div className="artifact-file-toolbar">
+        {download.error === null ? null : (
+          <ErrorNotice error={download.error} />
+        )}
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={download.isPending}
+          onClick={() => download.mutate()}
+        >
+          {download.isPending ? "Downloading…" : "Download exact revision"}
+        </button>
+        <ArtifactHistoryButton />
+      </div>
       <ArtifactPreviewPanel
         archiveScope={{ kind: "user" }}
         metadata={metadata}
@@ -58,27 +76,9 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
         loadPreview={() => previewArtifact(api, metadata)}
       />
 
-      <div className="panel artifact-download-panel">
-        <p className="eyebrow">Original bytes</p>
-        <h3>Download</h3>
-        <p className="muted-copy">
-          Fetches exactly <code>{metadata.artifact.revision}</code> from Go
-          Server; Node does not proxy the payload.
-        </p>
-        {download.error === null ? null : (
-          <ErrorNotice error={download.error} />
-        )}
-        <button
-          type="button"
-          disabled={download.isPending}
-          onClick={() => download.mutate()}
-        >
-          {download.isPending ? "Downloading…" : "Download exact revision"}
-        </button>
-      </div>
-
       {metadata.current ? (
-        <div className="panel artifact-update-panel">
+        <details className="panel artifact-update-panel">
+          <summary>Upload a new version</summary>
           <ArtifactWriteForm
             fixedIdentity={{
               namespace: metadata.artifact.namespace,
@@ -89,13 +89,11 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
               setSearchParams({ revision: result.artifact.revision })
             }
           />
-        </div>
+        </details>
       ) : (
         <div className="panel compact-empty">
           <strong>Historical revision is immutable.</strong>
-          <p>
-            Select the current revision before starting an exact CAS update.
-          </p>
+          <p>Select the current revision to upload a new version.</p>
         </div>
       )}
     </div>
@@ -287,15 +285,18 @@ export function ArtifactDetailRoute() {
     <section className="route-page artifact-page">
       <header className="route-header-row">
         <div>
-          <ReturnLink to="/artifacts" label="All Artifacts" />
-          <p className="eyebrow">UserScope binding</p>
+          <ReturnLink
+            to={namespace === "skills" ? "/catalog/skills" : "/artifacts"}
+            label={namespace === "skills" ? "Skills" : "All Artifacts"}
+          />
+
           <h2>
             {namespace}/{name}
           </h2>
           <p className="lede">
             {revision === undefined
-              ? "Current authoritative binding"
-              : "Selected immutable historical revision"}
+              ? "Current revision"
+              : "Historical revision"}
           </p>
         </div>
         <button
@@ -316,43 +317,17 @@ export function ArtifactDetailRoute() {
         <ErrorNotice error={query.error} />
       ) : (
         <>
-          <dl className="metadata-grid panel">
-            <div>
-              <dt>Exact revision</dt>
-              <dd>
-                <code>{query.data.artifact.revision}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{query.data.current ? "current" : "historical"}</dd>
-            </div>
-            <div>
-              <dt>Media type</dt>
-              <dd>{query.data.mediaType}</dd>
-            </div>
-            <div>
-              <dt>Size</dt>
-              <dd>{formatBytes(query.data.size)}</dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{formatTimestamp(query.data.createdAt)}</dd>
-            </div>
-            <div>
-              <dt>Frozen</dt>
-              <dd>{query.data.frozen ? "yes" : "no"}</dd>
-            </div>
-          </dl>
-          <GitSourceDetails source={query.data.gitSource} />
+          <ArtifactMetadataSummary metadata={query.data} />
           <ArtifactActions
             key={`actions-${query.data.artifact.revision}`}
             metadata={query.data}
           />
-          <ArtifactHistory
-            key={`history-${query.data.artifact.revision}`}
-            metadata={query.data}
-          />
+          <ArtifactHistoryDisclosure>
+            <ArtifactHistory
+              key={`history-${query.data.artifact.revision}`}
+              metadata={query.data}
+            />
+          </ArtifactHistoryDisclosure>
         </>
       )}
     </section>

@@ -27,6 +27,42 @@ function response(value: unknown, etag = '"r:1"') {
 }
 
 describe("Archive API", () => {
+  it("explains index and individual file limits separately", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              code: "archive_preview_limit",
+              message: "generic limit",
+              retryable: false,
+            }),
+            {
+              status: 413,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Contractor-API-Version": "contractor.public.v1",
+              },
+            },
+          ),
+      ),
+    );
+    await expect(
+      getArtifactArchive(api, { kind: "user" }, ref, signal()),
+    ).rejects.toMatchObject({
+      status: 413,
+      code: "archive_preview_limit",
+      message: expect.stringContaining("browsing limits"),
+    });
+    await expect(
+      getArtifactArchiveFile(api, { kind: "user" }, ref, "SKILL.md", signal()),
+    ).rejects.toMatchObject({
+      status: 413,
+      code: "archive_preview_limit",
+      message: expect.stringContaining("256 KiB"),
+    });
+  });
   it.each<{ scope: ArtifactArchiveScope; prefix: string }>([
     { scope: { kind: "user" }, prefix: "/v1" },
     {

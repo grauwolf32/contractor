@@ -1,0 +1,85 @@
+.artifact-metadata-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.artifact-metadata-summary details {
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+.artifact-metadata-summary summary,
+.artifact-history-disclosure > summary,
+.artifact-update-panel > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.artifact-metadata-summary code {
+  color: var(--muted-strong);
+  overflow-wrap: anywhere;
+}
+.artifact-metadata-summary .metadata-grid {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  margin: 0.75rem 0 0;
+}
+.artifact-actions-grid,
+.artifact-actions-grid.run-artifact-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.artifact-file-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.artifact-file-toolbar .notice {
+  flex-basis: 100%;
+}
+.artifact-history-disclosure {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  padding: 1rem;
+  scroll-margin-top: 1rem;
+}
+.artifact-history-disclosure[open] > summary,
+.artifact-update-panel[open] > summary {
+  margin-bottom: 1rem;
+}
+.artifact-update-panel > .artifact-form,
+.artifact-update-panel > .project-artifact-form {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+.document-frontmatter {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.document-frontmatter > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.document-frontmatter dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.document-frontmatter dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}

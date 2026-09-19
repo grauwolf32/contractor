@@ -12,6 +12,7 @@ import {
   formatTimestamp,
 } from "./artifacts/common";
 import { SkillUploadDialog } from "./skill-upload-dialog";
+import { SkillDescription } from "./skill-description";
 
 import "./skills.css";
 
@@ -38,12 +39,9 @@ export function SkillsRoute() {
     <section className="route-page skills-page">
       <header className="route-header-row">
         <div>
-          <p className="eyebrow">Global owner guidance</p>
           <h2>Skills</h2>
           <p className="lede">
-            One UserScope package and revision history can be selected by
-            Workers across any Project. Skills never become Project-owned copies
-            or execution permissions.
+            Reusable instructions and files for your agents across Projects.
           </p>
         </div>
         <div className="skills-actions">
@@ -112,10 +110,8 @@ export function SkillsRoute() {
               <thead>
                 <tr>
                   <th>Skill</th>
-                  <th>Current revision</th>
-                  <th>Media type</th>
-                  <th>Size</th>
-                  <th>Created</th>
+                  <th>Purpose</th>
+                  <th>Version</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,14 +124,19 @@ export function SkillsRoute() {
                       >
                         {item.artifact.name}
                       </ContextLink>
+                      <small className="skill-package-size">
+                        {formatBytes(item.size)} · Skill package
+                      </small>
                     </td>
-                    <td data-label="Current revision">
-                      <code>{item.artifact.revision}</code>
+                    <td data-label="Purpose">
+                      <SkillDescription metadata={item} />
                     </td>
-                    <td data-label="Media type">{item.mediaType}</td>
-                    <td data-label="Size">{formatBytes(item.size)}</td>
-                    <td data-label="Created">
-                      {formatTimestamp(item.createdAt)}
+                    <td data-label="Version">
+                      <details>
+                        <summary>Current revision</summary>
+                        <code>{item.artifact.revision}</code>
+                        <small>{formatTimestamp(item.createdAt)}</small>
+                      </details>
                     </td>
                   </tr>
                 ))}

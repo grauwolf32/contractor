@@ -938,10 +938,16 @@ describe("Project routes", () => {
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Versions" }));
     expect(await screen.findByText("project output publish")).toBeVisible();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(await screen.findByText("Project documentation")).toBeVisible();
+    await user.click(
+      screen.getByText("Upload a new version", { selector: "summary" }),
+    );
     expect(
       screen.getByRole("button", { name: "Upload exact update" }),
     ).toBeEnabled();

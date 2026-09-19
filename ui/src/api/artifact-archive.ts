@@ -109,7 +109,23 @@ async function readArchiveJSON(
     headers: { Accept: "application/json" },
     signal,
   });
-  if (!response.ok) throw await api.error(response);
+  if (!response.ok) {
+    const error = await api.error(response);
+    if (error.code === "archive_preview_limit") {
+      throw new PublicAPIError({
+        status: error.status,
+        code: error.code,
+        message:
+          path === undefined
+            ? "This archive exceeds the browsing limits for its entries or expanded content. Download the original archive to inspect it."
+            : "This file exceeds the preview limits (256 KiB of text or 1 MiB of compressed input). Download the original archive to inspect it.",
+        ...(error.requestId === undefined
+          ? {}
+          : { requestId: error.requestId }),
+      });
+    }
+    throw error;
+  }
   // 4096 paths of 1024 bytes can expand sixfold under JSON's HTML escaping.
   const maximum = path === undefined ? 32 * 1024 * 1024 : 2 * 1024 * 1024;
   if (

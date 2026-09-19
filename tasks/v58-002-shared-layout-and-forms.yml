@@ -3,8 +3,8 @@ id: V58-002
 title: Unify fields, responsive layouts and interaction states
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 7f5e987f59b58b4cdedbbc60b5f3853e3c8bdcbf
 depends_on: []
 languages:
 - typescript
@@ -54,3 +54,7 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+verification:
+  evidence: tasks/evidence/v58-002.json
+  result: 38 focused tests, typecheck, targeted lint and build passed; 30 browser states across 1440/390/320
+    fit; hover contrast and keyboard checks passed.

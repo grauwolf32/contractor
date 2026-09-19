@@ -244,6 +244,27 @@ test("runtime config, health and hashed assets have distinct cache policy", asyn
   assert(Number(headResponse.headers.get("content-length")) > 0);
 });
 
+test("browser 404 offers recovery without widening SPA or API fallbacks", async (t) => {
+  const { origin } = await fixture(t);
+  const headers = { Accept: "text/html" };
+  const response = await fetch(`${origin}/missing-page`, { headers });
+  assert.equal(response.status, 404);
+  assert.match(response.headers.get("content-type"), /text\/html/);
+  const body = await response.text();
+  assert.match(body, /Page not found/);
+  assert.match(body, /href="\/projects"/);
+  assert.doesNotMatch(body, /<script/);
+  const head = await fetch(`${origin}/missing-page`, {
+    headers,
+    method: "HEAD",
+  });
+  assert.equal(head.status, 404);
+  assert.equal(await head.text(), "");
+  const api = await fetch(`${origin}/v1/missing`, { headers });
+  assert.equal(api.status, 404);
+  assert.equal(await api.text(), "not found\n");
+});
+
 test("API-looking, missing asset, extension and unknown routes never fall back", async (t) => {
   const { origin } = await fixture(t);
   for (const path of [

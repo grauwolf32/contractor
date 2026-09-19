@@ -1,3 +1,8 @@
+import {
+  ArtifactMetadataSummary,
+  ArtifactHistoryDisclosure,
+  ArtifactHistoryButton,
+} from "../artifacts/metadata-summary";
 import { ContextLink, ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
@@ -408,30 +413,26 @@ function RunArtifactActions({
   });
   return (
     <div className="artifact-actions-grid run-artifact-actions">
-      <ArtifactPreviewPanel
-        archiveScope={{ kind: "run", id: runId }}
-        metadata={metadata}
-        unavailableCopy="Inline preview is unavailable; exact original bytes remain downloadable."
-        loadPreview={() => previewRunArtifact(api, runId, metadata)}
-      />
-      <div className="panel artifact-download-panel">
-        <p className="eyebrow">Original bytes</p>
-        <h3>Download</h3>
-        <p className="muted-copy">
-          Fetches exact revision <code>{metadata.artifact.revision}</code>
-          directly from Go Server.
-        </p>
+      <div className="artifact-file-toolbar">
         {download.error === null ? null : (
           <ErrorNotice error={download.error} />
         )}
         <button
+          className="secondary-button"
           type="button"
           disabled={download.isPending}
           onClick={() => download.mutate()}
         >
           {download.isPending ? "Downloading…" : "Download exact revision"}
         </button>
+        <ArtifactHistoryButton />
       </div>
+      <ArtifactPreviewPanel
+        archiveScope={{ kind: "run", id: runId }}
+        metadata={metadata}
+        unavailableCopy="Inline preview is unavailable; exact original bytes remain downloadable."
+        loadPreview={() => previewRunArtifact(api, runId, metadata)}
+      />
     </div>
   );
 }
@@ -632,8 +633,8 @@ export function RunArtifactDetailRoute() {
           </h2>
           <p className="lede">
             {revision === undefined
-              ? "Current authoritative binding"
-              : "Selected immutable historical revision"}
+              ? "Current revision"
+              : "Historical revision"}
           </p>
         </div>
         <button
@@ -651,44 +652,19 @@ export function RunArtifactDetailRoute() {
         <ErrorNotice error={query.error} />
       ) : (
         <>
-          <dl className="metadata-grid panel">
-            <div>
-              <dt>Exact revision</dt>
-              <dd>
-                <code>{query.data.artifact.revision}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{query.data.current ? "current" : "historical"}</dd>
-            </div>
-            <div>
-              <dt>Media type</dt>
-              <dd>{query.data.mediaType}</dd>
-            </div>
-            <div>
-              <dt>Size</dt>
-              <dd>{formatBytes(query.data.size)}</dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{formatTimestamp(query.data.createdAt)}</dd>
-            </div>
-            <div>
-              <dt>Frozen</dt>
-              <dd>{query.data.frozen ? "yes" : "no"}</dd>
-            </div>
-          </dl>
+          <ArtifactMetadataSummary metadata={query.data} />
           <RunArtifactActions
             key={`actions-${query.data.artifact.revision}`}
             runId={runId}
             metadata={query.data}
           />
-          <RunArtifactHistory
-            key={`history-${query.data.artifact.revision}`}
-            runId={runId}
-            metadata={query.data}
-          />
+          <ArtifactHistoryDisclosure>
+            <RunArtifactHistory
+              key={`history-${query.data.artifact.revision}`}
+              runId={runId}
+              metadata={query.data}
+            />
+          </ArtifactHistoryDisclosure>
         </>
       )}
     </section>

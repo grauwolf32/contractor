@@ -47,6 +47,11 @@ const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/;
 const LIKEC4_WORKER_ASSET = /^\/assets\/likec4\.worker-[A-Za-z0-9_-]{8,}\.js$/;
 const ASSET_PATH = /^\/assets\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9._-]+$/;
 const MAXIMUM_REQUEST_TARGET_BYTES = 4096;
+const NOT_FOUND_HTML = Buffer.from(`<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found · Contractor</title>
+<style>body{margin:0;background:#101722;color:#e9edf3;font:16px/1.6 system-ui}main{max-width:36rem;margin:15vh auto;padding:2rem}p{color:#bcc8d8}a{display:inline-block;margin:1rem 1rem 0 0;padding:.65rem 1rem;border:1px solid #8190a4;border-radius:.5rem;color:#e9edf3}a:focus-visible{outline:3px solid #c8ed80;outline-offset:4px}</style>
+<main><p>Contractor · 404</p><h1>Page not found</h1><p>This address may be incomplete or the page may have moved. Return to your workspace to continue.</p><nav aria-label="Recovery"><a href="/">Home</a><a href="/projects">Projects</a></nav></main></html>`);
 
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -364,6 +369,21 @@ export async function createStaticServer({ distDir, runtimeConfig }) {
       }
       if (isAPILookingPath(path) || extname(path) !== "") {
         sendError(request, response, 404, "not found", baseHeaders);
+        return;
+      }
+      if (request.headers.accept?.includes("text/html")) {
+        send(
+          request,
+          response,
+          404,
+          {
+            ...baseHeaders,
+            "Cache-Control": "no-store",
+            "Content-Type": "text/html; charset=utf-8",
+            Vary: "Accept",
+          },
+          NOT_FOUND_HTML,
+        );
         return;
       }
       sendError(request, response, 404, "not found", baseHeaders);

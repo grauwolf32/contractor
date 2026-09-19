@@ -339,6 +339,10 @@ describe("Artifact routes", () => {
     expect(
       (await screen.findAllByText("revision-2", { selector: "code" })).length,
     ).toBeGreaterThan(0);
+    expect(screen.queryByText("input fork")).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Versions" }));
     expect(await screen.findByText("input fork")).toBeInTheDocument();
     expect(screen.getByText("Run run-example")).toBeInTheDocument();
 

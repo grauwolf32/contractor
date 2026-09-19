@@ -1,5 +1,9 @@
+import {
+  ArtifactMetadataSummary,
+  ArtifactHistoryDisclosure,
+  ArtifactHistoryButton,
+} from "../artifacts/metadata-summary";
 import { ReturnLink } from "../../app/context-navigation";
-import { GitSourceDetails } from "../artifacts/git-import-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router";
@@ -60,32 +64,29 @@ function ProjectArtifactActions({
 
   return (
     <div className="artifact-actions-grid">
-      <ArtifactPreviewPanel
-        archiveScope={{ kind: "project", id: projectId }}
-        metadata={metadata}
-        unavailableCopy="Inline preview is unavailable for this media type or size. The original bytes are still downloadable."
-        loadPreview={() => previewProjectArtifact(api, projectId, metadata)}
-      />
-      <div className="panel artifact-download-panel">
-        <p className="eyebrow">Original bytes</p>
-        <h3>Download</h3>
-        <p className="muted-copy">
-          Fetches exact ProjectScope revision{" "}
-          <code>{metadata.artifact.revision}</code> directly from Go Server.
-        </p>
+      <div className="artifact-file-toolbar">
         {download.error === null ? null : (
           <ErrorNotice error={download.error} />
         )}
         <button
+          className="secondary-button"
           type="button"
           disabled={download.isPending}
           onClick={() => download.mutate()}
         >
           {download.isPending ? "Downloading…" : "Download exact revision"}
         </button>
+        <ArtifactHistoryButton />
       </div>
+      <ArtifactPreviewPanel
+        archiveScope={{ kind: "project", id: projectId }}
+        metadata={metadata}
+        unavailableCopy="Inline preview is unavailable for this media type or size. The original bytes are still downloadable."
+        loadPreview={() => previewProjectArtifact(api, projectId, metadata)}
+      />
       {metadata.current ? (
-        <div className="panel artifact-update-panel">
+        <details className="panel artifact-update-panel">
+          <summary>Upload a new version</summary>
           <ProjectArtifactWriteForm
             projectId={projectId}
             fixedIdentity={{
@@ -97,13 +98,11 @@ function ProjectArtifactActions({
               setSearchParams({ revision: result.artifact.revision })
             }
           />
-        </div>
+        </details>
       ) : (
         <div className="panel compact-empty">
           <strong>Historical revision is immutable.</strong>
-          <p>
-            Select the current revision before starting an exact CAS update.
-          </p>
+          <p>Select the current revision to upload a new version.</p>
         </div>
       )}
     </div>
@@ -324,8 +323,8 @@ function ProjectArtifactDetailRouteView({
           </h2>
           <p className="lede">
             {revision === undefined
-              ? "Current authoritative Project binding"
-              : "Selected immutable historical revision"}
+              ? "Project artifact"
+              : "Historical revision"}
           </p>
         </div>
         <button
@@ -346,45 +345,19 @@ function ProjectArtifactDetailRouteView({
         <ErrorNotice error={query.error} />
       ) : (
         <>
-          <dl className="metadata-grid panel">
-            <div>
-              <dt>Exact revision</dt>
-              <dd>
-                <code>{query.data.artifact.revision}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{query.data.current ? "current" : "historical"}</dd>
-            </div>
-            <div>
-              <dt>Media type</dt>
-              <dd>{query.data.mediaType}</dd>
-            </div>
-            <div>
-              <dt>Size</dt>
-              <dd>{formatBytes(query.data.size)}</dd>
-            </div>
-            <div>
-              <dt>Created</dt>
-              <dd>{formatTimestamp(query.data.createdAt)}</dd>
-            </div>
-            <div>
-              <dt>Frozen</dt>
-              <dd>{query.data.frozen ? "yes" : "no"}</dd>
-            </div>
-          </dl>
-          <GitSourceDetails source={query.data.gitSource} />
+          <ArtifactMetadataSummary metadata={query.data} />
           <ProjectArtifactActions
             key={`actions-${query.data.artifact.revision}`}
             projectId={projectId}
             metadata={query.data}
           />
-          <ProjectArtifactHistory
-            key={`history-${query.data.artifact.revision}`}
-            projectId={projectId}
-            metadata={query.data}
-          />
+          <ArtifactHistoryDisclosure>
+            <ProjectArtifactHistory
+              key={`history-${query.data.artifact.revision}`}
+              projectId={projectId}
+              metadata={query.data}
+            />
+          </ArtifactHistoryDisclosure>
         </>
       )}
     </section>

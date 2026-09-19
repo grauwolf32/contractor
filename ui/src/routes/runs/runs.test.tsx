@@ -1550,6 +1550,9 @@ describe("Run routes", () => {
     ).toBeInTheDocument();
     expect((await screen.findAllByText("output-r2")).length).toBeGreaterThan(0);
     expect(screen.getByText("yes")).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Versions" }));
     expect(await screen.findByText("output bind")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /Upload/ }),

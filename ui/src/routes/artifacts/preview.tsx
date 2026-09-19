@@ -68,12 +68,11 @@ function TextArtifactPreviewPanel({
     <div className="panel artifact-preview-panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Safe rendering</p>
           <h3>Preview</h3>
         </div>
         {!canPreview && automatic ? null : (
           <button
-            className="secondary-button"
+            className={data === undefined ? undefined : "secondary-button"}
             type="button"
             disabled={!canPreview || pending}
             onClick={requestPreview}
@@ -89,10 +88,7 @@ function TextArtifactPreviewPanel({
         )}
       </div>
       {canPreview ? (
-        <p className="muted-copy">
-          Preview is capped at 256 KiB. Supported documents render locally;
-          source remains available.
-        </p>
+        <p className="muted-copy">Documents up to 256 KiB can be previewed.</p>
       ) : (
         <div className="compact-empty">{unavailableCopy}</div>
       )}

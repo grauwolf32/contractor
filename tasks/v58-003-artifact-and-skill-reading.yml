@@ -3,7 +3,7 @@ id: V58-003
 title: Put artifact and skill contents before secondary metadata
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-002
@@ -47,13 +47,22 @@ acceptance_criteria:
   text: Explain archive index versus individual preview limits and provide a useful 404 recovery page.
 tests:
 - command: cd ui && corepack pnpm test --run src/routes/artifacts/previews/markdown.test.tsx src/routes/artifacts/archive-preview.test.tsx
-    src/routes/artifacts/artifacts.test.tsx src/routes/evals-skills.test.tsx
+    src/routes/artifacts/artifacts.test.tsx src/routes/evals-skills.test.tsx src/routes/projects/projects.test.tsx src/routes/runs/runs.test.tsx src/api/artifact-archive.test.ts
   covers:
   - A1
   - A2
   - A3
   - A4
+- command: cd ui && corepack pnpm test:server
+  covers:
+  - A4
 verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 55 focused tests passed across 7 files (including the updated Project disclosure interaction); 9 static-server tests passed.
+- TypeScript and targeted ESLint passed; production build passed.
+- 24 browser states at 1440 and 390 px; no document overflow, JavaScript errors or attempted writes.
+- Live Skill descriptions and bounded frontmatter rendering verified; evidence .local/ui-design-implementation/phase-003.

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 
 import contractorLogoUrl from "../assets/contractor-logo.png";
 import { UI_VERSION } from "../build";
@@ -18,6 +18,14 @@ const navigation = [
 
 export function ApplicationShell() {
   const { session, logout, isLoggingOut } = useSession();
+  const { pathname } = useLocation();
+  const skillDetail = pathname.startsWith("/artifacts/skills/");
+  const navigationActive = (to: string) =>
+    skillDetail
+      ? to === "/catalog"
+      : to === "/"
+        ? pathname === "/"
+        : pathname === to || pathname.startsWith(`${to}/`);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -59,16 +67,16 @@ export function ApplicationShell() {
         </button>
         <nav id="primary-navigation" aria-label="Primary navigation">
           {navigation.map((item) => (
-            <NavLink
+            <Link
               key={item.to}
               to={item.to}
-              end={"end" in item ? item.end : false}
-              className={({ isActive }) => (isActive ? "active" : undefined)}
+              className={navigationActive(item.to) ? "active" : undefined}
+              aria-current={navigationActive(item.to) ? "page" : undefined}
               onClick={() => setMenuOpen(false)}
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
-            </NavLink>
+            </Link>
           ))}
         </nav>
         <div className="session-panel">
