@@ -375,7 +375,9 @@ function RuntimeConfigPublishForm({
       <form className="configuration-draft" onSubmit={submit} noValidate>
         <div className="project-dialog-heading">
           <div>
-            <p className="eyebrow">Immutable typed infrastructure patch</p>
+            <p className="eyebrow">
+              Unpublished proposal · Immutable infrastructure version
+            </p>
             <h2 id={heading}>Publish RuntimeConfig</h2>
             <small>{configs.length} loaded versions</small>
           </div>
@@ -657,6 +659,16 @@ function RuntimeConfigPublishForm({
             explicitly before it affects future resolution.
           </div>
         )}
+        <div className="notice" aria-label="Proposed RuntimeConfig">
+          <strong>
+            Proposed new version: {draft.name || "Choose a name"}@
+            {draft.version || "Choose a version"}
+          </strong>
+          <p>
+            Publishing adds an immutable version to the library. Current label
+            bindings remain in effect until you explicitly rebind them.
+          </p>
+        </div>
         <button type="submit" disabled={mutation.isPending}>
           {mutation.isPending
             ? "Publishing…"
@@ -685,7 +697,8 @@ function BindingEditor({
         )
       : "",
   );
-  const [stale, setStale] = useState(false);
+  const [conflictRevision, setConflictRevision] = useState<string>();
+  const stale = conflictRevision === binding.revision;
   const [keyring] = useState(
     () =>
       new MutationDraftKeyring<{
@@ -710,14 +723,14 @@ function BindingEditor({
       );
     },
     onSuccess: async () => {
-      setStale(false);
+      setConflictRevision(undefined);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.operations.runtimeLabels.all,
       });
     },
     onError: async (error) => {
       const conflict = error instanceof PublicAPIError && error.status === 412;
-      setStale(conflict);
+      setConflictRevision(conflict ? binding.revision : undefined);
       if (!conflict) {
         await queryClient.invalidateQueries({
           queryKey: queryKeys.operations.runtimeLabels.all,
@@ -740,7 +753,7 @@ function BindingEditor({
     },
     onError: async (error) => {
       const conflict = error instanceof PublicAPIError && error.status === 412;
-      setStale(conflict);
+      setConflictRevision(conflict ? binding.revision : undefined);
       if (!conflict) {
         await queryClient.invalidateQueries({
           queryKey: queryKeys.operations.runtimeLabels.all,
@@ -758,16 +771,39 @@ function BindingEditor({
       <div>
         <strong>{binding.label}</strong>
         {binding.label === "default" ? <span>always applied</span> : null}
-        <small>
-          revision {binding.revision} · future resolution boundaries
-        </small>
+        <small>Current binding revision {binding.revision}</small>
       </div>
+      <dl className="key-value-list runtime-binding-comparison">
+        <div>
+          <dt>Current version</dt>
+          <dd>
+            <strong>
+              {binding.config.name}@{binding.config.version}
+            </strong>
+            <code>{binding.config.digest}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Proposed version</dt>
+          <dd>
+            {selectedResource === undefined ? (
+              "Choose a loaded exact version"
+            ) : (
+              <>
+                <strong>
+                  {selectedResource.ref.name}@{selectedResource.ref.version}
+                </strong>
+                <code>{selectedResource.ref.digest}</code>
+              </>
+            )}
+          </dd>
+        </div>
+      </dl>
       <select
         aria-label={`RuntimeConfig for ${binding.label}`}
         value={selected}
         onChange={(event) => {
           setSelected(event.target.value);
-          setStale(false);
           mutation.reset();
         }}
       >
@@ -782,7 +818,9 @@ function BindingEditor({
       <div className="runtime-binding-actions">
         <button
           type="button"
-          disabled={selectedResource === undefined || mutation.isPending}
+          disabled={
+            selectedResource === undefined || mutation.isPending || stale
+          }
           onClick={() =>
             selectedResource === undefined
               ? undefined
@@ -797,7 +835,7 @@ function BindingEditor({
             type="button"
             aria-label={`Remove binding ${binding.label}`}
             title={`Remove binding ${binding.label}`}
-            disabled={deletion.isPending}
+            disabled={deletion.isPending || stale}
             onClick={() => deletion.mutate()}
           >
             <DeleteIcon />
@@ -813,11 +851,13 @@ function BindingEditor({
           <button
             className="secondary-button"
             type="button"
-            onClick={() =>
+            onClick={() => {
+              mutation.reset();
+              deletion.reset();
               void queryClient.invalidateQueries({
                 queryKey: queryKeys.operations.runtimeLabels.all,
-              })
-            }
+              });
+            }}
           >
             Reload authoritative binding
           </button>
@@ -896,15 +936,23 @@ function RuntimeBindings({
   return (
     <div className="runtime-bindings">
       <p className="muted-copy">
-        Bindings apply to future Runs. Existing Runs keep their configuration.
+        Default and Run-selected labels are pinned when a Run is created.
+        Rebinding changes new Run snapshots. Labels assigned to a Runtime Agent
+        are resolved again for future allocations, including allocations for an
+        existing Run. Already prepared allocations keep their pinned settings.
       </p>
       {ordered.length === 0 ? (
-        <p className="compact-empty">No labels use this version yet.</p>
+        <p className="compact-empty">No label bindings are loaded.</p>
       ) : null}
+      <h3>Current label bindings</h3>
+      <p className="muted-copy">
+        Review current and proposed exact versions before rebinding. Reloading a
+        conflicting binding preserves your proposal.
+      </p>
       <div className="runtime-binding-list">
         {ordered.map((binding) => (
           <BindingEditor
-            key={`${binding.label}:${binding.revision}`}
+            key={binding.label}
             binding={binding}
             configs={configs}
           />
@@ -1359,13 +1407,7 @@ function RuntimeBindingsDialog({
           ×
         </button>
       </div>
-      <RuntimeBindings
-        target={target}
-        configs={configs}
-        bindings={bindings.filter(
-          (binding) => binding.config.digest === target.ref.digest,
-        )}
-      />
+      <RuntimeBindings target={target} configs={configs} bindings={bindings} />
     </Dialog>
   );
 }

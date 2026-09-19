@@ -221,21 +221,6 @@ export function OperationsLayoutRoute() {
             onError={recordLiveError}
             onResync={recordResync}
           />
-          <div className={`live-status live-${connection}`} role="status">
-            <span className="status-dot" aria-hidden="true" />
-            Operations events: {connection}
-            {resyncReason === undefined
-              ? null
-              : ` · REST resync after ${resyncReason.replaceAll("_", " ")}`}
-          </div>
-          {liveError === undefined ? null : (
-            <div className="notice notice-warning" role="alert">
-              <strong>{liveError}</strong>
-              <p>
-                Manual snapshot refresh remains available and authoritative.
-              </p>
-            </div>
-          )}
           <Outlet
             context={
               {
@@ -245,6 +230,43 @@ export function OperationsLayoutRoute() {
               } satisfies OperationsOutletContext
             }
           />
+          <details className="panel operations-snapshot-record">
+            <summary>Diagnostics: snapshot and live connection</summary>
+            <dl className="key-value-list">
+              <div>
+                <dt>Generation</dt>
+                <dd>
+                  <code>{query.data.cursor.generation}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>Snapshot revision</dt>
+                <dd>
+                  <code>{query.data.cursor.revision}</code>
+                </dd>
+              </div>
+            </dl>
+            <div className={`live-status live-${connection}`} role="status">
+              <span className="status-dot" aria-hidden="true" />
+              Operations events: {connection}
+              {resyncReason === undefined
+                ? null
+                : ` · REST resync after ${resyncReason.replaceAll("_", " ")}`}
+            </div>
+            {liveError === undefined ? null : (
+              <div className="notice notice-warning" role="alert">
+                <strong>{liveError}</strong>
+                <p>
+                  Manual snapshot refresh remains available and authoritative.
+                </p>
+              </div>
+            )}
+            <p className="muted-copy">
+              These are transport diagnostics. Runtime readiness and Run wait
+              reasons are separate Server-owned facts. Refresh the snapshot if
+              live updates are unavailable.
+            </p>
+          </details>
         </>
       )}
     </section>

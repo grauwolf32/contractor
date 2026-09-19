@@ -11,6 +11,65 @@ export function OperationsOverviewRoute() {
   ).length;
   return (
     <div className="operations-overview-grid">
+      <section
+        className="panel operations-readiness"
+        aria-labelledby="operations-readiness-heading"
+      >
+        <p className="eyebrow">Authoritative process snapshot</p>
+        <h3 id="operations-readiness-heading">Execution readiness</h3>
+        <dl className="metadata-grid">
+          <div>
+            <dt>Observed idle slots</dt>
+            <dd>
+              {
+                snapshot.runtimeAgents.filter(
+                  (agent) => agent.slotState === "idle",
+                ).length
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Reserved or busy</dt>
+            <dd>
+              {
+                snapshot.runtimeAgents.filter(
+                  (agent) =>
+                    agent.slotState === "reserved" ||
+                    agent.slotState === "busy",
+                ).length
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Draining or fenced</dt>
+            <dd>
+              {
+                snapshot.runtimeAgents.filter(
+                  (agent) =>
+                    agent.slotState === "draining" ||
+                    agent.slotState === "fenced",
+                ).length
+              }
+            </dd>
+          </div>
+        </dl>
+        <p>
+          Idle slots do not establish compatible capacity for a particular Run.
+          Placement depends on its requirements and each Runtime Agent’s
+          capabilities and resolved settings.
+        </p>
+        {snapshot.runtimeAgents.length === 0 ? (
+          <p className="notice">
+            No Runtime processes are present in this snapshot. Inspect agent
+            readiness before starting execution.
+          </p>
+        ) : null}
+        <div className="form-actions">
+          <Link to="/operations/runtime-agents">Inspect Runtime Agents →</Link>
+          <Link to="/runs/configuration">Runtime configuration →</Link>
+          <Link to="/runs">Inspect Run wait reasons →</Link>
+        </div>
+      </section>
       <Link
         className="panel operations-summary-card"
         to="/operations/runtime-agents"
@@ -38,27 +97,6 @@ export function OperationsOverviewRoute() {
         <h3>Visible mismatches</h3>
         <p>Observed and authoritative facts remain deliberately separate.</p>
       </Link>
-      <details className="panel operations-snapshot-record">
-        <summary>Snapshot identity</summary>
-        <dl className="key-value-list">
-          <div>
-            <dt>Generation</dt>
-            <dd>
-              <code>{snapshot.cursor.generation}</code>
-            </dd>
-          </div>
-          <div>
-            <dt>Revision</dt>
-            <dd>
-              <code>{snapshot.cursor.revision}</code>
-            </dd>
-          </div>
-        </dl>
-        <p className="muted-copy">
-          A Server restart changes generation. Any missed revision causes a full
-          REST resynchronization.
-        </p>
-      </details>
     </div>
   );
 }
