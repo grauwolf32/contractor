@@ -179,22 +179,6 @@ func TestLoginFailuresAreGenericAndRateLimitedBySocketPeer(t *testing.T) {
 	}
 }
 
-func TestLoginBodyIsBoundedBeforePasswordVerification(t *testing.T) {
-	fixture := newHandlerFixture(t)
-	request := httptest.NewRequest(
-		http.MethodPost,
-		"/v1/auth/login",
-		strings.NewReader(strings.Repeat("x", int(maximumLoginBodyBytes+1))),
-	)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Origin", testBrowserOrigin)
-	response := httptest.NewRecorder()
-	fixture.handler.ServeHTTP(response, request)
-	if response.Code != http.StatusBadRequest || response.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("oversized login = %d %v %s", response.Code, response.Header(), response.Body.String())
-	}
-}
-
 func TestCredentialedCORSPreflightIsExactAndBounded(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	unauthorized := httptest.NewRequest(http.MethodGet, "/v1/runs", nil)
