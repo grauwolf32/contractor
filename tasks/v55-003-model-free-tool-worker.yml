@@ -3,7 +3,8 @@ id: V55-003
 title: Execute nuclei and naabu through model-free tool Workers
 milestone: scan-tools-first-slice
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 3d5e82ce8d889bb4c9613f161e1083fbc2955527
 depends_on: [V55-002]
 languages: [go, python, yaml, json, typescript]
 goal: Run a selected tool through ordinary passthrough Workflow allocation and publish its report without any model service.
@@ -37,3 +38,11 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make verify-wire-contracts test-wire-cross-language
     covers: [A1, A4]
+verification:
+  - Go configuration, contracts, RuntimeConfig, placement, scheduler and passthrough tests passed; all non-e2e Go packages passed as well.
+  - Required Python suite passed (253 tests); the expanded suite including scanner capabilities and lease watchdog passed (295 tests).
+  - Real AllocationService and A2A SDK execute a controlled scanner process with no model; lease loss terminates the child and fences access.
+  - Durable receipt tests cover replay after allocation replacement, changed input, ambiguous start, report failure, terminal receipt failure, timeout and cancellation during publication.
+  - Shared wire checks passed (175 tests; cross-language selection 96 tests), including model-free digests and preserved ADK validation.
+  - UI tests passed (44 tests), as did typecheck, focused ESLint/Prettier, Python Ruff and git diff --check.
+  - Standalone nuclei-target and naabu-host catalogs document provisioning and report semantics; full Server/Runtime/PostgreSQL release integration remains V55-006.
