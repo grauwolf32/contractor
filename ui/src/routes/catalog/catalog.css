@@ -310,3 +310,37 @@
     width: 100%;
   }
 }
+.catalog-agent-family {
+  padding: 1rem;
+  min-width: 0;
+}
+.catalog-agent-family .catalog-agent-card {
+  display: grid;
+  gap: 0.8rem;
+  color: var(--text);
+  padding: 0.8rem 0 0;
+  border: 0;
+  background: none;
+}
+.catalog-agent-family .catalog-agent-card p {
+  margin: 0;
+  color: var(--muted-strong);
+}
+.catalog-agent-version {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+.catalog-agent-version select {
+  width: auto;
+  min-width: 5rem;
+}
+.catalog-agent-version small {
+  margin-left: auto;
+}
+.catalog-agent-family .catalog-exact-selector {
+  color: var(--muted);
+}

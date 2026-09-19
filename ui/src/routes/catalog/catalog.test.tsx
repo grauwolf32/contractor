@@ -396,15 +396,20 @@ describe("Catalog", () => {
     expect(router.state.location.search).toBe("");
   });
 
-  it("groups navigation and lists exact agent versions for ordinary users", async () => {
+  it("groups Agent versions and preserves a deliberate older choice for ordinary users", async () => {
     setup("/catalog/agents");
     const links = await screen.findAllByRole("link", {
       name: /researcher.*Inspect exact version/,
     });
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/catalog/agents/researcher/1",
       "/catalog/agents/researcher/2",
     ]);
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText("Version of researcher"), "1");
+    expect(
+      screen.getByRole("link", { name: /researcher.*Inspect exact version/ }),
+    ).toHaveAttribute("href", "/catalog/agents/researcher/1");
     const primary = screen.getByRole("navigation", {
       name: "Primary navigation",
     });

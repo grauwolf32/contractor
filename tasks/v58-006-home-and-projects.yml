@@ -3,8 +3,8 @@ id: V58-006
 title: Focus Home and Project overview on current actionable work
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 974cbda9923efb13d2b04caff06381d5938998a6
 depends_on:
 - V58-002
 - V58-004

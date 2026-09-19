@@ -3,7 +3,7 @@ id: V58-007
 title: Improve catalog discovery and parameter authoring
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-002
@@ -52,3 +52,8 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+
+verification_results:
+- 40 catalog/card/workflow tests and 14 affected Project tests passed; multiline objective was submitted with its newline preserved.
+- TypeScript, targeted ESLint and production build passed.
+- Live Catalog and Project views checked at 1440 and 390 px; server search and cursor navigation retained, versions grouped within each matching page.

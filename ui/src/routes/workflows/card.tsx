@@ -70,7 +70,7 @@ export function WorkflowCard({
         ? "Missing inputs"
         : ambiguous
           ? "Choose inputs"
-          : "Inputs found";
+          : "Format matches found";
   const parameters = Object.values(workflow.parameters);
   return (
     <article
@@ -130,13 +130,23 @@ export function WorkflowCard({
           className={`workflow-card-status ${matching?.compatible && !ambiguous ? "is-found" : "is-missing"}`}
         >
           {status}
+          {matching?.compatible ? (
+            <small>
+              Matched by file type. Review contents and parameters before
+              running.
+            </small>
+          ) : null}
         </p>
       ) : null}
       {workflow.presentation?.description ? (
         <p className="workflow-card-description">
           {workflow.presentation.description}
         </p>
-      ) : null}
+      ) : (
+        <p className="workflow-card-description muted-copy">
+          Purpose is not described in this published version.
+        </p>
+      )}
       {matching ? (
         <>
           <div className="workflow-card-inputs">

@@ -27,7 +27,6 @@ export function CatalogLayoutRoute() {
   return (
     <div className="catalog-page">
       <header>
-        <p className="eyebrow">Reusable execution definitions</p>
         <h2>Catalog</h2>
       </header>
       <nav

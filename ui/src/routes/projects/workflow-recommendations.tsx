@@ -275,7 +275,7 @@ export function ProjectWorkflowRecommendations({
       <div className="workflow-discovery-toolbar">
         <div className="workflow-filter-tabs" aria-label="Workflow filters">
           {[
-            ["recommended", "Recommended"],
+            ["recommended", "Format matches"],
             ["all", "All workflows"],
             ["missing", "Missing inputs"],
           ].map(([value, label]) => (
@@ -304,7 +304,7 @@ export function ProjectWorkflowRecommendations({
         <div className="compact-empty">
           <strong>
             {filter === "recommended" && recommended.length === 0
-              ? "No new Workflow result is recommended."
+              ? "No new format matches."
               : "No matching Workflows."}
           </strong>
           <p>

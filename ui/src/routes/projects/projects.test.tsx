@@ -1220,7 +1220,7 @@ describe("Project routes", () => {
     const user = userEvent.setup();
 
     expect(
-      await screen.findByText("No new Workflow result is recommended."),
+      await screen.findByText("No new format matches."),
     ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Configure openapi-from-source@1" }),

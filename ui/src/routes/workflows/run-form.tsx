@@ -1319,6 +1319,19 @@ function WorkflowRunFormBody({
               .map(([name, slot]) => {
                 const error = validationErrors[`parameter:${name}`];
                 const included = parameters[name] !== undefined;
+                const Field = ["objective", "authorization_scope"].includes(
+                  name,
+                )
+                  ? "textarea"
+                  : "input";
+                const hint =
+                  name === "authorization_scope"
+                    ? "Allowed systems, actions, test accounts and exclusions"
+                    : name === "objective"
+                      ? "What should this Run produce or verify?"
+                      : name === "target"
+                        ? "For example, https://app.example.test"
+                        : undefined;
                 return (
                   <div className="run-field" key={name}>
                     {!slot.required ? (
@@ -1339,12 +1352,16 @@ function WorkflowRunFormBody({
                     ) : null}
                     <label>
                       <span>
-                        {name}{" "}
+                        {name.replaceAll("_", " ")}{" "}
                         {slot.required ? <strong>required</strong> : null}
+                        {name.includes("_") ? <small> ({name})</small> : null}
                       </span>
-                      <input
+                      <Field
                         name={`parameter-${name}`}
-                        type="text"
+                        {...(Field === "textarea"
+                          ? { rows: 3 }
+                          : { type: "text" })}
+                        placeholder={hint}
                         disabled={!slot.required && !included}
                         value={parameters[name] ?? ""}
                         aria-invalid={error === undefined ? undefined : true}
@@ -1543,8 +1560,9 @@ function WorkflowRunFormBody({
                   <div className="run-field" key={name}>
                     <label>
                       <span>
-                        {name}{" "}
+                        {name.replaceAll("_", " ")}{" "}
                         {slot.required ? <strong>required</strong> : null}
+                        {name.includes("_") ? <small> ({name})</small> : null}
                       </span>
                       <select
                         name={`artifact-${name}`}

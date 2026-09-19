@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { compareWorkflowVersions } from "../workflows/families";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router";
 
@@ -30,6 +32,13 @@ export function AgentListRoute() {
       }),
   });
   const returnTo = locationDestination(location);
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const families = new Map<string, NonNullable<typeof query.data>["items"]>();
+  for (const item of query.data?.items ?? []) {
+    const family = families.get(item.ref.name) ?? [];
+    family.push(item);
+    families.set(item.ref.name, family);
+  }
 
   return (
     <section className="catalog-agents">
@@ -78,39 +87,74 @@ export function AgentListRoute() {
         </div>
       ) : (
         <div className="catalog-agent-grid">
-          {query.data.items.map((item) => {
+          {[...families].map(([name, versions]) => {
+            versions.sort((a, b) =>
+              compareWorkflowVersions(b.ref.version, a.ref.version),
+            );
+            const item =
+              versions.find(
+                (version) => version.ref.version === choices[name],
+              ) ?? versions[0]!;
             const body = item.body as AgentTemplateBody;
             return (
-              <Link
-                className="panel catalog-agent-card"
-                key={`${item.ref.name}@${item.ref.version}:${item.ref.digest}`}
-                to={agentPath(item.ref.name, item.ref.version)}
-                state={{
-                  returnTo,
-                  returnLabel: "Agent search",
-                  returnState: location.state,
-                }}
-              >
-                <div className="catalog-agent-identity">
-                  <strong>{item.ref.name}</strong>
-                  <span className="state-badge">{item.ref.version}</span>
-                </div>
-                <p>{body.description || "No authored description."}</p>
-                <span className="muted-copy">
-                  {body.runtime} · {body.skills?.length ?? 0} skills ·{" "}
-                  {body.toolsets?.reduce(
-                    (total, toolset) => total + toolset.tools.length,
-                    0,
-                  ) ?? 0}{" "}
-                  tools
-                </span>
-                <code className="catalog-exact-selector">
-                  {item.ref.name}@{item.ref.version}
-                </code>
-                <span className="catalog-agent-open">
-                  Inspect exact version →
-                </span>
-              </Link>
+              <article className="panel catalog-agent-family" key={name}>
+                <label className="catalog-agent-version">
+                  Version
+                  <select
+                    aria-label={`Version of ${name}`}
+                    value={item.ref.version}
+                    onChange={(event) =>
+                      setChoices((previous) => ({
+                        ...previous,
+                        [name]: event.target.value,
+                      }))
+                    }
+                  >
+                    {versions.map((version) => (
+                      <option
+                        key={version.ref.version}
+                        value={version.ref.version}
+                      >
+                        {version.ref.version}
+                      </option>
+                    ))}
+                  </select>
+                  <small>
+                    {versions.length} matching{" "}
+                    {versions.length === 1 ? "version" : "versions"} on this
+                    page
+                  </small>
+                </label>
+                <Link
+                  className="catalog-agent-card"
+                  to={agentPath(item.ref.name, item.ref.version)}
+                  state={{
+                    returnTo,
+                    returnLabel: "Agent search",
+                    returnState: location.state,
+                  }}
+                >
+                  <div className="catalog-agent-identity">
+                    <strong>{item.ref.name}</strong>
+                    <span className="state-badge">{item.ref.version}</span>
+                  </div>
+                  <p>{body.description || "No authored description."}</p>
+                  <span className="muted-copy">
+                    {body.runtime} · {body.skills?.length ?? 0} skills ·{" "}
+                    {body.toolsets?.reduce(
+                      (total, toolset) => total + toolset.tools.length,
+                      0,
+                    ) ?? 0}{" "}
+                    tools
+                  </span>
+                  <code className="catalog-exact-selector">
+                    {item.ref.name}@{item.ref.version}
+                  </code>
+                  <span className="catalog-agent-open">
+                    Inspect exact version →
+                  </span>
+                </Link>
+              </article>
             );
           })}
         </div>

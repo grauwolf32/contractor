@@ -1062,7 +1062,10 @@ describe("Workflow routes", () => {
       "eval-ui-01",
     );
     await user.type(screen.getByLabelText("Run metadata label value 4"), "a");
-    await user.type(screen.getByLabelText(/^objective/i), "Build public API");
+    await user.type(
+      screen.getByLabelText(/^objective/i),
+      "Build public API\nInclude exposed routes.",
+    );
     await screen.findByRole("option", {
       name: /projects\/source@revision-7/,
     });
@@ -1108,7 +1111,7 @@ describe("Workflow routes", () => {
         "eval.name": "openapi-browser",
         purpose: "eval",
       },
-      parameters: { objective: "Build public API" },
+      parameters: { objective: "Build public API\nInclude exposed routes." },
       artifacts: {
         source: {
           namespace: "projects",

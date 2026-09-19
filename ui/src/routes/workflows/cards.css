@@ -266,3 +266,10 @@
     width: 100%;
   }
 }
+.workflow-card-status small {
+  display: block;
+  color: var(--muted-strong);
+  font-weight: 400;
+  line-height: 1.6;
+  margin-top: 0.3rem;
+}
