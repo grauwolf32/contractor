@@ -189,6 +189,7 @@ type Finding struct {
 }
 
 type FindingListParams struct {
+	AuditRevision  *uint64
 	OwnerID        string
 	AuditID        string
 	State          *FindingState
@@ -201,6 +202,7 @@ type FindingListParams struct {
 }
 
 type ReviewListParams struct {
+	AuditRevision  *uint64
 	OwnerID        string
 	AuditID        string
 	FindingID      *string

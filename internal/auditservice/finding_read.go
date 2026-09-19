@@ -9,6 +9,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const findingFilterSQL = `
+  FROM audit_findings AS finding
+  JOIN audits AS audit USING (audit_id)
+  LEFT JOIN audit_review_decisions AS decision
+    ON decision.decision_id = finding.current_decision_id
+ WHERE audit.owner_id = $1 AND finding.audit_id = $2
+   AND ($3::text IS NULL OR finding.state = $3)
+   AND ($4::text IS NULL OR decision.verdict = $4)
+   AND (NOT $5::boolean OR finding.current_decision_id IS NULL)
+   AND ($6::text IS NULL OR decision.severity = $6)`
+
 func (s *Service) ListFindings(
 	ctx context.Context, params FindingListParams,
 ) ([]Finding, error) {
@@ -30,15 +41,7 @@ func (s *Service) ListFindings(
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT `+findingRowColumns+`
-  FROM audit_findings AS finding
-  JOIN audits AS audit USING (audit_id)
-  LEFT JOIN audit_review_decisions AS decision
-    ON decision.decision_id = finding.current_decision_id
- WHERE audit.owner_id = $1 AND finding.audit_id = $2
-   AND ($3::text IS NULL OR finding.state = $3)
-   AND ($4::text IS NULL OR decision.verdict = $4)
-   AND (NOT $5::boolean OR finding.current_decision_id IS NULL)
-   AND ($6::text IS NULL OR decision.severity = $6)
+`+findingFilterSQL+`
    AND ($7::timestamptz IS NULL OR
         (finding.created_at, finding.finding_id) > ($7, $8))
  ORDER BY finding.created_at, finding.finding_id

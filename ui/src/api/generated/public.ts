@@ -648,6 +648,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** Read consistent current-round progress and whole-Audit decision counts */
+        get: operations["getAuditWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/reviews/{requestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                requestId: components["parameters"]["ReviewRequestId"];
+            };
+            cookie?: never;
+        };
+        /** Read the exact owned review subject and revision */
+        get: operations["getAuditReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/findings": {
         parameters: {
             query?: never;
@@ -2218,6 +2257,7 @@ export interface components {
         /** @enum {unknown} */
         AuditReportStatus: "pending" | "proposed" | "ready" | "unavailable";
         AuditReport: {
+            review?: components["schemas"]["AuditReviewRequest"];
             status: components["schemas"]["AuditReportStatus"];
             machineArtifact?: components["schemas"]["AuditExactArtifact"];
             summaryArtifact?: components["schemas"]["AuditExactArtifact"];
@@ -2436,11 +2476,38 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        AuditWorkspace: {
+            auditId: components["schemas"]["ResourceId"];
+            auditRevision: number;
+            /** Format: date-time */
+            asOf: string;
+            roundId?: components["schemas"]["ResourceId"];
+            executionState: components["schemas"]["AuditState"];
+            outstandingRuns: number;
+            totalChecks: number;
+            completedChecks: number;
+            issues: number;
+            gaps: number;
+            unchecked: number;
+            findings: number;
+            unreviewedFindings: number;
+            pendingReviews: number;
+        };
         AuditFindingPage: {
+            auditRevision: number;
+            /** Format: date-time */
+            asOf: string;
+            /** @description Whole-Audit count matching all filters before the cursor. */
+            total: number;
             items: components["schemas"]["AuditFinding"][];
             page: components["schemas"]["PageInfo"];
         };
         AuditReviewPage: {
+            auditRevision: number;
+            /** Format: date-time */
+            asOf: string;
+            /** @description Whole-Audit count matching all filters before the cursor. */
+            total: number;
             items: components["schemas"]["AuditReviewRequest"][];
             page: components["schemas"]["PageInfo"];
         };
@@ -5696,6 +5763,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -5780,11 +5848,71 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    getAuditWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped snapshot */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWorkspace"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAuditReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                requestId: components["parameters"]["ReviewRequestId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped snapshot */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditReviewRequest"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     listAuditFindings: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                /** @description Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409. */
+                auditRevision?: number;
                 state?: components["schemas"]["AuditFindingState"];
                 verdict?: "true_positive" | "false_positive" | "unreviewed";
                 severity?: components["schemas"]["AuditFindingSeverity"];
@@ -5811,6 +5939,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -5929,6 +6058,8 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                /** @description Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409. */
+                auditRevision?: number;
                 finding?: components["schemas"]["ResourceId"];
                 state?: components["schemas"]["AuditReviewState"];
             };
@@ -5954,6 +6085,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };

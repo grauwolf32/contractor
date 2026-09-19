@@ -1130,6 +1130,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/finding-proposals:
@@ -1198,6 +1199,43 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/audits/{auditId}/workspace:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: getAuditWorkspace
+      tags: [Audits]
+      summary: Read consistent current-round progress and whole-Audit decision counts
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Owner-scoped snapshot
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditWorkspace'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/reviews/{requestId}:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+      - $ref: '#/components/parameters/ReviewRequestId'
+    get:
+      operationId: getAuditReview
+      tags: [Audits]
+      summary: Read the exact owned review subject and revision
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Owner-scoped snapshot
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}, ETag: {$ref: '#/components/headers/ETag'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewRequest'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/audits/{auditId}/findings:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -1209,6 +1247,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
+        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409.'}
         - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingState'}}
         - {name: verdict, in: query, required: false, schema: {enum: [true_positive, false_positive, unreviewed]}}
         - {name: severity, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingSeverity'}}
@@ -1220,6 +1259,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/findings/{findingId}:
@@ -1307,6 +1347,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
+        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409.'}
         - {name: finding, in: query, required: false, schema: {$ref: '#/components/schemas/ResourceId'}}
         - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditReviewState'}}
       responses:
@@ -1317,6 +1358,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/reviews/{requestId}/decisions:
@@ -4096,6 +4138,7 @@ components:
       additionalProperties: false
       required: [status]
       properties:
+        review: {$ref: '#/components/schemas/AuditReviewRequest'}
         status: {$ref: '#/components/schemas/AuditReportStatus'}
         machineArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
         summaryArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
@@ -4376,18 +4419,43 @@ components:
         revision: {type: integer, minimum: 1}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    AuditWorkspace:
+      type: object
+      additionalProperties: false
+      required: [auditId, auditRevision, asOf, executionState, outstandingRuns, totalChecks, completedChecks, issues, gaps, unchecked, findings, unreviewedFindings, pendingReviews]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        auditRevision: {type: integer, minimum: 1}
+        asOf: {type: string, format: date-time}
+        roundId: {$ref: '#/components/schemas/ResourceId'}
+        executionState: {$ref: '#/components/schemas/AuditState'}
+        outstandingRuns: {type: integer, minimum: 0}
+        totalChecks: {type: integer, minimum: 0}
+        completedChecks: {type: integer, minimum: 0}
+        issues: {type: integer, minimum: 0}
+        gaps: {type: integer, minimum: 0}
+        unchecked: {type: integer, minimum: 0}
+        findings: {type: integer, minimum: 0}
+        unreviewedFindings: {type: integer, minimum: 0}
+        pendingReviews: {type: integer, minimum: 0}
     AuditFindingPage:
       type: object
       additionalProperties: false
-      required: [items, page]
+      required: [items, page, auditRevision, asOf, total]
       properties:
+        auditRevision: {type: integer, minimum: 1}
+        asOf: {type: string, format: date-time}
+        total: {type: integer, minimum: 0, description: Whole-Audit count matching all filters before the cursor.}
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFinding'}}
         page: {$ref: '#/components/schemas/PageInfo'}
     AuditReviewPage:
       type: object
       additionalProperties: false
-      required: [items, page]
+      required: [items, page, auditRevision, asOf, total]
       properties:
+        auditRevision: {type: integer, minimum: 1}
+        asOf: {type: string, format: date-time}
+        total: {type: integer, minimum: 0, description: Whole-Audit count matching all filters before the cursor.}
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditReviewRequest'}}
         page: {$ref: '#/components/schemas/PageInfo'}
     AuditFindingProvenance:

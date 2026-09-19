@@ -1522,8 +1522,38 @@ attempts; deleted Runs retain readable provenance instead of broken-only links.
 Unreviewed findings display no analyst rating. Stale edits refetch current
 state after conflict and never overwrite another decision silently.
 
-The Reviews view also renders pending item-action and report requests with an
-explicit rationale and exact-subject controls. Applicability reviews offer
+The Audit heading combines profile, Project and creation date, with the exact ID
+and a copy action. `GET /v1/audits/{auditId}/workspace` returns one owner-scoped
+SQL snapshot (`auditRevision`, `asOf`): current-round completed/total checks,
+issues, gaps and unchecked work, plus whole-Audit unreviewed findings and pending
+reviews. Completed includes concluded assessments and explicit exclusions; none
+of these counts imply accepted findings or an approved report.
+
+Findings and Reviews use bounded server pages. Their `total` covers the entire
+normalized filter, before the cursor; it is never inferred from visible rows.
+Finding filters distinguish disposition, analyst verdict (including unreviewed)
+and analyst severity from a model suggestion. Reviews filter pending/decided/
+expired. Both projections include `auditRevision` and `asOf`; optional
+`auditRevision` pins the first page to a summary. Signed continuation cursors bind
+owner, Audit, normalized filters and revision. A revision fence includes count,
+page and finding hydration, returning 409 on concurrent changes. Filter changes
+clear incompatible cursors/revision pins. Refresh explicitly starts a new context.
+Coverage links also pin the summary revision; the UI checks it before and after
+collecting the current-round coverage pages and rejects mixed revisions.
+
+Each review links directly to an exact finding or proposed report with retained
+evidence. The return link preserves the queue URL, filters and cursor. An exact
+review read exposes its ETag; missing subjects and mismatched revisions show an
+unavailable/stale state without an actionable decision. Proposed report reads
+include their exact review request and retained bytes under an Audit revision
+fence; approval/rejection is offered alongside that report, only for its matching
+pending request. Historical or unavailable report requests cannot silently decide
+a replacement report. Conflicts refresh evidence without replaying a mutation.
+Duplicate finding decisions also accept an exact same-Audit target ID from another
+page; the existing Server ownership and duplicate validation still apply.
+
+The Reviews view renders pending item-action requests with an explicit rationale
+and exact-subject controls. Applicability reviews offer
 `approve`, `reject`, and `not_applicable`; the last action settles the item with
 a durable owner rationale and removes only that item from the applicable
 denominator. Other item and report reviews remain approve/reject. A proposed report

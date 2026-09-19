@@ -106,6 +106,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/audits/{auditId}/items",
 		"GET /v1/audits/{auditId}/report",
 		"GET /v1/audits/{auditId}/reviews",
+		"GET /v1/audits/{auditId}/reviews/{requestId}",
+		"GET /v1/audits/{auditId}/workspace",
 		"GET /v1/auth/session",
 		"GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions",
 		"GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings",

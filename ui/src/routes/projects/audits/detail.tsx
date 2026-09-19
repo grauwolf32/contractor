@@ -1,3 +1,4 @@
+import { AuditQueueError, AuditQueuePage, useAuditQueue } from "./queue";
 import { AuditProgress } from "./progress";
 import { ContextLink, ReturnLink } from "../../../app/context-navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +26,9 @@ import {
   decideAuditFinding,
   getAudit,
   getAuditReport,
+  getAuditFinding,
+  getAuditReview,
+  type AuditFindingState,
   listAuditFindingProvenance,
   listAuditFindings,
   listAuditItems,
@@ -731,6 +735,7 @@ function FindingReviewControls({
           <label>
             Canonical finding
             <select
+              aria-label="Canonical finding"
               value={duplicateTargetId}
               onChange={(event) => setDuplicateTargetId(event.target.value)}
             >
@@ -744,6 +749,14 @@ function FindingReviewControls({
                 </option>
               ))}
             </select>
+            <span>
+              Or enter an exact finding ID from another page in this Audit
+            </span>
+            <input
+              aria-label="Canonical finding ID"
+              value={duplicateTargetId}
+              onChange={(event) => setDuplicateTargetId(event.target.value)}
+            />
           </label>
         ) : null}
       </div>
@@ -890,60 +903,188 @@ function FindingProvenanceView({
   );
 }
 
-function AuditFindings({ audit }: { audit: Audit }) {
+function FindingInQueue({
+  audit,
+  finding,
+  siblings,
+}: {
+  audit: Audit;
+  finding: AuditFinding;
+  siblings: AuditFinding[];
+}) {
   const api = usePublicAPI();
-  const findings = useQuery({
-    queryKey: queryKeys.audits.allFindings(audit.auditId),
-    queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditFindings(
-          api,
-          audit.auditId,
-          cursor === undefined ? {} : { cursor },
-        ),
-      ),
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
-    refetchOnReconnect: true,
-  });
+  const queryClient = useQueryClient();
   const reviews = useQuery({
-    queryKey: queryKeys.audits.allReviews(audit.auditId),
+    queryKey: [
+      ...queryKeys.audits.reviews(audit.auditId, finding.findingId),
+      "pending",
+    ],
     queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditReviews(
-          api,
-          audit.auditId,
-          cursor === undefined ? {} : { cursor },
-        ),
-      ),
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
-    refetchOnReconnect: true,
+      listAuditReviews(api, audit.auditId, {
+        finding: finding.findingId,
+        state: "pending",
+      }),
   });
-  if (findings.isPending || reviews.isPending) {
-    return <p className="loading-copy">Loading findings…</p>;
-  }
-  if (findings.error !== null) return <ErrorNotice error={findings.error} />;
-  if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
-  if (findings.data.length === 0) {
-    return (
-      <div className="empty-state panel">
-        <h3>No finding candidates</h3>
-        <p>A successful Run alone does not create or confirm a finding.</p>
-        <ContextLink
-          returnLabel="Audit findings"
-          to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
-        >
-          View all project findings →
-        </ContextLink>
-      </div>
-    );
-  }
-  const pending = new Map(
-    reviews.data
-      .filter((request) => request.state === "pending")
-      .map((request) => [request.findingId, request]),
+  const pending = reviews.data?.items.find(
+    (review) => review.state === "pending",
   );
   return (
+    <AuditFindingCard
+      audit={audit}
+      finding={finding}
+      findings={siblings}
+      {...(pending === undefined ? {} : { pendingReview: pending })}
+      reviewLoading={reviews.isPending}
+      reviewError={
+        reviews.error ??
+        (pending !== undefined && pending.subjectRevision !== finding.revision
+          ? new Error(
+              "Finding evidence changed. Refresh the context before deciding.",
+            )
+          : null)
+      }
+      onRetryReview={() =>
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.audits.detail(audit.auditId),
+        })
+      }
+    />
+  );
+}
+
+function ExactFinding({
+  audit,
+  findingId,
+  reviewId,
+}: {
+  audit: Audit;
+  findingId: string;
+  reviewId: string | null;
+}) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const finding = useQuery({
+    queryKey: [
+      ...queryKeys.audits.detail(audit.auditId),
+      "findings",
+      findingId,
+      "exact",
+    ],
+    queryFn: () => getAuditFinding(api, audit.auditId, findingId),
+  });
+  const review = useQuery({
+    queryKey: [...queryKeys.audits.detail(audit.auditId), "reviews", reviewId],
+    queryFn: () => getAuditReview(api, audit.auditId, reviewId!),
+    enabled: reviewId !== null,
+  });
+  const refresh = () =>
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.audits.detail(audit.auditId),
+    });
+  if (finding.error !== null || review.error !== null)
+    return (
+      <AuditQueueError
+        error={(finding.error ?? review.error)!}
+        onRefresh={refresh}
+      />
+    );
+  if (finding.isPending || (reviewId !== null && review.isPending))
+    return <p role="status">Loading exact finding and review…</p>;
+  const stale =
+    review.data !== undefined &&
+    (review.data.subjectKind !== "finding" ||
+      review.data.findingId !== findingId ||
+      (review.data.state === "pending" &&
+        review.data.subjectRevision !== finding.data.revision));
+  return (
     <div className="audit-finding-list">
+      <AuditAnchor />
+      {stale ? (
+        <div className="notice notice-error">
+          The requested review no longer matches this finding revision. Refresh
+          the context before making a decision.
+          <button type="button" className="secondary-button" onClick={refresh}>
+            Refresh context
+          </button>
+        </div>
+      ) : null}
+      {stale || review.data?.state === "pending" ? (
+        <AuditFindingCard
+          audit={audit}
+          finding={finding.data}
+          findings={[finding.data]}
+          {...(!stale && review.data?.state === "pending"
+            ? { pendingReview: review.data }
+            : {})}
+          reviewError={
+            stale ? new Error("Review subject revision changed") : null
+          }
+        />
+      ) : null}
+      {!stale && review.data?.state !== "pending" ? (
+        <FindingInQueue
+          audit={audit}
+          finding={finding.data}
+          siblings={[finding.data]}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function AuditFindings({ audit }: { audit: Audit }) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const queue = useAuditQueue();
+  const state = queue.params.get("state") ?? "";
+  const verdict = queue.params.get("verdict") ?? "";
+  const severity = queue.params.get("severity") ?? "";
+  const exactId = queue.params.get("finding");
+  const findings = useQuery({
+    queryKey: [
+      ...queryKeys.audits.allFindings(audit.auditId),
+      queue.params.toString(),
+    ],
+    queryFn: () =>
+      listAuditFindings(api, audit.auditId, {
+        ...queue.request,
+        ...([
+          "proposed",
+          "confirmed",
+          "rejected",
+          "duplicate",
+          "needs-evidence",
+        ].includes(state)
+          ? { state: state as AuditFindingState }
+          : {}),
+        ...(["unreviewed", "true_positive", "false_positive"].includes(verdict)
+          ? {
+              verdict: verdict as
+                "unreviewed" | "true_positive" | "false_positive",
+            }
+          : {}),
+        ...(FINDING_SEVERITIES.includes(severity as AuditFindingSeverity)
+          ? { severity: severity as AuditFindingSeverity }
+          : {}),
+      }),
+    enabled: exactId === null,
+  });
+  const refresh = () => {
+    queue.refresh();
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.audits.detail(audit.auditId),
+    });
+  };
+  if (exactId !== null)
+    return (
+      <ExactFinding
+        audit={audit}
+        findingId={exactId}
+        reviewId={queue.params.get("review")}
+      />
+    );
+  return (
+    <section className="audit-finding-list">
       <AuditAnchor />
       <div className="section-heading">
         <h3>Findings in this audit</h3>
@@ -954,18 +1095,90 @@ function AuditFindings({ audit }: { audit: Audit }) {
           View all project findings →
         </ContextLink>
       </div>
-      {findings.data.map((finding) => (
-        <AuditFindingCard
-          key={finding.findingId}
-          audit={audit}
-          finding={finding}
-          findings={findings.data}
-          {...(pending.has(finding.findingId)
-            ? { pendingReview: pending.get(finding.findingId)! }
-            : {})}
-        />
-      ))}
-    </div>
+      <div className="audit-review-fields">
+        <label>
+          Finding disposition
+          <select
+            value={state}
+            onChange={(event) => queue.change("state", event.target.value)}
+          >
+            <option value="">All dispositions</option>
+            {[
+              "proposed",
+              "confirmed",
+              "rejected",
+              "duplicate",
+              "needs-evidence",
+            ].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Analyst verdict
+          <select
+            value={verdict}
+            onChange={(event) => queue.change("verdict", event.target.value)}
+          >
+            <option value="">All verdicts</option>
+            <option value="unreviewed">Unreviewed</option>
+            <option value="true_positive">True positive</option>
+            <option value="false_positive">False positive</option>
+          </select>
+        </label>
+        <label>
+          Analyst severity
+          <select
+            value={severity}
+            onChange={(event) => queue.change("severity", event.target.value)}
+          >
+            <option value="">All severities</option>
+            {FINDING_SEVERITIES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="muted-copy">
+        Severity filters apply to analyst decisions. Model proposals remain
+        separate from accepted findings.
+      </p>
+      {findings.isPending ? (
+        <p role="status">Loading findings…</p>
+      ) : findings.error !== null ? (
+        <AuditQueueError error={findings.error} onRefresh={refresh} />
+      ) : (
+        <>
+          <AuditQueuePage
+            page={findings.data}
+            currentRevision={audit.revision}
+            queue={queue}
+            onRefresh={refresh}
+          />
+          {findings.data.items.length === 0 ? (
+            <div className="empty-state panel">
+              <h3>No matching finding candidates</h3>
+              <p>
+                A successful Run alone does not create or confirm a finding.
+              </p>
+            </div>
+          ) : (
+            findings.data.items.map((finding) => (
+              <FindingInQueue
+                key={finding.findingId}
+                audit={audit}
+                finding={finding}
+                siblings={findings.data.items}
+              />
+            ))
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1206,22 +1419,30 @@ function ActionReviewControls({
 }
 
 function AuditReviews({ audit }: { audit: Audit }) {
-  const [filters, setFilters] = useSearchParams();
-  const pendingOnly = filters.get("state") === "pending";
+  const queue = useAuditQueue();
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const state = queue.params.get("state") ?? "";
+  const pendingOnly = state === "pending";
   const reviews = useQuery({
-    queryKey: queryKeys.audits.allReviews(audit.auditId),
+    queryKey: [
+      ...queryKeys.audits.allReviews(audit.auditId),
+      queue.params.toString(),
+    ],
     queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditReviews(
-          api,
-          audit.auditId,
-          cursor === undefined ? {} : { cursor },
-        ),
-      ),
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
-    refetchOnReconnect: true,
+      listAuditReviews(api, audit.auditId, {
+        ...queue.request,
+        ...(["pending", "decided", "expired"].includes(state)
+          ? { state: state as AuditReviewRequest["state"] }
+          : {}),
+      }),
   });
+  const refresh = () => {
+    queue.refresh();
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.audits.detail(audit.auditId),
+    });
+  };
   const items = useQuery({
     queryKey: queryKeys.audits.allItems(audit.auditId),
     queryFn: () =>
@@ -1233,7 +1454,7 @@ function AuditReviews({ audit }: { audit: Audit }) {
         ),
       ),
     enabled:
-      reviews.data?.some(
+      reviews.data?.items.some(
         (review) => review.subjectKind === "audit-item-action",
       ) ?? false,
     refetchOnReconnect: true,
@@ -1249,10 +1470,9 @@ function AuditReviews({ audit }: { audit: Audit }) {
   };
   if (reviews.isPending)
     return <p className="loading-copy">Loading reviews…</p>;
-  if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
-  const visibleReviews = reviews.data.filter(
-    (review) => !pendingOnly || review.state === "pending",
-  );
+  if (reviews.error !== null)
+    return <AuditQueueError error={reviews.error} onRefresh={refresh} />;
+  const visibleReviews = reviews.data.items;
   return (
     <section className="panel audit-section-panel">
       <AuditAnchor />
@@ -1261,26 +1481,25 @@ function AuditReviews({ audit }: { audit: Audit }) {
           <p className="eyebrow">Decisions and review history</p>
           <h3>Human reviews</h3>
         </div>
-        <span>
-          {reviews.data.filter((review) => review.state === "pending").length}{" "}
-          pending · {reviews.data.length} total
-        </span>
       </div>
       <label className="audit-review-filter">
         Review state
         <select
-          value={pendingOnly ? "pending" : "all"}
-          onChange={(event) => {
-            const next = new URLSearchParams(filters);
-            if (event.target.value === "pending") next.set("state", "pending");
-            else next.delete("state");
-            setFilters(next, { replace: true, preventScrollReset: true });
-          }}
+          value={state || "all"}
+          onChange={(event) => queue.change("state", event.target.value)}
         >
           <option value="all">All reviews</option>
           <option value="pending">Pending decisions</option>
+          <option value="decided">Decided</option>
+          <option value="expired">Expired</option>
         </select>
       </label>
+      <AuditQueuePage
+        page={reviews.data}
+        currentRevision={audit.revision}
+        queue={queue}
+        onRefresh={refresh}
+      />
       {items.error === null ? null : (
         <div className="notice">
           <p>
@@ -1340,9 +1559,17 @@ function AuditReviews({ audit }: { audit: Audit }) {
               {review.subjectKind === "finding" ? (
                 <ContextLink
                   returnLabel="Audit reviews"
-                  to={`/projects/${encodeURIComponent(audit.projectId)}/findings?audit=${encodeURIComponent(audit.auditId)}#finding-${encodeURIComponent(audit.auditId)}-${encodeURIComponent(review.findingId ?? review.subjectId)}`}
+                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/findings?finding=${encodeURIComponent(review.findingId ?? review.subjectId)}&review=${encodeURIComponent(review.requestId)}`}
                 >
                   Review finding →
+                </ContextLink>
+              ) : null}
+              {review.subjectKind === "audit-report" ? (
+                <ContextLink
+                  returnLabel="Audit reviews"
+                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/report?review=${encodeURIComponent(review.requestId)}`}
+                >
+                  Review report →
                 </ContextLink>
               ) : null}
               <details className="audit-record-details">
@@ -1376,7 +1603,7 @@ function AuditReviews({ audit }: { audit: Audit }) {
                     <p className="muted-copy">No decision recorded.</p>
                   )}
                   {review.state === "pending" &&
-                  review.subjectKind !== "finding" ? (
+                  review.subjectKind === "audit-item-action" ? (
                     <ActionReviewControls audit={audit} review={review} />
                   ) : null}
                 </>
@@ -1484,6 +1711,8 @@ function AuditReportView({
   audit: Audit;
   api: ReturnType<typeof usePublicAPI>;
 }) {
+  const [params] = useSearchParams();
+  const requestedReview = params.get("review");
   const report = useQuery({
     queryKey: queryKeys.audits.report(audit.auditId),
     queryFn: () => getAuditReport(api, audit.auditId),
@@ -1491,7 +1720,13 @@ function AuditReportView({
     refetchOnReconnect: true,
   });
   if (report.isPending) return <p className="loading-copy">Loading report…</p>;
-  if (report.error !== null) return <ErrorNotice error={report.error} />;
+  if (report.error !== null)
+    return (
+      <AuditQueueError
+        error={report.error}
+        onRefresh={() => void report.refetch()}
+      />
+    );
   function downloadReport(
     name: string,
     mediaType: string,
@@ -1513,6 +1748,13 @@ function AuditReportView({
         </div>
         <StateBadge state={report.data.status} />
       </div>
+      {requestedReview !== null &&
+      report.data.review?.requestId !== requestedReview ? (
+        <div className="notice notice-error" role="status">
+          The requested report review is unavailable or no longer current. This
+          report cannot be used to decide that review.
+        </div>
+      ) : null}
       {report.data.status === "pending" ? (
         <p>
           The Audit has not reached report generation. Pending is not a
@@ -1529,14 +1771,7 @@ function AuditReportView({
             <div className="notice">
               <strong>This exact report is awaiting owner acceptance.</strong>
               <p>
-                Review its frozen contents, then approve or reject it in the{" "}
-                <ContextLink
-                  returnLabel="Audit report"
-                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/reviews`}
-                >
-                  Reviews section
-                </ContextLink>
-                .
+                Review the exact frozen contents below before making a decision.
               </p>
             </div>
           ) : null}
@@ -1604,6 +1839,12 @@ function AuditReportView({
           )}
         </>
       )}
+      {report.data.status === "proposed" &&
+      report.data.review?.state === "pending" &&
+      (requestedReview === null ||
+        requestedReview === report.data.review.requestId) ? (
+        <ActionReviewControls audit={audit} review={report.data.review} />
+      ) : null}
     </section>
   );
 }
@@ -1633,6 +1874,32 @@ function AuditSectionContent({
     case "report":
       return <AuditReportView audit={audit} api={api} />;
   }
+}
+
+function AuditIdentity({ audit }: { audit: Audit }) {
+  const [copyStatus, setCopyStatus] = useState("");
+  return (
+    <div className="audit-identity">
+      <time dateTime={audit.createdAt}>{formatTimestamp(audit.createdAt)}</time>
+      <code>{audit.auditId}</code>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => {
+          void navigator.clipboard.writeText(audit.auditId).then(
+            () => setCopyStatus("Copied Audit ID"),
+            () =>
+              setCopyStatus(
+                "Copy unavailable. Select the Audit ID to copy it manually.",
+              ),
+          );
+        }}
+      >
+        Copy Audit ID
+      </button>
+      <span role="status">{copyStatus}</span>
+    </div>
+  );
 }
 
 export function ProjectAuditDetailRoute() {
@@ -1705,9 +1972,11 @@ export function ProjectAuditDetailRoute() {
           <h2>
             {audit.data === undefined ? "Audit" : auditProfileLabel(audit.data)}
           </h2>
-          <p className="audit-identity">
-            <code>{audit.data?.auditId ?? auditId}</code>
-          </p>
+          {audit.data === undefined ? (
+            <code>{auditId}</code>
+          ) : (
+            <AuditIdentity audit={audit.data} />
+          )}
         </div>
         {audit.data === undefined ? null : (
           <div className="audit-header-state">

@@ -146,6 +146,21 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if coverage[0].Details == nil || coverage[0].Details.Objective == "" || !json.Valid(coverage[0].Details.TaskDocument) {
 		t.Fatalf("coverage omitted the retained task: %+v", coverage[0].Details)
 	}
+	for _, tc := range []struct {
+		status                             string
+		completed, issues, gaps, unchecked int
+	}{
+		{"not-tested", 0, 0, 0, 1}, {"blocked", 0, 0, 1, 0}, {"violated", 1, 1, 0, 0}, {"satisfied", 1, 0, 0, 0}, {"traced-partial", 0, 0, 1, 0}, {"not-applicable", 1, 0, 0, 0},
+	} {
+		if _, err := pool.Exec(ctx, `UPDATE audit_coverage_rows SET status=$1 WHERE audit_id=$2`, tc.status, draft.AuditID); err != nil {
+			t.Fatal(err)
+		}
+		summary, err := service.GetWorkspace(ctx, project.OwnerID, draft.AuditID)
+		if err != nil || summary.TotalChecks != 1 || summary.CompletedChecks != tc.completed || summary.Issues != tc.issues || summary.Gaps != tc.gaps || summary.Unchecked != tc.unchecked || summary.RoundID == nil || *summary.RoundID != started.Round.RoundID {
+			t.Fatalf("coverage summary for %s: %+v err=%v", tc.status, summary, err)
+		}
+	}
+
 	credentials.setAvailable(false)
 	guardCalls := guard.callsCount()
 	replayedStart, err := service.Start(ctx, StartParams{

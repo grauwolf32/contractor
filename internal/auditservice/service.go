@@ -201,12 +201,18 @@ func (s *Service) GetReport(
 	machine, machineErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
 	summary, summaryErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
 	status := ReportReady
+	var review *ReviewRequest
 	if audit.State == auditstore.AuditWaitingReview &&
 		errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
 		candidate, candidateErr := store.GetReportCandidate(ctx, auditID)
 		if candidateErr == nil {
 			machine, summary = candidate.Machine, candidate.Summary
 			machineErr, summaryErr, status = nil, nil, ReportProposed
+			request, reviewErr := s.GetReview(ctx, ownerID, auditID, candidate.RequestID)
+			if reviewErr != nil {
+				return ReportProjection{}, reviewErr
+			}
+			review = &request
 		} else if !errors.Is(candidateErr, auditstore.ErrNotFound) {
 			return ReportProjection{}, candidateErr
 		}
@@ -250,9 +256,12 @@ func (s *Service) GetReport(
 	if json.Unmarshal(machineRead.Payload.Data, &object) != nil || object == nil {
 		return ReportProjection{}, errors.New("stored Audit machine report is not an object")
 	}
+	if err := s.checkPageRevision(ctx, ownerID, auditID, audit.Revision); err != nil {
+		return ReportProjection{}, err
+	}
 	machineArtifact, summaryArtifact := machine.Artifact, summary.Artifact
 	return ReportProjection{
-		Status: status, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
+		Review: review, Status: status, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
 		Machine: append(json.RawMessage(nil), machineRead.Payload.Data...), Summary: string(summaryRead.Payload.Data),
 	}, nil
 }

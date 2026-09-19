@@ -198,6 +198,9 @@ type ProjectManagement interface {
 }
 
 type AuditManagement interface {
+	GetWorkspace(context.Context, string, string) (auditservice.WorkspaceSummary, error)
+	ListFindingsPage(context.Context, auditservice.FindingListParams) (auditservice.FindingPage, error)
+	ListReviewsPage(context.Context, auditservice.ReviewListParams) (auditservice.ReviewPage, error)
 	Profiles() []auditservice.ProfileProjection
 	Profile(auditservice.ProfileSelector) (auditservice.ProfileProjection, error)
 	Standards(context.Context, string) ([]auditstandards.PackageProjection, error)

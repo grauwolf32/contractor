@@ -1392,7 +1392,7 @@ describe("Project Audit routes", () => {
           name: "Missing object authorization",
         }),
       ).toBeVisible();
-      expect(screen.getByText("Unreviewed")).toBeVisible();
+      expect(screen.getByText("Unreviewed", { selector: "dd" })).toBeVisible();
       expect(
         await screen.findByText("order endpoint", { selector: "strong" }),
       ).toBeVisible();
@@ -1794,6 +1794,22 @@ describe("Project Audit routes", () => {
             headers: { ETag: `"${current.revision}"` },
           });
         }
+        if (path.endsWith("/workspace"))
+          return jsonResponse({
+            auditId: current.auditId,
+            auditRevision: current.revision,
+            asOf: current.updatedAt,
+            executionState: current.state,
+            outstandingRuns: 0,
+            totalChecks: 0,
+            completedChecks: 0,
+            issues: 0,
+            gaps: 0,
+            unchecked: 0,
+            findings: 0,
+            unreviewedFindings: 0,
+            pendingReviews: 0,
+          });
         if (path.endsWith("/coverage") || path.endsWith("/reviews"))
           return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${request.method} ${path}`);
@@ -2035,6 +2051,23 @@ describe("Project Audit routes", () => {
           return jsonResponse(project, { headers: { ETag: '"1"' } });
         if (url.pathname === "/v1/audits/audit_example")
           return jsonResponse(completed, { headers: { ETag: '"4"' } });
+        if (url.pathname.endsWith("/workspace"))
+          return jsonResponse({
+            auditId: completed.auditId,
+            auditRevision: 4,
+            asOf: completed.updatedAt,
+            roundId: "round_example",
+            executionState: completed.state,
+            outstandingRuns: 0,
+            totalChecks: 3,
+            completedChecks: 1,
+            issues: 0,
+            gaps: 1,
+            unchecked: 1,
+            findings: 51,
+            unreviewedFindings: 51,
+            pendingReviews: 1,
+          });
         if (url.pathname.endsWith("/coverage")) {
           expect(url.searchParams.get("round")).toBe("round_example");
           coverageCursors.push(cursor);
@@ -2052,14 +2085,13 @@ describe("Project Audit routes", () => {
         }
         if (url.pathname.endsWith("/reviews")) {
           reviewCursors.push(cursor);
-          return jsonResponse(
-            cursor === null
-              ? {
-                  items: [],
-                  page: { hasMore: true, nextCursor: "reviews-next" },
-                }
-              : { items: [review], page: { hasMore: false } },
-          );
+          return jsonResponse({
+            items: [review],
+            page: { hasMore: false },
+            auditRevision: 4,
+            asOf: completed.updatedAt,
+            total: 1,
+          });
         }
         throw new Error(`unexpected ${url.pathname}`);
       }),
@@ -2072,19 +2104,21 @@ describe("Project Audit routes", () => {
       name: "Audit progress",
     });
     expect(
-      await within(progress).findByRole("link", { name: "All checks: 3" }),
+      await within(progress).findByRole("link", {
+        name: "Completed / total checks: 1 / 3",
+      }),
     ).toHaveAttribute(
       "href",
-      "/projects/project_example/audits/audit_example/coverage",
+      "/projects/project_example/audits/audit_example/coverage?auditRevision=4",
     );
     expect(
       within(progress).getByRole("link", { name: "Need follow-up: 1" }),
     ).toHaveAttribute(
       "href",
-      "/projects/project_example/audits/audit_example/coverage?result=uncertain",
+      "/projects/project_example/audits/audit_example/coverage?result=uncertain&auditRevision=4",
     );
-    expect(coverageCursors).toEqual([null, "coverage-next"]);
-    expect(reviewCursors).toEqual([null, "reviews-next"]);
+    expect(coverageCursors).toEqual([]);
+    expect(reviewCursors).toEqual([]);
     const user = userEvent.setup();
     await user.click(
       await within(progress).findByRole("link", {
@@ -2094,15 +2128,160 @@ describe("Project Audit routes", () => {
     expect(
       await screen.findByRole("combobox", { name: "Review state" }),
     ).toHaveValue("pending");
-    expect(router.state.location.search).toBe("?state=pending");
-    expect(router.state.location.hash).toBe("#review-review_report");
+    expect(router.state.location.search).toBe("?state=pending&auditRevision=4");
+    expect(router.state.location.hash).toBe("");
     expect(document.getElementById("review-review_report")).toBeVisible();
-    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+    expect(reviewCursors).toEqual([null]);
     HTMLElement.prototype.scrollIntoView = previousScroll;
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Review state" }),
       "all",
     );
     expect(router.state.location.search).toBe("");
+  });
+});
+
+describe("Audit workspace snapshot navigation", () => {
+  it("uses whole-filter totals, pins continuations, and resets stale cursors on filter changes", async () => {
+    const audit = auditAt("completed", 5);
+    const queries: URLSearchParams[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/audits/audit_example")
+          return jsonResponse(audit, { headers: { ETag: '"5"' } });
+        if (url.pathname.endsWith("/findings")) {
+          queries.push(url.searchParams);
+          if (url.searchParams.has("cursor"))
+            return jsonResponse(
+              {
+                code: "conflict",
+                message: "Audit changed",
+                retryable: false,
+                requestId: "stale",
+              },
+              { status: 409 },
+            );
+          return jsonResponse({
+            items: [findingAt("proposed", 1)],
+            page: { hasMore: true, nextCursor: "next-exact" },
+            total: url.searchParams.has("severity") ? 7 : 65,
+            auditRevision: 5,
+            asOf: audit.updatedAt,
+          });
+        }
+        if (url.pathname.endsWith("/reviews"))
+          return jsonResponse({
+            items: [],
+            page: { hasMore: false },
+            total: 0,
+            auditRevision: 5,
+            asOf: audit.updatedAt,
+          });
+        throw new Error(`unexpected ${url}`);
+      }),
+    );
+    const { router } = renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/findings?verdict=unreviewed",
+    );
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText(/Showing 1 of 65 matching records/),
+    ).toBeVisible();
+    expect(queries).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Next page" }));
+    expect(await screen.findByText(/This Audit changed/)).toBeVisible();
+    expect(queries.at(-1)?.get("cursor")).toBe("next-exact");
+    expect(queries.at(-1)?.get("auditRevision")).toBe("5");
+    expect(queries.at(-1)?.get("verdict")).toBe("unreviewed");
+    await user.selectOptions(screen.getByLabelText("Analyst severity"), "high");
+    expect(
+      await screen.findByText(/Showing 1 of 7 matching records/),
+    ).toBeVisible();
+    expect(router.state.location.search).toBe(
+      "?verdict=unreviewed&severity=high",
+    );
+    expect(queries.at(-1)?.has("cursor")).toBe(false);
+    expect(queries.at(-1)?.has("auditRevision")).toBe(false);
+  });
+
+  it("opens the exact report from a paged review queue, preserves return context and blocks a different review", async () => {
+    const audit = auditAt("waiting_review", 5);
+    const review: AuditReviewRequest = {
+      requestId: "report-review",
+      auditId: audit.auditId,
+      subjectKind: "audit-report",
+      subjectId: audit.auditId,
+      kind: "report-acceptance",
+      subjectRevision: 4,
+      subjectDigest: `sha256:${"b".repeat(64)}`,
+      requestedActions: ["approve", "reject"],
+      state: "pending",
+      revision: 1,
+      createdAt: audit.createdAt,
+      updatedAt: audit.updatedAt,
+    };
+    const mutations: string[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (request.method !== "GET") mutations.push(request.method);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/audits/audit_example")
+          return jsonResponse(audit, { headers: { ETag: '"5"' } });
+        if (url.pathname.endsWith("/reviews"))
+          return jsonResponse({
+            items: [review],
+            page: { hasMore: false },
+            total: 51,
+            auditRevision: 5,
+            asOf: audit.updatedAt,
+          });
+        if (url.pathname.endsWith("/report"))
+          return jsonResponse({
+            status: "proposed",
+            summary: "Exact retained evidence for owner acceptance.",
+            review,
+          });
+        throw new Error(`unexpected ${url}`);
+      }),
+    );
+    const queue =
+      "/projects/project_example/audits/audit_example/reviews?state=pending&cursor=page-two&auditRevision=5";
+    const { router } = renderApplication(api, queue);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("link", { name: "Review report →" }),
+    );
+    expect(
+      await screen.findByText("Exact retained evidence for owner acceptance."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Approve exact subject" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("link", { name: "← Audit reviews" }));
+    expect(router.state.location.pathname + router.state.location.search).toBe(
+      queue,
+    );
+    await router.navigate(
+      "/projects/project_example/audits/audit_example/report?review=removed-review",
+    );
+    expect(
+      await screen.findByText(/requested report review is unavailable/),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Approve exact subject" }),
+    ).not.toBeInTheDocument();
+    expect(mutations).toEqual([]);
   });
 });

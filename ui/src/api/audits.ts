@@ -37,6 +37,19 @@ export type AuditFindingProvenancePage =
 export type DecideAuditFindingRequest =
   components["schemas"]["DecideAuditFindingRequest"];
 
+export type AuditWorkspace = components["schemas"]["AuditWorkspace"];
+export interface FindingPageRequest extends PageRequest {
+  auditRevision?: number;
+  state?: AuditFindingState;
+  verdict?: "true_positive" | "false_positive" | "unreviewed";
+  severity?: AuditFindingSeverity;
+}
+export interface ReviewPageRequest extends PageRequest {
+  auditRevision?: number;
+  finding?: string;
+  state?: AuditReviewRequest["state"];
+}
+
 export interface PageRequest {
   cursor?: string;
 }
@@ -480,22 +493,20 @@ export async function getAuditReport(
 export async function listAuditFindings(
   api: PublicAPI,
   auditId: string,
-  request: PageRequest = {},
+  request: FindingPageRequest = {},
 ): Promise<AuditFindingPage> {
   requireAuditID(auditId);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}/findings", {
       params: {
         path: { auditId },
-        query: {
-          limit: AUDIT_PAGE_SIZE,
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-        },
+        query: { limit: AUDIT_PAGE_SIZE, ...request },
       },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return { items: structuredClone(page.items), page: page.page };
+  const value = requireData(result);
+  const page = safePage(value, result.response.status);
+  return { ...value, items: structuredClone(page.items), page: page.page };
 }
 
 export async function getAuditFinding(
@@ -521,7 +532,7 @@ export async function getAuditFinding(
 export async function listAuditReviews(
   api: PublicAPI,
   auditId: string,
-  request: PageRequest & { finding?: string } = {},
+  request: ReviewPageRequest = {},
 ): Promise<AuditReviewPage> {
   requireAuditID(auditId);
   if (request.finding !== undefined) requireAuditID(request.finding);
@@ -529,18 +540,13 @@ export async function listAuditReviews(
     client.GET("/v1/audits/{auditId}/reviews", {
       params: {
         path: { auditId },
-        query: {
-          limit: AUDIT_PAGE_SIZE,
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-          ...(request.finding === undefined
-            ? {}
-            : { finding: request.finding }),
-        },
+        query: { limit: AUDIT_PAGE_SIZE, ...request },
       },
     }),
   );
-  const page = safePage(requireData(result), result.response.status);
-  return { items: structuredClone(page.items), page: page.page };
+  const value = requireData(result);
+  const page = safePage(value, result.response.status);
+  return { ...value, items: structuredClone(page.items), page: page.page };
 }
 
 export async function createAuditFindingReview(
@@ -673,4 +679,44 @@ export function auditNeedsPolling(state: AuditState): boolean {
     state === "cancelling" ||
     state === "deleting"
   );
+}
+
+export async function getAuditWorkspace(
+  api: PublicAPI,
+  auditId: string,
+): Promise<AuditWorkspace> {
+  requireAuditID(auditId);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/workspace", {
+      params: { path: { auditId } },
+    }),
+  );
+  const value = requireData(result);
+  if (
+    value.auditId !== auditId ||
+    !Number.isSafeInteger(value.auditRevision) ||
+    value.auditRevision < 1 ||
+    !Number.isFinite(Date.parse(value.asOf))
+  )
+    throw invalidAuditResponse(result.response.status);
+  return structuredClone(value);
+}
+
+export async function getAuditReview(
+  api: PublicAPI,
+  auditId: string,
+  requestId: string,
+): Promise<AuditReviewRequest> {
+  requireAuditID(auditId);
+  requireAuditID(requestId);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/reviews/{requestId}", {
+      params: { path: { auditId, requestId } },
+    }),
+  );
+  const value = requireData(result);
+  if (value.auditId !== auditId || value.requestId !== requestId)
+    throw invalidAuditResponse(result.response.status);
+  requireRevisionETag(result.response, value.revision);
+  return structuredClone(value);
 }

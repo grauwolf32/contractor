@@ -36,6 +36,10 @@
 }
 
 .audit-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
   margin: 0.6rem 0 0;
   color: var(--muted);
   font-size: 0.8rem;
@@ -918,4 +922,9 @@
 }
 .audit-review-card {
   scroll-margin-top: 5rem;
+}
+
+.audit-queue-pagination {
+  display: grid;
+  gap: 0.5rem;
 }

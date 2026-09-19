@@ -156,6 +156,52 @@ INSERT INTO audit_finding_assessments (
 	if _, err := reader.ListFindings(ctx, FindingListParams{OwnerID: "other-owner", AuditID: auditID, Limit: 5}); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign page error=%v", err)
 	}
+	t.Run("workspace counts filters revisions and owner boundary", func(t *testing.T) {
+		snapshot, err := reader.GetWorkspace(ctx, owner, auditID)
+		if err != nil || snapshot.Findings != 65 || snapshot.UnreviewedFindings != 0 || snapshot.PendingReviews != 0 || snapshot.AsOf.IsZero() {
+			t.Fatalf("snapshot=%+v err=%v", snapshot, err)
+		}
+		high, low, confirmed := SeverityHigh, SeverityLow, FindingConfirmed
+		for _, tc := range []struct {
+			severity   *FindingSeverity
+			unreviewed bool
+			want       int
+		}{{&high, false, 65}, {&low, false, 0}, {nil, true, 0}} {
+			page, err := reader.ListFindingsPage(ctx, FindingListParams{OwnerID: owner, AuditID: auditID, State: &confirmed, Severity: tc.severity, Unreviewed: tc.unreviewed, Limit: 5, AuditRevision: &snapshot.AuditRevision})
+			if err != nil || page.Total != tc.want || len(page.Items) > 5 || page.AuditRevision != snapshot.AuditRevision {
+				t.Fatalf("page=%+v err=%v", page, err)
+			}
+		}
+		page, err := reader.ListReviewsPage(ctx, ReviewListParams{OwnerID: owner, AuditID: auditID, Limit: 2})
+		if err != nil || page.Total != 65 || len(page.Items) != 2 {
+			t.Fatalf("reviews=%+v err=%v", page, err)
+		}
+		pending := ReviewPending
+		page, err = reader.ListReviewsPage(ctx, ReviewListParams{OwnerID: owner, AuditID: auditID, State: &pending, Limit: 2})
+		if err != nil || page.Total != 0 || len(page.Items) != 0 {
+			t.Fatalf("pending=%+v err=%v", page, err)
+		}
+		if _, err := reader.GetWorkspace(ctx, "other-owner", auditID); !errors.Is(err, auditstore.ErrNotFound) {
+			t.Fatalf("foreign snapshot: %v", err)
+		}
+		if _, err := reader.ListFindingsPage(ctx, FindingListParams{OwnerID: "other-owner", AuditID: auditID, Limit: 5}); !errors.Is(err, auditstore.ErrNotFound) {
+			t.Fatalf("foreign count: %v", err)
+		}
+		if _, err := reader.ListReviewsPage(ctx, ReviewListParams{OwnerID: "other-owner", AuditID: auditID, Limit: 5}); !errors.Is(err, auditstore.ErrNotFound) {
+			t.Fatalf("foreign reviews: %v", err)
+		}
+		// A concurrent semantic change invalidates both kinds of continuation.
+		if _, err := pool.Exec(ctx, `UPDATE audits SET revision=revision+1 WHERE audit_id=$1`, auditID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := reader.ListFindingsPage(ctx, FindingListParams{OwnerID: owner, AuditID: auditID, AuditRevision: &snapshot.AuditRevision, AfterCreatedAt: &last.CreatedAt, AfterFindingID: last.FindingID, Limit: 5}); !errors.Is(err, auditstore.ErrConflict) {
+			t.Fatalf("stale findings: %v", err)
+		}
+		if _, err := reader.ListReviewsPage(ctx, ReviewListParams{OwnerID: owner, AuditID: auditID, AuditRevision: &snapshot.AuditRevision, Limit: 5}); !errors.Is(err, auditstore.ErrConflict) {
+			t.Fatalf("stale reviews: %v", err)
+		}
+	})
+
 	receiptID := firstPage[0].FirstProposal.ReceiptID
 	if _, err := readerIntake.GetAuditReceipts(ctx, "other-owner", auditID, []string{receiptID}); !errors.Is(err, findingintake.ErrNotFound) {
 		t.Fatalf("foreign receipt error=%v", err)

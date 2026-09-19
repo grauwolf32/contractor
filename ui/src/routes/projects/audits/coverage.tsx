@@ -209,7 +209,17 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
         <button
           className="secondary-button"
           disabled={coverage.isFetching}
-          onClick={() => void coverage.refetch()}
+          onClick={() => {
+            setParams(
+              (previous) => {
+                const next = new URLSearchParams(previous);
+                next.delete("auditRevision");
+                return next;
+              },
+              { replace: true },
+            );
+            void coverage.refetch();
+          }}
         >
           Retry loading coverage
         </button>
@@ -243,7 +253,17 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
         <button
           className="secondary-button"
           disabled={coverage.isFetching}
-          onClick={() => void coverage.refetch()}
+          onClick={() => {
+            setParams(
+              (previous) => {
+                const next = new URLSearchParams(previous);
+                next.delete("auditRevision");
+                return next;
+              },
+              { replace: true },
+            );
+            void coverage.refetch();
+          }}
         >
           {coverage.isFetching ? "Refreshing…" : "Refresh results"}
         </button>

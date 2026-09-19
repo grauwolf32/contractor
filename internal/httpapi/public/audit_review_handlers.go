@@ -14,11 +14,13 @@ import (
 )
 
 type findingPageResponse struct {
+	auditservice.PageBasis
 	Items []auditservice.Finding `json:"items"`
 	Page  pageInfoResponse       `json:"page"`
 }
 
 type reviewPageResponse struct {
+	auditservice.PageBasis
 	Items []auditservice.ReviewRequest `json:"items"`
 	Page  pageInfoResponse             `json:"page"`
 }
@@ -44,7 +46,7 @@ type decideFindingRequest struct {
 
 func (h *handler) listAuditFindings(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	query, limit, cursorValue, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity")
+	query, limit, cursorValue, err := pageQuery(r.URL.RawQuery, "state", "verdict", "severity", "auditRevision")
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -82,12 +84,13 @@ func (h *handler) listAuditFindings(w http.ResponseWriter, r *http.Request) {
 		}
 		params.Severity, severityValue = &value, values[0]
 	}
-	cursorKind := "audit-findings:" + params.AuditID + ":" + stateValue + ":" + verdictValue + ":" + severityValue
-	cursor, err := h.decodePageCursor(cursorValue, cursorKind, 2)
+	cursorKind := "audit-findings:" + params.OwnerID + ":" + params.AuditID + ":" + stateValue + ":" + verdictValue + ":" + severityValue
+	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"))
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+	params.AuditRevision = revision
 	if len(cursor) != 0 {
 		createdAt, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
@@ -96,23 +99,24 @@ func (h *handler) listAuditFindings(w http.ResponseWriter, r *http.Request) {
 		}
 		params.AfterCreatedAt, params.AfterFindingID = &createdAt, cursor[1]
 	}
-	findings, err := h.dependencies.Audits.ListFindings(r.Context(), params)
+	result, err := h.dependencies.Audits.ListFindingsPage(r.Context(), params)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+	findings := result.Items
 	page := pageInfoResponse{}
 	if len(findings) > limit {
 		findings = findings[:limit]
 		last := findings[len(findings)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID)
+		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID, strconv.FormatUint(result.AuditRevision, 10))
 		if cursorErr != nil {
 			h.handleError(w, cursorErr)
 			return
 		}
 		page.HasMore, page.NextCursor = true, &next
 	}
-	writeJSON(w, http.StatusOK, findingPageResponse{Items: findings, Page: page})
+	writeJSON(w, http.StatusOK, findingPageResponse{Items: findings, Page: page, PageBasis: result.PageBasis})
 }
 
 func (h *handler) getAuditFinding(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +177,7 @@ func (h *handler) createAuditFindingReview(w http.ResponseWriter, r *http.Reques
 
 func (h *handler) listAuditReviews(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	query, limit, cursorValue, err := pageQuery(r.URL.RawQuery, "finding", "state")
+	query, limit, cursorValue, err := pageQuery(r.URL.RawQuery, "finding", "state", "auditRevision")
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -193,12 +197,13 @@ func (h *handler) listAuditReviews(w http.ResponseWriter, r *http.Request) {
 		}
 		params.State, stateValue = &value, values[0]
 	}
-	cursorKind := "audit-reviews:" + params.AuditID + ":" + findingValue + ":" + stateValue
-	cursor, err := h.decodePageCursor(cursorValue, cursorKind, 2)
+	cursorKind := "audit-reviews:" + params.OwnerID + ":" + params.AuditID + ":" + findingValue + ":" + stateValue
+	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"))
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+	params.AuditRevision = revision
 	if len(cursor) != 0 {
 		createdAt, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
@@ -207,23 +212,24 @@ func (h *handler) listAuditReviews(w http.ResponseWriter, r *http.Request) {
 		}
 		params.AfterCreatedAt, params.AfterRequestID = &createdAt, cursor[1]
 	}
-	reviews, err := h.dependencies.Audits.ListReviews(r.Context(), params)
+	result, err := h.dependencies.Audits.ListReviewsPage(r.Context(), params)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+	reviews := result.Items
 	page := pageInfoResponse{}
 	if len(reviews) > limit {
 		reviews = reviews[:limit]
 		last := reviews[len(reviews)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RequestID)
+		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RequestID, strconv.FormatUint(result.AuditRevision, 10))
 		if cursorErr != nil {
 			h.handleError(w, cursorErr)
 			return
 		}
 		page.HasMore, page.NextCursor = true, &next
 	}
-	writeJSON(w, http.StatusOK, reviewPageResponse{Items: reviews, Page: page})
+	writeJSON(w, http.StatusOK, reviewPageResponse{Items: reviews, Page: page, PageBasis: result.PageBasis})
 }
 
 func (h *handler) decideAuditReview(w http.ResponseWriter, r *http.Request) {
@@ -386,4 +392,66 @@ func reviewRequestDigest(kind string, identity ...any) string {
 	}{Schema: "contractor.audit.review-request.v1", Kind: kind, Identity: identity})
 	digest := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(digest[:])
+}
+
+// Continuations bind owner, filters and Audit revision. A caller may also pin
+// its first page to a summary revision; incompatible cursors are never reused.
+func (h *handler) decodeAuditPageCursor(value, kind, expected string) ([]string, *uint64, error) {
+	var revision *uint64
+	if expected != "" {
+		parsed, err := strconv.ParseUint(expected, 10, 64)
+		if err != nil || parsed == 0 {
+			return nil, nil, errInvalidRequest
+		}
+		revision = &parsed
+	}
+	cursor, err := h.decodePageCursor(value, kind, 3)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(cursor) != 0 {
+		parsed, err := strconv.ParseUint(cursor[2], 10, 64)
+		if err != nil || parsed == 0 || (revision != nil && *revision != parsed) {
+			return nil, nil, errInvalidRequest
+		}
+		revision = &parsed
+	}
+	return cursor, revision, nil
+}
+
+func (h *handler) getAuditWorkspace(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.dependencies.Audits == nil {
+		h.handleError(w, fmt.Errorf("Audit service is not configured"))
+		return
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	result, err := h.dependencies.Audits.GetWorkspace(r.Context(), principalUserID(r.Context()), r.PathValue("auditId"))
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *handler) getAuditReview(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.dependencies.Audits == nil {
+		h.handleError(w, fmt.Errorf("Audit service is not configured"))
+		return
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	result, err := h.dependencies.Audits.GetReview(r.Context(), principalUserID(r.Context()), r.PathValue("auditId"), r.PathValue("requestId"))
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(result.Revision, 10)))
+	writeJSON(w, http.StatusOK, result)
 }

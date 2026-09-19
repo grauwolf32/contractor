@@ -330,6 +330,31 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 			management.findingListParams, listResponse.Body.String())
 	}
 
+	if findingPage.Total != 2 || findingPage.AuditRevision != 9 || findingPage.AsOf.IsZero() {
+		t.Fatalf("missing page basis: %+v", findingPage)
+	}
+	for _, tc := range []struct {
+		query    string
+		revision uint64
+		want     int
+	}{
+		{"verdict=true_positive&severity=high&cursor=" + url.QueryEscape(*findingPage.Page.NextCursor), 9, 200},
+		{"verdict=true_positive&severity=low&cursor=" + url.QueryEscape(*findingPage.Page.NextCursor), 9, 400},
+		{"verdict=true_positive&severity=high&cursor=" + url.QueryEscape(*findingPage.Page.NextCursor), 10, 409},
+		{"auditRevision=9", 10, 409},
+		{"auditRevision=0", 9, 400},
+	} {
+		management.audit.Revision = tc.revision
+		request := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/findings?"+tc.query, nil)
+		request.SetPathValue("auditId", "audit-fixed")
+		response := httptest.NewRecorder()
+		h.listAuditFindings(response, request)
+		if response.Code != tc.want {
+			t.Fatalf("query %s: status=%d body=%s", tc.query, response.Code, response.Body.String())
+		}
+	}
+	management.audit.Revision = 9
+
 	detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/findings/finding-one", nil)
 	detail.SetPathValue("auditId", "audit-fixed")
 	detail.SetPathValue("findingId", "finding-one")
@@ -777,3 +802,21 @@ func auditHandlerDigest(value string) string {
 
 var _ AuditManagement = (*fakeAuditManagement)(nil)
 var _ FindingProposalManagement = (*fakeFindingProposalManagement)(nil)
+
+func (f *fakeAuditManagement) GetWorkspace(_ context.Context, _, _ string) (auditservice.WorkspaceSummary, error) {
+	return auditservice.WorkspaceSummary{AuditID: f.audit.AuditID, AuditRevision: f.audit.Revision, AsOf: time.Now(), ExecutionState: string(f.audit.State)}, f.err
+}
+func (f *fakeAuditManagement) ListFindingsPage(ctx context.Context, params auditservice.FindingListParams) (auditservice.FindingPage, error) {
+	if params.AuditRevision != nil && *params.AuditRevision != f.audit.Revision {
+		return auditservice.FindingPage{}, auditstore.ErrConflict
+	}
+	items, err := f.ListFindings(ctx, params)
+	return auditservice.FindingPage{Items: items, PageBasis: auditservice.PageBasis{AuditRevision: f.audit.Revision, AsOf: time.Now(), Total: len(items)}}, err
+}
+func (f *fakeAuditManagement) ListReviewsPage(ctx context.Context, params auditservice.ReviewListParams) (auditservice.ReviewPage, error) {
+	if params.AuditRevision != nil && *params.AuditRevision != f.audit.Revision {
+		return auditservice.ReviewPage{}, auditstore.ErrConflict
+	}
+	items, err := f.ListReviews(ctx, params)
+	return auditservice.ReviewPage{Items: items, PageBasis: auditservice.PageBasis{AuditRevision: f.audit.Revision, AsOf: time.Now(), Total: len(items)}}, err
+}
