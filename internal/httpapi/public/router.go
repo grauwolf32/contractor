@@ -76,6 +76,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	current.registerCatalogRoutes(mux)
 	current.registerProjectRoutes(mux)
 	current.registerAuditRoutes(mux)
+	current.registerEvalRoutes(mux)
 	current.registerOperationsRoutes(mux)
 	current.registerArtifactRoutes(mux)
 	current.registerRunRoutes(mux)

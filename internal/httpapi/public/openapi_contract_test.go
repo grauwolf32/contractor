@@ -76,6 +76,19 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	}
 	sort.Strings(implemented)
 	wantImplemented := []string{
+		"GET /v1/eval-capabilities",
+		"GET /v1/projects/{projectId}/eval-datasets",
+		"POST /v1/projects/{projectId}/eval-datasets",
+		"GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases",
+		"POST /v1/projects/{projectId}/eval-experiments",
+		"GET /v1/eval-experiments",
+		"GET /v1/eval-experiments/{id}",
+		"PATCH /v1/eval-experiments/{id}",
+		"DELETE /v1/eval-experiments/{id}",
+		"POST /v1/eval-experiments/{id}/commands",
+		"GET /v1/eval-experiments/{id}/commands/{commandId}",
+		"GET /v1/eval-experiments/{id}/members",
+		"POST /v1/eval-experiments/{id}/members/{memberId}/submissions",
 		"POST /v1/artifacts/{namespace}/{name}/git-import",
 		"POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import",
 		"DELETE /v1/settings/git-key",

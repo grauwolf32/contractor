@@ -58,3 +58,10 @@ The integration fixtures call real ordinary Run/Audit services but never run
 models or contact targets. Tests lose committed creation/start responses, replace
 coordinators, enforce pin checks and deletion fences, exercise native/external
 ownership, and verify eight-member plans without duplicate effects.
+
+Public authoring/control and bounded observation routes are provided through the
+ordinary authenticated HTTP adapter (V38-005). Mutation responses are retained
+receipts; GET returns current state. Collection lists expose safe summaries,
+while owner detail may include visible draft inputs. Exact capabilities are
+paginated from the existing catalogs. Result collection/comparison follows in
+V38-006; no assessment is inferred from execution success.

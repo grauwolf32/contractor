@@ -39,6 +39,7 @@ func configureHTTP(
 	catalogs catalogServices,
 	workflows workflowServices,
 	audits auditServices,
+	evals evalServices,
 	logger *slog.Logger,
 ) (serverHandlers, error) {
 	gitClient, err := gitimport.NewClient(cfg.GitImport)
@@ -78,6 +79,8 @@ func configureHTTP(
 		RuntimeAgentPrincipals: control.principalOperations,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 audits.service,
+		Evals:                  evals.service,
+		EvalNotifier:           evals.coordinator,
 		FindingProposals:       catalogs.findings,
 		FindingCollections:     collectionPublisher,
 		Metrics:                telemetry.NewRepository(pool),

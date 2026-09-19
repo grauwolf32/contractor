@@ -9,7 +9,10 @@
       "state": "interrupted",
       "revision": 7,
       "expectedMembers": 8,
-      "updatedAt": "2026-09-19T10:00:02Z"
+      "updatedAt": "2026-09-19T10:00:02Z",
+      "draft": {
+        "private": "must not be listed"
+      }
     }
   ],
   "page": {

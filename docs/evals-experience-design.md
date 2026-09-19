@@ -1,6 +1,6 @@
 # Evals: experiment setup, execution and comparison
 
-Status: **Product decisions resolved in V38-001; V38-002 contracts and V38-003 persistence implemented. Runtime and UI implementation follows.**
+Status: **V38-001 design and V38-002–005 contracts, persistence, coordination and public authoring/control APIs implemented. Result comparison and browser implementation follow in V38-006–010.**
 The user selected the complete browser journey and explicitly required Contractor
 to remain independent of Playground. The managed Playground service proposed in
 the earlier draft is superseded.
@@ -317,8 +317,9 @@ change an existing frozen Playground experiment.
 - Confirmed the delivered spec 26 bytes are unchanged. The optional external
   client and Go implementation will share protocol fixtures, not runtime imports.
 
-This verifies the design and decomposition only. No planned endpoint, coordinator,
-browser journey or model-quality result is represented as implemented or tested.
+This section records design-time verification. Implementation evidence is tracked
+separately in the individual tasks; it does not claim a tested browser journey or
+model-quality result.
 
 ### Chart and execution-kind consistency review — 2026-09-19
 

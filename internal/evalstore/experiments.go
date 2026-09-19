@@ -186,6 +186,7 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 	identity := document.Digest()
 	var manifest evaldomain.PublicPlan
 	var order []string
+	reasons := map[string]*string{}
 	if document.Kind() == "ExternalRegistration" {
 		var reg evaldomain.ExternalRegistration
 		if err := json.Unmarshal(document.Bytes(), &reg); err != nil {
@@ -200,12 +201,19 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 			return err
 		}
 		var native struct {
-			Order []string `json:"execution_order"`
+			Order   []string `json:"execution_order"`
+			Members []struct {
+				ID     string  `json:"member_id"`
+				Reason *string `json:"reason"`
+			} `json:"members"`
 		}
 		if err = json.Unmarshal(document.Bytes(), &native); err != nil {
 			return err
 		}
 		order = native.Order
+		for _, member := range native.Members {
+			reasons[member.ID] = member.Reason
+		}
 	}
 	if manifest.ExperimentID != e.PortableID || len(manifest.Members) != len(cases) || len(manifest.Members) > settings.Budgets.MaxMembers {
 		return evaldomain.Failure("eval_member_conflict")
@@ -267,7 +275,7 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		}
 		// Scope the effect key by the server identity, not the portable ID alone.
 		key := "eval-" + evaldomain.Digest(bytesOf([]string{e.ID, m.MemberID}))[7:]
-		_, err = s.db.Exec(ctx, `INSERT INTO eval_members(experiment_id,member_id,pair_id,ordinal,suite_id,case_id,sample,variant_id,eligibility,execution_kind,recipe,submission_key,case_sha256,binding_sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, e.ID, m.MemberID, pair, ordinal, m.SuiteID, m.CaseID, m.Sample, m.VariantID, m.Eligibility, kind, bytesOf(Recipe{visible, v}), key, m.CaseSHA256, m.BindingSHA256)
+		_, err = s.db.Exec(ctx, `INSERT INTO eval_members(experiment_id,member_id,pair_id,ordinal,suite_id,case_id,sample,variant_id,eligibility,execution_kind,recipe,submission_key,case_sha256,binding_sha256,eligibility_reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, e.ID, m.MemberID, pair, ordinal, m.SuiteID, m.CaseID, m.Sample, m.VariantID, m.Eligibility, kind, bytesOf(Recipe{visible, v}), key, m.CaseSHA256, m.BindingSHA256, reasons[m.MemberID])
 		if err != nil {
 			return normalize(err)
 		}

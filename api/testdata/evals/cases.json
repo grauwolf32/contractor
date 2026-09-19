@@ -648,5 +648,12 @@
     "kind": "Experiment",
     "file": "valid/draft-experiment.json",
     "valid": true
+  },
+  {
+    "name": "experiment-page-private",
+    "kind": "ExperimentPage",
+    "file": "invalid/experiment-page-private.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
   }
 ]

@@ -198,7 +198,7 @@ func RunCLI(
 	}
 	handlers, err := configureHTTP(
 		pool, configurationManager, cfg, authentication, browserOrigins, eventHub,
-		credentialSet, control, catalogs, workflows, audits, logger,
+		credentialSet, control, catalogs, workflows, audits, evals, logger,
 	)
 	if err != nil {
 		return err

@@ -211,6 +211,8 @@ type FindingProposalManagement interface {
 }
 
 type Dependencies struct {
+	Evals                   EvalManagement
+	EvalNotifier            interface{ Wake() }
 	GitImports              GitImportService
 	GitKeys                 GitKeySettings
 	Authentication          *auth.Service

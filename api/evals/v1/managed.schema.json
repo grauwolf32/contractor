@@ -2142,6 +2142,47 @@
           },
           "uniqueItems": true,
           "maxItems": 7
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadlineAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deletionRequestedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          },
+          "maxItems": 128
+        },
+        "observedTokens": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -2273,6 +2314,16 @@
           "minItems": 0,
           "maxItems": 16,
           "uniqueItems": true
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BindingCapability"
+          },
+          "maxItems": 100
+        },
+        "page": {
+          "$ref": "#/$defs/Page"
         }
       },
       "required": [
@@ -2553,7 +2604,7 @@
         "items": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/Experiment"
+            "$ref": "#/$defs/ExperimentSummary"
           },
           "minItems": 0,
           "maxItems": 100
@@ -3293,6 +3344,142 @@
         "comparison",
         "budgets"
       ]
+    },
+    "ExperimentSummary": {
+      "type": "object",
+      "properties": {
+        "experimentId": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "projectId": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "controlMode": {
+          "enum": [
+            "server",
+            "external"
+          ]
+        },
+        "executionKind": {
+          "enum": [
+            "workflow",
+            "audit"
+          ]
+        },
+        "state": {
+          "enum": [
+            "draft",
+            "preparing",
+            "ready",
+            "running",
+            "settling",
+            "finished",
+            "pausing",
+            "paused",
+            "cancelling",
+            "cancelled",
+            "interrupted"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedMembers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "updatedAt": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "experimentId",
+        "projectId",
+        "name",
+        "controlMode",
+        "executionKind",
+        "state",
+        "revision",
+        "expectedMembers",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ExperimentReceipt": {
+      "type": "object",
+      "properties": {
+        "experimentId": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "enum": [
+            "draft",
+            "preparing",
+            "ready",
+            "running",
+            "settling",
+            "finished",
+            "pausing",
+            "paused",
+            "cancelling",
+            "cancelled",
+            "interrupted"
+          ]
+        }
+      },
+      "required": [
+        "experimentId",
+        "revision",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "BindingCapability": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "workflow",
+            "audit"
+          ]
+        },
+        "selector": {
+          "$ref": "#/$defs/Selector"
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8192
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "selector",
+        "available",
+        "reason"
+      ],
+      "additionalProperties": false
     }
   }
 }

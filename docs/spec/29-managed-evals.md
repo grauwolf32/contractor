@@ -279,14 +279,16 @@ protocol controls and UI retains normal individual Run/Audit actions.
 
 ## Public API contract
 
-All paths are **planned**, not currently available. New endpoints use the same
+The V38-005 authoring, command and member-observation paths are implemented.
+Evidence, assessment, selected comparisons/charts and report paths below remain
+planned for V38-006. Endpoints use the same
 public authentication, cookie CSRF, origin, request-ID, error-envelope and method/
 HEAD rejection conventions as existing handlers. No browser-to-Playground calls.
 JSON uses camelCase DTO fields; retained portable documents keep their own schema.
 
 | Method/path | Request / result |
 | --- | --- |
-| `GET /v1/eval-capabilities` | Safe supported modes, native check IDs, import schema versions and unavailable reasons; no host paths or tokens |
+| `GET /v1/eval-capabilities` | Safe modes, check IDs, import versions and paginated exact Workflow/AuditProfile selectors; optional `kind` filter; no host paths or tokens |
 | `GET /v1/projects/{projectId}/eval-datasets` | Paginated dataset identities/revisions, safe provenance and case counts |
 | `POST /v1/projects/{projectId}/eval-datasets` | `datasetId`, `name`, optional safe `source`, visible `cases`, private check/rubric partition; creates immutable revision |
 | `GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases` | Bounded visible case projections for setup; never private expected data |
@@ -308,6 +310,18 @@ JSON uses camelCase DTO fields; retained portable documents keep their own schem
 | `GET /v1/eval-experiments/{id}/charts/{chart}` | Bounded selected-snapshot chart data; chart is `quality`, `tokens`, `duration`, `pair-deltas` or `progress`; scope, units and coverage are explicit |
 | `GET /v1/eval-experiments/{id}/report` | Safe versioned JSON or Markdown export of one complete selected view snapshot |
 | `DELETE /v1/eval-experiments/{id}` | CAS, durable fence/drain/purge receipt; see retention |
+
+Experiment collection rows use `ExperimentSummary`: identity, name, Project,
+control/execution kind, state, revision, expected count and update time. They do
+not include draft/setup or private case documents. Create, draft update,
+duplicate and deletion return a stable `ExperimentReceipt` with experiment ID,
+accepted revision and state. Read the detail separately for its current state;
+an exact replay never silently substitutes a later revision for that receipt.
+Command POST returns its accepted receipt, while command GET observes completion.
+Submission POST acknowledges the durable request; the member view exposes an
+execution only after the common submission service verifies its association.
+Retained owner-scoped mutation receipts remain replayable after experiment purge
+until the owning Project is purged.
 
 Dataset revisions are append-only; another POST with the same datasetId and a new
 idempotency key creates a new revision. A missing body/field, unknown key, duplicate
