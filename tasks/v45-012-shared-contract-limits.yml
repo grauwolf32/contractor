@@ -3,7 +3,8 @@ id: V45-012
 title: Centralize repeated contract limits and Audit schema identity
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 79d30099dab175a749e0b4470f2e34ad565a1162
 depends_on: []
 languages:
 - go
