@@ -134,7 +134,7 @@
   letter-spacing: 0.08em;
 }
 
-.delete-icon-button {
+.delete-icon-button.danger-button {
   border-color: var(--line);
   background: var(--surface-raised);
   color: var(--muted-strong);
@@ -275,4 +275,21 @@
 
 .skip-link:focus {
   transform: none;
+}
+
+.error-details {
+  margin-top: 0.6rem;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+.error-details > summary {
+  cursor: pointer;
+}
+.error-details small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.notice-error > button {
+  align-self: start;
+  justify-self: start;
 }

@@ -95,7 +95,12 @@ export function SkillsRoute() {
             Loading Skills…
           </p>
         ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
+          <ErrorNotice
+            error={query.error}
+            context="Could not load Skills"
+            onRetry={() => void query.refetch()}
+            retryPending={query.isFetching}
+          />
         ) : query.data.items.length === 0 ? (
           <div className="compact-empty">
             <strong>No global Skill packages found.</strong>

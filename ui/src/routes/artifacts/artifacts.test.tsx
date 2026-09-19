@@ -52,6 +52,61 @@ function renderArtifactApplication(api: PublicAPI, path: string) {
 }
 
 describe("Artifact routes", () => {
+  it("recovers a failed filtered read without submitting a write or dropping filters", async () => {
+    let reads = 0;
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/artifacts") {
+          expect(url.searchParams.get("namespace")).toBe("projects");
+          reads += 1;
+          return reads === 1
+            ? jsonResponse(
+                {
+                  code: "unavailable",
+                  message: "Storage is temporarily unavailable",
+                  retryable: false,
+                  requestId: "read-recovery",
+                },
+                { status: 503 },
+              )
+            : jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected request ${url.pathname}`);
+      }),
+    );
+    renderArtifactApplication(api, "/artifacts?namespace=projects");
+    expect(
+      await screen.findByText("Could not load Artifact bindings"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Storage is temporarily unavailable"),
+    ).toBeVisible();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByText("No Artifact bindings found."),
+    ).toBeVisible();
+    expect(
+      within(
+        screen
+          .getByRole("button", { name: "Apply", exact: true })
+          .closest("form")!,
+      ).getByLabelText("Namespace"),
+    ).toHaveValue("projects");
+    expect(
+      screen.queryByRole("navigation", { name: "Artifact pages" }),
+    ).not.toBeInTheDocument();
+    expect(reads).toBe(2);
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+  });
+
   it("lists bindings and creates one exact Artifact without optimistic state", async () => {
     const requests: Request[] = [];
     const current = {

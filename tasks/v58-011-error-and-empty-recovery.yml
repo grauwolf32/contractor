@@ -3,7 +3,7 @@ id: V58-011
 title: Verify coherent recovery and empty states across views
 milestone: ui-design-review
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V58-003
@@ -55,3 +55,9 @@ verification_requirements:
 - Record focused behavior checks and retain current exact-version, auth, revision and secret-handling
   invariants.
 - Browser evidence and final cross-view checks are owned by V58-012.
+verification_results:
+- Focused Artifact, Audit and Operations suites passed (41 tests in 3 files); Run and Eval/Skill suites passed (19 additional tests).
+- Both TypeScript projects, targeted ESLint and production build passed.
+- Fifteen live browser states at 1440, 390 and 320 px passed without overflow, JavaScript errors or writes.
+- Browser verified failed GET recovery retaining namespace, 16 Tab steps contained in the nested dialog, two Escape focus returns, mobile Audit navigation and progressive telemetry fields.
+- Successful Run Results moved to y=753 on the 390 px viewport; evidence and probes are in .local/ui-design-implementation/phase-011.

@@ -2167,6 +2167,12 @@ describe("Project Audit routes", () => {
     expect(router.state.location.hash).toBe("");
     expect(document.getElementById("review-review_report")).toBeVisible();
     expect(reviewCursors).toEqual([null]);
+    expect(
+      screen.queryByRole("button", { name: "Next page" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh context" }),
+    ).toBeEnabled();
     HTMLElement.prototype.scrollIntoView = previousScroll;
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Review state" }),

@@ -196,7 +196,12 @@ function ProjectCollectionRoute({
           Loading {presentation.heading}…
         </p>
       ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
+        <ErrorNotice
+          error={query.error}
+          context={`Could not load ${presentation.kind === "evaluation" ? "Eval workspaces" : "Projects"}`}
+          onRetry={() => void query.refetch()}
+          retryPending={query.isFetching}
+        />
       ) : query.data.items.length === 0 ? (
         <div className="empty-state panel">
           <p className="eyebrow">Nothing here yet</p>

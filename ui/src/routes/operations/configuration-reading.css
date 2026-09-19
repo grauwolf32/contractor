@@ -11,7 +11,8 @@
 }
 .runtime-config-block:has(> legend input[type="checkbox"]:not(:checked))
   > :not(legend) {
-  display: none;
+  /* The shared checkbox label uses an important display rule. */
+  display: none !important;
 }
 .runtime-config-block legend {
   max-width: 100%;

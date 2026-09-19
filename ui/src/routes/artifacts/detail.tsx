@@ -314,7 +314,12 @@ export function ArtifactDetailRoute() {
           Loading Artifact metadata…
         </p>
       ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
+        <ErrorNotice
+          error={query.error}
+          context="Could not load this Artifact"
+          onRetry={() => void query.refetch()}
+          retryPending={query.isFetching}
+        />
       ) : (
         <>
           <ArtifactMetadataSummary metadata={query.data} />

@@ -157,48 +157,57 @@ function RunTriageSummary({
           </Link>
         )}
       </div>
-      <dl className="run-triage-facts">
-        <div>
-          <dt>Duration</dt>
-          <dd>{formatRunDuration(triage.durationMs)}</dd>
-        </div>
-        <div>
-          <dt>Attempts</dt>
-          <dd>{triage.attemptCount}</dd>
-          <small>across all stages</small>
-        </div>
-        <div>
-          <dt>Total tokens</dt>
-          <dd title={triage.metrics?.totalTokens.toLocaleString()}>
-            {triage.metrics === undefined
-              ? "—"
-              : compactMetric(triage.metrics.totalTokens)}
-          </dd>
-          <small>
-            {triage.metrics === undefined
-              ? "not reported"
-              : `${triage.metrics.modelCalls} model call${triage.metrics.modelCalls === 1 ? "" : "s"}${triage.metrics.incomplete ? " · partial" : ""}`}
-          </small>
-        </div>
-        <div>
-          <dt>Tool calls</dt>
-          <dd>
-            {triage.metrics === undefined
-              ? "—"
-              : compactMetric(triage.metrics.toolCalls)}
-          </dd>
-          <small>
-            {triage.metrics === undefined
-              ? "not reported"
-              : `${triage.metrics.errorCount} reported error${triage.metrics.errorCount === 1 ? "" : "s"}`}
-          </small>
-        </div>
-        <div>
-          <dt>Outputs</dt>
-          <dd>{triage.outputCount}</dd>
-          <small>ready to inspect</small>
-        </div>
-      </dl>
+      <details
+        className="run-metrics-disclosure"
+        open={run.state !== "succeeded"}
+      >
+        <summary>
+          Execution metrics · {formatRunDuration(triage.durationMs)} ·{" "}
+          {triage.attemptCount} attempts
+        </summary>
+        <dl className="run-triage-facts">
+          <div>
+            <dt>Duration</dt>
+            <dd>{formatRunDuration(triage.durationMs)}</dd>
+          </div>
+          <div>
+            <dt>Attempts</dt>
+            <dd>{triage.attemptCount}</dd>
+            <small>across all stages</small>
+          </div>
+          <div>
+            <dt>Total tokens</dt>
+            <dd title={triage.metrics?.totalTokens.toLocaleString()}>
+              {triage.metrics === undefined
+                ? "—"
+                : compactMetric(triage.metrics.totalTokens)}
+            </dd>
+            <small>
+              {triage.metrics === undefined
+                ? "not reported"
+                : `${triage.metrics.modelCalls} model call${triage.metrics.modelCalls === 1 ? "" : "s"}${triage.metrics.incomplete ? " · partial" : ""}`}
+            </small>
+          </div>
+          <div>
+            <dt>Tool calls</dt>
+            <dd>
+              {triage.metrics === undefined
+                ? "—"
+                : compactMetric(triage.metrics.toolCalls)}
+            </dd>
+            <small>
+              {triage.metrics === undefined
+                ? "not reported"
+                : `${triage.metrics.errorCount} reported error${triage.metrics.errorCount === 1 ? "" : "s"}`}
+            </small>
+          </div>
+          <div>
+            <dt>Outputs</dt>
+            <dd>{triage.outputCount}</dd>
+            <small>ready to inspect</small>
+          </div>
+        </dl>
+      </details>
       {attemptAnchor === undefined && triage.outputCount === 0 ? null : (
         <nav className="run-triage-actions" aria-label="Run triage shortcuts">
           {attemptAnchor === undefined ? null : (
@@ -847,7 +856,12 @@ export function RunDetailRoute() {
           Loading Run…
         </p>
       ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
+        <ErrorNotice
+          error={query.error}
+          context="Could not load this Run"
+          onRetry={() => void query.refetch()}
+          retryPending={query.isFetching}
+        />
       ) : (
         <LoadedRunDetail
           key={query.data.runId}

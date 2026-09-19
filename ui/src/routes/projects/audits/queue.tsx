@@ -11,16 +11,20 @@ export function AuditQueueError({
   onRefresh: () => void;
 }) {
   return (
-    <div className="notice notice-error">
-      <ErrorNotice error={error} />
+    <div>
+      <ErrorNotice
+        error={error}
+        context="Could not load the Audit queue"
+        onRetry={onRefresh}
+        retryLabel="Refresh context"
+      />
       <p>
         {error instanceof PublicAPIError && error.status === 409
           ? "This Audit changed. Refresh the context to continue; no decision has been replayed."
-          : "The requested subject or page is unavailable. It may have been removed or become inaccessible."}
+          : error instanceof PublicAPIError && error.status === 404
+            ? "The requested subject or page is unavailable. It may have been removed or become inaccessible."
+            : "Refresh the context to load this page again. Your current filters are retained."}
       </p>
-      <button type="button" className="secondary-button" onClick={onRefresh}>
-        Refresh context
-      </button>
     </div>
   );
 }
@@ -65,14 +69,15 @@ export function AuditQueuePage({
             First page
           </button>
         ) : null}
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={!page.page.hasMore || page.page.nextCursor === undefined}
-          onClick={() => queue.next(page)}
-        >
-          Next page
-        </button>
+        {page.page.hasMore && page.page.nextCursor !== undefined ? (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => queue.next(page)}
+          >
+            Next page
+          </button>
+        ) : null}
       </div>
     </div>
   );

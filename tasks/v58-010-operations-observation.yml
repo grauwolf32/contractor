@@ -3,8 +3,8 @@ id: V58-010
 title: Make resource history and current health scannable
 milestone: ui-design-review
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: f5ae4a4f39bc5a1d0bbb15ea2ae3e7248c6cad4e
 depends_on:
 - V58-002
 - V58-009
