@@ -50,6 +50,7 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	var service *auditservice.Service
+	var interleaving *provenanceInterleavingService
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *Dependencies) {
@@ -63,7 +64,8 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			dependencies.Audits = service
+			interleaving = &provenanceInterleavingService{Service: service}
+			dependencies.Audits = interleaving
 		},
 	)
 	for index := range 201 {
@@ -207,6 +209,45 @@ FROM generate_series(1, 200) AS index`, firstFinding, auditID, auditHandlerDiges
 			t.Fatalf("stale continuation = %d: %s", response.Code, response.Body.String())
 		}
 	}
+	// A mutation commits after the handler has read its envelope, but before
+	// the real service reads the page. Both pins must reach the service, even
+	// when the request did not itself supply optional revision query fields.
+	for _, field := range []string{"audit", "finding"} {
+		t.Run("provenance envelope changes before service read/"+field, func(t *testing.T) {
+			called := false
+			interleaving.before = func(ctx context.Context) error {
+				called = true
+				var err error
+				if field == "audit" {
+					_, err = pool.Exec(ctx, `UPDATE audits SET revision=revision+1 WHERE audit_id=$1`, auditID)
+				} else {
+					_, err = pool.Exec(ctx, `UPDATE audit_findings SET revision=revision+1 WHERE audit_id=$1 AND finding_id=$2`, auditID, firstFinding)
+				}
+				return err
+			}
+			response := httptest.NewRecorder()
+			path := "/v1/audits/" + auditID + "/findings/" + firstFinding + "/provenance?limit=200"
+			fixture.handler.ServeHTTP(response, newPublicContractRequest(http.MethodGet, path, nil))
+			if !called || response.Code != http.StatusConflict {
+				t.Fatalf("interleaving called=%t response=%d: %s", called, response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+type provenanceInterleavingService struct {
+	*auditservice.Service
+	before func(context.Context) error
+}
+
+func (s *provenanceInterleavingService) ListFindingProvenance(ctx context.Context, params auditservice.ProvenanceListParams) ([]auditservice.FindingProvenance, error) {
+	if before := s.before; before != nil {
+		s.before = nil
+		if err := before(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return s.Service.ListFindingProvenance(ctx, params)
 }
 
 // Seed retained proposal bytes and receipts through the same Audit-hold

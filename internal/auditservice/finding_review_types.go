@@ -321,10 +321,14 @@ type FindingAttempt struct {
 }
 
 type ProvenanceListParams struct {
-	OwnerID        string
-	AuditID        string
-	FindingID      string
-	AfterCreatedAt *time.Time
-	AfterRecordID  string
-	Limit          int
+	OwnerID   string
+	AuditID   string
+	FindingID string
+	// Optional caller pins bind an HTTP revision envelope or earlier read to
+	// the complete page. Unpinned callers still get a consistent page.
+	AuditRevision   *uint64
+	FindingRevision *uint64
+	AfterCreatedAt  *time.Time
+	AfterRecordID   string
+	Limit           int
 }

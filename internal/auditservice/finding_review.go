@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -400,6 +401,14 @@ func (s *Service) ListFindingProvenance(
 	if err := validateProvenanceList(params); err != nil {
 		return nil, err
 	}
+	before, err := s.readProvenanceRevisions(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if (params.AuditRevision != nil && *params.AuditRevision != before.audit) ||
+		(params.FindingRevision != nil && *params.FindingRevision != before.finding) {
+		return nil, auditstore.ErrConflict
+	}
 	finding, err := s.GetFinding(ctx, params.OwnerID, params.AuditID, params.FindingID)
 	if err != nil {
 		return nil, err
@@ -529,11 +538,6 @@ SELECT created_at, record_id, kind, receipt_id, relation, proposal_ref,
 		if json.Unmarshal(proposalJSON, &value.Proposal) != nil || value.Proposal.Ref.ValidateExact() != nil {
 			return nil, errors.New("stored finding proposal provenance is invalid")
 		}
-		receipt, err := s.findings.GetAuditReceipt(ctx, params.OwnerID, params.AuditID, value.ReceiptID)
-		if err != nil {
-			return nil, err
-		}
-		value.Origin = receipt.Origin
 		if assessmentID != nil {
 			if semantic == nil || assessmentAcceptedAt == nil {
 				return nil, errors.New("stored finding assessment provenance is incomplete")
@@ -615,7 +619,67 @@ SELECT created_at, record_id, kind, receipt_id, relation, proposal_ref,
 		}
 		result = append(result, value)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Receipt hydration acquires from the same pool. Release the provenance
+	// connection first, including for a one-connection pool.
+	rows.Close()
+	ids := make([]string, 0, len(result))
+	origins := make(map[string]findingintake.Origin, len(result))
+	for _, value := range result {
+		if _, seen := origins[value.ReceiptID]; !seen {
+			ids = append(ids, value.ReceiptID)
+			origins[value.ReceiptID] = findingintake.Origin{}
+		}
+	}
+	// A page can include a cursor sentinel; chunk unique receipts by the
+	// existing intake bound without dropping or reordering provenance records.
+	for start := 0; start < len(ids); start += findingintake.MaxAuditReceiptBatchSize {
+		end := min(start+findingintake.MaxAuditReceiptBatchSize, len(ids))
+		receipts, err := s.findings.GetAuditReceipts(ctx, params.OwnerID, params.AuditID, ids[start:end])
+		if err != nil {
+			return nil, err
+		}
+		for _, receipt := range receipts {
+			origins[receipt.ReceiptID] = receipt.Origin
+		}
+	}
+	for index := range result {
+		result[index].Origin = origins[result[index].ReceiptID]
+	}
+	// The final joined snapshot covers rows, exact receipt hydration and the
+	// finding assessment used for SupportsCurrent, even without caller pins.
+	after, err := s.readProvenanceRevisions(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if after != before {
+		return nil, auditstore.ErrConflict
+	}
+	return result, nil
+}
+
+type provenanceRevisions struct {
+	audit   uint64
+	finding uint64
+}
+
+func (s *Service) readProvenanceRevisions(ctx context.Context, params ProvenanceListParams) (provenanceRevisions, error) {
+	var result provenanceRevisions
+	err := s.pool.QueryRow(ctx, `
+SELECT audit.revision, finding.revision
+  FROM audits AS audit
+  JOIN audit_findings AS finding USING (audit_id)
+ WHERE audit.owner_id = $1 AND audit.audit_id = $2 AND finding.finding_id = $3`,
+		params.OwnerID, params.AuditID, params.FindingID).Scan(&result.audit, &result.finding)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return result, auditstore.ErrNotFound
+	}
+	if err != nil {
+		return result, fmt.Errorf("read finding provenance revisions: %w", err)
+	}
+	return result, nil
 }
 
 func lockFinding(
