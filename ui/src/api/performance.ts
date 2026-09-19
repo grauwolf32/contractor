@@ -427,7 +427,9 @@ function safeHistory(
       !kindMatches ||
       !structurallyValid ||
       !Number.isFinite(timestamp) ||
-      timestamp < requestedFrom ||
+      (point.kind === "aggregate"
+        ? timestamp + point.stepSeconds * 1_000 <= requestedFrom
+        : timestamp < requestedFrom) ||
       timestamp >= requestedTo ||
       timestamp < previous
     ) {

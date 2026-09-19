@@ -9,6 +9,7 @@ import {
   listAllocationResourceHistory,
   PERFORMANCE_RANGES,
   performanceHistoryWindow,
+  type PerformanceHistoryPoint,
 } from "./performance";
 
 const runtimeConfig: RuntimeConfig = {
@@ -42,6 +43,27 @@ const disabledSnapshot = {
     pendingMinutes: 0,
   },
 };
+
+function aggregate(
+  minuteStart: string,
+  stepSeconds: 60 | 300 | 3600,
+): PerformanceHistoryPoint {
+  return {
+    kind: "aggregate",
+    version: 1,
+    generation: "generation-1",
+    minuteStart,
+    status: "partial",
+    omittedWindows: 0,
+    coverageSeconds: 30,
+    process: {},
+    pool: {},
+    droppedMinutes: 0,
+    stepSeconds,
+    observedMinutes: 1,
+    expectedMinutes: stepSeconds / 60,
+  };
+}
 
 describe("performance API", () => {
   it("reads the independent current snapshot and rejects fabricated disabled data", async () => {
@@ -158,6 +180,128 @@ describe("performance API", () => {
     await expect(
       getPerformanceHistory(malformed, request),
     ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
+
+  it.each(["24h", "7d"] as const)(
+    "accepts overlapping and aligned %s intervals without dropping points",
+    async (range) => {
+      for (const time of ["12:01:30", "12:00:00"]) {
+        const request = performanceHistoryWindow(
+          range,
+          new Date(`2026-09-06T${time}Z`),
+        );
+        const stepSeconds = range === "24h" ? 300 : 3600;
+        const first =
+          Math.floor(Date.parse(request.from) / (stepSeconds * 1000)) *
+          stepSeconds *
+          1000;
+        for (const points of [
+          [],
+          [aggregate(new Date(first).toISOString(), stepSeconds)],
+        ]) {
+          const api = new PublicAPI(
+            runtimeConfig,
+            vi.fn(async () => response({ ...request, points })),
+          );
+          await expect(getPerformanceHistory(api, request)).resolves.toEqual({
+            ...request,
+            points,
+          });
+        }
+      }
+    },
+  );
+
+  it.each(["24h", "7d"] as const)(
+    "rejects invalid %s aggregate intervals and envelopes",
+    async (range) => {
+      const request = performanceHistoryWindow(
+        range,
+        new Date("2026-09-06T12:01:30Z"),
+      );
+      const from = Date.parse(request.from);
+      const stepSeconds = range === "24h" ? 300 : 3600;
+      const point = aggregate(new Date(from).toISOString(), stepSeconds);
+      const invalidPoints = [
+        [
+          aggregate(
+            new Date(from - stepSeconds * 1000).toISOString(),
+            stepSeconds,
+          ),
+        ],
+        [
+          aggregate(
+            new Date(from - stepSeconds * 2000).toISOString(),
+            stepSeconds,
+          ),
+        ],
+        [aggregate(request.to, stepSeconds)],
+        [aggregate(request.from, stepSeconds === 300 ? 3600 : 300)],
+        [aggregate("not-a-date", stepSeconds)],
+        [
+          {
+            kind: "sample",
+            version: 1,
+            generation: "generation-1",
+            observedAt: request.from,
+          },
+        ],
+        [
+          aggregate(
+            new Date(from + stepSeconds * 1000).toISOString(),
+            stepSeconds,
+          ),
+          point,
+        ],
+        [{ ...point, version: 2 }],
+        Array.from({ length: 1001 }, () => point),
+      ];
+      for (const points of invalidPoints) {
+        const api = new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () => response({ ...request, points })),
+        );
+        await expect(getPerformanceHistory(api, request)).rejects.toMatchObject(
+          { code: "invalid_api_response" },
+        );
+      }
+      const mismatched = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response({ ...request, step: "1m", points: [] })),
+      );
+      await expect(
+        getPerformanceHistory(mismatched, request),
+      ).rejects.toMatchObject({ code: "invalid_api_response" });
+    },
+  );
+
+  it("keeps fine history bounds point-based and half-open", async () => {
+    const request = performanceHistoryWindow(
+      "1h",
+      new Date("2026-09-06T12:01:30Z"),
+    );
+    for (const [observedAt, valid] of [
+      [request.from, true],
+      [new Date(Date.parse(request.to) - 1).toISOString(), true],
+      [new Date(Date.parse(request.from) - 1).toISOString(), false],
+      [request.to, false],
+    ] as const) {
+      const points = [
+        { kind: "sample", version: 1, generation: "generation-1", observedAt },
+      ];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response({ ...request, points })),
+      );
+      if (valid)
+        await expect(
+          getPerformanceHistory(api, request),
+        ).resolves.toMatchObject({ points });
+      else
+        await expect(getPerformanceHistory(api, request)).rejects.toMatchObject(
+          { code: "invalid_api_response" },
+        );
+    }
   });
 
   it("derives quantile bucket bounds without inventing an empty or overflow value", () => {

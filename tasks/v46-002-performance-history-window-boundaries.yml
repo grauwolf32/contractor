@@ -3,7 +3,7 @@ id: "V46-002"
 title: "Accept valid aggregate intervals at Performance history window boundaries"
 milestone: "operations-performance-and-profiling"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 depends_on: ["V32-006"]
 languages: ["typescript", "go"]
 goal: >-

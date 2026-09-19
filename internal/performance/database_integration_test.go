@@ -304,6 +304,55 @@ func TestPostgresDisabledStatisticsAndIndependentSizeFailure(t *testing.T) {
 	assertDiagnosticReusable(t, store)
 }
 
+func TestPostgresHistoryIncludesOverlappingFirstAggregateInterval(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		window, step time.Duration
+		stepName     string
+	}{
+		{"24h", 24 * time.Hour, 5 * time.Minute, "5m"},
+		{"7d", 7 * 24 * time.Hour, time.Hour, "1h"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			working, store, _ := databaseFixture(t)
+			ctx := context.Background()
+			now := time.Date(2026, 9, 19, 12, 1, 30, 0, time.UTC)
+			from := now.Add(-tc.window)
+			first := from.Truncate(time.Minute).Add(time.Minute)
+			minutes := []Minute{
+				{Version: 1, Generation: "boundary", MinuteStart: from.Truncate(time.Minute), Status: Partial, CoverageSeconds: 15},
+				{Version: 1, Generation: "boundary", MinuteStart: first, Status: Partial, CoverageSeconds: 30},
+				{Version: 1, Generation: "boundary", MinuteStart: first.Add(time.Minute), Status: Partial, CoverageSeconds: 30},
+			}
+			if err := store.Flush(ctx, minutes, now); err != nil {
+				t.Fatal(err)
+			}
+			clock := func() time.Time { return now }
+			service := NewReadService(false, nil, nil, NewHistoryRepository(working, clock), clock)
+			result, err := service.History(ctx, from, now, tc.stepName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.From.Equal(from) || !result.To.Equal(now) || result.Step != tc.stepName {
+				t.Fatalf("request window changed: %+v", result)
+			}
+			points, ok := result.Points.([]AggregateHistoryPoint)
+			if !ok || len(points) != 1 {
+				t.Fatalf("unexpected history: %+v", result.Points)
+			}
+			point := points[0]
+			if point.Kind != "aggregate" || !point.MinuteStart.Equal(first.Truncate(tc.step)) ||
+				!point.MinuteStart.Before(from) || !point.MinuteStart.Add(tc.step).After(from) {
+				t.Fatalf("missing overlapping interval: %+v", point)
+			}
+			if point.StepSeconds != uint32(tc.step/time.Second) || point.ObservedMinutes != 2 ||
+				point.ExpectedMinutes != uint64(tc.step/time.Minute) || point.CoverageSeconds != 60 || point.Status != Partial {
+				t.Fatalf("incorrect bounded coverage: %+v", point)
+			}
+		})
+	}
+}
+
 func TestPostgresHistoryIdempotencyTTLBoundsAndPlans(t *testing.T) {
 	working, store, _ := databaseFixture(t)
 	ctx := context.Background()

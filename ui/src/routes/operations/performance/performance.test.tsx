@@ -187,6 +187,87 @@ beforeEach(() => {
 });
 
 describe("Operations performance views", () => {
+  it.each(["24h", "7d"] as const)(
+    "renders the partial first interval for %s",
+    async (range) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-09-06T12:01:30Z"));
+      try {
+        const api = new PublicAPI(
+          runtimeConfig,
+          vi.fn(async (input) => {
+            const request =
+              input instanceof Request ? input : new Request(input);
+            const authenticated = sessionResponse(request);
+            if (authenticated !== undefined) return authenticated;
+            const url = new URL(request.url);
+            if (url.pathname === "/v1/operations/performance")
+              return apiResponse(snapshot());
+            if (url.pathname === "/v1/operations/performance/history") {
+              const from = url.searchParams.get("from")!;
+              const to = url.searchParams.get("to")!;
+              const step = url.searchParams.get("step")!;
+              const stepSeconds = step === "5m" ? 300 : 3600;
+              const first =
+                Math.floor(Date.parse(from) / (stepSeconds * 1000)) *
+                stepSeconds *
+                1000;
+              return apiResponse({
+                from,
+                to,
+                step,
+                points:
+                  step === "15s"
+                    ? []
+                    : [
+                        {
+                          kind: "aggregate",
+                          version: 1,
+                          generation: "performance-generation-1",
+                          minuteStart: new Date(first).toISOString(),
+                          status: "partial",
+                          omittedWindows: 0,
+                          coverageSeconds: 30,
+                          process: {},
+                          pool: {},
+                          droppedMinutes: 0,
+                          stepSeconds,
+                          observedMinutes: 1,
+                          expectedMinutes: stepSeconds / 60,
+                          cpu: {
+                            userSeconds: 30,
+                            systemSeconds: 0,
+                            durationSeconds: 30,
+                            cores: 1,
+                          },
+                        },
+                      ],
+              });
+            }
+            throw new Error(`unexpected ${request.method} ${request.url}`);
+          }),
+        );
+        renderRoute(api, "/operations/performance");
+        await userEvent.selectOptions(
+          await screen.findByLabelText("Time range"),
+          range,
+        );
+        expect(
+          await screen.findByRole("img", { name: "CPU usage" }),
+        ).toBeVisible();
+        expect(
+          screen.getByLabelText("CPU usage numeric summary"),
+        ).toHaveTextContent("Observed points1");
+        expect(screen.getByLabelText("Time range")).toHaveValue(range);
+        expect(
+          screen.queryByText(/Server returned invalid performance history/),
+        ).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("renders truthful current/history metrics without reading the registry", async () => {
     let snapshotReads = 0;
     const historySteps: string[] = [];

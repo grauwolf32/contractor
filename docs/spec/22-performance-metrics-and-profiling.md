@@ -247,6 +247,13 @@ Proposed read-only endpoints under existing authenticated Operations authority:
   bounded series, coverage and generation boundaries. `15s` is limited to the
   current process's last hour; durable queries are limited to seven days and
   at most 1,000 points. Reject excessive ranges/point counts explicitly.
+  Fine samples use point bounds `from <= observedAt < to`. Durable reads select
+  retained minute records with `from <= minuteStart < to`, then group them into
+  UTC-aligned intervals of the requested step. An aggregate's `minuteStart`
+  identifies the interval start, which can precede `from`; clients accept it
+  when `[minuteStart, minuteStart + stepSeconds)` overlaps `[from, to)`.
+  Keep the requested window unchanged and retain partial first intervals with
+  their actual observed coverage. Reject intervals wholly outside the window.
 - `GET /v1/operations/allocation-history`: durable terminal-allocation resource
   summaries with optional exact Run filter, default page size 50, maximum 100,
   descending `(finished_at, allocation_id)` keyset cursor and a pinned upper
