@@ -72,33 +72,39 @@ export function ApplicationShell() {
           ))}
         </nav>
         <div className="session-panel">
-          <span className="status-dot" aria-hidden="true" />
-          <div>
-            <strong>{session?.principal.username}</strong>
-            <small>UI {UI_VERSION}</small>
+          <div className="session-identity">
+            <span className="status-dot" aria-hidden="true" />
+            <strong title={session?.principal.username}>
+              {session?.principal.username}
+            </strong>
+          </div>
+          <div className="session-actions">
             <NavLink
-              className="sidebar-utility-link"
+              className={({ isActive }) =>
+                `sidebar-utility-link${isActive ? " active" : ""}`
+              }
               to="/operations/settings"
               onClick={() => setMenuOpen(false)}
             >
               <Icon name="settings" />
               <span>Settings</span>
             </NavLink>
+            <button
+              className="sidebar-utility-link"
+              type="button"
+              disabled={isLoggingOut}
+              onClick={() => void onLogout()}
+            >
+              <Icon name="logout" />
+              <span>{isLoggingOut ? "Signing out…" : "Sign out"}</span>
+            </button>
           </div>
-          <button
-            className="text-button sidebar-utility-link"
-            type="button"
-            disabled={isLoggingOut}
-            onClick={() => void onLogout()}
-          >
-            <Icon name="logout" />
-            <span>{isLoggingOut ? "Signing out…" : "Sign out"}</span>
-          </button>
           {logoutError === null ? null : (
             <p className="inline-error" role="alert">
               {logoutError}
             </p>
           )}
+          <small className="session-version">UI {UI_VERSION}</small>
         </div>
       </aside>
       <main id="main-content" className="content" tabIndex={-1}>

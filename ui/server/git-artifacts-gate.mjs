@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createStaticServer } from "./static-server.mjs";
+import { UI_VERSION } from "./runtime-config.mjs";
 
 // Test the production static router and consolidated Operations settings.
 // Isolate build/output directories and bind an OS-selected port so this gate
@@ -22,7 +23,7 @@ try {
   server = await createStaticServer({
     distDir,
     runtimeConfig: {
-      uiVersion: "0.1.0",
+      uiVersion: UI_VERSION,
       supportedApiVersions: ["contractor.public.v1"],
       apiBaseUrl: "http://127.0.0.1:1",
     },

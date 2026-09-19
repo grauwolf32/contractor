@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const API_VERSION = "contractor.public.v1";
 const digest = `sha256:${"1".repeat(64)}`;
 const timestamp = "2026-09-07T10:00:00Z";
@@ -88,7 +90,7 @@ async function installFixture(
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: [API_VERSION],
         apiBaseUrl: apiOrigin,
       },

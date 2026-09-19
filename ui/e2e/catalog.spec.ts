@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 test("Catalog discovers exact Workflows and Agent usage while preserving legacy routes", async ({
   page,
 }, testInfo) => {
@@ -56,7 +58,7 @@ test("Catalog discovers exact Workflows and Agent usage while preserving legacy 
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: ["contractor.public.v1"],
         apiBaseUrl: origin,
       },

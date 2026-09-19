@@ -37,6 +37,14 @@ Optional static-service settings are:
 - `CONTRACTOR_UI_PORT` (default `4173`);
 - `CONTRACTOR_UI_DIST_DIR` (default `ui/dist`).
 
+The sidebar, `/runtime-config.json` and `/healthz` use the UI version from
+`package.json`. Increment it for each UI release: patch for fixes, minor for new
+features, major for breaking changes. For a patch release, run
+`corepack pnpm --dir ui version patch --no-git-tag-version` from the repository
+root before building. Rebuilding alone does not increment the version. Deploy
+the matching `package.json` with the new bundle and restart the UI service so
+the browser and runtime configuration report the same version.
+
 The generated file at `src/api/generated/public.ts` comes only from
 `api/openapi/contractor-public-v1.yaml`. Run `make ui-generate`; never edit the
 file by hand. `make ui-generate-check` regenerates it and fails on a tracked

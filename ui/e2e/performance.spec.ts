@@ -1,5 +1,7 @@
 import { expect, test, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const apiVersion = "contractor.public.v1";
 
 async function fulfillJSON(route: Route, value: unknown, status = 200) {
@@ -84,7 +86,7 @@ test("renders disabled stale and discontinuous performance observations truthful
 
   await page.route("**/runtime-config.json", (route) =>
     fulfillJSON(route, {
-      uiVersion: "0.1.0",
+      uiVersion: packageMetadata.version,
       supportedApiVersions: [apiVersion],
       apiBaseUrl: origin,
     }),
@@ -204,7 +206,7 @@ test("shows only available GPU metrics on desktop and mobile", async ({
   let reverseDevices = false;
   await page.route("**/runtime-config.json", (route) =>
     fulfillJSON(route, {
-      uiVersion: "0.1.0",
+      uiVersion: packageMetadata.version,
       supportedApiVersions: [apiVersion],
       apiBaseUrl: origin,
     }),

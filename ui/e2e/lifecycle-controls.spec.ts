@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const API_VERSION = "contractor.public.v1";
 const CSRF_TOKEN = "l".repeat(43);
 const PROJECT_ID = "project-lifecycle-browser";
@@ -64,7 +66,7 @@ async function installLifecycleAPI(page: Page, uiOrigin: string) {
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: [API_VERSION],
         apiBaseUrl: uiOrigin,
       },

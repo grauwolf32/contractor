@@ -14,6 +14,8 @@ import {
   type WebSocket,
 } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 interface BrowserEvidence {
   requests: Array<{ method: string; url: string; bodyBase64?: string }>;
   responses: Array<{ status: number; url: string; bodyBase64?: string }>;
@@ -1029,7 +1031,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: ["contractor.public.v2"],
         apiBaseUrl: apiURL,
       }),

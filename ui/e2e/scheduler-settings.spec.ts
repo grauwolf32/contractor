@@ -1,5 +1,7 @@
 import { expect, test, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const apiVersion = "contractor.public.v1";
 
 async function fulfillJSON(
@@ -31,7 +33,7 @@ test("operator CAS-updates Scheduler settings and recovers a stale edit", async 
 
   await page.route("**/runtime-config.json", (route) =>
     fulfillJSON(route, {
-      uiVersion: "0.1.0",
+      uiVersion: packageMetadata.version,
       supportedApiVersions: [apiVersion],
       apiBaseUrl: origin,
     }),

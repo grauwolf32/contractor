@@ -1,5 +1,7 @@
 import { expect, test, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_audit_browser";
 const PROFILE_DIGEST = `sha256:${"2".repeat(64)}`;
@@ -147,7 +149,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: [API_VERSION],
         apiBaseUrl: apiOrigin,
       },
@@ -604,7 +606,7 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: [API_VERSION],
         apiBaseUrl: apiOrigin,
       },
@@ -907,7 +909,7 @@ for (const viewport of [
     await page.route("**/runtime-config.json", (route) =>
       route.fulfill({
         json: {
-          uiVersion: "0.1.0",
+          uiVersion: packageMetadata.version,
           supportedApiVersions: [API_VERSION],
           apiBaseUrl: apiOrigin,
         },

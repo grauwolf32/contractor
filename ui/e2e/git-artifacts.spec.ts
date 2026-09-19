@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 // Key tests deliberately avoid traces/screenshots of request bodies or inputs.
 test.use({ trace: "off", screenshot: "off" });
 const commit = "a".repeat(40);
@@ -70,7 +72,7 @@ async function fixture(
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: ["contractor.public.v1"],
         apiBaseUrl: origin,
       },

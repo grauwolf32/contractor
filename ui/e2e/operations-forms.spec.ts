@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const now = "2026-09-19T10:00:00Z";
 const config = (name: string, digit: string) => ({
   ref: { name, version: "1", digest: `sha256:${digit.repeat(64)}` },
@@ -34,7 +36,7 @@ async function installOperations(page: Page, authorized = true) {
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: ["contractor.public.v1"],
         apiBaseUrl: origin,
       },

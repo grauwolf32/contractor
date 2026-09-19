@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import packageMetadata from "../package.json" with { type: "json" };
+
 const API_VERSION = "contractor.public.v1";
 
 function apiHeaders(): Record<string, string> {
@@ -29,7 +31,7 @@ async function installRunsAPI(
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: [API_VERSION],
         apiBaseUrl: uiOrigin,
       },
@@ -122,7 +124,7 @@ async function installRunResultAPI(
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
-        uiVersion: "0.1.0",
+        uiVersion: packageMetadata.version,
         supportedApiVersions: [API_VERSION],
         apiBaseUrl: uiOrigin,
       },
