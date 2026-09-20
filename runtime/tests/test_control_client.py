@@ -5,6 +5,7 @@ import json
 import logging
 import ssl
 import subprocess
+import traceback
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -98,6 +99,65 @@ def test_wrong_ack_is_rejected_without_changing_echo(
             await client.heartbeat_once()
         assert client.sequence == 1
         assert client.echoed_ack == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        b'{"apiVersion":"contractor/v1alpha1","ackSeq":9,"ackSeq":1,"action":"continue"}',
+        b'{"apiVersion":"contractor/v1alpha1","ackSeq":1,"action":"private-token"}',
+        b'{"apiVersion":"contractor/v1alpha1","ackSeq":NaN,"action":"continue"}',
+        b'{"ackSeq":1,"action":"continue"}',
+    ],
+)
+def test_invalid_heartbeat_never_renews_lease_or_exposes_response(response: bytes) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-invalid-heartbeat")
+        await state.mark_registered()
+        watchdog = LeaseWatchdog(noop_expiry)
+        await watchdog.arm(60)
+        deadline = watchdog.confirmed_deadline
+        client = ControlClient(make_settings(), state, FakeTransport([response]), watchdog=watchdog)
+
+        with pytest.raises(ControlClientError) as error:
+            await client.heartbeat_once()
+
+        assert client.echoed_ack == 0
+        assert watchdog.last_ack == 0
+        assert watchdog.confirmed_deadline == deadline
+        assert "private-token" not in "".join(traceback.format_exception(error.value))
+
+    asyncio.run(scenario())
+
+
+def test_concurrent_heartbeats_are_serialized() -> None:
+    async def scenario() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+        requests: list[Mapping[str, Any]] = []
+
+        class BlockingTransport:
+            async def post_json(self, _: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+                requests.append(payload)
+                started.set()
+                await release.wait()
+                return heartbeat_response(payload["heartbeatSeq"])
+
+        state = RuntimeState(instance_id="runtime-concurrent-heartbeats")
+        await state.mark_registered()
+        client = ControlClient(make_settings(), state, BlockingTransport())
+        first = asyncio.create_task(client.heartbeat_once())
+        await started.wait()
+        second = asyncio.create_task(client.heartbeat_once())
+        await asyncio.sleep(0)
+        release.set()
+        responses = await asyncio.gather(first, second)
+
+        assert [response.ack_seq for response in responses] == [1, 2]
+        assert [request["echoedAckSeq"] for request in requests] == [0, 1]
+        assert client.echoed_ack == 2
 
     asyncio.run(scenario())
 
@@ -203,6 +263,69 @@ def test_inflight_heartbeat_cancels_cleanly() -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("loop_name", ["register_until_stopped", "run_heartbeats"])
+@pytest.mark.parametrize("cancel", [False, True])
+def test_control_loop_interrupts_sleep_and_cleans_up_tasks(
+    loop_name: str, cancel: bool, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        stop = asyncio.Event()
+        sleeping = asyncio.Event()
+        sleep_cancelled = asyncio.Event()
+
+        async def blocked_sleep(_: float) -> None:
+            sleeping.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                sleep_cancelled.set()
+
+        state = RuntimeState(instance_id="runtime-stop-sleep", capabilities=runtime_capabilities)
+        await state.mark_registered()
+        transport = FakeTransport([TimeoutError()])
+        client = ControlClient(make_settings(), state, transport, sleep=blocked_sleep)
+        existing_tasks = asyncio.all_tasks()
+        task = asyncio.create_task(getattr(client, loop_name)(stop))
+        await asyncio.wait_for(sleeping.wait(), timeout=1)
+        if cancel:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            stop.set()
+            await asyncio.wait_for(task, timeout=1)
+        assert sleep_cancelled.is_set()
+        assert len(transport.requests) == 1
+        assert asyncio.all_tasks() == existing_tasks
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("loop_name", ["register_until_stopped", "run_heartbeats"])
+def test_control_loop_skips_backoff_when_request_sets_stop(
+    loop_name: str, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        stop = asyncio.Event()
+        delays: list[float] = []
+
+        class StoppingTransport:
+            async def post_json(self, _: str, __: Mapping[str, Any]) -> bytes:
+                stop.set()
+                raise TimeoutError()
+
+        async def record_sleep(delay: float) -> None:
+            delays.append(delay)
+
+        state = RuntimeState(instance_id="runtime-stop-request", capabilities=runtime_capabilities)
+        await state.mark_registered()
+        client = ControlClient(make_settings(), state, StoppingTransport(), sleep=record_sleep)
+        await getattr(client, loop_name)(stop)
+        assert delays == []
+
+    asyncio.run(scenario())
+
+
 def test_real_mtls_control_transport_registers_and_heartbeats(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,
@@ -284,11 +407,11 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
 
 
 class FakeTransport:
-    def __init__(self, responses: list[Mapping[str, Any] | BaseException]) -> None:
+    def __init__(self, responses: list[Mapping[str, Any] | bytes | BaseException]) -> None:
         self.responses = list(responses)
         self.requests: list[tuple[str, Mapping[str, Any]]] = []
 
-    async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any] | bytes:
         self.requests.append((path, payload))
         response = self.responses.pop(0)
         if isinstance(response, BaseException):

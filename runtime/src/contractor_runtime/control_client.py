@@ -6,14 +6,13 @@ import asyncio
 import json
 import logging
 import random
+import re
 import ssl
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import quote, urlsplit
-
-from pydantic import ValidationError
 
 from contractor_runtime.contracts import (
     AgentRegistrationResponse,
@@ -31,6 +30,11 @@ logger = logging.getLogger(__name__)
 
 MAX_CONTROL_RESPONSE_BYTES = 1 << 20
 MAX_CONTROL_HEADERS = 64
+MAX_CONTROL_HEADER_BYTES = 64 * 1024
+MAX_CONTROL_LINE_BYTES = 8192
+CONNECTION_CLOSE_TIMEOUT_SECONDS = 0.5
+
+_HTTP_FIELD_NAME = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 
 
 class ControlTransport(Protocol):
@@ -71,9 +75,19 @@ class MTLSJSONTransport:
     """
 
     def __init__(self, base_url: str, context: ssl.SSLContext, timeout_seconds: float) -> None:
+        if not _is_visible_ascii(base_url):
+            raise ValueError("Control Plane base URL must contain only visible ASCII characters")
         parsed = urlsplit(base_url)
-        if parsed.scheme != "https" or not parsed.hostname or parsed.query or parsed.fragment:
-            raise ValueError("Control Plane base URL must be HTTPS without query or fragment")
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or "?" in base_url
+            or "#" in base_url
+        ):
+            raise ValueError(
+                "Control Plane base URL must be HTTPS without userinfo, query or fragment"
+            )
         self._host = parsed.hostname
         self._port = parsed.port or 443
         self._base_path = parsed.path.rstrip("/")
@@ -81,62 +95,54 @@ class MTLSJSONTransport:
         self._timeout = timeout_seconds
 
     async def post_json(self, path: str, payload: Mapping[str, Any]) -> bytes:
-        if not path.startswith("/") or "?" in path or "#" in path:
-            raise ValueError("private control path must be absolute and contain no query")
-        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        reader: asyncio.StreamReader
-        writer: asyncio.StreamWriter
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(
-                self._host,
-                self._port,
-                ssl=self._context,
-                server_hostname=self._host,
-                limit=64 * 1024,
-            ),
-            timeout=self._timeout,
-        )
+        request = self._encode_request(path, payload)
+        writer: asyncio.StreamWriter | None = None
         try:
-            ssl_object = writer.get_extra_info("ssl_object")
-            if not isinstance(ssl_object, ssl.SSLObject | ssl.SSLSocket):
-                raise ssl.SSLCertVerificationError("private connection has no TLS peer")
-            verify_control_plane_peer(ssl_object)
-            target = (self._base_path + path) or "/"
-            host_name = f"[{self._host}]" if ":" in self._host else self._host
-            host = host_name if self._port == 443 else f"{host_name}:{self._port}"
-            request = (
-                f"POST {target} HTTP/1.1\r\n"
-                f"Host: {host}\r\n"
-                "Content-Type: application/json\r\n"
-                f"Content-Length: {len(body)}\r\n"
-                "Accept: application/json\r\n"
-                f"X-Request-ID: request_{uuid.uuid4().hex}\r\n"
-                "Connection: close\r\n\r\n"
-            ).encode("ascii") + body
-            writer.write(request)
-            await asyncio.wait_for(writer.drain(), timeout=self._timeout)
-            status, headers = await asyncio.wait_for(
-                _read_response_head(reader), timeout=self._timeout
-            )
-            response_body = await asyncio.wait_for(
-                _read_response_body(reader, headers), timeout=self._timeout
-            )
+            # The timeout covers the entire exchange, including TLS setup.
+            async with asyncio.timeout(self._timeout):
+                reader, writer = await asyncio.open_connection(
+                    self._host,
+                    self._port,
+                    ssl=self._context,
+                    server_hostname=self._host,
+                    limit=MAX_CONTROL_HEADER_BYTES,
+                )
+                ssl_object = writer.get_extra_info("ssl_object")
+                if not isinstance(ssl_object, ssl.SSLObject | ssl.SSLSocket):
+                    raise ssl.SSLCertVerificationError("private connection has no TLS peer")
+                verify_control_plane_peer(ssl_object)
+                writer.write(request)
+                await writer.drain()
+                status, headers = await _read_response_head(reader)
+                response_body = await _read_response_body(reader, headers)
         finally:
-            writer.close()
-            current_task = asyncio.current_task()
-            if current_task is not None and current_task.cancelling():
-                writer.transport.abort()
-            else:
-                try:
-                    await asyncio.wait_for(writer.wait_closed(), timeout=min(0.5, self._timeout))
-                except Exception:
-                    writer.transport.abort()
+            if writer is not None:
+                await _close_connection(writer, self._timeout)
         if not 200 <= status < 300:
             raise ControlHTTPError(status)
         return response_body
 
+    def _encode_request(self, path: str, payload: Mapping[str, Any]) -> bytes:
+        if not path.startswith("/") or "?" in path or "#" in path or not _is_visible_ascii(path):
+            raise ValueError("private control path must be an absolute ASCII path without query")
+        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        target = self._base_path + path
+        host_name = f"[{self._host}]" if ":" in self._host else self._host
+        host = host_name if self._port == 443 else f"{host_name}:{self._port}"
+        return (
+            f"POST {target} HTTP/1.1\r\n"
+            f"Host: {host}\r\n"
+            "Content-Type: application/json\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "Accept: application/json\r\n"
+            f"X-Request-ID: request_{uuid.uuid4().hex}\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode("ascii") + body
+
 
 class ControlClient:
+    """Register the process and exchange one sequenced heartbeat at a time."""
+
     def __init__(
         self,
         settings: Settings,
@@ -155,6 +161,7 @@ class ControlClient:
         self._reconciliation = reconciliation
         self._sleep = sleep
         self._jitter = jitter
+        self._heartbeat_lock = asyncio.Lock()
         self._sequence = 0
         self._echoed_ack = 0
         self._timing = ControlTiming(
@@ -182,7 +189,7 @@ class ControlClient:
         )
         try:
             response = decode_private(AgentRegistrationResponse, _response_json(raw))
-        except (PrivateProtocolDecodeError, ValidationError):
+        except PrivateProtocolDecodeError:
             raise ControlClientError("invalid registration response") from None
         self._timing = ControlTiming(
             heartbeat_interval_seconds=float(response.heartbeat_interval_seconds),
@@ -210,10 +217,16 @@ class ControlClient:
             except Exception as error:
                 failures += 1
                 logger.warning("Control Plane registration failed (%s)", type(error).__name__)
-                await self._sleep(self._backoff(failures))
+                await self._sleep_until_stopped(stop, self._backoff(failures))
         return False
 
     async def heartbeat_once(self) -> HeartbeatResponse:
+        # Keep the request, acknowledgement and reconciliation in sequence even
+        # when callers invoke heartbeat_once concurrently.
+        async with self._heartbeat_lock:
+            return await self._exchange_heartbeat()
+
+    async def _exchange_heartbeat(self) -> HeartbeatResponse:
         self._sequence += 1
         request = await self._state.heartbeat(self._sequence, self._echoed_ack)
         path = f"/private/v1/agents/{quote(self._state.instance_id, safe='')}/heartbeat"
@@ -222,14 +235,18 @@ class ControlClient:
             request.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
         try:
-            response = HeartbeatResponse.model_validate_json(_response_json(raw))
-        except ValidationError as error:
-            raise ControlClientError("invalid heartbeat response") from error
-        if response.ack_seq != self._sequence:
+            response = decode_private(HeartbeatResponse, _response_json(raw))
+        except PrivateProtocolDecodeError:
+            raise ControlClientError("invalid heartbeat response") from None
+        if response.ack_seq != request.heartbeat_seq:
             raise ControlClientError("heartbeat response acknowledged the wrong sequence")
         self._echoed_ack = response.ack_seq
         if self._watchdog is not None:
             await self._watchdog.acknowledge(response.ack_seq, self._timing.confirmed_lease_seconds)
+        await self._apply_reconciliation(response)
+        return response
+
+    async def _apply_reconciliation(self, response: HeartbeatResponse) -> None:
         if response.action is ReconciliationAction.DRAIN:
             if self._reconciliation is None or response.allocation_id is None:
                 raise ControlClientError("heartbeat drain action cannot be applied")
@@ -242,7 +259,6 @@ class ControlClient:
             await self._reconciliation.confirm_release(response.allocation_id)
         elif response.action is ReconciliationAction.REREGISTER:
             await self.register()
-        return response
 
     async def run_heartbeats(self, stop: asyncio.Event) -> None:
         failures = 0
@@ -257,8 +273,22 @@ class ControlClient:
                 failures += 1
                 logger.warning("Control Plane heartbeat failed (%s)", type(error).__name__)
                 delay = self._backoff(failures)
-            if not stop.is_set():
-                await self._sleep(delay)
+            await self._sleep_until_stopped(stop, delay)
+
+    async def _sleep_until_stopped(self, stop: asyncio.Event, delay: float) -> None:
+        if stop.is_set():
+            return
+        sleeping = asyncio.ensure_future(self._sleep(delay))
+        stopped = asyncio.create_task(stop.wait())
+        try:
+            done, _ = await asyncio.wait({sleeping, stopped}, return_when=asyncio.FIRST_COMPLETED)
+            if sleeping in done:
+                await sleeping
+        finally:
+            for task in (sleeping, stopped):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(sleeping, stopped, return_exceptions=True)
 
     def _backoff(self, failures: int) -> float:
         ceiling = min(5.0, self._timing.heartbeat_interval_seconds)
@@ -275,48 +305,100 @@ def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:
         raise ControlClientError("Control Plane returned invalid JSON") from None
 
 
-async def _read_response_head(reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:
-    status_line = await reader.readline()
-    if not status_line.endswith(b"\r\n") or len(status_line) > 8192:
-        raise ControlClientError("invalid HTTP status line")
-    parts = status_line.decode("ascii", errors="strict").strip().split(" ", 2)
-    if len(parts) < 2 or parts[0] not in {"HTTP/1.0", "HTTP/1.1"}:
-        raise ControlClientError("invalid HTTP status line")
+def _is_visible_ascii(value: str) -> bool:
+    return all(" " < character < "\x7f" for character in value)
+
+
+async def _close_connection(writer: asyncio.StreamWriter, timeout_seconds: float) -> None:
+    writer.close()
+    current_task = asyncio.current_task()
+    if current_task is not None and current_task.cancelling():
+        writer.transport.abort()
+        return
     try:
-        status = int(parts[1])
-    except ValueError as error:
-        raise ControlClientError("invalid HTTP status code") from error
+        await asyncio.wait_for(
+            writer.wait_closed(), timeout=min(CONNECTION_CLOSE_TIMEOUT_SECONDS, timeout_seconds)
+        )
+    except asyncio.CancelledError:
+        writer.transport.abort()
+        raise
+    except Exception:
+        writer.transport.abort()
+
+
+async def _read_http_line(reader: asyncio.StreamReader, *, limit: int, error: str) -> bytes:
+    try:
+        line = await reader.readline()
+    except ValueError:
+        # StreamReader raises ValueError when its own line limit is exceeded.
+        raise ControlClientError(error) from None
+    if len(line) > limit or not line.endswith(b"\r\n"):
+        raise ControlClientError(error)
+    return line
+
+
+async def _read_exactly(reader: asyncio.StreamReader, length: int) -> bytes:
+    try:
+        return await reader.readexactly(length)
+    except asyncio.IncompleteReadError:
+        raise ControlClientError("incomplete HTTP response body") from None
+
+
+async def _read_response_head(reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:
+    status_line = await _read_http_line(
+        reader, limit=MAX_CONTROL_LINE_BYTES, error="invalid HTTP status line"
+    )
+    parts = status_line[:-2].split(b" ", 2)
+    if len(parts) != 3 or parts[0] not in {b"HTTP/1.0", b"HTTP/1.1"}:
+        raise ControlClientError("invalid HTTP status line")
+    if len(parts[1]) != 3 or not parts[1].isdigit():
+        raise ControlClientError("invalid HTTP status code")
+    status = int(parts[1])
+    if not 100 <= status <= 599:
+        raise ControlClientError("invalid HTTP status code")
     headers: dict[str, str] = {}
     total = len(status_line)
-    for _ in range(MAX_CONTROL_HEADERS):
-        line = await reader.readline()
+    while True:
+        line = await _read_http_line(
+            reader,
+            limit=MAX_CONTROL_HEADER_BYTES - total,
+            error="invalid or oversized HTTP response headers",
+        )
         total += len(line)
-        if total > 64 * 1024 or not line.endswith(b"\r\n"):
-            raise ControlClientError("invalid or oversized HTTP response headers")
         if line == b"\r\n":
             return status, headers
-        name, separator, value = line.partition(b":")
-        key = name.decode("ascii", errors="strict").strip().lower()
-        if not separator or not key or key in headers:
+        if len(headers) >= MAX_CONTROL_HEADERS:
+            raise ControlClientError("too many HTTP response headers")
+        name, separator, value = line[:-2].partition(b":")
+        if not separator or not _HTTP_FIELD_NAME.fullmatch(name):
+            raise ControlClientError("invalid HTTP response header")
+        key = name.decode("ascii").lower()
+        if key in headers:
             raise ControlClientError("invalid or duplicate HTTP response header")
-        headers[key] = value.decode("ascii", errors="strict").strip()
-    raise ControlClientError("too many HTTP response headers")
+        if any((byte < 32 and byte != 9) or byte == 127 for byte in value):
+            raise ControlClientError("invalid HTTP response header value")
+        headers[key] = value.decode("latin-1").strip(" \t")
 
 
 async def _read_response_body(reader: asyncio.StreamReader, headers: Mapping[str, str]) -> bytes:
-    transfer_encoding = headers.get("transfer-encoding", "").lower()
-    if transfer_encoding:
+    if "transfer-encoding" in headers:
+        if "content-length" in headers:
+            raise ControlClientError("ambiguous HTTP response framing")
+        transfer_encoding = headers["transfer-encoding"].lower()
         if transfer_encoding != "chunked":
             raise ControlClientError("unsupported HTTP transfer encoding")
         return await _read_chunked_body(reader)
     if "content-length" in headers:
+        raw_length = headers["content-length"]
+        if not raw_length.isascii() or not raw_length.isdecimal():
+            raise ControlClientError("invalid HTTP content length")
         try:
-            length = int(headers["content-length"])
-        except ValueError as error:
-            raise ControlClientError("invalid HTTP content length") from error
-        if not 0 <= length <= MAX_CONTROL_RESPONSE_BYTES:
+            length = int(raw_length)
+        except ValueError:
+            raise ControlClientError("invalid HTTP content length") from None
+        if length > MAX_CONTROL_RESPONSE_BYTES:
             raise ControlClientError("Control Plane response is too large")
-        return await reader.readexactly(length)
+        return await _read_exactly(reader, length)
     result = bytearray()
     while True:
         chunk = await reader.read(min(64 * 1024, MAX_CONTROL_RESPONSE_BYTES + 1 - len(result)))
@@ -330,18 +412,19 @@ async def _read_response_body(reader: asyncio.StreamReader, headers: Mapping[str
 async def _read_chunked_body(reader: asyncio.StreamReader) -> bytes:
     result = bytearray()
     while True:
-        size_line = await reader.readline()
-        raw_size = size_line.partition(b";")[0].strip()
-        try:
-            size = int(raw_size, 16)
-        except ValueError as error:
-            raise ControlClientError("invalid chunk size") from error
-        if size < 0 or len(result) + size > MAX_CONTROL_RESPONSE_BYTES:
+        size_line = await _read_http_line(
+            reader, limit=MAX_CONTROL_LINE_BYTES, error="invalid chunk size"
+        )
+        raw_size = size_line[:-2].partition(b";")[0].rstrip(b" \t")
+        if not re.fullmatch(rb"[0-9a-fA-F]+", raw_size):
+            raise ControlClientError("invalid chunk size")
+        size = int(raw_size, 16)
+        if len(result) + size > MAX_CONTROL_RESPONSE_BYTES:
             raise ControlClientError("Control Plane response is too large")
         if size == 0:
-            if await reader.readline() != b"\r\n":
+            if await _read_exactly(reader, 2) != b"\r\n":
                 raise ControlClientError("chunked trailers are not supported")
             return bytes(result)
-        result.extend(await reader.readexactly(size))
-        if await reader.readexactly(2) != b"\r\n":
+        result.extend(await _read_exactly(reader, size))
+        if await _read_exactly(reader, 2) != b"\r\n":
             raise ControlClientError("invalid chunk delimiter")
