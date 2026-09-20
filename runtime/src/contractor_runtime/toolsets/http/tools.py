@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit
 
 import httpx
 
@@ -1113,12 +1113,20 @@ def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
     if len(existing) + len(additions) > MAX_QUERY_KEYS:
         raise HTTPToolError("http_request_invalid")
     try:
-        encoded = urlencode(existing + additions, doseq=True)
+        added_query = urlencode(additions, doseq=True)
     except UnicodeError:
         raise HTTPToolError("http_request_invalid") from None
-    if len(encoded.encode("utf-8")) > MAX_QUERY_BYTES:
+    raw_query = parsed.query
+    result = url
+    if added_query:
+        # Existing percent escapes, duplicate/bare keys and separators are part
+        # of the requested target. Decode only for counting, never for rewriting.
+        base, fragment_separator, fragment = url.partition("#")
+        separator = "&" if raw_query else "" if "?" in base else "?"
+        result = base + separator + added_query + fragment_separator + fragment
+        raw_query += ("&" if raw_query else "") + added_query
+    if len(raw_query.encode("utf-8")) > MAX_QUERY_BYTES:
         raise HTTPToolError("http_request_invalid")
-    result = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, encoded, parsed.fragment))
     if len(result.encode("utf-8")) > MAX_URL_BYTES:
         raise HTTPToolError("http_request_invalid")
     return result

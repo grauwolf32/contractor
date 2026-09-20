@@ -31,6 +31,62 @@ SECRET = "recognizable-http-session-secret"
 TARGET_SECRET = "recognizable-project-origin-secret"
 
 
+@pytest.mark.parametrize(
+    "raw_query",
+    ["q=%FF", "q=%20&flag", "q=a%2fb", "q=one&q=two", "flag&empty=&", ""],
+)
+@pytest.mark.parametrize("query", [None, {}, {"added": ["a b", "/"]}])
+def test_request_preserves_raw_query_and_only_encodes_additions(
+    tmp_path: Path, raw_query: str, query: dict[str, Any] | None
+) -> None:
+    async def scenario() -> None:
+        observed: list[bytes] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            observed.append(request.url.raw_path)
+            return httpx.Response(200, request=request)
+
+        tools, _ = await create_tools(tmp_path, handler)
+        try:
+            await tools["http_request"]("https://target.example/path?" + raw_query, query=query)
+            expected = raw_query
+            if query:
+                expected += ("&" if raw_query else "") + "added=a+b&added=%2F"
+            assert observed == [b"/path?" + expected.encode("ascii")]
+        finally:
+            await tools["http_request"].close()
+
+    asyncio.run(scenario())
+
+
+def test_raw_query_and_added_parameters_share_request_bounds(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        calls = 0
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(200, request=request)
+
+        tools, _ = await create_tools(tmp_path, handler)
+        try:
+            raw = "&".join("flag" for _ in range(http_tools.MAX_QUERY_KEYS))
+            await tools["http_request"]("https://target.example/?" + raw)
+            for url, query in (
+                ("https://target.example/?" + raw + "&one", None),
+                ("https://target.example/?" + raw, {"one": "more"}),
+                ("https://target.example/?q=" + "x" * http_tools.MAX_URL_BYTES, None),
+                ("https://target.example/?q=" + "x" * 8100, {"added": "x" * 100}),
+            ):
+                with pytest.raises(HTTPToolError, match="http_request_invalid"):
+                    await tools["http_request"](url, query=query)
+            assert calls == 1
+        finally:
+            await tools["http_request"].close()
+
+    asyncio.run(scenario())
+
+
 def test_direct_text_binary_status_redirect_and_exact_body_reads(tmp_path: Path) -> None:
     calls: list[httpx.Request] = []
 
