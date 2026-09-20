@@ -504,6 +504,10 @@ func pointerToResult(result contracts.StageContentResult) *contracts.StageConten
 
 func cloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
 	result := handle
+	// Decoding into a non-nil map reuses it. Clear the destination before the
+	// round trip so cloning neither mutates nor shares the original card.
+	// A non-JSON card is unusable by A2A; omit it instead of retaining aliases.
+	result.AgentCard = nil
 	encoded, err := json.Marshal(handle.AgentCard)
 	if err == nil {
 		_ = json.Unmarshal(encoded, &result.AgentCard)
@@ -512,7 +516,8 @@ func cloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
 }
 
 // CloneWorkerHandle detaches mutable Agent Card data before crossing a Planner
-// adapter boundary.
+// adapter boundary. Cards containing non-JSON values are omitted, so invalid
+// in-process inputs cannot bypass the copy boundary by failing serialization.
 func CloneWorkerHandle(handle contracts.WorkerHandle) contracts.WorkerHandle {
 	return cloneWorkerHandle(handle)
 }
