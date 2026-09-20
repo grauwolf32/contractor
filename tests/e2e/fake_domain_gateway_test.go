@@ -95,11 +95,19 @@ func TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure(t *testi
 	request := map[string]any{"tools": []any{map[string]any{
 		"function": map[string]any{"name": "probe"},
 	}}}
-	_, _, call, err := gateway.next(request)
-	var scripted *scriptedModelFailure
-	if !errors.As(err, &scripted) || call != 1 || gateway.CompletedStages() != 1 || gateway.Calls() != 1 {
-		t.Fatalf("scripted failure = (call:%d stages:%d calls:%d err:%v)",
-			call, gateway.CompletedStages(), gateway.Calls(), err)
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpRequest := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(encoded))
+	httpRequest.Header.Set("Authorization", "Bearer "+gateway.token)
+	response := httptest.NewRecorder()
+	gateway.serveHTTP(response, httpRequest)
+	if response.Code != http.StatusServiceUnavailable || response.Header().Get("X-Should-Retry") != "false" {
+		t.Fatalf("scripted HTTP failure = %d, transport retry = %q", response.Code, response.Header().Get("X-Should-Retry"))
+	}
+	if gateway.CompletedStages() != 1 || gateway.Calls() != 1 {
+		t.Fatalf("scripted failure = (stages:%d calls:%d)", gateway.CompletedStages(), gateway.Calls())
 	}
 	if failures := gateway.Failures(); len(failures) != 0 {
 		t.Fatalf("scripted failure polluted fixture failures: %v", failures)
@@ -287,10 +295,13 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		var scripted *scriptedModelFailure
 		if errors.As(err, &scripted) {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
+			// Fail one model call so the Scheduler, rather than the HTTP client,
+			// creates the next StageExecution and rechecks its pinned Skills.
+			w.Header().Set("X-Should-Retry", "false")
+			w.WriteHeader(http.StatusServiceUnavailable)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"error": map[string]any{
-					"message": "deterministic model failure", "type": "invalid_request_error",
+					"message": "deterministic model failure", "type": "server_error",
 				},
 			})
 			return
