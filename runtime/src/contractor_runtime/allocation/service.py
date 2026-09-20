@@ -668,7 +668,10 @@ class AllocationService:
                     retryable=False,
                     status_code=422,
                 )
-            if not set(selection.tools) <= factory.exported_tools:
+            if (
+                getattr(factory, "tool_discovery", "static") != "allocation"
+                and not set(selection.tools) <= factory.exported_tools
+            ):
                 raise AllocationError(
                     "unsupported_tool",
                     "AgentTemplate selects a tool not exported by its Toolset",
@@ -680,6 +683,7 @@ class AllocationService:
                 for name in selection.tools
                 for channel in factory.infrastructure_channels.get(name, frozenset())
             )
+            channels |= getattr(factory, "common_infrastructure_channels", frozenset())
             created = await factory.create_selected(
                 **(
                     {"completion_contract": spec.completion_contract}

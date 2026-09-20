@@ -56,12 +56,24 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     from contractor_runtime.sandbox.contracts import EXECUTION_CHANNELS, EXECUTION_TOOLSET
 
     assert EXECUTION_TOOLSET not in factories
+    # The MCP contract is registered before its production factory (V61-006).
+    assert "mcp@1" not in factories
+    actual["mcp@1"] = {}
     actual[EXECUTION_TOOLSET] = {
         name: sorted(channels) for name, channels in EXECUTION_CHANNELS.items()
     }
     # V39-005 installs the factory; positive advertisement also requires its probe.
     assert "audit-results@2" in factories
     assert actual == fixture["toolsets"]
+    from fakes.discovery import FakeDiscoveryFactory
+
+    discovery = FakeDiscoveryFactory()
+    assert fixture["allocationToolsets"][discovery.ref] == {
+        "workerRuntimes": sorted(discovery.supported_worker_runtimes),
+        "commonInfrastructureChannels": sorted(discovery.common_infrastructure_channels),
+        "configurationSchema": discovery.configuration_schema,
+        "configurationRequired": discovery.configuration_required,
+    }
 
 
 def test_code_analysis_static_contract_and_shallow_factory_are_exact(
@@ -497,3 +509,87 @@ def make_settings(tmp_path: Path) -> Settings:
         certificate_file=placeholder,
         private_key_file=placeholder,
     )
+
+
+def test_allocation_discovery_uses_only_local_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import httpx
+    from fakes.discovery import FakeDiscoveryFactory
+
+    async def forbidden_network(*args, **kwargs):
+        raise AssertionError("startup discovery must not contact an endpoint")
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", forbidden_network)
+
+    async def scenario() -> None:
+        factory = FakeDiscoveryFactory()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+            toolsets={factory.ref: factory},
+        )
+        snapshot = await discover_capabilities(registry)
+        assert factory.probes == 1 and factory.created == {}
+        assert snapshot.wire_toolsets()[0].model_dump(by_alias=True) == {
+            "ref": "mcp@1",
+            "tools": [],
+            "toolDiscovery": "allocation",
+        }
+        assert snapshot.supports_tools("mcp@1", ["search"], runtime_ref="adk@1")
+        factory.available = False
+        missing = await discover_capabilities(registry)
+        assert missing.toolsets == ()
+        assert missing.runtimes == snapshot.runtimes
+        assert missing.sandbox_profiles == snapshot.sandbox_profiles
+
+    asyncio.run(scenario())
+
+
+def test_discovery_factory_contract_rejects_forged_native_mode(tmp_path: Path) -> None:
+    from fakes.discovery import FakeDiscoveryFactory
+
+    factory = FakeDiscoveryFactory()
+    factory.ref = "run-artifacts@1"
+    with pytest.raises(ValueError, match="registered contract"):
+        FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+            toolsets={factory.ref: factory},
+        )
+
+
+def test_toolset_discovery_shared_golden_compatibility() -> None:
+    import json
+
+    from pydantic import ValidationError
+
+    from contractor_runtime.contracts import ToolsetCapability
+    from contractor_runtime.toolsets.discovery import ToolsetDiscovery
+
+    cases = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "api/testdata/toolset-runtime-configuration/compatibility.json"
+        ).read_text()
+    )
+    for case in cases:
+        accepted = False
+        try:
+            capability = ToolsetCapability.model_validate(case["capability"])
+            discovery = (
+                ToolsetDiscovery("allocation", frozenset(capability.tools))
+                if capability.tool_discovery == "allocation"
+                else capability.tools
+            )
+            snapshot = CapabilitySnapshot.create(
+                runtimes=["adk@1", "tool@1"],
+                sandbox_profiles=["local-workdir@1"],
+                toolsets={capability.ref: discovery},
+            )
+            accepted = snapshot.supports_tools(
+                case["ref"], case["selected"], runtime_ref=case["runtime"]
+            )
+        except (ValidationError, ValueError, CapabilityDiscoveryError):
+            pass
+        assert accepted == case["expected"], case["name"]

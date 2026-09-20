@@ -22,6 +22,7 @@ toolsets:
     http_request: [runtime-http-client]
   likec4@1:
     validate_likec4: [runtime-subprocess-launcher]
+  mcp@1: {}
   memory-tools@1: {}
   openapi@1:
     validate_openapi: [runtime-subprocess-launcher]
@@ -36,3 +37,9 @@ toolsets:
   taint-annotations@1: {}
   text-artifacts@1: {}
   workspace-changes@1: {}
+allocationToolsets:
+  mcp@1:
+    workerRuntimes: [adk@1]
+    commonInfrastructureChannels: [runtime-http-client]
+    configurationSchema: mcp-streamable-http@1
+    configurationRequired: true

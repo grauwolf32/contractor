@@ -146,7 +146,7 @@ def validate_spec(
                 retryable=False,
                 status_code=422,
             )
-        if not capabilities.supports_tools(toolset_ref, selection.tools):
+        if not capabilities.supports_tools(toolset_ref, selection.tools, runtime_ref=runtime_ref):
             raise AllocationError(
                 "unsupported_tool",
                 "AgentTemplate selects an unavailable tool",
@@ -154,6 +154,26 @@ def validate_spec(
                 status_code=422,
             )
         factory = factories.toolsets.get(toolset_ref)
+        mode = getattr(factory, "tool_discovery", "static")
+        capability = next(item for item in capabilities.toolsets if item.ref == toolset_ref)
+        if factory is None or (capability.tool_discovery or "static") != mode:
+            raise AllocationError(
+                "unsupported_toolset",
+                "Toolset discovery does not match local factory",
+                retryable=False,
+                status_code=422,
+            )
+        supported = getattr(factory, "supported_worker_runtimes", None)
+        if supported is not None and runtime_ref not in supported:
+            raise AllocationError(
+                "unsupported_toolset_runtime",
+                "Toolset does not support this WorkerRuntime",
+                retryable=False,
+                status_code=422,
+            )
+        required_infrastructure_channels.update(
+            getattr(factory, "common_infrastructure_channels", frozenset())
+        )
         if factory is not None:
             required_infrastructure_channels.update(
                 channel

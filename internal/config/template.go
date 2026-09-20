@@ -57,6 +57,12 @@ func (l *loader) resolveAgentTemplate(
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
+	for _, selection := range toolsets {
+		descriptor := l.descriptors.Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
+		if !descriptor.SupportsWorker(runtime.String()) {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("selected Toolset does not support WorkerRuntime %s", runtime.String())
+		}
+	}
 	skills, err := resolveSkills(spec.Skills)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
@@ -200,6 +206,9 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 			return nil, fmt.Errorf("spec.toolsets[%d].tools must be non-empty", index)
 		}
 
+		if descriptor.ToolDiscovery == "allocation" && contracts.ValidateAllocationToolNames(item.Tools) != nil {
+			return nil, fmt.Errorf("invalid allocation-discovered tool selection")
+		}
 		exported := make(map[string]struct{}, len(descriptor.Tools))
 		for _, tool := range descriptor.Tools {
 			exported[tool] = struct{}{}
@@ -214,7 +223,7 @@ func (l *loader) resolveToolsets(source *[]toolsetSelectionSource) ([]contracts.
 				return nil, fmt.Errorf("spec.toolsets[%d].tools contains duplicate %q", index, tool)
 			}
 			seenSelected[tool] = struct{}{}
-			if _, exists := exported[tool]; !exists {
+			if _, exists := exported[tool]; !exists && descriptor.ToolDiscovery != "allocation" {
 				return nil, fmt.Errorf("Toolset %q does not export selected tool %q", selector, tool)
 			}
 			if previous, collision := visibleNames[tool]; collision {

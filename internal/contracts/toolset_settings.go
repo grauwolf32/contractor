@@ -7,11 +7,29 @@ import (
 )
 
 const (
-	MCPToolsetRef                   = "mcp@1"
-	MaximumConfiguredToolsets       = 32
-	DefaultMCPConnectTimeoutSeconds = 10
-	DefaultMCPRequestTimeoutSeconds = 60
+	MCPToolsetRef                    = "mcp@1"
+	MaximumConfiguredToolsets        = 32
+	DefaultMCPConnectTimeoutSeconds  = 10
+	DefaultMCPRequestTimeoutSeconds  = 60
+	MaximumAllocationDiscoveredTools = 64
 )
+
+func ValidateAllocationToolNames(names []string) error {
+	if len(names) == 0 || len(names) > MaximumAllocationDiscoveredTools {
+		return invalidf("invalid allocation tool selection size")
+	}
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if !toolArgumentName.MatchString(name) {
+			return invalidf("invalid allocation tool name")
+		}
+		if _, exists := seen[name]; exists {
+			return invalidf("duplicate allocation tool name")
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
+}
 
 // ToolsetRuntimeConfiguration is a typed, materialized allocation value. New
 // exact refs must register a decoder here and in the corresponding Runtime

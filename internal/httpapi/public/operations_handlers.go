@@ -164,7 +164,7 @@ func cloneRuntimeAgentObservation(
 	)
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = controlplane.RuntimeToolsetCapability{
-			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...),
+			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...), ToolDiscovery: capability.ToolDiscovery,
 		}
 		sort.Strings(result.SupportedToolsets[index].Tools)
 	}

@@ -3943,6 +3943,7 @@ components:
         - assessment_unsupported
         - multiple_rounds_unsupported
         - batching_unsupported
+        - unknown_external_tool_effects
         - automatic_active_checks_unsupported
         - active_check_approval_unsupported
         - finding_confirmation_unsupported

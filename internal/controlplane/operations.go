@@ -154,8 +154,9 @@ type RuntimeAgentObservation struct {
 }
 
 type RuntimeToolsetCapability struct {
-	Ref   string   `json:"ref"`
-	Tools []string `json:"tools"`
+	ToolDiscovery string   `json:"toolDiscovery,omitempty"`
+	Ref           string   `json:"ref"`
+	Tools         []string `json:"tools"`
 }
 
 type AllocationObservation struct {
@@ -263,7 +264,7 @@ func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
 			return fmt.Errorf("duplicate Runtime Agent Toolset capability ref")
 		}
 		seenToolsets[capability.Ref] = struct{}{}
-		if len(capability.Tools) == 0 || len(capability.Tools) > maximumRuntimeToolsPerToolset {
+		if (contracts.ToolsetCapability{Ref: capability.Ref, Tools: capability.Tools, ToolDiscovery: capability.ToolDiscovery}).Validate() != nil || len(capability.Tools) > maximumRuntimeToolsPerToolset {
 			return fmt.Errorf("invalid Runtime Agent Toolset tool collection bound")
 		}
 		seenTools := make(map[string]struct{}, len(capability.Tools))
@@ -543,7 +544,7 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 	}
 	for index, capability := range entry.registration.SupportedToolsets {
 		result.SupportedToolsets[index] = RuntimeToolsetCapability{
-			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...),
+			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...), ToolDiscovery: capability.ToolDiscovery,
 		}
 	}
 	sort.Strings(result.SupportedRuntimes)

@@ -1072,3 +1072,65 @@ def test_resource_failure_does_not_change_worker_completeness_or_slot_reuse(
         assert (await state.snapshot()).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("output", [None, [], [("extra", "extra")], [("search", "renamed")]])
+def test_discovered_factory_retains_exact_outputs_and_cleanup_ownership(
+    tmp_path: Path, output
+) -> None:
+    from fakes.discovery import FakeDiscoveryFactory
+
+    from contractor_runtime.capabilities import discover_capabilities
+    from contractor_runtime.contracts.toolset_settings import MCPToolsetSettings
+
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="discovered-test")
+        await state.mark_registered()
+        factory = FakeDiscoveryFactory(output=output)
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+            toolsets={factory.ref: factory},
+        )
+        capabilities = await discover_capabilities(registry)
+        service = AllocationService(
+            state,
+            registry,
+            capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+            force_exit=lambda _: None,
+        )
+        spec = make_spec()
+        spec.agent_template.toolsets = [
+            ToolsetSelection(ref=ToolsetRef(toolset_id="mcp", version="1"), tools=["search"])
+        ]
+        spec.runtime_settings.toolsets = {
+            "mcp@1": MCPToolsetSettings(
+                endpoint="https://knowledge.example/mcp",
+                connect_timeout_seconds=10,
+                request_timeout_seconds=60,
+            )
+        }
+        resign_template(spec.agent_template)
+        if output is None:
+            await service.prepare(spec)
+            assert (await service.snapshot()).tool_names == ("search",)
+            await service.finalize(
+                FinalizeAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId=spec.allocation_id,
+                    finalizationId="discovery-finalize",
+                    deadline=NOW + timedelta(seconds=10),
+                )
+            )
+            await service.release(
+                ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+            )
+        else:
+            with pytest.raises(AllocationError) as failure:
+                await service.prepare(spec)
+            assert failure.value.code == "invalid_toolset_factory"
+        assert all(tool.close_calls == 1 for tool in factory.created.values())
+
+    asyncio.run(scenario())

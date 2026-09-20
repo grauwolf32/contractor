@@ -98,3 +98,28 @@ func mustAuditServiceProfile(t *testing.T) config.ResolvedAuditProfile {
 	}
 	return profile
 }
+
+func TestGenericMCPToolsHaveUnknownEffectsForEveryAuditPolicy(t *testing.T) {
+	for _, policy := range []config.AuditActiveChecksPolicy{config.AuditActiveChecksProhibited, config.AuditActiveChecksApprovalRequired, config.AuditActiveChecksAutomatic} {
+		profile, err := loadAuditServiceProfiles(t).AuditProfile("test-checklist@1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		binding := profile.Workflows["check"]
+		stage := binding.Workflow.Stages["check"]
+		agent := stage.Agents["worker"]
+		agent.Template.Toolsets = append(agent.Template.Toolsets, contracts.ToolsetSelection{Ref: contracts.ToolsetRef{ToolsetID: "mcp", Version: "1"}, Tools: []string{"read_only_search"}})
+		stage.Agents["worker"] = agent
+		binding.Workflow.Stages["check"] = stage
+		profile.Workflows["check"] = binding
+		profile.Interaction.ActiveChecks = policy
+		compatibility := ProfileCompatibility(profile)
+		found := false
+		for _, reason := range compatibility.Reasons {
+			found = found || reason == ReasonUnknownExternalToolEffects
+		}
+		if compatibility.ServerCompatible || !found {
+			t.Fatalf("generic MCP accepted under %s: %+v", policy, compatibility)
+		}
+	}
+}

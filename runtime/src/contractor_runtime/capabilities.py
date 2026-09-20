@@ -8,6 +8,7 @@ import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
@@ -15,6 +16,12 @@ from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
 from contractor_runtime.sandbox.contracts import EXECUTION_TOOLSET, PODMAN_PROFILE
 from contractor_runtime.sandbox.podman.probe import PROBE_CLEANUP_SECONDS, PROBE_TIMEOUT_SECONDS
 from contractor_runtime.telemetry.resources import SUPPORTED_PERFORMANCE_METRICS_VERSIONS
+from contractor_runtime.toolsets.discovery import (
+    ALLOCATION_DISCOVERY_REFS,
+    MCP_WORKER_RUNTIMES,
+    ToolsetDiscovery,
+    valid_allocation_tool_names,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +38,7 @@ class CapabilityDiscoveryError(RuntimeError):
 class ToolsetCapabilitySnapshot:
     ref: str
     tools: tuple[str, ...]
+    tool_discovery: Literal["allocation"] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +58,7 @@ class CapabilitySnapshot:
         cls,
         *,
         runtimes: Iterable[str],
-        toolsets: Mapping[str, Iterable[str]],
+        toolsets: Mapping[str, Iterable[str] | ToolsetDiscovery],
         sandbox_profiles: Iterable[str],
         runtime_adapters: Iterable[str] = (),
         workspace: WorkspaceCapabilitySnapshot | None = None,
@@ -65,7 +73,7 @@ class CapabilitySnapshot:
             and (
                 "adk@1" not in normalized_runtimes
                 or not {"read_audit_task", "submit_check_result"}
-                <= set(toolsets.get("audit-results@2", ()))
+                <= set(_static_tools(toolsets.get("audit-results@2", ())))
             )
         ):
             raise CapabilityDiscoveryError("invalid Worker completion capability snapshot")
@@ -79,8 +87,18 @@ class CapabilitySnapshot:
             raise CapabilityDiscoveryError("no usable SandboxProfile capability")
         normalized_toolsets: list[ToolsetCapabilitySnapshot] = []
         for ref in sorted(toolsets):
-            tools = tuple(sorted(set(toolsets[ref])))
-            if tools:
+            discovery = toolsets[ref]
+            mode = discovery.mode if isinstance(discovery, ToolsetDiscovery) else "static"
+            tools = tuple(sorted(set(_static_tools(discovery))))
+            if (mode == "allocation") != (ref in ALLOCATION_DISCOVERY_REFS):
+                raise CapabilityDiscoveryError("Toolset discovery does not match its contract")
+            if mode == "allocation":
+                if tools:
+                    raise CapabilityDiscoveryError("allocation discovery must not invent tools")
+                normalized_toolsets.append(
+                    ToolsetCapabilitySnapshot(ref=ref, tools=(), tool_discovery="allocation")
+                )
+            elif tools:
                 normalized_toolsets.append(ToolsetCapabilitySnapshot(ref=ref, tools=tools))
         return cls(
             runtimes=normalized_runtimes,
@@ -93,7 +111,15 @@ class CapabilitySnapshot:
 
     def wire_toolsets(self) -> list[ToolsetCapability]:
         return [
-            ToolsetCapability(ref=capability.ref, tools=list(capability.tools))
+            ToolsetCapability(
+                ref=capability.ref,
+                tools=list(capability.tools),
+                **(
+                    {"tool_discovery": capability.tool_discovery}
+                    if capability.tool_discovery is not None
+                    else {}
+                ),
+            )
             for capability in self.toolsets
         ]
 
@@ -106,10 +132,19 @@ class CapabilitySnapshot:
     def has_toolset(self, ref: str) -> bool:
         return any(capability.ref == ref for capability in self.toolsets)
 
-    def supports_tools(self, ref: str, tools: Iterable[str]) -> bool:
+    def supports_tools(
+        self, ref: str, tools: Iterable[str], *, runtime_ref: str | None = None
+    ) -> bool:
+        tools = tuple(tools)
         selected = set(tools)
         for capability in self.toolsets:
             if capability.ref == ref:
+                if capability.tool_discovery == "allocation":
+                    return (
+                        ref in ALLOCATION_DISCOVERY_REFS
+                        and valid_allocation_tool_names(tools)
+                        and (runtime_ref is None or runtime_ref in MCP_WORKER_RUNTIMES)
+                    )
                 return selected <= set(capability.tools)
         return False
 
@@ -142,7 +177,7 @@ async def discover_capabilities(
         raise ValueError("capability probe timeouts must be positive")
 
     runtimes: list[str] = []
-    toolsets: dict[str, frozenset[str]] = {}
+    toolsets: dict[str, frozenset[str] | ToolsetDiscovery] = {}
     sandboxes: list[str] = []
     runtime_adapters: list[str] = []
     workspace: WorkspaceCapabilitySnapshot | None = None
@@ -204,6 +239,20 @@ async def discover_capabilities(
         result = await _probe_one(
             "toolset", ref, factory.probe, deadline, per_factory_timeout_seconds
         )
+        mode = getattr(factory, "tool_discovery", "static")
+        if mode == "allocation":
+            if (
+                isinstance(result, ToolsetDiscovery)
+                and result.mode == "allocation"
+                and not result.tools
+                and set(getattr(factory, "supported_worker_runtimes", ())) & set(runtimes)
+            ):
+                toolsets[ref] = result
+            continue
+        if isinstance(result, ToolsetDiscovery):
+            if result.mode != "static":
+                continue
+            result = result.tools
         if not isinstance(result, (set, frozenset)):
             continue
         available = frozenset(result)
@@ -237,7 +286,7 @@ async def discover_capabilities(
             if "adk@1" in runtimes
             and getattr(factories.worker_runtimes.get("adk@1"), "supports_worker_completion", False)
             and {"read_audit_task", "submit_check_result"}
-            <= set(toolsets.get("audit-results@2", ()))
+            <= set(_static_tools(toolsets.get("audit-results@2", ())))
             else ()
         ),
     )
@@ -322,3 +371,7 @@ def _log_probe(ref: str, kind: str, outcome: str, duration_ms: int) -> None:
             "durationMs": duration_ms,
         },
     )
+
+
+def _static_tools(value: Iterable[str] | ToolsetDiscovery) -> Iterable[str]:
+    return value.tools if isinstance(value, ToolsetDiscovery) else value

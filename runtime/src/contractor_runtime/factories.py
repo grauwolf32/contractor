@@ -40,6 +40,12 @@ from contractor_runtime.toolsets.audit_results.v2 import (
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+from contractor_runtime.toolsets.discovery import (
+    ALLOCATION_DISCOVERY_REFS,
+    MCP_COMMON_CHANNELS,
+    MCP_WORKER_RUNTIMES,
+    ToolsetDiscovery,
+)
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
@@ -133,7 +139,7 @@ class ToolsetFactory(Protocol):
     exported_tools: frozenset[str]
     infrastructure_channels: Mapping[str, frozenset[InfrastructureChannel]]
 
-    async def probe(self) -> frozenset[str]: ...
+    async def probe(self) -> frozenset[str] | ToolsetDiscovery: ...
 
     async def create_selected(
         self,
@@ -371,6 +377,24 @@ def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bo
 
 
 def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:
+    mode = getattr(factory, "tool_discovery", "static")
+    if mode not in {"static", "allocation"} or (mode == "allocation") != (
+        ref in ALLOCATION_DISCOVERY_REFS
+    ):
+        raise ValueError("Toolset discovery mode does not match its registered contract")
+    common = getattr(factory, "common_infrastructure_channels", frozenset())
+    if not isinstance(common, frozenset) or not common <= (
+        INFRASTRUCTURE_CHANNELS - {"sandbox-execution"}
+    ):
+        raise ValueError("Toolset common infrastructure channels are invalid")
+    if mode == "allocation" and (
+        factory.exported_tools
+        or common != MCP_COMMON_CHANNELS
+        or getattr(factory, "supported_worker_runtimes", None) != MCP_WORKER_RUNTIMES
+        or getattr(factory, "configuration_required", None) is not True
+        or getattr(factory, "configuration_schema", None) != "mcp-streamable-http@1"
+    ):
+        raise ValueError("allocation toolset metadata does not match its contract")
     channels = getattr(factory, "infrastructure_channels", None)
     if not isinstance(channels, Mapping):
         raise ValueError(f"Toolset {ref!r} has no infrastructure-channel descriptor")

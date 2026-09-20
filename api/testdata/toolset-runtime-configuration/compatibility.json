@@ -1,0 +1,305 @@
+[
+  {
+    "name": "dynamic-selected",
+    "ref": "mcp@1",
+    "selected": [
+      "search",
+      "fetch"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": true
+  },
+  {
+    "name": "dynamic-portable-name",
+    "ref": "mcp@1",
+    "selected": [
+      "_Search2"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": true
+  },
+  {
+    "name": "dynamic-empty",
+    "ref": "mcp@1",
+    "selected": [],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "dynamic-wildcard",
+    "ref": "mcp@1",
+    "selected": [
+      "*"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "dynamic-invalid-name",
+    "ref": "mcp@1",
+    "selected": [
+      "remote-search"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "dynamic-duplicate",
+    "ref": "mcp@1",
+    "selected": [
+      "search",
+      "search"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "dynamic-too-many",
+    "ref": "mcp@1",
+    "selected": [
+      "tool_0",
+      "tool_1",
+      "tool_2",
+      "tool_3",
+      "tool_4",
+      "tool_5",
+      "tool_6",
+      "tool_7",
+      "tool_8",
+      "tool_9",
+      "tool_10",
+      "tool_11",
+      "tool_12",
+      "tool_13",
+      "tool_14",
+      "tool_15",
+      "tool_16",
+      "tool_17",
+      "tool_18",
+      "tool_19",
+      "tool_20",
+      "tool_21",
+      "tool_22",
+      "tool_23",
+      "tool_24",
+      "tool_25",
+      "tool_26",
+      "tool_27",
+      "tool_28",
+      "tool_29",
+      "tool_30",
+      "tool_31",
+      "tool_32",
+      "tool_33",
+      "tool_34",
+      "tool_35",
+      "tool_36",
+      "tool_37",
+      "tool_38",
+      "tool_39",
+      "tool_40",
+      "tool_41",
+      "tool_42",
+      "tool_43",
+      "tool_44",
+      "tool_45",
+      "tool_46",
+      "tool_47",
+      "tool_48",
+      "tool_49",
+      "tool_50",
+      "tool_51",
+      "tool_52",
+      "tool_53",
+      "tool_54",
+      "tool_55",
+      "tool_56",
+      "tool_57",
+      "tool_58",
+      "tool_59",
+      "tool_60",
+      "tool_61",
+      "tool_62",
+      "tool_63",
+      "tool_64"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "dynamic-tool-worker",
+    "ref": "mcp@1",
+    "selected": [
+      "search"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "tool@1",
+    "expected": false
+  },
+  {
+    "name": "missing-capability",
+    "ref": "mcp@1",
+    "selected": [
+      "search"
+    ],
+    "capability": null,
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "old-static-mcp",
+    "ref": "mcp@1",
+    "selected": [
+      "search"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [
+        "search"
+      ]
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "invented-inventory",
+    "ref": "mcp@1",
+    "selected": [
+      "search"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [
+        "search"
+      ],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "unknown-mode",
+    "ref": "mcp@1",
+    "selected": [
+      "search"
+    ],
+    "capability": {
+      "ref": "mcp@1",
+      "tools": [],
+      "toolDiscovery": "remote"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "forged-native-mode",
+    "ref": "filesystem@1",
+    "selected": [
+      "arbitrary"
+    ],
+    "capability": {
+      "ref": "filesystem@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "unknown-ref-mode",
+    "ref": "unregistered@1",
+    "selected": [
+      "search"
+    ],
+    "capability": {
+      "ref": "unregistered@1",
+      "tools": [],
+      "toolDiscovery": "allocation"
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "static-subset",
+    "ref": "filesystem@1",
+    "selected": [
+      "read_file"
+    ],
+    "capability": {
+      "ref": "filesystem@1",
+      "tools": [
+        "read_file",
+        "ls"
+      ]
+    },
+    "runtime": "adk@1",
+    "expected": true
+  },
+  {
+    "name": "static-missing-tool",
+    "ref": "filesystem@1",
+    "selected": [
+      "grep"
+    ],
+    "capability": {
+      "ref": "filesystem@1",
+      "tools": [
+        "read_file"
+      ]
+    },
+    "runtime": "adk@1",
+    "expected": false
+  },
+  {
+    "name": "static-empty-inventory",
+    "ref": "filesystem@1",
+    "selected": [
+      "read_file"
+    ],
+    "capability": {
+      "ref": "filesystem@1",
+      "tools": []
+    },
+    "runtime": "adk@1",
+    "expected": false
+  }
+]

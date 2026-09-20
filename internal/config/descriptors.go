@@ -76,6 +76,13 @@ func MVPDescriptors() Descriptors {
 			"tool@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"mcp@1": {
+				ToolDiscovery:                "allocation",
+				Configuration:                &ToolsetConfigurationDescriptor{Schema: "mcp-streamable-http@1", Required: true},
+				SupportedWorkerRuntimes:      []string{"adk@1"},
+				CommonInfrastructureChannels: []ToolInfrastructureChannel{RuntimeHTTPClient},
+				UnknownExternalEffects:       true,
+			},
 			"code-execution@1": {
 				Tools:                  []string{"exec_command"},
 				RequiredSandboxProfile: "podman@1",
@@ -290,10 +297,7 @@ func RequiredRuntimeAdaptersForTemplate(
 			return nil, fmt.Errorf("unknown Toolset descriptor %q", ref)
 		}
 		for _, tool := range toolset.Tools {
-			channels, ok := descriptor.InfrastructureChannels[tool]
-			if !ok {
-				continue
-			}
+			channels := descriptor.ChannelsFor(tool)
 			for _, channel := range channels {
 				if channel == CaidoGraphQLClient {
 					selected[contracts.RuntimeAdapterCaidoGraphQL] = struct{}{}
@@ -332,6 +336,31 @@ func normalizeToolsetDescriptor(raw string, descriptor ToolsetDescriptor, sandbo
 	}
 	if _, err := ParseSelector(raw); err != nil {
 		return ToolsetDescriptor{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
+	}
+	if descriptor.ToolDiscovery != "" && descriptor.ToolDiscovery != "allocation" {
+		return ToolsetDescriptor{}, fmt.Errorf("unknown Toolset discovery mode")
+	}
+	if descriptor.ToolDiscovery == "allocation" && (len(descriptor.Tools) != 0 || descriptor.Configuration == nil || len(descriptor.SupportedWorkerRuntimes) == 0) {
+		return ToolsetDescriptor{}, fmt.Errorf("allocation discovery requires empty static tools, configuration metadata and Worker runtimes")
+	}
+	if descriptor.Configuration != nil {
+		if _, err := ParseSelector(descriptor.Configuration.Schema); err != nil {
+			return ToolsetDescriptor{}, fmt.Errorf("invalid toolset configuration schema")
+		}
+	}
+	runtimes := append([]string(nil), descriptor.SupportedWorkerRuntimes...)
+	sort.Strings(runtimes)
+	for i, runtime := range runtimes {
+		if _, err := ParseSelector(runtime); err != nil || i > 0 && runtime == runtimes[i-1] {
+			return ToolsetDescriptor{}, fmt.Errorf("invalid toolset Worker runtimes")
+		}
+	}
+	common := append([]ToolInfrastructureChannel(nil), descriptor.CommonInfrastructureChannels...)
+	sort.Slice(common, func(i, j int) bool { return common[i] < common[j] })
+	for i, channel := range common {
+		if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher && channel != CaidoGraphQLClient || i > 0 && channel == common[i-1] {
+			return ToolsetDescriptor{}, fmt.Errorf("invalid common toolset infrastructure channel")
+		}
 	}
 	seen := make(map[string]struct{}, len(descriptor.Tools))
 	tools := append([]string(nil), descriptor.Tools...)
@@ -379,9 +408,60 @@ func normalizeToolsetDescriptor(raw string, descriptor ToolsetDescriptor, sandbo
 	if err != nil {
 		return ToolsetDescriptor{}, err
 	}
+	var configuration *ToolsetConfigurationDescriptor
+	if descriptor.Configuration != nil {
+		value := *descriptor.Configuration
+		configuration = &value
+	}
 	return ToolsetDescriptor{
+		ToolDiscovery: descriptor.ToolDiscovery, Configuration: configuration,
+		SupportedWorkerRuntimes: runtimes, CommonInfrastructureChannels: common,
+		UnknownExternalEffects: descriptor.UnknownExternalEffects,
 		RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
 		Tools:                  tools, InfrastructureChannels: channels,
 		ActiveCheckTools: active, FindingProposalTools: findings,
 	}, nil
+}
+
+// ChannelsFor includes common channels for allocation-discovered tools without
+// enumerating remote names in a static descriptor.
+func (d ToolsetDescriptor) ChannelsFor(tool string) []ToolInfrastructureChannel {
+	return append(append([]ToolInfrastructureChannel{}, d.CommonInfrastructureChannels...), d.InfrastructureChannels[tool]...)
+}
+func (d ToolsetDescriptor) SupportsWorker(runtime string) bool {
+	if len(d.SupportedWorkerRuntimes) == 0 {
+		return true
+	}
+	for _, supported := range d.SupportedWorkerRuntimes {
+		if runtime == supported {
+			return true
+		}
+	}
+	return false
+}
+
+// ToolsetCapabilitySupports uses the same immutable descriptor snapshot as
+// sandbox placement. A remote-mode claim cannot turn a native ref into a wildcard.
+func ToolsetCapabilitySupports(runtime string, selection contracts.ToolsetSelection, capability contracts.ToolsetCapability) bool {
+	ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+	if capability.Ref != ref || capability.Validate() != nil {
+		return false
+	}
+	descriptor, known := sandboxPlacementDescriptors.Toolsets[ref]
+	if known && !descriptor.SupportsWorker(runtime) {
+		return false
+	}
+	if capability.ToolDiscovery != "" || descriptor.ToolDiscovery != "" {
+		return known && descriptor.ToolDiscovery == "allocation" && capability.ToolDiscovery == "allocation" && contracts.ValidateAllocationToolNames(selection.Tools) == nil
+	}
+	for _, name := range selection.Tools {
+		found := false
+		for _, available := range capability.Tools {
+			found = found || available == name
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

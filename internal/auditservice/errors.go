@@ -21,6 +21,7 @@ const (
 	ReasonAssessmentUnsupported            CompatibilityReason = "assessment_unsupported"
 	ReasonMultipleRoundsUnsupported        CompatibilityReason = "multiple_rounds_unsupported"
 	ReasonBatchingUnsupported              CompatibilityReason = "batching_unsupported"
+	ReasonUnknownExternalToolEffects       CompatibilityReason = "unknown_external_tool_effects"
 	ReasonAutomaticActiveChecksUnsupported CompatibilityReason = "automatic_active_checks_unsupported"
 	ReasonActiveCheckApprovalUnsupported   CompatibilityReason = "active_check_approval_unsupported"
 	ReasonFindingConfirmationUnsupported   CompatibilityReason = "finding_confirmation_unsupported"

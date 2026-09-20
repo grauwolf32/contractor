@@ -1008,24 +1008,15 @@ func isCompatible(
 	if !contains(registration.SupportedSandboxProfiles, sandbox) {
 		return false
 	}
-	capabilities := make(map[string]map[string]struct{}, len(registration.SupportedToolsets))
+	capabilities := make(map[string]contracts.ToolsetCapability, len(registration.SupportedToolsets))
 	for _, capability := range registration.SupportedToolsets {
-		tools := make(map[string]struct{}, len(capability.Tools))
-		for _, tool := range capability.Tools {
-			tools[tool] = struct{}{}
-		}
-		capabilities[capability.Ref] = tools
+		capabilities[capability.Ref] = capability
 	}
 	for _, selection := range template.Toolsets {
 		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-		tools, ok := capabilities[ref]
-		if !ok {
+		capability, ok := capabilities[ref]
+		if !ok || !workflowconfig.ToolsetCapabilitySupports(runtime, selection, capability) {
 			return false
-		}
-		for _, selected := range selection.Tools {
-			if _, ok := tools[selected]; !ok {
-				return false
-			}
 		}
 	}
 	if workspace != nil && !supportsWorkspaceMode(registration.WorkspaceCapabilities, workspace.Mode) {
@@ -1381,7 +1372,7 @@ func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegist
 	result.SupportedToolsets = make([]contracts.ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability
-		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
+		result.SupportedToolsets[index].Tools = append([]string{}, capability.Tools...)
 	}
 	return result
 }

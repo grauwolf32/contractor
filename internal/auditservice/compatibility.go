@@ -12,6 +12,7 @@ var reasonOrder = []CompatibilityReason{
 	ReasonAssessmentUnsupported,
 	ReasonMultipleRoundsUnsupported,
 	ReasonBatchingUnsupported,
+	ReasonUnknownExternalToolEffects,
 	ReasonAutomaticActiveChecksUnsupported,
 	ReasonActiveCheckApprovalUnsupported,
 	ReasonFindingConfirmationUnsupported,
@@ -22,6 +23,19 @@ var reasonOrder = []CompatibilityReason{
 
 func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
+	descriptors := config.MVPDescriptors().Toolsets
+	for _, binding := range profile.Workflows {
+		for _, stage := range binding.Workflow.Stages {
+			for _, agent := range stage.Agents {
+				for _, selection := range agent.Template.Toolsets {
+					if descriptors[selection.Ref.ToolsetID+"@"+selection.Ref.Version].UnknownExternalEffects {
+						reasons[ReasonUnknownExternalToolEffects] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
 	if profile.Inventory.Implementation == "finding-candidates@1" {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}

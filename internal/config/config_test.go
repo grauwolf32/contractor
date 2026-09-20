@@ -556,8 +556,15 @@ func TestToolsetInfrastructureChannelParityFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		SchemaVersion string                                            `yaml:"schemaVersion"`
-		Toolsets      map[string]map[string][]ToolInfrastructureChannel `yaml:"toolsets"`
+		SchemaVersion      string `yaml:"schemaVersion"`
+		AllocationToolsets map[string]struct {
+			WorkerRuntimes               []string                    `yaml:"workerRuntimes"`
+			CommonInfrastructureChannels []ToolInfrastructureChannel `yaml:"commonInfrastructureChannels"`
+			ConfigurationSchema          string                      `yaml:"configurationSchema"`
+			ConfigurationRequired        bool                        `yaml:"configurationRequired"`
+		} `yaml:"allocationToolsets"`
+
+		Toolsets map[string]map[string][]ToolInfrastructureChannel `yaml:"toolsets"`
 	}
 	if err := yaml.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
@@ -574,6 +581,12 @@ func TestToolsetInfrastructureChannelParityFixture(t *testing.T) {
 		t.Fatalf("descriptor parity Toolsets = %d, want %d", len(fixture.Toolsets), len(descriptors))
 	}
 	for ref, descriptor := range descriptors {
+		if descriptor.ToolDiscovery == "allocation" {
+			metadata, exists := fixture.AllocationToolsets[ref]
+			if !exists || !reflect.DeepEqual(metadata.WorkerRuntimes, descriptor.SupportedWorkerRuntimes) || !reflect.DeepEqual(metadata.CommonInfrastructureChannels, descriptor.CommonInfrastructureChannels) || metadata.ConfigurationSchema != descriptor.Configuration.Schema || metadata.ConfigurationRequired != descriptor.Configuration.Required {
+				t.Fatalf("allocation descriptor parity differs for %s", ref)
+			}
+		}
 		if !reflect.DeepEqual(fixture.Toolsets[ref], descriptor.InfrastructureChannels) {
 			t.Fatalf("descriptor parity channels for %s = %v, want %v", ref, fixture.Toolsets[ref], descriptor.InfrastructureChannels)
 		}

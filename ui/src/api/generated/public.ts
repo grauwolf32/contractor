@@ -2087,7 +2087,7 @@ export interface components {
             reportAcceptance: "automatic" | "human-required";
         };
         /** @enum {unknown} */
-        AuditCompatibilityReason: "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported";
+        AuditCompatibilityReason: "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "unknown_external_tool_effects" | "automatic_active_checks_unsupported" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
             mode: components["schemas"]["AuditProfileMode"];
