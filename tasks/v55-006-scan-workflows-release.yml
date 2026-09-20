@@ -122,6 +122,48 @@ progress:
       screenshot/log hashes and deployment migration requirement in
       tasks/evidence/v55-006.json. A1, A2 and A3 are verified; V55-006 is completed.
 remaining: []
+demo_deployment:
+  status: completed
+  requested_at: 2026-09-20
+  revision: 7763c0f1bb05f70477330b832d89b6c53c9f02ff
+  release: .local/demo/releases/main-7763c0f1-20260920T101412Z
+  evidence: tasks/evidence/v55-006-demo.json
+  progress:
+    - >-
+      User requested demo update and restart of Server, UI and Runtime. Prepared
+      an isolated tracked-source release, locked Runtime environment and verified
+      UI 0.4.0 build; added six scan Workflows to the existing operator catalog.
+      Provisioned four pinned scanner binaries and official nuclei templates.
+      Existing queue is paused, both Runtimes are idle, all 147 demo Runs and six
+      Audits are terminal. Database/configuration/secret backups are retained
+      privately under the release directory.
+    - >-
+      Restored the backup into a disposable database and applied migrations
+      55 through 61 successfully; new Server passed readiness with the combined
+      operator/managed catalog. Restore required temporary schema-local
+      search_path for the historical snapshot validator in the clone because
+      pg_restore clears search_path. All 147 original rows validate normally;
+      no live data or validator definitions were changed during preflight.
+    - >-
+      Completed cutover after a final database backup: migrated the demo from
+      version 55 to 61, restarted Server, UI and both Runtime instances, switched
+      the current release symlink and restored LAN access. All four services are
+      active without restarts; both Runtime leases are confirmed and advertise
+      nuclei, naabu, SQLMap and ffuf. Preserved all 147 existing Runs and six Audits.
+    - >-
+      Real ffuf-wordlist Run run_d3d62fa99559e8c0d122417c02018de8 succeeded against
+      a controlled loopback HTTP fixture with the selected Wordlist bytes, two
+      requests, zero request errors and zero model calls. Both Runtime slots were
+      released afterwards. The queue remains empty and paused, as before the
+      deployment; the temporary smoke admission advanced its revision 29 to 31.
+    - >-
+      UI 0.4.0, Server health/readiness, six scan Workflow contracts and Evals API
+      passed verification. Chromium checked login rendering at desktop/mobile
+      widths and protected-route redirects without browser errors or overflow.
+      Authenticated demo browser pages were not checked because no plaintext
+      login password was available; authenticated API checks used the existing
+      bearer token. Retained private backups, service configuration, scan report,
+      screenshots and evidence hashes under the release directory.
 verification:
   - >-
     Node 24.20.0: make ui-typecheck ui-test ui-build passed after rebase with
