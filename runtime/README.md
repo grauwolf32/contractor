@@ -240,20 +240,20 @@ contract.
 
 ## CLI scanners
 
-`scan@1` exposes `scan_nuclei`, `scan_sqlmap` and `scan_naabu`. Select the exact
-operations in an AgentTemplate:
+`scan@1` exposes `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and `scan_ffuf`.
+Select the exact operations in an AgentTemplate:
 
 ```yaml
 toolsets:
   - ref: scan@1
-    tools: [scan_nuclei, scan_sqlmap, scan_naabu]
+    tools: [scan_nuclei, scan_sqlmap, scan_naabu, scan_ffuf]
 ```
 
 Provision the executables on the Runtime service's `PATH` before startup.
-Each binary is checked independently with `nuclei -version`, `sqlmap --version`
-or `naabu -version`, under a two-second deadline. Missing, non-executable,
+Each binary is checked independently with `nuclei -version`, `sqlmap --version`,
+`naabu -version` or `ffuf -V`, under a two-second deadline. Missing, non-executable,
 failing or timed-out binaries omit only their own tool from advertised
-capabilities. If all three are unavailable, `scan@1` is absent. Installation
+capabilities. If all four are unavailable, `scan@1` is absent. Installation
 alone is insufficient: the version command must exit successfully. Restart
 the Runtime after changing installed scanners to refresh its frozen snapshot.
 
@@ -304,6 +304,25 @@ with `diagnosticsRedacted: true`, retain the exact `requestArtifact` ref and
 expose only recognized `injectionTechniques`. `injectionOutcome` is `reported`
 when those labels appear and `unknown` otherwise; it is not a clean-scan flag.
 
+ffuf uses `scan_ffuf(url, wordlist_ref, ...)` with `FUZZ` in the URL path/query
+and an exact uploaded `text/vnd.contractor.wordlist` or `text/plain` revision.
+The bounded UTF-8 list is validated and privately materialized without trimming
+payloads or dropping duplicates/comments/blank entries. The
+[wordlist and ffuf contract](../docs/spec/03-artifact-plane.md#scanner-wordlist-artifacts)
+defines newline semantics, limits and result fields. Calls use GET, one thread,
+`rate=10` by default and `timeout_seconds=300`; `match_status` defaults to `all`.
+Optional `filter_status`, `filter_size`, `filter_words` and `filter_lines` accept
+bounded numeric ranges. No arbitrary commands, host paths or recursion are exposed.
+The rate and `payloadsAttempted` counter describe scheduled wordlist entries;
+ffuf may retry a failed HTTP request once outside its payload rate limiter.
+The reserved `FFUFHASH` marker is rejected to avoid implicit substitutions.
+
+ffuf observations contain up to 100 structured matched responses / 128 KiB,
+the exact `wordlistArtifact` and explicit `resultsTruncated`/`scanComplete` flags.
+Raw diagnostics are suppressed. Final progress and request errors are checked
+even when the process exits zero; incomplete scans and transport failures are
+not successful empty results. `tool@1` publishes the ordinary artifact report.
+
 These fixed scanner processes run on the Runtime host and need network access.
 They do not use the offline Podman execution sandbox. The initial implementation
 rejects calls with `scan_proxy_unsupported` when a subprocess proxy is assigned;
@@ -330,7 +349,7 @@ See the [Worker contract](../docs/spec/29-tool-workers.md) and the standalone
 `sqlmap-scan@1`, publishes a `report` and uses a 300-second Worker timeout
 without model configuration or credentials.
 
-ffuf wordlists and combined workflows follow in the
+Combined workflows follow in the
 [ScanTools implementation plan](../docs/plans/2026-09-19-scan-tools.md).
 
 ## Tool descriptions

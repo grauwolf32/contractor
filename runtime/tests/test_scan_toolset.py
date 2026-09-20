@@ -28,10 +28,12 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
     return path
 
 
-def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch):
-    executable(tmp_path, "nuclei", "import sys; sys.exit(0)")
-    executable(tmp_path, "sqlmap", "import time; time.sleep(60)")
-    executable(tmp_path, "naabu", "import sys; sys.exit(2)")
+@pytest.mark.parametrize("available_scanner", scan.SCANNERS, ids=lambda scanner: scanner.name)
+def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, available_scanner):
+    failures = iter(["import time; time.sleep(60)", "import sys; sys.exit(2)", "exit(3)"])
+    for scanner in scan.SCANNERS:
+        source = "import sys; sys.exit(0)" if scanner is available_scanner else next(failures)
+        executable(tmp_path, scanner.binary, source)
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.setattr(scan, "PROBE_TIMEOUT_SECONDS", 0.2)
 
@@ -43,17 +45,19 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch):
             sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
         )
         snapshot = await discover_capabilities(registry)
-        assert snapshot.supports_tools("scan@1", ["scan_nuclei"])
-        assert not snapshot.supports_tools("scan@1", ["scan_sqlmap"])
-        assert not snapshot.supports_tools("scan@1", ["scan_naabu"])
+        for scanner in scan.SCANNERS:
+            assert snapshot.supports_tools("scan@1", [scanner.name]) == (
+                scanner is available_scanner
+            )
         assert [item.model_dump(by_alias=True) for item in snapshot.wire_toolsets()] == [
-            {"ref": "scan@1", "tools": ["scan_nuclei"]}
+            {"ref": "scan@1", "tools": [available_scanner.name]}
         ]
 
         # Inaccessible, absent, and unloadable executables must all be negative.
         (tmp_path / "nuclei").chmod(0o600)
         (tmp_path / "sqlmap").unlink()
         (tmp_path / "naabu").write_text("#!/missing/interpreter\n")
+        (tmp_path / "ffuf").unlink()
         missing_factory = scan.ScanToolsetFactory()
         empty = await discover_capabilities(
             FactoryRegistry(
@@ -117,7 +121,12 @@ def test_selection_adk_arguments_isolation_metrics_and_cleanup(tmp_path, monkeyp
             assert declaration.name == name
             assert tool.description == tool.__doc__
             assert declaration.description == inspect.cleandoc(tool.description)
-            required = {"scan_naabu": ["host"], "scan_nuclei": ["url"], "scan_sqlmap": []}
+            required = {
+                "scan_naabu": ["host"],
+                "scan_nuclei": ["url"],
+                "scan_sqlmap": [],
+                "scan_ffuf": ["url", "wordlist_ref"],
+            }
             assert declaration.parameters_json_schema.get("required", []) == required[name]
 
         nuclei = await tools["scan_nuclei"](
@@ -217,7 +226,13 @@ def test_registered_adapter_owns_binary_preparation_and_decoding(tmp_path, monke
     scanners = (*scan.SCANNERS, FixtureTool)
     factory = scan.ScanToolsetFactory(scanners=scanners)
     assert asyncio.run(factory.probe()) == {"scan_fixture"}
-    assert factory.exported_tools == {"scan_nuclei", "scan_sqlmap", "scan_naabu", "scan_fixture"}
+    assert factory.exported_tools == {
+        "scan_nuclei",
+        "scan_sqlmap",
+        "scan_naabu",
+        "scan_ffuf",
+        "scan_fixture",
+    }
     assert factory.infrastructure_channels["scan_fixture"] == {"runtime-subprocess-launcher"}
 
     async def scenario():
@@ -279,6 +294,11 @@ def test_proxy_missing_binary_and_missing_templates_are_explicit(tmp_path, monke
                 if name == "scan_naabu"
                 else {"url": "http://target.invalid"}
             )
+            if name == "scan_ffuf":
+                args = {
+                    "url": "http://target.invalid/FUZZ",
+                    "wordlist_ref": {"namespace": "inputs", "name": "wordlist", "revision": "r1"},
+                }
             result = await tools[name](**args)
             assert result["status"] == "failed"
             assert result["errorCode"] == "scan_proxy_unsupported"

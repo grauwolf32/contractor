@@ -84,5 +84,40 @@ labels appear in `injectionTechniques`; `injectionOutcome` is `reported` when
 there is such evidence and `unknown` otherwise. A successful process exit
 with no technique labels does not mean the target is free of SQL injection.
 
-These are focused fixtures. ffuf wordlists and the combined user journey are
-subsequent V55 tasks.
+## Reusable ffuf wordlists
+
+`scan_ffuf` accepts an uploaded list as an exact artifact ref. A custom Workflow
+declares a required `wordlist` input with
+`mediaTypes: [text/vnd.contractor.wordlist, text/plain]` and passes it to its
+Stage context. A `tool@1` AgentTemplate selects `scan@1` / `scan_ffuf` and binds
+`wordlist_ref: {source: artifact, name: wordlist}` and
+`url: {source: parameter, name: target}`. The target URL must contain the `FUZZ`
+replacement marker in its path or query, not its authority. The binary is
+independently probed with `ffuf -V`; the other scanners need not be installed
+for this operation.
+
+Upload the list with the existing Artifact CLI:
+
+```shell
+contractor --output name artifact put lists/paths \
+  --file paths.txt --type text/vnd.contractor.wordlist --create
+```
+
+Use the returned exact ref for the custom Workflow's `wordlist` input. Runtime
+accepts at most 1 MiB, 10,000 payloads and 4096 UTF-8 bytes per payload. LF/CRLF
+line endings are supported; spaces, `#`, duplicates and empty payloads are
+preserved. See the
+[wordlist contract](../../docs/spec/03-artifact-plane.md#scanner-wordlist-artifacts)
+for byte validation and final-line semantics. Runtime creates a private
+temporary wordlist and removes it after completion, timeout or cancellation;
+the scanner report retains its exact input revision. Optional literal argument
+bindings set `rate` (default 10), `timeout_seconds` (default 300),
+`match_status` (default `all`) and numeric exclusion filters `filter_status`,
+`filter_size`, `filter_words` and `filter_lines`.
+
+Reports expose bounded matched responses, including their payloads, and
+separate scan completion from result truncation. HTTP transport errors fail the
+scan even when ffuf exits zero; an empty match list never means a target is clean.
+
+This catalog still contains the three focused workflows listed above. The ffuf
+Workflow and combined user journey are part of V55-006.

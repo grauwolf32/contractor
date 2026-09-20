@@ -309,6 +309,117 @@ controlled source-to-RunScope or successful-Run-to-ProjectScope fork, including
 Workflow input/output forks in [17] and Agent Skill forks in [09]; there is no
 generic client operation that accepts arbitrary source and target scopes.
 
+## Scanner wordlist artifacts
+
+`text/vnd.contractor.wordlist` identifies a UTF-8 list of scanner payloads,
+one payload per line. A wordlist input slot also accepts `text/plain`, so an
+ordinary uploaded `.txt` file can be reused without rewriting its contents.
+The semantic media type describes the input; it does not replace byte-level
+validation or create a separate storage service. A compatible Workflow slot is:
+
+```yaml
+inputs:
+  wordlist:
+    required: true
+    mediaTypes: [text/vnd.contractor.wordlist, text/plain]
+```
+
+The usual UserScope/ProjectScope upload and exact RunScope input fork apply.
+`scan_ffuf` accepts an exact `wordlist_ref` with `namespace`, `name` and
+`revision` and reads it using the allocation-bound Artifact client. It rejects
+versionless, inaccessible, hidden or wrong-media-type refs before process
+launch. A caller cannot supply a host path, input command or multiple lists.
+The wordlist's bytes remain in the Artifact plane and private scanner scratch;
+binding the ref does not place the full list into a model prompt.
+
+The first wordlist contract limits the source artifact to 1 MiB, the list to
+10,000 payloads and each payload to 4096 UTF-8 bytes, excluding its line
+delimiter. UTF-8 decoding is strict. A leading UTF-8 byte-order mark, malformed
+UTF-8, bare carriage return, C0 controls other than line delimiters (including
+tab), and DEL are rejected. LF and CRLF delimit lines; CRLF is normalized to
+LF in the private scanner file. Unicode NEL and line/paragraph separator
+characters are payload characters, not delimiters.
+The reserved literal `FFUFHASH` is rejected in payloads and target URLs because
+ffuf can replace it with an internal value outside the supplied wordlist.
+
+Payload order, duplicate lines, blank lines, leading/trailing spaces and `#`
+characters are preserved. Runtime performs no trimming, comment interpretation,
+deduplication or placeholder expansion. A final LF/CRLF terminates the final
+payload and does not create another empty payload. An additional blank line
+does represent an empty payload:
+
+| Source bytes | Payloads |
+| --- | --- |
+| Empty file | Invalid: no payloads. |
+| `a` or `a\n` or `a\r\n` | One payload, `a`. |
+| `\n` | One empty payload. |
+| `a\n\n` | `a`, then one empty payload. |
+| ` a \n#entry\na\na\n` | ` a `, `#entry`, `a`, `a`, unchanged and in order. |
+
+Validation finishes before launch. Runtime creates the normalized wordlist
+exclusively with mode `0600` in its private per-invocation directory. Artifact
+retrieval, validation and execution share the scan deadline. Completion,
+timeout, cancellation and allocation close remove the list and scanner scratch
+after joining child cleanup. The observation includes the exact input ref;
+the `tool@1` report also preserves exact `inputArtifacts` and its `inputDigest`
+under [29](29-tool-workers.md#receipt-report-and-replay). Repeated delivery
+reuses the durable report and does not automatically repeat an unknown scan.
+
+### ffuf invocation and results
+
+`scan_ffuf(url, wordlist_ref, ...)` requires an absolute ASCII HTTP(S) URL
+without credentials, a fragment, whitespace or malformed percent escapes.
+At least one `FUZZ` must appear in its path or query; a marker in the authority
+is rejected. One wordlist replaces all `FUZZ` occurrences. Payloads are passed
+to ffuf unchanged after newline normalization; ffuf's normal URL handling
+applies when it constructs HTTP requests, so wordlist bytes are not promised
+to be the literal encoded bytes on the wire.
+
+| Argument | Contract |
+| --- | --- |
+| `rate` | Configured payloads/second, integer 1–1000; default 10. |
+| `timeout_seconds` | Total artifact-read/preparation/scan deadline, integer 1–3600 seconds; default 300. |
+| `match_status` | HTTP status codes or ordered ranges to include; default `all`. |
+| `filter_status` | HTTP status codes or ordered ranges to exclude; default empty. |
+| `filter_size` | Response byte counts or ordered ranges to exclude; default empty. |
+| `filter_words` | Response word counts or ordered ranges to exclude; default empty. |
+| `filter_lines` | Response line counts or ordered ranges to exclude; default empty. |
+
+Filters are comma-separated numbers/ranges, with at most 64 entries and 1024
+ASCII bytes, with at most ten digits per number. Status values are 100–599;
+byte/word/line counts are 0–1000000000.
+`all` is accepted only for `match_status`, which cannot be empty. Exclusion
+filters combine using ffuf's OR semantics. No regex or arbitrary flags are
+accepted. Runtime invokes a fixed GET operation with one thread, a ten-second
+HTTP timeout and no shell. Redirect following, recursion, auto-calibration,
+comment removal, external input commands and additional wordlists are not
+enabled. A configured subprocess proxy fails with `scan_proxy_unsupported`.
+ffuf may retry a failed HTTP request once without another rate-limiter tick.
+`rate` therefore controls payload scheduling, not a strict cap on physical HTTP
+requests; the retry remains within the overall Runtime deadline.
+
+The JSONL output is projected to at most 100 matches and 128 KiB of encoded
+match data. Each match contains decoded `input.FUZZ`, its one-based `position`,
+HTTP `status`, response `length`, `words`, `lines`, `url`, `durationNs`,
+`contentType` and `redirectLocation`. Payloads in matched results are visible
+in the report; the complete input file and arbitrary scanner output are not.
+Raw `stdout` and `stderr` are empty with `diagnosticsRedacted: true`.
+
+The observation includes exact `wordlistArtifact`, `wordlistEntries`,
+`payloadsAttempted`, `requestErrors`, `scanComplete`, `resultsTruncated` and
+`invalidResultLines`, alongside process status/exit code and existing output
+limit/truncation fields. Request/error counts are null when no progress was
+observed. `payloadsAttempted` counts scheduled wordlist entries, excluding ffuf's
+internal retries; `requestErrors` counts final failures after retry. Completion
+requires a successful process, valid output and final
+progress confirming all wordlist entries attempted with zero request errors.
+This explicitly handles ffuf exiting zero despite HTTP transport failures:
+`scan_request_failed` reports request errors, `scan_incomplete` reports missing
+or incomplete progress, and `invalid_scanner_output` reports malformed results.
+Timeout, process failure and output overflow retain their own error codes.
+Result truncation is independent of whether the scan completed. An empty result
+list never establishes that a target is free of vulnerabilities.
+
 ## Workflow inputs and scope fork
 
 A Workflow definition declares named input and output slots. Concrete input and

@@ -3,7 +3,7 @@ id: V55-005
 title: Add ffuf with validated artifact-backed wordlists
 milestone: scan-tools-first-slice
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V55-003]
 languages: [python, go, yaml, markdown]
 goal: Execute bounded ffuf scans using an exact uploaded wordlist revision without accepting host filesystem paths.
@@ -30,5 +30,82 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/config
     covers: [A1]
-  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_toolset.py runtime/tests/test_scan_wordlist.py runtime/tests/test_tool_worker.py runtime/tests/test_capabilities.py
+  - command: PYTHONPATH=runtime/src runtime/.venv/bin/pytest -W error runtime/tests/test_scan_toolset.py runtime/tests/test_scan_wordlist.py runtime/tests/test_scan_ffuf.py runtime/tests/test_scan_ffuf_live.py runtime/tests/test_tool_worker.py runtime/tests/test_capabilities.py
     covers: [A1, A2, A3]
+  - command: PYTHONPATH=runtime/src runtime/.venv/bin/pytest -W error runtime/tests/test_scan_http_request.py runtime/tests/test_scan_sqlmap_request.py runtime/tests/test_scan_sqlmap_live.py runtime/tests/test_contracts.py runtime/tests/test_allocation.py runtime/tests/test_a2a_server.py runtime/tests/test_adk_runtime.py
+    covers: [A1, A3]
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      Started from main 45ebbe3f after completion of V55-004, in the isolated
+      feat/v55-005-ffuf-wordlist-artifacts worktree. Reusing the scanner registry,
+      allocation Artifact client, bounded subprocess lifecycle and tool@1 reports.
+      Implementing the wordlist contract, ffuf adapter, Go descriptor parity and
+      documentation in parallel; UI and combined release remain V55-006.
+  - date: 2026-09-20
+    step: wordlist_contract_verified
+    details: >-
+      Implemented the UTF-8 validator and normalized private representation with
+      1 MiB, 10000-payload and 4096-byte-per-payload limits. LF/CRLF, empty payloads,
+      final delimiters, spaces, duplicates and comment-like text are covered by
+      69 passing unit tests; Ruff passes. Checked Go bufio.Scanner semantics against
+      upstream ffuf v2.3.0. Added matching Go capability/active-check descriptors
+      and the shared infrastructure-channel parity fixture.
+  - date: 2026-09-20
+    step: adapter_implemented
+    details: >-
+      Added scan_ffuf with exact Artifact refs, typed numeric filters and rate,
+      private wordlist.txt, the existing deadline/process cleanup path and bounded
+      structured JSONL results. Raw diagnostics are suppressed; final progress is
+      checked so exit zero with HTTP errors or incomplete work cannot be success.
+      Downloaded ffuf v2.3.0 into /tmp and verified its published SHA-256 checksum
+      b2a3c725fcb9da175159682f54d6e9149f2905b00d84d155e7efc5d599975ceb.
+      Adapter/Worker tests and optional real loopback checks are being completed.
+  - date: 2026-09-20
+    step: real_binary_verified
+    details: >-
+      Three real ffuf v2.3.0 loopback tests pass. They verify preserved CRLF list
+      payloads (spaces, comments, duplicates and blanks), status/size response
+      filters, exact input provenance, correct request counts and private cleanup.
+      A refused loopback connection confirms ffuf can exit zero with request errors;
+      the adapter reports scan_request_failed and scanComplete false. Go
+      configuration/descriptor tests pass. Documented the complete wordlist,
+      argument-filter and bounded-result contracts with existing upload bindings.
+  - date: 2026-09-20
+    step: review_corrections
+    details: >-
+      Independent review identified ffuf's reserved FFUFHASH substitution and its
+      automatic retry outside the rate limiter. Rejecting that marker in both
+      wordlists and URLs; documenting nominal payload scheduling and naming the
+      progress field payloadsAttempted rather than implying physical HTTP counts.
+      Numeric filter tokens are bounded for Go integer parsing; JSON result byte
+      bounds include array brackets and commas. Added regression cases for each.
+      The initial combined gate returned 339 passed and one incorrect test
+      expectation: cached same-allocation replay preserves original metrics.
+      Corrected the assertion and verified all three FFUF Worker cases pass.
+  - date: 2026-09-20
+    step: final_checks_passed
+    details: >-
+      Combined scanner and Worker/capabilities/contracts/Allocation/A2A/ADK gate
+      passed all 590 tests with warnings treated as errors. This includes 73
+      wordlist tests, three real ffuf loopback cases and three real SQLMap HTTP(S)
+      regressions. A separate real ffuf reproduction confirmed nondeterministic
+      FFUFHASH substitution; the validator now rejects it before launch.
+      Go configuration tests and go vet pass; Ruff, formatting of 11 Python files,
+      gofmt and diff checks pass. Independent implementation and documentation
+      reviews are complete; clarified transport errors versus HTTP status filters.
+remaining:
+  - Commit and integrate the verified implementation into main.
+verification:
+  - >-
+    Expanded Python gate passed 590 tests in 19.59 seconds with warnings treated
+    as errors. Log: /tmp/v55-005-runtime-gate.log. PYTHONPATH=runtime/src selects
+    this checkout when using the shared virtualenv.
+  - >-
+    Real ffuf v2.3.0 and SQLMap 1.10.9.18#dev binaries were exposed on PATH from
+    /tmp/v55-ffuf-bin and /tmp/v55-sqlmap-bin. All live requests used local loopback
+    fixtures; no external target was scanned. Optional live tests skip when their
+    binaries are unavailable.
+  - Go configuration tests and go vet ./internal/config passed.
+  - Focused Ruff, Python formatting, gofmt and git diff --check passed.

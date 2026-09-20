@@ -23,11 +23,17 @@ from contractor_runtime.toolsets.common.artifact_visibility import require_model
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.scan.ffuf import (
+    ffuf_observation,
+    validate_ffuf_filter,
+    validate_ffuf_url,
+)
 from contractor_runtime.toolsets.scan.http_request import (
     MAX_REQUEST_ARTIFACT_BYTES,
     parse_http_request,
 )
 from contractor_runtime.toolsets.scan.process import ProcessResult, run_process
+from contractor_runtime.toolsets.scan.wordlist import MAX_WORDLIST_ARTIFACT_BYTES, parse_wordlist
 from contractor_runtime.workspace import AllocationWorkspace
 
 PROBE_TIMEOUT_SECONDS = 2.0
@@ -481,7 +487,125 @@ class NaabuTool(JSONLinesScanTool):
         return await self._call(timeout_seconds, arguments)
 
 
-SCANNERS = (NucleiTool, SQLMapTool, NaabuTool)
+class FFUFTool(ScanTool):
+    name = "scan_ffuf"
+    binary = "ffuf"
+    version_arguments = ("-V",)
+    description = """Fuzz one HTTP(S) URL using an exact uploaded wordlist artifact.
+
+    Replace FUZZ in the path or query with each UTF-8 payload, preserving duplicates,
+    spaces and empty entries. Uses GET and one thread, without following redirects,
+    recursion, auto-calibration or external input commands. Configured proxy unsupported.
+
+    Args:
+        url: HTTP(S) URL containing FUZZ in its path or query, never the authority.
+        wordlist_ref: Exact artifact ref (namespace, name, revision) for text/plain or
+            text/vnd.contractor.wordlist; max 1 MiB, 10000 entries, 4096 bytes per entry.
+        rate: Configured payloads per second, 1 through 1000; defaults to 10.
+            ffuf may retry a failed HTTP request once outside this rate limiter.
+        match_status: HTTP status numbers/ranges to match, or all (default).
+        filter_status: Optional comma-separated HTTP status numbers/ranges to exclude.
+        filter_size: Optional comma-separated response byte sizes/ranges to exclude.
+        filter_words: Optional comma-separated response word counts/ranges to exclude.
+        filter_lines: Optional comma-separated response line counts/ranges to exclude.
+        timeout_seconds: Total deadline including artifact retrieval, 1 through 3600
+            seconds; defaults to 300. Each HTTP request has a 10-second timeout.
+
+    Returns:
+        Process status, exact wordlistArtifact, wordlistEntries, bounded decoded results,
+        truncation flags, payloadsAttempted, requestErrors and scanComplete. Missing
+        progress or request errors fail even if ffuf exits zero. Empty matches do not
+        establish a clean target. Raw diagnostics are suppressed; tool@1 stores a report.
+    """
+
+    async def __call__(
+        self,
+        url: str,
+        wordlist_ref: dict[str, str],
+        rate: int = 10,
+        match_status: str = "all",
+        filter_status: str = "",
+        filter_size: str = "",
+        filter_words: str = "",
+        filter_lines: str = "",
+        timeout_seconds: int = 300,
+    ) -> dict:
+        exact_ref: ArtifactRef | None = None
+        entries = 0
+
+        def arguments():
+            nonlocal exact_ref
+            validate_ffuf_url(url)
+            _url(url)
+            _integer(rate, "rate", 1, 1000)
+            try:
+                exact_ref = ArtifactRef.model_validate(wordlist_ref).require_exact()
+                require_model_visible_binding(exact_ref.namespace, exact_ref.name)
+            except (ValueError, TypeError):
+                raise ScanInputError(
+                    "wordlist_ref must be an accessible exact artifact ref"
+                ) from None
+            validate_ffuf_filter(match_status, "match_status", status=True, all_=True)
+            command = [
+                "-u",
+                url,
+                "-json",
+                "-noninteractive",
+                "-t",
+                "1",
+                "-rate",
+                str(rate),
+                "-timeout",
+                "10",
+                "-mc",
+                match_status,
+            ]
+            for name, flag, value in (
+                ("filter_status", "-fc", filter_status),
+                ("filter_size", "-fs", filter_size),
+                ("filter_words", "-fw", filter_words),
+                ("filter_lines", "-fl", filter_lines),
+            ):
+                validate_ffuf_filter(value, name, status=name == "filter_status")
+                if value:
+                    command.extend((flag, value))
+            return command
+
+        async def prepare_wordlist(directory: Path) -> list[str]:
+            nonlocal entries
+            assert exact_ref is not None
+            try:
+                value = await self._session.artifact_client.read_artifact(
+                    exact_ref, max_bytes=MAX_WORDLIST_ARTIFACT_BYTES
+                )
+            except Exception:
+                raise ScanInputError("wordlist artifact is inaccessible or invalid") from None
+            if value.media_type not in {"text/plain", "text/vnd.contractor.wordlist"}:
+                raise ScanInputError("wordlist artifact must have a supported text media type")
+            wordlist = parse_wordlist(value.data)
+            entries = wordlist.line_count
+            path = directory / "wordlist.txt"
+            try:
+                with path.open("xb") as output:
+                    os.fchmod(output.fileno(), 0o600)
+                    output.write(wordlist.raw)
+            except OSError:
+                raise ScannerUnavailable("scan_wordlist_file_unavailable") from None
+            return ["-w", f"{path}:FUZZ"]
+
+        def observation(result: ProcessResult) -> dict:
+            assert exact_ref is not None
+            return {
+                **ffuf_observation(result, entries),
+                "wordlistArtifact": exact_ref.model_dump(by_alias=True),
+            }
+
+        return await self._call(
+            timeout_seconds, arguments, prepare=prepare_wordlist, observation=observation
+        )
+
+
+SCANNERS = (NucleiTool, SQLMapTool, NaabuTool, FFUFTool)
 
 
 class ScanToolsetFactory:

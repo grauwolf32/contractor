@@ -472,7 +472,7 @@ def prepared_request(spec):
     )
 
 
-async def sqlmap_allocation(tmp_path, store, spec):
+async def scanner_allocation(tmp_path, store, spec):
     factories = built_in_factories(
         tmp_path / "work",
         artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, store),
@@ -480,7 +480,7 @@ async def sqlmap_allocation(tmp_path, store, spec):
     state = RuntimeState(
         capabilities=CapabilitySnapshot.create(
             runtimes=("tool@1",),
-            toolsets={"scan@1": frozenset({"scan_sqlmap"})},
+            toolsets={"scan@1": frozenset({spec.agent_template.execution.tool})},
             sandbox_profiles=("local-workdir@1",),
         )
     )
@@ -492,7 +492,7 @@ async def sqlmap_allocation(tmp_path, store, spec):
     return service
 
 
-async def release_sqlmap_allocation(service, spec):
+async def release_scanner_allocation(service, spec):
     await service.abort(
         AbortAllocationRequest(
             apiVersion="contractor/v1alpha1",
@@ -563,7 +563,7 @@ def test_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypa
             "application/json",
             "request-1",
         )
-        service = await sqlmap_allocation(tmp_path, store, spec)
+        service = await scanner_allocation(tmp_path, store, spec)
         try:
             stage_request = prepared_request(spec)
             result = await service._context.worker.invoke(stage_request)
@@ -582,10 +582,10 @@ def test_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypa
             assert "canary" not in repr(report)
             assert not list((tmp_path / "work").rglob("scan_sqlmap-*"))
         finally:
-            await release_sqlmap_allocation(service, spec)
+            await release_scanner_allocation(service, spec)
 
         spec.allocation_id = "replacement-allocation"
-        replacement = await sqlmap_allocation(tmp_path, store, spec)
+        replacement = await scanner_allocation(tmp_path, store, spec)
         try:
             replay = await replacement._context.worker.invoke(stage_request)
             assert replay.failure is None
@@ -595,7 +595,7 @@ def test_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypa
             assert state.state.last_completed_invocation.metrics.model_calls == 0
             assert state.state.last_completed_invocation.metrics.tool_calls == 0
         finally:
-            await release_sqlmap_allocation(replacement, spec)
+            await release_scanner_allocation(replacement, spec)
 
     asyncio.run(scenario())
 
@@ -631,7 +631,7 @@ def test_sqlmap_unreadable_request_never_launches(tmp_path, monkeypatch, status)
 
     async def scenario():
         store, spec = UnreadableRequestStore(), sqlmap_spec()
-        service = await sqlmap_allocation(tmp_path, store, spec)
+        service = await scanner_allocation(tmp_path, store, spec)
         try:
             result = await service._context.worker.invoke(prepared_request(spec))
             assert result.failure.code == "tool_input_invalid"
@@ -641,6 +641,167 @@ def test_sqlmap_unreadable_request_never_launches(tmp_path, monkeypatch, status)
             assert "canary" not in repr(await service.agent_state_snapshot(spec.allocation_id))
             assert not list((tmp_path / "work").rglob("scan_sqlmap-*"))
         finally:
-            await release_sqlmap_allocation(service, spec)
+            await release_scanner_allocation(service, spec)
+
+    asyncio.run(scenario())
+
+
+def ffuf_spec():
+    spec = tool_spec()
+    template = spec.agent_template
+    template.ref.template_id = "ffuf-scan"
+    template.description = "Fuzz one target with the supplied wordlist artifact."
+    template.toolsets[0].tools = ["scan_ffuf"]
+    template.execution.tool = "scan_ffuf"
+    template.execution.arguments = {
+        "url": ToolArgumentBinding(source="parameter", name="target"),
+        "wordlist_ref": ToolArgumentBinding(source="artifact", name="wordlist"),
+        "rate": ToolArgumentBinding(source="literal", value=7),
+    }
+    template.ref.digest = _agent_template_digest(template)
+    return AllocationSpec.model_validate(spec.model_dump(by_alias=True, exclude_none=True))
+
+
+def ffuf_request(spec):
+    return StageContentRequest(
+        apiVersion="contractor/v1alpha1",
+        subtaskId="0",
+        objective="Fuzz the target with the uploaded wordlist",
+        instructions="Fuzz the target with the uploaded wordlist",
+        parameters={"target": "https://target.invalid/FUZZ"},
+        artifacts={
+            "wordlist": {"namespace": "inputs", "name": "wordlist", "revision": "wordlist-1"}
+        },
+        resultArtifacts={"report": {"namespace": spec.namespace, "name": "report"}},
+    )
+
+
+@pytest.mark.parametrize("count", [2, 110])
+def test_ffuf_wordlist_allocation_report_and_replay(tmp_path, monkeypatch, count):
+    from test_scan_ffuf import WORDLIST_REF, ffuf_progress, ffuf_result
+    from test_scan_toolset import executable
+
+    marker = tmp_path / "ffuf-calls"
+    payloads = "".join(f"item-{index}\r\n" for index in range(count))
+    records = [ffuf_result(f"item-{index}", position=index + 1) for index in range(count)]
+    output = "\n".join(json.dumps(record) for record in records)
+    executable(
+        tmp_path,
+        "ffuf",
+        "import pathlib, stat, sys\n"
+        "if sys.argv[1:] == ['-V']:\n"
+        "    print('fixture-ffuf')\n"
+        "    sys.exit(0)\n"
+        "args = sys.argv[1:]\n"
+        "assert args[args.index('-u') + 1] == 'https://target.invalid/FUZZ'\n"
+        "assert args[args.index('-rate') + 1] == '7'\n"
+        "assert args[args.index('-mc') + 1] == 'all'\n"
+        "wordlist = pathlib.Path(args[args.index('-w') + 1][:-5])\n"
+        "assert stat.S_IMODE(wordlist.stat().st_mode) == 0o600\n"
+        f"assert wordlist.read_bytes() == {payloads.replace(chr(13), '').encode()!r}\n"
+        f"with open({str(marker)!r}, 'a') as calls:\n"
+        "    calls.write('scan\\n')\n"
+        f"print({output!r})\n"
+        "print('private-diagnostic-canary', file=sys.stderr)\n"
+        f"print({ffuf_progress(count, count)!r}, file=sys.stderr)\n",
+    )
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    async def scenario():
+        store, spec = ArtifactStore(), ffuf_spec()
+        store.values[("inputs", "wordlist")] = (
+            payloads.encode(),
+            "text/vnd.contractor.wordlist",
+            "wordlist-1",
+        )
+        service = await scanner_allocation(tmp_path, store, spec)
+        try:
+            stage_request = ffuf_request(spec)
+            result = await service._context.worker.invoke(stage_request)
+            assert result.failure is None, result
+            assert marker.read_text() == "scan\n"
+            report = json.loads(store.values[(spec.namespace, "report")][0])
+            assert report["tool"] == "scan_ffuf"
+            assert report["inputArtifacts"] == {"wordlist": WORDLIST_REF}
+            observation = report["observation"]
+            assert observation["wordlistArtifact"] == WORDLIST_REF
+            assert observation["wordlistEntries"] == count
+            assert observation["scanComplete"] is True
+            assert observation["payloadsAttempted"] == count
+            assert observation["requestErrors"] == 0
+            assert len(observation["results"]) == min(count, 100)
+            assert observation["results"][0]["input"] == {"FUZZ": "item-0"}
+            assert observation["resultsTruncated"] == (count > 100)
+            assert observation["diagnosticsRedacted"] is True
+            assert observation["stdout"] == observation["stderr"] == ""
+            snapshot = await service.agent_state_snapshot(spec.allocation_id)
+            assert snapshot.state.last_completed_invocation.metrics.model_calls == 0
+            assert snapshot.state.last_completed_invocation.metrics.tool_calls == 1
+            assert "canary" not in repr(snapshot)
+            assert "canary" not in repr(report)
+            assert not list((tmp_path / "work").rglob("scan_ffuf-*"))
+        finally:
+            await release_scanner_allocation(service, spec)
+
+        spec.allocation_id = "replacement-allocation"
+        replacement = await scanner_allocation(tmp_path, store, spec)
+        try:
+            replay = await replacement._context.worker.invoke(stage_request)
+            assert replay.failure is None
+            assert replay.result.artifacts == result.result.artifacts
+            assert marker.read_text() == "scan\n"
+            snapshot = await replacement.agent_state_snapshot(spec.allocation_id)
+            assert snapshot.state.last_completed_invocation.metrics.model_calls == 0
+            assert snapshot.state.last_completed_invocation.metrics.tool_calls == 0
+        finally:
+            await release_scanner_allocation(replacement, spec)
+
+    asyncio.run(scenario())
+
+
+def test_ffuf_request_failure_publishes_partial_report_without_rescan(tmp_path, monkeypatch):
+    from test_scan_ffuf import WORDLIST_REF, ffuf_progress, ffuf_result
+    from test_scan_toolset import executable
+
+    marker = tmp_path / "ffuf-calls"
+    executable(
+        tmp_path,
+        "ffuf",
+        "import pathlib, sys\n"
+        "if sys.argv[1:] == ['-V']:\n"
+        "    sys.exit(0)\n"
+        f"with open({str(marker)!r}, 'a') as calls:\n"
+        "    calls.write('scan\\n')\n"
+        f"print({json.dumps(ffuf_result())!r})\n"
+        f"print({ffuf_progress(2, 2, 1)!r}, file=sys.stderr)\n",
+    )
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    async def scenario():
+        store, spec = ArtifactStore(), ffuf_spec()
+        store.values[("inputs", "wordlist")] = (b"foo\nbar\n", "text/plain", "wordlist-1")
+        service = await scanner_allocation(tmp_path, store, spec)
+        try:
+            stage_request = ffuf_request(spec)
+            result = await service._context.worker.invoke(stage_request)
+            assert result.failure.code == "tool_execution_failed"
+            report = json.loads(store.values[(spec.namespace, "report")][0])
+            observation = report["observation"]
+            assert report["inputArtifacts"] == {"wordlist": WORDLIST_REF}
+            assert observation["errorCode"] == "scan_request_failed"
+            assert observation["scanComplete"] is False
+            assert observation["requestErrors"] == 1
+            assert observation["results"][0]["input"] == {"FUZZ": "foo"}
+            original_state = await service.agent_state_snapshot(spec.allocation_id)
+            replay = await service._context.worker.invoke(stage_request)
+            assert replay.failure.code == "tool_execution_failed"
+            assert marker.read_text() == "scan\n"
+            snapshot = await service.agent_state_snapshot(spec.allocation_id)
+            # Same-allocation cache replay retains the original invocation metrics.
+            assert snapshot == original_state
+            assert snapshot.state.last_completed_invocation.metrics.tool_calls == 1
+            assert not list((tmp_path / "work").rglob("scan_ffuf-*"))
+        finally:
+            await release_scanner_allocation(service, spec)
 
     asyncio.run(scenario())

@@ -475,14 +475,18 @@ add either Toolset. `caido@1` requires the private `caido-graphql@1` adapter
 resolved for the allocation. The complete transport and bounded operation
 contract is owned by [11](11-http-and-caido-tools.md).
 
-`scan@1` exports `scan_nuclei`, `scan_sqlmap` and `scan_naabu` through the same
-explicit allowlist. Runtime startup probes each optional executable separately;
-only tools whose version commands succeed are advertised. Missing scanners do
-not prevent Runtime registration, and an empty ScanToolset is omitted. All three
+`scan@1` exports `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and `scan_ffuf`
+through the same explicit allowlist. Runtime startup probes each optional
+executable separately; only tools whose version commands succeed are advertised. Missing scanners do
+not prevent Runtime registration, and an empty ScanToolset is omitted. All four
 operations are active checks for Audit compatibility. The initial CLI contract
 and provisioning requirements are documented in the
 [Runtime README](../../runtime/README.md#cli-scanners). Prepared SQLMap inputs
 follow the [HTTP request contract](#sqlmap-http-request-artifacts) below.
+ffuf accepts an exact wordlist artifact under the
+[wordlist contract](03-artifact-plane.md#scanner-wordlist-artifacts). It is
+independently selectable and declares the `runtime-subprocess-launcher`
+infrastructure channel, as do the other scanner operations.
 
 Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
