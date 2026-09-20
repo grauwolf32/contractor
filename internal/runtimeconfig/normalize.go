@@ -66,10 +66,11 @@ type specSource struct {
 }
 
 type workerSource struct {
-	LLMGateway optional[llmGatewaySource] `json:"llmGateway"`
-	Telemetry  optional[telemetrySource]  `json:"telemetry"`
-	HTTPProxy  optional[httpProxySource]  `json:"httpProxy"`
-	Caido      optional[caidoSource]      `json:"caido"`
+	Toolsets   optional[map[string]json.RawMessage] `json:"toolsets"`
+	LLMGateway optional[llmGatewaySource]           `json:"llmGateway"`
+	Telemetry  optional[telemetrySource]            `json:"telemetry"`
+	HTTPProxy  optional[httpProxySource]            `json:"httpProxy"`
+	Caido      optional[caidoSource]                `json:"caido"`
 }
 
 type plannerSource struct {
@@ -133,6 +134,7 @@ type PreparedPublication struct {
 	name             string
 	version          string
 	source           documentSource
+	toolsetSchemas   toolsetSchemas
 	authorCanonical  []byte
 	requestDigest    string
 	gatewaySelectors map[string]string
@@ -146,6 +148,10 @@ func (p PreparedPublication) RequestDigest() string { return p.requestDigest }
 // consulting mutable configuration catalogs. This separation is what lets a
 // service perform durable idempotency replay before Gateway resolution.
 func PreparePublication(data []byte) (PreparedPublication, error) {
+	return preparePublication(data, registeredToolsetSchemas())
+}
+
+func preparePublication(data []byte, schemas toolsetSchemas) (PreparedPublication, error) {
 	if len(data) == 0 || len(data) > maxDocumentBytes || !utf8.Valid(data) {
 		return PreparedPublication{}, invalid("document must be non-empty UTF-8 and at most 128 KiB")
 	}
@@ -171,7 +177,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 	if source.Metadata.Name == BuiltInName && source.Metadata.Version == BuiltInVersion {
 		return PreparedPublication{}, fmt.Errorf("%w: built-in identity cannot be published", ErrReserved)
 	}
-	selectors, canonicalSpec, operations, err := validateSource(source.Spec, true)
+	selectors, canonicalSpec, operations, err := validateSource(source.Spec, true, schemas)
 	if err != nil {
 		return PreparedPublication{}, err
 	}
@@ -191,7 +197,7 @@ func PreparePublication(data []byte) (PreparedPublication, error) {
 		return PreparedPublication{}, invalid("normalized document exceeds 128 KiB")
 	}
 	return PreparedPublication{
-		name: source.Metadata.Name, version: source.Metadata.Version, source: source,
+		name: source.Metadata.Name, version: source.Metadata.Version, source: source, toolsetSchemas: schemas,
 		authorCanonical: canonical, requestDigest: digest(canonical), gatewaySelectors: selectors,
 	}, nil
 }
@@ -220,7 +226,7 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 		}
 		resolved[path] = gateway.Ref
 	}
-	spec, canonicalSpec, _, err := materializeSource(p.source.Spec, false, resolved)
+	spec, canonicalSpec, _, err := materializeSource(p.source.Spec, false, resolved, p.toolsetSchemas)
 	if err != nil {
 		return Version{}, err
 	}
@@ -237,6 +243,10 @@ func (p PreparedPublication) Resolve(ctx context.Context, resolver GatewayResolv
 }
 
 func DecodeStoredDocument(data []byte) (Version, error) {
+	return decodeStoredDocument(data, registeredToolsetSchemas())
+}
+
+func decodeStoredDocument(data []byte, schemas toolsetSchemas) (Version, error) {
 	if len(data) == 0 || len(data) > maxDocumentBytes || !utf8.Valid(data) {
 		return Version{}, invalid("stored document has invalid size or encoding")
 	}
@@ -259,7 +269,7 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 	if !versionPattern.MatchString(source.Metadata.Version) || len(source.Metadata.Version) > 128 {
 		return Version{}, invalid("stored metadata.version is invalid")
 	}
-	spec, canonicalSpec, operations, err := materializeSource(source.Spec, false, nil)
+	spec, canonicalSpec, operations, err := materializeSource(source.Spec, false, nil, schemas)
 	if err != nil {
 		return Version{}, err
 	}
@@ -277,8 +287,8 @@ func DecodeStoredDocument(data []byte) (Version, error) {
 	return Version{Ref: Ref{Name: source.Metadata.Name, Version: source.Metadata.Version, Digest: digest(canonical)}, Spec: spec, CanonicalDocument: canonical, BuiltIn: operations == 0}, nil
 }
 
-func validateSource(source specSource, author bool) (map[string]string, map[string]any, int, error) {
-	spec, canonical, operations, err := materializeSource(source, author, nil)
+func validateSource(source specSource, author bool, schemas toolsetSchemas) (map[string]string, map[string]any, int, error) {
+	spec, canonical, operations, err := materializeSource(source, author, nil, schemas)
 	_ = spec
 	selectors := make(map[string]string)
 	if err == nil {
@@ -287,7 +297,7 @@ func validateSource(source specSource, author bool) (map[string]string, map[stri
 	return selectors, canonical, operations, err
 }
 
-func materializeSource(source specSource, author bool, resolved map[string]contracts.LLMGatewayConfigRef) (Spec, map[string]any, int, error) {
+func materializeSource(source specSource, author bool, resolved map[string]contracts.LLMGatewayConfigRef, schemas toolsetSchemas) (Spec, map[string]any, int, error) {
 	var result Spec
 	canonical := make(map[string]any)
 	operations := 0
@@ -295,15 +305,17 @@ func materializeSource(source specSource, author bool, resolved map[string]contr
 		if source.Worker.null {
 			return Spec{}, nil, 0, invalid("spec.worker cannot be null")
 		}
-		worker, workerMap, count, err := materializeWorker(source.Worker.value, author, resolved)
+		worker, workerMap, count, err := materializeWorker(source.Worker.value, author, resolved, schemas)
 		if err != nil {
 			return Spec{}, nil, 0, err
 		}
-		if len(workerMap) == 0 {
+		if len(workerMap) == 0 && !source.Worker.value.Toolsets.present {
 			return Spec{}, nil, 0, invalid("spec.worker cannot be empty")
 		}
 		result.Worker = worker
-		canonical["worker"] = workerMap
+		if len(workerMap) != 0 {
+			canonical["worker"] = workerMap
+		}
 		operations += count
 	}
 	if source.Planner.present {
@@ -328,7 +340,7 @@ func materializeSource(source specSource, author bool, resolved map[string]contr
 	return result, canonical, operations, nil
 }
 
-func materializeWorker(source workerSource, author bool, resolved map[string]contracts.LLMGatewayConfigRef) (WorkerPatch, map[string]any, int, error) {
+func materializeWorker(source workerSource, author bool, resolved map[string]contracts.LLMGatewayConfigRef, schemas toolsetSchemas) (WorkerPatch, map[string]any, int, error) {
 	var result WorkerPatch
 	canonical := make(map[string]any)
 	operations := 0
@@ -410,6 +422,17 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 		result.Caido = patch
 		canonical["caido"] = value
 		operations++
+	}
+	if source.Toolsets.present {
+		patches, values, err := normalizeToolsetPatches(source.Toolsets, schemas)
+		if err != nil {
+			return WorkerPatch{}, nil, 0, err
+		}
+		result.Toolsets = patches
+		if len(values) != 0 {
+			canonical["toolsets"] = values
+			operations += len(values)
+		}
 	}
 	return result, canonical, operations, nil
 }

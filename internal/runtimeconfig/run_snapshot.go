@@ -215,6 +215,14 @@ func validateRunLLMCredential(
 }
 
 func collectCredentialIDs(spec Spec, llm, runtime map[string]struct{}) {
+	for _, patch := range spec.Worker.Toolsets {
+		if patch.Present && !patch.Clear && patch.Value != nil {
+			for _, ref := range patch.Value.CredentialReferences() {
+				runtime[ref.CredentialID] = struct{}{}
+			}
+		}
+	}
+
 	if patch := spec.Worker.LLMGateway; patch.Present && patch.Credential.Present && !patch.Credential.Clear {
 		llm[patch.Credential.Value] = struct{}{}
 	}

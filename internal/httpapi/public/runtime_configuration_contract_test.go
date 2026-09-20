@@ -20,6 +20,13 @@ func TestPublicRuntimeConfigAuthorAndReadContracts(t *testing.T) {
 		name, spec   string
 		author, read bool
 	}{
+		{"MCP configuration", `{"worker":{"toolsets":{"mcp@1":{"endpoint":"https://knowledge.example/mcp","credential":"access"}}}}`, true, true},
+		{"MCP clear", `{"worker":{"toolsets":{"mcp@1":null}}}`, true, true},
+		{"MCP legacy transport", `{"worker":{"toolsets":{"mcp@1":{"endpoint":"https://knowledge.example/mcp","transport":"sse"}}}}`, false, false},
+		{"MCP inline secret", `{"worker":{"toolsets":{"mcp@1":{"endpoint":"https://knowledge.example/mcp","headers":{"Authorization":"secret"}}}}}`, false, false},
+		{"MCP timeout", `{"worker":{"toolsets":{"mcp@1":{"endpoint":"https://knowledge.example/mcp","requestTimeoutSeconds":601}}}}`, false, false},
+		{"unknown toolset", `{"worker":{"toolsets":{"arbitrary@1":null}}}`, false, false},
+		{"whole-map clear", `{"worker":{"toolsets":null}}`, false, false},
 		{"selector", `{"worker":{"llmGateway":{"gateway":"local-litellm@1"}}}`, true, false},
 		{"resolved gateway", `{"worker":{"llmGateway":{"gateway":` + exact + `}}}`, false, true},
 		{"null gateway", `{"worker":{"llmGateway":{"gateway":null}}}`, false, false},

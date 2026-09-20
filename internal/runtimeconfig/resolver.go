@@ -357,6 +357,9 @@ func mergePinnedLayer(
 		previous = value.Label
 		spec := value.Spec
 		if agent {
+			if len(spec.Worker.Toolsets) != 0 {
+				return Spec{}, layerOrigins{}, nil, resolutionError(ResolutionInvalid, "agent_labels.worker.toolsets", ErrAgentLabelNotApplicable)
+			}
 			if !modelFree && !workerApplicable(spec.Worker) {
 				return Spec{}, layerOrigins{}, nil, resolutionError(
 					ResolutionInvalid, "agent_labels.worker", ErrInvalid,

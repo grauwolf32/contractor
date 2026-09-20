@@ -63,6 +63,24 @@ func MergeSameLayer(entries []LayerEntry) (Spec, error) {
 	mergeField("planner.telemetry", &result.Planner.Telemetry, plannerTelemetry)
 	result.Worker.LLMGateway.Present = result.Worker.LLMGateway.Gateway.Present || result.Worker.LLMGateway.Credential.Present
 
+	refs := make(map[string]struct{})
+	for _, entry := range ordered {
+		for ref := range entry.Spec.Worker.Toolsets {
+			refs[ref] = struct{}{}
+		}
+	}
+	if len(refs) != 0 {
+		result.Worker.Toolsets = make(ToolsetPatches, len(refs))
+	}
+	for _, ref := range sortedToolsetKeys(refs) {
+		values := collect(ordered, func(s Spec) (any, bool) { patch, exists := s.Worker.Toolsets[ref]; return patch, exists })
+		var patch AtomicPatch[ToolsetConfig]
+		mergeField("worker.toolsets."+ref, &patch, values)
+		if patch.Value != nil {
+			patch.Value = patch.Value.CloneToolsetConfig()
+		}
+		result.Worker.Toolsets[ref] = patch
+	}
 	if len(conflicts) != 0 {
 		sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].Path < conflicts[j].Path })
 		return Spec{}, conflicts[0]

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
@@ -26,6 +28,7 @@ type RuntimeCredentialKind string
 
 const (
 	RuntimeCredentialOTLPHeaders  RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialMCPHeaders   RuntimeCredentialKind = "mcp-headers@1"
 	RuntimeCredentialProxyBasic   RuntimeCredentialKind = "http-proxy-basic@1"
 	RuntimeCredentialProxyBearer  RuntimeCredentialKind = "http-proxy-bearer@1"
 	RuntimeCredentialCaidoBearer  RuntimeCredentialKind = "caido-bearer@1"
@@ -78,6 +81,31 @@ func NewOTLPHeadersCredential(headers map[string]string) (RuntimeCredentialMater
 		normalized[lowerName] = value
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialOTLPHeaders, struct {
+		Headers map[string]string `json:"headers"`
+	}{Headers: normalized})
+}
+
+// NewMCPHeadersCredential uses the same encrypted/write-only storage as other
+// infrastructure credentials, with the MCP protocol's narrower header policy.
+func NewMCPHeadersCredential(headers map[string]string) (RuntimeCredentialMaterial, error) {
+	if len(headers) == 0 {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("MCP headers must be nonempty")
+	}
+	secrets := make(map[string]contracts.SecretString, len(headers))
+	for name, value := range headers {
+		if !utf8.ValidString(value) {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("invalid MCP header encoding")
+		}
+		secrets[name] = contracts.NewSecretString(value)
+	}
+	if err := contracts.ValidateMCPHeaders(secrets); err != nil {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("invalid MCP headers")
+	}
+	normalized := make(map[string]string, len(headers))
+	for name, value := range headers {
+		normalized[strings.ToLower(name)] = value
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialMCPHeaders, struct {
 		Headers map[string]string `json:"headers"`
 	}{Headers: normalized})
 }
@@ -250,14 +278,18 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 	}
 	var material RuntimeCredentialMaterial
 	switch kind {
-	case RuntimeCredentialOTLPHeaders:
+	case RuntimeCredentialMCPHeaders, RuntimeCredentialOTLPHeaders:
 		var source struct {
 			Headers map[string]string `json:"headers"`
 		}
 		if decodeStrictJSON(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
-		material, _ = NewOTLPHeadersCredential(source.Headers)
+		if kind == RuntimeCredentialMCPHeaders {
+			material, _ = NewMCPHeadersCredential(source.Headers)
+		} else {
+			material, _ = NewOTLPHeadersCredential(source.Headers)
+		}
 	case RuntimeCredentialProxyBasic:
 		var source struct {
 			Password string `json:"password"`
@@ -311,7 +343,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 }
 
 func validRuntimeCredentialKind(kind RuntimeCredentialKind) bool {
-	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
+	return kind == RuntimeCredentialMCPHeaders || kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
 		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer ||
 		kind == RuntimeCredentialOriginBasic || kind == RuntimeCredentialOriginBearer
 }

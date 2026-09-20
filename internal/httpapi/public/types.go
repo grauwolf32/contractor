@@ -778,12 +778,16 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 	var material credentials.RuntimeCredentialMaterial
 	var err error
 	switch envelope.Kind {
-	case credentials.RuntimeCredentialOTLPHeaders:
+	case credentials.RuntimeCredentialMCPHeaders, credentials.RuntimeCredentialOTLPHeaders:
 		var value struct {
 			Headers map[string]string `json:"headers"`
 		}
 		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
-			material, err = credentials.NewOTLPHeadersCredential(value.Headers)
+			if envelope.Kind == credentials.RuntimeCredentialMCPHeaders {
+				material, err = credentials.NewMCPHeadersCredential(value.Headers)
+			} else {
+				material, err = credentials.NewOTLPHeadersCredential(value.Headers)
+			}
 		}
 	case credentials.RuntimeCredentialProxyBasic:
 		var value struct {

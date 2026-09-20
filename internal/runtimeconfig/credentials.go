@@ -97,6 +97,18 @@ func validateSpecRuntimeCredentials(
 		allowedKinds []string
 	}
 	requirements := make([]requirement, 0, 3)
+	for _, ref := range sortedToolsetKeys(spec.Worker.Toolsets) {
+		patch := spec.Worker.Toolsets[ref]
+		if !patch.Present || patch.Clear {
+			continue
+		}
+		if patch.Value == nil {
+			return invalid("invalid toolset configuration")
+		}
+		for _, credential := range patch.Value.CredentialReferences() {
+			requirements = append(requirements, requirement{credentialID: credential.CredentialID, allowedKinds: []string{string(credential.Kind)}})
+		}
+	}
 	if spec.Worker.Telemetry.Present && !spec.Worker.Telemetry.Clear && spec.Worker.Telemetry.Value.Credential != "" {
 		requirements = append(requirements, requirement{
 			credentialID: spec.Worker.Telemetry.Value.Credential,

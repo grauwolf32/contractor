@@ -253,3 +253,24 @@ func runtimeMutationRequest(
 	}
 	return request
 }
+
+func TestMCPHeadersCredentialAPIStoresSafeMetadataAndRejectsReservedHeaders(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	for _, name := range []string{"Authorization", "Accept", "MCP-Session-Id", "Connection"} {
+		request := runtimeMutationRequest(t, http.MethodPost, "/v1/operations/runtime-credentials",
+			`{"credentialId":"mcp-lab","kind":"mcp-headers@1","material":{"headers":{"`+name+`":"mcp-api-secret-canary"}}}`, "create-mcp-"+name, "", "")
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		expected := http.StatusBadRequest
+		if name == "Authorization" {
+			expected = http.StatusCreated
+		}
+		if response.Code != expected || strings.Contains(response.Body.String(), "mcp-api-secret-canary") {
+			t.Fatalf("MCP header %s response status: %d", name, response.Code)
+		}
+	}
+	metadata, err := fixture.runtimeCredentials.Get(t.Context(), "mcp-lab")
+	if err != nil || metadata.Kind != credentials.RuntimeCredentialMCPHeaders {
+		t.Fatalf("MCP metadata: %v", err)
+	}
+}

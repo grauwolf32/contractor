@@ -259,6 +259,10 @@ WHERE c.canonical_document::jsonb #>> '{spec,worker,telemetry,credential}' = $1
    OR c.canonical_document::jsonb #>> '{spec,worker,httpProxy,credential}' = $1
    OR c.canonical_document::jsonb #>> '{spec,worker,caido,credential}' = $1
    OR c.canonical_document::jsonb #>> '{spec,planner,telemetry,credential}' = $1
+   OR EXISTS (
+       SELECT 1 FROM jsonb_each(COALESCE(c.canonical_document::jsonb #> '{spec,worker,toolsets}', '{}'::jsonb)) AS toolset(ref, value)
+       WHERE toolset.value->>'credential' = $1
+   )
 ORDER BY b.label
 LIMIT $2`, credentialID, limit)
 	if err != nil {

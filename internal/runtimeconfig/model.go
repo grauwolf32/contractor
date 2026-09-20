@@ -84,6 +84,7 @@ type CaidoConfig struct {
 }
 
 type WorkerPatch struct {
+	Toolsets   ToolsetPatches
 	LLMGateway LLMGatewayPatch
 	Telemetry  AtomicPatch[TelemetryConfig]
 	HTTPProxy  AtomicPatch[HTTPProxyConfig]
@@ -101,7 +102,7 @@ type Spec struct {
 
 func (s Spec) Empty() bool {
 	return !s.Worker.LLMGateway.Present && !s.Worker.Telemetry.Present &&
-		!s.Worker.HTTPProxy.Present && !s.Worker.Caido.Present && !s.Planner.Telemetry.Present
+		!s.Worker.HTTPProxy.Present && !s.Worker.Caido.Present && !s.Planner.Telemetry.Present && len(s.Worker.Toolsets) == 0
 }
 
 type Version struct {

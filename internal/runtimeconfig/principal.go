@@ -767,6 +767,9 @@ func agentLayerEntries(
 			return nil, err
 		}
 		worker := version.Spec.Worker
+		if len(worker.Toolsets) != 0 {
+			return nil, ErrAgentLabelNotApplicable
+		}
 		if !worker.LLMGateway.Present && !worker.Telemetry.Present && !worker.HTTPProxy.Present && !worker.Caido.Present {
 			return nil, ErrAgentLabelNotApplicable
 		}
