@@ -1,0 +1,134 @@
+{
+  "schema_version": "1.0",
+  "task": "V60-007",
+  "status": "passed",
+  "verified_at": "2026-09-20T10:38:55.292117+00:00",
+  "baseline_commit": "41b18602699447f4e7e09ae280dbd0a83f84f605",
+  "reviewed_state": "Baseline plus the two added review test files; concurrent V60 corrections are tracked independently. No production code was changed by V60-007.",
+  "toolchain": {
+    "go version": {
+      "exit_code": 0,
+      "output": "go version go1.25.6 linux/amd64"
+    },
+    "runtime/.venv/bin/python --version": {
+      "exit_code": 0,
+      "output": "Python 3.13.14"
+    },
+    "node --version": {
+      "exit_code": 0,
+      "output": "v24.20.0"
+    },
+    "pnpm --version": {
+      "exit_code": 0,
+      "output": "11.24.0"
+    },
+    "podman --version": {
+      "exit_code": 0,
+      "output": "podman version 6.1.0"
+    },
+    "git --version": {
+      "exit_code": 0,
+      "output": "git version 2.55.0"
+    },
+    "postgresql": {
+      "exit_code": 0,
+      "output": "17.11"
+    }
+  },
+  "commands": [
+    {
+      "command": "make test-artifact-integration",
+      "started_at": "2026-09-20T10:26:12.691881+00:00",
+      "seconds": 2.64,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-007-test-artifact-integration.log",
+      "go_pass_records": 1,
+      "go_skip_records": 0,
+      "go_fail_records": 0,
+      "log_sha256": "4aeb19873892dbe4eeac4b33ae728474f50c32ff081a35149bdad3de32086eae",
+      "python_passed": 0,
+      "ui_unit_passed": 0,
+      "browser_passed": 0,
+      "mandatory_skipped": 0
+    },
+    {
+      "command": "make test-artifact-blob-backends",
+      "started_at": "2026-09-20T10:26:15.332392+00:00",
+      "seconds": 295.989,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-007-test-artifact-blob-backends.log",
+      "go_pass_records": 784,
+      "go_skip_records": 0,
+      "go_fail_records": 0,
+      "log_sha256": "f19611fe0c7f05927e05360a7422fb3316c041fa7adaf8aa51f9cf8606b6efee",
+      "python_passed": 23,
+      "ui_unit_passed": 0,
+      "browser_passed": 0,
+      "mandatory_skipped": 0
+    },
+    {
+      "command": "make test-git-artifacts",
+      "started_at": "2026-09-20T10:31:11.321267+00:00",
+      "seconds": 426.286,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-007-test-git-artifacts.log",
+      "go_pass_records": 939,
+      "go_skip_records": 1,
+      "go_fail_records": 0,
+      "log_sha256": "35a2af0aa087a502d52caf8c6f2fef5c205c62247a131cfeb672e9117fea3175",
+      "python_passed": 24,
+      "ui_unit_passed": 486,
+      "browser_passed": 5,
+      "mandatory_skipped": 0,
+      "explained_skips": [
+        {
+          "test": "TestReadOnlyGitProbe",
+          "reason": "Host invocation is a container-only helper; the mandatory child probe executed and passed inside TestRealGitReadOnlyContainer."
+        }
+      ]
+    }
+  ],
+  "test_source_sha256": {
+    "internal/artifacts/storage_review_postgres_test.go": "5e5b59013d15fc3e642dcc63b6b36275e94242f40c347761a130bb03b85d2473",
+    "internal/persistence/postgres/storage_recovery_review_test.go": "5e00d6bf777948bc94c91b82f194953745392e2a2a81ce3e24df7dae2910bc25"
+  },
+  "additional_focused_runs": [
+    {
+      "command": "go test -race -count=1 ./internal/artifacts -run ^TestStorageReview",
+      "exit_code": 0,
+      "pass_records": 17,
+      "skipped": 0,
+      "package_seconds": 31.633,
+      "log": ".local/v60-review/v60-007-focused-initial.log"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/persistence/postgres -run ^TestStorageReview",
+      "exit_code": 0,
+      "pass_records": 6,
+      "skipped": 0,
+      "package_seconds": 10.554,
+      "log": ".local/v60-review/v60-007-migrations-initial.log"
+    }
+  ],
+  "controlled_scenarios": [
+    "CAS lock-wait then stale conflict on both backends, exact history unchanged",
+    "Project deletion versus create/update/publication in both commit orders on both backends: twelve cases",
+    "Filesystem dedup/exact reads/terminal purge/offline cleanup with MaxConns=1",
+    "Installed migration47 with historical blob: interruption at actual migration48 DDL by cancellation and backend termination, rollback and normal forward recovery",
+    "Unknown newer migration and changed checksum fail closed",
+    "Existing suites: fresh concurrent migration, pre60/pre61 upgrades, exact refs, shared purge/fork retention, corruption, ambiguous acknowledgement, lost filesystem volume and generation-safe cleanup"
+  ],
+  "evidence_levels": {
+    "private_artifact_gate": "Go/Python mTLS integration with in-memory registry fixture",
+    "storage_suites": "Real isolated PostgreSQL, temporary filesystem roots, controlled transaction interleavings",
+    "production_containers": "Static production Server in scratch Podman, real Python Runtime, isolated PostgreSQL, fake Gateway, both blob backends",
+    "browser": "Five Chromium tests against production static UI with Playwright-routed API fixtures; real API/Git persistence proven separately by production containers"
+  },
+  "confirmed_findings": [],
+  "required_verification_unresolved": [],
+  "limits": [
+    "No live models or production deployment/data were used.",
+    "Filesystem crash/power-loss durability, S3 and populated-store backend switching remain outside the supported contract.",
+    "Backup restoration is separate V60-009 evidence; migration recovery is not represented as backup restoration."
+  ]
+}
