@@ -6,6 +6,11 @@ Last implementation review: **2026-09-06**
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
 
+[33 — Autonomous pentest Audits](33-autonomous-pentest-audits.md) specifies
+planned engagement, proposed-check routing, retained-dependency and optional
+finding-review extensions. They are capability-gated implementation targets;
+existing profile support and lifecycle semantics below remain unchanged.
+
 ## 1. Purpose
 
 An `Audit` is the assessment abstraction above Workflows in Contractor's

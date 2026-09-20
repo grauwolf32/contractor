@@ -29,5 +29,11 @@ removal plan. Python shims, deprecated process settings and obsolete UI
 redirects have been removed. The project does not require backward compatibility;
 remaining readers will move to strict current formats in subsequent increments.
 
+[Autonomous pentest Audit specification](spec/33-autonomous-pentest-audits.md)
+defines source-optional web/API auditing, enforced scope, isolated identities,
+typed evidence, independent replay, recovery, budgets and acceptance gates.
+It specifies the implementation target and maps existing work to delivery
+stages; the new capabilities are not yet implemented.
+
 [Architecture review — 2026-09-15](reviews/architecture-review-2026-09-15.md)
 records the per-view scenario checks, fixes and verification limits.
