@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V61-003
+title: Pin shared toolset settings on Run and deliver only allocation-selected configuration
+milestone: toolset-runtime-configuration
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V61-002, V61-004, V25-005, V37-008]
+languages: [go, python, yaml]
+goal: >-
+  Freeze toolset bindings with Run creation and carry the selected agent's typed
+  settings and secrets through existing placement and allocation boundaries.
+context:
+  authority: User confirmed one common configuration of each toolset per Run and requested reuse of allocation delivery used by LLM/telemetry.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/07-runtime-labels-and-infrastructure-config.md
+    - docs/spec/02-runtime-and-a2a.md
+    - docs/spec/19-audits.md
+    - docs/spec/29-tool-workers.md
+  reuse: Existing PinRunSnapshot, Run/Audit credential holds, candidate resolution, non-secret reservation snapshots and scheduler materialization.
+scope:
+  in:
+    - Derive required configurations across every resolved workflow template, including later stages, with deduplicated refs and bounded consumers.
+    - Validate complete effective settings in the same transaction and from the same locked refs as Run pinning, with no MCP I/O.
+    - Extend credential ID collection and Audit baseline/child-Run reuse without copying config bodies into new storage.
+    - Project effective settings onto the allocation's selected refs before secret lookup and new requirements; reject forbidden Agent-layer overrides defensively.
+    - Carry safe typed settings/origins through ResolvedRuntimeConfig and materialize MCP headers only at private allocation delivery.
+    - Extend Go/Python secret collectors, cleanup and safe error/provenance serialization for the new private fields.
+    - Preserve exact-request replay, changed-binding Repeat review, model-free native workers and late-stage/replacement use of original pins.
+  out:
+    - Expand Run inputs or executionConfig, add per-agent configuration addressing, connect to MCP during a database transaction or change existing proxy layer precedence.
+deliverables:
+  - path: internal/runtimeconfig/run_snapshot.go
+    description: Toolset references and transactional validation using shared resolution rules.
+  - path: internal/runservice
+    description: Complete workflow requirement validation and exact idempotent Run creation tests.
+  - path: internal/auditservice
+    description: Baseline configuration completeness, credential holds and pinned child Run behavior.
+  - path: internal/controlplane
+    description: Per-template projection before catalog lookup, safe persisted resolution and provenance.
+  - path: internal/scheduler/execution_preparation.go
+    description: Last-moment secret materialization and cleanup of transmitted settings.
+  - path: runtime/src/contractor_runtime
+    description: Shared extraction/redaction of all known RuntimeSettings secrets and matching regression fixtures.
+requirements:
+  - id: R1
+    text: A single pure merge implementation is used by Run validation and placement; validation and persisted pins cannot observe different binding revisions.
+  - id: R2
+    text: An allocation receives only its template's configured refs; another agent's MCP config causes no credential lookup, secret delivery or capability requirement for this allocation.
+  - id: R3
+    text: Accepted idempotent requests replay before consulting current aliases. Repeat is a new reviewed Run; existing Run retries/stages keep original pins.
+  - id: R4
+    text: Native tool@1 remains model-free; generic MCP/tool@1 incompatibility and unknown-effect Audit admission use V61-004 rules without weakening legacy behavior.
+acceptance_criteria:
+  - id: A1
+    text: Missing/cleared required configuration and same-layer conflicts fail Run creation atomically, including requirements first used in late stages.
+  - id: A2
+    text: Label mutation, concurrent create and restart preserve exact pins; duplicate create replays the original Run while Repeat reviews and pins current bindings.
+  - id: A3
+    text: Two MCP consumers receive identical non-secret connection configuration and their required credential; a native-only allocation receives neither MCP settings nor secrets.
+  - id: A4
+    text: Public/persisted provenance, errors, repr and metrics expose no header plaintext; delivery material is cleared and current infrastructure settings still resolve.
+  - id: A5
+    text: Run/Audit/allocation reference holds prevent premature credential deletion across replacement, child creation and release, with actual database race/recovery cases executed.
+tests:
+  - command: go test -race -count=1 ./internal/runtimeconfig ./internal/runservice ./internal/auditservice ./internal/controlplane ./internal/scheduler ./internal/credentials ./internal/httpapi/public
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-runtime-label-placement test-runtime-credentials
+    covers: [A2, A3, A5]
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_contracts.py tests/test_allocation_contracts.py tests/test_tool_worker.py tests/test_http_caido_redaction.py tests/test_mcp_redaction.py
+    covers: [A3, A4]
+  - command: make verify-wire-contracts test-wire-cross-language
+    covers: [A3, A4]
+test_prerequisites:
+  - Isolated CONTRACTOR_TEST_DATABASE_URL; mandatory Run/Audit/reference tests must execute rather than skip.
+verification_requirements:
+  - Create the planned MCP redaction test module in this task and record emitted-wire plus persisted/public negative-secret assertions.

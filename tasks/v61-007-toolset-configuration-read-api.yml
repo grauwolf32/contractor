@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V61-007
+title: Project workflow toolset requirements and safe runtime-label coverage
+milestone: toolset-runtime-configuration
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V61-003]
+languages: [go, typescript, yaml, markdown]
+goal: >-
+  Let the Run form identify required toolset settings and compatible labels
+  without downloading every RuntimeConfig or exposing private connection data.
+context:
+  authority: User wants to choose reusable tool configuration in the launch UI using existing bindings.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/07-runtime-labels-and-infrastructure-config.md
+    - docs/spec/06-server-ui-and-operations.md
+  reuse: Existing workflow detail, paginated Operations runtime-label picker, RuntimeConfig read/mutation APIs and allocation provenance projections.
+scope:
+  in:
+    - Expose bounded toolsetConfigurationRequirements derived from resolved workflow templates with exact ref, required flag, selected tools and stage/agent consumers.
+    - Extend label picker projections with configured/cleared refs, canonical non-secret per-value digests, changed sections and exact config/ref/revision identity.
+    - Support default coverage, retained selected labels, clear entries and mixed profiles without adding a second settings write API.
+    - Project safe toolset origins and stable configuration/preparation error details through current Run/Operations diagnostics.
+    - Regenerate OpenAPI client and update strict TypeScript parsing for all new fields, preserving authorization and bounded query behavior.
+    - Reuse Server resolution/normalization definitions so read projections and authoritative Run-create validation agree.
+  out:
+    - Return credential plaintext, require N+1 full-document fetches, persist a second configuration inventory or provide browser/server-side MCP connectivity probes.
+    - Change global Operations ownership or implement new per-owner connection catalogs.
+deliverables:
+  - path: internal/httpapi/public
+    description: Workflow requirements, label coverage and safe provenance/error projections with contract/query tests.
+  - path: internal/runtimeconfig
+    description: Bounded safe coverage projection using normalized values and exact document refs.
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Complete read-model responses, examples and regenerated public client.
+  - path: ui/src/api
+    description: Strict requirements/label/provenance parsers and positive/negative tests.
+requirements:
+  - id: R1
+    text: Requirements cover all workflow stages and deduplicate a shared ref; consumers retain logical identities and never expose physical runtime placement.
+  - id: R2
+    text: valueDigest hashes the canonical non-secret configuration value, excluding document metadata, so equal settings in differently named configs compare equal; clear remains a distinct state.
+  - id: R3
+    text: Coverage metadata and config/ref/revision are read consistently; publishing or moving a binding cannot produce a row describing another version's fields.
+  - id: R4
+    text: Existing Run creation remains authoritative and checks current bindings; UI projections carry no independent execution authority and include all mixed-profile effects.
+acceptance_criteria:
+  - id: A1
+    text: A workflow with shared and late-stage toolsets yields complete sorted requirements and logical consumers; native unconfigured tools add no spurious requirement.
+  - id: A2
+    text: Picker rows distinguish inheritance, clear, equal values and conflicts across documents without exposing endpoint/credential material or issuing per-row full-document queries.
+  - id: A3
+    text: Changed/deleted bindings and mixed LLM/telemetry/toolset profiles produce truthful metadata and bounded safe errors/origins consistent with Run-create validation.
+  - id: A4
+    text: OpenAPI, generated types and strict parsers agree; malformed/unknown fields are rejected and current native Run/Operations consumers remain compatible.
+tests:
+  - command: go test ./internal/httpapi/public ./internal/runtimeconfig ./internal/runservice
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api ui-generate-check ui-typecheck
+    covers: [A1, A4]
+  - command: cd ui && corepack pnpm test --run src/api/workflows.test.ts src/api/operations.test.ts src/api/runtime-configuration.test.ts src/api/runs.test.ts
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Isolated CONTRACTOR_TEST_DATABASE_URL for coverage snapshot/query-count cases; selected persistence cases must execute.
+verification_requirements:
+  - Assert constant/batched query behavior and same-value digests across distinct RuntimeConfig metadata; do not equate the enclosing document digest with configuration-value equality.
