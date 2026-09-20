@@ -116,7 +116,7 @@
     "List-only commands prove selection, not browser execution.",
     "Nineteen selected cases use UI API route fixtures; the selected real stack case drives actual local Go/Python/Node processes with a scripted Gateway.",
     "Separate native/external Evals stack tests remain real process cases. Git and real scanner tests retain their dedicated gates.",
-    "The full release already running had compiled the previous harness; its unaffected results will be reused only together with a full corrected browser prerequisite rerun."
+    "The original full release compiled the previous harness. The complete corrected browser prerequisite passed separately; the old omitted-fixture result is not counted as their execution."
   ],
   "source_verification": {
     "original_release_source": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950",
@@ -317,6 +317,6 @@
       }
     ],
     "operations_harness_seconds": 111.68,
-    "evidence_level": "19 browser route-fixture cases plus 1 real Go/Python/Node operations-stack journey. Required browser report validator passed; full ui-stack gate still waits for native and external Evals."
+    "evidence_level": "19 browser route-fixture cases plus 1 real Go/Python/Node operations-stack journey. The required JSON validator and full ui-stack gate passed, including separate real native and external Evals journeys."
   }
 }
