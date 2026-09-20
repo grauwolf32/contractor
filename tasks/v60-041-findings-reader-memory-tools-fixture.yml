@@ -3,7 +3,7 @@ id: V60-041
 title: Align the Findings boundary Gateway fixture with the current Memory tool contract
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-008, V60-035]
 languages: [go, markdown]
 goal: Preserve the exact Findings reader tool allowlist and boundary assertions after the default catalog moved to the Memory-enabled reader.
@@ -42,5 +42,10 @@ verification_requirements:
 review_evidence:
   report: docs/research/2026-09-20-v60-041-findings-reader-memory-tools-review.md
   evidence: tasks/evidence/v60-041.json
-  result: Reproduced at the integrated source; correction and complete Findings verification are pending.
-implementation_commit: null
+  result: Reproduced at the integrated source; the complete corrected Findings gate passed 13 Go events and 48 Runtime cases without skips.
+implementation_commit: c25b4b28ed0e865dd54fb0bd74b917a1306e99f0
+
+verification:
+  evidence: tasks/evidence/v60-041.json
+  report: docs/research/2026-09-20-v60-041-findings-reader-memory-tools-review.md
+  result: Full Findings gate passed at the implementation commit; original failure and source-attributed verification boundaries are preserved.
