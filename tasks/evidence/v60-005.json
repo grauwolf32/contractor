@@ -1,0 +1,194 @@
+{
+  "schema_version": "1.0",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": null,
+  "report": "docs/research/2026-09-20-v60-005-execution-review.md",
+  "task_id": "V60-005",
+  "environment": {
+    "go": "go1.25.6 linux/amd64; GOFLAGS=-p=2 -v, GOMAXPROCS=2",
+    "python": "3.13.14, locked uv environment, PYTEST_ADDOPTS=-ra",
+    "node": "24.20.0, pnpm11.24.0",
+    "database": "isolated disposable PostgreSQL17 with real per-test schemas; no credentials recorded"
+  },
+  "checks": [
+    {
+      "command": "make test-faults",
+      "startedAt": "2026-09-20T10:29:26.522651+00:00",
+      "elapsedSeconds": 400.849,
+      "exitCode": 0,
+      "log": ".local/v60-review/v60-005-test-faults.log",
+      "goPassedTestsAndSubtests": 1536,
+      "goFailedTestsAndSubtests": 0,
+      "goSkippedTestsAndSubtests": [],
+      "goPackageResults": [
+        "ok  \tgithub.com/grauwolf32/contractor/tests/faults\t1.018s",
+        "ok  \tgithub.com/grauwolf32/contractor/tests/integration/lease\t1.052s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/requestid\t1.008s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/controlplane\t18.095s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/httpapi/privateartifacts\t1.536s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/mtls\t1.086s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/config\t55.253s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner\t1.069s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/a2a\t9.269s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/router\t1.109s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/scan\t1.264s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/session\t5.802s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/stateview\t1.039s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/planner/streamline\t1.909s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/artifacts\t158.118s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/httpapi/public\t196.493s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/runstore\t65.871s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/scheduler\t52.950s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/telemetry\t18.844s"
+      ],
+      "pytestSummary": [
+        "2407 passed, 34 skipped in 72.16s (0:01:12)"
+      ],
+      "uiSummary": [],
+      "log_sha256": "e725b6faa467f39aecaa6a1a8ef0316642aef9971796686cf43bc68e9ac3f7d8",
+      "skip_details": [
+        "SKIPPED [1] tests/test_audit_completion_e2e.py:33: launched by make test-audit-completion-e2e with a real Go Artifact API",
+        "SKIPPED [1] tests/test_live_gateway.py:38: live LLM Gateway environment is not configured",
+        "SKIPPED [1] tests/test_live_gateway.py:87: live LLM Gateway environment is not configured",
+        "SKIPPED [1] tests/test_live_gateway.py:139: live LLM Gateway environment is not configured",
+        "SKIPPED [2] tests/test_podman_capabilities.py:318: explicit real-rootless startup capability gate",
+        "SKIPPED [1] tests/test_podman_deployment_integration.py:30: explicit real-rootless deployment/workflow gate",
+        "SKIPPED [1] tests/test_podman_execution_integration.py:50: explicit real-rootless command execution gate",
+        "SKIPPED [4] tests/test_podman_execution_integration.py:73: explicit real-rootless command execution gate",
+        "SKIPPED [1] tests/test_podman_owner_integration.py:36: explicit real-rootless owner-process gate",
+        "SKIPPED [2] tests/test_podman_owner_integration.py:56: explicit real-rootless owner-process gate",
+        "SKIPPED [3] tests/test_podman_release_integration.py:30: explicit real Podman release gate",
+        "SKIPPED [1] tests/test_podman_release_integration.py:173: explicit real Podman release gate",
+        "SKIPPED [1] tests/test_podman_release_integration.py:228: explicit real Podman release gate",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:105: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [4] tests/test_podman_supervisor_integration.py:127: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:162: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:195: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:225: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:242: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:266: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [1] tests/test_podman_supervisor_integration.py:291: explicit real gate: make test-podman-supervisor",
+        "SKIPPED [3] tests/test_scan_sqlmap_live.py:21: optional sqlmap binary is absent"
+      ]
+    },
+    {
+      "command": "make test-lease-integration",
+      "startedAt": "2026-09-20T10:25:14.029226+00:00",
+      "elapsedSeconds": 11.938,
+      "exitCode": 0,
+      "log": ".local/v60-review/v60-005-test-lease-integration.log",
+      "goPassedTestsAndSubtests": 11,
+      "goFailedTestsAndSubtests": 0,
+      "goSkippedTestsAndSubtests": [],
+      "goPackageResults": [
+        "ok  \tgithub.com/grauwolf32/contractor/tests/integration/lease\t1.099s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/controlplane\t1.168s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/scheduler\t1.111s"
+      ],
+      "pytestSummary": [
+        "5 passed in 0.87s"
+      ],
+      "uiSummary": [],
+      "log_sha256": "8a8e6648fe6adc221e35ff8de381d5c7d4f4e883fe68ed0aa74de6d418a27147",
+      "skip_details": []
+    },
+    {
+      "command": "make test-lifecycle-controls-hardening",
+      "startedAt": "2026-09-20T10:24:02.808869+00:00",
+      "elapsedSeconds": 48.85,
+      "exitCode": 0,
+      "log": ".local/v60-review/v60-005-test-lifecycle-controls-hardening.log",
+      "goPassedTestsAndSubtests": 153,
+      "goFailedTestsAndSubtests": 0,
+      "goSkippedTestsAndSubtests": [],
+      "goPackageResults": [
+        "ok  \tgithub.com/grauwolf32/contractor/tests/e2e\t4.162s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/persistence/postgres\t1.019s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/runstore\t2.524s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/scheduler\t2.514s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/artifacts\t4.926s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/projectlifecycle\t3.575s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/httpapi/public\t1.399s"
+      ],
+      "pytestSummary": [],
+      "uiSummary": [
+        "Test Files  6 passed (6)",
+        "Tests  45 passed (45)"
+      ],
+      "log_sha256": "0ca03c4f543d94eebcf4666ad16e829f0b4d1b153c119fa719f068811548352e",
+      "skip_details": []
+    },
+    {
+      "command": "make test-scheduler-concurrency-hardening",
+      "startedAt": "2026-09-20T10:23:25.942434+00:00",
+      "elapsedSeconds": 23.13,
+      "exitCode": 0,
+      "log": ".local/v60-review/v60-005-test-scheduler-concurrency-hardening.log",
+      "goPassedTestsAndSubtests": 152,
+      "goFailedTestsAndSubtests": 0,
+      "goSkippedTestsAndSubtests": [],
+      "goPackageResults": [
+        "ok  \tgithub.com/grauwolf32/contractor/tests/e2e\t3.221s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/persistence/postgres\t1.010s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/settingsstore\t2.130s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/runstore\t2.251s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/scheduler\t6.767s",
+        "ok  \tgithub.com/grauwolf32/contractor/internal/projectlifecycle\t2.857s"
+      ],
+      "pytestSummary": [],
+      "uiSummary": [],
+      "log_sha256": "6c0889f5cdb78a225714d91b30a91b9bf3d5af7f9e7390065067b982114740aa",
+      "skip_details": []
+    }
+  ],
+  "initial_failure": {
+    "command": "make test-faults",
+    "startedAt": "2026-09-20T10:25:50.170057+00:00",
+    "elapsedSeconds": 78.255,
+    "exitCode": 2,
+    "log": ".local/v60-review/v60-005-test-faults-before-fix.log",
+    "goPassedTestsAndSubtests": 837,
+    "goFailedTestsAndSubtests": 1,
+    "goSkippedTestsAndSubtests": [],
+    "goPackageResults": [
+      "FAIL\tgithub.com/grauwolf32/contractor/tests/faults\t0.025s",
+      "ok  \tgithub.com/grauwolf32/contractor/tests/integration/lease\t1.072s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/requestid\t1.011s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/controlplane\t23.034s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/httpapi/privateartifacts\t1.657s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/mtls\t1.122s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/config\t66.912s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner\t1.102s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner/a2a\t10.014s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner/router\t1.176s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner/scan\t1.299s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner/session\t6.912s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner/stateview\t1.052s",
+      "ok  \tgithub.com/grauwolf32/contractor/internal/planner/streamline\t1.988s"
+    ],
+    "pytestSummary": [],
+    "uiSummary": [],
+    "log_sha256": "00b3bb85009d64118cc82b2826b718df29a76109d5fe801984392b87e7d7cf74",
+    "skip_details": []
+  },
+  "corrections": [
+    "V60-029: stale fault matrix test file corrected; identical named partial prepare cleanup regression retained"
+  ],
+  "accepted_boundaries": [
+    "Observed claim loss prevents later old-owner mutations; no multi-server SQL fencing guarantee.",
+    "Queue pause can release drained allocations while durable finalizing/aborting waits for atomic next/retry/escalation admission; specs04/18 clarified existing 78eef87e behavior."
+  ],
+  "evidence_limits": [
+    "Go lease harness uses fake clock; Python watchdog uses AllocationService with test factories.",
+    "Scheduler restart tests reconstruct scheduler objects, not process/power loss.",
+    "Lifecycle UI gate is component-level; V60-008/009 own required browser/process checks.",
+    "34 Python skips: 1 dedicated audit-completion e2e (V60-008 required standalone gate), 3 unconfigured live LLM, 27 opt-in real Podman, 3 optional absent sqlmap. No scoped offline lifecycle, PostgreSQL or Go tests skipped."
+  ],
+  "history": [
+    "7ca8daa6",
+    "78eef87e",
+    "9ef3eec6",
+    "74d3ede3"
+  ]
+}

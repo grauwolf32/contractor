@@ -67,10 +67,21 @@ Pausing has drain semantics:
 - A semantic Stage already admitted before the pause linearization point may
   finish normally, including finalization and release.
 - Scheduler must not admit the owner's next normal Stage after pause commits.
-- Cancellation, abort, recovery of an already admitted Stage, terminal
-  finalization, output publication and allocation release continue while
-  paused. A Project deletion request can therefore always make progress.
+- Cancellation, abort, recovery of an already admitted Stage and allocation
+  release continue while paused. Result acceptance and output publication also
+  continue when they do not admit another Stage. A Project deletion request can
+  therefore always make progress.
 - Resume makes waiting Runs eligible after a restart without rewriting them.
+
+If completion would admit a next Stage, retry or escalation, acceptance of the
+current result/termination, output mapping, transition decision and creation of
+the new attempt remain one transaction. Pause defers that transaction: the
+current StageExecution retains its durable `finalizing` candidate or `aborting`
+termination, with the same operation ID and deadline. Drain and two-phase
+allocation release may finish while admission waits; teardown acknowledgement
+and fencing requirements remain unchanged. Resume applies the saved outcome
+without invoking the previous Planner again. Cancellation and completion that
+only terminalizes the Run remain available while paused.
 
 The pause update and normal Stage admission share one database serialization
 boundary. A process that observed an older state cannot begin a new semantic

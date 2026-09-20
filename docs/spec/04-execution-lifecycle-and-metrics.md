@@ -711,8 +711,13 @@ idle. If it remains disconnected, the agent's control-lease watchdog
 ultimately destroys the Worker or exits the process. Late reports may enrich
 related telemetry but never change the StageTermination.
 
-The allocation remains reserved through `draining`/stopped state until
-StageExecution becomes terminal. Only then does two-phase release begin. The
+Normally the allocation remains reserved through `draining`/stopped state until
+StageExecution becomes terminal, then two-phase release begins. The narrow
+exception is Queue Pause deferring an atomic next/retry/escalation admission
+under [18](18-run-and-workspace-lifecycle-controls.md): drain and release may
+finish while the StageExecution retains its durable `finalizing` candidate or
+`aborting` termination, immutable operation ID and deadline. This does not
+authorize another Planner invocation or early result/output acceptance. The
 private Runtime request idempotently confirms Toolset teardown, removes the
 SandboxProfile workspace and secrets, but leaves the old allocation identity
 `fenced`; after its
@@ -798,7 +803,10 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
     credential. It may receive an allocation-scoped exporter credential only
     inside RuntimeSettings under [07], holds it in memory and erases it during
     release.
-11. Allocations are released only after StageExecution is terminal.
+11. Allocations are released after StageExecution is terminal, except when
+    Queue Pause defers atomic next/retry/escalation admission as specified
+    above. That exception preserves the durable candidate/termination and all
+    normal teardown, fencing and release-acknowledgement requirements.
 12. Worker MemoryTools mutations use the allocation-grant write fence. Planner
     mutations lock the active Run and Stage in the Artifact transaction.
     Scheduler fences all grants before the durable finalizing/aborting
