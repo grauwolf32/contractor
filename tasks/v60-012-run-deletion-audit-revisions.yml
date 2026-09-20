@@ -3,7 +3,7 @@ id: V60-012
 title: Invalidate affected Audit revisions atomically when a retained Run is deleted
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-003
 - V60-011
