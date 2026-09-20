@@ -3,7 +3,7 @@ id: V60-005
 title: Review execution recovery and concurrent lifecycle transitions
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -70,4 +70,10 @@ verification_requirements:
 review_evidence:
   report: docs/research/2026-09-20-v60-005-execution-review.md
   evidence: tasks/evidence/v60-005.json
-  result: All required checks passed on the isolated review worktree; completion metadata awaits implementation commit.
+  result: All required checks passed on the isolated review worktree; implementation and completion metadata are recorded in separate commits.
+
+implementation_commit: 2955135f4118e8be1ad042466e85b3deda465952
+verification:
+  evidence: tasks/evidence/v60-005.json
+  report: docs/research/2026-09-20-v60-005-execution-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
