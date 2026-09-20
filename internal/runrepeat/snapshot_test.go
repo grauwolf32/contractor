@@ -1,6 +1,7 @@
 package runrepeat
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -50,5 +51,29 @@ func TestSnapshotRejectsVersionlessAndUnknownData(t *testing.T) {
 	}
 	if _, err := Decode([]byte(`{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"review","version":"1"},"inputs":{},"executionConfig":{},"extra":true}`)); !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("unknown field error = %v", err)
+	}
+}
+
+func TestSnapshotRequiresExplicitExecutionConfig(t *testing.T) {
+	for _, value := range []json.RawMessage{nil, []byte("null"), []byte("[]"), []byte(`"invalid"`), []byte(`{"unknown":true}`), []byte("{}")} {
+		document := map[string]any{
+			"schemaVersion": SchemaVersion, "workflow": map[string]string{"name": "review", "version": "1"},
+			"inputs": map[string]any{},
+		}
+		if value != nil {
+			document["executionConfig"] = value
+		}
+		encoded, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = Decode(encoded)
+		if string(value) == "{}" {
+			if err != nil {
+				t.Fatalf("explicit empty patch rejected: %v", err)
+			}
+		} else if !errors.Is(err, ErrInvalidSnapshot) {
+			t.Fatalf("patch %s accepted: %v", value, err)
+		}
 	}
 }

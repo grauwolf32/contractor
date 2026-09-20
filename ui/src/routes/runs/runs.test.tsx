@@ -1111,6 +1111,70 @@ describe("Run routes", () => {
     expect(terminal.state).toBe("failed");
   });
 
+  it.each([
+    [
+      "repeat_request_unavailable",
+      "The original Run request is unavailable. Configure a new Run from the Workflow.",
+    ],
+    [
+      "repeat_request_invalid",
+      "The saved Run request could not be verified. Configure a new Run from the Workflow.",
+    ],
+  ])(
+    "keeps a Run with %s on its detail page without preparing a draft",
+    async (code, message) => {
+      const terminal = runFixture({
+        state: "failed",
+        eventCursor: undefined,
+        activeStageExecutionId: undefined,
+        finishedAt: "2026-08-31T12:02:00Z",
+      });
+      const requests: Request[] = [];
+      const api = new PublicAPI(runtimeConfig, async (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        const common = sessionOrArtifacts(request);
+        if (common !== undefined) return common;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/runs/run-router") return apiResponse(terminal);
+        if (path === "/v1/workflows/router-analysis/versions/1")
+          return apiResponse({
+            ref: { name: "router-analysis", version: "1" },
+            entryStage: "analysis",
+            parameters: {},
+            inputs: {},
+            outputs: {},
+            stages: {},
+          });
+        if (path === "/v1/runs/run-router/repeat-draft")
+          return apiResponse({
+            sourceRunId: "run-router",
+            authority: "ordinary",
+            workflow: { name: "router-analysis", version: "1" },
+            notices: [{ code, severity: "blocking", message }],
+          });
+        throw new Error(`Unexpected request: ${request.method} ${path}`);
+      });
+      const view = renderRunApplication(api, "/runs/run-router");
+      const user = userEvent.setup();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await user.click(
+          await screen.findByRole("button", { name: "Configure another Run" }),
+        );
+        expect(await screen.findByText(message)).toBeInTheDocument();
+        expect(view.router.state.location.pathname).toBe("/runs/run-router");
+      }
+      expect(requests.filter((request) => request.method !== "GET")).toEqual(
+        [],
+      );
+      expect(
+        requests.filter((request) =>
+          new URL(request.url).pathname.startsWith("/v1/workflows"),
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
   it("routes an Audit-managed terminal Run back to its owning Audit", async () => {
     const terminal = runFixture({
       state: "failed",

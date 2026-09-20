@@ -21,9 +21,9 @@ const (
 
 var ErrInvalidSnapshot = errors.New("Run repeat request snapshot is invalid")
 
-// Snapshot deliberately stores only request fields that WorkflowRun and input
-// lineage cannot reproduce. Credential values are identities, never token
-// bytes. Inputs are the original source-scope refs, not RunScope forks.
+// Snapshot is the retained authority for exact input sources and requested
+// execution overrides. Credential values are identities, never token bytes.
+// Inputs are the original source-scope refs, not RunScope forks.
 type Snapshot struct {
 	SchemaVersion   string                           `json:"schemaVersion"`
 	Workflow        config.WorkflowRef               `json:"workflow"`
@@ -55,12 +55,26 @@ func Decode(encoded []byte) (Snapshot, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
-	var snapshot Snapshot
-	if err := decoder.Decode(&snapshot); err != nil {
+	// A missing patch is not an explicitly retained empty patch.
+	var stored struct {
+		SchemaVersion   string                           `json:"schemaVersion"`
+		Workflow        config.WorkflowRef               `json:"workflow"`
+		ProjectID       *string                          `json:"projectId,omitempty"`
+		Inputs          map[string]contracts.ArtifactRef `json:"inputs"`
+		ExecutionConfig *config.ExecutionConfigPatch     `json:"executionConfig"`
+	}
+	if err := decoder.Decode(&stored); err != nil {
 		return Snapshot{}, fmt.Errorf("%w: decode: %v", ErrInvalidSnapshot, err)
 	}
 	if err := expectEOF(decoder); err != nil {
 		return Snapshot{}, err
+	}
+	if stored.ExecutionConfig == nil {
+		return Snapshot{}, fmt.Errorf("%w: executionConfig must be an object", ErrInvalidSnapshot)
+	}
+	snapshot := Snapshot{
+		SchemaVersion: stored.SchemaVersion, Workflow: stored.Workflow, ProjectID: stored.ProjectID,
+		Inputs: stored.Inputs, ExecutionConfig: *stored.ExecutionConfig,
 	}
 	if err := validate(snapshot); err != nil {
 		return Snapshot{}, err

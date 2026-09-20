@@ -81,17 +81,6 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	draft := &runRepeatDraft{
-		Parameters:    cloneParameters(run.Parameters),
-		RuntimeLabels: append([]string{}, run.RuntimeLabels...),
-		Labels:        run.MetadataLabels.Clone(),
-		ExecutionConfig: runRepeatExecutionConfig{
-			Status: repeatStatusUnavailable,
-		},
-		Inputs: make(map[string]runRepeatInputSelection),
-	}
-	response.Draft = draft
-
 	selector := run.WorkflowName + "@" + run.WorkflowVersion
 	workflowAvailable := true
 	if _, workflowErr := h.dependencies.Config.Workflow(selector); workflowErr != nil {
@@ -102,49 +91,51 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	snapshot, retained, snapshotErr := h.loadRunRepeatSnapshot(r.Context(), run)
+	snapshot, snapshotErr := h.loadRunRepeatSnapshot(r.Context(), run)
 	if snapshotErr != nil {
-		if !errors.Is(snapshotErr, runrepeat.ErrInvalidSnapshot) &&
-			!errors.Is(snapshotErr, artifacts.ErrArtifactIntegrity) {
+		var notice runRepeatDraftNotice
+		switch {
+		case errors.Is(snapshotErr, artifacts.ErrArtifactNotFound):
+			notice = runRepeatDraftNotice{
+				Code: "repeat_request_unavailable", Severity: "blocking",
+				Message: "The original Run request is unavailable. Configure a new Run from the Workflow.",
+			}
+		case errors.Is(snapshotErr, runrepeat.ErrInvalidSnapshot), errors.Is(snapshotErr, artifacts.ErrArtifactIntegrity):
+			notice = runRepeatDraftNotice{
+				Code: "repeat_request_invalid", Severity: "blocking",
+				Message: "The saved Run request could not be verified. Configure a new Run from the Workflow.",
+			}
+		default:
 			h.handleError(w, snapshotErr)
 			return
 		}
-		response.Notices = append(response.Notices, runRepeatDraftNotice{
-			Code: "repeat_request_invalid", Severity: "blocking", Field: "executionConfig",
-			Message: "The retained repeat-request snapshot is invalid. Historical execution overrides cannot be trusted.",
-		})
+		response.Notices = append(response.Notices, notice)
+		writeJSON(w, http.StatusOK, response)
+		return
 	}
-	if retained && snapshotErr == nil {
-		patch := snapshot.ExecutionConfig
-		draft.ExecutionConfig = runRepeatExecutionConfig{
-			Status: repeatStatusAvailable, Value: &patch,
+	draft := &runRepeatDraft{
+		Parameters:    cloneParameters(run.Parameters),
+		RuntimeLabels: append([]string{}, run.RuntimeLabels...),
+		Labels:        run.MetadataLabels.Clone(),
+		ExecutionConfig: runRepeatExecutionConfig{
+			Status: repeatStatusAvailable, Value: snapshot.ExecutionConfig,
+		},
+	}
+	response.Draft = draft
+	draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if workflowAvailable {
+		if _, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
+			r.Context(), selector, snapshot.ExecutionConfig, h.dependencies.Credentials,
+		); resolveErr != nil {
+			response.Notices = append(response.Notices, runRepeatDraftNotice{
+				Code: "execution_configuration_unavailable", Severity: "blocking", Field: "executionConfig",
+				Message: "At least one retained model, Gateway or credential selection is no longer available. Review the execution overrides before submitting.",
+			})
 		}
-		draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot)
-		if err != nil {
-			h.handleError(w, err)
-			return
-		}
-		if workflowAvailable {
-			if _, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
-				r.Context(), selector, patch, h.dependencies.Credentials,
-			); resolveErr != nil {
-				response.Notices = append(response.Notices, runRepeatDraftNotice{
-					Code: "execution_configuration_unavailable", Severity: "blocking", Field: "executionConfig",
-					Message: "At least one retained model, Gateway or credential selection is no longer available. Review the execution overrides before submitting.",
-				})
-			}
-		}
-	} else {
-		legacyInputs, inputErr := h.repeatInputsFromLineage(r.Context(), run)
-		if inputErr != nil {
-			h.handleError(w, inputErr)
-			return
-		}
-		draft.Inputs = legacyInputs
-		response.Notices = append(response.Notices, runRepeatDraftNotice{
-			Code: "execution_configuration_not_retained", Severity: "warning", Field: "executionConfig",
-			Message: "This historical Run predates repeat-request retention. Current defaults are not substituted; explicitly review execution settings before submitting.",
-		})
 	}
 
 	for slot, input := range draft.Inputs {
@@ -176,23 +167,20 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) loadRunRepeatSnapshot(
 	ctx context.Context, run runstore.WorkflowRun,
-) (runrepeat.Snapshot, bool, error) {
+) (runrepeat.Snapshot, error) {
 	retained, err := h.dependencies.Artifacts.ReadRunRepeatRequest(ctx, run.RunID)
-	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		return runrepeat.Snapshot{}, false, nil
-	}
 	if err != nil {
-		return runrepeat.Snapshot{}, true, err
+		return runrepeat.Snapshot{}, err
 	}
 	snapshot, err := runrepeat.Decode(retained.Payload.Data)
 	if err != nil {
-		return runrepeat.Snapshot{}, true, err
+		return runrepeat.Snapshot{}, err
 	}
 	if snapshot.Workflow.Name != run.WorkflowName || snapshot.Workflow.Version != run.WorkflowVersion ||
 		!sameOptionalString(snapshot.ProjectID, run.ProjectID) {
-		return runrepeat.Snapshot{}, true, fmt.Errorf("%w: snapshot does not match its Run", runrepeat.ErrInvalidSnapshot)
+		return runrepeat.Snapshot{}, fmt.Errorf("%w: snapshot does not match its Run", runrepeat.ErrInvalidSnapshot)
 	}
-	return snapshot, true, nil
+	return snapshot, nil
 }
 
 func (h *handler) repeatInputsFromSnapshot(
@@ -205,57 +193,6 @@ func (h *handler) repeatInputsFromSnapshot(
 			return nil, err
 		}
 		result[slot] = selection
-	}
-	return result, nil
-}
-
-func (h *handler) repeatInputsFromLineage(
-	ctx context.Context, run runstore.WorkflowRun,
-) (map[string]runRepeatInputSelection, error) {
-	runArtifacts, err := h.dependencies.Artifacts.Run(run.RunID)
-	if err != nil {
-		return nil, err
-	}
-	namespace := "inputs"
-	refs, err := runArtifacts.List(ctx, &namespace)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]runRepeatInputSelection, len(refs))
-	for _, ref := range refs {
-		metadata, metadataErr := runArtifacts.Metadata(ctx, ref)
-		if metadataErr != nil {
-			return nil, metadataErr
-		}
-		lineage, lineageErr := runArtifacts.ListLineage(
-			ctx, metadata.Ref, artifacts.LineagePageQuery{Limit: 2},
-		)
-		if lineageErr != nil {
-			return nil, lineageErr
-		}
-		var source *contracts.ArtifactRef
-		for _, edge := range lineage {
-			if edge.Kind != artifacts.LineageInputFork || !sameArtifactRef(edge.Target, metadata.Ref) ||
-				!repeatSourceScopeMatchesRun(edge.SourceScope, edge.SourceScopeID, run) {
-				continue
-			}
-			candidate := edge.Source
-			if source != nil && !sameArtifactRef(*source, candidate) {
-				source = nil
-				break
-			}
-			source = &candidate
-		}
-		if source == nil {
-			result[ref.Name] = unavailableRepeatInput(nil, "input_provenance_unavailable",
-				"The original source for this input is not available. Select a replacement explicitly.")
-			continue
-		}
-		selection, resolveErr := h.resolveRepeatSource(ctx, run, *source)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
-		result[ref.Name] = selection
 	}
 	return result, nil
 }
@@ -331,13 +268,6 @@ func (h *handler) appendRuntimeBindingNotices(
 		}
 	}
 	return nil
-}
-
-func repeatSourceScopeMatchesRun(kind artifacts.ScopeKind, id string, run runstore.WorkflowRun) bool {
-	if run.ProjectID == nil {
-		return kind == artifacts.ScopeUser && id == run.OwnerID
-	}
-	return kind == artifacts.ScopeProject && id == *run.ProjectID
 }
 
 func hasEvaluationLabels(labels runstore.RunMetadataLabels) bool {

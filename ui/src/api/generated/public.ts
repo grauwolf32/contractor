@@ -4391,8 +4391,8 @@ export interface components {
         };
         RunRepeatExecutionConfig: {
             /** @enum {unknown} */
-            status: "available" | "unavailable";
-            value?: components["schemas"]["ExecutionConfigPatch"];
+            status: "available";
+            value: components["schemas"]["ExecutionConfigPatch"];
         };
         RunRepeatInput: {
             /** @enum {unknown} */
@@ -4415,6 +4415,7 @@ export interface components {
                 [key: string]: components["schemas"]["RunRepeatInput"];
             };
         };
+        /** @description A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft. */
         RunRepeatDraftResponse: {
             sourceRunId: components["schemas"]["ResourceId"];
             /** @enum {unknown} */

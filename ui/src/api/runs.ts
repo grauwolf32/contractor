@@ -313,7 +313,9 @@ export async function getRunRepeatDraft(
     repeat.workflow.version.length === 0 ||
     !Array.isArray(repeat.notices) ||
     (repeat.authority === "audit-managed" && repeat.draft !== undefined) ||
-    (repeat.authority === "ordinary" && repeat.draft === undefined)
+    (repeat.authority === "ordinary" &&
+      repeat.draft === undefined &&
+      !repeat.notices.some((notice) => notice.severity === "blocking"))
   ) {
     throw invalidRunResponse(result.response.status);
   }
@@ -331,8 +333,10 @@ export async function getRunRepeatDraft(
         label === "default" ||
         (index > 0 && repeat.draft!.runtimeLabels[index - 1]! >= label),
     ) ||
-    (repeat.draft.executionConfig.status === "available") !==
-      (repeat.draft.executionConfig.value !== undefined)
+    repeat.draft.executionConfig.status !== "available" ||
+    repeat.draft.executionConfig.value === null ||
+    typeof repeat.draft.executionConfig.value !== "object" ||
+    Array.isArray(repeat.draft.executionConfig.value)
   ) {
     throw invalidRunResponse(result.response.status);
   }
@@ -359,11 +363,7 @@ export async function getRunRepeatDraft(
       labels: safeRunMetadataLabels(repeat.draft.labels),
       executionConfig: {
         ...repeat.draft.executionConfig,
-        ...(repeat.draft.executionConfig.value === undefined
-          ? {}
-          : {
-              value: structuredClone(repeat.draft.executionConfig.value),
-            }),
+        value: structuredClone(repeat.draft.executionConfig.value),
       },
       inputs: Object.fromEntries(
         Object.entries(repeat.draft.inputs).map(([slot, input]) => [

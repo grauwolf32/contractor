@@ -514,8 +514,8 @@ type runRepeatDraft struct {
 }
 
 type runRepeatExecutionConfig struct {
-	Status string                       `json:"status"`
-	Value  *config.ExecutionConfigPatch `json:"value,omitempty"`
+	Status string                      `json:"status"`
+	Value  config.ExecutionConfigPatch `json:"value"`
 }
 
 type runRepeatInputSelection struct {

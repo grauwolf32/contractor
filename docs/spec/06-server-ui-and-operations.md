@@ -357,9 +357,12 @@ projection in the same transaction as input forks and Run admission. It stores
 exact original source refs and requested execution selections; credential
 identities may be retained, credential values and resolved RuntimeSettings may
 not. Existing durable Run fields remain authoritative for parameters, labels
-and Runtime-label selection. Historical Runs without this fragment may recover
-unambiguous exact input sources from lineage, but their execution override is
-reported unavailable rather than guessed from effective configuration.
+and Runtime-label selection. Repeat requires a valid retained fragment matching
+its Run's Workflow and Project. Missing or invalid fragments return a blocking
+notice and no draft; neither lineage nor current/effective configuration may
+reconstruct the original request. An explicitly retained empty executionConfig
+object is valid; an omitted or null object is invalid. These reads never repair
+or rewrite retained data.
 
 The projection validates that the exact Workflow, Project, source revisions,
 selected configurations, credential identities and Runtime-label bindings are

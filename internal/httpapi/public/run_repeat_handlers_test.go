@@ -10,9 +10,11 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -78,33 +80,64 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 	}
 }
 
-func TestRunRepeatDraftRecoversLegacyLineageWithoutGuessingOverrides(t *testing.T) {
-	fixture := newHandlerFixture(t)
-	user, _ := fixture.artifacts.User("user-1")
-	source, err := user.Write(
-		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "legacy"},
-		artifacts.Payload{MediaType: "text/plain", Data: []byte("legacy")}, nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	run := queryRun("run-legacy", "user-1", runstore.RunFailed, time.Now().UTC())
-	run.PublicationMode = runstore.PublicationOrdinary
-	run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
-	fixture.runs.runs[run.RunID] = run
-	if _, err := fixture.artifacts.ForkInput(t.Context(), "user-1", source.Ref, run.RunID, "source"); err != nil {
-		t.Fatal(err)
-	}
-
-	response := serveQuery(t, fixture.handler, "/v1/runs/run-legacy/repeat-draft")
-	var repeat runRepeatDraftResponse
-	decodeQueryResponse(t, response, &repeat)
-	if response.Code != http.StatusOK || repeat.Draft == nil ||
-		repeat.Draft.ExecutionConfig.Status != repeatStatusUnavailable ||
-		repeat.Draft.ExecutionConfig.Value != nil ||
-		repeat.Draft.Inputs["source"].Status != repeatStatusAvailable ||
-		!hasRepeatNotice(repeat.Notices, "execution_configuration_not_retained") {
-		t.Fatalf("legacy repeat draft = status %d, %+v", response.Code, repeat)
+func TestRunRepeatDraftBlocksMissingOrInvalidAuthorityDespiteLineage(t *testing.T) {
+	for _, test := range []struct {
+		name, snapshot, code string
+	}{
+		{"missing", "", "repeat_request_unavailable"},
+		{"malformed", "{", "repeat_request_invalid"},
+		{"missing-patch", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"artifact-copy","version":"1"},"inputs":{}}`, "repeat_request_invalid"},
+		{"null-patch", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"artifact-copy","version":"1"},"inputs":{},"executionConfig":null}`, "repeat_request_invalid"},
+		{"wrong-workflow", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"other","version":"1"},"inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
+		{"wrong-project", `{"schemaVersion":"contractor.run-repeat-request/v1","workflow":{"name":"artifact-copy","version":"1"},"projectId":"other","inputs":{},"executionConfig":{}}`, "repeat_request_invalid"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			user, _ := fixture.artifacts.User("user-1")
+			source, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "original"},
+				artifacts.Payload{MediaType: "text/plain", Data: []byte("retained source")}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run := queryRun("run-historical", "user-1", runstore.RunFailed, time.Now().UTC())
+			run.PublicationMode = runstore.PublicationOrdinary
+			run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
+			fixture.runs.runs[run.RunID] = run
+			if _, err := fixture.artifacts.ForkInput(t.Context(), run.OwnerID, source.Ref, run.RunID, "source"); err != nil {
+				t.Fatal(err)
+			}
+			if test.snapshot != "" {
+				if _, err := fixture.artifacts.WriteRunRepeatRequest(t.Context(), run.RunID, []byte(test.snapshot)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			writes, reads, queries := fixture.repository.writes, fixture.repository.reads, fixture.repository.queryReads
+			var first []byte
+			for range 2 {
+				response := serveQuery(t, fixture.handler, "/v1/runs/"+run.RunID+"/repeat-draft")
+				var repeat runRepeatDraftResponse
+				decodeQueryResponse(t, response, &repeat)
+				if response.Code != http.StatusOK || repeat.Authority != repeatAuthorityOrdinary || repeat.Draft != nil {
+					t.Fatalf("untrusted repeat draft = %d, %+v", response.Code, repeat)
+				}
+				blocked := false
+				for _, notice := range repeat.Notices {
+					if notice.Code == test.code && notice.Severity == "blocking" {
+						blocked = true
+					}
+				}
+				if !blocked {
+					t.Fatalf("missing blocking notice: %+v", repeat.Notices)
+				}
+				if first != nil && !bytes.Equal(first, response.Body.Bytes()) {
+					t.Fatal("repeated read changed the response")
+				}
+				first = append([]byte(nil), response.Body.Bytes()...)
+			}
+			if fixture.repository.writes != writes || fixture.repository.reads != reads+2 || fixture.repository.queryReads != queries || len(fixture.runs.runs) != 1 {
+				t.Fatal("blocked Repeat wrote data or consulted input metadata/lineage")
+			}
+		})
 	}
 }
 
@@ -168,6 +201,16 @@ func TestRunRepeatDraftReportsChangedRuntimeBinding(t *testing.T) {
 	run.PublicationMode = runstore.PublicationOrdinary
 	run.RuntimeConfig = runtimeconfig.BuiltInRunSnapshot()
 	fixture.runs.runs[run.RunID] = run
+	retained, err := runrepeat.Encode(runrepeat.Snapshot{
+		Workflow: config.WorkflowRef{Name: run.WorkflowName, Version: run.WorkflowVersion},
+		Inputs:   map[string]contracts.ArtifactRef{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.artifacts.WriteRunRepeatRequest(t.Context(), run.RunID, retained); err != nil {
+		t.Fatal(err)
+	}
 	fixture.runtimeConfigs.mu.Lock()
 	binding := fixture.runtimeConfigs.bindings[runtimeconfig.DefaultLabel]
 	binding.Revision++

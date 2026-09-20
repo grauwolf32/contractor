@@ -449,6 +449,50 @@ for (const viewport of [
       expect(created).toHaveLength(0);
     });
 
+    for (const [code, message] of [
+      [
+        "repeat_request_unavailable",
+        "The original Run request is unavailable. Configure a new Run from the Workflow.",
+      ],
+      [
+        "repeat_request_invalid",
+        "The saved Run request could not be verified. Configure a new Run from the Workflow.",
+      ],
+    ]) {
+      test(`${code} blocks Repeat without navigation or submission`, async ({
+        page,
+      }, testInfo) => {
+        const apiOrigin = new URL(testInfo.project.use.baseURL!).origin;
+        const created = await installFixture(page, apiOrigin);
+        let repeatReads = 0;
+        await page.route(
+          `${apiOrigin}/v1/runs/run-repeat-browser/repeat-draft`,
+          async (route) => {
+            repeatReads++;
+            await json(route, {
+              sourceRunId: "run-repeat-browser",
+              authority: "ordinary",
+              workflow: { name: "repeat-workflow", version: "1" },
+              notices: [{ code, severity: "blocking", message }],
+            });
+          },
+        );
+        await page.goto("/runs/run-repeat-browser");
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          await page
+            .getByRole("button", { name: "Configure another Run" })
+            .click();
+          await expect.poll(() => repeatReads).toBe(attempt);
+          await expect(page.getByText(message!)).toBeVisible();
+          await expect(page).toHaveURL(/\/runs\/run-repeat-browser$/);
+          await expect(
+            page.getByRole("button", { name: "Start Workflow Run" }),
+          ).toHaveCount(0);
+          expect(created).toHaveLength(0);
+        }
+      });
+    }
+
     test("Audit-managed Run returns to the owning Audit", async ({
       page,
     }, testInfo) => {

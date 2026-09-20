@@ -83,9 +83,9 @@ export function prepareRepeatDraft(
   );
   const retained = response.draft.executionConfig.value;
   const overrides: ExecutionOverrideDraft = {
-    planner: consumerDraft(retained?.planner),
-    workers: consumerDraft(retained?.workers),
-    ...(retained?.stages === undefined
+    planner: consumerDraft(retained.planner),
+    workers: consumerDraft(retained.workers),
+    ...(retained.stages === undefined
       ? {}
       : { stages: structuredClone(retained.stages) }),
   };
@@ -93,7 +93,7 @@ export function prepareRepeatDraft(
     ...notice,
   }));
   if (
-    retained?.stages !== undefined &&
+    retained.stages !== undefined &&
     Object.keys(retained.stages).length > 0
   ) {
     notices.push({

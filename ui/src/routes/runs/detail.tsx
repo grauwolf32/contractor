@@ -278,7 +278,10 @@ function RunRepeatControl({ run }: { run: RunStatus }) {
       if (prepared === undefined) {
         setOutcome({
           kind: "blocked",
-          message: "The Server did not provide an ordinary repeat draft.",
+          message:
+            response.notices.find((notice) => notice.severity === "blocking")
+              ?.message ??
+            "The Server did not provide an ordinary repeat draft.",
         });
         return;
       }

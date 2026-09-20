@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01–D05 implemented, verified and integrated into local `main`;
-D06–D07 remain planned.
+Status: C01–C07 and D01–D06 implemented, verified and integrated into local `main`;
+D07 remains planned.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -266,7 +266,7 @@ data needs a compatibility window.
 | D03 (implemented) | [evalstore/receipts.go](../../internal/evalstore/receipts.go): removed conversion from old `{id, revision, state}` to typed receipts. | Require the current operation-specific shape, reject legacy/mixed receipts and preserve typed replay identity without new effects or byte rewriting. |
 | D04 (implemented) | [auditservice/resume.go](../../internal/auditservice/resume.go): removed reopening terminal `deadline_exhausted` Audits, item reopening and report-link archival. | Resume accepts only paused Audits, including current deadline pauses. Terminal Resume fails without changing retained state; expired-review renewal, time-limit choices, replay and holds remain supported. |
 | D05 (implemented) | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): removed readers for absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
-| D06 | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): reconstruct inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
+| D06 (implemented) | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): removed reconstruction of original inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
 | D07 | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): accept old `text/plain` report summaries; current publisher writes `text/markdown`. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
 
 D04 concerns only the historical terminal-closure path. Current time-limit
@@ -405,6 +405,30 @@ Runs. Repeated rejected operations preserve exact stored state. Existing SQL
 migrations remain unchanged; no historical provenance is inferred, repaired or
 purged.
 
+### D06 — retained Repeat request authority (implemented)
+
+[Repeat](../../internal/httpapi/public/run_repeat_handlers.go) requires the retained
+request fragment written atomically during current Run creation. Removed input
+reconstruction from lineage and the draft with unavailable execution overrides.
+Missing fragments return `repeat_request_unavailable`; malformed, mismatched or
+invalid fragments return `repeat_request_invalid`. Both are blocking notices in
+the read-only response with no draft. Storage failures still use normal error
+handling. Audit-managed Runs retain their separate owning-Audit context.
+
+The [snapshot decoder](../../internal/runrepeat/snapshot.go) now distinguishes an
+explicit empty executionConfig object from an omitted or null one. Valid current
+requests preserve exact UserScope/ProjectScope source revisions, parameters,
+metadata labels, Runtime labels and execution overrides, including credential
+nulls. Missing current dependencies remain visible for review in valid drafts.
+No lineage, effective configuration or current defaults substitute for the
+original request, and no historical data is repaired or purged.
+
+Updated OpenAPI and regenerated both clients: executionConfig in a draft always
+has status `available` and a required value. The UI accepts a blocked response
+without a draft, shows its explanation on the Run detail page and does not open
+Workflow setup or submit another Run. Current Repeat still requires explicit
+review and a normal new-Run submission. Updated specifications 06 and UI US-06.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -442,7 +466,8 @@ shrinking that contract is separate from removing an internal no-op.
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
 D01 is implemented in the seventh increment, D02 in the eighth, D03 in the
-ninth, D04 in the tenth and D05 in the eleventh; D06–D07 remain planned.
+ninth, D04 in the tenth, D05 in the eleventh and D06 in the twelfth; D07 remains
+planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -825,5 +850,42 @@ Verification completed on 2026-09-20:
   data rewrite or new SQL migration was introduced. Browser journeys and paid
   model calls were not run in this increment.
 
-Next increment: D06, remove Repeat input reconstruction when retained request
-authority is absent.
+## Twelfth increment — D06 results
+
+Implemented in `refactor/repeat-authority-legacy-removal`, based on `cd2f377b`.
+Integrated into local `main`, preserving unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- Full `make verify` passed: Go formatting/static checks, tests and builds,
+  **2468 Python tests** (39 optional tests skipped), generated-client consistency,
+  UI lint/typecheck, **524 UI tests**, **11 static-server tests** and the UI build.
+  Python imports were explicitly scoped to this worktree; the initial shared
+  virtualenv attempt imported concurrent changes from the main working directory
+  and was stopped before rerunning the full check with isolated imports.
+- `make verify-wire-contracts test-wire-cross-language verify-public-api` passed.
+  The Python wire checks were also rerun with worktree-scoped imports.
+- With disposable PostgreSQL 17, `go test -race -count=1 -timeout=10m` passed for
+  `./internal/runrepeat`, `./internal/httpapi/public`, `./internal/runservice`,
+  `./internal/runstore`, `./internal/artifacts` and `./internal/app`. Current Run
+  creation, request retention, transaction retry and idempotent replay remain
+  covered.
+- The PostgreSQL Repeat regression covers UserScope and ProjectScope with
+  complete lineage: missing/malformed requests, omitted/null executionConfig,
+  mismatched Workflow/Project and incorrect media type all block without a
+  draft. Repeated reads preserve exact Run, Project, artifact, lineage, pin and
+  event rows, including payload bytes and timestamps. Valid current requests
+  retain the original revision after a source update and accept an explicit
+  empty executionConfig. Unit coverage also preserves explicit credential nulls
+  and confirms rejected requests do not consult input metadata or lineage.
+- **10 Chromium journeys** passed against the production UI build at 1440px and
+  390px. Current Repeat preserves exact inputs and draft conflicts, requires
+  review, and submits a new ordinary Run; primary-output preview and owning-Audit
+  navigation still work. Missing/invalid requests show their blocking notice,
+  remain on the source Run and submit nothing, including repeated clicks.
+  Browser API responses in these journeys are fixtures; real persistence and
+  HTTP behavior are covered by the PostgreSQL tests above.
+- Documentation links and `git diff --check` passed. No new SQL migration or
+  historical-data rewrite was introduced. Paid model calls were not run.
+
+Next increment: D07, require current Markdown Audit report summaries.

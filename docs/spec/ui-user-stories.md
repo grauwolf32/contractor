@@ -127,8 +127,10 @@ and parameters so that I can repeat the work after fixing an error.
 
 Done when the action prefills the available original settings, preserves the
 Project context and prompts the user to review them before launch. Unavailable
-versions, credentials or inputs are clearly marked. The old Run and its history
-remain unchanged; repeating creates a new Run only after explicit submission.
+versions, credentials or inputs are clearly marked. A missing or invalid saved
+request blocks Repeat with an explanation and no draft; the user can configure
+a new Run from the Workflow. The old Run and its history remain unchanged;
+repeating creates a new Run only after explicit submission.
 For an Audit-managed Run, new execution goes through the controlling Audit,
 without copying its internal labels into an ordinary user request.
 

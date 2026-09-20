@@ -12844,9 +12844,9 @@ components:
     RunRepeatExecutionConfig:
       type: object
       additionalProperties: false
-      required: [status]
+      required: [status, value]
       properties:
-        status: {enum: [available, unavailable]}
+        status: {enum: [available]}
         value: {$ref: '#/components/schemas/ExecutionConfigPatch'}
     RunRepeatInput:
       type: object
@@ -12881,6 +12881,7 @@ components:
           additionalProperties: {$ref: '#/components/schemas/RunRepeatInput'}
     RunRepeatDraftResponse:
       type: object
+      description: A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft.
       additionalProperties: false
       required: [sourceRunId, authority, workflow, notices]
       properties:

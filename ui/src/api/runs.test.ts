@@ -312,6 +312,74 @@ describe("Run API", () => {
     expect(await downloaded.blob.text()).toBe("ok");
   });
 
+  it.each(["repeat_request_unavailable", "repeat_request_invalid"])(
+    "accepts an ordinary Run blocked by %s without a draft",
+    async (code) => {
+      const blocked = {
+        sourceRunId: "run-1",
+        authority: "ordinary",
+        workflow: { name: "inspect", version: "1" },
+        notices: [
+          {
+            code,
+            severity: "blocking",
+            message: "Configure a new Run from the Workflow.",
+          },
+        ],
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response(blocked)),
+      );
+      await expect(getRunRepeatDraft(api, "run-1")).resolves.toEqual(blocked);
+      for (const notices of [
+        [],
+        [{ ...blocked.notices[0], severity: "warning" }],
+      ]) {
+        const invalid = new PublicAPI(
+          runtimeConfig,
+          vi.fn(async () => response({ ...blocked, notices })),
+        );
+        await expect(getRunRepeatDraft(invalid, "run-1")).rejects.toMatchObject(
+          { code: "invalid_api_response" },
+        );
+      }
+    },
+  );
+
+  it.each([
+    { status: "unavailable" },
+    { status: "unavailable", value: {} },
+    { status: "available" },
+    { status: "available", value: null },
+    { status: "available", value: [] },
+  ])(
+    "rejects a draft without explicit retained executionConfig: %j",
+    async (executionConfig) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () =>
+          response({
+            sourceRunId: "run-1",
+            authority: "ordinary",
+            workflow: { name: "inspect", version: "1" },
+            notices: [],
+            draft: {
+              parameters: {},
+              runtimeLabels: [],
+              labels: {},
+              inputs: {},
+              executionConfig,
+            },
+          }),
+        ),
+      );
+      await expect(getRunRepeatDraft(api, "run-1")).rejects.toMatchObject({
+        code: "invalid_api_response",
+      });
+    },
+  );
+
   it("reads and validates the owner-only repeat draft projection", async () => {
     const requests: Request[] = [];
     const exact = {
@@ -374,7 +442,7 @@ describe("Run API", () => {
             parameters: {},
             runtimeLabels: ["debug", "debug"],
             labels: {},
-            executionConfig: { status: "unavailable" },
+            executionConfig: { status: "available", value: {} },
             inputs: {},
           },
         }),

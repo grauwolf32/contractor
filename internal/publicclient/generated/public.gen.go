@@ -5685,7 +5685,7 @@ type RunRepeatDraftNotice struct {
 	Severity interface{} `json:"severity"`
 }
 
-// RunRepeatDraftResponse defines model for RunRepeatDraftResponse.
+// RunRepeatDraftResponse A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft.
 type RunRepeatDraftResponse struct {
 	AuditId     *ResourceId            `json:"auditId,omitempty"`
 	Authority   interface{}            `json:"authority"`
@@ -5698,8 +5698,8 @@ type RunRepeatDraftResponse struct {
 
 // RunRepeatExecutionConfig defines model for RunRepeatExecutionConfig.
 type RunRepeatExecutionConfig struct {
-	Status interface{}           `json:"status"`
-	Value  *ExecutionConfigPatch `json:"value,omitempty"`
+	Status interface{}          `json:"status"`
+	Value  ExecutionConfigPatch `json:"value"`
 }
 
 // RunRepeatInput defines model for RunRepeatInput.
