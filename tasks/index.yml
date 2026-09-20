@@ -2803,6 +2803,19 @@ tasks:
   - {id: V60-010, file: v60-010-configuration-evaluation-backlog-review.yml}
   - {id: V60-011, file: v60-011-audit-gate-runtime-matrix.yml}
   - {id: V60-012, file: v60-012-run-deletion-audit-revisions.yml}
+  - {id: V60-013, file: v60-013-runtime-operation-ownership.yml}
+  - {id: V60-014, file: v60-014-worker-handle-deep-copy.yml}
+  - {id: V60-015, file: v60-015-transaction-bound-credential-reads.yml}
+  - {id: V60-016, file: v60-016-resume-escalated-attempts.yml}
+  - {id: V60-017, file: v60-017-http-raw-query-preservation.yml}
+  - {id: V60-018, file: v60-018-session-generation-fence.yml}
+  - {id: V60-019, file: v60-019-audit-terminal-projection-refresh.yml}
+  - {id: V60-020, file: v60-020-http-credential-picker-pages.yml}
+  - {id: V60-021, file: v60-021-encoded-client-route-identities.yml}
+  - {id: V60-022, file: v60-022-download-file-permissions.yml}
+  - {id: V60-023, file: v60-023-cli-positional-separator.yml}
+  - {id: V60-024, file: v60-024-independent-review-integration.yml}
+  - {id: V60-025, file: v60-025-review-readability-followups.yml}
   - {id: V61-001, file: v61-001-toolset-configuration-contracts.yml}
   - {id: V61-002, file: v61-002-toolset-runtime-config-store.yml}
   - {id: V61-003, file: v61-003-run-toolset-pinning-allocation.yml}

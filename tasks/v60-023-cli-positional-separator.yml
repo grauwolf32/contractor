@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V60-023
+title: Retain positional protection after CLI flag reordering
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on:
+- V60-001
+languages:
+- go
+goal: Retain positional protection after CLI flag reordering.
+context:
+  authority: User requested splitting the independently reproduced review findings into tasks and beginning fixes
+    on 2026-09-20.
+  finding_ids:
+  - CR-11
+  design: docs/plans/2026-09-20-independent-review-fixes.md
+  reproduction_report: docs/research/2026-09-20-independent-code-review.md
+scope:
+  in:
+  - Explicit -- protects positional arguments beginning with a hyphen after interspersed flag normalization.
+  - Flags before/after resources, boolean/value flags and stdin literal - keep existing behavior.
+  out:
+  - Unrelated large refactoring, production deployment or data mutation, live model calls.
+acceptance_criteria:
+- id: A1
+  text: Explicit -- protects positional arguments beginning with a hyphen after interspersed flag normalization.
+- id: A2
+  text: Flags before/after resources, boolean/value flags and stdin literal - keep existing behavior.
+tests:
+- command: go test -count=1 ./internal/cli
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Turn the discovery reproduction into a durable regression and verify the relevant failure before the fix.
+- Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
+- Keep implementation scoped to this task, then record the full implementation commit and verification evidence
+  separately.

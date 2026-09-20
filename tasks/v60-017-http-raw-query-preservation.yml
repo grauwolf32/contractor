@@ -1,0 +1,41 @@
+schema_version: '1.0'
+id: V60-017
+title: Preserve caller-provided raw HTTP query bytes
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on:
+- V60-001
+languages:
+- python
+goal: Preserve caller-provided raw HTTP query bytes.
+context:
+  authority: User requested splitting the independently reproduced review findings into tasks and beginning fixes
+    on 2026-09-20.
+  finding_ids:
+  - CR-05
+  design: docs/plans/2026-09-20-independent-review-fixes.md
+  reproduction_report: docs/research/2026-09-20-independent-code-review.md
+scope:
+  in:
+  - Existing percent-encoded bytes, bare keys and duplicate parameters remain unchanged when query is absent.
+  - Additional mapped parameters are encoded separately while existing URL/query bounds and validation remain enforced.
+  out:
+  - Unrelated large refactoring, production deployment or data mutation, live model calls.
+acceptance_criteria:
+- id: A1
+  text: Existing percent-encoded bytes, bare keys and duplicate parameters remain unchanged when query is absent.
+- id: A2
+  text: Additional mapped parameters are encoded separately while existing URL/query bounds and validation remain
+    enforced.
+tests:
+- command: cd runtime && .venv/bin/python -m pytest -W error tests/test_http_toolset.py tests/test_http_caido_security.py
+    tests/test_http_redirects.py
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Turn the discovery reproduction into a durable regression and verify the relevant failure before the fix.
+- Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
+- Keep implementation scoped to this task, then record the full implementation commit and verification evidence
+  separately.

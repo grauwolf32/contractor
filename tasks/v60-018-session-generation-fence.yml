@@ -1,0 +1,45 @@
+schema_version: '1.0'
+id: V60-018
+title: Fence stale session responses from newer authentication state
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on:
+- V60-001
+languages:
+- typescript
+goal: Fence stale session responses from newer authentication state.
+context:
+  authority: User requested splitting the independently reproduced review findings into tasks and beginning fixes
+    on 2026-09-20.
+  finding_ids:
+  - CR-06
+  design: docs/plans/2026-09-20-independent-review-fixes.md
+  reproduction_report: docs/research/2026-09-20-independent-code-review.md
+scope:
+  in:
+  - Late successful or unauthorized session responses cannot replace or clear a newer login CSRF token.
+  - Real PublicAPI and SessionProvider regression covers cancelled session lookup followed by same-owner login;
+    normal session/logout behavior passes.
+  out:
+  - Unrelated large refactoring, production deployment or data mutation, live model calls.
+acceptance_criteria:
+- id: A1
+  text: Late successful or unauthorized session responses cannot replace or clear a newer login CSRF token.
+- id: A2
+  text: Real PublicAPI and SessionProvider regression covers cancelled session lookup followed by same-owner login;
+    normal session/logout behavior passes.
+tests:
+- command: cd ui && corepack pnpm test --run src/api/client.test.ts src/auth/session.test.tsx
+  covers:
+  - A1
+  - A2
+- command: cd ui && corepack pnpm typecheck
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Turn the discovery reproduction into a durable regression and verify the relevant failure before the fix.
+- Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
+- Keep implementation scoped to this task, then record the full implementation commit and verification evidence
+  separately.

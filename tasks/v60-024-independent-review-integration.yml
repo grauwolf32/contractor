@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V60-024
+title: Verify the integrated independent-review corrections
+milestone: project-review-v60
+priority: P2
+status: pending
+depends_on:
+- V60-013
+- V60-014
+- V60-015
+- V60-016
+- V60-017
+- V60-018
+- V60-019
+- V60-020
+- V60-021
+- V60-022
+- V60-023
+languages:
+- go
+- python
+- typescript
+- markdown
+goal: Verify the integrated independent-review corrections.
+context:
+  authority: User requested task breakdown and fixes after independent code review.
+  design: docs/plans/2026-09-20-independent-review-fixes.md
+scope:
+  in:
+  - Re-run affected Go/Python/UI suites with meaningful DB and cancellation regressions.
+  - Record cross-task review, source revision, actual skipped suites and update finding statuses without claiming
+    unperformed release gates.
+  out:
+  - Production deployment and live model/target calls.
+acceptance_criteria:
+- id: A1
+  text: Re-run affected Go/Python/UI suites with meaningful DB and cancellation regressions.
+- id: A2
+  text: Record cross-task review, source revision, actual skipped suites and update finding statuses without claiming
+    unperformed release gates.
+tests:
+- command: go test ./...
+  covers:
+  - A1
+  - A2
+- command: cd runtime && .venv/bin/python -m pytest -W error tests
+  covers:
+  - A1
+  - A2
+- command: cd ui && corepack pnpm test --run
+  covers:
+  - A1
+  - A2
+- command: cd ui && corepack pnpm typecheck
+  covers:
+  - A1
+  - A2
+- command: cd ui && node --test server/*.test.mjs
+  covers:
+  - A1
+  - A2

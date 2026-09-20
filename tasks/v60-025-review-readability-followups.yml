@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V60-025
+title: Simplify reviewed subsystem boundaries after correctness fixes
+milestone: project-review-v60
+priority: P2
+status: pending
+depends_on:
+- V60-024
+languages:
+- go
+- python
+- typescript
+- markdown
+goal: Simplify reviewed subsystem boundaries after correctness fixes.
+context:
+  authority: User requested task breakdown and fixes after independent code review.
+  design: docs/plans/2026-09-20-independent-review-fixes.md
+scope:
+  in:
+  - Consider splitting Audit detail and Runtime batch controller by existing responsibilities.
+  - Reuse operation ownership, transaction-bound readers, pagination and route identity contracts established by
+    fixes.
+  - Apply only independently justified behavior-preserving refactors with relevant existing checks.
+  out:
+  - Production deployment and live model/target calls.
+acceptance_criteria:
+- id: A1
+  text: Consider splitting Audit detail and Runtime batch controller by existing responsibilities.
+- id: A2
+  text: Reuse operation ownership, transaction-bound readers, pagination and route identity contracts established
+    by fixes.
+- id: A3
+  text: Apply only independently justified behavior-preserving refactors with relevant existing checks.
+tests:
+- command: git diff --check
+  covers:
+  - A1
+  - A2
+  - A3

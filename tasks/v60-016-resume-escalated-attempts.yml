@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V60-016
+title: Resume escalated Run attempts without reusing automatic escalation identity
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on:
+- V60-001
+languages:
+- go
+goal: Resume escalated Run attempts without reusing automatic escalation identity.
+context:
+  authority: User requested splitting the independently reproduced review findings into tasks and beginning fixes
+    on 2026-09-20.
+  finding_ids:
+  - CR-04
+  design: docs/plans/2026-09-20-independent-review-fixes.md
+  reproduction_report: docs/research/2026-09-20-independent-code-review.md
+scope:
+  in:
+  - Manual resume preserves effective failed/interrupted escalation configuration while allocating a distinct attempt
+    identity.
+  - Automatic escalation budget and ordinal history stay correct across resume, retries and restart.
+  - PostgreSQL base/escalated resume, response replay and scheduler history regressions pass; migration preserves
+    existing histories.
+  out:
+  - Unrelated large refactoring, production deployment or data mutation, live model calls.
+acceptance_criteria:
+- id: A1
+  text: Manual resume preserves effective failed/interrupted escalation configuration while allocating a distinct
+    attempt identity.
+- id: A2
+  text: Automatic escalation budget and ordinal history stay correct across resume, retries and restart.
+- id: A3
+  text: PostgreSQL base/escalated resume, response replay and scheduler history regressions pass; migration preserves
+    existing histories.
+tests:
+- command: go test -race -count=1 ./internal/runstore ./internal/scheduler ./internal/httpapi/public ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Turn the discovery reproduction into a durable regression and verify the relevant failure before the fix.
+- Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
+- Keep implementation scoped to this task, then record the full implementation commit and verification evidence
+  separately.
