@@ -3,7 +3,7 @@ id: V60-010
 title: Review configuration attribution and delivered versus pending evaluation scope
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -78,3 +78,5 @@ verification:
     Required config/shared wire gates and 237 offline Playground cases passed;
     no confirmed production defects. Stale V37/V38 delivery prose corrected.
     V40-002 live blockers and pending V55/V61 scopes preserved.
+
+implementation_commit: e1fd14c02d89f4447c4e34438b9adddac0bfe18d
