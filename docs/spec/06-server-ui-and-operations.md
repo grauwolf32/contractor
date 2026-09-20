@@ -112,10 +112,11 @@ controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).
 
 [UI user stories and roadmap](ui-user-stories.md) records the target journeys
 and their acceptance criteria.
-V37-001 through V37-009 deliver draft continuity, accessible dialogs, primary
+V37-001 through V37-012 deliver draft continuity, accessible dialogs, primary
 actions, reviewed input suggestions, Catalog discovery, repeat Run drafts and
-primary result preview. Contextual Audit review, the Operations layout and the
-connected desktop/mobile/keyboard release gate remain V37-010 through V37-012.
+primary result preview, contextual Audit review, the Operations layout and the
+connected desktop/mobile/keyboard release gate. Their task files record the
+completed implementation and verification boundaries.
 V46-001–004 deliver generation-safe Run draft completion, overlapping Performance
 history intervals, direct Project Run shell routes and Catalog cursor-based
 Previous navigation. Their task files record focused regressions, real PostgreSQL
@@ -133,13 +134,16 @@ Performance UI and Git Settings/import are implemented and release-verified
 under V32 and V35. V38-001 selects full browser Evals setup, launch and comparison
 in the [experience design](../evals-experience-design.md). The native experiment API/coordinator,
 independent producer boundary and selected comparison APIs in
-[30](30-managed-evals.md) are implemented through V38-006. Browser UI, Playground
-client and release acceptance remain V38-007 through V38-010.
-The delivered portable evaluator in [26](26-portable-evaluation-format.md) does
-not imply that UI is delivered. Existing evaluation Projects and generic
-Run-label behavior remain valid; Contractor will not require Playground to run
-native Evals. Both Workflow and Audit experiments are required. Planned chart
-projections and kind-specific evidence navigation follow spec 30 and share the
+[30](30-managed-evals.md) are implemented through V38-006. V38-007 through
+V38-010 deliver browser setup/comparison, the optional Playground client and
+the deterministic release gate. Contractor UI/server delivery is recorded in
+this repository; the independent V38-009 client is implemented in
+`playground-v2` and merged there at `d2ffd39ff4c214cf514225a8fd097824ac676c86`.
+The portable evaluator in [26](26-portable-evaluation-format.md) and managed UI
+have separate verification evidence; neither proves live model quality.
+Existing evaluation Projects and generic Run-label behavior remain valid;
+Contractor will not require Playground to run native Evals. Both Workflow and
+Audit experiments are required. Chart projections and kind-specific evidence navigation follow spec 30 and share the
 comparison tables' exact membership, scope and missing-data semantics.
 
 ## Deployment boundary

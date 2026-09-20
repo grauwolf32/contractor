@@ -2,16 +2,17 @@
 
 Status: **Implemented in playground-v2 and offline-verified through V41-008.**
 The format, compatibility layer, execution bindings, recovery, assessment,
-comparison and safe publication are delivered. V38 Evals UX and V40 model
-quality evaluations remain separate pending work; this delivery does not prove
-instruction quality or a successful live target campaign.
+comparison and safe publication are delivered. V38 managed Evals UX and its
+deterministic release gate are separately delivered under [30](30-managed-evals.md).
+V40 model quality evaluations remain pending; neither delivery proves instruction
+quality or a successful live target campaign.
 
 This document owns the portable evaluation contract shared with `playground-v2`.
 It supersedes the original format proposal and the earlier V40 runner outline.
 [16](16-run-metadata-labels.md),
 [17](17-projects-and-queue.md) and [19](19-audits.md) continue to own Contractor
 execution, storage, identity and authorization. [V38](../../tasks/v38-001-evals-experience-contract.yml)
-owns the eventual user-facing experiment/comparison journey; it consumes this
+owns the delivered user-facing experiment/comparison journey; it consumes this
 format rather than defining a competing identity or result envelope.
 
 ## 1. Ownership and first release

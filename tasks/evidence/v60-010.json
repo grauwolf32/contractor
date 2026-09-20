@@ -1,0 +1,335 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-010",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": null,
+  "source_freeze_commit": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950",
+  "report": "docs/research/2026-09-20-v60-010-configuration-evaluation-review.md",
+  "environment": {
+    "go": "go1.25.6 linux/amd64; GOMAXPROCS=2, GOFLAGS=-p=2 -v",
+    "python": "3.13.14, pre-existing local Playground evals venv; source archive local to review worktree",
+    "database": "Disposable PostgreSQL17, URL and credentials not recorded",
+    "external_models": "None; scripted/fake providers and HTTP MockTransport only"
+  },
+  "checks": [
+    {
+      "command": [
+        "make",
+        "test-config"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900657.5063138,
+      "duration_seconds": 22.042,
+      "log": ".local/v60-review/v60-006-v60-010-config.log",
+      "go_reported_pass_events": 428,
+      "go_reported_skip_events": 0,
+      "python_summaries": []
+    },
+    {
+      "command": [
+        "make",
+        "verify-wire-contracts",
+        "test-wire-cross-language"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900233.1282701,
+      "duration_seconds": 8.784,
+      "log": ".local/v60-review/v60-006-wire-contracts.log",
+      "go_reported_pass_events": 540,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "193 passed in 0.57s",
+        "114 passed, 79 deselected in 0.42s"
+      ],
+      "reused_from": "V60-006, same relevant production source; target actually executed"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/runtimeconfig"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900403.8482482,
+      "duration_seconds": 25.787,
+      "log": ".local/v60-review/v60-006-configuration-parity.log",
+      "go_reported_pass_events": 84,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "reused_from": "V60-006, same relevant production source; target actually executed"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "./tests/eval/agent_instructions"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900815.8005507,
+      "duration_seconds": 0.647,
+      "log": ".local/v60-review/v60-006-v60-010-instruction-configs.log",
+      "go_reported_pass_events": 10,
+      "go_reported_skip_events": 0,
+      "python_summaries": []
+    },
+    {
+      "command": [
+        "/home/ruslan/src/playground-v2/evals/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "/home/ruslan/src/playground-v2/evals/tests/test_formats.py",
+        "/home/ruslan/src/playground-v2/evals/tests/test_adapters.py",
+        "/home/ruslan/src/playground-v2/evals/tests/test_experiment_recovery.py",
+        "/home/ruslan/src/playground-v2/evals/tests/test_assessments.py",
+        "/home/ruslan/src/playground-v2/evals/tests/test_comparison.py",
+        "/home/ruslan/src/playground-v2/evals/tests/test_instruction_experiment.py",
+        "/home/ruslan/src/playground-v2/evals/tests/test_managed_evals.py"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900713.6193047,
+      "duration_seconds": 46.892,
+      "log": ".local/v60-review/v60-006-v60-010-portable.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "237 passed in 46.40s"
+      ],
+      "scope": "Initial read-only sibling verification; repeated against exact committed archive after concurrent working-tree edits were observed"
+    },
+    {
+      "command": [
+        "/home/ruslan/src/playground-v2/evals/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_formats.py",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_adapters.py",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_experiment_recovery.py",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_assessments.py",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_comparison.py",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_instruction_experiment.py",
+        ".local/v60-review/playground-d2ffd39f/evals/tests/test_managed_evals.py"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789901067.1742063,
+      "duration_seconds": 56.148,
+      "log": ".local/v60-review/v60-006-v60-010-portable-committed.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "237 passed in 55.48s"
+      ],
+      "source_commit": "d2ffd39ff4c214cf514225a8fd097824ac676c86",
+      "environment": "PYTHONDONTWRITEBYTECODE=1; PYTHONPATH set to immutable local archive evals/src; sibling existing venv Python 3.13.14; no cacheprovider"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789901262.643629,
+      "duration_seconds": 0.004,
+      "log": ".local/v60-review/v60-006-v60-010-diff-check.log"
+    }
+  ],
+  "playground": {
+    "head": "d2ffd39ff4c214cf514225a8fd097824ac676c86",
+    "v38_009_implementation": "d1f7e970e3db12a231bffca565748d1293cbed6d",
+    "implementation_is_ancestor_of_head": true,
+    "verified_snapshot": "tracked git archive at .local/v60-review/playground-d2ffd39f",
+    "file_sha256": {
+      "evals/src/playground_evals/experiments.py": "ef80ae9cc94131d329bc1d831e23bebc7d14a94c9ead81377b2ff55a855f7df0",
+      "evals/src/playground_evals/assessments.py": "39a3152af7e286a323f537829dd4862f0a91d882d4e6a85174f18dcd92b89b34",
+      "evals/src/playground_evals/managed_runner.py": "5d772a0aec20b347c8a006d948583f574eac6f34d72c629b664ee081f53645e2",
+      "evals/tests/test_managed_evals.py": "7d6e642ad18787e9453f77ad333539c60820efc24c73e2ceeefbc7418e22b84c",
+      "experiments/agent-instructions/plan.json": "eb20c3a0e5d0f85e4ac0a456388eb6402aa71180e11a8448f9a15a8ca1b001a3"
+    },
+    "ownership": "Sibling worktree and active V40 worktrees not modified; concurrent sibling managed client edits excluded from immutable verification"
+  },
+  "findings": [],
+  "documentation_corrections": [
+    {
+      "files": [
+        "docs/spec/06-server-ui-and-operations.md",
+        "docs/spec/17-projects-and-queue.md",
+        "docs/spec/26-portable-evaluation-format.md"
+      ],
+      "classification": "stale delivery descriptions, not a production defect",
+      "change": "Reflect completed V37/V38 Contractor tasks and independently merged V38-009 Playground client; retain live-quality and draft scope boundaries"
+    }
+  ],
+  "delivery_snapshot": [
+    {
+      "task_id": "V37-010",
+      "status": "completed",
+      "implementation_commit": "1b45fc52bc93c1a3ed53d3081ab243902a1a398a",
+      "path": "tasks/v37-010-audit-review-workspace.yml"
+    },
+    {
+      "task_id": "V37-011",
+      "status": "completed",
+      "implementation_commit": "efbf7a7f68dbaf5e093c7d29ac148d1b2956ce88",
+      "path": "tasks/v37-011-operations-progressive-forms.yml"
+    },
+    {
+      "task_id": "V37-012",
+      "status": "completed",
+      "implementation_commit": "efa7d5dab88c9b200bb7126c2ad6039a544cecc7",
+      "path": "tasks/v37-012-ui-journey-verification.yml"
+    },
+    {
+      "task_id": "V38-007",
+      "status": "completed",
+      "implementation_commit": "d2a843d32b1653471430d5307dbb73ed11e9ffa2",
+      "path": "tasks/v38-007-eval-setup-ui.yml"
+    },
+    {
+      "task_id": "V38-008",
+      "status": "completed",
+      "implementation_commit": "a5aaa119d99b842ab84e2a3a41923f3cd4078d47",
+      "path": "tasks/v38-008-eval-comparison-ui.yml"
+    },
+    {
+      "task_id": "V38-009",
+      "status": "completed",
+      "implementation_commit": "d1f7e970e3db12a231bffca565748d1293cbed6d",
+      "path": "tasks/v38-009-playground-eval-client.yml"
+    },
+    {
+      "task_id": "V38-010",
+      "status": "completed",
+      "implementation_commit": "f3d00ccda97df0a33bfc13764ae8b68d6b868564",
+      "path": "tasks/v38-010-eval-release-gate.yml"
+    },
+    {
+      "task_id": "V40-002",
+      "status": "in_progress",
+      "implementation_commit": null,
+      "path": "tasks/v40-002-agent-instruction-paired-runner.yml"
+    },
+    {
+      "task_id": "V55-006",
+      "status": "completed",
+      "implementation_commit": null,
+      "path": "tasks/v55-006-scan-workflows-release.yml"
+    },
+    {
+      "task_id": "V55-007",
+      "status": "completed",
+      "implementation_commit": "a51c6d938497ce7fb1763931a6126ec664c43f20",
+      "path": "tasks/v55-007-openapi-request-set.yml"
+    },
+    {
+      "task_id": "V55-008",
+      "status": "completed",
+      "implementation_commit": null,
+      "path": "tasks/v55-008-deterministic-scan-planner.yml"
+    },
+    {
+      "task_id": "V55-009",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v55-009-scan-candidate-ranking.yml"
+    },
+    {
+      "task_id": "V55-010",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v55-010-katana-scan-adapter.yml"
+    },
+    {
+      "task_id": "V61-001",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-001-toolset-configuration-contracts.yml"
+    },
+    {
+      "task_id": "V61-002",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-002-toolset-runtime-config-store.yml"
+    },
+    {
+      "task_id": "V61-003",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-003-run-toolset-pinning-allocation.yml"
+    },
+    {
+      "task_id": "V61-004",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-004-allocation-tool-discovery.yml"
+    },
+    {
+      "task_id": "V61-005",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-005-mcp-session-lifecycle.yml"
+    },
+    {
+      "task_id": "V61-006",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-006-mcp-tools-adk.yml"
+    },
+    {
+      "task_id": "V61-007",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-007-toolset-configuration-read-api.yml"
+    },
+    {
+      "task_id": "V61-008",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-008-toolset-connections-ui.yml"
+    },
+    {
+      "task_id": "V61-009",
+      "status": "pending",
+      "implementation_commit": null,
+      "path": "tasks/v61-009-toolset-configuration-release.yml"
+    }
+  ],
+  "accepted_or_rejected_hypotheses": [
+    "Separate ModelPolicy, RuntimeConfig, snapshot and credential boundaries retained: distinct authority and pin timing, not accidental redundant configuration",
+    "Layer validation at publication, Run creation and allocation validates distinct external/state boundaries",
+    "Portable/managed deterministic tests do not establish live instruction quality",
+    "Agent labels pinned at placement; default and Run labels pinned at Run creation",
+    "Generic labels never confer verified experiment membership"
+  ],
+  "v40_002": {
+    "status": "in_progress",
+    "live_ready": false,
+    "modified": false,
+    "recorded_members": 24,
+    "live_runs_started": 0,
+    "blockers": "Task preparation_progress blockers/open_acceptance preserved; exact wrappers unpublished, dispatch/aggregate budget, unsupported source capability, reviewed input/observation mapping and complete live pins still missing",
+    "worktrees": {
+      "contractor": "9b1613ab",
+      "playground": "d97ddc553497ff2673976bc8f4a143ca133621d9"
+    }
+  },
+  "acceptance": {
+    "A1": "Scoped source/history trace and representative verification complete; V40 live blockers are explicitly separate pending scope",
+    "A2": "No confirmed production defects in this slice; stale delivery prose corrected with task/history provenance",
+    "A3": "Required config and actual shared wire gates passed with no skips; git diff --check passed"
+  },
+  "boundaries": [
+    "Go PASS events include parents and subtests, not distinct leaf-case count",
+    "No browser suite rerun attributed to V60-010; V38 browser delivery cites its recorded task evidence",
+    "No live model, target campaign, production data mutation or deployment",
+    "No takeover or completion claim for V40-002/V55 pending tasks or separately developed V61",
+    "No whole-project correctness claim"
+  ]
+}

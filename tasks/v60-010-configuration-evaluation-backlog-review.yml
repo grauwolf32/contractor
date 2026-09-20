@@ -68,3 +68,13 @@ verification_requirements:
 - Read relevant decision history; list exact scenarios and test results in the project review report.
 - Keep implementation and subsequent completion metadata commits separate with the full original implementation
   hash.
+
+verification:
+  date: 2026-09-20
+  report: docs/research/2026-09-20-v60-010-configuration-evaluation-review.md
+  evidence: tasks/evidence/v60-010.json
+  result: >-
+    Configuration publication/pinning/allocation and portable attribution reviewed.
+    Required config/shared wire gates and 237 offline Playground cases passed;
+    no confirmed production defects. Stale V37/V38 delivery prose corrected.
+    V40-002 live blockers and pending V55/V61 scopes preserved.
