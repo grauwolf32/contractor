@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V62-005
+title: Supply immutable settled-round snapshots to assessment Workflows
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-004]
+languages: [go, json]
+goal: Give assessment an explicit complete and bounded input over the settled round without ambiguous per-check output lookup.
+context:
+  authority: User-requested V62 Audit Workflow composition task series.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
+  contract: V62-001 defines the round-results source, snapshot schema, result selection, review pins and finite bounds.
+scope:
+  in:
+    - Construct a versioned canonical snapshot after every item settles and before the first assessment consumes it.
+    - Include all items, selected accepted results or explicit absence, attempt/receipt outcomes, coverage/gaps, evidence and proposal identities.
+    - Pin any included analyst decision to an exact revision and preserve the historical snapshot when later reviews change.
+    - Retain snapshot and required evidence manifests, resolve round-results inputs and materialize authorized exact evidence into the child Run.
+    - Implement specified collection/byte bounds and deterministic partitioning or explicit limit failure without silent truncation.
+    - Recover interrupted snapshot creation, deduplicate receipt replay and preserve snapshot readability after allowed source Run deletion.
+  out:
+    - Give assessment arbitrary Project access, treat its prose as a human verdict, or read live mutable check/analyst state during its execution.
+deliverables:
+  - path: internal/auditdomain
+    description: Canonical round snapshot encoder/decoder and boundary fixtures.
+  - path: internal/auditservice
+    description: Revision-consistent settled-round snapshot construction and retention.
+  - path: internal/auditcontroller
+    description: Snapshot barrier and exact assessment input materialization.
+  - path: internal/auditstore
+    description: Consistent item/receipt/review reads and immutable snapshot identity.
+acceptance_criteria:
+  - id: A1
+    text: Assessment receives all settled items exactly once with correct selected results across batching/retries and explicit failed, cancelled, blocked and missing-result outcomes.
+  - id: A2
+    text: Reconciliation and review races cannot produce mixed-revision snapshots; every consuming assessment pins the retained digest and later review cannot rewrite it.
+  - id: A3
+    text: Large rounds hit the specified bound/partition behavior, and every exposed evidence ref is authorized and readable through the child's declared Run inputs.
+  - id: A4
+    text: Snapshot replay and allowed source Run deletion preserve readable provenance without bypassing Audit deletion or protected-artifact rules.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller ./internal/auditimport
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Disposable PostgreSQL for mandatory snapshot isolation, review race, retention and restart verification.
+verification_requirements:
+  - Include a multi-batch round with retry and technical failure; compare exact item identities and evidence fork mappings, not only the summary totals.

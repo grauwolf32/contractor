@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V62-007
+title: Route admitted proposed checks to explicit profile Workflow bindings
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-005, V62-006]
+languages: [go, json, yaml]
+goal: Select the correct check Workflow for each admitted typed proposal while preserving immutable rounds and existing default routes.
+context:
+  authority: User-requested V62 Audit Workflow composition task series.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/19-audits.md, docs/spec/33-autonomous-pentest-audits.md]
+  reuse: Specification 33 proposes proposedChecks mappings by planSchema and phase; V62-001 defines the common routing contract and V62-006 supplies exact dependencies.
+scope:
+  in:
+    - Validate profile mappings from typed plan schema and phase to a compatible exact check binding and required capabilities.
+    - Admit proposals using trusted receipt/ordinal identity, validated exact dependencies, existing approval policy and cumulative item/Run budgets.
+    - Persist selected Workflow role and admission decision with each accepted next-round item; reject ambiguous or unknown mappings explicitly.
+    - Retain admitted, rejected and deferred reasons and deterministic selection order, without treating model rankings as authority.
+    - Preserve inventory.itemWorkflowRole fallback for legacy profiles and existing standard-mapping role selection.
+    - Exercise verify and replay as distinct ordinary check bindings through typed fixtures without enabling autonomous pentest behavior.
+  out:
+    - Add verification/replay role kinds, execute model-selected Workflow refs, modify accepted rounds or implement pentest recipes and live proof.
+deliverables:
+  - path: internal/config
+    description: Strict routing map validation, capability contracts and legacy snapshot regressions.
+  - path: internal/auditservice
+    description: Typed proposal admission, decision retention and deterministic next-round routing.
+  - path: internal/auditstore
+    description: Durable admission provenance and consume-once identity where required by V62-001.
+  - path: internal/auditdomain
+    description: Selected role and exact dependency attribution in accepted item packages.
+acceptance_criteria:
+  - id: A1
+    text: Typed verify and replay fixtures select different configured check Workflows with the correct input dependencies and source receipt/ordinal attribution.
+  - id: A2
+    text: Renaming roles changes no classification; unknown/ambiguous schema/phase mappings and invalid capabilities or dependencies produce explicit decisions and no fallback to arbitrary work.
+  - id: A3
+    text: Duplicate receipt delivery, concurrent admission, restart and exhausted budgets cannot create duplicate accepted items or extend the current round.
+  - id: A4
+    text: Legacy default routing, standard mappings and existing review/approval behavior remain unchanged; decisions and deferrals are included in consistent report inputs.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/config ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Disposable PostgreSQL for mandatory admission concurrency, consume-once, review and restart cases.
+verification_requirements:
+  - Use registered typed test schemas and exact fixtures; free-text method values are never sufficient proof that routing is correct.

@@ -35,5 +35,10 @@ typed evidence, independent replay, recovery, budgets and acceptance gates.
 It specifies the implementation target and maps existing work to delivery
 stages; the new capabilities are not yet implemented.
 
+[Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md)
+plans V62: preparation before initial inventory, generated OpenAPI checks,
+assessment result snapshots and exact dependencies/routing across rounds.
+The linked tasks are pending; this plan does not enable the new profile contracts.
+
 [Architecture review — 2026-09-15](reviews/architecture-review-2026-09-15.md)
 records the per-view scenario checks, fixes and verification limits.

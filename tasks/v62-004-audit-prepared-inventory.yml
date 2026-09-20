@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V62-004
+title: Build the first Audit worklist from accepted preparation artifacts
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-003]
+languages: [go, json, yaml]
+goal: Generate a bounded immutable initial inventory from the exact OpenAPI or checklist produced by preparation.
+context:
+  authority: User requested analysis then OpenAPI then checks inside one Audit.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
+  contract: V62-001 fixes the explicit inventory source union and V62-003 establishes accepted preparation outputs.
+scope:
+  in:
+    - Resolve prepared inventory sources only from accepted retained role output revisions and validate declared media/format contracts.
+    - Reuse deterministic OpenAPI-operation and checklist builders with existing bounded expansion and gap semantics.
+    - Persist derived source identity, inventory digest, immutable tasks, initial coverage and the first Round in a recoverable atomic acceptance path.
+    - Reject malformed, missing, oversized and unaccepted outputs with explicit reasons and no placeholder successful worklist.
+    - Preserve original baseline and prepare lineage; expose generated coverage denominator only once its worklist has been accepted.
+    - Respect concurrent cancel/delete/claims and recover crashes between retained source, generated packages and Round acceptance.
+  out:
+    - Mutate an accepted worklist, accept model-created Run IDs or item authority, or fetch remote OpenAPI references.
+deliverables:
+  - path: internal/auditdomain
+    description: Source-agnostic deterministic inventory reuse and exact generated-source provenance.
+  - path: internal/auditservice
+    description: Initial worklist builder over retained prepare outputs and immutable task packages.
+  - path: internal/auditstore
+    description: Fenced atomic first-Round acceptance and replay invariants.
+  - path: internal/auditcontroller
+    description: Preparation-to-inventory transition and explicit inventory failure outcomes.
+acceptance_criteria:
+  - id: A1
+    text: Generated OpenAPI with three supported operations creates exactly three correctly attributed items, and the same retained input deterministically reproduces the same inventory digest.
+  - id: A2
+    text: Generated checklists, legacy input inventories and standards remain valid; original baseline and accepted worklists never change.
+  - id: A3
+    text: Invalid/over-limit/unaccepted/zero-usable input follows the specified failure or explicit empty/gap policy without claiming successful coverage.
+  - id: A4
+    text: Concurrent reconciliation, restart and cancel/delete during package publication yield at most one accepted initial Round and no orphaned authoritative items.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller
+    covers: [A1, A2, A3, A4]
+  - command: go test ./internal/config
+    covers: [A2, A3]
+test_prerequisites:
+  - Disposable PostgreSQL for mandatory acceptance, race, cancellation and restart cases.
+verification_requirements:
+  - Include YAML/JSON ordering invariance, unsupported operations/gaps and exact retained revision checks rather than asserting only item counts.

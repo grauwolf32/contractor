@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V62-008
+title: Publish reusable project analysis and chained OpenAPI preparation
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-004]
+languages: [go, yaml, markdown]
+goal: Provide real catalog Workflows for source analysis followed by OpenAPI generation without repeating the analysis in every Audit round.
+context:
+  authority: User requested project analysis followed by OpenAPI generation and scanning in one Audit.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/00-workflow-and-planner.md, docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
+  reuse: Extract the existing dependency/project discovery stages and templates from openapi-from-workspace; preserve openapi-from-analysis@4 and all published versions.
+scope:
+  in:
+    - Add project-analysis@1 with source ZIP input and required dependency_report/project_report Markdown outputs using existing workspace analysis capabilities.
+    - Preserve exact source and workspace-state transfer between analysis stages and explicit ordinary standalone Run support.
+    - Compose analysis and openapi-from-analysis@4 as prepare roles in an isolated integration profile with a declared check fixture.
+    - Verify required Runtime graph/workspace/validator capabilities and exact version/Skill/config pins before dispatch.
+    - Document production profile composition and output contracts; the actual scan profile is published by V62-009 after its adapter exists.
+  out:
+    - Rewrite immutable existing versions, introduce placeholder production refs, run paid models or publish an incomplete scan profile as runnable.
+deliverables:
+  - path: configs/workflows/project_analysis.yaml
+    description: New versioned reusable source/dependency analysis Workflow with explicit required outputs.
+  - path: internal/config
+    description: Catalog and stage/output compatibility checks for the new analysis Workflow.
+  - path: tests/e2e/testdata
+    description: Isolated prepare-chain catalog and scripted source-analysis/OpenAPI fixture outputs.
+  - path: tests/e2e/audit_preparation_test.go
+    description: New TestAuditPreparationAcrossProductionProcesses exercising real preparation, retention and inventory acceptance.
+  - path: docs/guides/project-workflows.md
+    description: Standalone analysis and explicit reuse in preparation with actual existing references.
+acceptance_criteria:
+  - id: A1
+    text: The shipped analysis Workflow resolves against real templates/instructions and publishes both required reports from the exact selected source.
+  - id: A2
+    text: Chained prepare roles pass those reports to openapi-from-analysis@4 and freeze a validated OpenAPI revision used by generated inventory.
+  - id: A3
+    text: Later rounds reuse accepted preparation outputs; missing capability or validation failure prevents inventory acceptance with truthful diagnostics.
+tests:
+  - command: go test ./internal/config ./internal/auditcontroller ./internal/auditservice
+    covers: [A1, A2, A3]
+  - command: make test-config
+    covers: [A1]
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestAuditPreparationAcrossProductionProcesses$'
+    covers: [A2, A3]
+test_prerequisites:
+  - New named process test is a deliverable of this task and must be discovered and executed, not silently matched zero times.
+  - Disposable PostgreSQL, real Server/Runtime, required workspace/validator prerequisites and controlled scripted model responses.
+verification_requirements:
+  - Record actual process execution and exact report/OpenAPI input refs; deterministic fixture success does not establish live-model analysis quality.
