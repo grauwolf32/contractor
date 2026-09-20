@@ -208,9 +208,6 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	if reasons := InventoryCompatibility(inventory); len(reasons) != 0 {
-		return StartedAudit{}, unsupported(reasons)
-	}
 	if len(inventory.Worklist.Items) > audit.Limits.MaxItemsPerRound ||
 		len(inventory.Worklist.Items) > audit.Limits.MaxItemsTotal {
 		return StartedAudit{}, fmt.Errorf("%w: Audit inventory exceeds profile limits", ErrInvalid)

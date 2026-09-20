@@ -32,9 +32,6 @@ func ValidateInputPreview(profile config.ResolvedAuditProfile, scope Scope, inpu
 	if err != nil {
 		return err
 	}
-	if reasons := InventoryCompatibility(inventory); len(reasons) != 0 {
-		return unsupported(reasons)
-	}
 	if len(inventory.Worklist.Items) > profile.Execution.MaxItemsPerRound || len(inventory.Worklist.Items) > profile.Execution.MaxItemsTotal {
 		return fmt.Errorf("%w: Audit inventory exceeds profile limits", ErrInvalid)
 	}

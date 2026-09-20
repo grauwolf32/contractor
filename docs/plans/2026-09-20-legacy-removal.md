@@ -508,13 +508,10 @@ records or rewriting immutable artifact bytes.
 | Ordinary Worker finalizer | Current completion policy and provider limitations, not a reader for an obsolete format. The existing V57-003 decision is archived; this cleanup does not reopen or silently implement it. |
 | Omitted optional fields, stable canonical digests, ciphertext, ordinary `@1` refs and SQL migration history | These can be current contracts/invariants. Age or absence of a field does not prove an obsolete branch; do not bulk-delete compatibility tests or every `@1` implementation. |
 
-Adjacent dead code: `InventoryCompatibility` in
-[auditservice/compatibility.go](../../internal/auditservice/compatibility.go)
-always returns `nil`, while `start.go` and `preview.go` still check its result.
-This can be considered in a small separate cleanup after checking V62's
-inventory work. It is not evidence that all Audit compatibility validation can
-be removed. Likewise `batching_unsupported` is retained as a public wire enum;
-shrinking that contract is separate from removing an internal no-op.
+The adjacent no-op `InventoryCompatibility` and its Start/Preview call sites
+have been removed (see the follow-up below). `ProfileCompatibility`, inventory
+construction and validation, and item limits remain active checks. The public
+`batching_unsupported` wire enum is outside this implementation-only removal.
 
 ## Execution order and acceptance
 
@@ -1096,3 +1093,17 @@ Verification:
   Python Runtime processes and a deterministic model gateway: 18 Worker
   allocations, retained evidence after source deletion, catalog removal and restart.
 - `git diff --check` passed. No demo deployment or database reset was required.
+
+## Follow-up — remove the empty inventory compatibility check
+
+Deleted `InventoryCompatibility`, its unused `auditdomain` import, and the
+unreachable rejection branches in Audit Start and input Preview. The function
+always returned `nil`. Profile compatibility, input/media checks, inventory
+construction and item limits continue to enforce the current contracts.
+
+Verification: existing `auditservice` and `evalservice` tests, `go vet` for
+`auditservice`, and the Server build passed. Eight selected Audit compatibility,
+Start/replay/rollback and public create/start/query checks passed against
+disposable PostgreSQL 17 with race detection and no skips. No additional tests
+were needed for deleting the no-op. The shared working tree's V62 task-executor
+validation is preserved when combining the overlapping Start/Preview changes.

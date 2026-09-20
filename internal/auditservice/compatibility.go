@@ -3,7 +3,6 @@ package auditservice
 import (
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config"
 )
 
@@ -46,10 +45,6 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 			profile.Inventory.Implementation == "standard-mappings@1",
 		Reasons: ordered,
 	}
-}
-
-func InventoryCompatibility(inventory auditdomain.Inventory) []CompatibilityReason {
-	return nil
 }
 
 func profileSelectsClassifiedTool(profile config.ResolvedAuditProfile, active bool) bool {
