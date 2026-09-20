@@ -3,7 +3,7 @@ id: V60-008
 title: Review Audit consistency and complete Project Run and finding journeys
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-001
 - V60-003
