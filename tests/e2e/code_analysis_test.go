@@ -489,7 +489,7 @@ spec:
   description: Exercises portable structural workspace analysis
   runtime: adk@1
   instructions: {ref: instructions/code-analysis-e2e-worker.md}
-  modelPolicy: domain_worker@1
+  modelPolicy: worker@2
   toolsets:
     - {ref: code-analysis@1, tools: [list_symbols, search_def]}
     - {ref: text-artifacts@1, tools: [write_text_artifact]}
@@ -502,7 +502,7 @@ spec:
   description: Exercises the complete local graph surface and overlay invalidation
   runtime: adk@1
   instructions: {ref: instructions/code-analysis-e2e-worker.md}
-  modelPolicy: domain_worker@1
+  modelPolicy: worker@2
   toolsets:
     - ref: code-analysis@1
       tools: [attack_surface, complexity_hotspots, entrypoint_paths_to, find_callees, find_callers, find_symbol, functions_that_raise, graph_summary, list_symbols, paths_between, search_def]
