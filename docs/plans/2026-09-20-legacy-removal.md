@@ -1,8 +1,9 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C05 implemented, verified and integrated into local `main`.
-C01–C03 were integrated as `1d661196`, C04 as `bc32a76b`; C05 followed on
-`refactor/planner-legacy-removal`. C06–C07 and D01–D07 remain planned.
+Status: C01–C06 implemented, verified and integrated into local `main`.
+C01–C03 were integrated as `1d661196`, C04 as `bc32a76b`, C05 as `71f77e00`;
+C06 followed on `refactor/http-batch-legacy-removal`. C07 and D01–D07 remain
+planned.
 Reviewed working tree on 2026-09-20, HEAD
 `e1ea6209713d1c8d637d1106ce92a4960a4a2c58`, including existing uncommitted
 documentation. The user requested finding code retained only for backward
@@ -183,24 +184,28 @@ an explicit fixture setting.
 [composition_execution.go](../../internal/app/composition_execution.go) already
 used configured factories. `passthrough@1` and `scan-plan@1` remain model-free.
 
-### C06 — HTTP batch reader fallbacks
+### C06 — HTTP batch reader fallbacks (implemented)
 
-[run_detail_batch.go](../../internal/httpapi/public/run_detail_batch.go) tries
-three optional interfaces and otherwise loops over individual Stage reads.
-The comment explicitly reserves these paths for older/non-PostgreSQL
-implementations. Production already has:
+[run_detail_batch.go](../../internal/httpapi/public/run_detail_batch.go) now
+calls the batch methods required by the corresponding interfaces in
+[public/types.go](../../internal/httpapi/public/types.go). Removed the three
+optional-interface assertions and individual Stage read loops. Production uses:
 
 - `PostgresStore.ListStageAllocationsBatch`;
 - `telemetry.Repository.GetStageMetricsBatch`;
 - `planner/session.Service.LoadPlans`.
 
-Require these methods on the corresponding interfaces in
-[public/types.go](../../internal/httpapi/public/types.go), implement them in
-test readers and remove type assertions and per-stage loops. Optional Metrics
-and PlannerPlans dependencies can remain optional. Do not remove individual
-read methods that have other consumers. Preserve authorized-Run reads,
+Also removed the nested per-session fallback in
+[planner/session.LoadPlans](../../internal/planner/session/plans_batch.go),
+requiring `GetPlannerSessions` on the session store. Test readers now implement
+the current batch contracts. Individual methods used by other consumers remain
+available on the production stores and Planner session service.
+
+Metrics and PlannerPlans dependencies remain optional. Authorized-Run reads,
 best-effort metrics, exact Planner session identity checks and bounded SQL
-query counts.
+query counts retain their existing behavior. The PostgreSQL regression test
+asserts response contents and query bounds directly instead of comparing with
+the retired per-stage path. Updated specification 06.
 
 ## C07 — retire superseded configuration from the default catalog
 
@@ -301,7 +306,7 @@ shrinking that contract is separate from removing an internal no-op.
 ## Execution order and acceptance
 
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
-the third and C05 in the fourth; later items remain planned.
+the third, C05 in the fourth and C06 in the fifth; later items remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -454,4 +459,34 @@ Verification completed on 2026-09-20:
   Searches found no remaining retired constructors or missing-access
   compatibility branches in the affected implementation and tests.
 
-Next increment: C06, per-stage HTTP read fallbacks for older interfaces.
+## Fifth increment — C06 results
+
+Removed three optional batch-interface checks and per-stage loops from the Run
+detail handler, plus the nested compatibility loop in Planner session loading.
+The HTTP readers and Planner session store now require batch methods. Updated
+test readers, direct response assertions and specification 06. Implemented in
+`refactor/http-batch-legacy-removal` and integrated into local `main`, preserving
+unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to a disposable PostgreSQL 17
+  container, `go test -race -count=1 -timeout=8m ./internal/httpapi/public ./internal/runstore ./internal/telemetry ./internal/planner/session`
+  passed. All four packages completed with database tests enabled.
+- The PostgreSQL Run detail regression test verifies a constant query count
+  for 1, 5 and 30 Stages, one query per related collection, exact plans and
+  outputs, absent/corrupt optional metrics, and owner rejection before related
+  reads. Planner session tests retain missing/mismatched identity rejection.
+- HTTP regression tests cover absent optional readers, unavailable metrics,
+  required allocation/plan read failures, sanitized errors and an empty Run
+  that needs no related reads.
+- `go test -run '^$' ./...` and
+  `go test -tags=e2e -run '^$' ./tests/e2e ./tests/ui-stack ./tests/eval/project_workflows`
+  passed as compile checks. Full process/browser/live-model suites were not run
+  for this increment.
+- Go formatting, local plan-link validation and `git diff --check` passed.
+  The four retired optional batch interfaces and their compatibility branches
+  have no remaining implementation references.
+
+Next increment: C07, retire 41 superseded entries from the default catalog
+after updating their remaining consumers.

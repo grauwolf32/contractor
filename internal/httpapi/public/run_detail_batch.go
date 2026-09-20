@@ -8,16 +8,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
-type allocationBatchReader interface {
-	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
-}
-type metricsBatchReader interface {
-	GetStageMetricsBatch(context.Context, []string) (map[string]telemetry.StageMetricsRecord, error)
-}
-type planBatchReader interface {
-	LoadPlans(context.Context, []planner.SessionIdentity) (map[string]planner.PlannerPlanProjection, error)
-}
-
 type runDetailRelated struct {
 	allocations map[string][]runstore.StageAllocation
 	metrics     map[string]telemetry.StageMetricsRecord
@@ -27,8 +17,8 @@ type runDetailRelated struct {
 
 // Call only with executions of an already owner-authorized Run. Production
 // PostgreSQL dependencies issue at most one query per collection, including
-// stages with no allocations or optional metrics. Compatibility fallbacks are
-// for non-PostgreSQL implementations, not concurrent per-stage query fan-out.
+// stages with no allocations or optional metrics. All readers must implement
+// the batch contract.
 func (h *handler) loadRunDetailRelated(ctx context.Context, ownerID string, executions []runstore.StageExecution) (runDetailRelated, error) {
 	result := runDetailRelated{
 		allocations: make(map[string][]runstore.StageAllocation),
@@ -48,43 +38,18 @@ func (h *handler) loadRunDetailRelated(ctx context.Context, ownerID string, exec
 		return result, nil
 	}
 	var err error
-	if batch, ok := h.dependencies.Runs.(allocationBatchReader); ok {
-		result.allocations, err = batch.ListStageAllocationsBatch(ctx, ids)
+	result.allocations, err = h.dependencies.Runs.ListStageAllocationsBatch(ctx, ids)
+	if err != nil {
+		return result, err
+	}
+	if h.dependencies.Metrics != nil {
+		// Optional diagnostics must not prevent reading the durable Run state.
+		result.metrics, _ = h.dependencies.Metrics.GetStageMetricsBatch(ctx, ids)
+	}
+	if h.dependencies.PlannerPlans != nil {
+		result.plans, err = h.dependencies.PlannerPlans.LoadPlans(ctx, identities)
 		if err != nil {
 			return result, err
-		}
-	} else {
-		for _, id := range ids {
-			result.allocations[id], err = h.dependencies.Runs.ListStageAllocations(ctx, id)
-			if err != nil {
-				return result, err
-			}
-		}
-	}
-	if batch, ok := h.dependencies.Metrics.(metricsBatchReader); ok {
-		// Metrics remain best effort; never fall back to N queries on failure.
-		result.metrics, _ = batch.GetStageMetricsBatch(ctx, ids)
-	} else if h.dependencies.Metrics != nil {
-		for _, id := range ids {
-			if record, err := h.dependencies.Metrics.GetStageMetrics(ctx, id); err == nil {
-				result.metrics[id] = record
-			}
-		}
-	}
-	if batch, ok := h.dependencies.PlannerPlans.(planBatchReader); ok {
-		result.plans, err = batch.LoadPlans(ctx, identities)
-		if err != nil {
-			return result, err
-		}
-	} else if h.dependencies.PlannerPlans != nil {
-		for _, identity := range identities {
-			plan, present, err := h.dependencies.PlannerPlans.LoadPlan(ctx, identity)
-			if err != nil {
-				return result, err
-			}
-			if present {
-				result.plans[identity.StageExecutionID] = plan
-			}
 		}
 	}
 	result.resources, err = h.dependencies.AllocationResources.ListStageAllocationResources(ctx, ownerID, ids)

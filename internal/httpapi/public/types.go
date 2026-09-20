@@ -42,7 +42,7 @@ type RunReader interface {
 	RunDeletionBlocker(context.Context, string, string) (*runstore.RunNotDeletableReason, error)
 	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
-	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
+	ListStageAllocationsBatch(context.Context, []string) (map[string][]runstore.StageAllocation, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 }
@@ -60,11 +60,11 @@ type RunLifecycle interface {
 }
 
 type PlannerPlanReader interface {
-	LoadPlan(context.Context, planner.SessionIdentity) (planner.PlannerPlanProjection, bool, error)
+	LoadPlans(context.Context, []planner.SessionIdentity) (map[string]planner.PlannerPlanProjection, error)
 }
 
 type MetricsReader interface {
-	GetStageMetrics(context.Context, string) (telemetry.StageMetricsRecord, error)
+	GetStageMetricsBatch(context.Context, []string) (map[string]telemetry.StageMetricsRecord, error)
 }
 
 type OperationsReader interface {

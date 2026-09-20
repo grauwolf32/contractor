@@ -314,6 +314,16 @@ The first useful user surface supports:
 - showing bounded Planner, Worker and Runtime metrics without exposing prompts,
   tool payloads, provider bodies or secrets.
 
+The Run detail handler verifies ownership before loading related Stage data.
+Its readers require batch methods for allocations, metrics and Planner plans;
+the Planner session store also requires batch reads. PostgreSQL uses at most
+one query per related collection, independent of the number of Stages.
+Metrics and Planner-plan readers remain optional dependencies. Unavailable or
+malformed metrics omit diagnostics without hiding healthy peers or the durable
+Run state. A configured Planner-plan reader must validate the exact session,
+Stage and invocation identity; missing sessions or read failures fail the
+request, while a valid session without a plan simply omits that optional field.
+
 UI labels must preserve the execution vocabulary: a Runtime Agent is the
 long-running single-slot process, while Worker is its temporary
 allocation-scoped role. The UI must not present them as two independently

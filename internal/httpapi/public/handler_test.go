@@ -1861,14 +1861,20 @@ func assertErrorCode(t *testing.T, response *httptest.ResponseRecorder, expected
 
 type fakeMetricsReader struct {
 	records map[string]telemetry.StageMetricsRecord
+	err     error
 }
 
-func (f *fakeMetricsReader) GetStageMetrics(
-	_ context.Context, stageExecutionID string,
-) (telemetry.StageMetricsRecord, error) {
-	record, ok := f.records[stageExecutionID]
-	if !ok {
-		return telemetry.StageMetricsRecord{}, telemetry.ErrNotFound
+func (f *fakeMetricsReader) GetStageMetricsBatch(
+	_ context.Context, stageExecutionIDs []string,
+) (map[string]telemetry.StageMetricsRecord, error) {
+	if f.err != nil {
+		return nil, f.err
 	}
-	return record, nil
+	records := make(map[string]telemetry.StageMetricsRecord)
+	for _, id := range stageExecutionIDs {
+		if record, ok := f.records[id]; ok {
+			records[id] = record
+		}
+	}
+	return records, nil
 }

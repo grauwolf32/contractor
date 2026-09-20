@@ -793,14 +793,19 @@ type fakePlannerPlanReader struct {
 	err   error
 }
 
-func (f *fakePlannerPlanReader) LoadPlan(
-	_ context.Context, identity planner.SessionIdentity,
-) (planner.PlannerPlanProjection, bool, error) {
+func (f *fakePlannerPlanReader) LoadPlans(
+	_ context.Context, identities []planner.SessionIdentity,
+) (map[string]planner.PlannerPlanProjection, error) {
 	if f.err != nil {
-		return planner.PlannerPlanProjection{}, false, f.err
+		return nil, f.err
 	}
-	plan, ok := f.plans[identity.StageExecutionID]
-	return plan, ok, nil
+	plans := make(map[string]planner.PlannerPlanProjection)
+	for _, identity := range identities {
+		if plan, ok := f.plans[identity.StageExecutionID]; ok {
+			plans[identity.StageExecutionID] = plan
+		}
+	}
+	return plans, nil
 }
 
 type fakeIdempotencyClaim struct {
@@ -1190,10 +1195,16 @@ func (f *fakeRunStore) ListStageExecutions(_ context.Context, runID string) ([]r
 	return append([]runstore.StageExecution(nil), f.executions[runID]...), nil
 }
 
-func (f *fakeRunStore) ListStageAllocations(
-	_ context.Context, stageExecutionID string,
-) ([]runstore.StageAllocation, error) {
-	return append([]runstore.StageAllocation(nil), f.allocations[stageExecutionID]...), nil
+func (f *fakeRunStore) ListStageAllocationsBatch(
+	_ context.Context, stageExecutionIDs []string,
+) (map[string][]runstore.StageAllocation, error) {
+	allocations := make(map[string][]runstore.StageAllocation)
+	for _, id := range stageExecutionIDs {
+		if len(f.allocations[id]) != 0 {
+			allocations[id] = append([]runstore.StageAllocation(nil), f.allocations[id]...)
+		}
+	}
+	return allocations, nil
 }
 
 func (f *fakeRunStore) ListStageTransitionDecisions(
