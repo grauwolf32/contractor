@@ -26,10 +26,12 @@ context:
   - docs/spec/27-findings-tools-and-collections.md
   - docs/spec/ui-user-stories.md
   design: docs/plans/2026-09-20-project-review.md
-  discovered_import_limitation: V60-012 PostgreSQL probe confirmed same-Audit receipt replay succeeds, but importing
-    that receipt into a second compatible Audit fails with audit_findings_pkey SQLSTATE 23505 and rolls back.
-    Migration 041 derives the global finding ID solely from receipt ID. Explicit accepted same-receipt multi-Audit
-    semantics were not found; clarify that contract and expected HTTP outcome before choosing identity/migration changes.
+  discovered_import_limitation: >-
+    V60-012 identified the receipt-only global finding-ID collision in a second Audit.
+    V60-008 reproduced SQLSTATE 23505 and explicitly accepted independent imports into
+    compatible Audits. V60-027 adds forward migration 062 and Audit-scoped direct
+    assessments while preserving legacy IDs and same-Audit replay; verification
+    evidence is recorded in the V60-008 report and tasks/evidence/v60-027.json.
 scope:
   in:
   - Exercise review TTL, decision replay, multiround restart and retained evidence/report consistency.
@@ -85,3 +87,9 @@ verification_requirements:
 - Read relevant decision history; list exact scenarios and test results in the project review report.
 - Keep implementation and subsequent completion metadata commits separate with the full original implementation
   hash.
+
+review_evidence:
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  evidence: tasks/evidence/v60-008.json
+  corrections: [V60-027, V60-028, V60-031, V60-032, V60-035]
+  result: Source/history review complete; all five required gates passed with real PostgreSQL/process/browser evidence and no selected skips.

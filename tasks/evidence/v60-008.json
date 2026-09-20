@@ -1,0 +1,416 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-008",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": null,
+  "report": "docs/research/2026-09-20-v60-008-audit-product-review.md",
+  "status": "All required review gates passed without selected skips.",
+  "corrections": [
+    "V60-027: independent imported receipt finding and direct assessment identity with additive migration and legacy replay",
+    "V60-028: stale post-deletion Audit revision in controller hardening fixture",
+    "V60-031: restore omitted browser journey selection and reject skipped/missing browser report cases",
+    "V60-032: three stale browser fixture selectors exposed by restoring the required journey selection",
+    "V60-035: validate per-read asOf separately while comparing every durable Findings page field"
+  ],
+  "environment": {
+    "database": "Real disposable PostgreSQL17 with per-test schemas; connection credentials omitted",
+    "go": "1.25.6; GOFLAGS=-p=2 -v, GOMAXPROCS=2; race where prescribed",
+    "runtime": "Python3.13.14 locked uv environment, scripted/fake models",
+    "ui": "Node24.20.0, pnpm11.24.0, independently served UI and Chromium where designated"
+  },
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./internal/findingintake",
+        "./internal/auditstore",
+        "./internal/auditservice",
+        "./internal/httpapi/public",
+        "./internal/persistence/postgres"
+      ],
+      "started_at_unix": 1789901074.1552649,
+      "duration_seconds": 182.006,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-027-broad.log",
+      "log_sha256": "dd742f93668827ec74af302c8facb7a916d736bf4538b34199d48063eb0164a0",
+      "go_pass_events": 644,
+      "go_fail_events": 0,
+      "skips": []
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-ui-stack",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser",
+        "test-scheduler-concurrency-browser",
+        "test-performance-browser"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1107.48,
+      "log": ".local/v60-review/v60-final-browser.log",
+      "go_passing_events": 21,
+      "go_skips": [],
+      "summaries": [
+        "    stack_test.go:357: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5"
+      ],
+      "log_sha256": "7a2c7e17cc2f17c8b5eeb0534e9e721fdef08ac5652ef61f5bd4b9aa2cdd6831",
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "browser_cases": 20,
+      "browser_required_files": 7,
+      "browser_skipped_unexpected_flaky": 0,
+      "real_stack_seconds": {
+        "operations": 111.68,
+        "native_evals": 511.67,
+        "external_evals": 481.69
+      }
+    },
+    {
+      "command": [
+        "make",
+        "test-audits-hardening"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-audit-completion-e2e",
+        "test-audits-hardening",
+        "test-findings-e2e"
+      ],
+      "exit_code": 0,
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "elapsed_seconds": null,
+      "timing_note": "Shared invocation; no invented per-target wall time. Subsequent Findings gate failed and does not invalidate completed Audit target.",
+      "log": ".local/v60-review/v60-audits-hardening-segment.log",
+      "log_sha256": "8cb713edf5bed41d1485ecaa6b85e6245893070cbe07b863ac6c733de9d37c6a",
+      "shared_log": ".local/v60-review/v60-final-audit.log",
+      "shared_log_sha256": "5c9b66d844d280d1e224793ba453e15255f89f9f7deac3313dfbb514a10b4d0a",
+      "go_passing_events": 193,
+      "go_skips": [],
+      "ui_tests": 34,
+      "ui_files": 3
+    },
+    {
+      "command": [
+        "make",
+        "test-audit-completion-e2e"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-audit-completion-e2e",
+        "test-audits-hardening",
+        "test-findings-e2e"
+      ],
+      "exit_code": 0,
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "elapsed_seconds": null,
+      "timing_note": "Shared invocation; target completed before downstream Findings failure. No invented per-target wall time.",
+      "log": ".local/v60-review/v60-audit-completion-segment.log",
+      "log_sha256": "8b9e352db92c23157a674d55072722e7ab9d97e4169210f5472450308f44bb9b",
+      "shared_log": ".local/v60-review/v60-final-audit.log",
+      "shared_log_sha256": "5c9b66d844d280d1e224793ba453e15255f89f9f7deac3313dfbb514a10b4d0a",
+      "go_passing_events": 173,
+      "python_passing_cases": 331,
+      "required_skips": []
+    },
+    {
+      "command": [
+        "make",
+        "test-hardening-matrices"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-audit-completion-e2e",
+        "test-audits-hardening",
+        "test-findings-e2e"
+      ],
+      "exit_code": 0,
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "elapsed_seconds": null,
+      "timing_note": "Shared invocation; target completed before downstream Findings failure. No invented per-target wall time.",
+      "log": ".local/v60-review/v60-hardening-matrices-segment.log",
+      "log_sha256": "6829d3b2d58646a61bccc04f2edb2dcd8944f248a41c47862f46a9a38ae3684e",
+      "shared_log": ".local/v60-review/v60-final-audit.log",
+      "shared_log_sha256": "5c9b66d844d280d1e224793ba453e15255f89f9f7deac3313dfbb514a10b4d0a",
+      "go_passing_events": 139,
+      "python_passing_cases": 0,
+      "required_skips": []
+    },
+    {
+      "command": [
+        "make",
+        "test-findings-e2e"
+      ],
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "started_at_unix": 1789904332.404658,
+      "duration_seconds": 190.699,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-035-findings-final.log",
+      "log_sha256": "b1ac751a0517cbc6840e49a01fc02eb9f011081d0d06a6ba7c72d7b81ccb1fa7",
+      "go_passing_events": 13,
+      "python_passing_cases": 48,
+      "required_skips": []
+    }
+  ],
+  "required_remaining": [],
+  "evidence_limits": [
+    "Audit and repeat/lifecycle browser route fixtures test UI behavior, not backend execution. Real-stack browser Project/Run path and separate production Audit process tests demonstrate backend wiring.",
+    "Multiround SQL admission/replay and Controller replacement are complementary checks. The separate Audit-program Server-restart gate was inspected as source and is not claimed as executed in this review.",
+    "No live-model output quality claim and no completion claim for separately planned scan/SARIF/Evals/toolset work."
+  ],
+  "history": [
+    "7a618fb1",
+    "85845aca",
+    "dca420ba",
+    "d0f6252e",
+    "2015edfc"
+  ],
+  "initial_failure": {
+    "command": [
+      "make",
+      "test-audits-hardening"
+    ],
+    "exit_code": 2,
+    "elapsed_seconds": 121.7,
+    "log": ".local/v60-review/v60-008-audits.log",
+    "go_passing_events": 328,
+    "go_skips": [],
+    "summaries": [],
+    "log_sha256": "35208e5f0f0e843acaf01acb214bb63807fd02d0022cebc02df1ae123779e5db",
+    "interpretation": "Mandatory hardening gate originally failed at stale post-Run-deletion Audit revision; V60-028 corrects the fixture to assert stale ErrPrecondition and retry with refreshed revision. The Audit hardening target subsequently passed; its downstream Findings failure is recorded separately."
+  },
+  "source_verification": {
+    "original_release_source": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950",
+    "corrected_browser_source": "45b31abfd848739a0a1b32d7027028989a911a25",
+    "test_only_delta": [
+      "7afb380963f918a8fd8220f7c33262d6068d5d8c",
+      "45b31abfd848739a0a1b32d7027028989a911a25"
+    ],
+    "reuse_basis": "Production behavior is unchanged across the delta; the originally compiled browser harness omitted the 19 fixture journeys. Its real operations/native/external Evals execution is retained as historical evidence, while the full affected browser prerequisite and aliases are rerun on the corrected harness.",
+    "old_browser_package_seconds": 1095.579,
+    "old_browser_process_seconds": {
+      "operations": 101.3,
+      "native_evals": 511.98,
+      "external_evals": 482.29
+    },
+    "old_browser_note": "No Go test skipped. Optional screenshot OCR substep logged an unavailable tool; this is separate from required browser execution. Old browser success does not prove omitted fixture coverage.",
+    "findings_gate_source": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+    "findings_correction": "Only V60-035 read-snapshot comparison changes this gate; intermediate V60-033/034 fixes affect separate process fixtures. Production code is unchanged since the dedicated Audit/browser gates."
+  },
+  "corrected_browser_cases": {
+    "report": ".local/v60-review/v60-031-browser/run-1215948544/browser-report.json",
+    "sha256": "99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5",
+    "stats": {
+      "startTime": "2026-09-20T11:18:32.779Z",
+      "duration": 100598.48599999999,
+      "expected": 20,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "executed_cases_per_file": {
+      "audits.spec.ts": 4,
+      "lifecycle-controls.spec.ts": 1,
+      "performance.spec.ts": 2,
+      "project-workspace.spec.ts": 5,
+      "run-repeat.spec.ts": 6,
+      "scheduler-settings.spec.ts": 1,
+      "stack.spec.ts": 1
+    },
+    "cases": [
+      {
+        "file": "audits.spec.ts",
+        "title": "Project Audit pins exact input and exposes authoritative coverage",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "audits.spec.ts",
+        "title": "audit program library renders exact Top 10 and ASVS evidence boundaries",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "audits.spec.ts",
+        "title": "Audit UI reviews exact evidence and completes destructive lifecycle controls at 1440px",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "audits.spec.ts",
+        "title": "Audit UI reviews exact evidence and completes destructive lifecycle controls at 390px",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "lifecycle-controls.spec.ts",
+        "title": "independently served UI completes lifecycle controls without manual reload",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "performance.spec.ts",
+        "title": "renders disabled stale and discontinuous performance observations truthfully",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "performance.spec.ts",
+        "title": "shows only available GPU metrics on desktop and mobile",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project file-drop uploads exact bytes directly to Go API",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project dashboard remains usable at 320px",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project recommendation launches an exact Project Run",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project sections open inputs and Run setup, while deletion stays in its menu",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Workflow overview leads with Run setup in a dismissible drawer",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "terminal Run creates a reviewed exact repeat draft and preserves conflicts",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "primary output previews in place before preparing an exact repeat",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "Audit-managed Run returns to the owning Audit",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "terminal Run creates a reviewed exact repeat draft and preserves conflicts",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "primary output previews in place before preparing an exact repeat",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "Audit-managed Run returns to the owning Audit",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "scheduler-settings.spec.ts",
+        "title": "operator CAS-updates Scheduler settings and recovers a stale edit",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "stack.spec.ts",
+        "title": "operates the real single-VM stack without crossing secret boundaries",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      }
+    ],
+    "operations_harness_seconds": 111.68,
+    "evidence_level": "19 browser route-fixture cases plus 1 real Go/Python/Node operations-stack journey. The required JSON validator and full ui-stack gate passed, including separate real native and external Evals journeys."
+  },
+  "findings_initial_failure": {
+    "command": [
+      "make",
+      "--trace",
+      "test-audit-completion-e2e",
+      "test-audits-hardening",
+      "test-findings-e2e"
+    ],
+    "exit_code": 2,
+    "elapsed_seconds": 298.83,
+    "log": ".local/v60-review/v60-final-audit.log",
+    "go_passing_events": 517,
+    "go_skips": [],
+    "summaries": [
+      "331 passed in 3.85s",
+      "Audit completion gate passed: 173 Go cases, 331 Runtime cases; no selected skips.",
+      " Test Files  3 passed (3)",
+      "      Tests  34 passed (34)",
+      "48 passed in 0.61s"
+    ],
+    "log_sha256": "5c9b66d844d280d1e224793ba453e15255f89f9f7deac3313dfbb514a10b4d0a",
+    "interpretation": "Audit completion and hardening passed; Findings failed because its producer/reader test compared valid per-read asOf snapshot metadata as durable state. V60-035 retains all other field comparisons."
+  }
+}
