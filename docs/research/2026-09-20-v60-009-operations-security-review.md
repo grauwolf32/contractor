@@ -1,8 +1,9 @@
 # V60-009 — Authentication, gates and operational recovery
 
 Reviewed 2026-09-20 from `8edeabf2` in isolated branch
-`review/v60-deep-review`. Source corrections from V60-026 through V60-029 are
-part of the final gate snapshot. No production deployment or live model calls.
+`review/v60-deep-review`. Source corrections from V60-026 through V60-040 are
+part of the frozen full-release snapshot, with committed main through `bc32a76b` merged
+before that invocation. No production deployment or live model calls.
 
 ## Source, decisions and representative verification
 
@@ -14,7 +15,7 @@ part of the final gate snapshot. No production deployment or live model calls.
 | Secret projections | Login clears the password field and wipes its temporary byte slice. Errors expose bounded codes. New negative requests assert no bearer, password, cookie or CSRF value in the response. Existing credential tests check redacted projections and required owner-only master-key material. This is not a claim that every allocation of a Go string can be erased from memory. |
 | Fresh install and upgrade | V60-007 runs real migrations, cancellation/backend termination during historical blob DDL, retry, checksum drift and unknown-newer-version rejection. V60-027 additionally checks schema 61 to 62 without rewriting legacy finding history. Process gates use the production binary, isolated PostgreSQL and fake Gateways. |
 | Backup recovery | New `tests/integration/restore` uses actual `pg_dump`/`pg_restore`, fresh databases and both payload backends. It removes the original database and filesystem bytes before restore; exact old/latest revisions, binary payloads, digests, idempotency and CAS survive. Filesystem metadata alone cannot recover missing bytes. The operational guide records the required consistent offline snapshot and separately retained keys/configs. |
-| Gate credibility | Make prerequisites and CI were inspected before execution. CI runs `release-verify` with PostgreSQL 17, locked uv/pnpm dependencies and Node 24.20. The combined final invocation shares common prerequisites once; it does not remove tests. Runtime opt-ins and host-only Git helpers are recorded separately from mandatory executed cases. |
+| Gate credibility | Make prerequisites and CI were inspected before execution. CI runs `release-verify` with PostgreSQL 17, locked uv/pnpm dependencies and Node 24.20. The first combined invocation shares common prerequisites once. V60-031 found that browser aliases omitted promised fixture files; the corrected full UI-stack gate is rerun separately with seven explicit files and validated Playwright execution evidence. Runtime opt-ins and host-only Git helpers are recorded separately from mandatory executed cases. |
 | Performance | Existing metrics use fixed dimensions, bounded retention and separate diagnostic connections. Three isolated child samples per scenario measured enabled/disabled instrumentation, collection and profiling; the real PostgreSQL and browser cases belong to the release gate. No unmeasured optimization was introduced. |
 
 History also includes `5ea78cc5` (production configuration gate) and the V60
@@ -52,11 +53,15 @@ values and command timings are retained in task evidence.
 - Focused authentication/secret/mTLS suite: PASS, 53 Go tests/subtests,
   21.27 s, no skips.
 - `make test-mtls`: PASS, 10 Go events and five Python tests, 2.12 s.
-- Actual backup/restore rehearsal: PASS, both backends, 17.59 s, no skips.
-- Required public API and combined release/Audit gates: final results are
-  recorded after the frozen source run in `tasks/evidence/v60-009.json`.
+- Actual backup/restore rehearsal: PASS, both backends, 17.59 s; repeated on final schema 62 in 13.17 s, no skips.
+- Full release plus explicit public API, Audit hardening, Findings and browser
+  aliases: PASS on `e49c6523`, 5,072.16 s (84 min 32 s), exit 0. Exact command,
+  source, hashes and executed-case evidence are in `tasks/evidence/v60-009.json`.
 
 Go event counts include parents and subtests and may overlap across commands.
+The standard Go verification prerequisite can replay cached package results;
+these log events are not claimed as new physical executions. Required database
+and process targets use explicit `-count=1`.
 The backup test restores domain persistence and then resumes repository writes;
 the production startup/process evidence comes from separate release fixtures.
 It does not simulate power loss, HA failover, production volume permissions or
@@ -64,8 +69,55 @@ restore encrypted credentials without the separately retained master key.
 Live models remain outside scope. Optional sqlmap absence is reported, not
 turned into successful scanner evidence.
 
+The initial release invocation failed lint before execution (V60-030). The
+next invocation at `9cfd09cc` passed lint, broad Go/Python/UI checks and the
+original UI selection, then failed after 2,272.32 s in production Memory
+configuration staging (V60-033). Targets after that failure were not executed.
+Both failures and their logs are retained. V60-031/032 correct browser selection
+and stale fixture selectors; the full affected UI prerequisite passed at
+`45b31abf`. The original one-file UI success does not establish the restored
+fixture journeys. The subsequent release attempts and final result are recorded
+separately below and in task evidence.
+
 Confirmed review findings are bounded corrections: V60-026 fixes result-size
 parity; V60-027 fixes cross-Audit receipt identities; V60-028 repairs stale Audit
 revision use in a mandatory test; V60-029 repairs the fault matrix's moved test
-reference. No additional authentication bypass or storage recovery defect was
-confirmed by this slice. Task completion requires the final mandatory gates.
+reference. V60-030 fixes existing test formatting, V60-031 restores omitted
+browser coverage, and V60-032 updates stale selectors without weakening their
+assertions. V60-033 stages the configured summarizer instruction omitted by a
+production Memory test fixture. No additional authentication bypass or storage recovery defect was
+confirmed by this slice.
+
+The subsequent `make -k` invocation at `7100eb41` preserves independent target
+results after failure. It exposed stale Code Analysis, Agent Skills, Summarizer
+and Project Workspace fixtures (V60-036–039). External Evals also returned an
+unexpected deadline error after two earlier full external journeys passed.
+Concurrent unrelated PostgreSQL queries timed out, and host memory/IO pressure
+was observed; neither a code defect nor an infrastructure cause is established.
+The diagnostic incident record retains the timestamps and hashes without
+turning that correlation into a conclusion. No retry or timeout was changed
+to hide the failure. That failed invocation does not establish release success.
+
+The next affected-first invocation at `747839c2` passed Code Analysis, Agent
+Skills and Summarizer. It then exposed a second stale Project Workspace
+assertion: its exact binding set omitted the normative retained repeat request.
+V60-040 adds that one expected system record using the existing constants.
+The complete Project target subsequently passed at `e49c6523` (164.995 s,
+plus four Runtime cases), as did all three Audit process cases (474.894 s).
+The same frozen invocation passed the complete release and explicit public
+API/Findings/browser gates. It recorded 13,507 Go PASS events, including
+parents/subtests, overlapping commands and 24 cached package output lines.
+The base Runtime suite passed 2,468 tests with 39 explicit optional skips; the
+UI base suite passed 492 tests in 70 files. All 20 required Chromium cases in
+seven files passed with zero skipped, unexpected or flaky results. Native Evals
+passed in 509.31 s and external Evals in 480.63 s. Audit completion verified
+173 Go and 331 Runtime cases without selected skips; Findings verified all
+13 required process cases plus 48 Runtime cases (171.237 s Go package time).
+
+The final monitor stopped normally after 5,073 samples and zero collection
+errors. Its raw records and summary hashes are retained in evidence. The
+earlier external Evals deadline did not recur, but its cause remains unknown.
+The final Runtime optional count adds five absent-Katana-binary cases to the
+34 skips classified in V60-006. Earlier separate Podman/Artifact-bridge results
+retain their original source attribution. No optional live-model or missing
+scanner-binary case is represented as an executed success.

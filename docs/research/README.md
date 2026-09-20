@@ -8,6 +8,9 @@ Scheduler decisions from these records.
 
 ## Completed experiments and implementation reviews
 
+- [V60 deep review — 2026-09-20](2026-09-20-v60-deep-review-results.md) —
+  execution, Runtime, storage, Audit, operations and configuration checks;
+  scoped corrections, actual gates and evidence boundaries.
 - [Run deletion and Audit revisions — V60-012](2026-09-20-run-deletion-audit-revisions.md) —
   atomic invalidation, import/purge lock ordering and immutable report retry.
 - [Project review — first pass, 2026-09-20](2026-09-20-project-review-first-pass.md) —
