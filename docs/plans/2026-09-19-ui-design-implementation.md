@@ -21,6 +21,7 @@
 | [V58-011](../../tasks/v58-011-error-and-empty-recovery.yml) | Verify coherent recovery and empty states across views | D25, D26, D27 |
 | [V58-012](../../tasks/v58-012-release-verification.yml) | Verify and deploy the complete design review implementation | Все 32, проверка и выпуск |
 | [V58-013](../../tasks/v58-013-finding-text-and-run-actions.yml) | Restore full Finding descriptions and improve expanded history layouts | Замечания после выпуска: полный Markdown, sources, корзина, labels и метрики allocations |
+| [V58-014](../../tasks/v58-014-configuration-navigation-and-credentials.yml) | Clarify configuration navigation and managed LLM credential inventory | Назначение ссылок, исключение текущего раздела, managed и development credentials |
 
 Рекомендации применяются к существующим данным и контрактам. Для недоступных сведений о вердикте Eval или пользовательском назначении Workflow UI показывает отсутствие данных либо опубликованное описание; новое значение не выводится из успешности исполнения или технического имени. Полная система экспериментов и новый протокол toolset-конфигурации остаются в своих задачах.
 
