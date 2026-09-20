@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V60-029
+title: Restore fault gate reference after Runtime batch test extraction
+milestone: project-review-v60
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V60-025]
+languages: [yaml, markdown]
+goal: Restore the mandatory fault gate without weakening partial preparation cleanup coverage.
+context:
+  authority: User requested completion of open V60 reviews; V60-005 reproduced this gate failure.
+  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  design: docs/plans/2026-09-20-project-review.md
+  finding: >-
+    Commit 5fad87a3 moved TestPrepareAllCleansEveryReservationAfterPartialFailure
+    to runtime_batch_test.go while tests/faults/matrix.yml retained
+    runtime_client_test.go. make test-faults stops at the reference validator.
+scope:
+  in:
+    - Point the existing matrix case to the extracted test after verifying its cleanup assertions.
+    - Run the matrix validator, named Runtime batch regression and complete fault gate with recorded counts and skips.
+  out:
+    - Change Runtime behavior, remove a mandatory case or relax matrix reference validation.
+acceptance_criteria:
+  - id: A1
+    text: The matrix locates the real regression and still requires fencing, abort and release for every partially prepared reservation.
+  - id: A2
+    text: The focused regression and complete fault gate pass with actual execution evidence and explicit optional Runtime skips.
+tests:
+  - command: go test -race -count=1 ./tests/faults ./internal/controlplane -run '^(TestFaultMatrixIsCompleteAndReferencesRealTests|TestPrepareAllCleansEveryReservationAfterPartialFailure)$'
+    covers: [A1, A2]
+  - command: make test-faults
+    covers: [A1, A2]
+verification_requirements:
+  - Use the isolated V60 PostgreSQL and locked offline Runtime environment; record the original failure and the complete rerun.
+  - Keep implementation and completion metadata commits separate.
+
+review_evidence:
+  report: docs/research/2026-09-20-v60-005-execution-review.md
+  evidence: tasks/evidence/v60-029.json
+  result: All required checks passed on the isolated review worktree; completion metadata awaits implementation commit.
