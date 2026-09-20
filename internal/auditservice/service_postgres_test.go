@@ -616,22 +616,29 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact := func(name, media string, size int64) auditstore.ExactArtifact {
-		revision := name + "-r1"
-		return auditstore.ExactArtifact{Ref: contracts.ArtifactRef{
-			Namespace: "audit-report-review", Name: name, Revision: &revision,
-		}, Digest: serviceTestDigest(name), MediaType: media, SizeBytes: size}
+	artifact := func(name, media, content string) auditstore.ExactArtifact {
+		written, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).WriteAuditArtifact(
+			ctx, project.ProjectID, contracts.ArtifactRef{Namespace: "audit-report-review", Name: name},
+			artifacts.Payload{MediaType: media, Data: []byte(content)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return auditstore.ExactArtifact{
+			Ref: written.Ref, Digest: digestBytes([]byte(content)), MediaType: written.MediaType, SizeBytes: written.Size,
+		}
 	}
 	provenance := json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`)
 	params := auditstore.ProposeReportParams{
 		Claim: claim, ExpectedAuditRevision: audit.Revision,
 		RoundID: round.RoundID, ExpectedRoundRevision: round.Revision,
 		Machine: auditstore.ArtifactLink{LogicalKey: auditstore.ReportMachineLogicalKey,
-			Artifact: artifact("report.json", "application/json", 32), SourceProvenance: provenance},
+			Artifact: artifact("report.json", "application/json", `{"schema":"contractor.audit.report.v1"}`), SourceProvenance: provenance},
 		Summary: auditstore.ArtifactLink{LogicalKey: auditstore.ReportSummaryLogicalKey,
-			Artifact: artifact("report.md", "text/markdown", 16), SourceProvenance: provenance},
+			Artifact: artifact("report.md", "text/markdown", "# Frozen report\n"), SourceProvenance: provenance},
 		RequestDigest: serviceTestDigest("report-candidate"),
 	}
+	testLegacyReportWriteRejection(t, ctx, pool, params)
 	waiting, inserted, err := store.ProposeReport(ctx, params)
 	if err != nil || !inserted || waiting.State != auditstore.AuditWaitingReview {
 		t.Fatalf("propose report = (%+v, %t, %v)", waiting, inserted, err)
@@ -644,6 +651,11 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	if err != nil || candidate.SubjectDigest != params.RequestDigest ||
 		candidate.Machine.Artifact.Digest != params.Machine.Artifact.Digest {
 		t.Fatalf("report candidate = (%+v, %v)", candidate, err)
+	}
+	testLegacyReportCandidateRejection(t, ctx, pool, reviewService, project.OwnerID, params, candidate)
+	proposed, err := reviewService.GetReport(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || proposed.Status != ReportProposed || proposed.Summary != "# Frozen report\n" {
+		t.Fatalf("current proposed Markdown report = %+v, %v", proposed, err)
 	}
 	// Exercise the claim-bound expiry transaction without consuming the
 	// candidate used by the acceptance assertions below.
@@ -751,6 +763,7 @@ SELECT state, stop_reason_code FROM audits WHERE audit_id = $1`, audit.AuditID).
 			t.Fatalf("accepted report link %q: %v", key, err)
 		}
 	}
+	testLegacyCommittedReportRejection(t, ctx, pool, reviewService, project.OwnerID, project.ProjectID, params)
 	if _, err := reviewService.CreateFindingReview(ctx, CreateFindingReviewParams{
 		OwnerID: project.OwnerID, AuditID: audit.AuditID, FindingID: findingID,
 		ExpectedRevision: 1, RequestID: "review-after-report-acceptance",

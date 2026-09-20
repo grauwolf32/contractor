@@ -37,7 +37,7 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 	}
 }
 
-func TestReportSummaryMediaTypes(t *testing.T) {
+func TestReportSummaryRequiresMarkdown(t *testing.T) {
 	revision := "report-r1"
 	link := func(key, media string) ArtifactLink {
 		return ArtifactLink{LogicalKey: key, Artifact: ExactArtifact{
@@ -45,7 +45,7 @@ func TestReportSummaryMediaTypes(t *testing.T) {
 			Digest: testDigest("1"), MediaType: media, SizeBytes: 16,
 		}, SourceProvenance: json.RawMessage(`{}`)}
 	}
-	for _, media := range []string{"text/markdown", "text/plain", "text/html"} {
+	for _, media := range []string{"text/markdown", "text/plain", "text/html", "text/markdown; charset=utf-8", ""} {
 		params := CommitReportParams{
 			Claim:                 ControllerClaim{AuditID: "audit", HolderID: "holder", Epoch: 1},
 			ExpectedAuditRevision: 1, RoundID: "round", ExpectedRoundRevision: 1,
@@ -55,9 +55,9 @@ func TestReportSummaryMediaTypes(t *testing.T) {
 		}
 		for name, err := range map[string]error{
 			"commit": validateCommitReport(params),
-			"review": validateReportCandidateLinks(params.Machine, params.Summary),
+			"review": ValidateReportCandidateLinks(params.Machine, params.Summary),
 		} {
-			if media == "text/html" {
+			if media != "text/markdown" {
 				if !errors.Is(err, ErrInvalid) {
 					t.Errorf("%s accepted unsupported %s: %v", name, media, err)
 				}

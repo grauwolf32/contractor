@@ -9,6 +9,7 @@ import {
   getAudit,
   getAuditFinding,
   getAuditProfile,
+  getAuditReport,
   listAuditCoverage,
   listAuditFindingProvenance,
   listAuditFindings,
@@ -189,6 +190,50 @@ function response(value: unknown, options: ResponseInit = {}): Response {
 }
 
 describe("Audit API", () => {
+  it.each([
+    { status: "ready", mediaType: "text/markdown", accepted: true },
+    { status: "ready", mediaType: "text/plain", accepted: false },
+    { status: "proposed", mediaType: "text/plain", accepted: false },
+    { status: "ready", mediaType: "text/html", accepted: false },
+    { status: "ready", mediaType: undefined, accepted: false },
+  ])(
+    "requires a retained Markdown summary: $status $mediaType",
+    async ({ status, mediaType, accepted }) => {
+      const report = {
+        status,
+        summary: "# Retained report",
+        summaryArtifact:
+          mediaType === undefined ? undefined : { ...exactInput, mediaType },
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response(report)),
+      );
+      if (accepted) {
+        await expect(getAuditReport(api, audit.auditId)).resolves.toEqual(
+          report,
+        );
+      } else {
+        await expect(getAuditReport(api, audit.auditId)).rejects.toMatchObject({
+          code: "invalid_api_response",
+        });
+      }
+    },
+  );
+
+  it.each(["pending", "unavailable"])(
+    "accepts %s without report artifacts",
+    async (status) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response({ status })),
+      );
+      await expect(getAuditReport(api, audit.auditId)).resolves.toEqual({
+        status,
+      });
+    },
+  );
+
   it("reads exact profile versions and validates digest ETags", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(

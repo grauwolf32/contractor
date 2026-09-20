@@ -395,7 +395,20 @@ describe("Project Audit routes", () => {
             return jsonResponse(
               current.state === "active"
                 ? { status: "pending" }
-                : { status: "ready", summary: "Final retained report" },
+                : {
+                    status: "ready",
+                    summary: "Final retained report",
+                    summaryArtifact: {
+                      ref: {
+                        namespace: "audit-example",
+                        name: "report.md",
+                        revision: "report-r1",
+                      },
+                      digest: `sha256:${"1".repeat(64)}`,
+                      mediaType: "text/markdown",
+                      sizeBytes: 21,
+                    },
+                  },
             );
           }
           return jsonResponse({ items: [], page: { hasMore: false } });
@@ -425,7 +438,7 @@ describe("Project Audit routes", () => {
   );
 
   it.each(["text/markdown", "text/plain"])(
-    "previews and downloads an exact %s report",
+    "only previews and downloads current Markdown reports: %s",
     async (mediaType) => {
       const markdown = mediaType === "text/markdown";
       const summary =
@@ -466,20 +479,25 @@ describe("Project Audit routes", () => {
         api,
         "/projects/project_example/audits/audit_example/report",
       );
+      if (!markdown) {
+        expect(
+          await screen.findByText("Server returned an invalid Audit response"),
+        ).toBeVisible();
+        expect(
+          screen.queryByRole("button", { name: "Download exact summary" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("heading", { name: "Coverage summary" }),
+        ).not.toBeInTheDocument();
+        return;
+      }
       const button = await screen.findByRole("button", {
         name: "Download exact summary",
       });
-      if (markdown) {
-        expect(
-          await screen.findByRole("heading", { name: "Coverage summary" }),
-        ).toBeVisible();
-        expect(screen.getByRole("table")).toHaveTextContent("satisfied");
-      } else {
-        expect(screen.getByText(/# Coverage summary/u)).toBeVisible();
-        expect(
-          screen.queryByRole("heading", { name: "Coverage summary" }),
-        ).toBeNull();
-      }
+      expect(
+        await screen.findByRole("heading", { name: "Coverage summary" }),
+      ).toBeVisible();
+      expect(screen.getByRole("table")).toHaveTextContent("satisfied");
       let downloadedName = "";
       const click = vi
         .spyOn(HTMLAnchorElement.prototype, "click")
@@ -493,9 +511,7 @@ describe("Project Audit routes", () => {
       URL.revokeObjectURL = vi.fn();
       try {
         await userEvent.setup().click(button);
-        expect(downloadedName).toBe(
-          `audit_example-report.${markdown ? "md" : "txt"}`,
-        );
+        expect(downloadedName).toBe("audit_example-report.md");
         expect(createURL.mock.calls[0]?.[0].type).toBe(mediaType);
       } finally {
         click.mockRestore();
@@ -2449,6 +2465,16 @@ describe("Audit workspace snapshot navigation", () => {
           return jsonResponse({
             status: "proposed",
             summary: "Exact retained evidence for owner acceptance.",
+            summaryArtifact: {
+              ref: {
+                namespace: "audit-example",
+                name: "report.md",
+                revision: "report-r1",
+              },
+              digest: `sha256:${"1".repeat(64)}`,
+              mediaType: "text/markdown",
+              sizeBytes: 44,
+            },
             review,
           });
         throw new Error(`unexpected ${url}`);

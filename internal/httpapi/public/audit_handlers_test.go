@@ -210,8 +210,8 @@ func TestAuditReportHandlerReturnsOnlyAcceptedProjection(t *testing.T) {
 			Digest: auditHandlerDigest("machine"), MediaType: "application/json", SizeBytes: 41,
 		},
 		SummaryArtifact: &auditstore.ExactArtifact{
-			Ref:    contracts.ArtifactRef{Namespace: "audit-hidden", Name: "report.txt", Revision: &revision},
-			Digest: auditHandlerDigest("summary"), MediaType: "text/plain", SizeBytes: 16,
+			Ref:    contracts.ArtifactRef{Namespace: "audit-hidden", Name: "report.md", Revision: &revision},
+			Digest: auditHandlerDigest("summary"), MediaType: "text/markdown", SizeBytes: 16,
 		},
 		Machine: json.RawMessage(`{"schema":"contractor.audit.report.v1"}`),
 		Summary: "bounded summary",

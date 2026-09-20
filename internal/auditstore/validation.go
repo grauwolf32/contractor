@@ -895,8 +895,7 @@ func validateCommitReport(params CommitReportParams) error {
 		{params.Machine, ReportMachineLogicalKey, "application/json"},
 		{params.Summary, ReportSummaryLogicalKey, "text/markdown"},
 	} {
-		legacySummary := pair.key == ReportSummaryLogicalKey && pair.link.Artifact.MediaType == "text/plain"
-		if pair.link.LogicalKey != pair.key || (pair.link.Artifact.MediaType != pair.media && !legacySummary) {
+		if pair.link.LogicalKey != pair.key || pair.link.Artifact.MediaType != pair.media {
 			return invalidf("Audit report artifact contract is invalid")
 		}
 		if err := validateExactArtifact("Audit report artifact", pair.link.Artifact, true); err != nil {

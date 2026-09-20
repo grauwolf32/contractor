@@ -3464,13 +3464,21 @@ export interface components {
         };
         /** @enum {unknown} */
         AuditItemApprovalKind: "none" | "active-check-approval" | "requirement-applicability";
+        /** @description Exact retained Markdown summary; historical text/plain summaries are unsupported. */
+        AuditReportSummaryArtifact: {
+            ref: components["schemas"]["ExactArtifactRef"];
+            digest: components["schemas"]["Digest"];
+            /** @constant */
+            mediaType: "text/markdown";
+            sizeBytes?: number;
+        };
         /** @enum {unknown} */
         AuditReportStatus: "pending" | "proposed" | "ready" | "unavailable";
         AuditReport: {
             review?: components["schemas"]["AuditReviewRequest"];
             status: components["schemas"]["AuditReportStatus"];
             machineArtifact?: components["schemas"]["AuditExactArtifact"];
-            summaryArtifact?: components["schemas"]["AuditExactArtifact"];
+            summaryArtifact?: components["schemas"]["AuditReportSummaryArtifact"];
             /** @description Exact contractor.audit.report.v1 machine-readable document. */
             machine?: {
                 [key: string]: unknown;

@@ -103,13 +103,9 @@ export function AuditReportView({
           {report.data.summary === undefined ? null : (
             <div className="audit-report-summary">
               <h4>Summary</h4>
-              {report.data.summaryArtifact?.mediaType === "text/markdown" ? (
-                <Suspense fallback={<p>Loading Markdown preview…</p>}>
-                  <MarkdownArtifactPreview source={report.data.summary} />
-                </Suspense>
-              ) : (
-                <p style={{ whiteSpace: "pre-wrap" }}>{report.data.summary}</p>
-              )}
+              <Suspense fallback={<p>Loading Markdown preview…</p>}>
+                <MarkdownArtifactPreview source={report.data.summary} />
+              </Suspense>
             </div>
           )}
           <div className="audit-artifact-list">
@@ -150,8 +146,8 @@ export function AuditReportView({
                     type="button"
                     onClick={() =>
                       downloadReport(
-                        `${audit.auditId}-report.${report.data.summaryArtifact?.mediaType === "text/markdown" ? "md" : "txt"}`,
-                        report.data.summaryArtifact?.mediaType ?? "text/plain",
+                        `${audit.auditId}-report.md`,
+                        "text/markdown",
                         report.data.summary!,
                       )
                     }

@@ -96,6 +96,21 @@ func (e AuditProfileUnsupportedDetailsKind) Valid() bool {
 	}
 }
 
+// Defines values for AuditReportSummaryArtifactMediaType.
+const (
+	Textmarkdown AuditReportSummaryArtifactMediaType = "text/markdown"
+)
+
+// Valid indicates whether the value is a known member of the AuditReportSummaryArtifactMediaType enum.
+func (e AuditReportSummaryArtifactMediaType) Valid() bool {
+	switch e {
+	case Textmarkdown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditRunProvenanceSchema.
 const (
 	ContractorAuditRunProvenanceV1 AuditRunProvenanceSchema = "contractor.audit.run-provenance.v1"
@@ -3085,11 +3100,24 @@ type AuditReport struct {
 	Review          *AuditReviewRequest     `json:"review,omitempty"`
 	Status          AuditReportStatus       `json:"status"`
 	Summary         *string                 `json:"summary,omitempty"`
-	SummaryArtifact *AuditExactArtifact     `json:"summaryArtifact,omitempty"`
+
+	// SummaryArtifact Exact retained Markdown summary; historical text/plain summaries are unsupported.
+	SummaryArtifact *AuditReportSummaryArtifact `json:"summaryArtifact,omitempty"`
 }
 
 // AuditReportStatus defines model for AuditReportStatus.
 type AuditReportStatus = interface{}
+
+// AuditReportSummaryArtifact Exact retained Markdown summary; historical text/plain summaries are unsupported.
+type AuditReportSummaryArtifact struct {
+	Digest    Digest                              `json:"digest"`
+	MediaType AuditReportSummaryArtifactMediaType `json:"mediaType"`
+	Ref       ExactArtifactRef                    `json:"ref"`
+	SizeBytes *int                                `json:"sizeBytes,omitempty"`
+}
+
+// AuditReportSummaryArtifactMediaType defines model for AuditReportSummaryArtifact.MediaType.
+type AuditReportSummaryArtifactMediaType string
 
 // AuditReviewAction defines model for AuditReviewAction.
 type AuditReviewAction = interface{}

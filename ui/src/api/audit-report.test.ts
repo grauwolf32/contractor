@@ -12,6 +12,7 @@ const runtimeConfig: RuntimeConfig = {
 
 describe("Audit report API", () => {
   it("accepts the proposed state returned during exact human review", async () => {
+    const summary = "Awaiting owner acceptance.";
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(
@@ -20,7 +21,31 @@ describe("Audit report API", () => {
             JSON.stringify({
               status: "proposed",
               machine: { certification: false },
-              summary: "Awaiting owner acceptance.",
+              summary,
+              summaryArtifact: {
+                ref: {
+                  namespace: "audit-proposed",
+                  name: "report.md",
+                  revision: "report-r1",
+                },
+                digest: `sha256:${"1".repeat(64)}`,
+                mediaType: "text/markdown",
+                sizeBytes: summary.length,
+              },
+              review: {
+                requestId: "review-report",
+                auditId: "audit_proposed",
+                subjectKind: "audit-report",
+                subjectId: "audit_proposed",
+                kind: "report-acceptance",
+                subjectRevision: 1,
+                subjectDigest: `sha256:${"2".repeat(64)}`,
+                state: "pending",
+                revision: 1,
+                requestedActions: ["approve", "reject"],
+                createdAt: "2026-09-20T10:00:00Z",
+                updatedAt: "2026-09-20T10:00:00Z",
+              },
             }),
             {
               status: 200,

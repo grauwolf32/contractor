@@ -111,20 +111,14 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	if !errors.Is(err, pgx.ErrNoRows) && postgresState(err) != "23505" {
 		return Audit{}, false, fmt.Errorf("propose Audit report: %w", err)
 	}
-	var storedRevision int64
-	var storedDigest string
-	if replayErr := s.db.QueryRow(ctx, `
-SELECT candidate.subject_revision, candidate.subject_digest
-  FROM audit_report_candidates AS candidate
- WHERE candidate.audit_id = $1`, params.Claim.AuditID).Scan(
-		&storedRevision, &storedDigest,
-	); replayErr == nil {
-		if storedRevision != int64(params.ExpectedAuditRevision) || storedDigest != params.RequestDigest {
+	candidate, replayErr := s.GetReportCandidate(ctx, params.Claim.AuditID)
+	if replayErr == nil {
+		if candidate.SubjectRevision != params.ExpectedAuditRevision || candidate.SubjectDigest != params.RequestDigest {
 			return Audit{}, false, ErrConflict
 		}
 		existing, getErr := s.getAuditTrusted(ctx, params.Claim.AuditID)
 		return existing, false, getErr
-	} else if !errors.Is(replayErr, pgx.ErrNoRows) {
+	} else if !errors.Is(replayErr, ErrNotFound) {
 		return Audit{}, false, replayErr
 	}
 	if live, liveErr := s.claimLive(ctx, params.Claim); liveErr != nil {
@@ -170,7 +164,7 @@ SELECT request_id, round_id, subject_revision, subject_digest,
 	if revision < 1 || validateDigest("report candidate digest", result.SubjectDigest) != nil ||
 		json.Unmarshal(machine, &result.Machine) != nil ||
 		json.Unmarshal(summary, &result.Summary) != nil ||
-		validateReportCandidateLinks(result.Machine, result.Summary) != nil {
+		ValidateReportCandidateLinks(result.Machine, result.Summary) != nil {
 		return ReportCandidate{}, errors.New("stored Audit report candidate is invalid")
 	}
 	result.SubjectRevision = uint64(revision)
@@ -263,7 +257,9 @@ SELECT EXISTS (SELECT 1 FROM terminal)`, claim.AuditID, claim.HolderID,
 	return false, nil
 }
 
-func validateReportCandidateLinks(machine, summary ArtifactLink) error {
+// ValidateReportCandidateLinks requires current exact report descriptors before
+// reading or approving a retained candidate.
+func ValidateReportCandidateLinks(machine, summary ArtifactLink) error {
 	for _, pair := range []struct {
 		link  ArtifactLink
 		key   string
@@ -272,8 +268,7 @@ func validateReportCandidateLinks(machine, summary ArtifactLink) error {
 		{machine, ReportMachineLogicalKey, "application/json"},
 		{summary, ReportSummaryLogicalKey, "text/markdown"},
 	} {
-		legacySummary := pair.key == ReportSummaryLogicalKey && pair.link.Artifact.MediaType == "text/plain"
-		if pair.link.LogicalKey != pair.key || (pair.link.Artifact.MediaType != pair.media && !legacySummary) ||
+		if pair.link.LogicalKey != pair.key || pair.link.Artifact.MediaType != pair.media ||
 			validateExactArtifact("report candidate", pair.link.Artifact, false) != nil ||
 			len(pair.link.SourceProvenance) == 0 || !json.Valid(pair.link.SourceProvenance) {
 			return ErrInvalid

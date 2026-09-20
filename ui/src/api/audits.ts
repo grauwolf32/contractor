@@ -486,7 +486,10 @@ export async function getAuditReport(
     (report.status !== "pending" &&
       report.status !== "proposed" &&
       report.status !== "ready" &&
-      report.status !== "unavailable")
+      report.status !== "unavailable") ||
+    ((report.status === "ready" || report.status === "proposed") &&
+      (report.summaryArtifact?.mediaType !== "text/markdown" ||
+        typeof report.summary !== "string"))
   ) {
     throw invalidAuditResponse(result.response.status);
   }

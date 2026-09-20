@@ -1188,9 +1188,12 @@ report dimensions.
 The human-readable report is `report.md` with media type `text/markdown`,
 headings, and coverage/finding/attempt tables. The Audit Report view renders it
 with the existing safe Markdown preview and downloads the exact Markdown bytes.
-The machine-readable report remains `report.json`. Previously retained
-`text/plain` summaries remain readable and downloadable without rewriting their
-immutable artifacts or pending review subjects.
+Report commit, candidate reads, approval and accepted-report reads require that
+current media type. Historical `text/plain` summaries are unsupported; readers
+never relabel or rewrite their artifacts. Report reads require the retained
+descriptor to match the artifact's actual media type, digest and byte length. Rejected reads and approval
+attempts leave report links, review decisions and Audit history unchanged.
+The machine-readable report remains `report.json`.
 
 The report includes baseline/profile/standard versions, scope, coverage matrix,
 confirmed and proposed findings separately, unresolved questions, exclusions,

@@ -11467,6 +11467,16 @@ components:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
     AuditItemApprovalKind: {enum: [none, active-check-approval, requirement-applicability]}
+    AuditReportSummaryArtifact:
+      type: object
+      additionalProperties: false
+      required: [ref, digest, mediaType]
+      description: Exact retained Markdown summary; historical text/plain summaries are unsupported.
+      properties:
+        ref: {$ref: '#/components/schemas/ExactArtifactRef'}
+        digest: {$ref: '#/components/schemas/Digest'}
+        mediaType: {type: string, const: text/markdown}
+        sizeBytes: {type: integer, minimum: 0, maximum: 67108864}
     AuditReportStatus: {enum: [pending, proposed, ready, unavailable]}
     AuditReport:
       type: object
@@ -11480,7 +11490,7 @@ components:
         review: {$ref: '#/components/schemas/AuditReviewRequest'}
         status: {$ref: '#/components/schemas/AuditReportStatus'}
         machineArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
-        summaryArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
+        summaryArtifact: {$ref: '#/components/schemas/AuditReportSummaryArtifact'}
         machine:
           type: object
           description: Exact contractor.audit.report.v1 machine-readable document.

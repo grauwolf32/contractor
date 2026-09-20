@@ -322,7 +322,8 @@ UPDATE audits
 		return auditstore.ErrInvalid
 	}
 	var machine, summary auditstore.ArtifactLink
-	if json.Unmarshal(machineJSON, &machine) != nil || json.Unmarshal(summaryJSON, &summary) != nil {
+	if json.Unmarshal(machineJSON, &machine) != nil || json.Unmarshal(summaryJSON, &summary) != nil ||
+		auditstore.ValidateReportCandidateLinks(machine, summary) != nil {
 		return fmt.Errorf("stored Audit report candidate is invalid")
 	}
 	for _, link := range []auditstore.ArtifactLink{machine, summary} {

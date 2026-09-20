@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01–D06 implemented, verified and integrated into local `main`;
-D07 remains planned.
+Status: C01–C07 and D01–D07 implemented, verified and integrated into local `main`.
+All numbered increments in this plan are complete.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -267,7 +267,7 @@ data needs a compatibility window.
 | D04 (implemented) | [auditservice/resume.go](../../internal/auditservice/resume.go): removed reopening terminal `deadline_exhausted` Audits, item reopening and report-link archival. | Resume accepts only paused Audits, including current deadline pauses. Terminal Resume fails without changing retained state; expired-review renewal, time-limit choices, replay and holds remain supported. |
 | D05 (implemented) | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): removed readers for absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
 | D06 (implemented) | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): removed reconstruction of original inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
-| D07 | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): accept old `text/plain` report summaries; current publisher writes `text/markdown`. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
+| D07 (implemented) | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): removed old `text/plain` report summary handling in stores, projections, approval and UI. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
 
 D04 concerns only the historical terminal-closure path. Current time-limit
 expiry pauses an Audit, and continuing that paused Audit is core functionality.
@@ -429,6 +429,28 @@ without a draft, shows its explanation on the Run detail page and does not open
 Workflow setup or submit another Run. Current Repeat still requires explicit
 review and a normal new-Run submission. Updated specifications 06 and UI US-06.
 
+### D07 — current Markdown Audit summaries (implemented)
+
+[AuditStore](../../internal/auditstore/report_review.go) and its report-write
+[validation](../../internal/auditstore/validation.go) require `text/markdown` for
+summary descriptors. Removed `legacySummary` exceptions. Proposal replay now
+reads the complete validated candidate, retaining the exact revision/digest
+comparison and avoiding a second unchecked read path.
+
+[Approval](../../internal/auditservice/action_review.go) uses the same candidate
+link validation before publishing saved descriptors. [Report reads](../../internal/auditservice/service.go)
+reject `text/plain` summaries and verify that actual artifact media types match
+the descriptors as well as retained digests and byte lengths. The current
+publisher already writes immutable `report.md` in Markdown. No historical
+artifact or review subject is relabeled, rewritten or purged.
+
+The public OpenAPI summary descriptor requires the current media type; both
+clients are regenerated. UI response validation rejects historical or missing
+summary authority. Removed plain-text rendering and `.txt` download fallbacks;
+current summaries use the safe Markdown preview and exact `.md` download.
+Updated the HTTP/route fixtures and specification 19. General-purpose plain-text
+Artifacts and evidence remain supported outside the Audit report contract.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -466,8 +488,8 @@ shrinking that contract is separate from removing an internal no-op.
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
 D01 is implemented in the seventh increment, D02 in the eighth, D03 in the
-ninth, D04 in the tenth, D05 in the eleventh and D06 in the twelfth; D07 remains
-planned.
+ninth, D04 in the tenth, D05 in the eleventh, D06 in the twelfth and D07 in the
+thirteenth.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -888,4 +910,50 @@ Verification completed on 2026-09-20:
 - Documentation links and `git diff --check` passed. No new SQL migration or
   historical-data rewrite was introduced. Paid model calls were not run.
 
-Next increment: D07, require current Markdown Audit report summaries.
+## Thirteenth increment — D07 results
+
+Implemented in `refactor/audit-summary-legacy-removal`, initially based on
+`b700036a` and rebased onto `48651a9d` to retain the independent Audit
+prioritization specification. Integrated into local `main`, preserving unrelated
+working-tree changes, including concurrent OpenAPI/client edits.
+
+Verification completed on 2026-09-20:
+
+- The Go formatting/static checks, Go tests/builds and **2468 Python tests**
+  (39 optional tests skipped) in `make verify` passed. Python imports were scoped
+  to this worktree. The UI portion exposed one old proposed-report fixture
+  without summary authority; after updating it, full `make ui-verify` passed:
+  generated-client consistency, lint/typecheck, **531 UI tests**, **11 static-server
+  tests** and the production build.
+- `make verify-public-api` passed. The Markdown descriptor is a separate closed
+  schema with explicit required media type, replacing the initial `allOf`
+  extension that failed the repository's unknown-field-policy check.
+- With disposable PostgreSQL 17, `go test -race -count=1 -timeout=10m` passed for
+  `./internal/auditstore`, `./internal/auditservice`, `./internal/auditimport`,
+  `./internal/auditcontroller`, `./internal/httpapi/public` and `./internal/app`.
+- PostgreSQL regressions reject plain-text commit/proposal, stored candidate
+  reads, proposal replay, report projection and direct approval. Repeated
+  rejected operations preserve exact Audit, round, item, coverage, report,
+  review, decision, event, receipt and artifact rows, including payload bytes,
+  descriptors, revisions, clocks and pins. Committed plain-text artifacts and
+  plain-text artifacts falsely labeled Markdown also fail report reads.
+  Current proposed/accepted Markdown, ownership isolation, review expiry,
+  rejection, approval and later finding review remain covered.
+- With the `integration` build tag and race detection, the three
+  `TestImporter.*Report` tests passed: automatic finalization and pending review
+  survive source Run deletion; current proposal/decision replay retains exact
+  frozen report authority; changed finalization timestamps still fail immutable
+  report retry.
+- **3 Chromium journeys** passed against the production UI build: Audit program
+  report/evidence presentation and exact review/lifecycle controls at 1440px and
+  390px. These browser journeys use API fixtures; real persistence/import/review
+  behavior is covered by the PostgreSQL tests above. UI unit tests reject old
+  summaries and verify current Markdown preview and exact `.md` downloads.
+- Local documentation links and `git diff --check` passed. No SQL migration or
+  historical-data rewrite was introduced. Separate Go/Python process journeys
+  and paid model calls were not run in this increment.
+
+The numbered cleanup plan is complete. Explicitly excluded product/version
+migrations and the separately noted adjacent dead-code candidate remain outside
+this completed scope; this is not a claim that every unused path in the project
+has been eliminated.
