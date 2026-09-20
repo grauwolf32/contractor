@@ -1,0 +1,322 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-031",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "7afb380963f918a8fd8220f7c33262d6068d5d8c",
+  "report": "docs/research/2026-09-20-v60-008-audit-product-review.md",
+  "status": "All required selection, report-validator and corrected full browser gate checks passed without required skips.",
+  "finding": {
+    "priority": "P2",
+    "introduced_by": "efa7d5dab88c9b200bb7126c2ad6039a544cecc7",
+    "reproduction": "Existing test-ui-stack operations subprocess selects one stack.spec.ts case. Audit/lifecycle/Scheduler/Performance aliases have no additional recipe selecting their promised fixture files. Actual Playwright --list confirms omission.",
+    "normative_basis": "Makefile named browser prerequisites and V60-008 scoped Project/Run/Audit journeys must execute their stated browser cases, not only pass aliases.",
+    "correction": "Explicit seven-file selection includes real stack and six route-fixture suites; JSON reporter validation rejects missing files, unexecuted tests, skips, unexpected failures, flakes and inconsistent summary counts. Separate managed Evals processes remain unchanged.",
+    "initial_selected_tests": 1,
+    "initial_selected_files": 1,
+    "corrected_selected_tests": 20,
+    "corrected_selected_files": 7
+  },
+  "required_files": [
+    "stack.spec.ts",
+    "audits.spec.ts",
+    "lifecycle-controls.spec.ts",
+    "project-workspace.spec.ts",
+    "run-repeat.spec.ts",
+    "scheduler-settings.spec.ts",
+    "performance.spec.ts"
+  ],
+  "checks": [
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/stack.spec.ts",
+        "--list"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 1.691,
+      "log": ".local/v60-review/v60-031-before-selection.log",
+      "log_sha256": "ba12d65ebc14182391ded05ab3eb2068e4fe1b752c8a5ef25b395ed82e9c9b28"
+    },
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/stack.spec.ts",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/project-workspace.spec.ts",
+        "e2e/run-repeat.spec.ts",
+        "e2e/scheduler-settings.spec.ts",
+        "e2e/performance.spec.ts",
+        "--list"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 1.343,
+      "log": ".local/v60-review/v60-031-after-selection.log",
+      "log_sha256": "c0dcd1ede27c5a1fba09f28c4c6fa0dace37cd72b401b52e4e9481a5060da79e"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/ui-stack",
+        "-run",
+        "^TestBrowserReportRequiresExecutedSelection$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.009,
+      "log": ".local/v60-review/v60-031-browser-report-validation.log",
+      "log_sha256": "1abd41b69ae5983ff23ca57a40334ad5a41c427a6e7deca052bb552272aa1aab",
+      "go_pass_events": 16,
+      "go_skip_events": 0
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-ui-stack",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser",
+        "test-scheduler-concurrency-browser",
+        "test-performance-browser"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1107.48,
+      "log": ".local/v60-review/v60-final-browser.log",
+      "go_passing_events": 21,
+      "go_skips": [],
+      "summaries": [
+        "    stack_test.go:357: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5"
+      ],
+      "log_sha256": "7a2c7e17cc2f17c8b5eeb0534e9e721fdef08ac5652ef61f5bd4b9aa2cdd6831",
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "browser_cases": 20,
+      "browser_required_files": 7,
+      "browser_skipped_unexpected_flaky": 0,
+      "real_stack_seconds": {
+        "operations": 111.68,
+        "native_evals": 511.67,
+        "external_evals": 481.69
+      }
+    }
+  ],
+  "required_remaining": [],
+  "evidence_limits": [
+    "List-only commands prove selection, not browser execution.",
+    "Nineteen selected cases use UI API route fixtures; the selected real stack case drives actual local Go/Python/Node processes with a scripted Gateway.",
+    "Separate native/external Evals stack tests remain real process cases. Git and real scanner tests retain their dedicated gates.",
+    "The full release already running had compiled the previous harness; its unaffected results will be reused only together with a full corrected browser prerequisite rerun."
+  ],
+  "source_verification": {
+    "original_release_source": "9cfd09ccfc5517518b3c7491b55bc4c14b56b950",
+    "corrected_browser_source": "45b31abfd848739a0a1b32d7027028989a911a25",
+    "test_only_delta": [
+      "7afb380963f918a8fd8220f7c33262d6068d5d8c",
+      "45b31abfd848739a0a1b32d7027028989a911a25"
+    ],
+    "reuse_basis": "Production behavior is unchanged across the delta; the originally compiled browser harness omitted the 19 fixture journeys. Its real operations/native/external Evals execution is retained as historical evidence, while the full affected browser prerequisite and aliases are rerun on the corrected harness.",
+    "old_browser_package_seconds": 1095.579,
+    "old_browser_process_seconds": {
+      "operations": 101.3,
+      "native_evals": 511.98,
+      "external_evals": 482.29
+    },
+    "old_browser_note": "No Go test skipped. Optional screenshot OCR substep logged an unavailable tool; this is separate from required browser execution. Old browser success does not prove omitted fixture coverage."
+  },
+  "corrected_browser_cases": {
+    "report": ".local/v60-review/v60-031-browser/run-1215948544/browser-report.json",
+    "sha256": "99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5",
+    "stats": {
+      "startTime": "2026-09-20T11:18:32.779Z",
+      "duration": 100598.48599999999,
+      "expected": 20,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "executed_cases_per_file": {
+      "audits.spec.ts": 4,
+      "lifecycle-controls.spec.ts": 1,
+      "performance.spec.ts": 2,
+      "project-workspace.spec.ts": 5,
+      "run-repeat.spec.ts": 6,
+      "scheduler-settings.spec.ts": 1,
+      "stack.spec.ts": 1
+    },
+    "cases": [
+      {
+        "file": "audits.spec.ts",
+        "title": "Project Audit pins exact input and exposes authoritative coverage",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "audits.spec.ts",
+        "title": "audit program library renders exact Top 10 and ASVS evidence boundaries",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "audits.spec.ts",
+        "title": "Audit UI reviews exact evidence and completes destructive lifecycle controls at 1440px",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "audits.spec.ts",
+        "title": "Audit UI reviews exact evidence and completes destructive lifecycle controls at 390px",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "lifecycle-controls.spec.ts",
+        "title": "independently served UI completes lifecycle controls without manual reload",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "performance.spec.ts",
+        "title": "renders disabled stale and discontinuous performance observations truthfully",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "performance.spec.ts",
+        "title": "shows only available GPU metrics on desktop and mobile",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project file-drop uploads exact bytes directly to Go API",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project dashboard remains usable at 320px",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project recommendation launches an exact Project Run",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Project sections open inputs and Run setup, while deletion stays in its menu",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "project-workspace.spec.ts",
+        "title": "Workflow overview leads with Run setup in a dismissible drawer",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "terminal Run creates a reviewed exact repeat draft and preserves conflicts",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "primary output previews in place before preparing an exact repeat",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "Audit-managed Run returns to the owning Audit",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "terminal Run creates a reviewed exact repeat draft and preserves conflicts",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "primary output previews in place before preparing an exact repeat",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "run-repeat.spec.ts",
+        "title": "Audit-managed Run returns to the owning Audit",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "scheduler-settings.spec.ts",
+        "title": "operator CAS-updates Scheduler settings and recovers a stale edit",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      },
+      {
+        "file": "stack.spec.ts",
+        "title": "operates the real single-VM stack without crossing secret boundaries",
+        "outcome": "expected",
+        "attempts": [
+          "passed"
+        ]
+      }
+    ],
+    "operations_harness_seconds": 111.68,
+    "evidence_level": "19 browser route-fixture cases plus 1 real Go/Python/Node operations-stack journey. Required browser report validator passed; full ui-stack gate still waits for native and external Evals."
+  }
+}

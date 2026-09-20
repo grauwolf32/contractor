@@ -3,8 +3,8 @@ id: V60-031
 title: Restore Audit lifecycle and repeat journeys to the mandatory browser gate
 milestone: project-review-v60
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 7afb380963f918a8fd8220f7c33262d6068d5d8c
 depends_on: [V37-012]
 languages: [go, typescript, markdown]
 goal: Ensure the named Audit and lifecycle browser gates actually execute their promised Project and finding journeys.
@@ -40,3 +40,12 @@ verification_requirements:
 - Capture file selection before and after the correction; list-only evidence does not replace browser execution.
 - Reuse the isolated review PostgreSQL and local fake Gateways; no live models or parallel UI builds.
 - Record the source commit delta from the already running full release and rerun its affected full prerequisite after the correction.
+
+review_evidence:
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  evidence: tasks/evidence/v60-031.json
+  result: Selection, report-validator and full corrected browser gate passed with all 20 required browser cases and separate native/external Evals journeys.
+verification:
+  evidence: tasks/evidence/v60-031.json
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
