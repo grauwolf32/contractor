@@ -79,7 +79,8 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 			Instructions struct{ Ref string }
 			ModelPolicy  string `yaml:"modelPolicy"`
 			Summarizer   *struct {
-				ModelPolicy string `yaml:"modelPolicy"`
+				Instructions struct{ Ref string }
+				ModelPolicy  string `yaml:"modelPolicy"`
 			}
 		}
 	}
@@ -105,6 +106,9 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 	policies := map[string]bool{selected.Spec.ModelPolicy: true}
 	if selected.Spec.Summarizer != nil {
 		policies[selected.Spec.Summarizer.ModelPolicy] = true
+		if ref := selected.Spec.Summarizer.Instructions.Ref; ref != "" {
+			copyFile("configs/" + ref)
+		}
 	}
 	files, err := filepath.Glob(filepath.Join(repositoryRoot, "configs/model-policies/*.yaml"))
 	if err != nil {
