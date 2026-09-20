@@ -3,8 +3,8 @@ id: "V38-007"
 title: "Build dataset authoring and full native experiment setup in Evals"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "5f9a75a5b8d0ac68aa67e4c0f07902c2e2594f1b"
 implementation_repository: "contractor"
 depends_on: ["V38-006"]
 languages: ["typescript"]
@@ -109,3 +109,13 @@ tests:
     command: >-
       cd ui && corepack pnpm exec playwright test e2e/evals-setup.spec.ts
     covers: ["A1", "A2", "A3"]
+
+verification_result:
+  date: "2026-09-20"
+  evidence: "docs/plans/2026-09-20-managed-evals-ui.md"
+  result: >-
+    Dataset authoring/import and exact Workflow/Audit setup pass component and browser
+    checks. Saved CAS drafts, separate Prepare/Start, lost-response recovery after
+    reload, stale reviewed revisions, private storage separation and keyboard dialogs
+    pass. Both eight-member native process journeys pass through Server restart and
+    review; no Playground dependency.

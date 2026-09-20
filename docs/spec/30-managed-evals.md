@@ -1,12 +1,16 @@
 # 30 — Independent managed Evals and external producers
 
-Status: **V38-001 design and V38-002–006 contracts, persistence, coordination, public APIs and selected comparisons implemented. Browser UI, Playground client and release acceptance remain V38-007–010.**
+Status: **V38-001–010 implemented and deterministically verified: native setup, comparison/review, optional Playground client and independent process acceptance.**
+
+[Implementation evidence](../plans/2026-09-20-managed-evals-ui.md) ·
+[User guide](../guides/evals.md) · [Release checks](../testing/evals-release-gate.md)
 
 The [embedded data catalog](../../api/evals/v1/README.md) and
 [conformance fixtures](../../api/testdata/evals/README.md) define the closed DTOs
 and portable identity mapping. The [EvalStore](../../internal/evalstore/README.md)
 persists private records, expected membership, receipts and Project deletion fences.
-These foundations expose no HTTP endpoints or dispatch loop by themselves.
+Native coordination and public endpoints run in Contractor Server; browser setup
+and optional external clients use the same protocol.
 
 [Product journey](../evals-experience-design.md) ·
 [Portable evaluation format](26-portable-evaluation-format.md) ·

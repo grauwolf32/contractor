@@ -1,7 +1,7 @@
 # Contractor UI: user stories and improvement plan
 
-Status: **V37 implemented and verified; separate follow-up scope remains**.
-Updated: 2026-09-19.
+Status: **V37 and V38 implemented and verified; separate follow-up scope remains**.
+Updated: 2026-09-20.
 
 This document records user goals and usability criteria. The
 [UI specification](06-server-ui-and-operations.md) describes current behavior
@@ -205,13 +205,16 @@ tables. Missing metrics are not zero; successful execution alone does not imply
 high quality. Quality assessment requires
 an explicitly selected evaluator or a human decision.
 
-**Selected design, implementation pending:** V38-001 defines the
-[full browser journey](../evals-experience-design.md): configure, prepare, start,
-review and compare experiments. [Spec 30](30-managed-evals.md) keeps native
-Contractor execution independent of Playground, which can import data and drive
-external experiments through the same public API. V38-002 through V38-010 own
-implementation and verification. Existing grouping of ordinary Runs by `eval.*`
-labels remains supported; completing V37 or this design does not complete US-10.
+**Implemented and deterministically verified by V38-001–010.** The
+[full browser journey](../evals-experience-design.md) supports configure, prepare,
+start, review and compare. Native Contractor execution remains independent of
+Playground; optional external clients use the same [public protocol](30-managed-evals.md).
+The [acceptance record](../plans/2026-09-20-managed-evals-ui.md) covers real native
+and external Workflow/Audit journeys, restart and response loss, complete bounded
+comparisons, private data, owner isolation and accessible 390px/1280px charts.
+Existing grouping of ordinary Runs by `eval.*` labels remains available as legacy
+history. This evidence establishes protocol and UI behavior, not model quality
+or participant usability.
 
 ### US-11 — Monitor and configure execution
 
@@ -271,7 +274,7 @@ and verification commands.
 | 3 | [V37-011](../../tasks/v37-011-operations-progressive-forms.yml) | Operations overview, forms opened by action and the impact of changes | UX-10 |
 | V37 acceptance | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
 | Separate design | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Selected native experiment and independent producer contract | UX-11 / US-10 |
-| Planned implementation | [V38-002–010](../evals-experience-design.md#implementation-plan-and-closure-of-the-design-task) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
+| V38 acceptance | [V38-002–010](../plans/2026-09-20-managed-evals-ui.md) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
 
 The implemented sequence began with independent Dialog and Project actions,
 then added draft continuity, confirmations and input review. V37-006 added the

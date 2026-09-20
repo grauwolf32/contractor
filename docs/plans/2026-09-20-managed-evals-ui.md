@@ -23,7 +23,7 @@ client and deterministic release acceptance from spec 30.
   charts, exports and evidence navigation, preserving legacy workspaces.
 - [x] V38-009: optional public API client in the canonical sibling Playground
   repository, with durable recovery and existing portable compatibility.
-- [ ] V38-010: real isolated Server/database/browser and independent HTTP-client
+- [x] V38-010: real isolated Server/database/browser and independent HTTP-client
   gates, fault coverage and recorded evidence. No live models or shared deploy.
 
 ## Verification record
@@ -55,12 +55,12 @@ mappings are translated; unsupported bindings fail explicitly. Existing portable
 index/shard authority is preserved.
 
 Environment: Linux amd64, Go 1.25.6, Runtime/Playground Python 3.13.14,
-standard-library producer Python 3.14, Node 24.20.0, pnpm 11.24.0,
+standard-library producer Python 3.14.7, Node 24.20.0, pnpm 11.24.0,
 PostgreSQL 17.11. Chromium uses Playwright's Ubuntu 24.04 fallback on this host.
 The local Node binary and disposable PostgreSQL container are task-specific;
 no shared demo, live target, paid model or default production policy was changed.
 
-Verified so far:
+Verified release checks:
 
 - `corepack pnpm exec vitest run`: 64 files, 446 tests passed; static UI-server
   tests: 9 passed. Both TypeScript configurations, ESLint and Prettier passed.
@@ -83,6 +83,59 @@ Verified so far:
 - Running `scripts/test-managed-evals.py` without database configuration returns
   exit 1. Required database/process checks cannot silently skip.
 
-Final real process matrix and completion metadata are pending verification.
 Commands, artifacts and the distinction between process, PostgreSQL and mocked
 browser assertions are in [the release gate](../testing/evals-release-gate.md).
+
+## Final delivery and process evidence
+
+All V38 tasks are completed. Primary completion commits:
+
+| Task | Repository | Commit |
+| --- | --- | --- |
+| V38-007 | Contractor | `5f9a75a5b8d0ac68aa67e4c0f07902c2e2594f1b` |
+| V38-008 | Contractor | `d0e37d1acfbc5abe14d343f3484a4a297c1c313d` |
+| V38-009 | Playground | `d1f7e970e3db12a231bffca565748d1293cbed6d` |
+| V38-010 | Contractor | `2c1fb13e185f54bd5c2d3d384033f7ec068b988d` |
+
+Shared form/button styling: `38afad0b622a6464ed887154c7297ca26912594a`.
+Playground guide clarification: `4a4e81d5846a6dc7aae75756d3bcc8e5cbb702d0`.
+The complete process gate ran on product code `d0e37d1acfbc5abe14d343f3484a4a297c1c313d`,
+with a clean worktree at invocation. The later V38-007 commit only gives the
+complete UI setup test a local 15-second timeout under concurrent test load;
+it changes no product or process-harness code. Final UI checks include it.
+
+`make test-evals` passed with 213 domain/store/service/coordinator tests and
+subtests, 13 public API tests/subtests, and five process-package tests, without
+skips. The latter contains two deterministic Gateway tests and these three
+real journeys:
+
+| Journey | Elapsed seconds | Observed result |
+| --- | ---: | --- |
+| Operations | 115.97 | Existing production UI/Runtime, configuration and secret-boundary journey passed |
+| Native Workflow + Audit | 508.95 | Two eight-member experiments; explicit UI Start, lost response, Server/browser restart, exact plan/deadline, review and comparison |
+| Independent external Workflow + Audit | 484.97 | Two eight-member experiments; standard-library HTTP producer, 52 lost-response replays, full inventory, attributed assessments and explicit finalization |
+
+Each mode verifies exact one-member/one-ordinary-execution association and
+rejects foreign-owner reads on 12 experiment/evidence routes. Real Audits have
+two check children; other roles, retries, overlaps and missing reports are
+covered by the PostgreSQL accounting fixtures. Private truth is absent from
+Worker requests and exported evidence. The Runtime cannot import Playground;
+the independent producer runs with `python3 -I -S`.
+
+`make ui-typecheck ui-lint ui-test ui-build` passed: 64 files, 446 tests.
+The ten mocked browser scenarios pass, including keyboard switching of the
+single mobile Overview chart and simultaneous desktop charts. Static UI-server
+tests (nine), public API verification, generated-client parity and Go vet pass.
+The optional Playground suite passes 454 tests, including 21 managed tests.
+
+Recorded artifacts are in the canonical Contractor checkout under
+`.local/evidence/v38-release`: `gate.json`, all three Go JSONL logs,
+`native-evidence.json`, `external-evidence.json`, and real browser traces and
+390px/1280px screenshots under `browser/native` and `browser/external`.
+Mocked browser artifacts are separate in `.local/evidence/v38-mocked-final`.
+Initial failing/debug runs are retained separately; they are not release proof.
+
+The final metadata check validates all 393 indexed tasks, the dependency graph,
+V38 acceptance/test mappings, local documentation links and unique numbered
+specifications. No V38 task remains pending. Reproduction and the limits of
+these deterministic checks are in the [release gate](../testing/evals-release-gate.md).
