@@ -3,7 +3,7 @@ id: V55-008
 title: Plan bounded scan jobs deterministically
 milestone: scan-tools-followups
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V55-007]
 languages: [go, typescript, json, yaml, markdown]
 goal: Turn prepared targets/RequestSet into a persisted reproducible plan executed by ordinary tool Workers.
@@ -66,8 +66,19 @@ progress:
       its expired-claim fixture was corrected to preserve the database claim-shape
       constraint. Completing configuration examples, Scheduler integration and
       final combined checks before integration into main.
-remaining:
-  - Integrate the implementation into main and record completion evidence.
+  - date: 2026-09-20
+    step: integrated_into_main
+    details: >-
+      Committed implementation as e6f6c3a2 and fast-forwarded local main.
+      Rebased the isolated feature onto concurrently advanced main 70b4277f
+      without conflicts. Repeated the complete affected Go package suite and
+      race-enabled PostgreSQL planner-session integration tests after rebase;
+      all passed. Verified that the feature does not overlap any pre-existing
+      dirty main paths and that all 48 recorded dirty file contents were preserved
+      by the merge. Added request-set-scan and target-scan-plan Workflow examples,
+      scan-plan schema/specification and task evidence. A1 and A2 are verified;
+      V55-008 is completed.
+remaining: []
 verification:
   - >-
     go test ./internal/scanplan/... ./internal/planner/... ./internal/scheduler/...
