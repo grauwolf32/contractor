@@ -80,3 +80,13 @@ verification_requirements:
 - Read relevant decision history; list exact scenarios and test results in the project review report.
 - Keep implementation and subsequent completion metadata commits separate with the full original implementation
   hash.
+
+verification:
+  date: 2026-09-20
+  report: docs/research/2026-09-20-v60-006-runtime-review.md
+  evidence: tasks/evidence/v60-006.json
+  result: >-
+    Required Runtime, wire, session and summarizer gates passed. Real subprocess
+    and 58 Podman cases executed; shared Audit completion gate passed 173 Go
+    and 331 Runtime cases with no selected skips. Result-size parity defect fixed and completed
+    as V60-026; accepted finalizer and transport policies retained.

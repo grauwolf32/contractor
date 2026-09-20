@@ -1,0 +1,268 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-006",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": null,
+  "report": "docs/research/2026-09-20-v60-006-runtime-review.md",
+  "environment": {
+    "go": "go1.25.6 linux/amd64, race where specified, GOMAXPROCS=2, GOFLAGS=-p=2 -v",
+    "python": "3.13.14, project-local locked uv environment, PYTEST_ADDOPTS=-ra",
+    "database": "Disposable PostgreSQL17, unique test schemas; URL/credential not recorded",
+    "models": "scripted/fake models only; no live model calls",
+    "processes": "real local subprocesses and rootless Podman with preinstalled compatible digest"
+  },
+  "history": [
+    "V21-001:6631c606209240e2713d51c34c343b4714903303",
+    "V57-004:7f553b2295051b8ad88a2cea98972727b41afaf8",
+    "V57-005:6f2bc0968a439cba944cbce0fab160a13a37c89d"
+  ],
+  "checks": [
+    {
+      "command": [
+        "make",
+        "test-runtime-hardening"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789899796.4142566,
+      "duration_seconds": 69.804,
+      "log": ".local/v60-review/v60-006-runtime-hardening.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "2389 passed, 34 skipped in 66.98s (0:01:06)"
+      ],
+      "log_sha256": "8076355eb3f395f766745ea70a0cd2dfdb6a3df5552994d3c828a4cf8d7a9945"
+    },
+    {
+      "command": [
+        "make",
+        "verify-wire-contracts",
+        "test-wire-cross-language"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900233.1282701,
+      "duration_seconds": 8.784,
+      "log": ".local/v60-review/v60-006-wire-contracts.log",
+      "go_reported_pass_events": 540,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "193 passed in 0.57s",
+        "114 passed, 79 deselected in 0.42s"
+      ],
+      "log_sha256": "d14c4ce8038c8a0375e3341f372151ea7fc7fd97aed7ab9d0d90151126881dcb"
+    },
+    {
+      "command": [
+        "make",
+        "test-worker-session-modes-hardening"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900233.1201484,
+      "duration_seconds": 274.703,
+      "log": ".local/v60-review/v60-006-session-hardening.log",
+      "go_reported_pass_events": 1973,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "193 passed in 0.60s",
+        "114 passed, 79 deselected in 0.48s",
+        "266 passed in 3.94s"
+      ],
+      "log_sha256": "6b3dccd4a93f4313cce3a8fd4a552b360b98a66f368aaaf95c289e4365447a42"
+    },
+    {
+      "command": [
+        "make",
+        "test-worker-summarizer-hardening"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900233.0857027,
+      "duration_seconds": 95.005,
+      "log": ".local/v60-review/v60-006-summarizer-hardening.log",
+      "go_reported_pass_events": 1124,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "92 passed in 10.12s"
+      ],
+      "log_sha256": "7fc3e5b380b2c7a7eb6067218d1151c3b6b262c2d11906652338482061aa5d93"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/runtimeconfig"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900403.8482482,
+      "duration_seconds": 25.787,
+      "log": ".local/v60-review/v60-006-configuration-parity.log",
+      "go_reported_pass_events": 84,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "eefccdf8bb3de2629fb15fd5ce8c195062096a12a92346b62d30449e74aadd17"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/contracts",
+        "./internal/planner",
+        "./internal/planner/streamline",
+        "./internal/planner/a2a"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900221.5367994,
+      "duration_seconds": 18.53,
+      "log": ".local/v60-review/v60-006-result-parity-final.log",
+      "go_reported_pass_events": 568,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "d9889ba231ee7049b0743f99d650e8c6ca88602bddf8e0d5c57910cacea8679b"
+    },
+    {
+      "command": [
+        "make",
+        "test-podman-supervisor"
+      ],
+      "exit_code": 2,
+      "started_at_unix": 1789899980.4620776,
+      "duration_seconds": 112.703,
+      "log": ".local/v60-review/v60-006-podman-supervisor.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "12 failed, 40 passed in 110.67s (0:01:50)"
+      ],
+      "log_sha256": "4a0266e154cd6337fed88dd7f7307716640210c0e8ffa85f59c143ca1ee36624"
+    },
+    {
+      "command": [
+        "make",
+        "test-podman-supervisor"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900139.0038157,
+      "duration_seconds": 61.456,
+      "log": ".local/v60-review/v60-006-podman-supervisor-compatible.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "52 passed in 60.05s (0:01:00)"
+      ],
+      "log_sha256": "313c5fc8e9101b818974179cc0c13bff2e161431068ecc89e4567416463d230e"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/pytest",
+        "-W",
+        "error",
+        "runtime/tests/test_podman_release_integration.py",
+        "runtime/tests/test_podman_deployment_integration.py"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900276.6387827,
+      "duration_seconds": 61.449,
+      "log": ".local/v60-review/v60-006-podman-release-deployment.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "6 passed in 59.45s"
+      ],
+      "log_sha256": "50842b355fa741bdec394b281d17a777f54bae32b51e6b701b2b1ebf67e0f60f"
+    },
+    {
+      "command": [
+        "runtime/.venv/bin/ruff",
+        "check",
+        "runtime/tests/test_contracts.py"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789900374.7255118,
+      "duration_seconds": 0.018,
+      "log": ".local/v60-review/v60-006-lint.log",
+      "go_reported_pass_events": 0,
+      "go_reported_skip_events": 0,
+      "python_summaries": [],
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "command": [
+        "make",
+        "test-audit-completion-e2e"
+      ],
+      "reused_from": "root dedicated shared gate; completed before its subsequent test-audits-hardening target",
+      "exit_code": 0,
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "duration_seconds": null,
+      "duration_note": "Per-target wall time not separately measured in shared command; Runtime JUnit reports 3.805 s, Go package timings retained in go.jsonl",
+      "log": ".local/audit-completion-gate/run-rh92ydbj/go.jsonl",
+      "log_sha256": "e628bbd16b143198d5883bd99747ae3dccaf4e132543ebc5167968e1622c181c",
+      "go_reported_pass_events": 173,
+      "go_reported_skip_events": 0,
+      "python_summaries": [
+        "331 passed, zero skipped; JUnit duration 3.805 s"
+      ],
+      "artifacts_sha256": {
+        ".local/audit-completion-gate/run-rh92ydbj/executed.json": "39aea6d9873e6b9d0e06af78ef418dcf0a2ab64a06bfed6e630f82318affcbca",
+        ".local/audit-completion-gate/run-rh92ydbj/runtime.xml": "6ad3a9d56d2cb9a76d63a67982fde5044a5421250fddd527d015fe6b11eb741b",
+        ".local/audit-completion-gate/run-rh92ydbj/runtime.log": "d787b0209a47d291f1e49ac11496275f54b66ff4ef89f6439e45c6145dd1f330",
+        ".local/audit-completion-gate/run-rh92ydbj/go.jsonl": "e628bbd16b143198d5883bd99747ae3dccaf4e132543ebc5167968e1622c181c"
+      },
+      "bridge": "TestAuditCompletionRuntimeZIPImporter invokes tests/test_audit_completion_e2e.py through real Go Artifact API for selected success/fault/cancel/process-loss cases; nested pytest JUnit is required to have no skips/failures"
+    }
+  ],
+  "findings": [
+    {
+      "task_id": "V60-026",
+      "priority": "P2",
+      "status": "completed",
+      "summary": "Go optional HTML/JavaScript escaping rejected compact UTF-8 results accepted by Python. Shared 18-case matrix, actual SDK HTTP round trip and Planner regressions.",
+      "evidence": "tasks/evidence/v60-026.json",
+      "implementation_commit": "1388a507e7ab626e20c5896de79a43d4981ab148",
+      "completion_commit": "41b18602699447f4e7e09ae280dbd0a83f84f605"
+    }
+  ],
+  "accepted_decisions": [
+    "Mandatory ordinary exact-copy finalizer with same Worker budget retained",
+    "Typed Audit result assembly skips only removed synthetic wrapper bound",
+    "Existing production A2A no-reuse/retry/certificate policy retained",
+    "Optional terminal summarizer policy and separate budget retained"
+  ],
+  "skip_audit": {
+    "full_runtime_total": 34,
+    "real_podman": {
+      "initially_skipped": 27,
+      "verified_separately": "52-case supervisor/owner/execution/probe gate plus 6 release/deployment cases, zero skips"
+    },
+    "audit_artifact_bridge": {
+      "initially_skipped": 1,
+      "status": "verified through mandatory real Go/Python gate, zero selected skips",
+      "executed_report": ".local/audit-completion-gate/run-rh92ydbj/executed.json",
+      "sha256": "39aea6d9873e6b9d0e06af78ef418dcf0a2ab64a06bfed6e630f82318affcbca"
+    },
+    "live_model": {
+      "skipped": 3,
+      "reason": "explicitly forbidden by task scope"
+    },
+    "sqlmap_binary": {
+      "skipped": 3,
+      "reason": "optional external binary absent; separate V55release scope, controlled scanner/process tests executed"
+    }
+  },
+  "acceptance": {
+    "A1": "Source/history trace and representative verification complete, including real subprocess/Podman and shared Audit bridge",
+    "A2": "Confirmed defect reproduced, normatively grounded, isolated in V60-026 with regressions; accepted policies separated",
+    "A3": "All mandatory V60-006 commands passed; required opt-in process cases executed separately; declared live-model and optional V55 binary scope boundaries preserved"
+  },
+  "boundaries": [
+    "No whole-project correctness or live provider compatibility claim",
+    "Go reported PASS events include parents and subtests",
+    "Initial Podman attempt used an incompatible preinstalled image; production startup correctly rejected prerequisites; rerun with inspected compatible immutable digest passed",
+    "Full runtime passed before new18test-only fixture cases; changed contract tests subsequently ran completely in wire gates",
+    "No V61 implementation or transport/finalizer/numeric cap policy change"
+  ]
+}
