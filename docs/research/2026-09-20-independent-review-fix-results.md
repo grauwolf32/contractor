@@ -72,7 +72,7 @@ outside this corrective wave.
 
 ## Follow-up
 
-[V60-025](../../tasks/v60-025-review-readability-followups.yml) remains pending. It considers
-separating responsibilities in the large Audit detail view and Runtime batch controller;
-that broader restructuring is outside this first corrective wave. Earlier review-track
-tasks V60-005–V60-010 retain their own status and acceptance requirements.
+[V60-025](../../tasks/v60-025-review-readability-followups.yml) was completed in a subsequent
+step: Audit sections and Runtime batch orchestration were separated, and RuntimeConfig
+merge assignment became type-checked. See the [readability results](2026-09-20-review-readability-results.md).
+Earlier review-track tasks V60-005–V60-010 retain their own status and acceptance requirements.

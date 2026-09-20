@@ -3,7 +3,7 @@ id: V60-025
 title: Simplify reviewed subsystem boundaries after correctness fixes
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-024
 languages:
@@ -17,23 +17,57 @@ context:
   design: docs/plans/2026-09-20-independent-review-fixes.md
 scope:
   in:
-  - Consider splitting Audit detail and Runtime batch controller by existing responsibilities.
-  - Reuse operation ownership, transaction-bound readers, pagination and route identity contracts established by
-    fixes.
-  - Apply only independently justified behavior-preserving refactors with relevant existing checks.
+  - Split Audit detail by its existing sections, and share the finding card directly between Audit and Project findings
+    routes.
+  - Separate RuntimeBatchController orchestration and its tests from RuntimeControlClient HTTP/TLS transport.
+  - Replace reflection-based RuntimeConfig merge assignment with a generic typed destination/selector while preserving
+    atomic equality and deterministic conflicts.
+  - Retain established projection refresh, pagination, revision pins, mutation drafts, transaction readers and operation-ownership
+    contracts; record why distinct Python lifecycle/framing helpers remain separate.
   out:
   - Production deployment and live model/target calls.
 acceptance_criteria:
 - id: A1
-  text: Consider splitting Audit detail and Runtime batch controller by existing responsibilities.
+  text: Audit section extraction preserves route behavior, component bodies, CSS loading, query/polling identities
+    and mutation draft lifetimes.
 - id: A2
-  text: Reuse operation ownership, transaction-bound readers, pagination and route identity contracts established
-    by fixes.
+  text: Runtime transport and batch orchestration have separate files with unchanged production/test declaration
+    bodies and passing lifecycle/race checks.
 - id: A3
-  text: Apply only independently justified behavior-preserving refactors with relevant existing checks.
+  text: Typed RuntimeConfig merge preserves baseline results and safe deterministic conflicts for omitted, cleared
+    and nested atomic values.
 tests:
+- command: go test -race -count=1 -p 2 ./internal/controlplane ./internal/runtimeconfig ./internal/scheduler ./internal/app
+  covers:
+  - A2
+  - A3
+- command: go test -race -tags=integration -count=1 ./internal/controlplane -run "^TestCrossLanguageMTLSAllocationLifecycle$"
+    -v
+  covers:
+  - A2
+- command: go vet ./internal/controlplane ./internal/runtimeconfig ./internal/scheduler ./internal/app
+  covers:
+  - A2
+  - A3
+- command: cd ui && corepack pnpm test --run --maxWorkers=2
+  covers:
+  - A1
+- command: cd ui && corepack pnpm typecheck
+  covers:
+  - A1
+- command: cd ui && corepack pnpm lint
+  covers:
+  - A1
+- command: cd ui && corepack pnpm build
+  covers:
+  - A1
 - command: git diff --check
   covers:
   - A1
   - A2
   - A3
+verification_requirements:
+- Supply CONTRACTOR_TEST_DATABASE_URL for PostgreSQL checks using an isolated disposable database.
+- Use the pinned Node24 toolchain for UI checks.
+- Compare moved declarations directly and compare typed merge output/errors against the original implementation.
+- Record final implementation commit and verification evidence in a separate completion metadata commit.

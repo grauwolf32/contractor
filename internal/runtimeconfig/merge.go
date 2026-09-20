@@ -3,6 +3,8 @@ package runtimeconfig
 import (
 	"reflect"
 	"sort"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // MergeSameLayer merges independent leaves, rejects ambiguity between atomic
@@ -18,70 +20,80 @@ func MergeSameLayer(entries []LayerEntry) (Spec, error) {
 	})
 
 	var result Spec
-	conflicts := make([]*MergeConflictError, 0)
-	mergeField := func(path string, destination any, values []mergeValue) {
-		if len(values) == 0 {
-			return
-		}
-		first := values[0]
-		conflict := false
-		for _, candidate := range values[1:] {
-			if !reflect.DeepEqual(first.value, candidate.value) {
-				conflict = true
-			}
-		}
-		if conflict {
-			refs := make([]Ref, 0, len(values))
-			seen := make(map[Ref]struct{}, len(values))
-			for _, candidate := range values {
-				if _, exists := seen[candidate.ref]; !exists {
-					refs = append(refs, candidate.ref)
-					seen[candidate.ref] = struct{}{}
-				}
-			}
-			sort.Slice(refs, func(i, j int) bool { return refs[i].String() < refs[j].String() })
-			conflicts = append(conflicts, &MergeConflictError{Path: path, Refs: refs})
-			return
-		}
-		reflect.ValueOf(destination).Elem().Set(reflect.ValueOf(first.value))
+	conflicts := []*MergeConflictError{
+		mergeField(ordered, "worker.llmGateway.gateway", &result.Worker.LLMGateway.Gateway,
+			func(s Spec) (Field[contracts.LLMGatewayConfigRef], bool) {
+				return s.Worker.LLMGateway.Gateway, s.Worker.LLMGateway.Gateway.Present
+			}),
+		mergeField(ordered, "worker.llmGateway.credential", &result.Worker.LLMGateway.Credential,
+			func(s Spec) (Field[string], bool) {
+				return s.Worker.LLMGateway.Credential, s.Worker.LLMGateway.Credential.Present
+			}),
+		mergeField(ordered, "worker.telemetry", &result.Worker.Telemetry,
+			func(s Spec) (AtomicPatch[TelemetryConfig], bool) {
+				return s.Worker.Telemetry, s.Worker.Telemetry.Present
+			}),
+		mergeField(ordered, "worker.httpProxy", &result.Worker.HTTPProxy,
+			func(s Spec) (AtomicPatch[HTTPProxyConfig], bool) {
+				return s.Worker.HTTPProxy, s.Worker.HTTPProxy.Present
+			}),
+		mergeField(ordered, "worker.caido", &result.Worker.Caido,
+			func(s Spec) (AtomicPatch[CaidoConfig], bool) {
+				return s.Worker.Caido, s.Worker.Caido.Present
+			}),
+		mergeField(ordered, "planner.telemetry", &result.Planner.Telemetry,
+			func(s Spec) (AtomicPatch[TelemetryConfig], bool) {
+				return s.Planner.Telemetry, s.Planner.Telemetry.Present
+			}),
 	}
-
-	gatewayValues := collect(ordered, func(s Spec) (any, bool) { return s.Worker.LLMGateway.Gateway, s.Worker.LLMGateway.Gateway.Present })
-	credentialValues := collect(ordered, func(s Spec) (any, bool) {
-		return s.Worker.LLMGateway.Credential, s.Worker.LLMGateway.Credential.Present
-	})
-	workerTelemetry := collect(ordered, func(s Spec) (any, bool) { return s.Worker.Telemetry, s.Worker.Telemetry.Present })
-	workerProxy := collect(ordered, func(s Spec) (any, bool) { return s.Worker.HTTPProxy, s.Worker.HTTPProxy.Present })
-	workerCaido := collect(ordered, func(s Spec) (any, bool) { return s.Worker.Caido, s.Worker.Caido.Present })
-	plannerTelemetry := collect(ordered, func(s Spec) (any, bool) { return s.Planner.Telemetry, s.Planner.Telemetry.Present })
-
-	mergeField("worker.llmGateway.gateway", &result.Worker.LLMGateway.Gateway, gatewayValues)
-	mergeField("worker.llmGateway.credential", &result.Worker.LLMGateway.Credential, credentialValues)
-	mergeField("worker.telemetry", &result.Worker.Telemetry, workerTelemetry)
-	mergeField("worker.httpProxy", &result.Worker.HTTPProxy, workerProxy)
-	mergeField("worker.caido", &result.Worker.Caido, workerCaido)
-	mergeField("planner.telemetry", &result.Planner.Telemetry, plannerTelemetry)
 	result.Worker.LLMGateway.Present = result.Worker.LLMGateway.Gateway.Present || result.Worker.LLMGateway.Credential.Present
 
-	if len(conflicts) != 0 {
-		sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].Path < conflicts[j].Path })
-		return Spec{}, conflicts[0]
+	var firstConflict *MergeConflictError
+	for _, conflict := range conflicts {
+		if conflict != nil && (firstConflict == nil || conflict.Path < firstConflict.Path) {
+			firstConflict = conflict
+		}
+	}
+	if firstConflict != nil {
+		return Spec{}, firstConflict
 	}
 	return result, nil
 }
 
-type mergeValue struct {
-	ref   Ref
-	value any
-}
-
-func collect(entries []LayerEntry, selectValue func(Spec) (any, bool)) []mergeValue {
-	result := make([]mergeValue, 0)
+// The selector and destination share T, so assigning a field with another
+// field's type is rejected by the compiler. Atomic values still use deep
+// equality: equal telemetry pointers and proxy target slices may be distinct.
+func mergeField[T any](
+	entries []LayerEntry,
+	path string,
+	destination *T,
+	selectValue func(Spec) (T, bool),
+) *MergeConflictError {
+	var first T
+	present, conflict := false, false
+	refs := make([]Ref, 0)
+	seen := make(map[Ref]struct{})
 	for _, entry := range entries {
-		value, present := selectValue(entry.Spec)
-		if present {
-			result = append(result, mergeValue{ref: entry.Ref, value: value})
+		value, selected := selectValue(entry.Spec)
+		if !selected {
+			continue
+		}
+		if _, exists := seen[entry.Ref]; !exists {
+			refs = append(refs, entry.Ref)
+			seen[entry.Ref] = struct{}{}
+		}
+		if !present {
+			first, present = value, true
+		} else if !reflect.DeepEqual(first, value) {
+			conflict = true
 		}
 	}
-	return result
+	if !conflict {
+		if present {
+			*destination = first
+		}
+		return nil
+	}
+	sort.Slice(refs, func(i, j int) bool { return refs[i].String() < refs[j].String() })
+	return &MergeConflictError{Path: path, Refs: refs}
 }

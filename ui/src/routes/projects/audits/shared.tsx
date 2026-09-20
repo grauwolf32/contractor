@@ -1,6 +1,10 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Link, useLocation } from "react-router";
 
+import type { Audit } from "../../../api/audits";
+import { ContextLink } from "../../../app/context-navigation";
+import { exactArtifactLink } from "./artifact-links";
+
 const MarkdownPreview = lazy(() => import("../../artifacts/previews/markdown"));
 
 export function AuditMarkdown({ source }: { source: string }) {
@@ -48,5 +52,40 @@ export function ProjectAuditNavigation({
         </Link>
       ))}
     </nav>
+  );
+}
+
+export function ExactArtifactLink({
+  projectId,
+  artifact,
+  label,
+  projectReadable = false,
+}: {
+  projectId: string;
+  artifact: Audit["inputs"][string];
+  label?: string;
+  projectReadable?: boolean;
+}) {
+  const content = (
+    <>
+      {label === undefined ? null : <strong>{label}</strong>}
+      <code>
+        {artifact.ref.namespace}/{artifact.ref.name}@{artifact.ref.revision}
+      </code>
+    </>
+  );
+  return projectReadable ? (
+    <ContextLink
+      returnLabel="Audit"
+      className="artifact-ref-link"
+      to={exactArtifactLink(projectId, artifact)}
+      title={artifact.digest}
+    >
+      {content}
+    </ContextLink>
+  ) : (
+    <span className="artifact-ref-link" title={artifact.digest}>
+      {content}
+    </span>
   );
 }

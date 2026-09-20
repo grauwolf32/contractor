@@ -13,7 +13,7 @@ import { usePublicAPI } from "../../../api/context";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../artifacts/common";
-import { AuditFindingCard } from "./detail";
+import { AuditFindingCard } from "./finding-card";
 import { auditProfileLabel } from "./labels";
 import { AuditAnchor, ProjectAuditNavigation } from "./shared";
 
