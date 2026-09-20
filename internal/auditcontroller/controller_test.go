@@ -29,7 +29,7 @@ func TestControllerRejectsLegacyProfileBeforeRoleDispatch(t *testing.T) {
 			for _, binding := range body["workflows"].(map[string]any) {
 				delete(binding.(map[string]any), "kind")
 			}
-			// Frozen legacy digest of source-checklist@2 before role inference was removed.
+			// Frozen legacy digest of source-checklist@1 before role inference was removed.
 			const legacyDigest = "sha256:961e420db7fb831f2fdf0bf4ff09f3687067069e4abcab6d2d712fc9c1bbfebd"
 			body["ref"].(map[string]any)["digest"] = legacyDigest
 			raw, err := json.Marshal(body)
@@ -521,7 +521,7 @@ func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeController
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("source-checklist@2")
+	profile, err := snapshot.AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}

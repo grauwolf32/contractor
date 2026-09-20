@@ -2,8 +2,8 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 
 metadata:
-  name: audit-source-check
-  version: "4"
+  name: audit-openapi-operation-observe
+  version: "1"
 
 spec:
   parameters: {}
@@ -33,13 +33,13 @@ spec:
   entryStage: check
   stages:
     check:
-      objective: Evaluate the assigned immutable Audit task set against the supplied source archive
+      objective: Trace the assigned OpenAPI operation through the pinned source workspace using structural graph evidence
       instructions:
-        ref: instructions/audit-source-checker-completion-worker.md
+        ref: instructions/audit-openapi-operation-observer-worker.md
       planner: passthrough@1
       agents:
         checker:
-          template: audit_source_checker@4
+          template: audit_openapi_operation_observer@1
           namespace: audit-check
       context:
         artifacts:
@@ -55,6 +55,11 @@ spec:
             namespace: inputs
             name: source
             required: true
+        workspace:
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
       result:
         artifacts:
           result:

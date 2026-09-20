@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: audit-top10-source-risk
-  version: "3"
+  version: "1"
 
 spec:
   parameters: {}
@@ -39,7 +39,7 @@ spec:
       planner: passthrough@1
       agents:
         checker:
-          template: audit_risk_source_checker@3
+          template: audit_risk_source_checker@1
           namespace: audit-risk
       context:
         artifacts:

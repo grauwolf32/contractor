@@ -1,7 +1,8 @@
 # Legacy compatibility removal — analysis and plan
 
 Status: C01–C07 and D01–D07 implemented, verified and integrated into local `main`.
-All numbered increments in this plan are complete.
+The original numbered increments are complete. The follow-up Audit workflow
+refresh is recorded below.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -16,6 +17,13 @@ compatibility is not required. Remove obsolete paths directly, updating current
 callers and contracts in the same increment. A deprecation window, compatibility
 adapter or migration of obsolete formats is not a prerequisite. This decision
 supersedes the initial review's historical-data inventory gates.
+
+The user also confirmed that demo is the only deployment with consumers, its
+old database may be discarded if necessary, and updated Audit workflows,
+templates and profiles should retain only current variants starting at `@1`.
+Catalog selectors may therefore be deliberately rebased for this demo-era
+refresh. Toolset and wire-format versions remain protocol identities. No demo
+database reset or deployment is required for the repository changes.
 
 ## Recommendation
 
@@ -468,7 +476,7 @@ records or rewriting immutable artifact bytes.
 
 | Apparent legacy surface | Why it is not proven compatibility-only |
 | --- | --- |
-| `audit-results@1` and [audit_results/v1.py](../../runtime/src/contractor_runtime/toolsets/audit_results/v1.py) | Five active Memory templates still select it: ASVS, both OpenAPI tracers, risk checker and source checker. `source-checklist@3`/`audit-source-check@4` demonstrate v2 completion, but do not replace all these families. Migrating them is a product/configuration change before Runtime support can be retired. |
+| `audit-results@1` and [audit_results/v1.py](../../runtime/src/contractor_runtime/toolsets/audit_results/v1.py) | The follow-up workflow refresh migrated all bundled Audit templates and their owning profiles to `audit-results@2`. Runtime retirement can follow separately: v2 still imports shared argument types from `v1.py`, and frozen test catalogs retain independent definitions. Extract shared code before deleting the v1 factory. |
 | [audit_results/packages.py](../../runtime/src/contractor_runtime/toolsets/audit_results/packages.py), despite its “legacy” docstring | Shared package codecs also support current trusted completion through `encoding.py`. Deleting the whole module with v1 would break current behavior. |
 | `/evals/legacy`, old evaluation workspace pages and Project kind `evaluation` | These render/access actual retained work. Current managed Evals setup also creates `evaluation` Projects. Direct/portable evaluation remains an explicit contract in specs 26/30; it is not replaced automatically by a native experiment. |
 | SQLMap's URL input mode in [scan/tools.py](../../runtime/src/contractor_runtime/toolsets/scan/tools.py) | It remains an executable input mode alongside `request_ref` under the same `scan@1` surface. Removing it reduces that tool API; establish consumer/version retirement separately. |
@@ -957,3 +965,69 @@ The numbered cleanup plan is complete. Explicitly excluded product/version
 migrations and the separately noted adjacent dead-code candidate remain outside
 this completed scope; this is not a claim that every unused path in the project
 has been eliminated.
+
+
+## Follow-up — current Audit workflows and version reset
+
+The user requested updating the remaining workflows and starting current Audit
+Workflow, AgentTemplate and AuditProfile versions at `@1`. The default catalog
+now has seven Audit workflows/templates and eight profiles, all at version 1.
+The former Memory-only and completion checklist variants are consolidated into
+one completion-enabled worker with Memory. Distinct scenarios use distinct names:
+
+| Audit profile | Workflow |
+| --- | --- |
+| `source-checklist@1` | `audit-source-check@1` |
+| `openapi-operation-observe@1` | `audit-openapi-operation-observe@1` |
+| `openapi-operation-trace@1` | `audit-openapi-operation-trace@1` |
+| `owasp-top10-2025-source-risk@1` | `audit-top10-source-risk@1` |
+| `owasp-asvs-5-0-l1-source-pilot@1` | `audit-asvs-source-verification@1` |
+| `owasp-asvs-5-0-l1-source-review@1` | `audit-standard-source-review@1` |
+| `owasp-wstg-4-2-source-review@1` | `audit-standard-source-review@1` |
+| `owasp-wstg-4-2-active-http@1` | `audit-wstg-active-http@1` |
+
+All bundled Audit templates select `audit-results@2`, and each profile pins
+`audit-check-results@1` to its exact stage and worker. Scenario evidence,
+review requirements, source/HTTP boundaries and Memory remain explicit.
+Instructions now distinguish local collection receipts from Runtime-owned
+publication, permit incremental submissions and revision-checked corrections,
+and fail the child Run on incomplete collection or failed publication. Stage
+and Worker instructions use the same current document. Obsolete instruction
+copies and version-suffixed YAML filenames are removed.
+
+Current consumers, guides, catalog inventories, process fixtures and evaluation
+checks use the new selectors. Frozen instruction-evaluation catalogs and old
+execution snapshots are not rewritten. The reset makes no compatibility promise
+for old demo requests or managed catalogs. These Audit workflows require their
+trusted profile-supplied completion contract; ordinary finding-provenance process
+checks use separate temporary fixtures without Audit result tools.
+
+Verification:
+
+- `make verify` completed Go formatting/vet/tests, all **2468 Runtime tests**
+  (**39 optional skips**), Go build and Python bytecode compilation. Its UI
+  dependency step rejected a shared `node_modules` symlink; after installing
+  local dependencies, the complete `make ui-verify` passed, including generated
+  client consistency, lint/types, **531 UI tests**, **11 static-server tests**
+  and the production build.
+- `make test-config` passed with 18 total default workflows, 22 templates and
+  eight Audit profiles; all seven Audit workflows/templates and eight profiles
+  use version 1 and current completion.
+- `scripts/test-audit-completion-e2e.py` passed against disposable PostgreSQL 17:
+  **181 Go cases** with integration/race checks and **331 Runtime cases**, with
+  no selected skips.
+- Production Server/Runtime process scenarios passed for Audit programs,
+  finding production/reading and mixed ordinary/Audit receipt retention.
+  The Audit program test exercises 18 Worker allocations, source deletion,
+  catalog removal and Server restart. Its initial post-removal assertion still
+  treated the rebased full ASVS profile as the retired pilot; after correcting
+  that expectation, the complete program scenario passed in 357 seconds.
+- Managed Eval fixture catalog closure and independent gateway histories passed.
+  Changed Markdown links and `git diff --check` passed.
+- A separate snapshot combining the workflow refresh with concurrent finding
+  facade work passed config, Skill and Audit program catalog checks. This does
+  not certify unrelated unfinished changes in the shared working tree.
+
+No live model, target traffic, demo deployment, database reset or remote push was
+needed. Frozen wire/tool versions are unchanged; Runtime v1 retirement is a
+separate follow-up now that default workflow consumers have been migrated.

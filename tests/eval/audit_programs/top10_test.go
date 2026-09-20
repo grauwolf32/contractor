@@ -109,7 +109,7 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("owasp-top10-2025-source-risk@2")
+	profile, err := snapshot.AuditProfile("owasp-top10-2025-source-risk@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,8 +139,8 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	}
 	sort.Strings(tools)
 	for _, required := range []string{
-		"audit-results@1/read_audit_task",
-		"audit-results@1/submit_check_result",
+		"audit-results@2/read_audit_task",
+		"audit-results@2/submit_check_result",
 		"security-findings@1/finding",
 		"source-analysis@1/open_source_archive",
 	} {

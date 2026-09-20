@@ -2,14 +2,14 @@ apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 
 metadata:
-  name: audit_openapi_operation_tracer
-  version: "4"
+  name: audit_openapi_operation_observer
+  version: "1"
 
 spec:
-  description: Traces one pinned OpenAPI Audit operation through source and structural graph evidence and records evidence-backed finding proposals alongside its canonical result
+  description: Traces one pinned OpenAPI Audit operation through source and structural graph evidence and publishes its canonical result
   runtime: adk@1
   instructions:
-    ref: instructions/audit-openapi-operation-tracer-worker-v2-memory.md
+    ref: instructions/audit-openapi-operation-observer-worker.md
   modelPolicy: worker@2
   toolsets:
     - ref: memory-tools@1
@@ -37,11 +37,7 @@ spec:
         - attack_surface
         - complexity_hotspots
         - functions_that_raise
-    - ref: text-artifacts@1
-      tools: [write_text_artifact]
-    - ref: security-findings@2
-      tools: [finding]
-    - ref: audit-results@1
+    - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]
   skills:
     - namespace: skills

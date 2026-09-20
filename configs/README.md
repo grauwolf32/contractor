@@ -31,19 +31,20 @@ The current user-facing Workflow set is:
   has exact dependency and project reports;
 - `security-analysis@4` and `taint-trace-from-workspace@4` for their explicit
   focused analysis contracts;
-- `audit-source-check@3` for bounded task sets in `source-checklist@2`;
-- `audit-openapi-operation-trace@3` for graph-backed operation analysis in
-  the limited `openapi-operation-trace@4` comparison variant;
-- `audit-openapi-operation-trace@4` for graph-backed analysis and finding proposals
-  in `openapi-operation-trace@5`, plus `findings-review@2` for a supplied collection;
-- `audit-top10-source-risk@3` and `audit-asvs-source-verification@3` for the
+- `audit-source-check@1` for bounded task sets in `source-checklist@1`;
+- `audit-openapi-operation-observe@1` for graph-backed operation analysis in
+  the limited `openapi-operation-observe@1` comparison variant;
+- `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
+  in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection;
+- `audit-top10-source-risk@1` and `audit-asvs-source-verification@1` for the
   standard-specific AuditProfiles;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
 - `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
 
 Historical source-analysis and earlier workspace/Skill versions are deleted,
 not archived or republished. Existing Runs retain their complete resolved
-Workflow snapshots; a deleted exact identity is never reused. Process-only
+Workflow snapshots; the Audit catalog now starts at `@1` with current completion semantics.
+This deliberate demo-era reset does not preserve pre-reset selector meanings. Process-only
 Router/Streamline Memory fixtures live under `configs/e2e` and do not enter the
 default catalog. The working successors listed above select Memory explicitly.
 [MEMORY.md](MEMORY.md) lists the retired identities and their active successors;
@@ -52,27 +53,32 @@ the original exact Workflow is absent. Removing a bundled resource does not
 remove copies published into a separate managed or operator catalog. Frozen
 instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
-The two initial AuditProfiles are deliberately generic, one-round and
-non-certifying. They require an exact source ZIP plus either a custom checklist
-or OpenAPI document. Their child Worker reads the Controller-generated task and
-execution manifest, performs bounded source analysis and uses
-`audit-results@1/read_audit_task` to obtain its validated ordered JSON task set
-and `audit-results@1/submit_check_result` to package one complete strict result
-set without asking the model to decode ZIP bytes, reproduce item identities, or
-construct ZIP bytes manually. The checklist profile currently batches up to two
-compatible items; the OpenAPI profile retains `batchSize: 1`.
+The checklist and OpenAPI profiles are bounded, one-round and non-certifying.
+They require an exact source ZIP plus a custom checklist or OpenAPI document.
+All bundled Audit workers use `audit-results@2`: `read_audit_task` reads the
+pinned task set, and `submit_check_result` records validated items incrementally.
+Every profile pins `workerCompletion: audit-check-results@1` to its sole Worker.
+Runtime publishes the complete canonical ZIP after normal completion; tool
+receipts report collection progress, not published artifacts. Missing results
+or publication failures fail the child Run. The checklist batches up to two
+compatible items; OpenAPI retains `batchSize: 1`.
 
-`openapi-operation-trace@4` selects `audit_openapi_operation_tracer@3`, with
+These Workflows require the trusted completion contract supplied by an Audit.
+They cannot be launched as ordinary Runs with user-supplied task artifacts.
+All bundled Audit Workflow, AgentTemplate and AuditProfile identities start at
+`@1`; distinct scenarios have distinct names. Toolset and wire format versions
+keep their actual protocol versions, including `audit-results@2`.
+
+`openapi-operation-observe@1` selects `audit_openapi_operation_observer@1`, with
 all eleven `code-analysis@1` operations and bounded filesystem reads. Its
 read-only tools inspect an overlay workspace hydrated from the exact Audit
 `source` input. The existing task/execution-manifest and result ZIP contracts
 are retained. Graph coverage and source evidence inform the trace; the current
 coverage key remains `operation-resolution`. This limited comparison variant
-does not export annotations or propose findings. Version 1 is
-superseded in the default catalog; existing Audits retain their pinned snapshot.
+does not export annotations or propose findings. Its separate name distinguishes observation-only tracing from the finding producer.
 A Runtime must advertise local workspace and graph capabilities to run this profile.
 
-`openapi-operation-trace@5` selects `audit_openapi_operation_tracer@4`, adding
+`openapi-operation-trace@1` selects `audit_openapi_operation_tracer@1`, adding
 `security-findings@2.finding` and `text-artifacts@1.write_text_artifact` with
 `findingConfirmation: human-required`. It preserves the operation inventory and
 prohibits active checks. Findings do not turn `operation-resolution` into full
@@ -87,9 +93,9 @@ only `(scheme, version)`. Audit start resolves and retains the exact package
 revision and license provenance; changing content under an existing identity
 is fatal drift, so changed content must use a new version.
 
-`owasp-asvs-5-0-l1-source-review@3` selects all 70 ASVS 5.0.0 Level 1
-requirements from package edition `5.0.0-l1-source.1`, preserving the original
-five-requirement package and profile. `owasp-wstg-4-2-source-review@1` is a
+`owasp-asvs-5-0-l1-source-review@1` selects all 70 ASVS 5.0.0 Level 1
+requirements from package edition `5.0.0-l1-source.1`, with the five-requirement pilot available separately as
+`owasp-asvs-5-0-l1-source-pilot@1`. `owasp-wstg-4-2-source-review@1` is a
 separate source-review preset with 94 active WSTG 4.2 scenarios. Both use
 `audit-standard-source-review@1`; live-dependent checks retain gaps instead of
 claiming successful active tests. Exact sources, licensing and regeneration

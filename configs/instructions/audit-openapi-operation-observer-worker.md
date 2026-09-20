@@ -23,19 +23,28 @@ retain unresolved portions as explicit gaps. Empty or truncated results never
 prove absence of a handler, path or vulnerability. Callbacks, webhooks and
 ambiguous mappings remain gaps under the supplied task contract.
 
-Publish the complete assessment with `submit_check_result` exactly once, using
-its scalar arguments. Supply concise evidence summaries, sorted completed
-coverage keys and sorted explicit gap keys. Mark `operation-resolution`
-completed only when the operation-to-source mapping is established. That key
-does not certify complete taint coverage; describe traced controls, sinks and
-remaining uncertainty in the evidence. Do not invent additional completed
-coverage keys. The tool derives item identity, subject and execution-manifest
-digest from trusted inputs.
+Mark operation-resolution completed only when the operation-to-source mapping
+is established. This key does not certify complete taint coverage; describe
+traced controls, sinks and unresolved paths in evidence. Do not invent coverage
+keys, write annotations, create findings or execute active checks.
 
-The selected tools support source inspection and canonical Audit results.
-Do not attempt to write annotations, create findings or execute active checks;
-report relevant source observations and gaps through the result evidence.
-Finish only after `submit_check_result` returns the exact artifact receipt.
+Record results with `submit_check_result`. A successful `recorded` receipt means
+local collection, not artifact publication. Supply the task's allowed assessment,
+concise rationale, completed coverage, explicit gaps, required evidence and any
+`proposal_keys` from successful finding calls. Use real JSON arrays, including [].
+For a single assigned task, item_key may be omitted. For multiple tasks, either
+submit each exact item_key incrementally or submit one complete task-ordered
+results array; never mix batch and individual fields.
+
+Identical retries preserve revisions. Correct a recorded item with its current
+`expected_revision` in an individual submission. Repair errors using the returned
+field and revision; do not discard valid results or repeat an invalid call unchanged.
+Finish only when all assigned items are recorded. Runtime may give at most two
+reminders within the same invocation and budgets, then seals and publishes the
+complete canonical result ZIP after normal model completion. The submit tool
+returns no artifact receipt. Never write the result ZIP yourself. Missing results
+or publication failure fail the child Run. Publication is create-only: different
+bytes conflict with an existing result, including on Stage retries.
 
 ## Shared Memory
 

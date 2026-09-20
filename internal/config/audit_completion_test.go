@@ -13,29 +13,27 @@ import (
 func auditCompletionConfig(t *testing.T) (string, ResolvedAuditProfile) {
 	t.Helper()
 	root := copyConfigTree(t)
-	path := filepath.Join(root, "agent-templates/audit_source_checker_v3_memory.yaml")
+	path := filepath.Join(root, "audit-profiles/source_checklist.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, path, []byte(strings.Replace(string(raw), "ref: audit-results@1", "ref: audit-results@2", 1)))
-	before, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@2")
+	// The bundled profile enables completion. Remove it only in this test copy
+	// to prove that the trusted binding contributes to the immutable digest.
+	without := strings.Replace(string(raw), "      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}\n", "", 1)
+	writeFile(t, path, []byte(without))
+	before, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	path = filepath.Join(root, "audit-profiles/source_checklist_v2_memory.yaml")
-	raw, err = os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, path, []byte(strings.Replace(string(raw), "      ref: audit-source-check@3", "      ref: audit-source-check@3\n      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}", 1)))
+	writeFile(t, path, raw)
 	return root, before
 }
 
 func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 	root, before := auditCompletionConfig(t)
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	profile, err := snapshot.AuditProfile("source-checklist@2")
+	profile, err := snapshot.AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +52,7 @@ func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 		t.Fatal("snapshot lost contract")
 	}
 	profile.Workflows["check"].WorkerCompletion.Stage = "changed"
-	again, err := snapshot.AuditProfile("source-checklist@2")
+	again, err := snapshot.AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +74,7 @@ func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 
 func TestAuditCompletionRejectsInvalidTargetsAndTrustedMappings(t *testing.T) {
 	root, _ := auditCompletionConfig(t)
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@2")
+	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +149,7 @@ func TestAuditCompletionRejectsInvalidTargetsAndTrustedMappings(t *testing.T) {
 
 func TestAuditCompletionValidatesReachableEscalationConfiguration(t *testing.T) {
 	root, _ := auditCompletionConfig(t)
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@2")
+	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +177,7 @@ func TestAuditCompletionValidatesReachableEscalationConfiguration(t *testing.T) 
 
 func TestAuditCompletionAuthoringIsClosed(t *testing.T) {
 	root, _ := auditCompletionConfig(t)
-	path := filepath.Join(root, "audit-profiles/source_checklist_v2_memory.yaml")
+	path := filepath.Join(root, "audit-profiles/source_checklist.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +190,7 @@ func TestAuditCompletionAuthoringIsClosed(t *testing.T) {
 
 func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testing.T) {
 	root, _ := auditCompletionConfig(t)
-	path := filepath.Join(root, "workflows/audit_source_check_v3_memory.yaml")
+	path := filepath.Join(root, "workflows/audit_source_check.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +205,7 @@ func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testi
             then:
               fail: {}`
 	writeFile(t, path, []byte(strings.Replace(string(raw), "        failed:\n          fail: {}", replacement, 1)))
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@2")
+	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}

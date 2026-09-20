@@ -2,7 +2,7 @@
 
 [Audit guide](audits.md)
 
-`owasp-asvs-5-0-l1-source-review@3` selects all **70 Level 1 requirements** from
+`owasp-asvs-5-0-l1-source-review@1` selects all **70 Level 1 requirements** from
 ASVS 5.0.0. The previous `@2` five-requirement pilot and its standard package
 remain immutable. The expanded package uses the catalog edition
 `owasp-asvs@5.0.0-l1-source.1`; its upstream requirement IDs still use

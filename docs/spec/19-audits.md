@@ -655,9 +655,9 @@ receipt keys. The tool creates one canonical package in the selected agent
 namespace; neither tool identifies an Audit, selects or reorders items, accepts
 evidence, or bypasses the trusted importer.
 
-The agreed opt-in successor is specified by
-[25](25-audit-worker-finalization.md), tracked by V39-001–007 and not yet
-implemented. An explicit check-binding `workerCompletion` pins
+The current trusted completion strategy is specified by
+[25](25-audit-worker-finalization.md) and implemented by V39-001–007.
+Every bundled Audit profile selects it. An explicit check-binding `workerCompletion` pins
 `audit-check-results@1` to one logical Worker and selects `audit-results@2`.
 The model records validated per-item data in Runtime, can explicitly correct a
 recorded item with revision checks, and receives progress receipts rather than
@@ -665,8 +665,10 @@ artifact receipts. The common completion boundary enforces complete successful
 submission, gives at most two same-budget reminders, then deterministically
 publishes the full canonical ZIP and assembles WorkerResult without an LLM
 serializer. Durable import, atomic batch acceptance and retry ownership remain
-unchanged. Ordinary Workflows and existing @1 configurations do not acquire a
-mandatory-tool rule.
+unchanged. Ordinary Workflows do not acquire this completion rule. Bundled Audit
+Workflows require their profile-supplied contract and cannot run as ordinary
+Runs without it. The bundled Audit catalog starts at version 1; this reset is
+independent of toolset and persisted wire versions.
 
 ### 7.3 WorklistManifest
 

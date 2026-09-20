@@ -22,7 +22,7 @@ func TestAuditProgramsResolveAsRunnableMVPProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, selector := range []string{
-		"source-checklist@2", "openapi-operation-trace@4", "owasp-top10-2025-source-risk@2",
+		"source-checklist@1", "openapi-operation-observe@1", "owasp-top10-2025-source-risk@1",
 	} {
 		profile, err := snapshot.AuditProfile(selector)
 		if err != nil {

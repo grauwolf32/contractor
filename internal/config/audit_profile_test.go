@@ -111,8 +111,8 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 		workflow       string
 		template       string
 	}{
-		{"source-checklist@2", AuditModeCustomChecklist, "checklist@1", "check", "checklist", 2, "audit-source-check", "audit_source_checker"},
-		{"openapi-operation-trace@4", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi", 1, "audit-openapi-operation-trace", "audit_openapi_operation_tracer"},
+		{"source-checklist@1", AuditModeCustomChecklist, "checklist@1", "check", "checklist", 2, "audit-source-check", "audit_source_checker"},
+		{"openapi-operation-observe@1", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi", 1, "audit-openapi-operation-observe", "audit_openapi_operation_observer"},
 	} {
 		test := test
 		t.Run(test.ref, func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 				profile.Interaction.ReportAcceptance != AuditReportAutomatic {
 				t.Fatalf("repository AuditProfile is not MVP-compatible: %+v", profile)
 			}
-			if binding.Workflow.Ref != (WorkflowRef{Name: test.workflow, Version: "3"}) ||
+			if binding.Workflow.Ref != (WorkflowRef{Name: test.workflow, Version: "1"}) ||
 				binding.Inputs["task"].Source != AuditInputFromItemPackage ||
 				binding.Inputs["execution_manifest"].Source != AuditInputFromExecutionManifest ||
 				binding.Inputs["source"].Source != AuditInputFromAudit || binding.Outputs["result"] != "result" {
@@ -140,7 +140,7 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 			stage := binding.Workflow.Stages[binding.Workflow.EntryStage]
 			checker := stage.Agents["checker"].Template
 			if checker.Ref.TemplateID != test.template ||
-				!selectedTool(checker.Toolsets, "audit-results@1", "submit_check_result") {
+				!selectedTool(checker.Toolsets, "audit-results@2", "submit_check_result") {
 				t.Fatalf("repository Audit Worker cannot publish result packages: %+v", checker)
 			}
 		})

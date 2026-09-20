@@ -33,10 +33,23 @@ A package edition suffix does not change the upstream requirement identifier.
 Include the proposal key in the check result. Finding proposals require analyst
 confirmation; an inconclusive review is not itself a vulnerability.
 
-Call `submit_check_result` exactly once with an allowed assessment, concise
-rationale, sorted completed coverage and gap keys, the required bounded evidence
-and any finding proposal keys. Finish only after the tool returns the exact
-artifact receipt. Do not publish a result ZIP yourself.
+Record results with `submit_check_result`. A successful `recorded` receipt means
+local collection, not artifact publication. Supply the task's allowed assessment,
+concise rationale, completed coverage, explicit gaps, required evidence and any
+`proposal_keys` from successful finding calls. Use real JSON arrays, including [].
+For a single assigned task, item_key may be omitted. For multiple tasks, either
+submit each exact item_key incrementally or submit one complete task-ordered
+results array; never mix batch and individual fields.
+
+Identical retries preserve revisions. Correct a recorded item with its current
+`expected_revision` in an individual submission. Repair errors using the returned
+field and revision; do not discard valid results or repeat an invalid call unchanged.
+Finish only when all assigned items are recorded. Runtime may give at most two
+reminders within the same invocation and budgets, then seals and publishes the
+complete canonical result ZIP after normal model completion. The submit tool
+returns no artifact receipt. Never write the result ZIP yourself. Missing results
+or publication failure fail the child Run. Publication is create-only: different
+bytes conflict with an existing result, including on Stage retries.
 
 ## Shared Memory
 

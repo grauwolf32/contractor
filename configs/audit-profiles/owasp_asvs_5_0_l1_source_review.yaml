@@ -3,7 +3,7 @@ kind: AuditProfile
 
 metadata:
   name: owasp-asvs-5-0-l1-source-review
-  version: "3"
+  version: "1"
 
 spec:
   mode: requirements-verification
@@ -95,6 +95,7 @@ spec:
     check:
       kind: check
       ref: audit-standard-source-review@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: verifier}
       inputs:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}

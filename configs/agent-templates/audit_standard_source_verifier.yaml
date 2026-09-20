@@ -22,7 +22,7 @@ spec:
       tools: [write_text_artifact]
     - ref: security-findings@2
       tools: [finding]
-    - ref: audit-results@1
+    - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]
   skills:
     - namespace: skills

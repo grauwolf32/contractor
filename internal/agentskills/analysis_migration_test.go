@@ -238,14 +238,13 @@ func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 	}
 	targets := map[string]bool{"stride": true, "trace": true, "vuln-scan": true, "vulns": true}
 	wantedAssignments := map[string]map[string]bool{
-		"audit_asvs_source_verifier_v3_memory.yaml":     {"trace": false},
-		"audit_openapi_operation_tracer_v3_memory.yaml": {"trace": false},
-		"audit_openapi_operation_tracer_v4_memory.yaml": {"trace": false},
-		"audit_risk_source_checker_v3_memory.yaml":      {"trace": false},
-		"audit_source_checker_v3_memory.yaml":           {"trace": false},
-		"audit_source_checker_v4_completion.yaml":       {"trace": false},
-		"audit_standard_source_verifier.yaml":           {"trace": false},
-		"workspace_taint_analyst_v3_memory.yaml":        {"trace": false},
+		"audit_asvs_source_verifier.yaml":        {"trace": false},
+		"audit_openapi_operation_observer.yaml":  {"trace": false},
+		"audit_openapi_operation_tracer.yaml":    {"trace": false},
+		"audit_risk_source_checker.yaml":         {"trace": false},
+		"audit_source_checker.yaml":              {"trace": false},
+		"audit_standard_source_verifier.yaml":    {"trace": false},
+		"workspace_taint_analyst_v3_memory.yaml": {"trace": false},
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {

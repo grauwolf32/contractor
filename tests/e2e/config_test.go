@@ -66,3 +66,46 @@ func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) stri
 	}
 	return target
 }
+
+// Ordinary finding provenance is independent of Audit result completion. Keep
+// its process fixture in the temporary catalog, with no Audit tool selection.
+func installOrdinaryFindingFixture(t *testing.T, root, templateFile, workflowFile, name string) {
+	t.Helper()
+	read := func(folder, file string) string {
+		data, err := os.ReadFile(filepath.Join(root, folder, file+".yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	template := read("agent-templates", templateFile)
+	template = strings.Replace(template, "  name: "+templateFile+"\n", "  name: "+name+"\n", 1)
+	template = strings.Replace(template, "    - ref: audit-results@2\n      tools: [read_audit_task, submit_check_result]\n", "", 1)
+	if !strings.Contains(template, "ref: text-artifacts@1") {
+		template = strings.Replace(template, "  toolsets:\n", "  toolsets:\n    - ref: text-artifacts@1\n      tools: [write_text_artifact]\n", 1)
+	}
+	workflow := read("workflows", workflowFile)
+	workflow = strings.Replace(workflow, "  name: "+strings.ReplaceAll(workflowFile, "_", "-")+"\n", "  name: "+name+"\n", 1)
+	workflow = strings.Replace(workflow, "template: "+templateFile+"@1", "template: "+name+"@1", 1)
+	// Input packages remain ZIPs; only the fixture's result is a text report.
+	start := strings.Index(workflow, "  outputs:")
+	workflow = workflow[:start] + strings.ReplaceAll(workflow[start:], "mediaTypes: [application/zip]", "mediaTypes: [text/plain]")
+	replaceInstructions := func(content string) string {
+		lines := strings.Split(content, "\n")
+		for index, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "ref: instructions/") {
+				lines[index] = line[:len(line)-len(strings.TrimLeft(line, " "))] + "ref: instructions/" + name + ".md"
+			}
+		}
+		return strings.Join(lines, "\n")
+	}
+	template, workflow = replaceInstructions(template), replaceInstructions(workflow)
+	if err := os.WriteFile(filepath.Join(root, "instructions", name+".md"), []byte("Inspect the supplied source and record evidence-backed finding proposals. Publish a plain-text result artifact in the assigned namespace. This ordinary Run does not collect Audit assessments.\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for folder, content := range map[string]string{"agent-templates": template, "workflows": workflow} {
+		if err := os.WriteFile(filepath.Join(root, folder, name+".yaml"), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

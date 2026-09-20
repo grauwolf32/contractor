@@ -101,10 +101,10 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 	}
 	for _, arm := range []string{"a", "b"} {
 		copyVariant("configs/e2e/workflows/artifact_copy.yaml", "workflows", "artifact-copy", "eval-copy-"+arm)
-		copyVariant("configs/audit-profiles/source_checklist_v2_memory.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)
+		copyVariant("configs/audit-profiles/source_checklist.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)
 	}
 	// The fixture uses no Skills uploaded by the Operations browser journey.
-	path := filepath.Join(target, "agent-templates", "audit_source_checker_v3_memory.yaml")
+	path := filepath.Join(target, "agent-templates", "audit_source_checker.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 					if _, err := snapshot.Workflow("eval-copy-" + arm + "@1"); err != nil {
 						t.Fatal(err)
 					}
-					if _, err := snapshot.AuditProfile("eval-audit-" + arm + "@2"); err != nil {
+					if _, err := snapshot.AuditProfile("eval-audit-" + arm + "@1"); err != nil {
 						t.Fatal(err)
 					}
 				}

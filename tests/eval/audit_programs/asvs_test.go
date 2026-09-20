@@ -57,7 +57,7 @@ func TestASVSPackageAndProfilePinExactSelectedDenominator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("owasp-asvs-5-0-l1-source-review@2")
+	profile, err := snapshot.AuditProfile("owasp-asvs-5-0-l1-source-pilot@1")
 	if err != nil {
 		t.Fatal(err)
 	}

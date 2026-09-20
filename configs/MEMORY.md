@@ -14,18 +14,21 @@ operator-owned resources. Frozen V40 evaluation inputs and isolated test
 catalogs retain their own exact definitions outside the default catalog.
 Successor Workflows select successor templates, and successor AuditProfiles select
 those Workflows. `http_explorer` remains a reusable standalone Catalog template.
-Version numbers reserved by the frozen instruction evaluation are skipped.
+The Audit catalog was reset to version 1 after retiring its previous bundled
+variants. Distinct observation, finding and pilot scenarios have separate names.
+Frozen evaluation catalogs retain their own selectors and immutable content.
+This reset does not promise compatibility with pre-reset demo catalogs.
 
 ## AgentTemplate
 
 | Retired selector | Active selector |
 | --- | --- |
 | `artifact_builder@1` | [`artifact_builder@2`](agent-templates/artifact_builder_v2_memory.yaml) |
-| `audit_asvs_source_verifier@1` | [`audit_asvs_source_verifier@3`](agent-templates/audit_asvs_source_verifier_v3_memory.yaml) |
-| `audit_openapi_operation_tracer@1` | [`audit_openapi_operation_tracer@3`](agent-templates/audit_openapi_operation_tracer_v3_memory.yaml) |
-| `audit_openapi_operation_tracer@2` | [`audit_openapi_operation_tracer@4`](agent-templates/audit_openapi_operation_tracer_v4_memory.yaml) |
-| `audit_risk_source_checker@1` | [`audit_risk_source_checker@3`](agent-templates/audit_risk_source_checker_v3_memory.yaml) |
-| `audit_source_checker@1` | [`audit_source_checker@3`](agent-templates/audit_source_checker_v3_memory.yaml) |
+| `audit_asvs_source_verifier@3` | [`audit_asvs_source_verifier@1`](agent-templates/audit_asvs_source_verifier.yaml) |
+| `audit_openapi_operation_tracer@3` | [`audit_openapi_operation_observer@1`](agent-templates/audit_openapi_operation_observer.yaml) |
+| `audit_openapi_operation_tracer@4` | [`audit_openapi_operation_tracer@1`](agent-templates/audit_openapi_operation_tracer.yaml) |
+| `audit_risk_source_checker@3` | [`audit_risk_source_checker@1`](agent-templates/audit_risk_source_checker.yaml) |
+| `audit_source_checker@3` | [`audit_source_checker@1`](agent-templates/audit_source_checker.yaml) |
 | `caido_analyst@1` | [`caido_analyst@3`](agent-templates/caido_analyst_v3_memory.yaml) |
 | `findings_analyst@1` | [`findings_analyst@2`](agent-templates/findings_analyst_v2_memory.yaml) |
 | `http_explorer@1` | [`http_explorer@3`](agent-templates/http_explorer_v3_memory.yaml) |
@@ -46,11 +49,11 @@ Version numbers reserved by the frozen instruction evaluation are skipped.
 | Retired selector | Active selector |
 | --- | --- |
 | `artifact-copy@1` | [`artifact-copy@2`](workflows/artifact_copy_v2_memory.yaml) |
-| `audit-asvs-source-verification@1` | [`audit-asvs-source-verification@3`](workflows/audit_asvs_source_verification_v3_memory.yaml) |
-| `audit-openapi-operation-trace@1` | [`audit-openapi-operation-trace@3`](workflows/audit_openapi_operation_trace_v3_memory.yaml) |
-| `audit-openapi-operation-trace@2` | [`audit-openapi-operation-trace@4`](workflows/audit_openapi_operation_trace_v4_memory.yaml) |
-| `audit-source-check@1` | [`audit-source-check@3`](workflows/audit_source_check_v3_memory.yaml) |
-| `audit-top10-source-risk@1` | [`audit-top10-source-risk@3`](workflows/audit_top10_source_risk_v3_memory.yaml) |
+| `audit-asvs-source-verification@3` | [`audit-asvs-source-verification@1`](workflows/audit_asvs_source_verification.yaml) |
+| `audit-openapi-operation-trace@3` | [`audit-openapi-operation-observe@1`](workflows/audit_openapi_operation_observe.yaml) |
+| `audit-openapi-operation-trace@4` | [`audit-openapi-operation-trace@1`](workflows/audit_openapi_operation_trace.yaml) |
+| `audit-source-check@3` | [`audit-source-check@1`](workflows/audit_source_check.yaml) |
+| `audit-top10-source-risk@3` | [`audit-top10-source-risk@1`](workflows/audit_top10_source_risk.yaml) |
 | `findings-review@1` | [`findings-review@2`](workflows/findings_review_v2_memory.yaml) |
 | `likec4-from-analysis@3` | [`likec4-from-analysis@5`](workflows/likec4_from_analysis_v5_memory.yaml) |
 | `likec4-from-workspace@5` | [`likec4-from-workspace@7`](workflows/likec4_from_workspace_v7_memory.yaml) |
@@ -66,11 +69,11 @@ Version numbers reserved by the frozen instruction evaluation are skipped.
 
 | Retired selector | Active selector |
 | --- | --- |
-| `openapi-operation-trace@2` | [`openapi-operation-trace@4`](audit-profiles/openapi_operation_trace_v4_memory.yaml) |
-| `openapi-operation-trace@3` | [`openapi-operation-trace@5`](audit-profiles/openapi_operation_trace_v5_memory.yaml) |
-| `owasp-asvs-5-0-l1-source-review@1` | [`owasp-asvs-5-0-l1-source-review@2`](audit-profiles/owasp_asvs_5_0_l1_source_review_v2_memory.yaml) |
-| `owasp-top10-2025-source-risk@1` | [`owasp-top10-2025-source-risk@2`](audit-profiles/owasp_top10_2025_source_risk_v2_memory.yaml) |
-| `source-checklist@1` | [`source-checklist@2`](audit-profiles/source_checklist_v2_memory.yaml) |
+| `openapi-operation-trace@4` | [`openapi-operation-observe@1`](audit-profiles/openapi_operation_observe.yaml) |
+| `openapi-operation-trace@5` | [`openapi-operation-trace@1`](audit-profiles/openapi_operation_trace.yaml) |
+| `owasp-asvs-5-0-l1-source-review@2` | [`owasp-asvs-5-0-l1-source-pilot@1`](audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml) |
+| `owasp-top10-2025-source-risk@2` | [`owasp-top10-2025-source-risk@1`](audit-profiles/owasp_top10_2025_source_risk.yaml) |
+| `source-checklist@2` | [`source-checklist@1`](audit-profiles/source_checklist.yaml) |
 
 ## Lifetime and completion
 

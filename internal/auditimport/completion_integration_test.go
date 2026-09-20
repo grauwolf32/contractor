@@ -196,13 +196,13 @@ func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, 
 	// Load a temporary authored closure so its digest is verified by the importer.
 	// Remove only the fixture's unused source-analysis Skill dependency.
 	catalogRoot := t.TempDir()
-	mustCompletion(t, os.CopyFS(catalogRoot, os.DirFS("../../testdata/configs")))
+	mustCompletion(t, os.CopyFS(catalogRoot, os.DirFS("../../configs")))
 	for _, name := range []string{
-		"agent-templates/audit_source_checker_v4_completion.yaml",
-		"workflows/audit_source_check_v4_completion.yaml",
-		"audit-profiles/source_checklist_v3_completion.yaml",
+		"agent-templates/audit_source_checker.yaml",
+		"workflows/audit_source_check.yaml",
+		"audit-profiles/source_checklist.yaml",
 		"model-policies/audit_completion_worker.yaml",
-		"instructions/audit-source-checker-completion-worker.md",
+		"instructions/audit-source-checker-worker.md",
 	} {
 		data, err := os.ReadFile(filepath.Join("../../configs", name))
 		mustCompletion(t, err)
@@ -216,7 +216,7 @@ func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, 
 	}
 	catalog, err := config.Load(catalogRoot, config.MVPDescriptors())
 	mustCompletion(t, err)
-	f.profile, err = catalog.AuditProfile("source-checklist@3")
+	f.profile, err = catalog.AuditProfile("source-checklist@1")
 	mustCompletion(t, err)
 	profileBytes, err := json.Marshal(f.profile)
 	mustCompletion(t, err)

@@ -10,7 +10,7 @@ import (
 func TestRepositoryOpenAPIAuditGraphUsesPinnedSourceAndCanonicalResults(t *testing.T) {
 	t.Parallel()
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	profile, err := snapshot.AuditProfile("openapi-operation-trace@4")
+	profile, err := snapshot.AuditProfile("openapi-operation-observe@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestRepositoryOpenAPIAuditGraphUsesPinnedSourceAndCanonicalResults(t *testi
 		"memory-tools@1":  {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 		"run-artifacts@1": {"read_artifact"},
 		"filesystem@1":    {"glob", "grep", "ls", "read_file"},
-		"audit-results@1": {"read_audit_task", "submit_check_result"},
+		"audit-results@2": {"read_audit_task", "submit_check_result"},
 		"code-analysis@1": {
 			"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
 			"find_callees", "find_callers", "find_symbol", "functions_that_raise",
@@ -45,7 +45,7 @@ func TestRepositoryOpenAPIAuditGraphUsesPinnedSourceAndCanonicalResults(t *testi
 	if got := selectedToolsets(stage.Agents["checker"].Template.Toolsets); !reflect.DeepEqual(got, wantTools) {
 		t.Fatalf("Audit graph tools = %+v, want %+v", got, wantTools)
 	}
-	checklist, err := snapshot.AuditProfile("source-checklist@2")
+	checklist, err := snapshot.AuditProfile("source-checklist@1")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -49,10 +49,25 @@ otherwise use `inconclusive`, `blocked` or `not-tested` as appropriate.
 For a demonstrated vulnerability, call `finding` with the exact retained
 evidence artifact, stable client key and standard references from the task.
 Include its proposal key in the check result. Proposals need analyst review.
-Call `submit_check_result` exactly once with an allowed assessment, rationale,
-sorted completed coverage and gap keys, bounded observation evidence and any
-proposal keys. Finish only after the exact artifact receipt is returned. Do not
-write the result ZIP yourself. Clear session state when no longer needed.
+Clear session state when no longer needed.
+
+Record results with `submit_check_result`. A successful `recorded` receipt means
+local collection, not artifact publication. Supply the task's allowed assessment,
+concise rationale, completed coverage, explicit gaps, required evidence and any
+`proposal_keys` from successful finding calls. Use real JSON arrays, including [].
+For a single assigned task, item_key may be omitted. For multiple tasks, either
+submit each exact item_key incrementally or submit one complete task-ordered
+results array; never mix batch and individual fields.
+
+Identical retries preserve revisions. Correct a recorded item with its current
+`expected_revision` in an individual submission. Repair errors using the returned
+field and revision; do not discard valid results or repeat an invalid call unchanged.
+Finish only when all assigned items are recorded. Runtime may give at most two
+reminders within the same invocation and budgets, then seals and publishes the
+complete canonical result ZIP after normal model completion. The submit tool
+returns no artifact receipt. Never write the result ZIP yourself. Missing results
+or publication failure fail the child Run. Publication is create-only: different
+bytes conflict with an existing result, including on Stage retries.
 
 ## Shared Memory
 

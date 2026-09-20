@@ -2,27 +2,28 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 
 metadata:
-  name: openapi-operation-trace
-  version: "5"
+  name: source-checklist
+  version: "1"
 
 spec:
-  mode: operation-tracing
+  mode: custom-checklist
   standards: []
   inputs:
     source:
       required: true
       mediaTypes: [application/zip]
-    openapi:
+    checklist:
       required: true
-      mediaTypes: [application/json, application/yaml, application/zip]
+      mediaTypes: [application/json, application/yaml]
   inventory:
-    implementation: openapi-operations@1
-    sourceInput: openapi
-    itemWorkflowRole: trace
+    implementation: checklist@1
+    sourceInput: checklist
+    itemWorkflowRole: check
   workflows:
-    trace:
+    check:
       kind: check
-      ref: audit-openapi-operation-trace@4
+      ref: audit-source-check@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
       inputs:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}
@@ -33,16 +34,16 @@ spec:
   execution:
     roundMode: fixed-barrier
     maxRounds: 1
-    batchSize: 1
-    maxItemsPerRound: 256
-    maxItemsTotal: 256
-    maxSubmittedRuns: 768
+    batchSize: 2
+    maxItemsPerRound: 128
+    maxItemsTotal: 128
+    maxSubmittedRuns: 384
     maxItemRunAttempts: 3
     deadlineSeconds: 86400
     maxEvidenceBytes: 67108864
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: human-required
+    findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic

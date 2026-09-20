@@ -112,7 +112,7 @@ func TestProductionMemoryCatalogIsClosedAndRejectsRetiredSelectors(t *testing.T)
 	}
 }
 
-func TestRetiredCatalogSelectorsRemainUsableOnlyFromPinnedSnapshots(t *testing.T) {
+func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 	t.Parallel()
 	fixture := mustLoad(t, filepath.Join("..", "..", "testdata", "configs"), MVPDescriptors())
 	workflow, err := fixture.Workflow("artifact-copy@1")
@@ -135,8 +135,9 @@ func TestRetiredCatalogSelectorsRemainUsableOnlyFromPinnedSnapshots(t *testing.T
 	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, nil); err == nil {
 		t.Fatalf("new Run silently resolved retired Workflow: %v", err)
 	}
-	if _, err := current.AuditProfile("source-checklist@1"); err == nil {
-		t.Fatalf("new Audit silently resolved retired profile: %v", err)
+	rebased, err := current.AuditProfile("source-checklist@1")
+	if err != nil || rebased.Ref.Digest == profile.Ref.Digest || rebased.Workflows["check"].WorkerCompletion == nil {
+		t.Fatalf("rebased profile did not select the current completion contract: %v", err)
 	}
 	decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(workflowJSON)
 	if err != nil || !reflect.DeepEqual(workflow, decodedWorkflow) {

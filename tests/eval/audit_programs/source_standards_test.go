@@ -101,7 +101,7 @@ func TestExpandedSourcePresetsBuildExactRunnableInventories(t *testing.T) {
 		count              int
 		manual             []string
 	}{
-		{"owasp-asvs-5-0-l1-source-review@3", "owasp-asvs-5.0.0-l1-source.1", 70,
+		{"owasp-asvs-5-0-l1-source-review@1", "owasp-asvs-5.0.0-l1-source.1", 70,
 			[]string{"v5.0.0-15.1.1", "v5.0.0-2.1.1", "v5.0.0-6.1.1", "v5.0.0-8.1.1"}},
 		{"owasp-wstg-4-2-source-review@1", "owasp-wstg-4.2", 94, []string{}},
 	} {

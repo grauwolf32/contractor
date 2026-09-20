@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -193,6 +194,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 		t, filepath.Join(repositoryRoot, "configs"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
+	installOrdinaryFindingFixture(t, configRoot, "audit_asvs_source_verifier", "audit_asvs_source_verification", "fixture-ordinary-asvs")
 	publicAddress, privateAddress, runtimeAddress := freeAddress(t), freeAddress(t), freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
 	privateBaseURL := "https://" + privateAddress
@@ -264,7 +266,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 
 	checklistAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"source-checklist@2", map[string]artifactRef{"source": source, "checklist": checklist},
+		"source-checklist@1", map[string]artifactRef{"source": source, "checklist": checklist},
 		2, 1, 0, "",
 	)
 	checklistCoverage := getAuditProgramCoverage(t, client, publicBaseURL, checklistAudit.AuditID)
@@ -277,7 +279,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 
 	openAPIAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"openapi-operation-trace@4", map[string]artifactRef{"source": source, "openapi": openAPI},
+		"openapi-operation-observe@1", map[string]artifactRef{"source": source, "openapi": openAPI},
 		2, 2, 0, "",
 	)
 	openAPICoverage := getAuditProgramCoverage(t, client, publicBaseURL, openAPIAudit.AuditID)
@@ -298,7 +300,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	gateway.blockNextRequest()
 	top10Audit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"owasp-top10-2025-source-risk@2", map[string]artifactRef{"source": source},
+		"owasp-top10-2025-source-risk@1", map[string]artifactRef{"source": source},
 		10, 10, 2, "approve",
 	)
 	assertTop10AuditBaseline(t, client, publicBaseURL, top10Audit)
@@ -313,7 +315,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	gateway.blockNextRequest()
 	asvsAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"owasp-asvs-5-0-l1-source-review@2", map[string]artifactRef{"source": source},
+		"owasp-asvs-5-0-l1-source-pilot@1", map[string]artifactRef{"source": source},
 		5, 4, 1, "not_applicable",
 		func(audit auditProgramAudit, _ []auditProgramItem) {
 			importOrdinaryFindingIntoAudit(
@@ -384,9 +386,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 				"gaps":       gaps,
 				"evidence":   evidence,
 			})),
-			finalGatewayStep("Canonical Audit result package published", map[string]domainArtifactBinding{
-				"result": {namespace: "audit-check", name: "result"},
-			}),
+			finalGatewayStep("All assigned results recorded", nil),
 		}}
 	}
 	stages := []domainGatewayStage{
@@ -415,9 +415,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 					},
 				},
 			})),
-			finalGatewayStep("Canonical Audit batch result package published", map[string]domainArtifactBinding{
-				"result": {namespace: "audit-check", name: "result"},
-			}),
+			finalGatewayStep("All assigned results recorded", nil),
 		}},
 		result("openapi/deleteWidget", "satisfied", []string{"operation-resolution"}, []string{}, []map[string]string{{
 			"kind": "source-trace", "summary": "DELETE operation maps to source/app.py.",
@@ -461,33 +459,20 @@ func auditProgramGatewayStages() []domainGatewayStage {
 					"gaps":       gaps,
 					"evidence":   evidence,
 				})),
-				finalGatewayStep("Canonical Audit result package published", map[string]domainArtifactBinding{
-					"result": {namespace: "audit-risk", name: "result"},
-				}),
+				finalGatewayStep("All assigned results recorded", nil),
 			},
 		})
 	}
+	ordinaryTools := append([]string{}, riskTools...)
+	ordinaryTools = slices.DeleteFunc(ordinaryTools, func(tool string) bool { return tool == "read_audit_task" || tool == "submit_check_result" })
+	ordinaryTools = append(ordinaryTools, "write_text_artifact")
 	stages = append(stages, domainGatewayStage{
-		name: "ordinary-run/asvs-reference-only", tools: riskTools, steps: []domainGatewayStep{
-			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
+		name: "ordinary-run/asvs-reference-only", tools: ordinaryTools, steps: []domainGatewayStep{
 			toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-			toolGatewayStep("read_source", fixedArguments(map[string]any{
-				"path": "app.py", "start_line": 1, "max_lines": 100,
-			})),
+			toolGatewayStep("read_source", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
 			toolGatewayStep("finding", ordinaryASVSFindingArguments),
-			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
-				"assessment": "violated",
-				"summary":    "Ordinary Run fixture result with a non-causal ASVS reference.",
-				"completed":  []string{"observation"},
-				"gaps":       []string{},
-				"evidence": []map[string]string{{
-					"kind": "observation", "summary": "Bounded ordinary-Run source observation.",
-				}},
-				"proposal_keys": []string{"ordinary-asvs-mapping"},
-			})),
-			finalGatewayStep("Ordinary Run ASVS-reference result published", map[string]domainArtifactBinding{
-				"result": {namespace: "audit-asvs", name: "result"},
-			}),
+			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "result", "text": "Ordinary Run finding with a non-causal ASVS reference.", "media_type": "text/plain"})),
+			finalGatewayStep("Ordinary finding recorded", map[string]domainArtifactBinding{"result": {namespace: "audit-asvs", name: "result"}}),
 		},
 	})
 	asvsResults := []struct {
@@ -531,9 +516,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 				"evidence":      evidence,
 				"proposal_keys": proposalKeys,
 			})),
-			finalGatewayStep("Canonical ASVS result package published", map[string]domainArtifactBinding{
-				"result": {namespace: "audit-asvs", name: "result"},
-			}),
+			finalGatewayStep("All assigned results recorded", nil),
 		)
 		stages = append(stages, domainGatewayStage{
 			name: "asvs/" + candidate.key, tools: riskTools, steps: steps,
@@ -603,9 +586,9 @@ func assertAuditProfilesCompatible(t *testing.T, client *http.Client, baseURL st
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
 	wanted := map[string]bool{
-		"source-checklist@2": false, "openapi-operation-trace@4": false,
-		"owasp-top10-2025-source-risk@2":    false,
-		"owasp-asvs-5-0-l1-source-review@2": false,
+		"source-checklist@1": false, "openapi-operation-observe@1": false,
+		"owasp-top10-2025-source-risk@1":   false,
+		"owasp-asvs-5-0-l1-source-pilot@1": false,
 	}
 	for _, profile := range page.Items {
 		selector := profile.Ref.Name + "@" + profile.Ref.Version
@@ -692,7 +675,7 @@ func runOrdinaryASVSFindingWorkflow(
 		"application/json", manifestPayload,
 	)
 	body, err := json.Marshal(map[string]any{
-		"workflow": "audit-asvs-source-verification@3",
+		"workflow": "fixture-ordinary-asvs@1",
 		"artifacts": map[string]artifactRef{
 			"task": taskRef, "execution_manifest": manifestRef, "source": source,
 		},
@@ -1308,16 +1291,16 @@ func removeAuditProgramAuthoringEntries(t *testing.T, configRoot string) {
 	// Remove the current Memory program definitions with their standard sources.
 	// Leave the separate planner instruction files intact.
 	for _, relative := range []string{
-		"audit-profiles/owasp_asvs_5_0_l1_source_review_v2_memory.yaml",
-		"audit-profiles/owasp_top10_2025_source_risk_v2_memory.yaml",
+		"audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml",
+		"audit-profiles/owasp_top10_2025_source_risk.yaml",
 		"audit-standards/owasp-asvs-5.0.0",
 		"audit-standards/owasp-web-top10-2025",
-		"agent-templates/audit_asvs_source_verifier_v3_memory.yaml",
-		"agent-templates/audit_risk_source_checker_v3_memory.yaml",
-		"instructions/audit-asvs-source-verifier-worker-memory.md",
-		"instructions/audit-risk-source-checker-worker-memory.md",
-		"workflows/audit_asvs_source_verification_v3_memory.yaml",
-		"workflows/audit_top10_source_risk_v3_memory.yaml",
+		"agent-templates/audit_asvs_source_verifier.yaml",
+		"agent-templates/audit_risk_source_checker.yaml",
+		"instructions/audit-asvs-source-verifier-worker.md",
+		"instructions/audit-risk-source-checker-worker.md",
+		"workflows/audit_asvs_source_verification.yaml",
+		"workflows/audit_top10_source_risk.yaml",
 	} {
 		if err := os.RemoveAll(filepath.Join(configRoot, filepath.FromSlash(relative))); err != nil {
 			t.Fatalf("remove staged Audit program catalog entry %s: %v", relative, err)
@@ -1337,10 +1320,8 @@ func assertAuditProgramCatalogUnavailable(t *testing.T, client *http.Client, bas
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
 	removedProfiles := map[string]bool{
-		"owasp-asvs-5-0-l1-source-review@1": true,
-		"owasp-top10-2025-source-risk@1":    true,
-		"owasp-asvs-5-0-l1-source-review@2": true,
-		"owasp-top10-2025-source-risk@2":    true,
+		"owasp-asvs-5-0-l1-source-pilot@1": true,
+		"owasp-top10-2025-source-risk@1":   true,
 	}
 	for _, profile := range page.Items {
 		identity := profile.Ref.Name + "@" + profile.Ref.Version
@@ -1428,7 +1409,7 @@ func assertASVSFindingBacktrace(
 			if origin == nil || !origin.RunDeleted || origin.RunProvenance == nil ||
 				origin.RunProvenance.RunID != fixture.CausalRunID || origin.RunProvenance.Workflow == nil ||
 				origin.RunProvenance.Workflow.Name != "audit-asvs-source-verification" ||
-				origin.RunProvenance.Workflow.Version != "3" || origin.ItemOrigin.Standard == nil ||
+				origin.RunProvenance.Workflow.Version != "1" || origin.ItemOrigin.Standard == nil ||
 				origin.ItemOrigin.Standard.Scheme != "owasp-asvs" ||
 				origin.ItemOrigin.Standard.Version != "5.0.0" ||
 				origin.ItemOrigin.Standard.MappingKey != "v5.0.0-1.2.4" ||

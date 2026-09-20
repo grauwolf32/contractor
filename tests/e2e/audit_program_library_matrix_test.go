@@ -53,7 +53,7 @@ type auditProgramLibraryCase struct {
 
 var expectedAuditPrograms = map[string]auditProgramLibraryProgram{
 	"top10-2025": {
-		ID: "top10-2025", Profile: "owasp-top10-2025-source-risk@2", Mode: "risk-assessment",
+		ID: "top10-2025", Profile: "owasp-top10-2025-source-risk@1", Mode: "risk-assessment",
 		Standard: auditProgramLibraryStandard{
 			Scheme: "owasp-web-top10", Version: "2025",
 			SourceRevision: "66ebc4798d2ca72973967a20264bdeb70dcf0a13", License: "CC-BY-SA-4.0",
@@ -63,7 +63,7 @@ var expectedAuditPrograms = map[string]auditProgramLibraryProgram{
 		ProhibitedClaims:    []string{"application is compliant", "application is secure", "OWASP certified"},
 	},
 	"asvs-5.0-l1-pilot": {
-		ID: "asvs-5.0-l1-pilot", Profile: "owasp-asvs-5-0-l1-source-review@2",
+		ID: "asvs-5.0-l1-pilot", Profile: "owasp-asvs-5-0-l1-source-pilot@1",
 		Mode: "requirements-verification",
 		Standard: auditProgramLibraryStandard{
 			Scheme: "owasp-asvs", Version: "5.0.0",

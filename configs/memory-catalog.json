@@ -7,29 +7,29 @@
       "retired": "artifact_builder@1"
     },
     {
-      "active": "audit_asvs_source_verifier@3",
-      "active_file": "configs/agent-templates/audit_asvs_source_verifier_v3_memory.yaml",
-      "retired": "audit_asvs_source_verifier@1"
+      "active": "audit_asvs_source_verifier@1",
+      "active_file": "configs/agent-templates/audit_asvs_source_verifier.yaml",
+      "retired": "audit_asvs_source_verifier@3"
     },
     {
-      "active": "audit_openapi_operation_tracer@3",
-      "active_file": "configs/agent-templates/audit_openapi_operation_tracer_v3_memory.yaml",
-      "retired": "audit_openapi_operation_tracer@1"
+      "active": "audit_openapi_operation_observer@1",
+      "active_file": "configs/agent-templates/audit_openapi_operation_observer.yaml",
+      "retired": "audit_openapi_operation_tracer@3"
     },
     {
-      "active": "audit_openapi_operation_tracer@4",
-      "active_file": "configs/agent-templates/audit_openapi_operation_tracer_v4_memory.yaml",
-      "retired": "audit_openapi_operation_tracer@2"
+      "active": "audit_openapi_operation_tracer@1",
+      "active_file": "configs/agent-templates/audit_openapi_operation_tracer.yaml",
+      "retired": "audit_openapi_operation_tracer@4"
     },
     {
-      "active": "audit_risk_source_checker@3",
-      "active_file": "configs/agent-templates/audit_risk_source_checker_v3_memory.yaml",
-      "retired": "audit_risk_source_checker@1"
+      "active": "audit_risk_source_checker@1",
+      "active_file": "configs/agent-templates/audit_risk_source_checker.yaml",
+      "retired": "audit_risk_source_checker@3"
     },
     {
-      "active": "audit_source_checker@3",
-      "active_file": "configs/agent-templates/audit_source_checker_v3_memory.yaml",
-      "retired": "audit_source_checker@1"
+      "active": "audit_source_checker@1",
+      "active_file": "configs/agent-templates/audit_source_checker.yaml",
+      "retired": "audit_source_checker@3"
     },
     {
       "active": "caido_analyst@3",
@@ -109,29 +109,29 @@
       "retired": "artifact-copy@1"
     },
     {
-      "active": "audit-asvs-source-verification@3",
-      "active_file": "configs/workflows/audit_asvs_source_verification_v3_memory.yaml",
-      "retired": "audit-asvs-source-verification@1"
+      "active": "audit-asvs-source-verification@1",
+      "active_file": "configs/workflows/audit_asvs_source_verification.yaml",
+      "retired": "audit-asvs-source-verification@3"
     },
     {
-      "active": "audit-openapi-operation-trace@3",
-      "active_file": "configs/workflows/audit_openapi_operation_trace_v3_memory.yaml",
-      "retired": "audit-openapi-operation-trace@1"
+      "active": "audit-openapi-operation-observe@1",
+      "active_file": "configs/workflows/audit_openapi_operation_observe.yaml",
+      "retired": "audit-openapi-operation-trace@3"
     },
     {
-      "active": "audit-openapi-operation-trace@4",
-      "active_file": "configs/workflows/audit_openapi_operation_trace_v4_memory.yaml",
-      "retired": "audit-openapi-operation-trace@2"
+      "active": "audit-openapi-operation-trace@1",
+      "active_file": "configs/workflows/audit_openapi_operation_trace.yaml",
+      "retired": "audit-openapi-operation-trace@4"
     },
     {
-      "active": "audit-source-check@3",
-      "active_file": "configs/workflows/audit_source_check_v3_memory.yaml",
-      "retired": "audit-source-check@1"
+      "active": "audit-source-check@1",
+      "active_file": "configs/workflows/audit_source_check.yaml",
+      "retired": "audit-source-check@3"
     },
     {
-      "active": "audit-top10-source-risk@3",
-      "active_file": "configs/workflows/audit_top10_source_risk_v3_memory.yaml",
-      "retired": "audit-top10-source-risk@1"
+      "active": "audit-top10-source-risk@1",
+      "active_file": "configs/workflows/audit_top10_source_risk.yaml",
+      "retired": "audit-top10-source-risk@3"
     },
     {
       "active": "findings-review@2",
@@ -186,29 +186,29 @@
   ],
   "audit_profiles": [
     {
-      "active": "openapi-operation-trace@4",
-      "active_file": "configs/audit-profiles/openapi_operation_trace_v4_memory.yaml",
-      "retired": "openapi-operation-trace@2"
+      "active": "openapi-operation-observe@1",
+      "active_file": "configs/audit-profiles/openapi_operation_observe.yaml",
+      "retired": "openapi-operation-trace@4"
     },
     {
-      "active": "openapi-operation-trace@5",
-      "active_file": "configs/audit-profiles/openapi_operation_trace_v5_memory.yaml",
-      "retired": "openapi-operation-trace@3"
+      "active": "openapi-operation-trace@1",
+      "active_file": "configs/audit-profiles/openapi_operation_trace.yaml",
+      "retired": "openapi-operation-trace@5"
     },
     {
-      "active": "owasp-asvs-5-0-l1-source-review@2",
-      "active_file": "configs/audit-profiles/owasp_asvs_5_0_l1_source_review_v2_memory.yaml",
-      "retired": "owasp-asvs-5-0-l1-source-review@1"
+      "active": "owasp-asvs-5-0-l1-source-pilot@1",
+      "active_file": "configs/audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml",
+      "retired": "owasp-asvs-5-0-l1-source-review@2"
     },
     {
-      "active": "owasp-top10-2025-source-risk@2",
-      "active_file": "configs/audit-profiles/owasp_top10_2025_source_risk_v2_memory.yaml",
-      "retired": "owasp-top10-2025-source-risk@1"
+      "active": "owasp-top10-2025-source-risk@1",
+      "active_file": "configs/audit-profiles/owasp_top10_2025_source_risk.yaml",
+      "retired": "owasp-top10-2025-source-risk@2"
     },
     {
-      "active": "source-checklist@2",
-      "active_file": "configs/audit-profiles/source_checklist_v2_memory.yaml",
-      "retired": "source-checklist@1"
+      "active": "source-checklist@1",
+      "active_file": "configs/audit-profiles/source_checklist.yaml",
+      "retired": "source-checklist@2"
     }
   ]
 }

@@ -344,8 +344,8 @@ the ZIP was written change completion diagnostics to `failed`, preserving the
 recorded count and leaving the existing output intact. Publishing these late
 facts does not complete the invocation a second time.
 
-The opt-in repository example is `source-checklist@3` → `audit-source-check@4`
-→ `audit_source_checker@4`, with a separate bounded
+The bundled checklist profile is `source-checklist@1` → `audit-source-check@1`
+→ `audit_source_checker@1`, with a separate bounded
 `audit_completion_worker@1` ModelPolicy. It selects `audit-results@2`, one
 `passthrough@1` Worker and no target summarizer. The completion-specific
 instruction explains scalar `item_key` submissions, `expected_revision`,
@@ -355,9 +355,10 @@ attempt policy decides whether to create a fresh child Run. A same-Run retry
 cannot overwrite different bytes or different invocation-owned proposal IDs.
 
 Rollout is capability-first: install compatible Server/Runtime/report readers,
-verify the release gate, then explicitly select the new AuditProfile for a new
-Audit. Adding these files does not rebind a running Audit. Older profile,
-Workflow and template versions retain their completion protocol. There is no
+verify the release gate, then create an Audit from the current catalog.
+All bundled Audit profiles now pin this strategy and use version 1; previous
+bundled versions were removed. Distinct scenarios have separate names. Existing
+resolved snapshots are not rewritten by a catalog reload. There is no
 durable recovery of a partially collected invocation, target summarizer, or
 multi-Worker completion strategy in this version. These examples are not live
 deployment or certification evidence.

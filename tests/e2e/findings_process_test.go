@@ -76,6 +76,7 @@ func startFindingsHarness(t *testing.T, stages []domainGatewayStage, beforeRunti
 		t, filepath.Join(repositoryRoot, "configs"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
+	installOrdinaryFindingFixture(t, configRoot, "audit_openapi_operation_tracer", "audit_openapi_operation_trace", "fixture-ordinary-findings")
 	publicAddress, privateAddress, runtimeAddress := freeAddress(t), freeAddress(t), freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
 	privateBaseURL := "https://" + privateAddress
@@ -175,7 +176,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	openAPI := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID,
 		"openapi", "findings-openapi", "application/yaml", []byte(findingsOpenAPI))
 	audit := runAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client,
-		h.baseURL, project.ProjectID, "openapi-operation-trace@5",
+		h.baseURL, project.ProjectID, "openapi-operation-trace@1",
 		map[string]artifactRef{"source": source, "openapi": openAPI}, 1, 1, 0, "")
 	var items struct {
 		Items []auditProgramItem `json:"items"`
@@ -281,9 +282,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 				"evidence":      []map[string]string{{"kind": "source", "summary": findingsEvidence}},
 				"proposal_keys": []string{"query-concatenation"}}, nil
 		}),
-		finalGatewayStep("Canonical operation result and finding receipt published", map[string]domainArtifactBinding{
-			"result": {namespace: "audit-check", name: "result"},
-		}),
+		finalGatewayStep("All assigned results recorded", nil),
 	}}
 }
 
@@ -524,4 +523,31 @@ func findingsPageItems(pages []map[string]any) []any {
 		items = append(items, values...)
 	}
 	return items
+}
+
+func ordinaryFindingsProducerStage(name string) domainGatewayStage {
+	stage := findingsProducerStage(name)
+	tools := make([]string, 0, len(stage.tools))
+	for _, tool := range stage.tools {
+		if tool != "read_audit_task" && tool != "submit_check_result" {
+			tools = append(tools, tool)
+		}
+	}
+	stage.tools = tools
+	stage.steps = append(stage.steps[1:5:5],
+		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
+			receipts := findingsToolResponses(request, "finding")
+			if len(receipts) == 0 || receipts[0]["receipt_id"] == nil {
+				return nil, fmt.Errorf("ordinary finding receipt is missing")
+			}
+			for _, receipt := range receipts[1:] {
+				if !reflect.DeepEqual(receipt, receipts[0]) {
+					return nil, fmt.Errorf("identical finding retry changed receipt")
+				}
+			}
+			return map[string]any{"name": "result", "text": fmt.Sprint(receipts[0]["receipt_id"]), "media_type": "text/plain"}, nil
+		}),
+		finalGatewayStep("Ordinary finding recorded", map[string]domainArtifactBinding{"result": {namespace: "audit-check", name: "result"}}),
+	)
+	return stage
 }

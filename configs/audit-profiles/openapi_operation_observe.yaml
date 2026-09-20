@@ -2,8 +2,8 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 
 metadata:
-  name: openapi-operation-trace
-  version: "4"
+  name: openapi-operation-observe
+  version: "1"
 
 spec:
   mode: operation-tracing
@@ -22,7 +22,8 @@ spec:
   workflows:
     trace:
       kind: check
-      ref: audit-openapi-operation-trace@3
+      ref: audit-openapi-operation-observe@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
       inputs:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}

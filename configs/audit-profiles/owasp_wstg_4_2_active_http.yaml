@@ -21,6 +21,7 @@ spec:
     check:
       kind: check
       ref: audit-wstg-active-http@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: verifier}
       inputs:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}
