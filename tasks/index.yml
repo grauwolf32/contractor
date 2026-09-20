@@ -2835,6 +2835,7 @@ tasks:
   - {id: V60-036, file: v60-036-code-analysis-fixture-model-policy.yml}
   - {id: V60-037, file: v60-037-agent-skills-retryable-gateway-fixture.yml}
   - {id: V60-038, file: v60-038-summarizer-timeout-gateway-fixture.yml}
+  - {id: V60-039, file: v60-039-project-workflow-budget-expectations.yml}
   - {id: V61-001, file: v61-001-toolset-configuration-contracts.yml}
   - {id: V61-002, file: v61-002-toolset-runtime-config-store.yml}
   - {id: V61-003, file: v61-003-run-toolset-pinning-allocation.yml}

@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V60-039
+title: Check Project Workflow budget reports against the pinned execution policy
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-009]
+languages: [go, markdown]
+goal: Restore exact process budget assertions after production ModelPolicy consolidation without weakening accounting checks.
+context:
+  authority: User requested completion of the remaining V60 reviews; the required release gate reproduced this assertion failure.
+  design: docs/plans/2026-09-20-project-review.md
+  specification: docs/spec/04-execution-lifecycle-and-metrics.md
+  reproduction: >-
+    TestProjectWorkspaceLifecycleAcrossProductionProcesses reaches a succeeded
+    dependency_discovery Stage and observes current worker@2 limits
+    200/200/2500000 with the expected counters 5/3/80. Its durable report
+    assertion still requires the obsolete limits 24/96/500000.
+scope:
+  in:
+    - Derive expected Worker budget limits from the immutable Stage execution configuration for the actual allocated logical Agent.
+    - Preserve exact observed counters, usage availability, exhaustion, durable results, publications and lifecycle assertions.
+    - Add focused positive and negative validation cases and rerun the complete affected process gate.
+  out:
+    - Change production budgets, metrics, ModelPolicy resolution, process timeouts or unrelated fixtures.
+acceptance_criteria:
+  - id: A1
+    text: Exact report limits match the pinned Worker policy; missing policy/budget data and altered limits or observed counters remain failures.
+  - id: A2
+    text: The full Project Workspaces process gate passes without required skips and retains all durable result, publication and lifecycle assertions.
+tests:
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestProjectWorkerBudgetMatchesPinnedPolicy$'
+    covers: [A1]
+  - command: make test-project-workspaces-e2e
+    covers: [A1, A2]
+verification_requirements:
+  - Preserve the real required-release failure, history and focused before/after evidence.
+  - Keep tracked source frozen until the current required release invocation finishes.
+  - Keep task-start, implementation and completion metadata commits separate.
