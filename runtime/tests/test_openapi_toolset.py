@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 import yaml
@@ -536,12 +537,14 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
         monkeypatch.setattr(
             openapi_module,
             "_run_vacuum",
-            lambda _source: {
-                "available": False,
-                "executionError": "Vacuum executable is unavailable",
-                "issues": [],
-                "truncated": False,
-            },
+            AsyncMock(
+                side_effect=lambda _source: {
+                    "available": False,
+                    "executionError": "Vacuum executable is unavailable",
+                    "issues": [],
+                    "truncated": False,
+                }
+            ),
         )
         unavailable = await tools["validate_openapi"]()
         assert not unavailable["valid"]
@@ -678,8 +681,8 @@ def test_vacuum_adapter_bounds_and_orders_serious_issues(
         return subprocess.CompletedProcess(command, 1, json.dumps(issues).encode(), b"")
 
     monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: "/opt/bin/vacuum")
-    monkeypatch.setattr(openapi_module.subprocess, "run", run)
-    result = _run_vacuum("alpha\nbeta\n")
+    monkeypatch.setattr(openapi_module, "run_command", AsyncMock(side_effect=run))
+    result = asyncio.run(_run_vacuum("alpha\nbeta\n"))
     assert result["executionError"] is None
     assert [item["severity"] for item in result["issues"]] == [0, 1]
     assert [item["snippet"] for item in result["issues"]] == ["alpha", "beta"]
@@ -694,22 +697,26 @@ def test_vacuum_adapter_reports_unavailable_timeout_and_bad_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: None)
-    assert not _run_vacuum("openapi: 3.0.3")["available"]
+    assert not asyncio.run(_run_vacuum("openapi: 3.0.3"))["available"]
 
     monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: "/bin/vacuum")
 
     def timeout(*_args: Any, **_kwargs: Any) -> Any:
         raise subprocess.TimeoutExpired("vacuum", 30)
 
-    monkeypatch.setattr(openapi_module.subprocess, "run", timeout)
-    assert "timed out" in _run_vacuum("openapi: 3.0.3")["executionError"]
+    monkeypatch.setattr(openapi_module, "run_command", AsyncMock(side_effect=timeout))
+    assert "timed out" in asyncio.run(_run_vacuum("openapi: 3.0.3"))["executionError"]
 
     monkeypatch.setattr(
-        openapi_module.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, b"not-json", b""),
+        openapi_module,
+        "run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [], 0, b"not-json", b""
+            )
+        ),
     )
-    assert "invalid JSON" in _run_vacuum("openapi: 3.0.3")["executionError"]
+    assert "invalid JSON" in asyncio.run(_run_vacuum("openapi: 3.0.3"))["executionError"]
 
 
 def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Path) -> None:
@@ -816,7 +823,7 @@ def valid_path_item(ref: str | None = None) -> dict[str, Any]:
     }
 
 
-def clean_vacuum(_source: str) -> dict[str, Any]:
+async def clean_vacuum(_source: str) -> dict[str, Any]:
     return {
         "available": True,
         "executionError": None,

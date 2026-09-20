@@ -34,7 +34,9 @@ acceptance_criteria:
     and normal operation.
 tests:
 - command: cd runtime && .venv/bin/python -m pytest -W error tests/test_source_analysis_toolset.py tests/test_likec4_toolset.py
-    tests/test_openapi_toolset.py tests/test_allocation.py tests/test_abort.py tests/test_operation_guard.py
+    tests/test_openapi_toolset.py tests/test_allocation.py tests/test_abort.py tests/test_projectfs_operation_guard.py
+    tests/test_tool_operation_ownership.py tests/test_tool_process.py tests/test_scan_toolset.py tests/test_scan_ffuf.py
+    tests/test_http_proxy_adapter.py tests/test_local_direct_tool_consumers.py
   covers:
   - A1
   - A2

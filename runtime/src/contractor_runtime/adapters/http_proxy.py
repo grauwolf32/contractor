@@ -22,6 +22,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeAdapterRef
+from contractor_runtime.toolsets.common.process import run_command
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -201,6 +202,76 @@ class ProxySubprocessLauncher:
         self._temporary_roots: set[Path] = set()
         self._lock = threading.Lock()
         self._closed = False
+        self._async_tasks: set[asyncio.Task] = set()
+
+    async def run_async(
+        self,
+        command: Sequence[str],
+        *,
+        input: bytes | None = None,
+        cwd: Path | str | None = None,
+        env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+        max_output_bytes: int = MAX_SUBPROCESS_OUTPUT_BYTES,
+    ) -> subprocess.CompletedProcess[bytes]:
+        """Run with the same private route and own cancellation through child exit."""
+        selected_command = _validate_command(command)
+        if input is not None and not isinstance(input, bytes):
+            raise ProxySubprocessError
+        if len(input or b"") > MAX_SUBPROCESS_INPUT_BYTES:
+            raise ProxySubprocessError
+        if not 1 <= max_output_bytes <= MAX_SUBPROCESS_OUTPUT_BYTES:
+            raise ProxySubprocessError
+        selected_timeout = min(
+            self._timeout_seconds,
+            self._timeout_seconds if timeout is None else max(0.001, timeout),
+        )
+        task = asyncio.current_task()
+        assert task is not None
+        with self._lock:
+            if self._closed:
+                raise ProxySubprocessError
+            try:
+                child_env, ca_root = self._child_environment(env)
+            except Exception:
+                self._metrics.record_operation(succeeded=False, error_code="request_failed")
+                raise ProxySubprocessError from None
+            self._async_tasks.add(task)
+        try:
+            result = await run_command(
+                selected_command,
+                input=input,
+                cwd=cwd,
+                env=child_env,
+                timeout=selected_timeout,
+                max_output_bytes=max_output_bytes,
+            )
+        except asyncio.CancelledError:
+            self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise
+        except Exception:
+            self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise ProxySubprocessError from None
+        finally:
+            with self._lock:
+                self._async_tasks.discard(task)
+            if ca_root is not None and not self._remove_temporary_root(ca_root):
+                self._metrics.record_operation(succeeded=False, error_code="request_failed")
+                raise ProxySubprocessError from None
+        succeeded = result.returncode == 0
+        self._metrics.record_operation(
+            succeeded=succeeded, error_code=None if succeeded else "request_failed"
+        )
+        return result
+
+    async def aclose(self) -> None:
+        with self._lock:
+            self._closed = True
+            tasks = tuple(self._async_tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.close()
 
     def run(
         self,
@@ -287,6 +358,8 @@ class ProxySubprocessLauncher:
     def close(self) -> None:
         with self._lock:
             self._closed = True
+            if self._async_tasks:
+                raise ProxyCloseError
             roots = tuple(self._temporary_roots)
             self._temporary_roots.clear()
             self._proxy_url = ""
@@ -530,7 +603,7 @@ class HTTPProxyAdapter:
             self._clients.clear()
             if launcher is not None:
                 try:
-                    launcher.close()
+                    await launcher.aclose()
                 except Exception:
                     failed = True
             self._launcher = None

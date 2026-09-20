@@ -30,6 +30,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_DOCUMENT_UTF8_BYTES = 1024 * 1024
@@ -123,6 +124,7 @@ class _LikeC4Session:
         self._workspace = workspace
         self._launcher = launcher
         self._lock = asyncio.Lock()
+        self._validation_task: asyncio.Task | None = None
         self._content: str | None = None
         self._target_name: str | None = None
         self._revision: str | None = None
@@ -292,12 +294,11 @@ class _LikeC4Session:
     async def validate(self) -> dict[str, Any]:
         async with self._lock:
             content, artifact = self._require_document()
-            validation = await asyncio.to_thread(
-                _run_likec4,
-                content,
-                self._workspace,
-                self._launcher,
-            )
+            self._validation_task = asyncio.current_task()
+            try:
+                validation = await _run_likec4(content, self._workspace, self._launcher)
+            finally:
+                self._validation_task = None
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "valid": validation["valid"],
@@ -310,6 +311,9 @@ class _LikeC4Session:
             }
 
     async def close(self) -> None:
+        task = self._validation_task
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
         async with self._lock:
             self._content = None
             self._target_name = None
@@ -633,7 +637,7 @@ class ValidateLikeC4Tool(_BaseLikeC4Tool):
         )
 
 
-def _run_likec4(
+async def _run_likec4(
     content: str,
     workspace: Path,
     launcher: ProxySubprocessLauncher | None = None,
@@ -641,11 +645,19 @@ def _run_likec4(
     executable = shutil.which("likec4")
     if executable is None:
         return _validation_failure(False, "LikeC4 executable is unavailable")
+    temporary: tempfile.TemporaryDirectory | None = None
+
+    def prepare() -> None:
+        nonlocal temporary
+        temporary = tempfile.TemporaryDirectory(prefix=".likec4-validate-", dir=workspace)
+        (Path(temporary.name) / VALIDATOR_FILENAME).write_text(content, encoding="utf-8")
+
     try:
-        with tempfile.TemporaryDirectory(prefix=".likec4-validate-", dir=workspace) as temporary:
-            project = Path(temporary)
+        try:
+            await _run_file_operation(prepare)
+            assert temporary is not None
+            project = Path(temporary.name)
             source = project / VALIDATOR_FILENAME
-            source.write_text(content, encoding="utf-8")
             command = [
                 executable,
                 "validate",
@@ -663,25 +675,28 @@ def _run_likec4(
                 "NO_UPDATE_NOTIFIER": "1",
             }
             if launcher is None:
-                process = subprocess.run(
-                    command,
-                    stdin=subprocess.DEVNULL,
-                    capture_output=True,
-                    cwd=project,
-                    env=environment,
-                    timeout=VALIDATE_TIMEOUT_SECONDS,
-                    check=False,
-                )
-            else:
-                process = launcher.run(
+                process = await run_command(
                     command,
                     cwd=project,
                     env=environment,
                     timeout=VALIDATE_TIMEOUT_SECONDS,
                     max_output_bytes=2 * MAX_VALIDATOR_OUTPUT_BYTES,
                 )
+            else:
+                process = await launcher.run_async(
+                    command,
+                    cwd=project,
+                    env=environment,
+                    timeout=VALIDATE_TIMEOUT_SECONDS,
+                    max_output_bytes=2 * MAX_VALIDATOR_OUTPUT_BYTES,
+                )
+        finally:
+            if temporary is not None:
+                await _run_file_operation(temporary.cleanup)
     except subprocess.TimeoutExpired:
         return _validation_failure(True, "LikeC4 validation timed out")
+    except ProcessOutputLimitError:
+        return _validation_failure(True, "LikeC4 returned oversized output")
     except OSError:
         return _validation_failure(True, "LikeC4 could not be executed")
 
@@ -726,6 +741,23 @@ def _run_likec4(
         "truncated": truncated,
         "stats": stats,
     }
+
+
+async def _run_file_operation(operation: Callable[[], None]) -> None:
+    # Keep the session lock until the syscall finishes, including repeated
+    # cancellation. Allocation's outer stop deadline fences/exits if it cannot.
+    task = asyncio.create_task(asyncio.to_thread(operation), name="likec4-filesystem")
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled = True
+    if cancelled:
+        if not task.cancelled():
+            task.exception()
+        raise asyncio.CancelledError
+    task.result()
 
 
 def _extract_json(text: str) -> Any:

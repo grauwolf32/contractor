@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
-import signal
 import time
-from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+
+from contractor_runtime.toolsets.common.process import (
+    ProcessOutputLimitError,
+    ProcessTimeoutError,
+    run_command,
+)
 
 MAX_OUTPUT_BYTES = 1024 * 1024
 PREVIEW_BYTES = 32 * 1024
@@ -36,10 +39,6 @@ class ProcessResult:
         }
 
 
-class _OutputLimit(Exception):
-    pass
-
-
 def child_environment(directory: Path) -> dict[str, str]:
     # Never inherit credentials, proxy settings, scanner config or Python hooks.
     return {
@@ -59,80 +58,32 @@ def child_environment(directory: Path) -> dict[str, str]:
     }
 
 
-async def _stop(process: asyncio.subprocess.Process) -> None:
-    # Also kill descendants holding pipe descriptors after the leader exits.
-    with suppress(ProcessLookupError):
-        os.killpg(process.pid, signal.SIGKILL)
-    await process.communicate()
-
-
 async def run_process(command: list[str], directory: Path, timeout: float) -> ProcessResult:
     started = time.monotonic()
-    stdout, stderr = bytearray(), bytearray()
-    total = 0
     error_code = None
-
-    async def read(stream: asyncio.StreamReader, output: bytearray) -> None:
-        nonlocal total
-        while chunk := await stream.read(8192):
-            remaining = MAX_OUTPUT_BYTES - total
-            output.extend(chunk[:remaining])
-            total += min(len(chunk), remaining)
-            if len(chunk) > remaining:
-                raise _OutputLimit
-
-    # A cancellation during process creation must still collect and stop the child.
-    spawning = asyncio.create_task(
-        asyncio.create_subprocess_exec(
-            *command,
+    try:
+        result = await run_command(
+            command,
             cwd=directory,
             env=child_environment(directory),
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
+            timeout=timeout,
+            max_output_bytes=MAX_OUTPUT_BYTES,
         )
-    )
-    try:
-        process = await asyncio.shield(spawning)
-    except asyncio.CancelledError:
-        with suppress(OSError):
-            process = await spawning
-            await _stop(process)
-        raise
+        exit_code, stdout, stderr = result.returncode, result.stdout, result.stderr
+        if exit_code != 0:
+            error_code = "scanner_failed"
+    except ProcessTimeoutError as error:
+        exit_code, stdout, stderr = error.returncode, error.output, error.stderr
+        error_code = "scan_timeout"
+    except ProcessOutputLimitError as error:
+        exit_code, stdout, stderr = error.returncode, error.stdout, error.stderr
+        error_code = "output_limit_exceeded"
     except OSError:
         return ProcessResult(None, error_code="scanner_unavailable")
-
-    assert process.stdout is not None and process.stderr is not None
-    readers = [
-        asyncio.create_task(read(process.stdout, stdout)),
-        asyncio.create_task(read(process.stderr, stderr)),
-    ]
-    try:
-        async with asyncio.timeout(timeout):
-            await asyncio.gather(*readers)
-            await process.wait()
-    except TimeoutError:
-        error_code = "scan_timeout"
-    except _OutputLimit:
-        error_code = "output_limit_exceeded"
-    finally:
-        for reader in readers:
-            reader.cancel()
-        await asyncio.gather(*readers, return_exceptions=True)
-        # Shield cleanup from repeated cancellation (worker abort + allocation close).
-        cleanup = asyncio.create_task(_stop(process))
-        try:
-            await asyncio.shield(cleanup)
-        except asyncio.CancelledError:
-            await cleanup
-            raise
-    if error_code is None and process.returncode != 0:
-        error_code = "scanner_failed"
     return ProcessResult(
-        process.returncode,
-        bytes(stdout),
-        bytes(stderr),
+        exit_code,
+        stdout,
+        stderr,
         error_code,
         max(0, int((time.monotonic() - started) * 1000)),
     )

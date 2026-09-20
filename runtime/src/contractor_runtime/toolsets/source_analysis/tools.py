@@ -23,6 +23,7 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.toolsets.common.artifact_visibility import (
     artifact_observation_cursor,
     clear_artifact_observations,
@@ -148,7 +149,9 @@ class SourceAnalysisToolsetFactory:
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("source-analysis@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
-        session = _SourceArchiveSession(client, workspace)
+        session = _SourceArchiveSession(
+            client, workspace, operation_timeout_seconds=runtime_settings.request_timeout_seconds
+        )
         secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "open_source_archive": lambda: OpenSourceArchiveTool(session, client, metrics, secrets),
@@ -182,11 +185,20 @@ class _OpenSummary:
 
 
 class _SourceArchiveSession:
-    def __init__(self, client: ArtifactClient, workspace: AllocationWorkspace) -> None:
+    def __init__(
+        self,
+        client: ArtifactClient,
+        workspace: AllocationWorkspace,
+        *,
+        operation_timeout_seconds: float = 120,
+    ) -> None:
         self._client = client
         self._workspace = workspace
         self._source_path = workspace.path / "source"
         self._lock = asyncio.Lock()
+        self._guard = WorkspaceOperationGuard()
+        self._operation_timeout_seconds = operation_timeout_seconds
+        self._closed = False
         self._summary: _OpenSummary | None = None
         self._files: dict[str, _SourceFile] = {}
 
@@ -194,6 +206,7 @@ class _SourceArchiveSession:
         require_model_visible_binding(ref.namespace, ref.name)
         exact = ref.require_exact()
         async with self._lock:
+            self._require_available()
             if (
                 self._summary is not None
                 and self._summary.artifact == exact
@@ -209,14 +222,21 @@ class _SourceArchiveSession:
             staging = self._workspace.path / f".source-staging-{uuid.uuid4().hex}"
             if staging.parent != self._workspace.path:
                 raise RuntimeError("source staging path escaped allocation workspace")
-            try:
-                files, total_bytes, ignored_count = await asyncio.to_thread(
-                    _extract_archive, value.data, staging
-                )
-                await asyncio.to_thread(self._install_staging, staging)
-            except BaseException:
-                await asyncio.to_thread(_remove_path, staging)
-                raise
+
+            def extract_and_install() -> tuple[list[_SourceFile], int, int]:
+                try:
+                    extracted = _extract_archive(value.data, staging)
+                    # Cancellation retains this operation's ownership but must
+                    # not start another publication after extraction completes.
+                    self._require_available()
+                    self._install_staging(staging)
+                    return extracted
+                finally:
+                    _remove_path(staging)
+
+            files, total_bytes, ignored_count = await self._guard.run(
+                extract_and_install, deadline=self._deadline()
+            )
             summary = _OpenSummary(
                 artifact=value.artifact,
                 files=tuple(files),
@@ -260,13 +280,9 @@ class _SourceArchiveSession:
                 for item in sorted(self._files.values(), key=lambda item: item.path)
                 if _path_matches(item.path, path_pattern)
             )
-            return await asyncio.to_thread(
-                self._search_files,
-                files,
-                query,
-                regex,
-                case_sensitive,
-                max_results,
+            return await self._guard.run(
+                lambda: self._search_files(files, query, regex, case_sensitive, max_results),
+                deadline=self._deadline(),
             )
 
     async def read(self, path: str, start_line: int, max_lines: int) -> dict[str, Any]:
@@ -277,7 +293,9 @@ class _SourceArchiveSession:
             source = self._files.get(normalized)
             if source is None:
                 raise ValueError("source path is absent or not a readable text file")
-            content = self._read_file(source)
+            content = await self._guard.run(
+                lambda: self._read_file(source), deadline=self._deadline()
+            )
             lines = content.splitlines(keepends=True)
             if lines and start_line > len(lines):
                 raise ValueError("start_line exceeds source file line count")
@@ -297,9 +315,19 @@ class _SourceArchiveSession:
 
     async def close(self) -> None:
         async with self._lock:
-            await asyncio.to_thread(_remove_path, self._source_path)
+            self._closed = True
+            await self._guard.close(
+                lambda: _remove_path(self._source_path), deadline=self._deadline()
+            )
             self._files.clear()
             self._summary = None
+
+    def _deadline(self) -> float:
+        return time.monotonic() + self._operation_timeout_seconds
+
+    def _require_available(self) -> None:
+        if self._closed or self._guard.fenced:
+            raise ValueError("source archive session is unavailable")
 
     def _install_staging(self, staging: Path) -> None:
         if self._source_path.is_symlink() or (
@@ -397,6 +425,7 @@ class _SourceArchiveSession:
             raise ValueError("managed source file is no longer valid UTF-8") from error
 
     def _require_open(self) -> None:
+        self._require_available()
         if self._summary is None:
             raise ValueError("open_source_archive must be called first")
 

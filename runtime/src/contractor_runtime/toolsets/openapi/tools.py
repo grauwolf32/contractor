@@ -38,6 +38,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
 from contractor_runtime.toolsets.openapi.models import (
     PathItem,
     RequestBody,
@@ -203,6 +204,7 @@ class _OpenAPISession:
         self._project_workspace = project_workspace
         self._launcher = launcher
         self._lock = asyncio.Lock()
+        self._validation_task: asyncio.Task | None = None
         self._document: dict[str, Any] | None = None
         self._target_name: str | None = None
         self._revision: str | None = None
@@ -483,10 +485,14 @@ class _OpenAPISession:
                 self._validate_current_provenance(document, project_evidence_paths)
             except ValueError as error:
                 structural_errors.append(str(error))
-            if self._launcher is None:
-                vacuum = await asyncio.to_thread(_run_vacuum, rendered)
-            else:
-                vacuum = await asyncio.to_thread(_run_vacuum, rendered, self._launcher)
+            self._validation_task = asyncio.current_task()
+            try:
+                if self._launcher is None:
+                    vacuum = await _run_vacuum(rendered)
+                else:
+                    vacuum = await _run_vacuum(rendered, self._launcher)
+            finally:
+                self._validation_task = None
             valid = (
                 not structural_errors
                 and vacuum["available"]
@@ -505,6 +511,9 @@ class _OpenAPISession:
             }
 
     async def close(self) -> None:
+        task = self._validation_task
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
         async with self._lock:
             self._document = None
             self._target_name = None
@@ -1638,7 +1647,7 @@ def _document_state(
     }
 
 
-def _run_vacuum(
+async def _run_vacuum(
     source_text: str,
     launcher: ProxySubprocessLauncher | None = None,
 ) -> dict[str, Any]:
@@ -1653,15 +1662,15 @@ def _run_vacuum(
     try:
         command = [executable, "spectral-report", "-i", "-o"]
         if launcher is None:
-            process = subprocess.run(
+            process = await run_command(
                 command,
                 input=source_text.encode("utf-8"),
-                capture_output=True,
+                env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
                 timeout=VACUUM_TIMEOUT_SECONDS,
-                check=False,
+                max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
             )
         else:
-            process = launcher.run(
+            process = await launcher.run_async(
                 command,
                 input=source_text.encode("utf-8"),
                 env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
@@ -1675,7 +1684,7 @@ def _run_vacuum(
             "issues": [],
             "truncated": False,
         }
-    except OSError:
+    except (OSError, ProcessOutputLimitError):
         return {
             "available": True,
             "executionError": "Vacuum could not be executed",

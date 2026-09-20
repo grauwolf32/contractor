@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -86,7 +87,7 @@ def test_likec4_editing_validation_and_cleanup(
                 b"ignored banner",
             )
 
-        monkeypatch.setattr(likec4_module.subprocess, "run", run)
+        monkeypatch.setattr(likec4_module, "run_command", AsyncMock(side_effect=run))
         written = await tools["write_likec4"](BASE_DOCUMENT + f"// {SECRET}\n")
         appended = await tools["append_likec4"]("// generated from source\n")
         replaced = await tools["replace_likec4"]("Application", "Backend Application")
@@ -114,9 +115,11 @@ def test_likec4_editing_validation_and_cleanup(
             "--no-layout",
             "--file",
         ]
-        assert captured["kwargs"]["stdin"] is subprocess.DEVNULL
+        assert "input" not in captured["kwargs"]
         assert captured["kwargs"]["timeout"] == 30
-        assert captured["kwargs"]["check"] is False
+        assert (
+            captured["kwargs"]["max_output_bytes"] == 2 * likec4_module.MAX_VALIDATOR_OUTPUT_BYTES
+        )
         assert "shell" not in captured["kwargs"]
         assert captured["kwargs"]["env"]["CI"] == "1"
         assert SECRET not in repr(captured["kwargs"]["env"])
@@ -364,16 +367,16 @@ def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(
         ]
     )
     monkeypatch.setattr(
-        likec4_module.subprocess,
-        "run",
-        lambda *_args, **_kwargs: next(outputs),
+        likec4_module,
+        "run_command",
+        AsyncMock(side_effect=lambda *_args, **_kwargs: next(outputs)),
     )
-    invalid = _run_likec4(BASE_DOCUMENT, tmp_path)
+    invalid = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not invalid["valid"]
     assert invalid["issues"][0]["file"] == "main.c4"
     assert "/private/tmp" not in repr(invalid)
     assert invalid["stats"] == {"totalFiles": 1, "filteredErrors": 1}
-    assert _run_likec4(BASE_DOCUMENT, tmp_path)["valid"]
+    assert asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))["valid"]
     assert not list(tmp_path.glob(".likec4-validate-*"))
 
 
@@ -399,21 +402,25 @@ def test_validation_keeps_found_token_in_long_parser_diagnostic(
     message = "Expecting one of:\n" + "  [IdTerminal, ->]\n" * 400 + "but found: `view`"
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
     monkeypatch.setattr(
-        likec4_module.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            [],
-            1,
-            json.dumps(
-                {
-                    "valid": False,
-                    "errors": [{"message": message, "file": "/private/tmp/main.c4", "line": 17}],
-                }
-            ).encode(),
-            b"",
+        likec4_module,
+        "run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [],
+                1,
+                json.dumps(
+                    {
+                        "valid": False,
+                        "errors": [
+                            {"message": message, "file": "/private/tmp/main.c4", "line": 17}
+                        ],
+                    }
+                ).encode(),
+                b"",
+            )
         ),
     )
-    result = _run_likec4(BASE_DOCUMENT, tmp_path)
+    result = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not result["valid"]
     issue = result["issues"][0]
     assert issue["message"].endswith("but found: `view`")
@@ -447,11 +454,11 @@ def test_validation_execution_and_output_failures_are_not_clean(
 ) -> None:
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
     monkeypatch.setattr(
-        likec4_module.subprocess,
-        "run",
-        lambda *_args, **_kwargs: result,
+        likec4_module,
+        "run_command",
+        AsyncMock(side_effect=lambda *_args, **_kwargs: result),
     )
-    validation = _run_likec4(BASE_DOCUMENT, tmp_path)
+    validation = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not validation["valid"]
     assert message in validation["executionError"]
     assert "secret stderr" not in repr(validation)
@@ -462,7 +469,7 @@ def test_validation_missing_timeout_and_oversized_output_are_not_clean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: None)
-    missing = _run_likec4(BASE_DOCUMENT, tmp_path)
+    missing = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not missing["available"] and not missing["valid"]
 
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
@@ -470,20 +477,22 @@ def test_validation_missing_timeout_and_oversized_output_are_not_clean(
     def timeout(*_args: Any, **_kwargs: Any) -> Any:
         raise subprocess.TimeoutExpired("likec4", 30, stderr=b"private timeout banner")
 
-    monkeypatch.setattr(likec4_module.subprocess, "run", timeout)
-    timed_out = _run_likec4(BASE_DOCUMENT, tmp_path)
+    monkeypatch.setattr(likec4_module, "run_command", AsyncMock(side_effect=timeout))
+    timed_out = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not timed_out["valid"] and "timed out" in timed_out["executionError"]
     assert "private" not in repr(timed_out)
     assert not list(tmp_path.glob(".likec4-validate-*"))
 
     monkeypatch.setattr(
-        likec4_module.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            [], 0, b"x" * (likec4_module.MAX_VALIDATOR_OUTPUT_BYTES + 1), b""
+        likec4_module,
+        "run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [], 0, b"x" * (likec4_module.MAX_VALIDATOR_OUTPUT_BYTES + 1), b""
+            )
         ),
     )
-    oversized = _run_likec4(BASE_DOCUMENT, tmp_path)
+    oversized = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
     assert not oversized["valid"] and "oversized" in oversized["executionError"]
 
 
