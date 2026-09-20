@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-036",
+  "verified_at": "2026-09-20T12:55:18.520526+00:00",
+  "task_start_commit": "bbb9bbd5288b2b2476c8f023e6a71e32039a67f9",
+  "status": "verified-ready-for-task-completion",
+  "report": "docs/research/2026-09-20-v60-036-code-analysis-fixture-review.md",
+  "source_baseline": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+  "finding": {
+    "priority": "P2",
+    "owner": "tests/e2e/code_analysis_test.go generated process configuration",
+    "reproduction": "Required release TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses exits before Server readiness with unknown ModelPolicy domain_worker@1. Exact staging/generation helpers reproduce the same config.Load failure without database/process dependencies.",
+    "history": "394018a04a57c52a1e4cdce8d0c4ef63edd74114 removed configs/model-policies/domain_worker.yaml and changed the production graph analyst to worker@2; generated process templates retained the old selector.",
+    "correction": "Change exactly the two generated selectors to worker@2, preserving worker-model and all tool, placement, lifecycle and overlay assertions."
+  },
+  "checks": [
+    {
+      "phase": "before",
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-036-before-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestCodeAnalysisE2EConfigurationLoads$"
+      ],
+      "exit_code": 1,
+      "seconds": 2.839,
+      "log": ".local/v60-review/v60-036-before.log",
+      "log_sha256": "0cd6f96959d056e9d89c5b0406a6599f6affe5ceaecc7a3d46db68daed322fe2",
+      "go_fail_events": 1,
+      "go_skip_events": 0
+    },
+    {
+      "phase": "after",
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-036-after-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestCodeAnalysisE2EConfigurationLoads$"
+      ],
+      "exit_code": 0,
+      "seconds": 2.899,
+      "log": ".local/v60-review/v60-036-after.log",
+      "log_sha256": "31a46b51044a1c7d79917f906fe15f0d86f91dc5ab4c1379ad6245f3467607a6",
+      "go_pass_events": 3,
+      "go_skip_events": 0
+    },
+    {
+      "phase": "applied-source-focused",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestCodeAnalysisE2EConfigurationLoads$"
+      ],
+      "exit_code": 0,
+      "seconds": 5.47,
+      "log": ".local/v60-review/v60-036-focused-source.log",
+      "log_sha256": "8b41996a64ad0b8d48ecd2417534dcd5c534f1007a3efc8f4b0fcb11ebd6de40",
+      "go_pass_events": 3,
+      "go_skip_events": 0,
+      "implementation_commit": "1e21f1fa367c396e08b7d398c08f8b24a26f4539",
+      "execution": "Applied tracked sources; no Go overlay. Implementation commit identifies the tested change."
+    },
+    {
+      "phase": "full-required-target",
+      "command": [
+        "make",
+        "test-code-analysis-e2e"
+      ],
+      "execution": "Complete target and prerequisites from the start of the fail-fast integrated make invocation through the next target boundary; target success does not imply overall release success.",
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "exit_code": 0,
+      "process_test_seconds": 77.96,
+      "go_process_package_seconds": 77.975,
+      "go_pass_events": 140,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "python_passed": 78,
+      "python_seconds": 4.52,
+      "log": ".local/v60-review/v60-036-full-target.log",
+      "log_sha256": "530e473d4aa48bef0fa7ff573ffab948943923b260a3bdd2941aa39cfa696840",
+      "source_log": ".local/v60-review/v60-release-integrated.log",
+      "source_line_start": 1,
+      "source_line_end": 303,
+      "completion_observed_by": "Next target test-agent-skills-mvp started; fail-fast make invocation, no failure/skip in target or prerequisites."
+    }
+  ],
+  "acceptance": {
+    "A1": "Applied-source focused PASS (5.47s): three Go PASS events, zero skips, full configuration loading; shallow requires 5 total model/3 tool calls and graph 14 total model/12 tool calls, including one mandatory result finalizer each.",
+    "A2": "PASS: complete make test-code-analysis-e2e target and prerequisites in integrated invocation at747839c2, no skips; actual heterogeneous process77.96s, unchanged structural-analysis, placement, overlay invalidation and cleanup assertions."
+  },
+  "boundaries": [
+    "No production policy or Runtime changes.",
+    "Original before/after checks used Go overlays during the previous source freeze; the committed change subsequently passed focused tests without an overlay.",
+    "No database or live model used by focused configuration validation.",
+    "Taint adds no generated ModelPolicy selectors; its current required-release process test independently passed in 55.19 seconds.",
+    "Both required commands passed. Task completion metadata is recorded separately from implementation; the overall release invocation remains in progress."
+  ],
+  "required_release_failure": {
+    "source_log": ".local/v60-review/v60-release-verified.log",
+    "source_lines": [
+      20015,
+      20024
+    ],
+    "source_test": "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+    "test_seconds": 2.53,
+    "go_package_seconds": 2.541,
+    "go_process_exit_code": 1,
+    "required_make_target": "test-code-analysis-e2e",
+    "log": ".local/v60-review/v60-036-release-before.log",
+    "log_sha256": "92960fb4ffc3f5b4629c6d3f3b4533aee943aaa87a1a24bdfb4db8b8f66281d5"
+  },
+  "source_sha256": {
+    "tests/e2e/code_analysis_test.go": "2f66cca4ba48bdac59594b53f15c48ed667f014cfb23261ea5d74656c8057415",
+    "tests/e2e/code_analysis_configuration_test.go": "eadb660a5a451efedbcdb4aeca8990bf7cad5934fbea1a9b6a210efe7f2fd080"
+  },
+  "implementation_commit": "1e21f1fa367c396e08b7d398c08f8b24a26f4539",
+  "prepared_patch": {
+    "path": ".local/v60-review/v60-036-code-analysis.patch",
+    "sha256": "7de63f8affffb8a65028543c2ee38c2484b17649a247eab06d9c6d0d3178fbfa",
+    "apply_check": "git apply --check passed before the patch was applied and committed; retained as preparation evidence."
+  }
+}

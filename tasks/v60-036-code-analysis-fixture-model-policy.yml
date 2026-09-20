@@ -3,7 +3,7 @@ id: V60-036
 title: Align generated Code Analysis process templates with the current Worker policy
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-009]
 languages: [go, markdown]
 goal: Restore the Code Analysis process gate after retirement of its generated templates' ModelPolicy reference.
@@ -38,3 +38,9 @@ verification_requirements:
   - Preserve the actual required-release failure and focused before/after configuration evidence.
   - Do not change tracked source while the current required release gate is running.
   - Keep task-start, implementation and completion metadata commits separate.
+
+implementation_commit: 1e21f1fa367c396e08b7d398c08f8b24a26f4539
+verification:
+  evidence: tasks/evidence/v60-036.json
+  report: docs/research/2026-09-20-v60-036-code-analysis-fixture-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
