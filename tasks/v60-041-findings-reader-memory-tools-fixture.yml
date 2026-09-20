@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V60-041
+title: Align the Findings boundary Gateway fixture with the current Memory tool contract
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-008, V60-035]
+languages: [go, markdown]
+goal: Preserve the exact Findings reader tool allowlist and boundary assertions after the default catalog moved to the Memory-enabled reader.
+context:
+  authority: User requested completion and integration of the V60 reviews; the post-merge Findings gate reproduced this fixture failure.
+  design: docs/plans/2026-09-20-project-review.md
+  specifications:
+    - docs/spec/27-findings-tools-and-collections.md
+    - docs/spec/08-memory-tools.md
+  reproduction: >-
+    At 43cea5b89ac8c9bf9d43101f399079c31aabd439, the Findings boundary
+    process runs findings-review@2 with findings_analyst@2. Its scripted
+    Gateway still expects only list_findings, read_artifact and
+    write_text_artifact, rejecting the six explicitly configured Memory
+    tools before the empty-collection success scenario can complete.
+scope:
+  in:
+    - Update the boundary fixture's exact expected tool set using the existing explicit Memory-tool helper.
+    - Preserve missing or foreign input rejection, explicit empty results, interrupted preparation and exact-ref reuse, conflicting-document and invalid-ZIP failures, and the no-model-invocation boundary for failed preparation.
+    - Rerun the complete Findings gate and record the original failure, source commits, counts and skips.
+  out:
+    - Change production tool exposure, catalog selectors, findings preparation, Gateway validation or script steps.
+    - Derive expected tools from observed requests, accept arbitrary extra tools, skip scenarios or add tests that duplicate this fixture change.
+acceptance_criteria:
+  - id: A1
+    text: The Gateway requires exactly the three Findings reader tools plus the six configured Memory tools, continuing to reject missing or additional tools.
+  - id: A2
+    text: The full Findings gate passes producer, reader, boundary and retention scenarios without required skips and preserves all preparation and authority assertions.
+tests:
+  - command: make test-findings-e2e
+    covers: [A1, A2]
+verification_requirements:
+  - Preserve the failed integration log and identify its previously passing targets separately from the failing Findings gate and unexecuted UI target.
+  - Use only isolated PostgreSQL, local production processes and the scripted Gateway.
+  - Keep task-start, implementation and completion metadata commits separate.
+review_evidence:
+  report: docs/research/2026-09-20-v60-041-findings-reader-memory-tools-review.md
+  evidence: tasks/evidence/v60-041.json
+  result: Reproduced at the integrated source; correction and complete Findings verification are pending.
+implementation_commit: null
