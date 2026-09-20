@@ -171,7 +171,9 @@ class _FilesystemSession:
             "scanned": scanned,
         }
 
-    async def read_file(self, path: str, start_line: int, max_lines: int) -> dict[str, Any]:
+    async def read_file(
+        self, path: str, start_line: int, max_lines: int, with_line_numbers: bool = False
+    ) -> dict[str, Any]:
         normalized = _path(path, allow_root=False)
         if (
             not isinstance(start_line, int)
@@ -183,10 +185,14 @@ class _FilesystemSession:
             or max_lines > MAX_READ_LINES
         ):
             raise FilesystemToolError("workspace_limit_exceeded")
+        if type(with_line_numbers) is not bool:
+            raise FilesystemToolError("workspace_limit_exceeded")
         text = await self._read_text(normalized)
         if len(text.encode("utf-8")) > MAX_READ_SCAN_BYTES:
             raise FilesystemToolError("workspace_limit_exceeded")
-        selected, total_lines, used, line_truncated = _read_line_window(text, start_line, max_lines)
+        selected, total_lines, used, line_truncated = _read_line_window(
+            text, start_line, max_lines, with_line_numbers=with_line_numbers
+        )
         if start_line > total_lines + 1:
             raise FilesystemToolError("workspace_not_found")
         next_line = start_line + len(selected)
@@ -511,6 +517,8 @@ class ReadWorkspaceFileTool(_BaseFilesystemTool):
         path: Project-relative file path.
         start_line: First line to read, 1-based and inclusive; defaults to 1.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+        with_line_numbers: Prefix each text value with its absolute "N | " line
+            number; defaults to false. Prefixes count toward the byte limit.
 
     Returns:
         Numbered lines, totalLines, nextLine, returnedBytes and truncated.
@@ -522,10 +530,11 @@ class ReadWorkspaceFileTool(_BaseFilesystemTool):
         path: str,
         start_line: int = 1,
         max_lines: int = DEFAULT_READ_LINES,
+        with_line_numbers: bool = False,
     ) -> dict[str, Any]:
         started = time.perf_counter_ns()
         try:
-            result = await self._session.read_file(path, start_line, max_lines)
+            result = await self._session.read_file(path, start_line, max_lines, with_line_numbers)
             self._success(self.name, started, result)
             return result
         except Exception as error:
@@ -669,7 +678,7 @@ def _require_grep_root(snapshot: WorkspaceSnapshot, path: str) -> None:
 
 
 def _read_line_window(
-    text: str, start_line: int, max_lines: int
+    text: str, start_line: int, max_lines: int, *, with_line_numbers: bool = False
 ) -> tuple[list[dict[str, Any]], int, int, bool]:
     selected: list[dict[str, Any]] = []
     total = 0
@@ -698,6 +707,7 @@ def _read_line_window(
                 newline,
                 used,
                 line_truncated,
+                with_line_numbers=with_line_numbers,
             )
         start = index
     if start < length:
@@ -710,6 +720,7 @@ def _read_line_window(
                 "none",
                 used,
                 line_truncated,
+                with_line_numbers=with_line_numbers,
             )
     return selected, total, used, line_truncated
 
@@ -721,9 +732,17 @@ def _collect_line(
     newline: str,
     used: int,
     already_truncated: bool,
+    *,
+    with_line_numbers: bool = False,
 ) -> tuple[int, bool]:
-    encoded = text.encode("utf-8")
     remaining = MAX_READ_BYTES - used
+    if with_line_numbers:
+        prefix = f"{number} | "
+        prefix_bytes = len(prefix.encode("utf-8"))
+        if prefix_bytes > remaining or (prefix_bytes == remaining and text):
+            return used, True
+        text = prefix + text
+    encoded = text.encode("utf-8")
     truncated = len(encoded) > remaining
     visible = _utf8_prefix(encoded, remaining) if truncated else text
     selected.append(

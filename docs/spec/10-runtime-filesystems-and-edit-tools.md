@@ -525,7 +525,7 @@ allocation child used for Trailmark graph analysis are specified in
 |---|---|
 | `ls(path="", cursor="", limit=100)` | Sorted immediate entries with type and text size; bounded cursor pagination. |
 | `glob(pattern, cursor="", limit=100)` | Sorted relative path matches; bounded scan and pagination. |
-| `read_file(path, start_line=1, max_lines=200)` | Bounded text lines with total/next metadata and preserved newline information. |
+| `read_file(path, start_line=1, max_lines=200, with_line_numbers=False)` | Bounded text lines with total/next metadata and preserved newline information. Optional true prefixes each text with its absolute `N \| ` line number; prefix UTF-8 bytes count toward the existing output limit. |
 | `grep(pattern, path="", glob="**/*", cursor="", limit=100)` | Bounded literal/regex text matches with line and truncated excerpt. |
 
 ### `edit-files@1`
