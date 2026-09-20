@@ -1,60 +1,88 @@
 schema_version: "1.0"
 id: V62-009
-title: Connect prepared OpenAPI operations to canonical Audit scan results
+title: Connect supplied OpenAPI to SQLMap and pinned-URL Nuclei Audit checks
 milestone: audit-workflow-composition
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
-depends_on: [V62-008, V55-007, V55-008, V39-007]
+implementation_progress:
+  checkpoint_commit: 22fcba08211b83bb109c34c706ce5696602b699d
+  updated_on: "2026-09-21"
+  implemented:
+    - Assigned-operation request preparation with exact full OpenAPI source identity and isolated request budgets.
+    - Nuclei concrete URL preparation with path/query bindings, explicit request/auth limitations and distinct preparation identity.
+    - SQLMap POST/body/auth preservation and fixed Nuclei URL/template propagation tested through the existing deterministic scan planner.
+    - Scan coverage and outcome-aware recovery contract documented in docs/spec/openapi-audit-scans.md.
+    - Strict immutable JSON scan settings with explicit server/operation allowlist and scanner-specific binding validation.
+    - Scan-specific Audit inventory pins exact settings/source identity, selected request or URL, parameters and preparation gaps; accepted task reproduction rejects changed inputs.
+    - Importer separates scan execution from security verdicts and retains scan-specific coverage/gaps/provenance without changing operation-trace semantics.
+    - Local SQLMap and Nuclei input examples checked through inventory and preparation tests without network calls.
+    - Inventory producers and Workflow consumers connected through explicit versioned auditTask contracts; executor Stage selection is independent of the entry Stage and inventory identifier.
+    - Catalog and saved-snapshot validation allow surrounding Stages and additional profile roles while retaining one canonical result producer, exact input mappings and executor-specific batch/approval limits.
+    - Trusted scan dispatch and canonical result assembly preserve request/URL/template evidence; executable fixtures cover known failures, lost scanner responses and lost journal acknowledgements across Stage attempts.
+    - Start and input preview validate generated task requirements against the declared executor after inventory construction; recovery selects the executor from the frozen Workflow contract.
+  remaining:
+    - Verify terminal evidence recovery and outcome-aware retries against collection faults across Audit Run boundaries, including retained evidence after Run deletion.
+    - Public API process/scanner fixtures and full acceptance verification for the candidate supplied-OpenAPI profiles.
+  verified_commands:
+    - go test ./internal/contracts ./internal/config ./internal/scanplan ./internal/auditdomain ./internal/auditscan ./internal/planner/... ./internal/auditservice ./internal/auditimport ./internal/auditcontroller ./internal/runservice
+    - go test ./internal/scanplan ./internal/planner/scan ./internal/contracts
+    - go test ./internal/scanplan ./internal/auditdomain ./internal/auditimport ./internal/planner/scan ./internal/contracts ./internal/config ./internal/auditcontroller ./internal/auditservice ./internal/runservice
+  release_status: Candidate profiles resolve and trusted execution is implemented; production-process and cross-Run collection acceptance gates remain pending.
+depends_on: [V55-007, V55-008, V39-007]
 languages: [go, python, yaml, markdown]
-goal: Deliver a runnable AuditProfile that analyzes source, generates OpenAPI and performs bounded per-operation scanning with accepted Audit results.
+goal: Prove useful bounded scanning from an existing exact OpenAPI before adding source preparation, with SQLMap request checks and Nuclei checks of pinned concrete URLs.
 context:
-  authority: User-requested source analysis to OpenAPI to scanning Audit journey.
+  authority: User accepted scanner-first implementation on 2026-09-20 and explicitly included Nuclei using fixed OpenAPI URLs.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification:
     - docs/spec/19-audits.md
     - docs/spec/25-audit-worker-finalization.md
     - docs/spec/31-scan-request-preparation.md
     - docs/spec/32-scan-planning.md
+    - docs/spec/openapi-audit-scans.md
   reuse: Existing RequestSet preparation, deterministic scan planning, tool Workers, SQLMap request execution and Audit result package schemas remain authoritative.
 scope:
   in:
-    - Add a bounded audit-openapi-scan Workflow adapter consuming task, execution_manifest, exact prepared OpenAPI and explicit target/request settings.
+    - Define and implement a bounded audit-openapi-scan adapter consuming task, execution_manifest, exact supplied OpenAPI and pinned target/request settings.
     - Select only the assigned operation and supplied test parameters; reuse deterministic concrete-request preparation and scanner execution.
+    - Support Nuclei URL targets with exact source operation provenance, concrete path/query values and pinned template selection; distinguish URL-template coverage from SQLMap method/body/parameter coverage.
+    - Define scan-specific coverage and result semantics without reusing operation-resolution or changing existing operation-trace contracts.
     - Assemble canonical per-item Audit results with trusted manifest identity, retained scanner evidence and explicit technical/semantic/gap distinctions.
     - Fix the adapter execution/finalization contract using existing result packages without misapplying the single-Worker audit-check-results@1 strategy to a multi-stage or tool-only path.
-    - Ship one complete profile referencing project-analysis@1, openapi-from-analysis@4 and the actual new adapter, plus runnable local input examples.
+    - Prevent automatic repeats across Audit item attempts and Workflow Stage retries after an unknown scanner outcome; recovery within one scan session alone is insufficient.
+    - Ship fully resolving profiles for supplied OpenAPI and explicit scan settings, plus runnable local input examples; no prepare role is required.
     - Preserve existing active-check approval and scanner capability requirements; record unavailable data, binaries, auth, truncation and unknown outcomes truthfully.
   out:
-    - New scanner engines, autonomous pentest authorization, guessed request values/credentials, scanner installation or production target execution.
+    - Source preparation, iterative routing, new scanner engines, autonomous pentest authorization, guessed request values/credentials, scanner installation or production target execution.
 deliverables:
   - path: configs/workflows
     description: New immutable audit-openapi-scan Workflow and any explicit preparation/result-assembly binding it requires.
   - path: configs/audit-profiles
-    description: Fully resolving generated-OpenAPI AuditProfile with bounded inventory and approval-required active checks.
+    description: Fully resolving supplied-OpenAPI scan profiles with bounded inventory and approval-required active checks.
   - path: internal/scanplan
     description: Reused deterministic operation selection and RequestSet preparation with needed adapter seams only.
   - path: runtime/src/contractor_runtime
     description: Trusted scan-to-Audit result assembly where required by the chosen ordinary Worker completion path.
   - path: tests/e2e
-    description: New TestPreparedOpenAPIAuditScanAcrossProductionProcesses with real component boundaries and controlled scanner fixtures.
+    description: New TestOpenAPIAuditScanAcrossProductionProcesses with real component boundaries and controlled SQLMap/Nuclei fixtures.
   - path: docs/guides/audits.md
     description: Complete setup, profile, input, approval, result and gap walkthrough.
 acceptance_criteria:
   - id: A1
-    text: One started Audit derives items from its generated OpenAPI, runs only assigned bounded SQLMap checks and imports canonical item results with exact source/operation/scan provenance.
+    text: Supplied-OpenAPI Audits run assigned bounded SQLMap requests and Nuclei fixed-URL checks with exact source/operation/scan provenance and distinct truthful coverage semantics.
   - id: A2
     text: Missing concrete inputs, excluded parameters, failed/truncated scanner output and unknown outcomes produce explicit gaps or failures, never fabricated passing checks.
   - id: A3
     text: Ordinary scanner Workflows and existing Audit completion strategies remain compatible; the new profile resolves all exact refs and retains current approval enforcement.
   - id: A4
-    text: Restart, cancellation and collection replay preserve invocation/receipt identity without automatically repeating a scanner action whose outcome is unknown.
+    text: Restart, cancellation, lost results and collection replay cannot repeat an unknown scanner action through either a new Stage execution or a new Audit item attempt.
 tests:
-  - command: go test ./internal/scanplan ./internal/config ./internal/auditimport ./internal/auditcontroller
+  - command: go test ./internal/scanplan ./internal/config ./internal/auditdomain ./internal/auditimport ./internal/auditcontroller
     covers: [A1, A2, A3, A4]
   - command: cd runtime && uv run --frozen pytest -W error tests/test_tool_worker.py tests/test_scan_toolset.py tests/test_scan_http_request.py tests/test_audit_completion_contracts.py
     covers: [A2, A3, A4]
-  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestPreparedOpenAPIAuditScanAcrossProductionProcesses$'
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestOpenAPIAuditScanAcrossProductionProcesses$'
     covers: [A1, A2, A3, A4]
 test_prerequisites:
   - New named process test must be discovered and executed; disposable PostgreSQL, local target, installed controlled scanner and scripted model/validator fixtures are required.

@@ -22,6 +22,7 @@ scope:
     - Preserve accepted preparation outputs across pause/resume and later rounds; distinguish logical completion from physical retry attempts.
     - Apply shared submission/time/evidence budgets and pause, deadline, cancellation, deletion and failure before currentRound exists.
     - Expose a durable preparation-complete boundary for inventory construction without falsely completing the Audit in the interim.
+    - Implement minimal public start/status/pause/resume/cancel/delete projections with absent currentRound; preparation must be usable before V62-010 richer provenance lands.
   out:
     - Inventory expansion, a second scheduler, live workspace sharing or exactly-once external side-effect claims.
 deliverables:
@@ -33,6 +34,8 @@ deliverables:
     description: Trusted ordinary prepare Run creation and immutable Audit association.
   - path: internal/auditimport
     description: Preparation collection with exact output acceptance and protected retention.
+  - path: internal/httpapi/public
+    description: Minimal preparation lifecycle handlers and process-testable no-Round responses.
 acceptance_criteria:
   - id: A1
     text: Two dependent prepare roles run in order with exact input forks and accepted output receipts, while migrated direct-input profiles follow their previous start path.
@@ -43,7 +46,7 @@ acceptance_criteria:
   - id: A4
     text: Every preparation attempt and retained byte participates in existing Audit limits and ordinary global Scheduler admission.
 tests:
-  - command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/runservice ./internal/runstore
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/runservice ./internal/runstore ./internal/httpapi/public
     covers: [A1, A2, A3, A4]
   - command: go test ./internal/scheduler ./internal/controlplane
     covers: [A1, A4]

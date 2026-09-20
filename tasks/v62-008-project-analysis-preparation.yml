@@ -2,8 +2,13 @@ schema_version: "1.0"
 id: V62-008
 title: Publish reusable project analysis and chained OpenAPI preparation
 milestone: audit-workflow-composition
-priority: P1
-status: pending
+priority: P2
+status: deferred
+deferral:
+  date: "2026-09-20"
+  previous_status: pending
+  reason: Existing openapi-from-workspace@7 already combines analysis and generation; a separate report producer is not a first-release prerequisite.
+  reactivate_when: Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain.
 implementation_commit: null
 depends_on: [V62-004]
 languages: [go, yaml, markdown]
@@ -19,7 +24,7 @@ scope:
     - Preserve exact source and workspace-state transfer between analysis stages and explicit ordinary standalone Run support.
     - Compose analysis and openapi-from-analysis@4 as prepare roles in an isolated integration profile with a declared check fixture.
     - Verify required Runtime graph/workspace/validator capabilities and exact version/Skill/config pins before dispatch.
-    - Document production profile composition and output contracts; the actual scan profile is published by V62-009 after its adapter exists.
+    - Document optional two-Workflow composition and output contracts after the V62-009 scan adapter and V62-004 single-prepare profile exist.
   out:
     - Rewrite accepted immutable Workflow snapshots, introduce placeholder production refs, run paid models or publish an incomplete scan profile as runnable.
 deliverables:

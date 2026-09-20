@@ -1,170 +1,179 @@
-# План ревью Contractor — V60
+# Contractor review plan — V60
 
-Запрошено пользователем после исправления публичного OpenAPI. Начальная точка —
-`3ebe07cb` в локальном `main`: V59-001–005 завершены, параллельная UI-доработка
-V58-013 включена. [Результаты V59](../research/2026-09-20-public-openapi-corrections-results.md)
-сохраняются отдельно от новых замечаний. Этот план запускает ревью; он не
-объявляет всю систему проверенной по результатам первого прохода.
+Requested by the user after the public OpenAPI corrections. Starting point:
+`3ebe07cb` in local `main`: V59-001–005 are complete, and the concurrent UI
+refinement V58-013 is included. [V59 results](../research/2026-09-20-public-openapi-corrections-results.md)
+remain separate from new findings. This plan initiates the review; it does not
+declare the entire system verified on the basis of the first pass.
 
-Текущий результат: углублённые задачи V60-005–010 и все подтверждённые
-исправления V60 завершены. [Итоговый отчёт](../research/2026-09-20-v60-deep-review-results.md)
-содержит результаты проверок и их границы; [первый проход](../research/2026-09-20-project-review-first-pass.md)
-сохранён отдельно. Проверки относятся к указанным в evidence исходным коммитам.
-Live-model качество и production deployment остаются вне рамок этого ревью.
+Current outcome: the deeper reviews V60-005–010 and all confirmed V60
+corrections are complete. The [completion report](../research/2026-09-20-v60-deep-review-results.md)
+records executed checks and their limits; the [first pass](../research/2026-09-20-project-review-first-pass.md)
+is retained separately. Verification is attributed to the source commits listed
+in task evidence. Live-model quality and production deployment remain outside
+this review.
 
-## Цель и порядок
+## Goal and sequence
 
-Найти воспроизводимые нарушения пользовательских сценариев и действующих
-контрактов, затем исправить их небольшими проверяемыми задачами. Отдельно
-оценить дорогие или сложные участки, когда есть измерения. Размер файла,
-количество валидаций или наличие двух языков сами по себе не считаются дефектом.
+Find reproducible violations of user journeys and existing contracts, then fix
+them through small, verifiable tasks. Assess expensive or complex areas separately
+when measurements are available. File size, validation count or the presence of
+two languages are not defects in themselves.
 
-1. **Зафиксировать основания и выполнить первый проход — V60-001.** Составить
-   карту требований, текущих задач и проверок. Для наиболее рискованных границ
-   прочитать код, историю решений и отрицательные тесты; воспроизвести кандидаты.
-2. **Исправить подтверждённые локальные дефекты — V60-002–004.** Не ждать конца
-   большого ревью, если причина, контракт и проверка уже известны. Каждый
-   исправленный дефект получает регрессию и отдельный implementation commit.
-   Фактический интеграционный прогон дополнительно выявил устаревшее имя
-   обязательного Runtime-теста — V60-011. Независимое ревью обнаружило отдельную
-   invalidation-ошибку при удалении Run — V60-012; она исправлена после
-   PostgreSQL-проверок import/delete/purge и восстановления report finalization.
-3. **Углубить проверки по сценариям — V60-005–010.** Выполнить приведённые ниже
-   fault, database, transport и browser проверки. Перед началом каждой задачи
-   обновить базовый commit и проверить пересечения с параллельной работой.
-4. **Свести результаты после углублённых проходов.** Для каждой области указать
-   выполненные сценарии, оставшиеся пробелы, исправления и измеренные расходы.
-   Обновить единый отчёт; завершение одной области не закрывает остальные.
+1. **Establish the baseline and perform the first pass — V60-001.** Map requirements,
+   current tasks and checks. For the highest-risk boundaries, read code, decision
+   history and negative tests; reproduce candidate findings.
+2. **Fix confirmed local defects — V60-002–004.** Do not wait for the full review
+   when the cause, contract and verification are already known. Each fix gets a
+   regression and a separate implementation commit. The actual integration run
+   additionally exposed an outdated mandatory Runtime test name — V60-011.
+   Independent review found a separate invalidation defect on Run deletion —
+   V60-012; it was fixed after PostgreSQL import/delete/purge checks and report
+   finalization recovery checks.
+3. **Deepen scenario checks — V60-005–010.** Perform the fault, database, transport
+   and browser checks below. Before each task, refresh the baseline commit and
+   check for overlap with concurrent work.
+4. **Consolidate results after the deeper passes.** For each area, record executed
+   scenarios, remaining gaps, fixes and measured costs. Update the shared report;
+   completing one area does not close the others.
 
-Первый проход и его исправления не зависят от live-model evals. Процессные
-проверки используют fake Gateway и изолированный PostgreSQL. Реальные модели,
-изменение production-конфигурации и деплой не входят в этот план.
+The first pass and its fixes do not depend on live-model evals. Process checks
+use a fake Gateway and isolated PostgreSQL. Real models, production configuration
+changes and deployment are outside this plan.
 
-## Основания и параллельная работа
+## Basis and concurrent work
 
-Нормативная точка входа — [каталог спецификаций](../spec/README.md). В каждой
-задаче перечислены конкретные контрактные документы. При расхождении prose,
-тестов и реализации сначала выясняется история принятого решения, затем
-фиксируется, какой контракт исправляется и почему.
+The normative entry point is the [specification catalog](../spec/README.md).
+Each task lists its specific contract documents. When prose, tests and
+implementation disagree, first establish the accepted decision's history, then
+record which contract is being corrected and why.
 
-На исходном commit найдено 349 task-файлов: 337 завершены (`complete` или
-`completed`), восемь pending, два in_progress и два archived. Это снимок до
-добавления V60, а не актуализируемая вручную статистика продукта.
+The initial commit had 349 task files: 337 complete (`complete` or `completed`),
+eight pending, two in_progress and two archived. This is a snapshot before V60
+was added, not manually maintained product statistics.
 
-- V40-002 — активная instruction-eval работа; V40-003 зависит от неё.
-  Ревью читает действующие format/binding/attribution контракты, не запускает
-  параллельные эксперименты и не создаёт второй eval runner.
-- V55-004 — активный sqlmap prepared-request путь. Остальные pending V55
-  остаются собственным scan backlog; не маскируем их отсутствие под regression.
-- В `main` V38-001 ещё pending, но отдельный worktree
-  `v38-evals-experience` на `b0bfb40c` уже содержит completed V38-001–005
-  и in_progress V38-006. Это активная независимая реализация managed Evals;
-  V60 не перехватывает её код или UI и не создаёт дублирующий backlog.
-- V57-003 — отдельный незакоммиченный decision draft в основном workspace.
-  V57-004 уже разделила Audit completion и убрала промежуточный Audit JSON
-  limit; V57-005 обоснованно сохранила production transport без reuse.
-- Toolset-план уже перенесён в отдельный worktree
-  `v56-toolset-runtime-configuration` на `7dff70fa`: V56-001–009 pending.
-  Незакоммиченные архитектурные и эти toolset-планы не являются поставленным
-  поведением. Их перемещение или изменение другим исполнителем не откатывается
-  при интеграции V60. На этапе V60-012 основной `main` получил toolset-план
-  под ID V61-001–009 (`c41a5989`); этот planning commit сохранён при интеграции.
+- V40-002 is a prepared instruction experiment with `live_ready: false`;
+  recorded controls and wrappers are in main, but live pins/dispatch/mapping
+  prerequisites remain open. No fresh work was found in the corresponding
+  Contractor and Playground worktrees as of 2026-09-20. V40-003 depends on it.
+- V55-004 is formally in_progress, but neither a prepared-request implementation
+  nor current edits were found in accessible worktrees. This observation alone
+  does not reassign the task; V55-005/006 remain the nearest scan scope.
+- V38-001–005 are complete and integrated into main (`45277817`, `64a14716`).
+  Current V38-006 development is in `v38-006-comparison` on recent main;
+  the older `v38-evals-experience` retains earlier drafts of that same stage.
+  V60 does not create a duplicate eval runner or take over the active implementation.
+- V57-003 is a separate decision draft; after reassessing its necessity on
+  2026-09-20, it was archived as a disproportionate standalone investigation.
+  The ordinary finalizer remains active; its necessity remains a question in
+  the review. V57-004 already separated Audit completion and removed the
+  intermediate Audit JSON limit; V57-005 justified retaining production
+  transport without reuse.
+- The toolset series was renumbered V56 → V61 (`c41a5989`). In working branch
+  `v61-toolset-runtime-configuration` at `b3bb9ea7`, V61-001/002/004 are complete
+  and V61-003 is under development. These changes are not yet in main, whose
+  task files remain pending. Before integration, reconcile migration 000056,
+  already used by Evals, and shared API/credentials files.
 
-ADK-финализатор проверяется с учётом V21-001 и последующей истории: tool-using
-agent не обеспечивает нужный structured output для используемого модельного
-пути, поэтому отдельный tool-free вызов имеет основание. Его удаление, изменение
-общих wire limits, scheduler lease guarantees или recovery semantics требует
-отдельного contract decision и стратегии перехода; это не автоматический quick win.
+This updates the initial snapshot rather than describing the historical state
+at V60's start. The [full open-backlog snapshot](2026-09-20-open-task-review.md)
+lists all 29 tasks, confirmed activity, limitations and the order of independent work.
 
-## Карта углублённого ревью
+Review the ADK finalizer in light of V21-001 and subsequent history: a tool-using
+agent does not provide the required structured output on the model path in use,
+so a separate tool-free call has a rationale. Removing it, changing shared wire
+limits, Scheduler lease guarantees or recovery semantics requires a separate
+contract decision and transition strategy; it is not an automatic quick win.
 
-| Область / задача | Что читать | Какие сценарии проверить | Условие завершения |
+## Deeper review map
+
+| Area / task | Read | Scenarios to verify | Completion condition |
 | --- | --- | --- | --- |
-| Execution lifecycle / V60-005 | specs 00, 04, 18, 20; `internal/scheduler`, control, persistence | cancel vs success, finalizing vs aborting, claim loss, crash между durable states, queue pause/admission, concurrency=1 и saturation | Для каждого сценария известен победивший durable transition; старые вызовы не создают недопустимых outputs. Ограничение до обнаружения claim loss описано отдельно. |
-| Runtime/A2A / V60-006 | specs 01, 02, 07, 14, 15, 21, 25, 29; Runtime contracts, runner, supervisor, invoker | stale task/session/subtask, cancel во время tool/finalizer, allocation expiry, partial cleanup, mandatory finalizer vs optional summarizer, tool-only worker | Сохранены identity, terminal result и cleanup guarantees; ошибки транспорта отделены от ошибок результата; нет фонового процесса после подтверждённого release. |
-| Artifacts и persistence / V60-007 | specs 03, 08, 09, 10, 13, 17, 18, 23, 24; artifactstore, blobstore, migrations | owner/project/run authority, stale CAS, удерживаемый exact-ref, deletion vs admission, corruption, restart, файловый backend, минимальный пул | Реальные DB/filesystem проверки подтверждают атомарность и сохранность; admission fences не обходятся конкурентной записью; нет вложенного ожидания того же ресурса. |
-| Audit / V60-008 | specs 19, 25, 27; auditservice/store/coordinator, findings intake | proposed→approve/reject, duplicate/reopen, receipt retention, revisions при list/read, multiround restart, review TTL, intake replay | API/UI показывают согласованное состояние, stale decisions отвергаются, replay не повторяет settlement, опубликованный report соответствует зафиксированной ревизии. |
-| Пользовательские пути / V60-008 | spec 06, `ui-user-stories.md`, UI routes/API helpers, CLI | login→Project→input→Run→cancel/retry→result; Audit→finding→review→report; empty/error/reconnect, длинный текст, unicode, readonly owner | Browser выполняет сценарий с настоящим server и fake Gateway; DOM assertions проверяют действие и результат, а не только отсутствие ошибки. CLI отправляет ожидаемые bytes. |
-| Auth и секреты / V60-009 | spec 06; auth, public/private middleware, Git SSH/runtime credentials | malformed body, UTF-8/escaping, cookie/bearer distinction, Origin/CSRF, duplicate headers, lockout/retry, TLS identities, secret projections/logs | Требуемые права проверяются до мутации; поддерживаемый ввод достижим через HTTP; секреты отсутствуют в проверяемых публичных ответах и диагностике. |
-| Configuration и cross-language / V60-006, V60-010 | specs 00, 01, 07, 16, 26, 29; configs, runtimeconfig, allocation DTOs, generated clients | pinned vs mutable refs, defaults/clear/absence, existing stored versions, string/number/bool mismatches, rejected extras, effective model/credential route | Общие wire-cases проверены настоящими Go/Python readers; публикация и resolve сохраняют принятую семантику; отказ происходит на правильной границе. |
-| Tools/workspace / V60-006 | specs 10–13, 21, 27, 29; filesystem, HTTP/Caido, code analysis, scanners | path traversal/symlink, network timeout, tool subprocess timeout, output cap, changed/stale snapshots, cancellation, wrong allocation | Capability/ownership isolation выдержана, timeout освобождает ресурсы; изменения источника атомарны, а не частично применены. Активный V55 scope не перехватывается. |
-| Установка, миграции, восстановление / V60-007, V60-009 | deployment/testing guides, CLI migrate, manifests, schema guards | fresh disposable install, supported upgrade, newer schema refusal, interrupted migration, missing secret, restore instructions | Есть выполненный повторяемый сценарий и допустимое состояние после отказа. Наличие SQL-файла само по себе не доказывает upgrade/recovery. |
-| CI и тестовая достоверность / V60-009 | Makefile, CI, gate scripts, test matrices | required tests действительно начались/прошли; skip/fail/missing evidence, secret redaction, nonzero subprocess, env guards, pinned generation | Gate не принимает пропуски и не отклоняет валидный результат из-за обработки лога. Обязательные process/browser tests видны в результате; recorded evidence соответствует commit и toolchain. |
-| Производительность / V60-009 | spec 22; metrics, pool usage, bounded reads, runtime memory | минимальный пул, конкурентные страницы, cold/warm allocation, workspace digest/hash/parse, repeated data transfer | Сначала baseline RSS/latency/query count, затем сравнение на одинаковых данных. Без измерений оптимизация остаётся гипотезой. |
-| Evals и продуктовый backlog / V60-010 | specs 05, 17, 26, 28, 30, task files V38/V40/V55 | implemented/draft distinction, frozen plan, model attribution, missing evidence, determinism/scorer inputs | Проверены control-plane contracts и связь task→evidence; live quality не выводится из offline fixtures. Новая задача не дублирует активную. |
+| Execution lifecycle / V60-005 | specs 00, 04, 18, 20; `internal/scheduler`, control, persistence | cancel vs success, finalizing vs aborting, claim loss, crashes between durable states, queue pause/admission, concurrency=1 and saturation | Each scenario has an identified winning durable transition; stale calls cannot create invalid outputs. The limitation before claim-loss detection is documented separately. |
+| Runtime/A2A / V60-006 | specs 01, 02, 07, 14, 15, 21, 25, 29; Runtime contracts, runner, supervisor, invoker | stale task/session/subtask, cancellation during tool/finalizer execution, allocation expiry, partial cleanup, mandatory finalizer vs optional summarizer, tool-only worker | Identity, terminal-result and cleanup guarantees hold; transport failures are distinct from result failures; no background process remains after confirmed release. |
+| Artifacts and persistence / V60-007 | specs 03, 08, 09, 10, 13, 17, 18, 23, 24; artifactstore, blobstore, migrations | owner/project/run authority, stale CAS, retained exact ref, deletion vs admission, corruption, restart, filesystem backend, minimal pool | Real DB/filesystem checks demonstrate atomicity and preservation; concurrent writes cannot bypass admission fences; no nested wait on the same resource. |
+| Audit / V60-008 | specs 19, 25, 27; auditservice/store/coordinator, findings intake | proposed→approve/reject, duplicate/reopen, receipt retention, revisions during list/read, multiround restart, review TTL, intake replay | API/UI show consistent state, stale decisions are rejected, replay does not repeat settlement, and the published report matches its frozen revision. |
+| User journeys / V60-008 | spec 06, `ui-user-stories.md`, UI routes/API helpers, CLI | login→Project→input→Run→cancel/retry→result; Audit→finding→review→report; empty/error/reconnect, long text, Unicode, read-only owner | Browser completes the journey with a real server and fake Gateway; DOM assertions check action and outcome, not merely absence of errors. CLI sends the expected bytes. |
+| Auth and secrets / V60-009 | spec 06; auth, public/private middleware, Git SSH/runtime credentials | malformed body, UTF-8/escaping, cookie/bearer distinction, Origin/CSRF, duplicate headers, lockout/retry, TLS identities, secret projections/logs | Required permissions are checked before mutation; supported input is reachable through HTTP; secrets are absent from the checked public responses and diagnostics. |
+| Configuration and cross-language / V60-006, V60-010 | specs 00, 01, 07, 16, 26, 29; configs, runtimeconfig, allocation DTOs, generated clients | pinned vs mutable refs, defaults/clear/absence, existing stored versions, string/number/bool mismatches, rejected extras, effective model/credential route | Shared wire cases are checked with real Go/Python readers; publication and resolution preserve accepted semantics; rejection occurs at the correct boundary. |
+| Tools/workspace / V60-006 | specs 10–13, 21, 27, 29; filesystem, HTTP/Caido, code analysis, scanners | path traversal/symlink, network timeout, tool subprocess timeout, output cap, changed/stale snapshots, cancellation, wrong allocation | Capability/ownership isolation holds; timeouts release resources; source changes are atomic rather than partially applied. Active V55 scope is not taken over. |
+| Installation, migrations, recovery / V60-007, V60-009 | deployment/testing guides, CLI migrate, manifests, schema guards | fresh disposable install, supported upgrade, refusal of a newer schema, interrupted migration, missing secret, restore instructions | An executed, repeatable scenario demonstrates an acceptable state after failure. An SQL file alone does not prove upgrade/recovery. |
+| CI and test credibility / V60-009 | Makefile, CI, gate scripts, test matrices | required tests actually started/passed; skip/fail/missing evidence, secret redaction, nonzero subprocess, env guards, pinned generation | Gate neither accepts omissions nor rejects valid results because of log processing. Required process/browser tests are visible in the result; recorded evidence matches the commit and toolchain. |
+| Performance / V60-009 | spec 22; metrics, pool usage, bounded reads, runtime memory | minimal pool, concurrent pages, cold/warm allocation, workspace digest/hash/parse, repeated data transfer | Establish baseline RSS/latency/query count, then compare on identical data. Without measurements, optimization remains a hypothesis. |
+| Evals and product backlog / V60-010 | specs 05, 17, 26, 28, 30, V38/V40/V55 task files | implemented/draft distinction, frozen plan, model attribution, missing evidence, determinism/scorer inputs | Control-plane contracts and task→evidence links are verified; offline fixtures do not establish live quality. New tasks do not duplicate active ones. |
 
-Specs 05 и 28 отдельно проверяются как границы незавершённого продукта:
-их draft-поведение не объявляется реализованным и не превращается автоматически
-в дефект текущего релиза. Карта охватывает спецификации 00–30, включая
-[29 — Tool Workers](../spec/29-tool-workers.md) и
+Specs 05 and 28 are reviewed separately as boundaries of unfinished product
+work: their draft behavior is neither declared implemented nor automatically
+treated as a defect in the current release. The map covers specifications
+00–30, including [29 — Tool Workers](../spec/29-tool-workers.md) and
 [30 — managed Evals](../spec/30-managed-evals.md).
 
-## Проверки по этапам
+## Checks by stage
 
-Команды ниже — выбранные точки входа, не заявление об уже выполненных тестах.
-Перед запуском проверяются их фактические зависимости в текущем Makefile.
-Результаты записываются отдельно для unit/fixture, real DB, process, browser
-и live-model уровней. Пустой результат `-run` и skipped case не считаются PASS.
+The commands below are selected entry points, not claims that tests have already
+run. Check their actual dependencies in the current Makefile before execution.
+Record results separately for unit/fixture, real DB, process, browser and live-model
+levels. An empty `-run` result or a skipped case does not count as PASS.
 
-| Этап | Основные команды / метод | Условия |
+| Stage | Main commands / method | Conditions |
 | --- | --- | --- |
-| Baseline | `git status`, inventory task YAML, `git log -S`/`git blame`, чтение specs и существующих отрицательных tests | Зафиксировать commit, dirty paths, active task owners; не повторять исправленные или отозванные рекомендации. |
-| Execution | `make test-faults`, `make test-lease-integration`, `make test-lifecycle-controls-hardening`, `make test-scheduler-concurrency-hardening` | Disposable PostgreSQL; named cases подтверждают cancel/restart/lease окна, а не только счастливый путь. |
-| Runtime/contracts | `make verify-wire-contracts`, `make test-wire-cross-language`, `make test-runtime-hardening`, `make test-worker-session-modes-hardening`, `make test-worker-summarizer-hardening` | Locked Python env, fake LLM adapters; targeted tool tests по карте выше. Podman checks только при подтверждённых prerequisites. |
-| Storage | `make test-artifact-integration`, `make test-artifact-blob-backends`, `make test-git-artifacts`, targeted PostgreSQL pool/revision/deletion tests | Уникальные схемы и временные каталоги; закрытие пула/очистка после теста; upgrade/recovery отдельно от CRUD. |
-| Audit/product | `make test-audits-hardening`, `make test-audit-completion-e2e`, `make test-findings-e2e`, `make test-audits-browser`, `make test-lifecycle-controls-browser` | Сначала проверить, что wrappers не скрывают skip или ошибки разбора evidence; настоящий server + fake Gateway для process/browser. |
-| API/auth/UI | `make verify-public-api`, `make verify-public-api-postgres`, focused auth/HTTP tests, UI typecheck/lint/Vitest/build | Schema-only success дополняется фактическим HTTP и generated request body. PostgreSQL gate обязан исполняться. |
-| Delivery | `make release-verify` и отдельные upgrade/restore сценарии | Только после готовности env и профильных исправлений; записать длительности и какие gated suites реально выполнились. Полный release gate не заменяет restore test. |
-| Evals/backlog | чтение portable fixtures/format + согласованные offline checks существующих harness | Не запускать эксперимент и не занимать V40/V55 без изменения назначения. |
+| Baseline | `git status`, task YAML inventory, `git log -S`/`git blame`, specs and existing negative tests | Record commit, dirty paths and active task owners; do not repeat fixed or withdrawn recommendations. |
+| Execution | `make test-faults`, `make test-lease-integration`, `make test-lifecycle-controls-hardening`, `make test-scheduler-concurrency-hardening` | Disposable PostgreSQL; named cases establish cancel/restart/lease windows, not just the happy path. |
+| Runtime/contracts | `make verify-wire-contracts`, `make test-wire-cross-language`, `make test-runtime-hardening`, `make test-worker-session-modes-hardening`, `make test-worker-summarizer-hardening` | Locked Python env, fake LLM adapters; targeted tool tests from the map above. Podman checks only with confirmed prerequisites. |
+| Storage | `make test-artifact-integration`, `make test-artifact-blob-backends`, `make test-git-artifacts`, targeted PostgreSQL pool/revision/deletion tests | Unique schemas and temporary directories; pool closure/cleanup after tests; upgrade/recovery separate from CRUD. |
+| Audit/product | `make test-audits-hardening`, `make test-audit-completion-e2e`, `make test-findings-e2e`, `make test-audits-browser`, `make test-lifecycle-controls-browser` | First ensure wrappers do not hide skips or evidence-parsing errors; real server + fake Gateway for process/browser checks. |
+| API/auth/UI | `make verify-public-api`, `make verify-public-api-postgres`, focused auth/HTTP tests, UI typecheck/lint/Vitest/build | Schema-only success is supplemented by actual HTTP and generated request bodies. The PostgreSQL gate must execute. |
+| Delivery | `make release-verify` and separate upgrade/restore scenarios | Only after the environment and relevant fixes are ready; record durations and which gated suites actually ran. A full release gate does not replace a restore test. |
+| Evals/backlog | Read portable fixtures/format and run agreed offline checks of existing harnesses | Do not launch an experiment or take over V40/V55 without changing the assignment. |
 
-## Правила регистрации замечаний
+## Finding registration rules
 
-Каждое замечание содержит: ID, приоритет, пользовательский эффект, исходный
-commit, точные функции/строки, нарушенное требование, историю решения,
-воспроизведение, минимальную корректировку, регрессию и границы доказательства.
+Each finding records: ID, priority, user impact, baseline commit, exact
+functions/lines, violated requirement, decision history, reproduction, minimal
+correction, regression and limits of the evidence.
 
-Статусы: `confirmed` — воспроизведено; `hypothesis` — нужна конкретная проверка;
-`accepted` — подтверждённое ограничение дизайна; `rejected` — подозрение не
-подтвердилось; `fixed` — есть regression, implementation hash и verification.
-Отсутствие теста сначала означает пробел проверки, а не доказанную ошибку.
+Statuses: `confirmed` — reproduced; `hypothesis` — requires a specific check;
+`accepted` — confirmed design limitation; `rejected` — suspicion not confirmed;
+`fixed` — has a regression, implementation hash and verification.
+A missing test initially represents a verification gap, not a proven defect.
 
-Приоритет отражает эффект: P1 — блокировка важного сценария, потеря/ошибочная
-публикация данных или нарушенная authority; P2 — ограниченный воспроизводимый
-дефект; P3 — вводящая в заблуждение документация без установленной поломки.
-Task priority использует принятую в `tasks/index.yml` policy follow-up P2;
-приоритет finding и task могут отличаться по этой причине.
+Priority reflects impact: P1 — blocked important journey, lost/incorrectly
+published data or broken authority; P2 — bounded reproducible defect;
+P3 — misleading documentation without an established failure.
+Task priority follows the follow-up P2 policy in `tasks/index.yml`;
+finding and task priorities may therefore differ.
 
-Для исправления: task `in_progress` до правок; сначала воспроизведение на старом
-коде, затем минимальное изменение и meaningful regression. Acceptance включает
-смежные ограничения, чтобы устранение одного cap не открыло объект или не
-обошло owner/CAS. Каждый implementation commit отделён от completion metadata.
-После слияния чужого кода повторяются затронутые проверки; документационные
-изменения сами по себе не требуют нового полного runtime/eval прогона.
+For a fix: set the task to `in_progress` before edits; reproduce on old code,
+then apply the minimal change and a meaningful regression. Acceptance includes
+adjacent constraints so removing one cap cannot open a closed object or bypass
+owner/CAS. Each implementation commit is separate from completion metadata.
+After merging others' code, rerun affected checks; documentation changes alone
+do not require another full Runtime/eval run.
 
-## Первый проход и очередь исправлений
+## First pass and fix queue
 
-| Finding | Что обнаружено | Задача |
+| Finding | Discovery | Task |
 | --- | --- | --- |
-| PR-01 | Login raw body 2 KiB не вмещает поддерживаемый 1024-байтовый пароль после JSON escaping; прямой Login успешен, HTTP даёт 400. | [V60-002](../../tasks/v60-002-login-json-body-bound.yml): обоснованный 8 KiB raw cap и граничные HTTP-тесты. |
-| PR-02 | Provenance handler может подписать новые данные старыми Audit/finding revisions при конкурентной мутации. | [V60-003](../../tasks/v60-003-provenance-consistent-reads.yml): revision fence и regression interleaving. |
-| PR-03 | Provenance hydration запрашивает receipt из пула, пока прежние rows удерживают connection; подтверждено на PostgreSQL с pool=1. | V60-003: закрыть rows перед hydration и закрепить воспроизведение с настоящим PostgreSQL. |
-| PR-04 | Audit completion gate редактирует пароль во всей JSON-строке. CI password `contractor` портит Package, `pass` портит Action; валидные результаты не проходят gate. | [V60-004](../../tasks/v60-004-audit-gate-event-redaction.yml): отделить identity/status от redacted diagnostics и проверить их композицию. |
-| PR-05 | После V57-004 обязательная Runtime matrix ссылается на прежнее имя усиленного теста; реальный gate отвергает его отсутствие после 331 успешного Python-теста. | [V60-011](../../tasks/v60-011-audit-gate-runtime-matrix.yml): сохранить требуемое поведение под действующим именем, проверять объявления тестов и выполнить полный gate. |
-| PR-06 | Удаление source Run меняет retained provenance без повышения Audit revision; прежние pins остаются допустимыми. | [V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml), завершена: атомарная invalidation всех затронутых Audits; import/delete/purge и immutable report retry проверены на PostgreSQL. |
+| PR-01 | The 2 KiB login raw-body cap cannot fit a supported 1024-byte password after JSON escaping; direct Login succeeds, HTTP returns 400. | [V60-002](../../tasks/v60-002-login-json-body-bound.yml): justified 8 KiB raw cap and boundary HTTP tests. |
+| PR-02 | Provenance handler can label new data with old Audit/finding revisions during concurrent mutation. | [V60-003](../../tasks/v60-003-provenance-consistent-reads.yml): revision fence and regression interleaving. |
+| PR-03 | Provenance hydration requests a receipt from the pool while prior rows hold a connection; confirmed on PostgreSQL with pool=1. | V60-003: close rows before hydration and retain reproduction with real PostgreSQL. |
+| PR-04 | Audit completion gate redacts the password across the entire JSON line. CI password `contractor` corrupts Package; `pass` corrupts Action; valid results fail the gate. | [V60-004](../../tasks/v60-004-audit-gate-event-redaction.yml): separate identity/status from redacted diagnostics and check their composition. |
+| PR-05 | After V57-004, the mandatory Runtime matrix refers to the old name of a strengthened test; the real gate rejects its absence after 331 successful Python tests. | [V60-011](../../tasks/v60-011-audit-gate-runtime-matrix.yml): preserve required behavior under the current name, check test declarations and run the full gate. |
+| PR-06 | Deleting a source Run changes retained provenance without incrementing Audit revision; old pins remain valid. | [V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml), complete: atomic invalidation of all affected Audits; import/delete/purge and immutable report retry verified on PostgreSQL. |
 
-V60-012 закрыта локальным исправлением: Run lock при import, упорядоченные
-Audit locks при deletion и атомарный revision bump. Для `finalizing` сохранён
-report timestamp; наивный timestamp bump воспроизвёл immutable collision.
-[Решение и проверки](../research/2026-09-20-run-deletion-audit-revisions.md)
-показывают, почему переписывание подсистемы не потребовалось.
+V60-012 was closed with a local fix: Run lock during import, ordered Audit locks
+during deletion and an atomic revision bump. The report timestamp is preserved
+for `finalizing`; a naive timestamp bump reproduced an immutable collision.
+The [decision and checks](../research/2026-09-20-run-deletion-audit-revisions.md)
+explain why no subsystem rewrite was needed.
 
-Проверка V60-008 подтвердила коллизию при импорте одного receipt в два Audits.
-V60-027 устраняет её аддитивной миграцией 62: новые finding и assessment
-получают identity в пределах Audit, а прежние ID, история и повторный импорт
-в тот же Audit сохраняются. Проверены реальные PostgreSQL upgrade/replay,
-независимые review decisions, retention и удаление источника.
+V60-008 confirmed the collision when one receipt is imported into two Audits.
+V60-027 fixes it with additive migration 62: new finding and assessment
+identities are scoped to their Audit, while legacy IDs, history and same-Audit
+replay remain unchanged. Actual PostgreSQL checks cover upgrade/replay,
+independent review decisions, retention and source deletion.
 
-Наблюдения первого прохода сохранены в [исходном отчёте](../research/2026-09-20-project-review-first-pass.md).
-Результаты углублённых проверок, исходные неуспешные прогоны, исправления и
-финальные обязательные gates сведены в [итоговом отчёте V60](../research/2026-09-20-v60-deep-review-results.md).
-Он отдельно указывает доказанные сценарии и ограничения каждого уровня проверки.
+First-pass observations remain in the [original report](../research/2026-09-20-project-review-first-pass.md).
+The [V60 completion report](../research/2026-09-20-v60-deep-review-results.md) records
+the deeper checks, original failed attempts, corrections and final mandatory
+gates, with the demonstrated scenarios and limits of each verification level.

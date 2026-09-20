@@ -1,13 +1,13 @@
 schema_version: "1.0"
 id: V62-012
-title: Verify prepared and iterative Audit composition across production boundaries
+title: Verify preparation and OpenAPI scans across production boundaries
 milestone: audit-workflow-composition
 priority: P1
 status: pending
 implementation_commit: null
 depends_on: [V62-011]
 languages: [go, python, typescript, yaml, markdown]
-goal: Prove the complete preparation-to-scan journey and iterative data contracts with mandatory persistence, process, browser and current-schema regression evidence.
+goal: Prove supplied and generated OpenAPI scan journeys with mandatory persistence, process, browser and current-schema regression evidence.
 context:
   authority: User requested a concrete task plan for extending Audit Workflow composition.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
@@ -19,14 +19,14 @@ context:
   boundary: Use disposable infrastructure and controlled local targets; these tests do not demonstrate autonomous pentest readiness or live-model quality.
 scope:
   in:
-    - Add a mandatory case matrix and release target proving prepare, generated inventory, checks, round snapshot, assessment, routed later checks and retained dependencies.
+    - Add a mandatory case matrix and release target proving prepare, generated inventory, SQLMap request checks, Nuclei fixed-URL checks and exact retained evidence.
     - Run the source-to-OpenAPI-to-scan catalog through real Server/PostgreSQL/Scheduler/Runtime and a browser using production public endpoints.
     - Exercise prepare failure, invalid generated input, no-Round pause/deadline/cancel/delete, missing scanner/data and explicit gaps.
-    - Inject restart, duplicate delivery, lost replies and claim races around preparation, first inventory acceptance, snapshot creation and next-round admission.
-    - Verify original/derived input provenance, cross-round exact refs, source Run deletion, ownership, protected artifacts and release of holds.
+    - Inject restart, duplicate delivery, lost replies and claim races around preparation, first inventory acceptance, scanner execution and Audit-level repeat prevention.
+    - Verify original/derived input provenance, exact source/request/URL refs, source Run deletion, ownership, protected artifacts and release of holds.
     - Run existing Audit, program-library and completion regressions; document new contract rollout and operational diagnostics.
   out:
-    - Deploy production services, invoke external targets, run paid models or claim findings quality from scripted fixtures.
+    - Deferred iterative snapshots/dependency routing, deploy production services, invoke external targets, run paid models or claim findings quality from scripted fixtures.
 deliverables:
   - path: Makefile
     description: New test-audit-composition-e2e target with mandatory prerequisites and contract/regression selection.
@@ -37,7 +37,7 @@ deliverables:
   - path: tests/e2e
     description: Real process, recovery, controlled scanner and database integration fixtures.
   - path: ui/e2e
-    description: Full browser creation, preparation, approval, scan, assessment and retained-evidence journey against production APIs.
+    description: Full browser creation, preparation, approval, scan and retained-evidence journey against production APIs.
   - path: docs/guides/audits.md
     description: Validated profile usage, limits, dependency behavior and failure diagnostics.
   - path: tasks/evidence/v62-012.json
@@ -46,11 +46,11 @@ acceptance_criteria:
   - id: A1
     text: One real public-API Audit completes the generated-OpenAPI scan journey with exact per-operation inputs, canonical result receipts, retained evidence and truthful coverage.
   - id: A2
-    text: A multiround fixture proves consistent assessment snapshots, explicit verify/replay routing, exact retained inputs and accepted preparation reuse after source Run deletion.
+    text: SQLMap and Nuclei cases prove distinct request/URL coverage, exact prepared inputs, accepted preparation reuse and retained evidence after source Run deletion.
   - id: A3
     text: Every required recovery/control/ownership/limit fault has an executed test proving durable identity, bounded work and truthful outcomes; mandatory skips and zero-match filters fail the gate.
   - id: A4
-    text: A real browser completes setup, preparation, approval, scans and evidence review and correctly displays pending/failed inventory and later-round provenance.
+    text: A real browser completes setup, preparation, approval, scans and evidence review and correctly displays pending/failed inventory and exact scan provenance.
   - id: A5
     text: Current-schema profiles, deterministic snapshot round trips, obsolete-schema rejection, retained-output behavior, review, reporting, completion and deletion contracts pass their regression gates; historical schema bytes and old client support are not required.
 tests:

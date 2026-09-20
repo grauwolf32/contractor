@@ -2,8 +2,13 @@ schema_version: "1.0"
 id: V62-005
 title: Supply immutable settled-round snapshots to assessment Workflows
 milestone: audit-workflow-composition
-priority: P1
-status: pending
+priority: P2
+status: deferred
+deferral:
+  date: "2026-09-20"
+  previous_status: pending
+  reason: Iterative assessment snapshots are not required for the first OpenAPI-to-scan journey.
+  reactivate_when: Explicit user approval after the first scan slice demonstrates useful results; define the snapshot contract in this task before execution.
 implementation_commit: null
 depends_on: [V62-004]
 languages: [go, json]
@@ -12,7 +17,7 @@ context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
-  contract: V62-001 defines the round-results source, snapshot schema, result selection, review pins and finite bounds.
+  contract: On reactivation, this task defines round-results, snapshot schema, result selection, review pins and finite bounds; V62-001 now covers preparation only.
 scope:
   in:
     - Construct a versioned canonical snapshot after every item settles and before the first assessment consumes it.

@@ -32,6 +32,11 @@ Scheduler decisions from these records.
   — moved to the owning specification: source-optional web/API auditing,
   engagement/session/proof contracts, recovery, budgets and release gates;
   specified implementation target, not yet implemented.
+- [Architecture evolution review — 2026-09-19](2026-09-19-architecture-evolution-review.md)
+  — all 19 recommendations rechecked against their original decisions and current
+  contracts, including corrections and withdrawals; non-normative analysis.
+  [Follow-up plan](../plans/2026-09-19-architecture-review-followups.md) records
+  the V57 task statuses and the boundaries of deferred research.
 - [Annotation participation index](annotation-index-proposal.md) — proposed
   attribution and snapshot reconciliation. The accepted evidence boundary is
   in [specification 13](../spec/13-taint-annotations.md#annotation-artifacts-and-evidence).

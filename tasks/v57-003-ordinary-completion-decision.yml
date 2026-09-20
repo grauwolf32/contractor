@@ -1,0 +1,163 @@
+schema_version: "1.0"
+id: V57-003
+title: Decide the ordinary Worker completion strategy from controlled evidence
+milestone: architecture-review-followups
+priority: P2
+status: archived
+archive:
+  date: "2026-09-20"
+  previous_status: pending
+  reason: >-
+    Reassessed after the user questioned whether analogous work was already
+    delivered and whether this task was needed at all. V57-004 delivered the
+    shared typed assembler and Audit JSON simplification; the V13/V17/V21
+    rationale and most boundary cases are already documented and tested.
+    A separate paired fake-model pipeline, required here even for keep-current,
+    would largely repeat controlled outcomes without deciding the value of
+    mandatory ordinary LLM copying or proving a future production patch.
+  disposition: >-
+    Remove this standalone research task from the active backlog; preserve
+    its original scope and unfulfilled acceptance below. This is neither
+    completion nor a claim that V57-004 removed the ordinary finalizer.
+    No production behavior, completion policy or result limit changes.
+  delivered_related_work:
+    - task: V57-004
+      implementation_commit: 7f553b2295051b8ad88a2cea98972727b41afaf8
+      evidence: tasks/evidence/v57-004.json
+      result: Shared decoder/typed assembler, synthetic Audit JSON bound removal and 29 new boundary cases.
+    - task: V39-005
+      implementation_commit: bd36ef6b64e7eee4fe43f1e6996d80363341891a
+      result: Deterministic opt-in Audit completion; ordinary completion remains a separate path.
+  current_code_evidence:
+    - runtime/src/contractor_runtime/worker/runtime.py::_complete_ordinary_finish
+    - runtime/src/contractor_runtime/worker/runtime.py::_run_result_finalizer
+    - runtime/tests/test_adk_runtime.py::test_adk_worker_finalizes_plain_terminal_text_once
+    - runtime/tests/test_adk_runtime.py::test_adk_worker_does_not_start_required_finalizer_without_model_budget
+    - runtime/tests/test_adk_runtime.py::test_adk_worker_rejects_invalid_result_finalizer_boundaries
+    - runtime/tests/test_worker_completion.py
+  unperformed: The proposed comparison module, decision document and task evidence do not exist; no A/B experiment or policy cutover is claimed.
+  remaining_question: >-
+    Should ordinary successful terminal text pass Runtime validation and
+    assembly directly, without the mandatory exact-copy LLM call? Preserve
+    this contract question in the architecture review instead of scheduling
+    a new research pipeline. A concrete change should include targeted budget,
+    cancellation, truncation, artifact-authority and rollout regressions.
+  reconsider_when: >-
+    Ordinary-finalizer incidents or representative cost/latency observations
+    justify prioritizing it, or an explicit completion-policy change is selected.
+    Neither changing ADK tool/schema compatibility nor reducing configured
+    budgets is assumed or required by this archival decision.
+implementation_commit: null
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Compare the current exact-copy LLM finalizer with trusted Runtime assembly
+  of the same request-owned ID and terminal text, then record an explicit
+  completion-policy decision without changing production behavior.
+context:
+  authority: >-
+    The user requested a second review of all architecture recommendations,
+    explained the ADK tools/structured-output limitation behind the finalizer,
+    and asked for concrete follow-up tasks. Removing the finalizer is not a
+    predetermined outcome.
+  specification:
+    - docs/spec/14-worker-results-and-live-state.md
+    - docs/spec/15-worker-summarization.md
+    - docs/spec/04-execution-lifecycle-and-metrics.md
+    - docs/spec/25-audit-worker-finalization.md
+  history:
+    - >-
+      V13-001 (bdcaca77cc7bf148464c98b94086375f7c670e24) removed the old
+      model serializer and constructed Runtime-owned results from plain final
+      text and trusted artifact observations.
+    - >-
+      V17-003 (b19d3f9371b68897216256bad2e2ff0e48edaebe) deliberately
+      superseded plain-text success with WorkerModelResult, strict structured
+      output and exact subtask correlation while retaining Runtime-owned refs.
+    - >-
+      V21-001 (6631c606209240e2713d51c34c343b4714903303) recorded a real
+      LiteLLM-to-LM-Studio grammar failure when tools and JSON Schema were
+      combined. It retained the structured boundary by introducing the
+      unconditional tool-free exact-copy finalizer and charging its model call
+      to the ordinary Worker budget.
+  current_code:
+    - runtime/src/contractor_runtime/worker/finalizer.py
+    - runtime/src/contractor_runtime/worker/runtime.py
+    - runtime/src/contractor_runtime/worker/budget.py
+    - runtime/src/contractor_runtime/contracts/worker.py
+    - internal/controlplane/registry.go
+  observed_boundary: >-
+    WorkerModelResult currently contains only subtaskId and result. The
+    finalizer may not alter either input. Runtime adds observations and exact
+    artifact refs. A valid structured wrapper does not independently prove
+    semantic correctness or required-output acceptance.
+  deployment_boundary: >-
+    Run snapshots pin configuration and runtime refs such as adk@1, not the
+    Runtime software build. Registration softwareVersion is informational to
+    placement. Draining only active allocations would not preserve old
+    semantics for queued Runs, later Stages or replacement allocations.
+  informative_review:
+    - docs/research/2026-09-19-architecture-evolution-review.md
+    - docs/plans/2026-09-19-architecture-review-followups.md
+  review_status: >-
+    The review and follow-up plan are informative analysis, not a normative
+    implementation specification. V57-004 is an independent refactoring task;
+    neither task requires the other to choose or remove a completion strategy.
+scope:
+  in:
+    - Reconstruct the V13/V17/V21 decision chain and state which existing invariants each candidate preserves or intentionally changes.
+    - Build a test-only comparison using identical terminal texts, request IDs, trusted observed refs and explicit controlled model responses.
+    - Compare ordinary success, malformed or altered copy output, escaped Unicode, empty/oversized/truncated text, cancellation and publication authority.
+    - Evaluate exact model-call and token-budget boundaries without changing configured limits or treating removed work as a reason to lower budgets.
+    - Distinguish normal-budget exhaustion, a main call reaching the allowed boundary, and the additional call currently required by finalization.
+    - Define a cutover choice for queued/nonterminal Runs, mixed Runtime builds, later Stages and replacement allocations if a future change is recommended.
+    - Record keep-current, recommend-change or defer with explicit evidence, remaining uncertainty and any separately scoped implementation follow-up.
+  out:
+    - Remove or replace the production finalizer, change ordinary success semantics or register a new production completion mode.
+    - Restore output_schema on the main tool-using ADK Worker or trust a generic adapter capability flag as proof of downstream support.
+    - Change pinned model/token/tool/deadline budgets, Runtime placement, private DTOs, existing immutable catalogs or live Runs.
+    - Alter Audit completion, terminal summarization, trusted artifact selection or Scheduler acceptance.
+    - Deploy services, run live model campaigns or claim whole-Run performance or quality gains from fake-model measurements.
+deliverables:
+  - path: runtime/tests/test_completion_strategy_comparison.py
+    description: Test-only paired fixtures with explicit expected similarities and intentional behavior differences; no production selector or default change.
+  - path: docs/research/2026-09-19-worker-completion-decision.md
+    description: Evidence-backed decision, historical rationale, budget semantics, cutover alternatives and a precise follow-up boundary if needed.
+  - path: tasks/evidence/v57-003.json
+    description: Executed fixture identities, commands, environment, outcomes and evidence references; no fabricated production performance.
+requirements:
+  - id: R1
+    text: The main Worker remains tool-bearing and schema-free; both comparison arms preserve Runtime ownership of ID, refs, observations and lifecycle.
+  - id: R2
+    text: A keep-current decision is a valid result; neither an implementation patch nor removal of one model call is required for task completion.
+  - id: R3
+    text: Test-only trusted assembly is compared against the actual current completion boundary; fixtures disclose injected model behavior and do not claim inference quality evidence.
+  - id: R4
+    text: Any proposed change identifies accepted budget-boundary differences and either a complete affected-Run drain or explicit pinned strategy/capability transition; runtime-ref pinning alone is not build pinning.
+  - id: R5
+    text: Optional future live validation or normative amendments are named as separate work; this task does not silently authorize paid inference, deployment or a production cutover.
+acceptance_criteria:
+  - id: A1
+    text: The decision accurately distinguishes the V13 plain-text policy, V17 structured requirement and V21 compatibility workaround, and identifies why the selected outcome is justified today.
+  - id: A2
+    text: Executed paired fixtures demonstrate exact text/ID/ref behavior and safe failures for valid, altered, malformed, missing, oversized and escaped results; copied JSON fields cannot invent authority.
+  - id: A3
+    text: Executed boundary cases distinguish exhausted budgets from a completed main call at the permitted limit, preserve all configured caps, and show cancellation/truncation cannot become fabricated success.
+  - id: A4
+    text: The decision explicitly addresses queued and nonterminal Runs, later Stages, replacement allocations and mixed Runtime builds, or records why no cutover is needed when keeping current behavior.
+  - id: A5
+    text: Evidence records actual test outcomes and limitations; merely adding a decision document, passing unchanged tests or observing fewer fake calls does not establish a production quality or latency improvement.
+tests:
+  - name: completion-strategy-comparison
+    command: runtime/.venv/bin/pytest -W error runtime/tests/test_completion_strategy_comparison.py
+    covers: [A2, A3]
+  - name: current-completion-regressions
+    command: runtime/.venv/bin/pytest -W error runtime/tests/test_result_finalizer.py runtime/tests/test_adk_runtime.py runtime/tests/test_instrumentation.py runtime/tests/test_worker_summarizer.py runtime/tests/test_audit_completion_runtime.py runtime/tests/test_workspace_auto_export.py runtime/tests/test_a2a_server.py
+    covers: [A2, A3]
+  - name: whitespace
+    command: git diff --check
+    covers: [A5]
+verification_requirements:
+  - Implement the named comparison module in this task and record executed cases; it is not an already existing gate.
+  - Review the history, budget and cutover decisions directly for A1/A4; pytest and whitespace checks do not establish those decisions.
+  - Record selected outcome and unresolved prerequisites without converting a research recommendation into an implemented production change.

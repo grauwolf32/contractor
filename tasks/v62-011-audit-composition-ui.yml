@@ -12,17 +12,17 @@ context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/19-audits.md, docs/spec/ui-user-stories.md]
-  boundary: UI consumes public projections from V62-010 and the fully resolving profile from V62-009; it does not infer phase or dependencies from role names.
+  boundary: UI consumes public projections from V62-010 and the generated-source profile from V62-004 using the V62-009 scan adapter; it does not infer phase from role names.
 scope:
   in:
     - Show profile input requirements and the planned preparation/check sequence before start with normal exact input selection.
     - Display preparation role progress, waiting/failed inventory and current controls when no Round or coverage denominator exists yet.
     - Show generated OpenAPI, validation outcome, accepted operation count and coverage origin after inventory acceptance.
-    - Link checks and assessment to exact dependency/result snapshots, attempts, evidence and rejected/deferred proposal reasons.
+    - Link SQLMap requests and Nuclei fixed URLs to exact OpenAPI revisions, scan settings, attempts and evidence with distinct coverage labels.
     - Preserve existing approval interaction and accessible pause/resume/cancel/delete flows through preparation and later rounds.
     - Refresh all dependent projections after phase/revision changes, terminal transition and reconnect while preserving bounded query state.
   out:
-    - Visual generic DAG editor, arbitrary artifact lookup, automatic authorization or changing assessment/proof semantics in presentation.
+    - Deferred iterative assessment/dependency/routing UI, visual generic DAG editor, arbitrary artifact lookup, automatic authorization or changing proof semantics in presentation.
 deliverables:
   - path: ui/src/routes/projects/audits
     description: Accessible preparation, generated inventory, result provenance and control states in the Audit workspace.

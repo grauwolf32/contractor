@@ -12,6 +12,7 @@ execution_policy:
   task_statuses:
     pending: Not yet taken into development.
     in_progress: Taken into development; implementation or verification is ongoing.
+    deferred: Explicitly on hold after review; must not be selected until the user reactivates it.
     completed: Finished under completion_rule and implementation_commit_rule.
     complete: Legacy alias of completed; existing task files remain valid.
     archived: Deferred out of the active backlog; retained evidence does not imply completion.
@@ -23,6 +24,11 @@ execution_policy:
     Treat complete and completed as finished when checking dependencies; pending
     and in_progress are unfinished. Do not independently take an in_progress
     task already being worked on unless explicitly assigned to continue it.
+    Exclude deferred tasks from eligible work even when dependencies are complete.
+    They do not satisfy dependencies. Preserve their scope and record the date,
+    previous status, reason and reactivation condition in deferral. Dependency
+    completion alone never reactivates a deferred task; explicit user direction
+    and a reviewed scope are required before changing it back to pending.
     Exclude archived tasks from active work and backlog counts; they do not
     satisfy dependencies. Retain their original scope and evidence together
     with the archive date, previous status and reason in the task file.
@@ -328,13 +334,19 @@ milestones:
       Optional context informs independent checklist verdicts; each Audit pass
       selects at least ten highest-priority checks, or all remaining if fewer,
       with durable explanations, unchanged review gates and full inventory coverage.
+  - id: findings-benchmark-contracts
+    exit_task: V63-001
+    outcome: >-
+      Findings retain explicit optional file, line, line-range and web URL/method
+      locations through tools, collections, API, reports and UI; source readers can show
+      absolute line numbers on request without changing their default output.
   - id: audit-workflow-composition
     exit_task: V62-012
     outcome: >-
-      An opt-in Audit prepares source analysis and OpenAPI before accepting its
-      initial worklist, executes bounded checks, supplies assessment snapshots,
-      and routes later checks with exact retained dependencies and observable
-      lifecycle/provenance through existing Server, Runtime and UI boundaries.
+      First prove SQLMap request checks and Nuclei checks of pinned OpenAPI URLs
+      with truthful Audit results, then add opt-in preparation before the initial
+      worklist with existing OpenAPI Workflows and public lifecycle/provenance.
+      Iterative snapshots, dependency routing and standalone analysis are deferred.
   - id: toolset-runtime-configuration
     exit_task: V61-009
     outcome: >-
@@ -741,6 +753,45 @@ milestones:
       instructions. Implicit byte-based context admission is removed; future
       compactification must be a separate explicit strategy.
 
+architecture_review_followups_planning:
+  planned_on: "2026-09-19"
+  status: partially_implemented
+  implementation_status:
+    reviewed_on: "2026-09-20"
+    completed: [V57-001, V57-002, V57-004, V57-005]
+    pending: []
+    archived: [V57-003]
+    completion_research_decision: >-
+      Standalone fake-model comparison archived as disproportionate after
+      V57-004; ordinary completion policy remains unchanged. Preserve its
+      contract question without scheduling another research pipeline.
+    connection_reuse_decision: no-change
+    v57_004_result: Typed Runtime assembly; synthetic Audit JSON bound removed.
+    shared_result_limits: Deferred for separate user discussion; existing limits unchanged.
+  authority: >-
+    User requested rechecking all architecture recommendations against original
+    decisions and current code after the ADK finalizer rationale was missed,
+    then planning justified follow-up work. Planning is not implementation.
+  review: docs/research/2026-09-19-architecture-evolution-review.md
+  plan: docs/plans/2026-09-19-architecture-review-followups.md
+  task_ids: [V57-001, V57-002, V57-003, V57-004, V57-005]
+  work_types:
+    confirmed_corrections: [V57-001, V57-002]
+    completion_decision: []
+    archived_completion_research: [V57-003]
+    optional_completion_refactor: [V57-004]
+    optional_transport_experiment: [V57-005]
+  suggested_order: []
+  constraints: >-
+    The five tasks are independently scoped; individual task files own their
+    current status. Suggested order does not override existing priorities,
+    dependencies or in-progress owners.
+    V57-003 is archived, not completed; V57-005 retained current transport.
+    A production strategy/transport change requires its own explicit follow-up.
+    V57-004 preserves wire/model limits and removes only the synthetic Audit
+    JSON bound selected by the user; it is not a product release prerequisite. Continue existing V55/V56/V40 work in its own scope;
+    do not duplicate V54 draft contracts or reactivate archived V53 work.
+
 audit_check_prioritization_planning:
   planned_on: "2026-09-20"
   schema_policy_updated_on: "2026-09-21"
@@ -785,21 +836,23 @@ audit_check_prioritization_planning:
 
 audit_workflow_composition_planning:
   planned_on: "2026-09-20"
+  reviewed_on: "2026-09-20"
   schema_policy_updated_on: "2026-09-21"
-  status: planned
+  status: in_progress
   authority: >-
-    User requested task decomposition after discussing prepare, generated
-    inventory, assessment inputs, check routing and cross-round data reuse.
-    This records planned work and does not start implementation.
+    User accepted the review order: start with scanning an existing OpenAPI,
+    including Nuclei against pinned concrete URLs, then add preparation. Mark
+    disputed/future composition work deferred so it cannot be selected by accident.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   task_ids: [V62-001, V62-002, V62-003, V62-004, V62-005, V62-006, V62-007, V62-008, V62-009, V62-010, V62-011, V62-012]
+  active_task_ids: [V62-009, V62-001, V62-002, V62-003, V62-004, V62-010, V62-011, V62-012]
+  deferred_task_ids: [V62-005, V62-006, V62-007, V62-008]
   dependency_layers:
+    - [V62-009]
     - [V62-001]
     - [V62-002]
     - [V62-003]
     - [V62-004]
-    - [V62-005, V62-006, V62-008]
-    - [V62-007, V62-009]
     - [V62-010]
     - [V62-011]
     - [V62-012]
@@ -811,12 +864,15 @@ audit_workflow_composition_planning:
     readers or implicit conversion. Migrate catalog fixtures and clients to the
     current schema; historical schema bytes and old clients are not release
     requirements. Preserve immutable accepted data and current-schema recovery.
-    Preserve direct-input start-time inventory,
-    same-round retained-output and existing authorization/Scheduler boundaries.
-    V62 owns generic dependencies/routing reused by specification 33, while
-    autonomous pentest scope, identities, proof and transport remain separate.
-    Reuse delivered V55 scanners and scan planning. Finalize and arbitrary
-    Workflow DAGs are deferred; existing in-progress owners are unchanged.
+    Preserve direct-input
+    start-time inventory, same-round retained-output and existing authorization/Scheduler boundaries.
+    Generic snapshots/dependencies/routing and standalone project-analysis are
+    deferred and require explicit reactivation; specification 33 remains separate.
+    Reuse delivered V55 scanners and scan planning; pin Nuclei URLs without
+    claiming execution of the source operation's method/body/authentication.
+    Preparation APIs ship with preparation, without waiting for iterative routing.
+    V62-001 contract implementation was explicitly authorized while V62-009
+    release verification remains in progress. Existing in-progress owners outside V62 are unchanged.
 
 toolset_runtime_configuration_planning:
   planned_on: "2026-09-19"
@@ -936,6 +992,7 @@ managed_evals_planning:
     in_progress: []
     pending: []
     evidence: docs/plans/2026-09-20-managed-evals-ui.md
+    review: docs/plans/2026-09-20-open-task-review.md
   specification: docs/spec/30-managed-evals.md
   design: docs/evals-experience-design.md
   design_task: V38-001
@@ -2872,6 +2929,7 @@ tasks:
   - {id: V55-010, file: v55-010-katana-scan-adapter.yml}
   - {id: V57-001, file: v57-001-live-harness-effective-model.yml}
   - {id: V57-002, file: v57-002-documentation-status-reconciliation.yml}
+  - {id: V57-003, file: v57-003-ordinary-completion-decision.yml}
   - {id: V57-004, file: v57-004-worker-result-assembly.yml}
   - {id: V57-005, file: v57-005-a2a-connection-reuse-experiment.yml}
   - {id: V58-001, file: v58-001-runtime-provenance.yml}
@@ -2955,6 +3013,7 @@ tasks:
   - {id: V62-010, file: v62-010-audit-composition-api.yml}
   - {id: V62-011, file: v62-011-audit-composition-ui.yml}
   - {id: V62-012, file: v62-012-audit-composition-release.yml}
+  - {id: V63-001, file: v63-001-finding-source-locations.yml}
   - {id: V63-002, file: v63-002-read-file-line-numbers.yml}
   - {id: V64-000, file: v64-000-audit-priority-core.yml}
   - {id: V64-001, file: v64-001-audit-priority-contracts.yml}

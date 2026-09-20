@@ -2,8 +2,13 @@ schema_version: "1.0"
 id: V62-007
 title: Route admitted proposed checks to explicit profile Workflow bindings
 milestone: audit-workflow-composition
-priority: P1
-status: pending
+priority: P2
+status: deferred
+deferral:
+  date: "2026-09-20"
+  previous_status: pending
+  reason: Verify/replay routing is independent of the first OpenAPI scan and preparation release.
+  reactivate_when: Explicit user approval of iterative checks after dependency and snapshot contracts are reviewed.
 implementation_commit: null
 depends_on: [V62-005, V62-006]
 languages: [go, json, yaml]
@@ -12,7 +17,7 @@ context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/19-audits.md, docs/spec/33-autonomous-pentest-audits.md]
-  reuse: Specification 33 proposes proposedChecks mappings by planSchema and phase; V62-001 defines the common routing contract and V62-006 supplies exact dependencies.
+  reuse: Specification 33 proposes proposedChecks mappings by planSchema and phase; define the common routing contract here on reactivation and use V62-006 exact dependencies.
 scope:
   in:
     - Validate profile mappings from typed plan schema and phase to a compatible exact check binding and required capabilities.
@@ -29,7 +34,7 @@ deliverables:
   - path: internal/auditservice
     description: Typed proposal admission, decision retention and deterministic next-round routing.
   - path: internal/auditstore
-    description: Durable admission provenance and consume-once identity where required by V62-001.
+    description: Durable admission provenance and consume-once identity under the reviewed routing contract.
   - path: internal/auditdomain
     description: Selected role and exact dependency attribution in accepted item packages.
 acceptance_criteria:

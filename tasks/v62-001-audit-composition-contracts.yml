@@ -1,16 +1,15 @@
 schema_version: "1.0"
 id: V62-001
-title: Specify Audit preparation and explicit Workflow data contracts
+title: Specify Audit preparation and a single explicit inventory source schema
 milestone: audit-workflow-composition
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
-depends_on: [V25-001, V25-011, V39-007]
+depends_on: [V62-009, V25-001, V25-011, V39-007]
 languages: [go, json, yaml, openapi, markdown]
 goal: >-
-  Define an opt-in Audit-level prepare phase and unambiguous inventory,
-  assessment snapshot, retained dependency and proposed-check routing contracts
-  before enabling their execution.
+  Define an opt-in Audit-level prepare phase and exact generated inventory
+  inputs after the supplied-OpenAPI scan/result contract is proven.
 context:
   authority: User requested task decomposition for preparation, generated inventory, result snapshots and Workflow composition on 2026-09-20.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
@@ -18,19 +17,24 @@ context:
     - docs/spec/19-audits.md
     - docs/spec/03-artifact-plane.md
     - docs/spec/25-audit-worker-finalization.md
-    - docs/spec/33-autonomous-pentest-audits.md
+    - docs/spec/openapi-audit-scans.md
   compatibility: One current schema only. Migrate repository profiles and fixtures; reject sourceInput/settingsInput and obsolete snapshots instead of adding compatibility readers.
+  reuse:
+    - V62-009 supplies the versioned auditTask producer/consumer contract and explicit executor Stage selection, including surrounding Workflow Stages and additional roles.
+    - Preparation runs before the initial inventory exists; an ordinary Stage inside an item Workflow cannot replace this Audit-level phase.
+    - Extend existing exact input mappings to accepted prepare outputs without changing scan task identity, result ownership or outcome-aware recovery.
 scope:
   in:
     - Specify prepare role kind, Audit-level execution identity, bounded attempts, phase transitions and valid absent-currentRound projections.
     - Specify baseline pinning before preparation and separate immutable derived artifacts without rewriting original input or scope provenance.
-    - Fix explicit inventory-source selection and prepare-output, round-results and retained-dependency input schemas with legal consumers and execution scopes.
-    - Define round snapshot contents, result selection, evidence materialization, analyst revision pins, finite limits and partitioning or explicit overflow behavior.
-    - Align generic proposedChecks routing and exact item dependency manifests with specification 33 without implementing pentest-specific policies.
+    - Fix explicit inventory-source selection and prepare-output input schemas with legal consumers and execution scopes.
+    - Specify a first profile using openapi-from-workspace@7 as a configuration-selected prepare role and the delivered V62-009 auditTask contract; runtime behavior must not depend on those resource names.
+    - Define the minimal public start/status/control behavior shipped with preparation, before richer V62-010 projections.
     - Define pause, deadline, cancellation, deletion, recovery, failure, zero-item inventory and cumulative budget semantics before and after Round creation.
     - Add strict schema/Go fixtures, public contract types and profile validation with unsupported execution capability gating until dependent tasks land.
   out:
-    - Enable prepare dispatch, publish a runnable new profile, add finalize or change existing authorization and Scheduler semantics.
+    - Redesign the delivered auditTask contract, restrict Workflow topology by inventory implementation, or regenerate shared inventory separately inside each item's Workflow.
+    - Enable prepare dispatch, publish a runnable new profile, add finalize, round-results, retained-dependency or proposedChecks routing, or change existing authorization and Scheduler semantics.
 deliverables:
   - path: docs/spec/19-audits.md
     description: Normative lifecycle and composition contracts with valid/invalid authoring examples and failure outcomes.
@@ -51,7 +55,7 @@ acceptance_criteria:
   - id: A1
     text: Normative examples cover the full source-to-OpenAPI-to-inventory chain, direct-input profiles, legal dependencies and every control transition before a Round exists.
   - id: A2
-    text: Strict executable fixtures reject invalid sources, scopes, routes and limits and migrated profiles round-trip with deterministic canonical bytes and digests.
+    text: Strict executable fixtures reject invalid sources, scopes and limits and migrated profiles round-trip with deterministic canonical bytes and digests.
   - id: A3
     text: Public API models and clients represent preparation truthfully; incomplete capabilities cannot appear runnable and all existing catalog contracts remain valid.
 tests:
@@ -63,4 +67,27 @@ tests:
     covers: [A1]
 verification_requirements:
   - Review the transition/input-source matrices and confirm each negative contract is selected by a test, not only described in prose.
-  - Reconcile specification 33 references without enabling or claiming its unimplemented pentest capabilities.
+  - Keep deferred V62-005/006/007/008 contracts out of the preparation release and preserve the V62-009 scanner coverage/retry decisions.
+
+progress:
+  checkpoint_commit: 22fcba08211b83bb109c34c706ce5696602b699d
+  authority: User explicitly requested V62-001 implementation and no legacy schema support on 2026-09-20; contract work proceeds while V62-009 release verification remains in progress.
+  implemented:
+    - One inventory source/settings mapping schema across catalog profiles, Go consumers, public API and UI; obsolete fields are rejected.
+    - Explicit prepare kind, bounded per-role Run attempts, Audit-scoped dependencies, exact source equality for scan consumers and persisted snapshot validation.
+    - Phase/preparation/output provenance DTOs, absent-Round start/status contracts, synchronized Go/TypeScript clients and strict UI parsing.
+    - Normative pre-Round controls, baseline/derived provenance, recovery, failure and shared budget matrices in specification 19.
+    - Catalog-valid preparation fixture remains execution-gated with preparation_unsupported until V62-002–004.
+  verification:
+    - Go tests passed for config, contracts, auditdomain, auditservice, auditimport, auditcontroller, runservice and all planner packages.
+    - Preparation authoring and public fixture tests passed; shared public fixtures are also selected by UI parser tests.
+    - Existing Audit UI suites passed (60 tests); composition plus API suites passed (30 tests, including 18 new composition cases).
+    - test-config passed against the full repository catalog; ui-generate-check passed against working-copy generation; git diff --check passed.
+  verified_on: "2026-09-21"
+  integration_verification:
+    - Full public API conformance and catalog validation pass after V65 integration.
+    - Generated UI client, application/e2e TypeScript, ESLint, Prettier, all 593 UI tests and production build pass.
+    - Audit domain, intake, importer, service, controller and public API suites pass against disposable PostgreSQL; importer/controller fixtures explicitly admit queued Runs.
+  remaining:
+    - V62-009 remains in_progress; its production-process and cross-Run scanner collection acceptance are still prerequisites for closing this contract task.
+    - Preparation execution remains capability-gated until V62-002–004; passing authoring and API contract checks does not deliver those implementations.

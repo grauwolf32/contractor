@@ -2,8 +2,13 @@ schema_version: "1.0"
 id: V62-006
 title: Retain exact item dependencies across Audit rounds
 milestone: audit-workflow-composition
-priority: P1
-status: pending
+priority: P2
+status: deferred
+deferral:
+  date: "2026-09-20"
+  previous_status: pending
+  reason: Cross-round item dependencies belong to the later iterative Audit slice.
+  reactivate_when: Explicit user approval of an actual later-round consumer and its exact dependency contract.
 implementation_commit: null
 depends_on: [V62-004]
 languages: [go, json, sql]
@@ -15,7 +20,7 @@ context:
     - docs/spec/19-audits.md
     - docs/spec/03-artifact-plane.md
     - docs/spec/33-autonomous-pentest-audits.md
-  boundary: Implement the generic retained-dependency contract from V62-001; pentest-specific recipe, proof and authorization checks remain outside this task.
+  boundary: Define the generic retained-dependency contract on reactivation; V62-001 covers preparation only. Pentest-specific recipe, proof and authorization checks remain outside this task.
 scope:
   in:
     - Persist bounded named dependencies binding Audit/baseline, source execution/round/item/attempt, retained ref/digest and intake receipt/ordinal where applicable.

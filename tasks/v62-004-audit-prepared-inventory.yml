@@ -16,11 +16,12 @@ context:
 scope:
   in:
     - Resolve prepared inventory sources only from accepted retained role output revisions and validate declared media/format contracts.
-    - Reuse deterministic OpenAPI-operation and checklist builders with existing bounded expansion and gap semantics.
+    - Reuse deterministic builders with bounded expansion and gap semantics, retaining V62-009 scan-specific coverage separately from operation-trace inventories.
     - Persist derived source identity, inventory digest, immutable tasks, initial coverage and the first Round in a recoverable atomic acceptance path.
     - Reject malformed, missing, oversized and unaccepted outputs with explicit reasons and no placeholder successful worklist.
     - Preserve original baseline and prepare lineage; expose generated coverage denominator only once its worklist has been accepted.
     - Respect concurrent cancel/delete/claims and recover crashes between retained source, generated packages and Round acceptance.
+    - Publish a complete source-to-scan profile using one existing openapi-from-workspace@7 prepare role and the V62-009 adapter; do not require standalone project-analysis.
   out:
     - Mutate an accepted worklist, accept model-created Run IDs or item authority, or fetch remote OpenAPI references.
 deliverables:
@@ -32,6 +33,8 @@ deliverables:
     description: Fenced atomic first-Round acceptance and replay invariants.
   - path: internal/auditcontroller
     description: Preparation-to-inventory transition and explicit inventory failure outcomes.
+  - path: configs/audit-profiles
+    description: Single-prepare generated-OpenAPI scan profile using existing Workflow versions and delivered scanner bindings.
 acceptance_criteria:
   - id: A1
     text: Generated OpenAPI with three supported operations creates exactly three correctly attributed items, and the same retained input deterministically reproduces the same inventory digest.

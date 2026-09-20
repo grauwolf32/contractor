@@ -21,7 +21,10 @@ Accepted contracts belong in the specification; implementation status belongs in
 current readiness.
 
 [Evals experience design](evals-experience-design.md) records the selected full
-browser journey and independent producer boundary; V38 implementation is planned.
+browser journey and independent producer boundary. V38-001–010 are delivered,
+including collection, comparison, the native UI and the release gate.
+The [open-task review](plans/2026-09-20-open-task-review.md) records the dated
+main/worktree status, remaining scope and parallel work at the time of that review.
 
 [Legacy compatibility removal](plans/2026-09-20-legacy-removal.md) records
 confirmed implementation shims, 41 superseded catalog entries and a staged
@@ -36,9 +39,14 @@ It specifies the implementation target and maps existing work to delivery
 stages; the new capabilities are not yet implemented.
 
 [Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md)
-plans V62: preparation before initial inventory, generated OpenAPI checks,
-assessment result snapshots and exact dependencies/routing across rounds.
-The linked tasks are pending; this plan does not enable the new profile contracts.
+tracks V62: first supplied-OpenAPI SQLMap and pinned-URL Nuclei checks, then
+preparation before initial inventory. The scan adapter is in progress;
+assessment snapshots, cross-round routing and standalone analysis are explicitly
+deferred. Candidate Audit scan profiles are present; their production-process
+acceptance remains open in V62-009.
 
-[Architecture review — 2026-09-15](reviews/architecture-review-2026-09-15.md)
-records the per-view scenario checks, fixes and verification limits.
+[Architecture evolution review — 2026-09-19](research/2026-09-19-architecture-evolution-review.md)
+rechecks all 19 recommendations against original decisions and current contracts.
+The [follow-up plan](plans/2026-09-19-architecture-review-followups.md) separates
+confirmed corrections, a completion decision, an optional refactor and a transport
+experiment. Both documents are non-normative.

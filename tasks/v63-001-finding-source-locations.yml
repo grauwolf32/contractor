@@ -1,0 +1,183 @@
+schema_version: "1.0"
+id: V63-001
+title: Preserve explicit source and web locations in finding proposals
+milestone: findings-benchmark-contracts
+priority: P1
+status: completed
+implementation_commit: 22fcba08211b83bb109c34c706ce5696602b699d
+depends_on: [V43-005, V63-002]
+languages: [go, python, typescript, openapi, markdown]
+goal: >-
+  Allow a finding to carry explicit file-only, single-line, inclusive line-range
+  or web URL locations through production, retention, collection, API, reports
+  and UI so consumers can locate source and web findings without parsing prose.
+context:
+  authority: >-
+    On 2026-09-20 the user requested explicit file/line/range support while
+    preparing a crAPI findings benchmark, then explicitly requested a Contractor
+    task for the required work rather than immediate implementation. The user
+    subsequently proposed URL locations for web findings; include them in this
+    versioned contract, without expanding the source-only benchmark or implementing
+    the separate SARIF export draft.
+  specification:
+    - docs/spec/19-audits.md
+    - docs/spec/27-findings-tools-and-collections.md
+    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+  existing_gap: >-
+    FindingProposal contains only subject.kind/key plus prose and evidence refs.
+    The runtime finding tool, collection reader and public FindingProposalDocument
+    have no typed source or web location. A subject key is not a file/URL locator.
+  related_draft: >-
+    docs/spec/28-finding-analysis-and-sarif.md is unimplemented. Its richer exact
+    evidence resolver and SARIF exporter are outside this task. Amend its current
+    data description and compatibility assumptions when basic coordinates land;
+    do not claim those draft capabilities are delivered.
+  authoring_interface_review: >-
+    User subsequently requested a simpler model-facing interface to reduce
+    mistakes. See docs/plans/2026-09-20-finding-tool-interface.md. Treat retained
+    location data and the authoring tool schema separately; do not freeze the
+    tool by simply appending every retained field. The user subsequently authorized the reviewed interfaces and implementation;
+    new selected versions preserve the existing signatures.
+    The user selected separate code/HTTP implementations, both exposed under
+    the common model-facing name finding, and a universal implementation for
+    mixed/general workers, all using one retained model and one atomic submission
+    path. HTTP request_id enrichment is optional and must include the full
+    outgoing request. The latest user proposal keeps only 128 outgoing request
+    records in memory without per-request artifacts, requires url and method in
+    the HTTP facade, and makes request_id optional for evidence enrichment.
+    This supersedes retaining all requests with a 128-record history projection;
+    expired explicit IDs produce repairable errors. See the interface plan.
+    Select the facade explicitly through AgentTemplate toolset references before
+    worker execution; all three implementations export only the visible creation
+    name finding, with duplicate selections rejected. The consolidated proposal
+    uses flat file plus optional line/range for the code facade, flat url/method
+    plus optional request_id for HTTP, and optional typed locations for general
+    workers. Normalize to one retained model and migrate versioned templates
+    explicitly rather than changing schemas based on runtime tool use.
+    Do not expose overlapping creation tools or auto-merge their reports.
+  benchmark_handoff: >-
+    The sibling playground-v2 task log is
+    docs/tasks/2026-09-20-crapi-findings-benchmark.md. The benchmark owns expected
+    source coordinates and matching, not Contractor domain code or private DB reads.
+    Existing standard_refs can carry CWE scheme/version/requirement_id; do not
+    add a second competing classification field merely for this benchmark.
+    Playground must separately define the explicit reference-to-CWE mapping
+    and bind retained finding output to its scorer after this task lands.
+scope:
+  in:
+    - Implement the authorized last-128 HTTP capture store, invocation-scoped optional request_id lookup and immutable selected outgoing exchange snapshot in the current proposal.
+    - Specify an optional bounded locations array with two closed alternatives, file plus optional line/range or url plus optional method; require exactly one of file and url.
+    - Support file-only locations, one-based line, and inclusive range.start_line/range.end_line; reject line plus range and reversed/zero/noninteger coordinates.
+    - Require relative case-sensitive POSIX file paths; reject absolute/drive paths, backslashes, traversal, empty/dot components and control characters.
+    - Support absolute HTTP/HTTPS web URLs and an optional explicit HTTP method; reject file/line/range on web entries and url/method on file entries.
+    - Preserve web URL spelling, escaping, query order and fragment without inferred normalization, default GET, fetching, DNS resolution or automatic UI previews.
+    - Publish exact field spelling, collection/path/number limits and the current schema contract in the owning specification before enabling producers.
+    - Expose optional typed locations through a deliberately small authoring interface, with shared validation and useful bounded field-specific errors.
+    - Inspect and test the actual provider-facing schema; declare nested object properties explicitly instead of exposing arbitrary dict keys that Runtime later rejects.
+    - Resolve durable retry identity and absent or ambiguous subject semantics before removing client_key or subject from any selected model interface; remove obsolete development interfaces.
+    - Preserve locations through intake canonicalization/idempotency, retained proposal bytes, Audit imports, collection codecs/readers, public DTOs and machine reports.
+    - Synchronize Go/Python codecs, public OpenAPI, generated clients and strict UI parsers; display explicit coordinates without deriving them from description or subject.
+    - Add shared positive/negative fixtures and a full producer-to-reader/API/report round trip.
+  out:
+    - SARIF export, call/data-flow graphs, repository checkout, source maps or implicit line remapping.
+    - Infer coordinates from prose or basename search, confirm exploitability, or rewrite existing immutable proposals and assessments.
+    - Change finding admission/review authority, introduce benchmark-specific server logic, deploy services or run a model campaign.
+    - Replay requests, infer route templates or source-to-endpoint mappings, or introduce HTTP finding scoring into the source-only crAPI benchmark.
+proposed_contract:
+  field: locations
+  optional: true
+  maximum_items: 256
+  maximum_file_utf8_bytes: 4096
+  maximum_url_utf8_bytes: 8192
+  maximum_method_ascii_bytes: 64
+  maximum_line: 9007199254740991
+  alternatives:
+    source:
+      required: [file]
+      optional: [line, range]
+      mutually_exclusive: [line, range]
+    web:
+      required: [url]
+      optional: [method]
+    selection: Exactly one alternative per entry; unknown fields are rejected.
+  examples:
+    - {file: src/auth.py}
+    - {file: src/auth.py, line: 42}
+    - file: src/auth.py
+      range: {start_line: 42, end_line: 46}
+    - {url: 'https://app.example/orders/123'}
+    - {url: 'http://127.0.0.1:8888/workshop/api/shop/orders/123', method: GET}
+  web_validation: >-
+    Require a syntactically valid absolute http/https URL with a nonempty host
+    and a valid port if supplied. Reject userinfo, raw whitespace/control
+    characters, backslashes, malformed percent escapes, relative URLs and other
+    schemes. Loopback/private addresses are allowed for local test targets.
+    A fragment may locate a browser-side issue and is preserved as authored;
+    it is not part of an HTTP request target. Method, when present, is a
+    nonempty bounded ASCII HTTP token; preserve its case and do not assume GET
+    when absent. Freeze identical Go/Python parser behavior with shared fixtures.
+  semantics: >-
+    File locations are producer-supplied claims relative to the inspected source
+    root; web locations identify the affected web address and optionally method.
+    Neither proves source correctness, URL reachability or an observed HTTP
+    exchange. Retain recorded requests/responses through existing evidence_refs;
+    a URL alone is not evidence. One finding can contain separate source and
+    web entries without asserting a verified mapping between them. Locations
+    remain optional. Preserve original input/evidence provenance; the benchmark
+    separately pins source bytes. Multiple locations retain authored order and
+    do not create an implicit primary location or finding identity.
+  development_contract: >-
+    The user explicitly rejected supporting old schemas while the application is
+    in development. Keep one current proposal schema and three facade variants;
+    update producers, readers, configurations and benchmark binding together.
+    Do not retain old tool implementations, conversion adapters or migration paths.
+    Reject null locations, malformed entries and unknown keys. A coordinate change
+    changes the idempotency payload; missing/empty locations encode by omission.
+deliverables:
+  - path: docs/spec/27-findings-tools-and-collections.md
+    description: Current source/web location alternatives and shared authoring contract.
+  - path: internal/auditdomain
+    description: Typed locations, canonical validation and shared positive/negative fixtures.
+  - path: runtime/src/contractor_runtime/toolsets/security_findings
+    description: Producer and collection reader support without losing coordinates.
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Public coordinate model with regenerated Go/TypeScript clients and UI support.
+acceptance_criteria:
+  - id: A1
+    text: File-only, line, range, URL-only, URL/method and mixed-location findings survive the full intake-to-collection-to-public/API/report path with identical authored values.
+  - id: A2
+    text: Both codecs reject invalid numeric coordinates, unsafe paths, malformed URLs/methods, mixed alternatives, null and unknown keys consistently; query escaping, repeated parameters and fragments round-trip without rewriting.
+  - id: A3
+    text: One current schema is used throughout; identical submissions replay while changed coordinates conflict under the same key. Unsupported schemas fail explicitly.
+  - id: A4
+    text: UI distinguishes file locations from web URLs and optional methods; it does not invent source links, fetch URL previews, treat locations as validated evidence or mistake a web address for a source artifact URI.
+  - id: A5
+    text: An external API client can obtain coordinates for crAPI scoring without parsing Markdown or reading Contractor storage directly.
+  - id: A6
+    text: The actual model-facing declaration exposes explicit fields and required keys consistent with validation; the universal call permits absent locations, the code facade requires file with optional line/range, and the HTTP facade requires url/method with optional request_id. AgentTemplate selects one finding declaration without fabricated evidence or taxonomy metadata.
+tests:
+  - command: go test ./internal/auditdomain ./internal/findingintake ./internal/auditimport ./internal/auditservice ./internal/httpapi/public
+    covers: [A1, A2, A3, A5]
+  - command: runtime/.venv/bin/pytest runtime/tests/test_security_findings_toolset.py runtime/tests/test_findings_reader_toolset.py runtime/tests/test_finding_facades.py
+    covers: [A1, A2, A3, A6]
+  - command: make verify-public-api ui-typecheck
+    covers: [A1, A2, A4, A5]
+  - command: make test-findings-e2e
+    covers: [A1, A3, A5]
+  - command: git diff --check
+    covers: [A1]
+verification_requirements:
+  - Add executable coordinate cases to the named tests and process gate; unchanged passing tests do not demonstrate the new contract.
+  - Record focused UI verification for coordinates and missing-source behavior.
+  - Implementation was explicitly authorized after the interface review; deployment and model campaigns remain separate.
+
+verification:
+  completed_on: "2026-09-21"
+  environment: Local checkout, Node 24.20.0, pinned Runtime virtualenv and disposable PostgreSQL 17; scripted offline model fixtures.
+  results:
+    - Full go test -count=1 ./... passed; public API conformance and catalog validation passed.
+    - Audit domain, finding intake, importer, service, controller and public API PostgreSQL suites passed; queued-Run fixture admission was updated for V65.
+    - 145 focused Runtime tests passed across finding tools/readers/facades, HTTP and tool-input errors.
+    - make test-findings-e2e passed with 87 Runtime cases and all 14 required process cases, including source-location retention after source Run deletion.
+    - UI generation, application/e2e TypeScript, lint, formatting, all 593 UI tests and production build passed; the suite includes finding-location and missing-source checks.
+  limitations: Scripted process checks establish contract and retention behavior; no live model campaign, benchmark quality evaluation or deployment was performed.

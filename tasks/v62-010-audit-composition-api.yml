@@ -5,31 +5,31 @@ milestone: audit-workflow-composition
 priority: P1
 status: pending
 implementation_commit: null
-depends_on: [V62-007]
+depends_on: [V62-004]
 languages: [go, openapi, typescript]
-goal: Make preparation, generated inventory, result snapshots and routed dependencies observable and controllable through existing owner-scoped Audit APIs.
+goal: Expose preparation outputs, generated inventory and scan provenance through existing owner-scoped Audit APIs after minimal lifecycle handlers ship in V62-003.
 context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/19-audits.md, docs/spec/06-server-ui-and-operations.md]
-  contract: V62-001 fixes public wire shapes; implemented preparation, snapshots and admission are authoritative sources for projections.
+  contract: V62-001 fixes public preparation shapes; V62-003 provides minimal lifecycle handlers and V62-004 accepted generated inventory.
 scope:
   in:
     - Implement safe preparation role/attempt/status/output projections and valid absent-currentRound responses before inventory acceptance.
-    - Expose pinned generated inventory source, coverage denominator origin, round snapshot digest and exact dependency/routing decisions.
+    - Expose pinned generated inventory source, coverage denominator origin, fixed scan URL/request provenance and accepted preparation outputs.
     - Support existing start/pause/resume/cancel/delete and their CAS/idempotency rules in preparation and between-round states.
     - Expose only committed accepted artifact links through Audit read routes, preserving protected Project prefix and owner isolation.
     - Keep pagination and multi-page reads revision-consistent; distinguish unknown/pending coverage from genuinely empty accepted scope.
     - Synchronize OpenAPI, public Go/UI clients and strict parsers and reject incomplete profile capabilities with useful diagnostics.
   out:
-    - New generic Project artifact browsing authority, API-controlled arbitrary Workflow selection or replacement of pinned inputs during resume.
+    - Deferred round snapshots/dependency routing, new generic Project artifact browsing authority, API-controlled arbitrary Workflow selection or replacement of pinned inputs during resume.
 deliverables:
   - path: internal/httpapi/public
     description: Owner-safe projections, controls and revision-consistent provenance/artifact routes.
   - path: api/openapi/contractor-public-v1.yaml
     description: Verified public API behavior and synchronized generated contracts.
   - path: ui/src/api
-    description: Strict preparation, result snapshot and dependency DTO parsers and client methods.
+    description: Strict preparation, generated-source and scan-provenance DTO parsers and client methods.
 acceptance_criteria:
   - id: A1
     text: Public clients can distinguish preparation, pending inventory, executing checks and assessment and identify exact accepted source/output revisions.
