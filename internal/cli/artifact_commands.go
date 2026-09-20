@@ -586,17 +586,28 @@ func writeDownloadedFile(path string, payload []byte, force bool) error {
 		committed = true
 		return nil
 	}
+	// Inspect the destination without following a symlink. Atomic replacement
+	// must retain a private file's permissions, not widen them to a fixed mode.
+	mode := os.FileMode(0o600)
+	if existing, err := os.Lstat(path); err == nil {
+		if !existing.Mode().IsRegular() {
+			return errors.New("download destination must be a regular file")
+		}
+		mode = existing.Mode().Perm()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	temporary, err := os.CreateTemp(filepath.Dir(path), ".contractor-download-*")
 	if err != nil {
 		return err
 	}
 	temporaryName := temporary.Name()
 	defer os.Remove(temporaryName)
-	if err := temporary.Chmod(0o644); err != nil {
+	if _, err := temporary.Write(payload); err != nil {
 		_ = temporary.Close()
 		return err
 	}
-	if _, err := temporary.Write(payload); err != nil {
+	if err := temporary.Chmod(mode); err != nil {
 		_ = temporary.Close()
 		return err
 	}

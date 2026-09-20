@@ -89,6 +89,11 @@ contractor artifact put documents/brief --file brief.md --type text/markdown --c
 contractor artifact put documents/brief --file brief.md --type text/markdown --if-match rev_123
 ```
 
+Artifact downloads and `run output` refuse to overwrite an existing destination
+unless `--force` is supplied. Forced replacement is atomic and preserves the
+existing regular file's permission bits; a new file created with `--force` is
+private (`0600`). Symlink and other non-regular destinations are rejected.
+
 Run creation flags cover normal Workflow inputs. For execution-config patches
 or another complete request, pass the public API JSON body directly:
 
