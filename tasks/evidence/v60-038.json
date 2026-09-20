@@ -1,0 +1,222 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-038",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "371babb9aeba5d540913cc391c34b2476d2428b4",
+  "report": "docs/research/2026-09-20-v60-038-summarizer-gateway-review.md",
+  "status": "Completed: actual-source full summarizer target and prerequisites passed; exact process assertions retained.",
+  "finding": {
+    "priority": "P2",
+    "normative_basis": [
+      "docs/spec/02-runtime-and-a2a.md:519-554: bounded physical retries, explicit x-should-retry override and final-status retryability are distinct.",
+      "docs/spec/15-worker-summarization.md:192-201: one logical summarizer call permits the Gateway transport series and preserves Gateway failure retryability."
+    ],
+    "cause": "The one-shot provider-timeout fixture sends HTTP504 without suppressing transport retries. A permitted second physical attempt is rejected as a duplicate summary with HTTP400, so Runtime correctly preserves retryable=false.",
+    "correction": "Set X-Should-Retry:false only on scriptedProviderFailure HTTP504; retain existing exact call counts and failure/result assertions.",
+    "production_changed": false,
+    "runtime_transport": "Current allocation-owned HTTPX client, with documented SDK-compatible retry semantics; this probe exercises current production code directly."
+  },
+  "checks": [
+    {
+      "command": [
+        "make",
+        "test-worker-summarizer-e2e"
+      ],
+      "invoked_as": "make --trace -k release-verify verify-public-api test-audits-hardening test-findings-e2e test-audits-browser test-lifecycle-controls-browser",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "exit_code": 2,
+      "process_test_seconds": 136.01,
+      "duration_seconds": null,
+      "timing_note": "Completed failed target excerpt from the still-running overall release; target wall time not separately available.",
+      "log": ".local/v60-review/v60-038/release-failure.log",
+      "log_sha256": "c676e570a0ce23dbb0a17b25d88f33cac05304ac57b0f3bad1e47665b975536d",
+      "go_passing_events": 0,
+      "go_failed_events": 1,
+      "go_skips": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        ".local/v60-review/v60-038/before.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestV60038SummarizerProviderFailureTransport$"
+      ],
+      "exit_code": 1,
+      "started_at_unix": 1789907226.029515,
+      "duration_seconds": 3.668,
+      "log": ".local/v60-review/v60-006-v60-038-probe-before.log",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "source_note": "Tracked Runtime and summarizer fixture sources verified byte-identical to this frozen commit; later HEAD changes were task metadata only.",
+      "overlay": ".local/v60-review/v60-038/before.json",
+      "overlay_sha256": "49275ec658fcbc8915e387cc86957e2f20bf19991ffdb401089085e2d4fffdd8",
+      "log_sha256": "25923f70b4c6cab2edbbae0f0a7b5f2e8a3c0be106f8e4a5c8d1fae818bb49f2",
+      "observed": "BadRequestError; retryable=false; summaryCalls=2; duplicate-call fixture failure",
+      "go_passing_events": 0,
+      "go_failed_events": 1,
+      "go_skips": []
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        ".local/v60-review/v60-038/after.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestV60038SummarizerProviderFailureTransport$"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789907248.5066664,
+      "duration_seconds": 3.123,
+      "log": ".local/v60-review/v60-006-v60-038-probe-after.log",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "source_note": "Tracked Runtime and summarizer fixture sources verified byte-identical to this frozen commit; later HEAD changes were task metadata only.",
+      "overlay": ".local/v60-review/v60-038/after.json",
+      "overlay_sha256": "3a5293b7b2d9572cdc8d8dbeb24f773418884431f3cf0fa1a22354d935fa58b2",
+      "log_sha256": "d8bbecba9dd5f1122865b0afed91138ff1c3a8387e33d0d3e4d7efe8ea5db12b",
+      "observed": "InternalServerError; retryable=true; summaryCalls=1; no fixture failures",
+      "go_passing_events": 1,
+      "go_failed_events": 0,
+      "go_skips": []
+    },
+    {
+      "command": [
+        "make",
+        "test-worker-summarizer-e2e"
+      ],
+      "environment_override": "GOFLAGS retains -p=2 -v and adds -overlay=/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-038/process-after.json",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "exit_code": 143,
+      "status": "interrupted",
+      "reason": "Stopped our process group after coordinator requested serial execution; actual process/DB target had not started.",
+      "duration_seconds": null,
+      "timing_note": "Runner was terminated, so no fabricated duration; local log retains completed prerequisites.",
+      "log": ".local/v60-review/v60-006-v60-038-process-overlay.log",
+      "log_sha256": "5c845e8f6c102625f09050ea4acbeb43a4098f1e93b119bb0be88fa0f8c427f8",
+      "python_passing_cases": 92,
+      "python_test_seconds": 7.23,
+      "go_passing_events": 139,
+      "go_failed_events": 0,
+      "go_skips": []
+    },
+    {
+      "log": ".local/v60-review/v60-038-integrated-matrices.log",
+      "log_sha256": "1ec7f372a3a914f4a4c89520ce8d30321d8db311e7995a196a48833a46c8805a",
+      "source_log": ".local/v60-review/v60-release-integrated.log",
+      "source_line_start": 1,
+      "source_line_end_inclusive": 288,
+      "go_passing_events": 139,
+      "go_failed_events": 0,
+      "go_skips": [],
+      "python_summaries": [],
+      "command": [
+        "make",
+        "test-hardening-matrices"
+      ],
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "exit_code": 0,
+      "reused_from": "Same final make invocation; shared prerequisite executed once before Code Analysis and reused by summarizer hardening.",
+      "duration_seconds": null
+    },
+    {
+      "log": ".local/v60-review/v60-038-integrated-target.log",
+      "log_sha256": "2e809b60a3aa630a4e0e965e434f8a2c1a7f8261bdad8fc5e8e5e3ed23a019c0",
+      "source_log": ".local/v60-review/v60-release-integrated.log",
+      "source_line_start": 314,
+      "source_line_end_inclusive": 2906,
+      "go_passing_events": 987,
+      "go_failed_events": 0,
+      "go_skips": [],
+      "python_summaries": [
+        "92 passed in 7.13s"
+      ],
+      "command": [
+        "make",
+        "test-worker-summarizer-e2e"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-code-analysis-e2e",
+        "test-agent-skills-mvp",
+        "test-worker-summarizer-e2e",
+        "test-project-workspaces-e2e",
+        "test-audits-process",
+        "release-verify",
+        "verify-public-api",
+        "test-audits-hardening",
+        "test-findings-e2e",
+        "test-audits-browser",
+        "test-lifecycle-controls-browser"
+      ],
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "exit_code": 0,
+      "process_test_seconds": 205.52,
+      "go_process_package_seconds": 205.525,
+      "python_passing_cases": 92,
+      "python_test_seconds": 7.13,
+      "duration_seconds": null,
+      "timing_note": "Per-test/package times reported by Go and pytest; this make target wall time was not separately recorded. Success confirmed by package PASS and advancement to next make target.",
+      "source_overlay": null,
+      "shared_prerequisite": "test-hardening-matrices executed earlier in the same make invocation; immutable separate segment linked below."
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789909297.649999,
+      "duration_seconds": 0.003,
+      "log": ".local/v60-review/v60-006-v60-038-diff-check.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "local_artifacts": [
+    {
+      "path": ".local/v60-review/v60-038/timeout_probe_test.go",
+      "sha256": "b1151a0b08eb3a6e8217fbd6a6e6d48717131622166480789df4020a0d983140"
+    },
+    {
+      "path": ".local/v60-review/v60-038/worker_summarizer_gateway_test.go",
+      "sha256": "8f7ed2f3a34ad460db861a724ee629b1c57dd64908d325ad44d119b1ddabb3ee"
+    },
+    {
+      "path": ".local/v60-review/v60-038/fix.patch",
+      "sha256": "05172555d28703dae1fef9195f814fec96c092af3937d4cd3847030b8c207bdb"
+    },
+    {
+      "path": ".local/v60-review/v60-038/before.json",
+      "sha256": "49275ec658fcbc8915e387cc86957e2f20bf19991ffdb401089085e2d4fffdd8"
+    },
+    {
+      "path": ".local/v60-review/v60-038/after.json",
+      "sha256": "3a5293b7b2d9572cdc8d8dbeb24f773418884431f3cf0fa1a22354d935fa58b2"
+    },
+    {
+      "path": ".local/v60-review/v60-038/process-after.json",
+      "sha256": "84034a6f2c9ddf12d4451761177ae1206759c5bee6ae31129c8914cf964266ca"
+    }
+  ],
+  "required_remaining": [],
+  "evidence_limits": [
+    "Cross-language probe uses the real Go fixture and current Python transport but does not replace the full Worker/Scheduler process journey.",
+    "The interrupted overlay make is not counted as a completed gate.",
+    "No live models, external providers or production data used.",
+    "The later aggregate release was still running when this target completed; this evidence does not claim overall release success."
+  ],
+  "task_start_commit": "81c415157f40f5c462e7e34686a147ce87f0bc69",
+  "verified_source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+  "acceptance": {
+    "A1": "Actual production transport probe preserves retryable HTTP504 after one fixture request; unchanged real process assertions also pass.",
+    "A2": "Full actual-source summarizer target passed: all process scenarios, Python92 cases, race-enabled Go packages and shared hardening matrix; zero skips in completed required checks."
+  }
+}
