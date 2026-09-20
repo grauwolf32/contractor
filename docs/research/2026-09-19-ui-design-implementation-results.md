@@ -1,6 +1,12 @@
 # Реализация дизайн-аудита Contractor UI — 19 сентября 2026
 
-Актуальный выпуск — **UI 0.3.1**, коммит `c030303ab81a80665836ccc484dae7e45e3ed504`, [стенд](http://127.0.0.1:4173). Пользовательские замечания после первого выпуска закрыты в [V58-013](../../tasks/v58-013-finding-text-and-run-actions.yml); [доказательства](../../tasks/evidence/v58-013.json), [галерея исправленных экранов](../../.local/ui-design-implementation/phase-013/index.html).
+Актуальный выпуск — **UI 0.3.3**, коммит `e981099436b55528c6d5f85873ac8bbb692ad852`, [стенд](http://127.0.0.1:4173). [V58-014](../../tasks/v58-014-configuration-navigation-and-credentials.yml) завершена; [доказательства](../../tasks/evidence/v58-014.json).
+
+По уточнению пользователя общая панель переходов удалена из Runtime configuration, списка и карточки LLM configurations, Credentials и Settings. Ссылки на Runtime service credentials и Git SSH keys сохранены в описании страницы credentials. Стили форм подключены напрямую и сохраняют раскрытие опциональных блоков. Страница явно различает managed credentials и development-токены: на стенде первых 0, отдельные токены Worker/Planner настроены, Runtime credentials — 2.
+
+Проверки UI 0.3.3: 14 тестов Operations/Settings, lint/format, оба TypeScript-проекта и production build; 15 снимков до и 15 после выпуска на 1440/390/320 px, шесть переходов по контекстным ссылкам и проверка стилей формы RuntimeConfig. Ошибок JavaScript/API, горизонтального переполнения и отправленных изменений нет. Очередь, scheduler, credentials, 147 Runs, Runtime identities, backend PID и основная release-ссылка совпали до/после обновления.
+
+Выпуск **UI 0.3.1**, коммит `c030303ab81a80665836ccc484dae7e45e3ed504`, [стенд](http://127.0.0.1:4173). Пользовательские замечания после первого выпуска закрыты в [V58-013](../../tasks/v58-013-finding-text-and-run-actions.yml); [доказательства](../../tasks/evidence/v58-013.json), [галерея исправленных экранов](../../.local/ui-design-implementation/phase-013/index.html).
 
 - Finding в обоих списках показывает полный безопасно отрисованный Markdown; переход к решению остаётся перед описанием и не перекрывает текст при прокрутке.
 - Ссылки Sources открывают точную ревизию входного артефакта Audit и возвращают к исходному Finding. Структурированной ссылки на файл/строку в Finding нет; из текста она не выводится.
