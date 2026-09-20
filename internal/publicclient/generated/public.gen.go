@@ -10776,6 +10776,8 @@ type ClientInterface interface {
 
 	// ListProjects List Projects owned by the authenticated principal
 	//
+	// Excludes managed Eval Audit execution Projects by their registered experiment/member association before pagination. These Projects remain accessible by ID for experiment evidence navigation.
+	//
 	// Corresponds with GET /v1/projects (the `ListProjects` operationId).
 	ListProjects(ctx context.Context, params *ListProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12950,6 +12952,8 @@ func (c *Client) GetOperationsSnapshot(ctx context.Context, reqEditors ...Reques
 }
 
 // ListProjects List Projects owned by the authenticated principal
+//
+// Excludes managed Eval Audit execution Projects by their registered experiment/member association before pagination. These Projects remain accessible by ID for experiment evidence navigation.
 //
 // Corresponds with GET /v1/projects (the `ListProjects` operationId).
 func (c *Client) ListProjects(ctx context.Context, params *ListProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -24223,6 +24227,8 @@ type ClientWithResponsesInterface interface {
 	GetOperationsSnapshotWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOperationsSnapshotResponse, error)
 
 	// ListProjectsWithResponse List Projects owned by the authenticated principal
+	//
+	// Excludes managed Eval Audit execution Projects by their registered experiment/member association before pagination. These Projects remain accessible by ID for experiment evidence navigation.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -43798,6 +43804,8 @@ func (c *ClientWithResponses) GetOperationsSnapshotWithResponse(ctx context.Cont
 }
 
 // ListProjectsWithResponse List Projects owned by the authenticated principal
+//
+// Excludes managed Eval Audit execution Projects by their registered experiment/member association before pagination. These Projects remain accessible by ID for experiment evidence navigation.
 //
 // Returns a wrapper object for the known response body format(s).
 //

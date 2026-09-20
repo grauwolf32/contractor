@@ -525,7 +525,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Projects owned by the authenticated principal */
+        /**
+         * List Projects owned by the authenticated principal
+         * @description Excludes managed Eval Audit execution Projects by their registered experiment/member association before pagination. These Projects remain accessible by ID for experiment evidence navigation.
+         */
         get: operations["listProjects"];
         put?: never;
         /** Create an idempotent owner-scoped Project */

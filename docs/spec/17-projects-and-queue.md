@@ -55,6 +55,10 @@ remain inspectable and do not acquire verified experiment membership by label ma
 
 The public Project collection is owner-isolated and supports a `kind` filter.
 The Projects UI asks for `project`; the Evals UI asks for `evaluation`.
+Managed Eval Audit execution Projects are excluded from this collection by their
+registered experiment/member association, before pagination. Their names and
+Project kind do not determine this exclusion. They remain accessible by ID for
+experiment evidence navigation and ordinary Audit execution.
 
 ## ProjectScope
 

@@ -3301,6 +3301,10 @@ paths:
       operationId: listProjects
       tags: [Projects]
       summary: List Projects owned by the authenticated principal
+      description: >-
+        Excludes managed Eval Audit execution Projects by their registered
+        experiment/member association before pagination. These Projects remain
+        accessible by ID for experiment evidence navigation.
       x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/Limit'

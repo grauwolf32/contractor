@@ -150,6 +150,10 @@ SELECT project_id, owner_id, kind, name, description,
 FROM projects
 WHERE owner_id = $1
   AND ($2::text IS NULL OR kind = $2)
+  AND NOT EXISTS (
+      SELECT 1 FROM eval_project_dependencies d
+      WHERE d.owner_id = projects.owner_id AND d.project_id = projects.project_id
+  )
   AND ($3::timestamptz IS NULL OR (created_at, project_id) < ($3, $4))
 ORDER BY created_at DESC, project_id DESC
 LIMIT $5`, params.OwnerID, kind, params.BeforeCreatedAt, params.BeforeProjectID, params.Limit)
