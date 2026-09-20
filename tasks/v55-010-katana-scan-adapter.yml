@@ -3,7 +3,8 @@ id: V55-010
 title: Add Katana as a bounded discovery adapter
 milestone: scan-tools-followups
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 69b25836febfe37039417cb89dd60223214e59f1
 depends_on: [V55-007]
 languages: [python, go, yaml, markdown]
 goal: Reuse the scan adapter registry for Katana discovery and export prepared inputs for later scans.
@@ -78,3 +79,29 @@ progress:
       produced identical scan plans with five candidates/four selected jobs.
       Go config/scanplan/planner/contracts/e2e tests, go vet, Ruff and diff checks
       pass. Disposable test processes/database were removed; demo was untouched.
+  - date: 2026-09-20
+    step: completed
+    details: >-
+      Committed implementation as 69b25836febfe37039417cb89dd60223214e59f1.
+      Feature is based on current main with no rebase changes. Recorded exact
+      process outputs, target digest, pinned Katana checksum, test results and
+      retained evidence hashes in tasks/evidence/v55-010.json. A1 and A2 are
+      verified; V55-010 is completed. Installing Katana and deploying this new
+      catalog/Runtime to the demo remain separate deployment actions.
+remaining: []
+verification:
+  - >-
+    Runtime regression suite: 411 passed across Katana parser/lifecycle,
+    scan registry/capabilities, tool Worker, FFUF, HTTP request, SQLMap request,
+    Wordlist and metrics tests; added primary-error preservation test also passed.
+  - >-
+    Official Katana 1.7.0 against controlled loopback fixtures: five adapter tests
+    passed for exact scope, depth/pages, comma-safe seed input, timeout and
+    transport failures. No external target was scanned.
+  - >-
+    Dedicated real Server/Runtime/PostgreSQL process test passed in 47.190s,
+    including missing capability placement and reusable exact TargetList output.
+  - >-
+    go test and go vet passed for config, scanplan, planner, contracts and e2e.
+    Ruff, gofmt, YAML validation and git diff --check passed.
+  - Evidence manifest is tasks/evidence/v55-010.json; retained files are under .local/evidence/v55-010/.
