@@ -3,8 +3,8 @@ id: "V38-009"
 title: "Connect Playground as an optional managed Evals API client"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
-implementation_commit: null
+status: "completed"
+implementation_commit: "d1f7e970e3db12a231bffca565748d1293cbed6d"
 implementation_repository: "playground-v2"
 depends_on: ["V38-006"]
 languages: ["python", "json", "markdown"]
@@ -109,3 +109,15 @@ tests:
     command: >-
       cd ../playground-v2/evals && uv run --extra dev pytest
     covers: ["A3"]
+
+verification_result:
+  date: "2026-09-20"
+  evidence: "docs/plans/2026-09-20-managed-evals-ui.md"
+  result: >-
+    Managed client: 21 deterministic tests passed; full portable/direct/managed
+    compatibility suite: 454 passed. Ruff checks passed. Workflow and Audit
+    fixtures cover both immutable modes, all inventory pages/roles, exact output
+    hashes, private local scoring, lost create/submit/result/assessment/finalize
+    responses, original CAS/deadline/source pins, deletion fences and retained
+    execution order. Legacy index bytes remain unchanged. Copied public schema
+    matches Contractor; no Contractor runtime import or database dependency.

@@ -3,7 +3,7 @@ id: "V38-007"
 title: "Build dataset authoring and full native experiment setup in Evals"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 implementation_repository: "contractor"
 depends_on: ["V38-006"]

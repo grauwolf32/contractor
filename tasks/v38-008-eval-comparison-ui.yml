@@ -3,7 +3,7 @@ id: "V38-008"
 title: "Show complete experiment comparisons, evidence and review in Evals"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 implementation_repository: "contractor"
 depends_on: ["V38-007"]

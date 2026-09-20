@@ -21,7 +21,8 @@ make verify-public-api
 
 `make test-evals` installs locked UI/Runtime dependencies and Chromium, runs
 the full domain/store/service/coordinator race suites, Eval public-API tests,
-and both process-stack browser journeys. Missing database configuration,
+and the Operations, native Evals and external Evals process-stack journeys.
+Missing database configuration,
 failed tests and Go test skips fail the command. The process suite allows
 26 minutes: its serial managed matrix executes 48 ordinary Workers with
 production heartbeat/release timing, including two children per Audit.

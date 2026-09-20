@@ -386,6 +386,7 @@ def run_external(client, fixture):
             fixture["datasets"][kind]["document"]["cases"],
         )
         path = "/v1/eval-experiments/" + experiment["experimentId"]
+        experiment = client.wait(path, lambda value: value.get("freshness") == "current")
         rows, _ = client.pages(path + "/members", filter="all")
         assert len(rows) == MEMBERS
         start = deadline = None

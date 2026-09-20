@@ -96,14 +96,19 @@ type uiStack struct {
 }
 
 func TestBrowserOperationsStack(t *testing.T) {
-	runBrowserStack(t, false)
+	runBrowserStack(t, "")
 }
 
-func TestManagedEvalsStack(t *testing.T) {
-	runBrowserStack(t, true)
+func TestManagedEvalsNativeStack(t *testing.T) {
+	runBrowserStack(t, "native")
 }
 
-func runBrowserStack(t *testing.T, managedEvals bool) {
+func TestManagedEvalsExternalStack(t *testing.T) {
+	runBrowserStack(t, "external")
+}
+
+func runBrowserStack(t *testing.T, evalMode string) {
+	managedEvals := evalMode != ""
 	if testing.Short() {
 		t.Skip("browser end-to-end process test")
 	}
@@ -115,9 +120,9 @@ func runBrowserStack(t *testing.T, managedEvals bool) {
 	temporaryRoot := t.TempDir()
 	timeout := 5 * time.Minute
 	if managedEvals {
-		// The serial fixture exercises 48 ordinary Workers with production
+		// Each serial mode exercises 24 ordinary Workers with production
 		// heartbeat/release timing, including two children for every Audit.
-		timeout = 22 * time.Minute
+		timeout = 12 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -292,7 +297,7 @@ func runBrowserStack(t *testing.T, managedEvals bool) {
 	stack.startUIOrFatal()
 	stack.startControlServer()
 	if managedEvals {
-		stack.runManagedEvals(userID, uiURL, serverURL, uiDirectURL, apiDirectURL)
+		stack.runManagedEvals(userID, uiURL, serverURL, uiDirectURL, apiDirectURL, evalMode)
 		return
 	}
 
