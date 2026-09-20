@@ -3,7 +3,7 @@ id: V60-010
 title: Review configuration attribution and delivered versus pending evaluation scope
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-001
 languages:
@@ -32,7 +32,7 @@ scope:
     owner.
   - Reconcile implemented/draft spec claims with current task statuses without replacing active V40/V55 work.
   out:
-  - Take over active V38 managed Evals, V40-002, V55-004 or V56 toolsets; change intentionally deferred semantics without a contract decision.
+  - Take over active V38 managed Evals, V40-002, V55-004 or V61 toolsets; change intentionally deferred semantics without a contract decision.
   - Live model runs, production data mutation or deployment.
   - Claim whole-project correctness from one review slice.
 acceptance_criteria:
