@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -313,6 +314,8 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]string{"dependency_discovery", "project_discovery", "openapi_build", "openapi_validate"},
 		[]int64{5, 5, 9, 9},
 		map[string]string{
+			// Public Run creation retains this exact hidden record (Artifact spec 03).
+			artifactpolicy.RunSystemNamespace + "/" + artifactpolicy.RunRepeatRequestName: artifactpolicy.RunRepeatRequestMediaType,
 			"inputs/source": "application/zip", "inputs/existing_openapi": "application/yaml",
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
 			"analysis/workspace_state": "application/vnd.contractor.workspace-overlay+json",
@@ -393,6 +396,8 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]string{"dependency_discovery", "project_discovery", "likec4_build", "likec4_validate"},
 		[]int64{5, 5, 11, 9},
 		map[string]string{
+			// Public Run creation retains this exact hidden record (Artifact spec 03).
+			artifactpolicy.RunSystemNamespace + "/" + artifactpolicy.RunRepeatRequestName: artifactpolicy.RunRepeatRequestMediaType,
 			"inputs/source": "application/zip", "inputs/existing_likec4": "text/plain",
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
 			"analysis/workspace_state": "application/vnd.contractor.workspace-overlay+json",
