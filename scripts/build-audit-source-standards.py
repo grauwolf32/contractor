@@ -7,6 +7,7 @@ See docs/guides/audit-standard-sources.md for sources and adaptation policy.
 """
 
 import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -93,6 +94,26 @@ WSTG_RETIRED = {
     ("WSTG-INPV-03", "Testing for HTTP Verb Tampering"),
     ("WSTG-INPV-13", "Testing for Buffer Overflow"),
     ("WSTG-ERRH-02", "Testing for Stack Traces"),
+}
+# Contractor's first-pass selection, not an official OWASP severity ranking.
+# Keep scenario objectives and evidence policies identical to the full editions.
+WSTG_FAST_IDS = {
+    "WSTG-v42-ATHN-02",  # Default credentials.
+    "WSTG-v42-ATHN-04",  # Authentication bypass.
+    "WSTG-v42-ATHN-09",  # Password change/reset and account takeover.
+    "WSTG-v42-ATHZ-01",  # Directory traversal/file inclusion.
+    "WSTG-v42-ATHZ-02",  # Authorization bypass.
+    "WSTG-v42-ATHZ-03",  # Privilege escalation.
+    "WSTG-v42-ATHZ-04",  # Insecure direct object references.
+    "WSTG-v42-BUSL-09",  # Malicious file uploads.
+    "WSTG-v42-CONF-04",  # Sensitive backup/unreferenced files.
+    "WSTG-v42-INPV-01",  # Reflected XSS.
+    "WSTG-v42-INPV-02",  # Stored XSS.
+    "WSTG-v42-INPV-05",  # SQL injection.
+    "WSTG-v42-INPV-12",  # Command injection.
+    "WSTG-v42-INPV-18",  # Server-side template injection.
+    "WSTG-v42-INPV-19",  # Server-side request forgery.
+    "WSTG-v42-SESS-05",  # CSRF.
 }
 
 
@@ -284,6 +305,41 @@ def write_package(root, name, document):
     print(f"{target}: {len(document['entries'])} checks")
 
 
+def build_wstg_fast(full, *, active=False):
+    document = copy.deepcopy(full)
+    document["entries"] = [entry for entry in document["entries"]
+                           if entry["id"] in WSTG_FAST_IDS]
+    document["mappings"] = [mapping for mapping in document["mappings"]
+                            if mapping["key"] in WSTG_FAST_IDS]
+    if (len(WSTG_FAST_IDS) != 16 or len(document["entries"]) != 16
+            or len(document["mappings"]) != 16):
+        raise ValueError("Fast WSTG selection must resolve all 16 scenarios")
+    version = "4.2-fast-http.1" if active else "4.2-fast-source.1"
+    document["standard"].update({
+        "version": version,
+        "title": "OWASP WSTG 4.2 — Fast " + ("active HTTP review" if active else "source review"),
+        "description": (
+            "Focused first pass: 16 of 94 WSTG 4.2 scenarios covering authentication "
+            "and authorization bypass, account takeover, IDOR, injection, SSRF, "
+            "XSS/CSRF, malicious uploads and sensitive backup files. The other "
+            "78 scenarios are outside this preset's coverage. This Contractor "
+            "selection is not an official OWASP priority ranking or a full WSTG "
+            "assessment. Selected objectives and evidence rules are unchanged. "
+            "Missing prerequisites and unsupported capabilities remain gaps. "
+            + ("Active HTTP checks require approval; browser execution, raw-network "
+               "tests, callbacks and isolated multi-user sessions are not supplied."
+               if active else "Source review cannot establish passed dynamic tests.")
+        ),
+        "license": {
+            **document["standard"]["license"],
+            "attribution": document["standard"]["license"]["attribution"]
+            + " Contractor selects 16 scenarios for a bounded first pass; omitted "
+            "scenarios are outside coverage, not assessed. Package edition: " + version + ".",
+        },
+    })
+    return document
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--asvs-source", type=Path, required=True)
@@ -295,9 +351,13 @@ def main():
     # Validate all documents before writing any package.
     asvs_package = build_asvs(asvs)
     wstg_package, wstg_http_package = build_wstg(wstg), build_wstg(wstg, active=True)
+    wstg_fast = build_wstg_fast(wstg_package)
+    wstg_fast_http = build_wstg_fast(wstg_http_package, active=True)
     write_package(args.output_root, "owasp-asvs-5.0.0-l1-source.1", asvs_package)
     write_package(args.output_root, "owasp-wstg-4.2", wstg_package)
     write_package(args.output_root, "owasp-wstg-4.2-http.1", wstg_http_package)
+    write_package(args.output_root, "owasp-wstg-4.2-fast-source.1", wstg_fast)
+    write_package(args.output_root, "owasp-wstg-4.2-fast-http.1", wstg_fast_http)
 
 
 if __name__ == "__main__":

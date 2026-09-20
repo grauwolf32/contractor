@@ -106,6 +106,12 @@ instructions are in [the standard source guide](../docs/guides/audit-standard-so
 authorization scope and active-item approval; it does not require source code.
 Each of its 94 items has one attempt, and unavailable capabilities remain gaps.
 
+`owasp-wstg-4-2-fast-source-review@1` and
+`owasp-wstg-4-2-fast-active-http@1` are separate first-pass presets with 16
+selected scenarios, one attempt per check and a four-hour default deadline.
+They preserve full-preset evidence and approval rules. Their `4.2-fast-source.1`
+and `4.2-fast-http.1` package editions make the excluded 78 scenarios explicit.
+
 The document-generation overlay workspace Workflows hydrate the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code
 tools. It exports exact cumulative `workspace_state` plus checkpoint

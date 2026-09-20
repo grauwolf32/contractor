@@ -5,6 +5,8 @@ const profileLabels: Record<string, string> = {
   "owasp-asvs-5-0-l1-source-review": "ASVS 5.0 · Level 1 source review",
   "owasp-wstg-4-2-source-review": "WSTG 4.2 · Source review",
   "owasp-wstg-4-2-active-http": "WSTG 4.2 · Active HTTP checks",
+  "owasp-wstg-4-2-fast-source-review": "WSTG 4.2 · Fast source review",
+  "owasp-wstg-4-2-fast-active-http": "WSTG 4.2 · Fast HTTP checks",
   "openapi-operation-trace": "OpenAPI · Operation trace",
   "source-checklist": "Source checklist",
 };

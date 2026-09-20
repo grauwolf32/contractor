@@ -17,9 +17,45 @@ version-qualified `WSTG-v42-…` identifiers. It does not add WSTG checks to ASV
 website/API. Its edition `owasp-wstg@4.2-http.1` contains the same 94 scenarios
 with HTTP methods and a distinct evidence contract. Source code is not required.
 
-The two source-review presets require a `source` ZIP containing the application source and any
-relevant configuration and documentation. They run one check per ordinary Run,
-allow three attempts per check, and retain the exact standard package, mapping,
+## Fast WSTG presets
+
+`owasp-wstg-4-2-fast-source-review@1` and
+`owasp-wstg-4-2-fast-active-http@1` select **16 of the 94 scenarios** for an
+initial pass. Their distinct packages are `4.2-fast-source.1` and
+`4.2-fast-http.1`. The remaining **78 scenarios are outside coverage**, not
+passed or assessed. Continue with the full preset for broader coverage.
+
+This is Contractor's engineering selection for common paths to account
+takeover, sensitive-data access and server compromise, not an official OWASP
+ranking. Actual criticality depends on the application and business impact;
+[OWASP recommends prioritizing tests by that risk](https://wstg.owasp.org/v4.2/).
+
+| Area | WSTG-v42 scenarios |
+| --- | --- |
+| Default credentials, authentication bypass, password reset | ATHN-02, ATHN-04, ATHN-09 |
+| Traversal, authorization bypass, privilege escalation, IDOR | ATHZ-01, ATHZ-02, ATHZ-03, ATHZ-04 |
+| Malicious file uploads and exposed backup files | BUSL-09, CONF-04 |
+| Reflected/stored XSS and CSRF | INPV-01, INPV-02, SESS-05 |
+| SQL/command/template injection and SSRF | INPV-05, INPV-12, INPV-18, INPV-19 |
+
+Fast changes the number of checks, not the required evidence. It uses the same
+workers, exact scenario objectives and evidence contracts as the full variant.
+Source checks cannot claim successful live tests; HTTP checks retain active
+approval and all capability gaps, including unavailable browser execution,
+out-of-band callbacks and independent identities. No missing prerequisite is
+silently counted as a successful check.
+
+Each Fast Audit has one round and at most 16 Runs, with one attempt per check.
+The default Audit deadline is four hours; it can pause unfinished work and is
+not a promise of turnaround time. Queueing, human reviews, target complexity
+and missing evidence still affect duration. No measured speedup is claimed.
+
+## Source-review inputs
+
+Source-review presets require a `source` ZIP containing the application source
+and any relevant configuration and documentation. They run one check per ordinary
+Run, allow three attempts per check in the full variants (one in Fast), and retain
+the exact standard package, mapping,
 evidence policy and finding origin. Findings are proposals requiring analyst
 confirmation. The worker has source-reading and evidence-publication tools and
 does not have HTTP or active scanning tools.
@@ -108,7 +144,7 @@ python3 scripts/build-audit-source-standards.py \
 go test ./internal/config ./internal/auditstandards ./tests/eval/audit_programs
 ```
 
-The builder checks pinned SHA-256 hashes before generating the three packages. It
+The builder checks pinned SHA-256 hashes before generating the five packages. It
 does not fetch data or change the legacy ASVS package. The ASVS regression
 fixture in `tests/eval/audit_programs/testdata/asvs-5.0.0-level1.json` contains
 the same upstream Level 1 statements and shares the attribution and license

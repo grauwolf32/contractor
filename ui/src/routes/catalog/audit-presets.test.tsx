@@ -132,6 +132,44 @@ function setup(
 }
 
 describe("Audit presets catalog", () => {
+  it("keeps Fast WSTG variants separate and describes their limited coverage", async () => {
+    const profiles: AuditProfile[] = [
+      "owasp-wstg-4-2-source-review",
+      "owasp-wstg-4-2-fast-source-review",
+      "owasp-wstg-4-2-fast-active-http",
+    ].map((name) => ({
+      ...presetFixture,
+      ref: { ...presetFixture.ref, name },
+      inventory: {
+        implementation: "standard-mappings@1",
+        itemWorkflowRole: "check",
+      },
+      execution: {
+        ...presetFixture.execution,
+        maxItemsTotal: name.includes("fast") ? 16 : 94,
+      },
+    }));
+    setup("/catalog/audit-presets", { profiles });
+    expect(
+      await screen.findByRole("link", { name: "WSTG 4.2 · Fast HTTP checks" }),
+    ).toHaveAttribute(
+      "href",
+      "/catalog/audit-presets/owasp-wstg-4-2-fast-active-http/1",
+    );
+    expect(screen.getAllByRole("article")).toHaveLength(3);
+    expect(
+      screen.getByRole("link", { name: "WSTG 4.2 · Fast source review" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "WSTG 4.2 · Source review" }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText(
+        "16 priority WSTG checks. Focused first pass; other scenarios are outside scope.",
+      ),
+    ).toHaveLength(2);
+  });
+
   it("groups all pages by name, selects the highest version and finds later-page presets", async () => {
     const user = userEvent.setup();
     const { router } = setup("/catalog/audit-presets?keep=yes");

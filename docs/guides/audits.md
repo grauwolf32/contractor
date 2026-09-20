@@ -135,6 +135,10 @@ exact licensed standard package:
 - `owasp-wstg-4-2-active-http@1` checks a running website/API using HTTP evidence
   and per-item active-check approval. It has the same 94 WSTG scenarios and
   explicitly records unsupported browser, network and identity checks as gaps.
+- `owasp-wstg-4-2-fast-source-review@1` and
+  `owasp-wstg-4-2-fast-active-http@1` provide a first pass over 16 selected WSTG
+  scenarios using the same evidence rules. The other 78 scenarios are outside
+  coverage. Each Fast Audit allows at most 16 Runs and one attempt per item.
 
 Source-review profiles require the exact `source` ZIP input. Active HTTP WSTG
 requires a text/Markdown `context` brief and the target and authorization scope.

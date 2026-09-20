@@ -15,6 +15,11 @@ export const auditModeLabels: Record<AuditProfile["mode"], string> = {
 export function presetScope(profile: AuditProfile): string {
   if (profile.inventory.standardSelection)
     return profile.inventory.standardSelection.scope;
+  if (
+    profile.ref.name === "owasp-wstg-4-2-fast-source-review" ||
+    profile.ref.name === "owasp-wstg-4-2-fast-active-http"
+  )
+    return `${profile.execution.maxItemsTotal} priority WSTG checks. Focused first pass; other scenarios are outside scope.`;
   switch (profile.inventory.implementation) {
     case "standard-mappings@1":
       return "Checks defined by the referenced standard.";
