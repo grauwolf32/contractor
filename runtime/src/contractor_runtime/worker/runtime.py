@@ -1277,7 +1277,10 @@ def _summary_prompt_boundary(
 def _summarizer_secrets(context: WorkerBuildContext, gateway_token: str) -> tuple[str, ...]:
     """Return allocation-private values that must not enter summarizer input."""
 
+    from contractor_runtime.contracts.redaction import runtime_setting_values
+
     candidates = (
+        *runtime_setting_values(context.runtime_settings),
         gateway_token,
         str(context.workspace.path),
         str(context.workspace.root),

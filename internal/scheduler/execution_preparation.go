@@ -54,6 +54,19 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 		if err != nil || resolved.Validate() != nil || resolved.ModelFree != modelFree {
 			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
 		}
+		selectedToolsets := make(map[string]bool)
+		for _, selection := range stage.Agents[logicalName].Template.Toolsets {
+			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+			selectedToolsets[ref] = true
+			if workflowconfig.RequiredToolsetConfiguration(ref) && resolved.Toolsets[ref] == nil {
+				return nil, errors.New("Worker toolset configuration is incomplete")
+			}
+		}
+		for ref := range resolved.Toolsets {
+			if !selectedToolsets[ref] {
+				return nil, errors.New("Worker configuration contains an unselected toolset")
+			}
+		}
 		runtimeSettings, err := s.materializeRuntimeSettings(ctx, resolved)
 		if err != nil {
 			return nil, err
@@ -325,6 +338,38 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		result.Caido = caido
 	}
+	if len(resolved.Toolsets) != 0 {
+		result.Toolsets = make(contracts.ToolsetRuntimeSettings, len(resolved.Toolsets))
+	}
+	for ref, value := range resolved.Toolsets {
+		config, ok := value.(runtimeconfig.MCPConfig)
+		if !ok || ref != contracts.MCPToolsetRef || config.Validate() != nil {
+			return contracts.RuntimeSettings{}, errors.New("invalid toolset settings")
+		}
+		settings := contracts.MCPToolsetSettings{Endpoint: config.Endpoint, ConnectTimeoutSeconds: config.ConnectTimeoutSeconds, RequestTimeoutSeconds: config.RequestTimeoutSeconds}
+		if config.CABundlePEM != "" {
+			bundle := config.CABundlePEM
+			settings.CABundlePEM = &bundle
+		}
+		if config.Credential != "" {
+			if err := s.useRuntimeCredential(ctx, config.Credential, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialMCPHeaders}, func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+				var material struct {
+					Headers map[string]string `json:"headers"`
+				}
+				if kind != contracts.RuntimeCredentialMCPHeaders || decodeRuntimeCredential(plaintext, &material) != nil {
+					return errors.New("invalid MCP credential material")
+				}
+				settings.Headers = make(map[string]contracts.SecretString, len(material.Headers))
+				for name, value := range material.Headers {
+					settings.Headers[name] = contracts.NewSecretString(value)
+				}
+				return settings.Validate()
+			}); err != nil {
+				return contracts.RuntimeSettings{}, errors.New("Worker toolset credential is unavailable")
+			}
+		}
+		result.Toolsets[ref] = settings
+	}
 	if err := result.Validate(); err != nil {
 		return contracts.RuntimeSettings{}, fmt.Errorf("materialized Runtime settings are invalid")
 	}
@@ -358,6 +403,13 @@ func decodeRuntimeCredential(data []byte, target any) error {
 
 func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionSettings) {
 	for name, value := range settings {
+		for ref, settings := range value.RuntimeSettings.Toolsets {
+			if mcp, ok := settings.(contracts.MCPToolsetSettings); ok {
+				clear(mcp.Headers)
+				mcp.Headers = nil
+				value.RuntimeSettings.Toolsets[ref] = mcp
+			}
+		}
 		value.RuntimeSettings.LLMGatewayToken = nil
 		if value.RuntimeSettings.Telemetry != nil {
 			value.RuntimeSettings.Telemetry.Headers = nil

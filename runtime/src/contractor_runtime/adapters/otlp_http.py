@@ -415,7 +415,7 @@ class OTLPHTTPAdapter:
         secret_headers = {
             name: value.get_secret_value() for name, value in settings.headers.items()
         }
-        secret_values = (*secret_headers.values(), settings.endpoint)
+        secret_values = (*context.redaction_values, *secret_headers.values(), settings.endpoint)
         resource_attributes: dict[str, TelemetryAttribute] = {
             "service.name": "contractor-runtime-worker",
             "service.version": __version__,

@@ -151,6 +151,7 @@ type LLMCredentialAuthorization struct {
 }
 
 type ResolveRuntimeConfigInput struct {
+	ToolsetSelections     []contracts.ToolsetSelection
 	ModelFree             bool
 	ModelPolicy           contracts.ResolvedModelPolicy
 	SummarizerModelPolicy *contracts.ResolvedModelPolicy
@@ -168,6 +169,7 @@ type ResolveRuntimeConfigInput struct {
 // ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
 // secret material is deliberately resolved only after placement by V8-007.
 type ResolvedRuntimeConfig struct {
+	Toolsets                 ToolsetConfigurations                     `json:"toolsets,omitempty"`
 	ModelFree                bool                                      `json:"modelFree,omitempty"`
 	ModelPolicy              contracts.ResolvedModelPolicy             `json:"modelPolicy,omitzero"`
 	LLMGateway               contracts.ResolvedLLMGatewayConfig        `json:"llmGateway,omitzero"`
@@ -193,6 +195,26 @@ func (r ResolvedRuntimeConfig) Validate() error {
 		}
 		if err := r.LLMGateway.Validate(); err != nil || r.LLMGateway.Protocol != contracts.OpenAICompatibleProtocol {
 			return resolutionError(ResolutionInvalid, "worker.llmGateway.gateway", ErrInvalid)
+		}
+	}
+	if len(r.Toolsets) > contracts.MaximumConfiguredToolsets {
+		return resolutionError(ResolutionInvalid, "worker.toolsets", ErrInvalid)
+	}
+	for ref, value := range r.Toolsets {
+		if _, ok := registeredToolsetSchemas()[ref]; !ok || value == nil || value.Validate() != nil {
+			return resolutionError(ResolutionInvalid, "worker.toolsets", ErrInvalid)
+		}
+		if _, ok := r.Origins.Toolsets[ref]; !ok {
+			return resolutionError(ResolutionInvalid, "worker.toolsets", ErrInvalid)
+		}
+		for _, required := range value.CredentialReferences() {
+			found := false
+			for _, held := range r.Provenance.RuntimeCredentialRefs {
+				found = found || held == required
+			}
+			if !found {
+				return resolutionError(ResolutionInvalid, "worker.toolsets", ErrInvalid)
+			}
 		}
 	}
 	if err := r.Origins.Validate(); err != nil {
@@ -249,6 +271,18 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if err := validatePinned(input.Default, DefaultLabel); err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
+	toolsets, toolsetOrigins, err := ResolveAllocationToolsets(input.Default, input.RunLabels, input.ToolsetSelections)
+	if err != nil {
+		return ResolvedRuntimeConfig{}, err
+	}
+	// The one shared resolver above owns toolset merging; ordinary infrastructure
+	// layers below retain their existing precedence and credential behavior.
+	input.Default = withoutToolsetPatches(input.Default)
+	runLabels := make([]PinnedRuntimeConfig, len(input.RunLabels))
+	for i, pin := range input.RunLabels {
+		runLabels[i] = withoutToolsetPatches(pin)
+	}
+	input.RunLabels = runLabels
 	runSpec, runOrigins, runPins, err := mergePinnedLayer(input.RunLabels, LayerRunLabels, false, input.ModelFree)
 	if err != nil {
 		return ResolvedRuntimeConfig{}, err
@@ -268,6 +302,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	}
 
 	var effective effectiveRuntimeConfig
+	effective.origins.Toolsets = toolsetOrigins
 	defaultOrigin := originsForPinned(LayerDefault, []PinnedRuntimeConfig{input.Default})
 	applyWorkerSpec(&effective, input.Default.Spec.Worker, defaultOrigin)
 	applyPlannerSpec(&effective, input.Default.Spec.Planner, defaultOrigin)
@@ -308,6 +343,28 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
+	for _, ref := range sortedToolsetKeys(toolsets) {
+		for _, required := range toolsets[ref].CredentialReferences() {
+			credential, err := requireRuntimeCredential(input.RuntimeCredentials, required.CredentialID, "worker.toolsets."+ref+".credential", required.Kind)
+			if err != nil {
+				return ResolvedRuntimeConfig{}, err
+			}
+			workerCredentials = append(workerCredentials, credential)
+		}
+	}
+	sort.Slice(workerCredentials, func(i, j int) bool {
+		if workerCredentials[i].Kind != workerCredentials[j].Kind {
+			return workerCredentials[i].Kind < workerCredentials[j].Kind
+		}
+		return workerCredentials[i].CredentialID < workerCredentials[j].CredentialID
+	})
+	deduplicated := workerCredentials[:0]
+	for _, credential := range workerCredentials {
+		if len(deduplicated) == 0 || deduplicated[len(deduplicated)-1] != credential {
+			deduplicated = append(deduplicated, credential)
+		}
+	}
+	workerCredentials = deduplicated
 	provenance := contracts.ResolvedRuntimeConfigProvenance{
 		Default:               bindingProvenance(input.Default),
 		RunLabels:             bindingProvenanceList(runPins),
@@ -321,6 +378,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "provenance", ErrInvalid)
 	}
 	result := ResolvedRuntimeConfig{
+		Toolsets:                 toolsets,
 		ModelFree:                input.ModelFree,
 		ModelPolicy:              cloneResolvedModelPolicy(input.ModelPolicy),
 		LLMGateway:               cloneResolvedGateway(gateway),
@@ -901,6 +959,7 @@ func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigi
 // placement caller.
 func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result := r
+	result.Toolsets = r.Toolsets.Clone()
 	result.ModelPolicy = cloneResolvedModelPolicy(r.ModelPolicy)
 	result.LLMGateway = cloneResolvedGateway(r.LLMGateway)
 	result.LLMCredential = cloneCredentialRef(r.LLMCredential)

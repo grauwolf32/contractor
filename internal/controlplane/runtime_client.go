@@ -599,6 +599,13 @@ func collectStringValues(result map[string]struct{}, value any) {
 
 func runtimeSettingSecrets(settings contracts.RuntimeSettings) []string {
 	result := make([]string, 0, 36)
+	for _, value := range settings.Toolsets {
+		if mcp, ok := value.(contracts.MCPToolsetSettings); ok {
+			for _, secret := range mcp.Headers {
+				result = append(result, secret.Reveal())
+			}
+		}
+	}
 	if settings.LLMGatewayToken != nil {
 		result = append(result, settings.LLMGatewayToken.Reveal())
 	}

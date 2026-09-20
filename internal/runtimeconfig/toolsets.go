@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -234,4 +235,41 @@ func ResolveRunToolsets(defaultConfig PinnedRuntimeConfig, labels []PinnedRuntim
 		origins = nil
 	}
 	return values, origins, nil
+}
+
+// ResolveAllocationToolsets uses the Run merge and then projects to the exact
+// template refs. Callers must use this result, not label patches, for credential
+// lookup: unselected and overridden configurations create no allocation access.
+func ResolveAllocationToolsets(defaultConfig PinnedRuntimeConfig, labels []PinnedRuntimeConfig, selections []contracts.ToolsetSelection) (ToolsetConfigurations, map[string]RuntimeFieldOrigin, error) {
+	values, origins, err := ResolveRunToolsets(defaultConfig, labels)
+	if err != nil {
+		return nil, nil, err
+	}
+	selected := make(ToolsetConfigurations)
+	selectedOrigins := make(map[string]RuntimeFieldOrigin)
+	for _, selection := range selections {
+		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+		value := values[ref]
+		if value == nil && config.RequiredToolsetConfiguration(ref) {
+			return nil, nil, resolutionError(ResolutionIncomplete, "worker.toolsets."+ref, ErrInvalid)
+		}
+		if value != nil {
+			selected[ref] = value
+		}
+		if origin, ok := origins[ref]; ok {
+			selectedOrigins[ref] = origin
+		}
+	}
+	if len(selected) == 0 {
+		selected = nil
+	}
+	if len(selectedOrigins) == 0 {
+		selectedOrigins = nil
+	}
+	return selected, selectedOrigins, nil
+}
+
+func withoutToolsetPatches(value PinnedRuntimeConfig) PinnedRuntimeConfig {
+	value.Spec.Worker.Toolsets = nil
+	return value
 }

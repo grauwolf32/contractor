@@ -163,6 +163,16 @@ def validate_spec(
                 retryable=False,
                 status_code=422,
             )
+        if (
+            getattr(factory, "configuration_required", False)
+            and toolset_ref not in spec.runtime_settings.toolsets
+        ):
+            raise AllocationError(
+                "toolset_configuration_required",
+                "Toolset configuration is missing",
+                retryable=False,
+                status_code=422,
+            )
         supported = getattr(factory, "supported_worker_runtimes", None)
         if supported is not None and runtime_ref not in supported:
             raise AllocationError(
@@ -198,6 +208,18 @@ def validate_spec(
                 retryable=False,
                 status_code=422,
             )
+
+    selected_refs = {
+        f"{selection.ref.toolset_id}@{selection.ref.version}"
+        for selection in spec.agent_template.toolsets
+    }
+    if set(spec.runtime_settings.toolsets) - selected_refs:
+        raise AllocationError(
+            "unselected_toolset_configuration",
+            "Allocation contains unselected toolset settings",
+            retryable=False,
+            status_code=422,
+        )
 
     if (
         "caido-graphql-client" in required_infrastructure_channels

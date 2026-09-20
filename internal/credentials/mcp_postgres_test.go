@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,8 +151,37 @@ func TestMCPRuntimeCredentialPostgresPublicationReplayDeletionAndRebindRace(t *t
 	if _, err := service.Delete(ctx, "mcp-active", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
 		t.Fatalf("Run hold lost MCP credential: %v", err)
 	}
+	// Two unreleased allocations retain this exact credential independently of
+	// the Run hold; releasing the older allocation cannot free its replacement.
+	allocationStore := runstore.NewPostgresStore(pool)
+	if _, err := allocationStore.CreateRun(ctx, runstore.CreateRunParams{RunID: "mcp-allocation-run", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`), Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := allocationStore.TransitionRun(ctx, "mcp-allocation-run", runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, suffix := range []string{"first", "replacement"} {
+		stageID := "mcp-stage-" + suffix
+		if _, err := allocationStore.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: stageID, RunID: "mcp-allocation-run", StageName: suffix, Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: map[string]string{}, Artifacts: map[string]runstore.PinnedContextArtifact{}}}); err != nil {
+			t.Fatal(err)
+		}
+		gateway := contracts.LLMGatewayConfigRef{GatewayID: "local", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)}
+		provenance := contracts.ResolvedRuntimeConfigProvenance{Default: contracts.RuntimeLabelBindingProvenance{Label: "default", BindingRevision: 1, Config: contracts.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}}, RunLabels: []contracts.RuntimeLabelBindingProvenance{{Label: "mcp-active", BindingRevision: 1, Config: contracts.RuntimeConfigRef{Name: ref.Name, Version: ref.Version, Digest: ref.Digest}}}, AgentLabels: []contracts.RuntimeLabelBindingProvenance{}, RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway, RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{{CredentialID: "mcp-active", Kind: contracts.RuntimeCredentialMCPHeaders}}}
+		configuration := &runstore.AllocationRuntimeConfiguration{ModelPolicy: contracts.ModelPolicyRef{PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)}, Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{Toolsets: map[string]runtimeconfig.RuntimeFieldOrigin{"mcp@1": {Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{ref}}}}, Provenance: provenance}
+		if err := allocationStore.RecordStageAllocation(ctx, runstore.StageAllocation{AllocationID: "mcp-allocation-" + suffix, StageExecutionID: stageID, LogicalAgentName: "worker", Namespace: "worker", AgentTemplateRef: contracts.AgentTemplateRef{TemplateID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("d", 64)}, WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}, RuntimeAgentID: strings.Repeat("e", 64), RuntimeAgentInstanceID: "runtime-mcp-" + suffix, RuntimeAgentLabelRevision: 1, RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion, RuntimeConfiguration: configuration, PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "mcp-run", runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "test_complete"}); err != nil {
 		t.Fatal(err)
+	}
+	for _, suffix := range []string{"first", "replacement"} {
+		if _, err := service.Delete(ctx, "mcp-active", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
+			t.Fatalf("unreleased allocation lost MCP hold: %v", err)
+		}
+		if err := allocationStore.MarkStageAllocationReleased(ctx, "mcp-allocation-"+suffix); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := service.Delete(ctx, "mcp-active", "operator"); err != nil {
 		t.Fatal(err)

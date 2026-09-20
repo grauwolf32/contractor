@@ -126,7 +126,15 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	runs := runstore.NewRunCreationPostgresStore(tx, txLLMCredentials)
-	runtimeSnapshot, err := runs.PinRuntimeLabels(ctx, selection.RuntimeLabels)
+	var toolsetRequirements []config.ToolsetConfigurationRequirement
+	for _, binding := range profile.Workflows {
+		requirements, err := config.WorkflowToolsetRequirements(binding.Workflow)
+		if err != nil {
+			return StartedAudit{}, err
+		}
+		toolsetRequirements = append(toolsetRequirements, requirements...)
+	}
+	runtimeSnapshot, err := runs.PinRuntimeLabels(ctx, selection.RuntimeLabels, runtimeconfig.RunPinOptions{ToolsetRequirements: toolsetRequirements})
 	if err != nil {
 		return StartedAudit{}, err
 	}

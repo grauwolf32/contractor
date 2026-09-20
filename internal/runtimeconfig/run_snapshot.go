@@ -55,6 +55,11 @@ func NormalizeRunLabels(source []string) ([]string, error) {
 	return result, nil
 }
 
+type RunPinOptions struct {
+	ModelFree           bool
+	ToolsetRequirements []config.ToolsetConfigurationRequirement
+}
+
 // PinRunSnapshot must be called with the owning PostgreSQL transaction and a
 // credential lookup bound through that same transaction. It locks all
 // selected binding rows in lexical order, validates exact immutable versions
@@ -67,10 +72,10 @@ func PinRunSnapshot(
 	explicitLabels []string,
 	runtimeCredentials RuntimeCredentialValidator,
 	llmCredentials TransactionLLMCredentialLookup,
-	modelFree ...bool,
+	options ...RunPinOptions,
 ) (RunSnapshot, error) {
-	if len(modelFree) > 1 {
-		return RunSnapshot{}, invalid("Run RuntimeConfig pinning accepts at most one model-free selection")
+	if len(options) > 1 {
+		return RunSnapshot{}, invalid("Run RuntimeConfig pinning accepts at most one options value")
 	}
 	labels, err := NormalizeRunLabels(explicitLabels)
 	if err != nil {
@@ -94,6 +99,8 @@ func PinRunSnapshot(
 		byLabel[binding.Label] = binding
 	}
 	result := RunSnapshot{Labels: make([]PinnedLabel, 0, len(labels))}
+	var defaultConfig PinnedRuntimeConfig
+	var runConfigs []PinnedRuntimeConfig
 	explicitEntries := make([]LayerEntry, 0, len(labels))
 	llmIDs := make(map[string]struct{})
 	runtimeIDs := make(map[string]struct{})
@@ -107,7 +114,7 @@ func PinRunSnapshot(
 		if getErr != nil {
 			return RunSnapshot{}, getErr
 		}
-		if len(modelFree) == 1 && modelFree[0] {
+		if len(options) == 1 && options[0].ModelFree {
 			version.Spec = WithoutWorkerModel(PinnedRuntimeConfig{Spec: version.Spec}).Spec
 		}
 		if validateErr := validateSpecRuntimeCredentials(ctx, version.Spec, runtimeCredentials); validateErr != nil {
@@ -121,10 +128,13 @@ func PinRunSnapshot(
 			Label: label, Explicit: label != DefaultLabel,
 			BindingRevision: binding.Revision, Config: binding.Ref,
 		}
+		pinned := PinnedRuntimeConfig{Label: label, BindingRevision: binding.Revision, Config: binding.Ref, Spec: version.Spec}
 		if label == DefaultLabel {
+			defaultConfig = pinned
 			result.Default = pin
 			continue
 		}
+		runConfigs = append(runConfigs, pinned)
 		result.Labels = append(result.Labels, pin)
 		explicitEntries = append(explicitEntries, LayerEntry{
 			Label: label, Ref: binding.Ref, Spec: version.Spec,
@@ -132,6 +142,17 @@ func PinRunSnapshot(
 	}
 	if _, err := MergeSameLayer(explicitEntries); err != nil {
 		return RunSnapshot{}, err
+	}
+	toolsets, _, err := ResolveRunToolsets(defaultConfig, runConfigs)
+	if err != nil {
+		return RunSnapshot{}, err
+	}
+	if len(options) == 1 {
+		for _, requirement := range options[0].ToolsetRequirements {
+			if requirement.ConfigurationRequired && toolsets[requirement.Ref] == nil {
+				return RunSnapshot{}, resolutionError(ResolutionIncomplete, "worker.toolsets."+requirement.Ref, ErrInvalid)
+			}
+		}
 	}
 	result.LLMCredentialIDs = sortedSet(llmIDs)
 	result.RuntimeCredentialIDs = sortedSet(runtimeIDs)

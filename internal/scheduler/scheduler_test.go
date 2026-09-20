@@ -2798,3 +2798,49 @@ func sortedKeys[T any](values map[string]T) []string {
 	sort.Strings(result)
 	return result
 }
+
+func TestSchedulerMaterializesAndErasesPinnedMCPHeaders(t *testing.T) {
+	const secret = "mcp-private-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []contracts.RuntimeCredentialKind,
+		consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "mcp-lab" ||
+			!reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialMCPHeaders}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(contracts.RuntimeCredentialMCPHeaders, []byte(`{"headers":{"Authorization":"`+secret+`"}}`))
+	})
+	resolved, err := fallbackResolvedWorkerConfig(
+		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved.Toolsets = runtimeconfig.ToolsetConfigurations{"mcp@1": runtimeconfig.MCPConfig{Endpoint: "https://knowledge.example/mcp", Credential: "mcp-lab", ConnectTimeoutSeconds: 10, RequestTimeoutSeconds: 60}}
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcp := settings.Toolsets["mcp@1"].(contracts.MCPToolsetSettings)
+	if mcp.Headers["Authorization"].Reveal() != secret {
+		t.Fatal("MCP materialization failed")
+	}
+	encoded, err := json.Marshal(settings)
+	if err != nil || !strings.Contains(string(encoded), secret) {
+		t.Fatal("private delivery lacks MCP headers")
+	}
+	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
+		t.Fatal("formatted Runtime settings exposed Caido bearer")
+	}
+	workerSettings := map[string]contracts.WorkerExecutionSettings{
+		"builder": {RuntimeSettings: settings},
+	}
+	clearWorkerExecutionSettings(workerSettings)
+	if len(workerSettings["builder"].RuntimeSettings.Toolsets["mcp@1"].(contracts.MCPToolsetSettings).Headers) != 0 || len(mcp.Headers) != 0 {
+		t.Fatal("MCP headers survived delivery erasure")
+	}
+}

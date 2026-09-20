@@ -60,6 +60,10 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if len(skillRefs) > 0 && !s.skillInitializationAvailable {
 				return fmt.Errorf("%w: Run Skill initialization is unavailable", ErrNotConfigured)
 			}
+			toolsetRequirements, resolveErr := config.WorkflowToolsetRequirements(workflow)
+			if resolveErr != nil {
+				return fmt.Errorf("%w: invalid Workflow toolset requirements", ErrInvalid)
+			}
 			workflowSnapshot, encodeErr := json.Marshal(workflow)
 			if encodeErr != nil {
 				return fmt.Errorf("encode resolved Workflow: %w", encodeErr)
@@ -99,7 +103,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						modelFree = modelFree && binding.Template.IsToolWorker()
 					}
 				}
-				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, modelFree)
+				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, runtimeconfig.RunPinOptions{ModelFree: modelFree, ToolsetRequirements: toolsetRequirements})
 				if pinErr != nil {
 					return pinErr
 				}

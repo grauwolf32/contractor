@@ -357,6 +357,10 @@ func (f *placementFixture) registerCandidateWithLabels(
 		SupportedRuntimeAdapters: append([]contracts.RuntimeAdapterRef{}, adapters...),
 		ObservedState:            contracts.AgentIdle,
 	}
+	if registration.SupportedToolsets[0].Ref == "mcp@1" {
+		registration.SupportedToolsets[0].Tools = []string{}
+		registration.SupportedToolsets[0].ToolDiscovery = "allocation"
+	}
 	authenticated := AuthenticatedPrincipal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,
 	}

@@ -21,6 +21,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     TelemetrySettings,
 )
+from contractor_runtime.contracts.redaction import runtime_setting_values
 
 UINT64_MAX = 2**64 - 1
 SAFE_ERROR_CODES = frozenset(
@@ -113,6 +114,7 @@ class RuntimeAdapterBuildContext:
     run_metadata_labels: Mapping[str, str]
     runtime_adapter_refs: tuple[str, ...]
     private_bypass_hosts: tuple[str, ...]
+    redaction_values: tuple[str, ...] = field(default=(), repr=False)
 
 
 class AdapterFactoryError(RuntimeError):
@@ -304,6 +306,7 @@ class AllocationAdapterHost:
                             replace(
                                 context,
                                 run_metadata_labels=run_metadata_labels,
+                                redaction_values=runtime_setting_values(spec.runtime_settings),
                             )
                             if isinstance(settings, TelemetrySettings)
                             else context

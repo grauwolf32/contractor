@@ -355,13 +355,22 @@ func (a *PlacementAllocator) resolveCandidate(
 			agentConfigs[i] = runtimeconfig.WithoutWorkerModel(agentConfigs[i])
 		}
 	}
+	for _, pinned := range agentConfigs {
+		if len(pinned.Spec.Worker.Toolsets) != 0 {
+			return runtimeconfig.ResolvedRuntimeConfig{}, runtimeconfig.ErrAgentLabelNotApplicable
+		}
+	}
+	toolsets, _, err := runtimeconfig.ResolveAllocationToolsets(defaultConfig, runConfigs, binding.AgentTemplate.Toolsets)
+	if err != nil {
+		return runtimeconfig.ResolvedRuntimeConfig{}, err
+	}
 	allConfigs := append([]runtimeconfig.PinnedRuntimeConfig{defaultConfig}, runConfigs...)
 	allConfigs = append(allConfigs, agentConfigs...)
 	gateways, err := a.gatewayCatalog(*binding.RuntimeSelection, allConfigs)
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
-	llmCredentials, runtimeCredentials, err := a.credentialCatalogs(ctx, *binding.RuntimeSelection, allConfigs)
+	llmCredentials, runtimeCredentials, err := a.credentialCatalogs(ctx, *binding.RuntimeSelection, allConfigs, toolsets)
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
@@ -371,8 +380,9 @@ func (a *PlacementAllocator) resolveCandidate(
 		summarizerModelPolicy = &policy
 	}
 	return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
-		ModelFree:   binding.AgentTemplate.IsToolWorker(),
-		ModelPolicy: binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,
+		ToolsetSelections: binding.AgentTemplate.Toolsets,
+		ModelFree:         binding.AgentTemplate.IsToolWorker(),
+		ModelPolicy:       binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,
 		Default:  defaultConfig,
 		Workflow: workflowPatch, RunLabels: runConfigs, RunOverride: runPatch,
 		Escalation: escalationPatch, AgentLabels: agentConfigs,
@@ -422,6 +432,7 @@ func (a *PlacementAllocator) credentialCatalogs(
 	ctx context.Context,
 	selection workflowconfig.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
+	toolsets runtimeconfig.ToolsetConfigurations,
 ) (
 	map[string]runtimeconfig.LLMCredentialAuthorization,
 	map[string]contracts.RuntimeCredentialKind,
@@ -434,6 +445,11 @@ func (a *PlacementAllocator) credentialCatalogs(
 	}
 	for _, pinned := range configs {
 		collectSpecCredentialIDs(pinned.Spec, llmIDs, runtimeIDs)
+	}
+	for _, settings := range toolsets {
+		for _, ref := range settings.CredentialReferences() {
+			runtimeIDs[ref.CredentialID] = struct{}{}
+		}
 	}
 	llmResult := make(map[string]runtimeconfig.LLMCredentialAuthorization, len(llmIDs))
 	for id := range llmIDs {
