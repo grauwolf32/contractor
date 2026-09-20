@@ -1,0 +1,16 @@
+{
+  "task_id": "V60-019",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "8d73ef8edce8fa96797ba6592e3fae535fc6338a",
+  "reproduction": "Seven final regressions fail against original5856 coverage/detail source through a temporary Vite load plugin.",
+  "commands": [
+    "cd ui && corepack pnpm test --run src/routes/projects/audits",
+    "cd ui && corepack pnpm typecheck"
+  ],
+  "results": [
+    "33 Audit tests passed. Full UI suite451 passed with maxWorkers=2; TypeScript and lint/format checks passed.",
+    "Stable keys and revision pins are preserved; final coverage, items and report refresh cancels an earlier pending read first."
+  ],
+  "logs": ".local/review-fixes/"
+}

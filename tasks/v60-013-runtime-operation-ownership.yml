@@ -3,7 +3,7 @@ id: V60-013
 title: Retain Runtime operation ownership until cancellation cleanup completes
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -46,3 +46,10 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: 9b37df76fe1ed5ba4e407f6cb9832cf0f364f725
+verification:
+  evidence: tasks/evidence/v60-013.json
+  results:
+  - '253 focused tests passed. Full Runtime suite: 2388 passed,34 explicitly gated/optional tests skipped.'
+  - Source operations retain their owner until extraction/install finishes; validator cancel/close stops process
+    groups and joins filesystem cleanup; repeated cancellations are tested.

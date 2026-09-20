@@ -3,7 +3,7 @@ id: V60-019
 title: Refresh Audit projections at their terminal transition
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -43,3 +43,10 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: 8d73ef8edce8fa96797ba6592e3fae535fc6338a
+verification:
+  evidence: tasks/evidence/v60-019.json
+  results:
+  - 33 Audit tests passed. Full UI suite451 passed with maxWorkers=2; TypeScript and lint/format checks passed.
+  - Stable keys and revision pins are preserved; final coverage, items and report refresh cancels an earlier pending
+    read first.
