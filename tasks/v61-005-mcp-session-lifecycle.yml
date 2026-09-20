@@ -3,8 +3,8 @@ id: V61-005
 title: Own Streamable HTTP MCP sessions through allocation preparation and cleanup
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: e073479a2b59b93bcb630e0e0936af307b15240a
 depends_on: [V61-003, V14-003, V49-001]
 languages: [python, yaml, markdown]
 goal: >-
@@ -78,3 +78,10 @@ tests:
     covers: [A2, A5]
 verification_requirements:
   - Execute controlled local protocol fixtures without external MCP services and assert operation counts, task/socket ownership, actual proxy routing and logs rather than mocking only the final tool return.
+verification_evidence:
+  - All required Python suites passed on 2026-09-20, 119 tests with warnings treated as errors; Ruff and git diff checks passed.
+  - Pinned official mcp 1.30.0, compatible with the installed ADK 2.8.0 dependency range; production jsonschema is explicit. No production MCP capability is enabled by this task.
+  - Real TCP fixtures covered JSON/SSE, stateful/stateless sessions, pagination, bounded discovery and JSON/SSE messages, TLS trust, an authenticated proxy route, private host/redirect rejection and isolated headers/cookies.
+  - Cancellation during initialization/discovery/call, concurrent close, allocation finalize/lease loss/failed prepare and a lost call response left no SDK background tasks. An accepted call with a dropped response was observed exactly once.
+  - Actual configured HTTP timeouts and shorter enclosing deadlines were asserted; failed local cleanup retained its owner and original terminal deadline and could not confirm allocation release.
+  - Actual SDK malformed JSON/RPC, authentication and call failures excluded credential and session-ID canaries from DEBUG logs and diagnostics. Closing MCP preserved the borrowed proxy client.

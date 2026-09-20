@@ -3,7 +3,7 @@ id: V61-006
 title: Expose exact prepared MCP tools through ADK with normal Worker accounting
 milestone: toolset-runtime-configuration
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V61-005]
 languages: [python, go, json, yaml]
