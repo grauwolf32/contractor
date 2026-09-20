@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V60-033
+title: Stage configured summarizer instructions in the production Memory process fixture
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V47-004, V48-004]
+languages: [go, markdown]
+goal: Restore exact production Memory template dependency staging in the existing process gate.
+context:
+  authority: User requested completion of the V60 review and bounded corrections for reproduced release failures.
+  specification:
+    - docs/spec/15-worker-summarization.md
+  design: docs/plans/2026-09-20-project-review.md
+  review_task: V60-006
+  reproduction: >-
+    The full release gate fails TestProductionMemoryTemplatesAcrossProcesses at
+    shared_memory_test.go:89 with unknown instruction ref
+    instructions/terminal-summarizer.md. The production artifact_builder@2
+    template explicitly selects this valid shared document, but the test staging
+    projection reads only summarizer.modelPolicy and does not copy its instructions.
+scope:
+  in:
+    - Copy configured summarizer instruction dependencies through the existing production fixture staging helper.
+    - Preserve exact Worker and summarizer instruction bytes and legacy omitted summarizer instructions.
+    - Add a focused staging regression and execute the real existing production Memory process gate.
+  out:
+    - Change production configurations, summarizer behavior, instruction text, catalog selection or process assertions.
+    - Live models, external providers, skipped or weakened mandatory tests.
+acceptance_criteria:
+  - id: A1
+    text: The staged fixture resolves the same Worker and configured summarizer instructions as the production template.
+  - id: A2
+    text: Legacy omitted summarizer instructions remain valid and required configured dependencies are not silently omitted.
+  - id: A3
+    text: The full test-production-memory-e2e gate passes without skips using real Go/Python processes and a fake Gateway.
+tests:
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestProductionMemoryConfigurationStaging$'
+    covers: [A1, A2]
+  - command: make test-production-memory-e2e
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification_requirements:
+  - Record the original release failure and passing targeted/process logs with hashes and counts.
+  - Keep task start, implementation and subsequent completion metadata commits separate.
