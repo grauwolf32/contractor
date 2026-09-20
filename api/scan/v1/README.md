@@ -1,4 +1,9 @@
-# HTTPRequestSet v1
+# Scan artifacts v1
+
+This directory defines [HTTPRequestSet](http-request-set.schema.json) and
+[ScanPlan](scan-plan.schema.json) structural schemas.
+
+## HTTPRequestSet
 
 `application/vnd.contractor.http-requests+json` is a bounded Artifact containing
 neutral prepared HTTP requests. Its normative structural schema is
@@ -69,7 +74,27 @@ Validation never silently normalizes content.
 
 This contract does not select injection points, bind credentials, authorize
 network access or guarantee eligibility for any scanner. In particular it has
-no SQLMap `testParameters`; a later planner selects parameters and constructs
-the scanner-specific artifact, then applies that adapter's validation.
+no SQLMap `testParameters`; `scan-plan@1` selects explicit parameters and
+constructs the scanner-specific artifact, applying that adapter's validation.
 Request bodies, headers and provenance can contain private data; consumers must
 not log serialized artifacts or supplied values in diagnostics.
+
+## ScanPlan
+
+`application/vnd.contractor.scan-plan+json` contains the exact source ref and
+content digest, normalized selection policy, preparation coverage/gaps, every
+candidate and the bounded selected jobs. Its structural schema is
+[scan-plan.schema.json](scan-plan.schema.json); cross-field identity, ordering,
+provenance, scanner eligibility and budget checks belong to
+[`internal/scanplan/plan_codec.go`](../../../internal/scanplan/plan_codec.go).
+
+`BuildPlan` is pure. `MarshalPlan` validates Go values and emits canonical JSON;
+`DecodePlan` validates strict input bytes. Plans are at most 4 MiB, with 4,000
+candidates and 100 jobs. Time budgets sum configured Worker timeouts; they do
+not bound the number of individual scanner network requests. Generated Artifact
+revisions and physical allocations are excluded from semantic job identity.
+
+[Scan planning](../../../docs/spec/32-scan-planning.md) owns the selection policy,
+fixed Worker bindings, SQLMap/ffuf materialization, durable intent, aggregate
+coverage and recovery behavior. Recovery preserves completed and unknown job
+outcomes instead of silently rescanning them.

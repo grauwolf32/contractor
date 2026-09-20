@@ -12,6 +12,11 @@ import (
 )
 
 func (s *PostgresStore) AppendPlannerEvent(ctx context.Context, params AppendPlannerEventParams) error {
+	if params.SchedulerClaimID != "" {
+		if err := validateOpaque("schedulerClaimID", params.SchedulerClaimID); err != nil {
+			return err
+		}
+	}
 	for field, value := range map[string]string{
 		"eventID":               params.EventID,
 		"sessionID":             params.SessionID,
@@ -73,6 +78,8 @@ WITH locked AS (
     SET next_run_event_sequence = next_run_event_sequence + 1
     FROM owning
     WHERE run.run_id = owning.run_id
+      AND ($14::text = '' OR (run.scheduler_claim_id = $14
+           AND run.scheduler_claim_expires_at > clock_timestamp()))
     RETURNING run.run_id, run.next_run_event_sequence - 1 AS sequence_number
 ), inserted_run_event AS (
     INSERT INTO workflow_run_events (
@@ -107,6 +114,7 @@ SELECT EXISTS (SELECT 1 FROM locked), EXISTS (SELECT 1 FROM updated)`,
 		params.RunEvent.EventID, params.RunEvent.EventSchemaVersion,
 		params.RunEvent.Kind, []byte(params.RunEvent.Data),
 		params.StageExecutionID, params.InvocationID,
+		params.SchedulerClaimID,
 	).Scan(&sessionExists, &appended)
 	if err != nil {
 		sqlState := persistencepostgres.SQLState(err)

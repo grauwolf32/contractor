@@ -70,6 +70,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [29](29-tool-workers.md) | Implemented: deterministic model-free tool Workers, typed execution bindings and durable invocation receipts |
 | [30](30-managed-evals.md) | Implemented: native Evals execution, assessments and comparison APIs; browser UI and optional independent Playground client planned |
 | [31](31-scan-request-preparation.md) | Implemented: bounded deterministic OpenAPI request preparation, RequestSet identities and coverage gaps |
+| [32](32-scan-planning.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
 | [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 

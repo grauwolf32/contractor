@@ -20,8 +20,14 @@ export type RunResyncReason =
   | "subscription_error";
 
 export interface PlannerActivity {
-  kind: "adk_event";
-  author: "user" | "streamline_planner" | "router_planner" | "other";
+  kind:
+    | "adk_event"
+    | "scan_owner_acquired"
+    | "scan_plan_initialized"
+    | "scan_job_started"
+    | "scan_job_finished";
+  author:
+    "user" | "streamline_planner" | "router_planner" | "other" | "scan_planner";
   functionCalls: string[];
   functionResults: string[];
   inputTokens?: number;
@@ -439,6 +445,34 @@ function parseActivity(value: unknown): PlannerActivity {
       "truncated",
     ],
   );
+  if (
+    value.kind === "scan_owner_acquired" ||
+    value.kind === "scan_plan_initialized" ||
+    value.kind === "scan_job_started" ||
+    value.kind === "scan_job_finished"
+  ) {
+    if (
+      value.author !== "scan_planner" ||
+      !Array.isArray(value.functionCalls) ||
+      value.functionCalls.length !== 0 ||
+      !Array.isArray(value.functionResults) ||
+      value.functionResults.length !== 0 ||
+      (value.inputTokens !== undefined && value.inputTokens !== 0) ||
+      (value.outputTokens !== undefined && value.outputTokens !== 0) ||
+      (value.skipSummarization !== undefined &&
+        value.skipSummarization !== false) ||
+      (value.escalate !== undefined && value.escalate !== false) ||
+      (value.truncated !== undefined && value.truncated !== false)
+    ) {
+      throw new Error("Planner scan activity is invalid");
+    }
+    return {
+      kind: value.kind,
+      author: value.author,
+      functionCalls: [],
+      functionResults: [],
+    };
+  }
   if (value.kind !== "adk_event") {
     throw new Error("Planner activity kind is invalid");
   }

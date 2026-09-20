@@ -3,9 +3,9 @@ id: V55-008
 title: Plan bounded scan jobs deterministically
 milestone: scan-tools-followups
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V55-007]
-languages: [go, yaml, markdown]
+languages: [go, typescript, json, yaml, markdown]
 goal: Turn prepared targets/RequestSet into a persisted reproducible plan executed by ordinary tool Workers.
 context:
   authority: User proposed a separate deterministic planner for selecting and scheduling scans.
@@ -20,9 +20,75 @@ scope:
     - LLM ranking, dynamic physical-worker allocation and unbounded job fanout.
 acceptance_criteria:
   - id: A1
-    text: Exact inputs and policy produce identical plans within request, time and count budgets.
+    text: Exact inputs and policy produce identical plans within prepared-input, summed Worker timeout and job-count budgets.
   - id: A2
     text: Recovery never silently rescans jobs with completed or unknown outcomes; coverage includes all skipped/failed candidates.
 tests:
   - command: go test ./internal/scanplan/... ./internal/planner/... ./internal/scheduler/...
     covers: [A1, A2]
+  - command: go test -race ./internal/scanplan/... ./internal/planner/... ./internal/scheduler/... ./internal/config/... ./internal/runstore/...
+    covers: [A1, A2]
+  - command: go test -race ./internal/planner/session -run TestPostgres -count=1
+    environment: CONTRACTOR_TEST_DATABASE_URL points to disposable PostgreSQL
+    covers: [A2]
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      User selected V55-008 after best-effort OpenAPI preparation was integrated.
+      Started isolated feat/v55-008-scan-planner from main c7018285. Reviewing
+      planner registration/configuration, exact RunScope Artifact reads/writes,
+      fixed tool Worker input contracts and durable session ownership before
+      defining candidate selection, budgets and recovery behavior. Existing
+      unrelated changes in the main worktree remain outside this task.
+  - date: 2026-09-20
+    step: contracts_and_execution_in_progress
+    details: >-
+      Defined scanPlan policy, deterministic candidates/jobs and exact input
+      provenance for RequestSet or target-list artifacts. Selection bounds source
+      inputs, job counts and summed fixed Worker timeouts globally and per tool;
+      it does not claim a hard physical network-request limit. Implementing
+      scan-plan@1 configuration, immutable plan/input artifacts, fixed Worker
+      dispatch and aggregate technical coverage. Durable scan session state uses
+      existing PostgreSQL event/state CAS with the current Scheduler claim checked
+      transactionally; takeover marks started jobs unknown and resumes only pending
+      jobs. Pure planning/contract tests pass in the initial implementation.
+  - date: 2026-09-20
+    step: execution_and_recovery_verified
+    details: >-
+      Implemented model-free scan-plan@1 registration and fixed Worker dispatch.
+      Exact plan and generated SQLMap request artifacts are persisted before
+      any job claim. Added aggregate technical coverage and failed-report lookup
+      for unavailable scanners, timeouts and incomplete output. Pure planner,
+      factory dispatch/recovery, durable session CAS and public event/UI checks
+      pass. A disposable PostgreSQL integration test confirms one dispatch winner,
+      expired-owner fencing and takeover with completed/unknown jobs retained;
+      its expired-claim fixture was corrected to preserve the database claim-shape
+      constraint. Completing configuration examples, Scheduler integration and
+      final combined checks before integration into main.
+remaining:
+  - Integrate the implementation into main and record completion evidence.
+verification:
+  - >-
+    go test ./internal/scanplan/... ./internal/planner/... ./internal/scheduler/...
+    ./internal/config/... ./internal/contracts/... ./internal/runstore/...
+    ./internal/app/... passed.
+  - >-
+    go test -race ./internal/scanplan/... ./internal/planner/... ./internal/scheduler/...
+    ./internal/config/... ./internal/runstore/... passed. Additional exact-input
+    recovery and Scheduler single/multiple Worker glue regressions passed with race.
+  - >-
+    CONTRACTOR_TEST_DATABASE_URL configured for disposable local PostgreSQL 17:
+    go test -race ./internal/planner/session -run TestPostgres -count=1 passed.
+    Includes live SQL claim fencing, one concurrent dispatch winner, takeover,
+    terminal-job retention and public event persistence.
+  - >-
+    go vet passed for scanplan, planner, scheduler, config, contracts, runstore
+    and app. UI run-events Vitest suite passed all 19 tests; tsc --noEmit passed.
+    gofmt, Prettier checks for changed UI files and git diff --check passed.
+  - >-
+    Acceptance uses fabricated target.invalid/example.test inputs and fake Worker
+    invocation; no scanners or external target probes were launched. Budgets bound
+    prepared inputs, selected jobs and configured Worker timeout sums; physical
+    network-request counts remain scanner-specific. V55-006 UI release remains
+    a separate pending task.

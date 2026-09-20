@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
 	plannerrouter "github.com/grauwolf32/contractor/internal/planner/router"
+	plannerscan "github.com/grauwolf32/contractor/internal/planner/scan"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
@@ -86,7 +87,15 @@ func configurePlanners(
 	if err != nil {
 		return plannerServices{}, fmt.Errorf("configure Router Planner: %w", err)
 	}
-	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory)
+	scanArtifacts, err := plannerscan.NewServiceArtifacts(artifactService)
+	if err != nil {
+		return plannerServices{}, err
+	}
+	scanFactory, err := plannerscan.NewFactory(plannerSessions, a2aInvoker, scanArtifacts, artifactInspector)
+	if err != nil {
+		return plannerServices{}, err
+	}
+	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory, scanFactory)
 	if err != nil {
 		return plannerServices{}, err
 	}

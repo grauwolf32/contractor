@@ -343,6 +343,18 @@ func validatePlannerRunPlan(plan plannerRunPlanProjection) error {
 }
 
 func validatePlannerRunActivity(activity plannerRunActivity) error {
+	if activity.Kind != "adk_event" {
+		switch activity.Kind {
+		case "scan_owner_acquired", "scan_plan_initialized", "scan_job_started", "scan_job_finished":
+			if activity.Author != "scan_planner" || len(activity.FunctionCalls) != 0 || len(activity.FunctionResults) != 0 ||
+				activity.InputTokens != 0 || activity.OutputTokens != 0 || activity.SkipSummarization || activity.Escalate || activity.Truncated {
+				return invalidf("WorkflowRun scan activity contains unexpected fields")
+			}
+			return nil
+		default:
+			return invalidf("WorkflowRun Planner activity kind is invalid")
+		}
+	}
 	if activity.Kind != "adk_event" || activity.InputTokens < 0 || activity.OutputTokens < 0 {
 		return invalidf("WorkflowRun Planner activity counters are invalid")
 	}

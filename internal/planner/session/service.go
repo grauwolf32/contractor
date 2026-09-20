@@ -497,6 +497,7 @@ const (
 )
 
 type persistentState struct {
+	Scan                     *scanPersistentState           `json:"scan,omitempty"`
 	Status                   string                         `json:"status"`
 	NextSequence             int64                          `json:"nextSequence"`
 	RequestRecorded          bool                           `json:"requestRecorded"`
@@ -624,6 +625,11 @@ func encodeCompletionEvent(completion planner.Completion) (json.RawMessage, erro
 }
 
 func encodeState(state persistentState) (json.RawMessage, error) {
+	if state.Scan != nil {
+		if err := validateScanPersistent(*state.Scan); err != nil {
+			return nil, err
+		}
+	}
 	if state.Status != statusRunning && state.Status != statusCompleted || state.NextSequence <= 0 {
 		return nil, fmt.Errorf("Planner state is invalid")
 	}

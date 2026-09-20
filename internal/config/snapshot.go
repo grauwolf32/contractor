@@ -301,6 +301,7 @@ func cloneArtifactSlots(source map[string]ArtifactSlot) map[string]ArtifactSlot 
 
 func cloneStage(source ResolvedStage) ResolvedStage {
 	result := source
+	result.ScanPlan = cloneScanPlanPolicy(source.ScanPlan)
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
 	for name, binding := range source.Agents {
 		binding.Template = cloneAgentTemplate(binding.Template)

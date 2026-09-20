@@ -2,13 +2,15 @@
 
 This standalone catalog contains `nuclei-target@1`, `naabu-host@1` and
 `sqlmap-request@1` with `passthrough@1` planning and one `tool@1` Worker each.
+It also includes `request-set-scan@1` and `target-scan-plan@1` using the
+deterministic `scan-plan@1` Planner; see [scan plan configuration](SCAN_PLAN.md).
 Select `configs/scan` as the Server configuration directory, or copy the
 templates, workflows and
 `instructions/scan.md` into an existing operator catalog. The empty catalog
 directories are required by the configuration loader; no model configuration
 or model credentials are needed.
 
-All three workflows publish the `report` output as `application/json`.
+All five workflows publish the `report` output as `application/json`.
 Nuclei and naabu accept one required string parameter, `target`.
 Nuclei expects an HTTP(S) URL;
 naabu expects a hostname or IP. Ports and rate limits are explicit literals
@@ -119,5 +121,5 @@ Reports expose bounded matched responses, including their payloads, and
 separate scan completion from result truncation. HTTP transport errors fail the
 scan even when ffuf exits zero; an empty match list never means a target is clean.
 
-This catalog still contains the three focused workflows listed above. The ffuf
+This catalog contains three focused workflows and two scan-plan workflows. The ffuf
 Workflow and combined user journey are part of V55-006.

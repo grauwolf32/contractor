@@ -57,6 +57,7 @@ func MVPDescriptors() Descriptors {
 			"passthrough@1": {},
 			"streamline@1":  {},
 			"router@1":      {},
+			"scan-plan@1":   {},
 		},
 		WorkerRuntimes: map[string]struct{}{
 			"adk@1":  {},

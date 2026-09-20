@@ -283,8 +283,10 @@ func (l *loader) resolveStage(
 	if err := validateStageWorkspace(context, result, agents, l.descriptors); err != nil {
 		return ResolvedStage{}, err
 	}
-	if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
-		return ResolvedStage{}, err
+	if plannerRef != (PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
+		if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
+			return ResolvedStage{}, err
+		}
 	}
 	mappings, err := resolveWorkflowOutputMappings(stageName, source.WorkflowOutputs, workflowOutputs, result.Artifacts)
 	if err != nil {
@@ -295,17 +297,22 @@ func (l *loader) resolveStage(
 		return ResolvedStage{}, err
 	}
 
-	return ResolvedStage{
+	stage := ResolvedStage{
 		Objective:       source.Objective,
 		Instructions:    instructions,
 		Planner:         plannerRef,
+		ScanPlan:        cloneScanPlanPolicy(source.ScanPlan),
 		Session:         session,
 		Agents:          agents,
 		Context:         context,
 		Result:          result,
 		WorkflowOutputs: mappings,
 		On:              transitions,
-	}, nil
+	}
+	if err := ValidateScanPlanStage(stage); err != nil {
+		return ResolvedStage{}, err
+	}
+	return stage, nil
 }
 
 func resolveWorkerSessionMode(source yaml.Node) (contracts.WorkerSessionMode, error) {

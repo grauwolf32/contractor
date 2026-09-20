@@ -13,6 +13,7 @@ const (
 	PassthroughRef = "passthrough@1"
 	StreamlineRef  = "streamline@1"
 	RouterRef      = "router@1"
+	ScanPlanRef    = "scan-plan@1"
 )
 
 // StageContext is the immutable input snapshot visible to one Planner
@@ -26,6 +27,8 @@ type StageContext struct {
 // Workers. It deliberately has no capacity or Runtime Agent selection API.
 type Invocation struct {
 	StageExecutionID string
+	// SchedulerClaimID fences scan job intents against durable Run ownership.
+	SchedulerClaimID string
 	RunID            string
 	Stage            workflowconfig.ResolvedStage
 	Context          StageContext

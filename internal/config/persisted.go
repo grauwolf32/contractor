@@ -36,6 +36,17 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 		if err := normalizePersistedStageSession(raw, &stage); err != nil {
 			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
 		}
+		if err := ValidateScanPlanStage(stage); err != nil {
+			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
+		}
+		if stage.ScanPlan != nil {
+			if err := validateStageExecutionConfig(name, stage); err != nil {
+				return ResolvedWorkflow{}, err
+			}
+			if err := validateScanPlanInputMedia(workflow, stage); err != nil {
+				return ResolvedWorkflow{}, err
+			}
+		}
 		workflow.Stages[name] = stage
 	}
 	return workflow, nil
@@ -50,6 +61,14 @@ func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 	}
 	if err := normalizePersistedStageSession(data, &stage); err != nil {
 		return ResolvedStage{}, err
+	}
+	if err := ValidateScanPlanStage(stage); err != nil {
+		return ResolvedStage{}, err
+	}
+	if stage.ScanPlan != nil {
+		if err := validateStageExecutionConfig("persisted", stage); err != nil {
+			return ResolvedStage{}, err
+		}
 	}
 	return stage, nil
 }

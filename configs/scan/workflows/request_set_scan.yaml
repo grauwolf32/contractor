@@ -1,0 +1,40 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: request-set-scan, version: "1"}
+spec:
+  parameters: {}
+  inputs:
+    requests:
+      required: true
+      mediaTypes: [application/vnd.contractor.http-requests+json]
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Plan and run bounded SQL injection checks from a prepared RequestSet
+      instructions: {ref: instructions/scan.md}
+      planner: scan-plan@1
+      scanPlan:
+        inputArtifact: requests
+        maxInputs: 100
+        maxJobs: 3
+        maxTotalSeconds: 900
+        tools:
+          - worker: sqlmap
+            maxJobs: 3
+            maxTotalSeconds: 900
+            testParameters: [query]
+      agents:
+        sqlmap: {template: sqlmap-scan@1}
+      context:
+        artifacts:
+          requests: {namespace: inputs, name: requests, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scan-plan, name: request-set-report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

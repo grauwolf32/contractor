@@ -147,6 +147,56 @@ function operationsCallbacks() {
 }
 
 describe("Run event protocol", () => {
+  it("accepts only fixed scan progress codes without request data", () => {
+    for (const code of [
+      "scan_owner_acquired",
+      "scan_plan_initialized",
+      "scan_job_started",
+      "scan_job_finished",
+    ]) {
+      const frame = {
+        ...plannerEvent("run-ui-1", "run-1", "42"),
+        data: {
+          stageExecutionId: "stage-1",
+          sessionId: "session-1",
+          invocationId: "invocation-1",
+          eventKind: "planner.activity",
+          activity: {
+            kind: code,
+            author: "scan_planner",
+            functionCalls: [],
+            functionResults: [],
+          },
+        },
+      };
+      expect(parseServerFrame(JSON.stringify(frame))).toMatchObject({
+        data: {
+          eventKind: "planner.activity",
+          activity: { kind: code, author: "scan_planner" },
+        },
+      });
+      expect(() =>
+        parseServerFrame(
+          JSON.stringify({
+            ...frame,
+            data: {
+              ...frame.data,
+              activity: { ...frame.data.activity, kind: "private_value" },
+            },
+          }),
+        ),
+      ).toThrow("activity kind is invalid");
+      expect(() =>
+        parseServerFrame(
+          JSON.stringify({
+            ...frame,
+            data: { ...frame.data, url: "https://secret.invalid" },
+          }),
+        ),
+      ).toThrow("closed shape");
+    }
+  });
+
   it("parses only the reduced typed Planner projection", () => {
     const parsed = parseServerFrame(
       JSON.stringify(plannerEvent("run-ui-1", "run-1", "42")),

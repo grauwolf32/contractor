@@ -184,8 +184,8 @@ func applyResolvedStageExecutionConfigOverride(
 		if !resolvedExecutionSelectionOverrideHasAny(*override.Planner) {
 			return fmt.Errorf("planner must select at least one field")
 		}
-		if stage.Planner.PlannerID+"@"+stage.Planner.Version == "passthrough@1" {
-			return fmt.Errorf("passthrough@1 does not accept Planner model configuration")
+		if IsModelFreePlanner(stage.Planner) {
+			return fmt.Errorf("%s@%s does not accept Planner model configuration", stage.Planner.PlannerID, stage.Planner.Version)
 		}
 		if stage.ExecutionConfig.Planner == nil {
 			return fmt.Errorf("modeled Planner has no base executionConfig")
@@ -281,7 +281,7 @@ func (l *loader) applyExecutionConfigPatch(
 	plannerApplied := false
 	for _, stageName := range sortedPatchKeys(workflow.Stages) {
 		stage := workflow.Stages[stageName]
-		if patch.Planner != nil && stage.Planner.PlannerID+"@"+stage.Planner.Version != "passthrough@1" {
+		if patch.Planner != nil && !IsModelFreePlanner(stage.Planner) {
 			if err := l.applyPlannerSelection(
 				&stage, *patch.Planner, originPrefix+".planner",
 			); err != nil {
@@ -349,8 +349,8 @@ func (l *loader) applyPlannerSelection(
 	origin string,
 ) error {
 	ref := stage.Planner.PlannerID + "@" + stage.Planner.Version
-	if ref == "passthrough@1" {
-		return fmt.Errorf("passthrough@1 does not accept Planner model configuration")
+	if IsModelFreePlanner(stage.Planner) {
+		return fmt.Errorf("%s does not accept Planner model configuration", ref)
 	}
 	if stage.ExecutionConfig.Planner == nil {
 		stage.ExecutionConfig.Planner = &ResolvedConsumerExecutionConfig{}
@@ -504,8 +504,20 @@ func optionalStringFromYAML(
 
 func validateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
 	for stageName, stage := range workflow.Stages {
+		if err := ValidateScanPlanStage(stage); err != nil {
+			return fmt.Errorf("Stage %q: %w", stageName, err)
+		}
+		if stage.ScanPlan != nil {
+			if err := validateScanPlanInputMedia(workflow, stage); err != nil {
+				return fmt.Errorf("Stage %q: %w", stageName, err)
+			}
+		}
 		for _, binding := range stage.Agents {
 			if !binding.Template.IsToolWorker() {
+				continue
+			}
+			if stage.ScanPlan != nil {
+				// The validated scan policy supplies per-job inputs and reports.
 				continue
 			}
 			execution := binding.Template.Execution
@@ -541,9 +553,9 @@ func validateWorkflowExecutionConfigs(workflow ResolvedWorkflow) error {
 
 func validateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 	plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
-	if plannerRef == "passthrough@1" {
+	if IsModelFreePlanner(stage.Planner) {
 		if stage.ExecutionConfig.Planner != nil {
-			return fmt.Errorf("Stage %q passthrough@1 must not have Planner executionConfig", stageName)
+			return fmt.Errorf("Stage %q %s must not have Planner executionConfig", stageName, plannerRef)
 		}
 	} else {
 		if stage.ExecutionConfig.Planner == nil {

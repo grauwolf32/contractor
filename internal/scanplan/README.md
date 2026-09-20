@@ -1,10 +1,12 @@
-# OpenAPI request preparation
+# Scan preparation and planning
 
 `Prepare(sourceBytes, mediaType, exactArtifactRef, options)` is a pure library
 entry point. Its caller obtains the source through the existing Artifact client,
 then persists `contracts.MarshalHTTPRequestSet(result)` as
 `contracts.HTTPRequestSetMediaType`. The package does not read files, resolve
-remote references, call scanners or dispatch Workflows.
+remote references, call scanners or dispatch Workflows. `BuildPlan` separately
+turns RequestSet or target-list bytes into bounded deterministic scan jobs.
+Execution belongs to `internal/planner/scan` and its `scan-plan@1` factory.
 
 Preparation policy 2 accepts OpenAPI 3.0.x and 3.1.x and extracts concrete HTTP
 data on a best-effort basis. Supplied values and examples remain usable even when
@@ -64,8 +66,14 @@ validation and resource failures return `*PreparationError`; a malformed input
 does not become an empty successful result. `coverage.complete` describes the
 bounded one-example-per-operation extraction policy. It does not certify schema
 validity, scan coverage or absence of vulnerabilities. Ignored schema validation
-keywords do not create gaps. Selecting scanner parameters and dispatching the
-result belong to V55-008.
+keywords do not create gaps. `BuildPlan` accepts a `PlanInput`, explicit
+`contracts.ScanPlanPolicy`, fixed Worker bindings and exact wordlist refs. It
+selects scanner inputs and budgets, deduplicates jobs while retaining provenance,
+and emits canonical `ScanPlan` v1 through `MarshalPlan`. `DecodePlan` validates
+persisted plan bytes. See [scan planning](../../docs/spec/32-scan-planning.md)
+and its [schema](../../api/scan/v1/scan-plan.schema.json) for selection, identity
+and conservative recovery semantics.
 
 Run `go test ./internal/scanplan/... ./internal/contracts/...` for codec, parser,
-determinism, preparation, reference, authentication and limit checks.
+determinism, preparation, reference, authentication, plan selection, provenance,
+budget and limit checks.

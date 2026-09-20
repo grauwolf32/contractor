@@ -487,10 +487,13 @@ type PlannerEvent struct {
 }
 
 type AppendPlannerEventParams struct {
-	EventID               string
-	SessionID             string
-	StageExecutionID      string
-	InvocationID          string
+	EventID          string
+	SessionID        string
+	StageExecutionID string
+	InvocationID     string
+	// SchedulerClaimID optionally fences the append against the current,
+	// unexpired WorkflowRun claim in the same PostgreSQL statement.
+	SchedulerClaimID      string
 	SequenceNumber        int64
 	EventSchemaVersion    string
 	Event                 json.RawMessage
