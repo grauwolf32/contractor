@@ -3,7 +3,7 @@ id: V60-035
 title: Compare durable Findings review state independently of read snapshot time
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-008]
 languages: [go, markdown]
 goal: Preserve the process test's proof that collection analysis does not mutate Audit review state while accepting the documented per-read snapshot timestamp.
@@ -37,3 +37,14 @@ verification_requirements:
   - Record failure and passing logs, exact commands, source commits and case counts.
   - Use only isolated processes, database state and the scripted local Gateway.
   - Keep task-start, implementation and completion metadata commits separate.
+
+review_evidence:
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  evidence: tasks/evidence/v60-035.json
+  result: Exact process reproduction confirms only asOf differs; the full Findings gate passed 13 process cases and 48 Runtime cases without skips.
+
+implementation_commit: 7100eb4171f8009cc7fe0591bb4fff8504313c14
+verification:
+  evidence: tasks/evidence/v60-035.json
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.

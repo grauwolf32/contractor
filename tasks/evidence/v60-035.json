@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-035",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+  "report": "docs/research/2026-09-20-v60-008-audit-product-review.md",
+  "status": "Exact failure reproduced; full required Findings gate passed all 13 process cases and 48 Runtime cases without skips.",
+  "finding": {
+    "priority": "P2",
+    "history": "Original whole-page comparison predates 1b45fc52, which added per-read PageBasis.AsOf from statement_timestamp().",
+    "normative_basis": "spec19 revision-bound Findings/Reviews pages expose auditRevision and asOf; review analysis must not mutate durable review state.",
+    "changed_fields": {
+      "asOf": {
+        "before": "2026-09-20T14:37:23.036732+03:00",
+        "after": "2026-09-20T14:37:41.979456+03:00"
+      }
+    },
+    "unchanged_fields": [
+      "auditRevision",
+      "items",
+      "page",
+      "total"
+    ],
+    "correction": "Validate both timestamps as nonzero RFC3339Nano; remove only asOf before the existing exact whole-payload comparison. Preserve producer/reader/collection/Gateway assertions.",
+    "production_changed": false
+  },
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "-timeout=6m",
+        "./tests/e2e",
+        "-run",
+        "^TestFindingsProducerAndReaderAcrossProcesses$"
+      ],
+      "source_commit": "4f8b9561352c918d37a71bb6f8b74886c27f7276",
+      "source_delta": "Only diagnostic JSON payload in the failing assertion; intervening b62e3bd1 records V60-027 completion metadata.",
+      "started_at_unix": 1789904224.4709773,
+      "duration_seconds": 38.293,
+      "exit_code": 1,
+      "log": ".local/v60-review/v60-035-before.log",
+      "log_sha256": "149bc488a45721e84b4a46a8237d83857c902509925b9b0d8d1152e85c017950"
+    },
+    {
+      "command": [
+        "make",
+        "test-findings-e2e"
+      ],
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "started_at_unix": 1789904332.404658,
+      "duration_seconds": 190.699,
+      "exit_code": 0,
+      "log": ".local/v60-review/v60-035-findings-final.log",
+      "log_sha256": "b1ac751a0517cbc6840e49a01fc02eb9f011081d0d06a6ba7c72d7b81ccb1fa7",
+      "go_passing_events": 13,
+      "python_passing_cases": 48,
+      "required_skips": []
+    }
+  ],
+  "required_remaining": [],
+  "evidence_limits": [
+    "Disposable real Server/Runtime/PostgreSQL with scripted local Gateway; no live model or existing user data.",
+    "Gate counts include named subtests; required cases cannot be skipped."
+  ]
+}
