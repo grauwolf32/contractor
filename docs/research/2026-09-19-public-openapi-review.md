@@ -1,312 +1,304 @@
-# Ревью публичного OpenAPI — 2026-09-19
+# Public OpenAPI review — 2026-09-19
 
-Проверен `api/openapi/contractor-public-v1.yaml` и его соответствие текущему
-серверу, конфигурациям и клиентам. Основа проверки:
-`b779dedf285f5d6645f064d423e8873b5c382ab6`. Номера строк ниже относятся к этому
-состоянию. Это результаты ревью, а не изменение нормативного контракта.
-Ниже сохранены исходные наблюдения и воспроизведения до исправления.
-Все 12 замечаний исправлены в V59; уточнения, изменения и границы повторной
-проверки описаны в [результатах от 2026-09-20](2026-09-20-public-openapi-corrections-results.md).
+Reviewed `api/openapi/contractor-public-v1.yaml` against the current Server,
+configurations and clients. Review baseline:
+`b779dedf285f5d6645f064d423e8873b5c382ab6`. Line numbers below refer to that
+state. These are review results, not a change to the normative contract.
+Original observations and reproductions before the fixes are retained below.
+All 12 findings were fixed in V59; clarifications, changes and re-verification
+limits are described in the [2026-09-20 results](2026-09-20-public-openapi-corrections-results.md).
 
-Файл структурно корректен, однако полностью соответствующим реализации его
-считать нельзя. Найдены 12 замечаний: одна проблема P1, восемь P2 и три P3.
-Часть ошибок находится в обработчиках или генерации клиента. Изменение одного
-YAML не устранит их. Переписывать API целиком для перечисленных исправлений
-не требуется.
+The file is structurally valid but cannot be considered fully aligned with the
+implementation. Twelve findings were identified: one P1, eight P2 and three P3.
+Some defects are in handlers or client generation. Editing YAML alone will not
+resolve them. The listed fixes do not require rewriting the entire API.
 
-| ID | Приоритет | Где исправлять | Проблема |
+| ID | Priority | Fix location | Problem |
 | --- | --- | --- | --- |
-| R01 | P1 | Public projection, затем схема | `AuditReport.review` теряется до HTTP-ответа |
-| R02 | P2 | YAML и generated clients | В Summarizer отсутствует действующее `instructions` |
-| R03 | P2 | YAML и generated clients | В telemetry export отсутствует действующее `retry` |
-| R04 | P2 | Схемы RuntimeConfig | Авторский запрос и сохранённый документ описаны одним union |
-| R05 | P2 | Audit pagination | Разрешённый `limit=200` превращается во внутренний недопустимый 201 |
-| R06 | P2 | Схема finding decision | Не описана условная обязательность полей verdict |
-| R07 | P2 | Query schemas | Запрещён фильтр по метке с пустым значением |
-| R08 | P2 | Схема login и документация единиц | Символьная длина пароля расходится с байтовой политикой сервера |
-| R09 | P2 | Генерация Go client | Explicit `null` превращается в отсутствие patch-поля |
-| R10 | P3 | Параметры Git mutations | Не описаны требования Origin/CSRF для cookie auth |
-| R11 | P3 | Схема RunStatus | Лимит 1024 попыток не обеспечен для automatic retry |
-| R12 | P3 | Описание Git import | Явный create precondition объявлен обязательным, но фактически необязателен |
+| R01 | P1 | Public projection, then schema | `AuditReport.review` is lost before the HTTP response |
+| R02 | P2 | YAML and generated clients | Summarizer omits the existing `instructions` field |
+| R03 | P2 | YAML and generated clients | Telemetry export omits the existing `retry` field |
+| R04 | P2 | RuntimeConfig schemas | Author request and stored document use one union |
+| R05 | P2 | Audit pagination | Allowed `limit=200` becomes an invalid internal 201 |
+| R06 | P2 | Finding decision schema | Verdict-dependent required fields are not described |
+| R07 | P2 | Query schemas | Filtering by a label with an empty value is forbidden |
+| R08 | P2 | Login schema and unit documentation | Character-based password length conflicts with the Server's byte policy |
+| R09 | P2 | Go client generation | Explicit `null` becomes an omitted patch field |
+| R10 | P3 | Git mutation parameters | Origin/CSRF requirements for cookie auth are undocumented |
+| R11 | P3 | RunStatus schema | The 1024-attempt limit is not enforced for automatic retry |
+| R12 | P3 | Git import description | An explicit create precondition is described as required but is actually optional |
 
-1. **R01 — P1: потеря review блокирует подтверждение предложенного отчёта в UI.**
+1. **R01 — P1: losing review blocks approval of a proposed report in the UI.**
 
-   `AuditReport.review` объявлен в OpenAPI:4355. Сервис получает review для
-   `status=proposed` и возвращает его в `ReportProjection`
-   ([service.go](../../internal/auditservice/service.go), строки 210–215, 264).
-   Однако `auditReportResponse` не содержит этого поля, а `getAuditReport`
-   не переносит его в HTTP-ответ
+   `AuditReport.review` is declared at OpenAPI:4355. The service fetches review
+   for `status=proposed` and returns it in `ReportProjection`
+   ([service.go](../../internal/auditservice/service.go), lines 210–215, 264).
+   However, `auditReportResponse` lacks the field, and `getAuditReport` does not
+   copy it into the HTTP response
    ([audit_handlers.go](../../internal/httpapi/public/audit_handlers.go),
-   строки 192–198, 781–785).
+   lines 192–198, 781–785).
 
-   UI показывает `ActionReviewControls` только при
-   `report.data.review?.state === "pending"`; переход с `?review=...` также
-   проверяет совпадение request ID
-   ([detail.tsx](../../ui/src/routes/projects/audits/detail.tsx), строки 1811, 1901–1905).
-   Поэтому предложенный отчёт не получает действий подтверждения на этой странице.
+   The UI shows `ActionReviewControls` only when
+   `report.data.review?.state === "pending"`; navigation with `?review=...` also
+   checks the request ID
+   ([detail.tsx](../../ui/src/routes/projects/audits/detail.tsx), lines 1811, 1901–1905).
+   As a result, the proposed report has no approval actions on this page.
 
-   Воспроизведение: настоящий HTTP-handler с fake service, возвращающим
-   ненулевой pending review, выдал `200 {"status":"proposed"}` без `review`.
-   Проверка существующей схемой этого не обнаруживает: поле optional.
+   Reproduction: the real HTTP handler with a fake service returning a non-nil
+   pending review produced `200 {"status":"proposed"}` without `review`.
+   Existing schema validation does not catch this because the field is optional.
 
-   Исправление: передавать review через public DTO и покрыть proposed report
-   контрактным сценарием. В схеме выразить обязательность review для proposed,
-   сохранив поведение остальных статусов. Ошибка находится прежде всего в
-   реализации; удалять поле из OpenAPI было бы неверно.
+   Fix: carry review through the public DTO and add a proposed-report contract
+   scenario. Require review for proposed in the schema while preserving other
+   statuses. This is primarily an implementation defect; removing the field
+   from OpenAPI would be wrong.
 
-2. **R02 — P2: закрытая схема Summarizer отвергает обычные ответы каталога.**
+2. **R02 — P2: the closed Summarizer schema rejects ordinary catalog responses.**
 
-   `WorkerSummarizerConfigBody` в OpenAPI:6169–6176 содержит
-   `additionalProperties: false`, но не содержит `instructions`.
-   Public projection добавляет `{ref, digest}` при наличии настроенных
-   инструкций Summarizer
-   ([resources.go](../../internal/config/resources.go), строки 219–232).
+   `WorkerSummarizerConfigBody` at OpenAPI:6169–6176 has
+   `additionalProperties: false` but no `instructions` field.
+   Public projection adds `{ref, digest}` when Summarizer instructions are configured
+   ([resources.go](../../internal/config/resources.go), lines 219–232).
 
-   Воспроизведение: текущий `configs/` загружен настоящим `config.Load`;
-   сериализованные `ConfigurationResource` проверены схемой Draft 2020-12.
-   **30 из 41 версии AgentTemplate не прошли проверку** из-за
-   `body.summarizer.instructions`. Остальные 11 AgentTemplate, четыре
-   ModelPolicy и один Gateway прошли. Пример:
+   Reproduction: current `configs/` was loaded with real `config.Load`;
+   serialized `ConfigurationResource` objects were checked against Draft 2020-12.
+   **30 of 41 AgentTemplate versions failed validation** because of
+   `body.summarizer.instructions`. The remaining 11 AgentTemplates, four
+   ModelPolicies and one Gateway passed. Example:
    [artifact_builder.yaml](../../configs/agent-templates/artifact_builder.yaml).
 
-   Расхождение касается list/detail configuration responses. Строгий клиент
-   отвергнет соответствующий ресурс; Go typed model не сохранит неизвестное
-   поле при десериализации, TypeScript-тип его не описывает.
+   The mismatch affects list/detail configuration responses. A strict client
+   rejects the resource; Go typed models lose the unknown field when decoding,
+   and the TypeScript type does not describe it.
 
-   Исправление: добавить optional `instructions` с существующей схемой ссылки
-   на инструкции, регенерировать оба клиента. Проверять реальные публичные
-   проекции репозиторных конфигураций, включая optional вложенные поля.
-   Снимать `additionalProperties: false` со всего объекта не требуется.
+   Fix: add optional `instructions` using the existing instruction-ref schema
+   and regenerate both clients. Validate real public projections of repository
+   configurations, including optional nested fields. Removing
+   `additionalProperties: false` from the entire object is unnecessary.
 
-3. **R03 — P2: telemetry export retry реализован, но запрещён схемой.**
+3. **R03 — P2: telemetry export retry is implemented but forbidden by the schema.**
 
-   `WorkerTelemetryExportConfig` в OpenAPI:5158–5166 закрыт и перечисляет только
+   `WorkerTelemetryExportConfig` at OpenAPI:5158–5166 is closed and lists only
    `batchSizeBytes`, `maxAttempts`, `maxPendingSpans`, `maxPendingBytes`.
-   Сервер поддерживает вложенный `retry` с настройками backoff
-   ([normalize.go](../../internal/runtimeconfig/normalize.go), строки 481–507;
-   [telemetry_export.go](../../internal/contracts/telemetry_export.go), строка 9).
-   Сохранённый canonical document передаётся в public response.
+   The Server supports nested `retry` backoff settings
+   ([normalize.go](../../internal/runtimeconfig/normalize.go), lines 481–507;
+   [telemetry_export.go](../../internal/contracts/telemetry_export.go), line 9).
+   The stored canonical document is included in the public response.
 
-   Воспроизведение: `PreparePublication` и `Resolve` приняли
+   Reproduction: `PreparePublication` and `Resolve` accepted
    `export.retry={"initialBackoffMilliseconds":17,"maxBackoffMilliseconds":43}`.
-   Полученный документ не прошёл `RuntimeConfigDocument`: `retry was unexpected`.
-   Расхождение затрагивает запрос публикации, ответы чтения и generated DTO.
+   The resulting document failed `RuntimeConfigDocument`: `retry was unexpected`.
+   The mismatch affects publication requests, read responses and generated DTOs.
 
-   Исправление: добавить optional retry schema с фактическими bounds/defaults;
-   сохранить допустимость старых документов без этого поля. Проверить запрос
-   и нормализованный ответ, поскольку нормализация добавляет defaults.
+   Fix: add an optional retry schema with actual bounds/defaults; preserve
+   acceptance of old documents without it. Check both the request and normalized
+   response, since normalization adds defaults.
 
-4. **R04 — P2: RuntimeConfig author/read schemas смешаны.**
+4. **R04 — P2: RuntimeConfig author/read schemas are mixed.**
 
-   OpenAPI:5199–5203 допускает `gateway` как selector string, expanded ref или
-   `null`; строки 5213–5216 допускают `llmGateway: null`. Тот же
-   `RuntimeConfigDocument` используется для POST на строке 2446 и для чтения
-   опубликованного документа на строке 5259.
+   OpenAPI:5199–5203 permits `gateway` as a selector string, expanded ref or
+   `null`; lines 5213–5216 permit `llmGateway: null`. The same
+   `RuntimeConfigDocument` is used for POST at line 2446 and for reading the
+   published document at line 5259.
 
-   Реальные правила иные: оба указанных null запрещены; при публикации gateway
-   должен быть строковым exact selector, после разрешения сохраняется объект
-   ссылки с digest
-   ([normalize.go](../../internal/runtimeconfig/normalize.go), строки 335–350).
-   Это соответствует
-   [спецификации RuntimeConfig](../spec/07-runtime-labels-and-infrastructure-config.md),
-   строке 133.
+   Actual rules differ: both null values are forbidden; at publication, gateway
+   must be an exact selector string; after resolution, a ref object with digest
+   is stored
+   ([normalize.go](../../internal/runtimeconfig/normalize.go), lines 335–350).
+   This matches the
+   [RuntimeConfig specification](../spec/07-runtime-labels-and-infrastructure-config.md),
+   line 133.
 
-   Воспроизведение: JSON Schema принимает каждый из worker blocks
-   `{"llmGateway":null}`, `{"llmGateway":{"gateway":null}}` и
+   Reproduction: JSON Schema accepts each worker block
+   `{"llmGateway":null}`, `{"llmGateway":{"gateway":null}}` and
    `{"llmGateway":{"gateway":{"gatewayId":"local-litellm","version":"1","digest":"sha256:<64 hex>"}}}`.
-   `PreparePublication` отвергает все три. В тесте использован полный валидный
-   digest, а не сокращение из примера.
+   `PreparePublication` rejects all three. The test used a full valid digest,
+   not the abbreviation shown in the example.
 
-   Исправление: разделить author document и resolved document schemas,
-   разделяя только действительно общие компоненты. Убрать неподдерживаемые
-   null-ветки gateway. Серверный parser расширять для согласования с нынешним
-   слишком широким union не требуется.
+   Fix: separate author-document and resolved-document schemas, sharing only
+   genuinely common components. Remove unsupported null branches for gateway.
+   There is no need to broaden the Server parser to match the current overly
+   permissive union.
 
-5. **R05 — P2: Audit pagination ломается на объявленной верхней границе.**
+5. **R05 — P2: Audit pagination fails at its declared upper bound.**
 
-   Общий параметр `Limit` в OpenAPI:3265 разрешает 1–200. Его используют
-   findings, reviews и finding provenance. Их обработчики запрашивают
-   `limit + 1`, чтобы определить наличие следующей страницы
+   The shared `Limit` parameter at OpenAPI:3265 permits 1–200. Findings, reviews
+   and finding provenance use it. Their handlers request `limit + 1` to detect
+   a subsequent page
    ([audit_review_handlers.go](../../internal/httpapi/public/audit_review_handlers.go),
-   строки 55, 186, 339). Но service validators запрещают больше
+   lines 55, 186, 339). However, service validators reject values above
    `MaxFindingPageSize = 200`
-   ([finding_review.go](../../internal/auditservice/finding_review.go),
-   строки 908–943).
+   ([finding_review.go](../../internal/auditservice/finding_review.go), lines 908–943).
 
-   Воспроизведение: при `?limit=200` настоящие handlers в связке с реальными
-   service validators возвращают HTTP 400 для всех трёх списков. Для provenance
-   в тесте использован fake lookup существующего owned finding; PostgreSQL
-   для доказательства расхождения лимита не нужен.
+   Reproduction: for `?limit=200`, real handlers with real service validators
+   return HTTP 400 for all three lists. The provenance test uses a fake lookup
+   of an existing owned finding; PostgreSQL is unnecessary to demonstrate
+   the limit mismatch.
 
-   Исправление: согласовать публичную страницу и внутреннюю дополнительную
-   запись. Учесть, что последующая batch-гидратация receipts тоже ограничена
-   200 ID
+   Fix: align the public page size and internal extra row. Account for subsequent
+   receipt batch hydration, which is also limited to 200 IDs
    ([audit_receipt_batch.go](../../internal/findingintake/audit_receipt_batch.go),
-   строка 21). Простое увеличение только одного service bound недостаточно.
-   Acceptance должен проверять 199/200, наличие 201-й записи и следующий cursor.
+   line 21). Raising only one service bound is insufficient. Acceptance must
+   check 199/200, presence of a 201st record and the next cursor.
 
-6. **R06 — P2: не описаны условные поля решения finding.**
+6. **R06 — P2: conditional finding-decision fields are undocumented.**
 
-   `DecideAuditFindingRequest` в OpenAPI:4704–4712 требует только verdict и
-   rationale. Сервер требует severity при `true_positive` и запрещает её при
-   остальных verdict. `duplicateTargetId` обязателен исключительно при
-   `duplicate`
-   ([finding_review.go](../../internal/auditservice/finding_review.go),
-   строки 967–975).
+   `DecideAuditFindingRequest` at OpenAPI:4704–4712 requires only verdict and
+   rationale. The Server requires severity for `true_positive` and forbids it
+   for other verdicts. `duplicateTargetId` is required only for `duplicate`
+   ([finding_review.go](../../internal/auditservice/finding_review.go), lines 967–975).
 
-   Воспроизведение: схема принимает
-   `{"verdict":"true_positive","rationale":"Observed evidence"}` и аналогичный
-   запрос с `duplicate`; настоящий `DecideFinding` отвергает их до SQL.
+   Reproduction: the schema accepts
+   `{"verdict":"true_positive","rationale":"Observed evidence"}` and the analogous
+   `duplicate` request; real `DecideFinding` rejects both before SQL.
 
-   Исправление: описать варианты запроса либо условные правила для каждого
-   verdict, включая запрет неподходящих полей. Отдельно проверить, что выбранная
-   форма сохраняет полезные generated types, а не только проходит validator.
+   Fix: describe request variants or conditional rules for each verdict, including
+   forbidden unrelated fields. Separately verify that the chosen form preserves
+   useful generated types rather than merely passing a validator.
 
-7. **R07 — P2: filter schema запрещает поддерживаемые метки с пустым значением.**
+7. **R07 — P2: filter schema rejects supported labels with empty values.**
 
-   В двух query schemas `label` — OpenAPI:761 и 1633 — стоят `minLength: 3`
-   и `pattern: '^[^=]+=.+'`. Они запрещают `triaged=`. При этом
-   `RunMetadataLabels` явно разрешает пустое значение, а обработчик делит
-   selector по первому `=` и принимает его
-   ([run_handlers.go](../../internal/httpapi/public/run_handlers.go), строки 131–144).
+   Both `label` query schemas — OpenAPI:761 and 1633 — use `minLength: 3`
+   and `pattern: '^[^=]+=.+'`. These reject `triaged=`. Yet `RunMetadataLabels`
+   explicitly allows an empty value, and the handler splits the selector at
+   the first `=` and accepts it
+   ([run_handlers.go](../../internal/httpapi/public/run_handlers.go), lines 131–144).
 
-   Воспроизведение: `GET /v1/runs?label=triaged%3D` проходит настоящий
-   authenticated handler с HTTP 200, но отклоняется OpenAPI request validator.
+   Reproduction: `GET /v1/runs?label=triaged%3D` passes the real authenticated
+   handler with HTTP 200 but is rejected by the OpenAPI request validator.
 
-   Исправление: разрешить пустую правую часть в обоих query schemas; учитывать
-   минимальную длину `a=`. Покрыть общий и проектный список одинаковыми cases.
+   Fix: allow an empty right-hand side in both query schemas; account for the
+   minimum length of `a=`. Cover global and Project lists with identical cases.
 
-8. **R08 — P2: длина пароля описана в других единицах.**
+8. **R08 — P2: password length is described in different units.**
 
-   `LoginRequest.password` в OpenAPI:6406 задаёт `minLength: 12`, считая Unicode
-   code points. Auth использует предел 12–1024 UTF-8 байт
-   ([password.go](../../internal/auth/password.go), строки 20–31).
+   `LoginRequest.password` at OpenAPI:6406 sets `minLength: 12`, counting Unicode
+   code points. Auth uses a 12–1024 UTF-8 byte bound
+   ([password.go](../../internal/auth/password.go), lines 20–31).
 
-   Воспроизведение: пароль `пароль` содержит шесть символов и 12 байт.
-   Bootstrap принимает его, настоящий login возвращает HTTP 200 и cookie,
-   а request validator отклоняет запрос.
+   Reproduction: the password `пароль` contains six characters and 12 bytes.
+   Bootstrap accepts it; real login returns HTTP 200 and a cookie, while the
+   request validator rejects it.
 
-   Исправление: убрать несовместимый символьный минимум, явно описать байтовую
-   политику и сохранить точную серверную проверку. При необходимости обозначить
-   byte bounds расширением схемы и клиентской проверкой. Аналогично проверить
-   верхнюю границу с многобайтовыми символами. Менять действующую парольную
-   политику или требовать смены существующих паролей ради схемы не нужно.
+   Fix: remove the incompatible character minimum, explicitly document the byte
+   policy and preserve exact Server validation. If needed, express byte bounds
+   with a schema extension and client-side validation. Also test the upper
+   boundary with multibyte characters. Do not change the existing password
+   policy or require users to replace existing passwords merely to fit the schema.
 
-9. **R09 — P2: typed Go client теряет explicit-null patch operations.**
+9. **R09 — P2: the typed Go client loses explicit-null patch operations.**
 
-   Nullable-ветки telemetry/httpProxy/caido в OpenAPI:5217–5228 корректны.
-   Однако generated Go `RuntimeWorkerPatch` использует `*T` с `omitempty`
-   ([public.gen.go](../../internal/publicclient/generated/public.gen.go),
-   строки 3629–3633). Обычный `json.Marshal` не различает отсутствующее поле
-   и явный null. Конфигурация генератора:
+   Nullable branches for telemetry/httpProxy/caido at OpenAPI:5217–5228 are correct.
+   However, generated Go `RuntimeWorkerPatch` uses `*T` with `omitempty`
+   ([public.gen.go](../../internal/publicclient/generated/public.gen.go), lines 3629–3633).
+   Ordinary `json.Marshal` cannot distinguish an absent field from explicit null.
+   Generator configuration:
    [oapi-codegen.yaml](../../internal/publicclient/generated/oapi-codegen.yaml).
 
-   Воспроизведение: raw document с worker `telemetry:null`, `httpProxy:null`,
-   `caido:null` и planner `telemetry:null` проходит `PreparePublication`.
-   Unmarshal/marshal через generated `RuntimeConfigDocument` превращает spec
-   в `{"planner":{},"worker":{}}`; повторная публикация получает
-   `spec.worker cannot be empty`. При наличии соседних полей возможна потеря
-   clear-операции без ошибки пустого объекта.
+   Reproduction: a raw document with worker `telemetry:null`, `httpProxy:null`,
+   `caido:null` and planner `telemetry:null` passes `PreparePublication`.
+   Unmarshal/marshal through generated `RuntimeConfigDocument` turns spec into
+   `{"planner":{},"worker":{}}`; republication returns `spec.worker cannot be empty`.
+   With adjacent fields present, a clear operation may disappear without an
+   empty-object error.
 
-   Исправление: сохранить три состояния — absent/null/value — в generated Go
-   request types и проверить фактические bytes typed POST. Это consumer defect:
-   HTTP API поддерживает clear, TypeScript сохраняет `| null`, Go raw-body
-   overload позволяет отправить корректный документ. Убирать поддерживаемые
-   null из OpenAPI для упрощения Go types нельзя.
+   Fix: preserve all three states — absent/null/value — in generated Go request
+   types and check actual typed POST bytes. This is a consumer defect: the HTTP
+   API supports clear, TypeScript preserves `| null`, and the Go raw-body overload
+   can send a correct document. Supported null values must not be removed from
+   OpenAPI just to simplify Go types.
 
-   Временная регенерация с `output-options.nullable-type: true` подтвердила,
-   что закреплённый oapi-codegen распознаёт текущие `oneOf`/null и создаёт
-   `nullable.Nullable[T]`. Опция глобальная: меняет и другие nullable DTO,
-   добавляет зависимость `github.com/oapi-codegen/nullable`, поэтому потребуется
-   проверить callsites. Сборка и round-trip временного изменённого клиента
-   в рамках ревью не выполнялись.
+   Temporary regeneration with `output-options.nullable-type: true` confirmed
+   that pinned oapi-codegen recognizes current `oneOf`/null and generates
+   `nullable.Nullable[T]`. The option is global: it changes other nullable DTOs
+   and adds `github.com/oapi-codegen/nullable`, so call sites need checking.
+   The temporary modified client was not built or round-trip tested during this review.
 
-10. **R10 — P3: Git mutations не объявляют browser mutation headers.**
+10. **R10 — P3: Git mutations omit browser mutation headers.**
 
     `replaceGitKey`, `deleteGitKey`, `importGitArtifact`,
-    `importProjectGitArtifact` в OpenAPI:106–214 не ссылаются на
-    `OptionalOrigin`/`OptionalCSRFToken`, в отличие от остальных обычных mutations.
-    Общая аутентификация допускает session cookie, но unsafe request с ней
-    требует оба заголовка
-    ([auth_handlers.go](../../internal/httpapi/public/auth_handlers.go), строки 148–153).
+    `importProjectGitArtifact` at OpenAPI:106–214 do not reference
+    `OptionalOrigin`/`OptionalCSRFToken`, unlike other ordinary mutations.
+    Shared authentication permits a session cookie, but an unsafe request with
+    that cookie requires both headers
+    ([auth_handlers.go](../../internal/httpapi/public/auth_handlers.go), lines 148–153).
 
-    Это неполное описание запроса: внешний клиент, ориентирующийся на эти
-    операции, не узнаёт необходимые заголовки и может получить 403.
-    Общий UI transport уже добавляет CSRF; обхода серверной защиты не выявлено.
+    The request description is incomplete: an external client using these
+    operations is not told about required headers and may receive 403.
+    The shared UI transport already adds CSRF; no Server protection bypass was found.
 
-    Исправление: добавить те же reusable parameters и описание условной
-    обязательности для cookie auth. Bearer-запросам CSRF не требуется.
+    Fix: add the same reusable parameters and document their conditional
+    requirement for cookie auth. Bearer requests do not need CSRF.
 
-11. **R11 — P3: граница RunStatus в 1024 попытки не обеспечивается.**
+11. **R11 — P3: the 1024-attempt RunStatus bound is not enforced.**
 
-    OpenAPI:5612–5613 задаёт `maxItems: 1024` для attempts/transitions.
-    Workflow validator допускает `retry.maxAttempts=1025`
-    ([workflow.go](../../internal/config/workflow.go), строки 690, 957).
-    Scheduler создаёт следующую попытку до configured maximum
+    OpenAPI:5612–5613 sets `maxItems: 1024` for attempts/transitions.
+    Workflow validation accepts `retry.maxAttempts=1025`
+    ([workflow.go](../../internal/config/workflow.go), lines 690, 957).
+    Scheduler creates further attempts up to the configured maximum
     ([stage_finalization.go](../../internal/scheduler/stage_finalization.go),
-    строки 204, 241). Store и public handler возвращают всю историю.
-    Ограничение manual resume не ограничивает automatic retry.
+    lines 204, 241). Store and public handler return the full history.
+    A manual-resume limit does not constrain automatic retry.
 
-    Воспроизведение: настоящий config validator принял 1025; HTTP-handler с
-    fake persisted history вернул 1025 attempts, которые schema отвергла.
-    Запуск 1025 реальных Scheduler attempts не выполнялся.
+    Reproduction: the real config validator accepted 1025; the HTTP handler with
+    fake persisted history returned 1025 attempts, which the schema rejected.
+    No run of 1025 real Scheduler attempts was performed.
 
-    Исправление в рамках согласования текущего контракта: убрать
-    неподтверждённый `maxItems`. Глобальную квоту истории или отдельную пагинацию
-    согласовать самостоятельно; не обрезать данные молча ради validator.
+    Fix within current-contract reconciliation: remove the unsupported
+    `maxItems`. Agree on any global history quota or separate pagination
+    independently; do not silently truncate data to satisfy a validator.
 
-12. **R12 — P3: описание Git create precondition строже реализации.**
+12. **R12 — P3: the Git create-precondition description is stricter than implementation.**
 
-    OpenAPI:150,196 говорит `Requires explicit create or CAS precondition`.
-    Общий parser принимает отсутствие обоих заголовков как create
-    ([request.go](../../internal/httpapi/public/request.go), строки 108–109).
-    Git importer допускает такой запрос для отсутствующего binding
-    ([importer.go](../../internal/gitimport/importer.go), строки 166–180).
+    OpenAPI:150,196 says `Requires explicit create or CAS precondition`.
+    The shared parser treats absence of both headers as create
+    ([request.go](../../internal/httpapi/public/request.go), lines 108–109).
+    Git importer permits that request for an absent binding
+    ([importer.go](../../internal/gitimport/importer.go), lines 166–180).
 
-    Воспроизведение parser подтвердило отсутствие обязательного заголовка.
-    У существующего binding отсутствие expected revision вызывает conflict;
-    обхода CAS-update здесь нет.
+    Parser reproduction confirmed that no header is required. For an existing
+    binding, a missing expected revision causes conflict; there is no CAS-update bypass.
 
-    Исправление: документировать фактический create default. Если явный
-    заголовок действительно нужен как продуктовая гарантия, это отдельное
-    ужесточение API, требующее проверки совместимости существующих клиентов.
+    Fix: document the actual create default. If an explicit header is genuinely
+    needed as a product guarantee, that is separate API tightening requiring
+    compatibility checks for existing clients.
 
-**Проверки и границы уверенности.** YAML разобран как YAML 1.2 без дубликатов
-ключей; 338 component schemas прошли meta-schema Draft 2020-12. В файле
-88 paths и 111 операций с implementation marker. Все операции сопоставлены с
-регистрацией маршрутов, включая шесть archive routes, регистрируемых helper.
+**Checks and confidence limits.** YAML was parsed as YAML 1.2 with no duplicate
+keys; 338 component schemas passed the Draft 2020-12 metaschema. The file has
+88 paths and 111 operations with implementation markers. All operations were
+matched to route registration, including six archive routes registered by a helper.
 
-Успешно выполнены:
+Successfully executed:
 
 ```sh
 make verify-public-api
 go test -count=1 ./internal/httpapi/public ./internal/publicclient/...
 ```
 
-Свежая генерация закреплёнными `oapi-codegen@v2.8.0` и
-`openapi-typescript@7.13.0` дала файлы, побайтно совпадающие с committed Go/TS
-клиентами. Дополнительно выполнены восемь временных Go overlay-тестов с
-настоящими валидаторами/обработчиками и описанными выше fake dependencies;
-проверены реальные configuration projections и canonical RuntimeConfig JSON.
-Временные тесты не добавлялись в production checkout. Для соответствующих
-дефектов в документе отделено поведение, доказанное тестом, от следствий,
-установленных чтением кода.
+Fresh generation with pinned `oapi-codegen@v2.8.0` and
+`openapi-typescript@7.13.0` produced files byte-identical to the committed Go/TS
+clients. Eight temporary Go overlay tests additionally ran with real
+validators/handlers and the fake dependencies described above; real configuration
+projections and canonical RuntimeConfig JSON were checked. Temporary tests were
+not added to the production checkout. For relevant defects, this document
+distinguishes behavior demonstrated by a test from consequences established
+through code reading.
 
-Ревью не включало live PostgreSQL/LLM/browser end-to-end прогон. Зелёный
-`verify-public-api` подтверждает проверенные fixtures; он не доказывает
-соответствие всех optional fields, веток решений и граничных значений.
-Существенных подтверждённых проблем в SchedulerSettings, Credentials и
-Operations enums/required arrays в рамках этого ревью не найдено.
+The review included no live PostgreSQL/LLM/browser end-to-end run. A green
+`verify-public-api` verifies the checked fixtures; it does not prove alignment
+of every optional field, decision branch or boundary value. No substantial
+confirmed issues were found in SchedulerSettings, Credentials or Operations
+enums/required arrays within this review.
 
-**Предлагаемый порядок работы.** Отдельным небольшим изменением исправить R01
-и добавить HTTP-проверку предложенного отчёта. Независимо можно исправлять
-R05 с тестами полной страницы и следующего cursor. Затем согласовать схемы
-каталога и telemetry (R02/R03), простые query/auth/decision contracts
-(R06/R07/R08/R10/R12), регенерируя клиентов после изменений источника.
+**Proposed work order.** Fix R01 in a small separate change and add an HTTP
+check for proposed reports. R05 can be fixed independently with full-page and
+next-cursor tests. Then reconcile catalog and telemetry schemas (R02/R03) and
+simple query/auth/decision contracts (R06/R07/R08/R10/R12), regenerating clients
+after source changes.
 
-R04/R09 целесообразно делать вместе: author/read schemas, nullable request
-types и round-trip проверки на generated bytes. Этот блок пересекается с
-RuntimeConfig-контрактами будущей работы по toolsets; перед реализацией нужно
-сверить ветки, затрагивающие те же схемы. R11 можно закрыть локальной правкой
-документируемой границы; проектирование общей политики хранения истории
-выходит за рамки исправления OpenAPI.
+R04/R09 should be addressed together: author/read schemas, nullable request
+types and round-trip checks on generated bytes. This work overlaps with
+RuntimeConfig contracts in future toolset work; compare branches touching the
+same schemas before implementation. R11 can be closed with a local correction
+to the documented bound; designing a general history-retention policy is outside
+the OpenAPI fix.

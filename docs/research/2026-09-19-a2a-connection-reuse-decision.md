@@ -1,193 +1,197 @@
-# V57-005: соединения A2A внутри одного invocation
+# V57-005: A2A connections within one invocation
 
-Дата: 2026-09-19. Решение: **no-change для production**. Эксперимент завершает
-проверку гипотезы, но не разрешает включить keepalive одним флагом.
+Date: 2026-09-19. Decision: **no-change for production**. The experiment completes
+the hypothesis check but does not authorize enabling keepalive with a single flag.
 
-Переиспользование действительно убирает почти все повторные TLS handshakes при
-polling. При этом оно меняет поведение при истечении сертификата и некоторых
-транспортных сбоях. На локальном стенде с текущим интервалом poll 100 мс выигрыш
-во времени значительно меньше выигрыша в количестве соединений. Доказательств
-существенного ускорения настоящего Run или снижения production CPU нет.
+Reuse does remove almost all repeated TLS handshakes during polling. However,
+it changes behavior on certificate expiry and certain transport failures.
+In the local environment, with the current 100 ms poll interval, the time saving
+is much smaller than the reduction in connection count. There is no evidence
+of a substantial real Run speedup or reduced production CPU usage.
 
-Production-код и настройки не менялись. V57-004 остаётся отдельной задачей для
-подробного обсуждения с пользователем.
+Production code and settings were unchanged. V57-004 remains a separate task
+for detailed discussion with the user.
 
-## Что именно измерено
+## What was measured
 
-База эксперимента — `be33cebbf8b9b5fd833d238b2bf0547d5694f319`, Go 1.25.6,
-A2A Go SDK 2.5.0, Linux amd64, Intel Core i7-7700K, 8 логических CPU.
-HTTP/1.1 работает по настоящему loopback TLS 1.3 с локальным CA, клиентским
-сертификатом Control Plane и привязкой Runtime к SPKI. HTTP/2 и TLS session
-cache выключены; сеть вне loopback и модели не используются.
+Experiment baseline: `be33cebbf8b9b5fd833d238b2bf0547d5694f319`, Go 1.25.6,
+A2A Go SDK 2.5.0, Linux amd64, Intel Core i7-7700K, 8 logical CPUs.
+HTTP/1.1 runs over real loopback TLS 1.3 with a local CA, a Control Plane client
+certificate and Runtime SPKI binding. HTTP/2 and the TLS session cache are
+disabled; no network outside loopback or models are used.
 
-Используются настоящий `Invoker.Invoke`, JSON-RPC клиент SDK и production
-`cloneBoundedHTTPClient`. Сервер управляемый: это валидные SDK-encoded ответы,
-без запуска Python Runtime. Счётчики снимаются на TCP accept, проверке TLS peer,
-декодированном `SendMessage` и `GetTask`, а не выводятся из числа HTTP-запросов.
+The experiment uses real `Invoker.Invoke`, the SDK JSON-RPC client and production
+`cloneBoundedHTTPClient`. The server is controlled: it sends valid SDK-encoded
+responses without running Python Runtime. Counters observe TCP accepts, TLS peer
+verification, decoded `SendMessage` and `GetTask`, rather than inferring them
+from the number of HTTP requests.
 
-Сравниваются текущий `NewMTLS`, тестовая копия его transport с
-`DisableKeepAlives=true` и тестовый transport с reuse. Каждый экспериментальный
-transport создаётся внутри одного `Invoke`, принадлежит одному endpoint и
-principal и явно закрывает idle connections в `Destroy`. Базовая TLS
-конфигурация загружается до измеряемого вызова, как в production; новая копия
-выделяется для invocation. Ответы не дренируются ради keepalive.
+The comparison covers current `NewMTLS`, a test copy of its transport with
+`DisableKeepAlives=true`, and a test transport with reuse. Each experimental
+transport is created within one `Invoke`, belongs to one endpoint and principal,
+and explicitly closes idle connections in `Destroy`. The base TLS configuration
+is loaded before the measured call, as in production; a new copy is allocated
+for the invocation. Responses are not drained to enable keepalive.
 
-Есть два разных workload:
+There are two distinct workloads:
 
-- Фиксированные переходы состояния: один `SendMessage`, затем 8 `GetTask` в
-  benchmark. Это сравнение одинакового объёма RPC; готовность Task здесь зависит
-  от номера poll. Отдельный тест с 20 poll проверяет parity с настоящим `NewMTLS`.
-- Фиксированная длительность работы: сервер становится готов через 800 мс после
-  получения `SendMessage`, независимо от количества poll. Интервал — 100 мс;
-  фактическое число poll может различаться. Этот тест не подменяет время работы
-  Task скоростью клиента.
+- Fixed state transitions: one `SendMessage`, followed by 8 `GetTask` calls in
+  the benchmark. This compares equal RPC workloads; Task readiness depends on
+  poll number. A separate 20-poll test checks parity with real `NewMTLS`.
+- Fixed work duration: the server becomes ready 800 ms after receiving
+  `SendMessage`, independently of poll count. The interval is 100 ms; the actual
+  number of polls may differ. This test does not substitute client speed for
+  Task work duration.
 
-## Измерения
+## Measurements
 
-| Poll interval | Baseline, мс: медиана [min–max] | Reuse, мс: медиана [min–max] | TCP / TLS на invocation |
+| Poll interval | Baseline, ms: median [min–max] | Reuse, ms: median [min–max] | TCP / TLS per invocation |
 | --- | --- | --- | --- |
 | 2ms | 38.58 [37.80–45.22] | 20.52 [20.41–23.53] | 9 → 1 |
 | 100ms | 826.84 [824.44–833.75] | 809.21 [808.77–810.10] | 9 → 1 |
 
-При 100 мс разница медиан — **17.63 мс, около 2.1%** в этом
-синтетическом workload. Это не оценка ускорения настоящего Run. При 2 мс доля
-transport overhead значительно выше; этот interval не является текущей настройкой.
+At 100 ms, the median difference is **17.63 ms, about 2.1%** in this synthetic
+workload. This is not an estimate of real Run acceleration. At 2 ms, transport
+overhead accounts for a much larger share; that interval is not the current setting.
 
-В отдельном опыте с фиксированными 800 мс работы: baseline **822.55 мс**,
-8 poll и 9 TCP/TLS; reuse **808.63 мс**, 8 poll и 1 TCP/TLS. Это одна пара,
-без оценки статистической значимости. Под race detector baseline сделал
-7 poll, reuse — 8: время готовности сохраняется, число наблюдений зависит
-от overhead клиента. Race timings не используются для performance-вывода.
+In the separate fixed-800-ms-work experiment: baseline **822.55 ms**, 8 polls and
+9 TCP/TLS; reuse **808.63 ms**, 8 polls and 1 TCP/TLS. This is one pair, without
+an assessment of statistical significance. Under the race detector, baseline
+made 7 polls and reuse 8: readiness time is preserved, while observation count
+depends on client overhead. Race timings are not used for performance conclusions.
 
-Parity-тест настоящего `NewMTLS` и тестового baseline дал одинаковые
-**21 TCP, 21 TLS, 1 SendMessage, 20 GetTask**; reuse — **1 TCP, 1 TLS** при
-том же числе RPC. Однократные timings parity-теста не используются как benchmark.
+The parity test of real `NewMTLS` against the test baseline produced identical
+**21 TCP, 21 TLS, 1 SendMessage, 20 GetTask**; reuse produced **1 TCP, 1 TLS**
+with the same RPC count. Single-run parity-test timings are not benchmarks.
 
-Benchmark запускается без race detector: 3 итерации на образец, 3 образца на
-каждую пару interval/reuse. PKI и запуск сервера исключены из времени; построение
-SDK client, invocation и закрытие owned transport включены. Это небольшая серия
-на общей рабочей машине, а не статистически подтверждённый production benchmark.
-Сырые значения каждого образца и наблюдения отдельных тестов сохранены в
-[evidence](../../tasks/evidence/v57-005.json).
+The benchmark runs without the race detector: 3 iterations per sample, 3 samples
+per interval/reuse pair. PKI and server startup are excluded; SDK client
+construction, invocation and owned-transport closure are included. This is a
+small series on a shared workstation, not a statistically established production
+benchmark. Raw values for every sample and individual test observations are
+retained in the [evidence](../../tasks/evidence/v57-005.json).
 
-## Повторы POST: что доказано и что не следует из опыта
+## POST retries: what the experiment proves and what it does not
 
-В SDK 2.5.0 обе операции — HTTP **POST**, созданные из `bytes.Buffer`, поэтому
-`Request.GetBody` заполнен. Application retry loop в JSON-RPC SDK отсутствует.
-Go 1.25.6 `Transport.shouldRetryRequest` может повторить запрос на использованном
-соединении после ошибки без записи bytes, если тело можно восстановить. После
-возможной записи повтор дополнительно зависит от replayability; для POST её
-меняют `Idempotency-Key` и `X-Idempotency-Key`.
+In SDK 2.5.0, both operations are HTTP **POST** requests created from `bytes.Buffer`,
+so `Request.GetBody` is populated. The JSON-RPC SDK has no application retry loop.
+Go 1.25.6 `Transport.shouldRetryRequest` can retry a request on a reused connection
+after an error before any bytes were written, if the body can be recreated.
+After a possible write, retry additionally depends on replayability; for POST,
+`Idempotency-Key` and `X-Idempotency-Key` affect it.
 
-Матрица проходит через SDK и bounded wrapper. Write fault вводится поверх уже
-проверенного TLS, ровно до/после одного plaintext HTTP byte. Эта ветка отдельно
-выполняет hostname/SPKI verification в `DialTLSContext`; benchmark использует
-обычный transport без этого wrapper. Lost-response fixture сначала полностью
-декодирует запрос и записывает effect, затем закрывает socket без HTTP-ответа.
+The matrix runs through the SDK and bounded wrapper. A write fault is injected
+above already verified TLS, immediately before/after one plaintext HTTP byte.
+This path separately performs hostname/SPKI verification in `DialTLSContext`;
+the benchmark uses the ordinary transport without this wrapper. The lost-response
+fixture fully decodes the request and records its effect, then closes the socket
+without an HTTP response.
 
-| Случай | Наблюдение |
+| Case | Observation |
 | --- | --- |
-| Первый SendMessage, zero/partial write | Ошибка, 0 декодированных effects, повторов нет |
-| Reused POST, zero write, GetBody сохранён | Новый TCP/TLS, успешный повтор, 1 target effect |
-| Reused POST, zero write, GetBody=nil | Ошибка, 0 effects, повторов нет |
-| Reused POST, partial write одного byte, без idempotency header | Ошибка, 0 декодированных effects, повторов нет |
-| Reused SendMessage, потерян ответ, без header | Ошибка, 1 effect |
-| Reused SendMessage, потерян ответ, любой из двух headers | Успех после повтора, **2 effects**, одинаковые RPC ID, SHA256 тела и request ID |
-| Тот же случай, GetBody=nil | Ошибка, 1 effect |
-| Реальный порядок SendMessage → GetTask со сбоями poll | Исходный SendMessage остаётся единственным; возможен повтор самого GetTask |
+| First SendMessage, zero/partial write | Error, 0 decoded effects, no retry |
+| Reused POST, zero write, GetBody retained | New TCP/TLS, successful retry, 1 target effect |
+| Reused POST, zero write, GetBody=nil | Error, 0 effects, no retry |
+| Reused POST, partial write of one byte, no idempotency header | Error, 0 decoded effects, no retry |
+| Reused SendMessage, lost response, no header | Error, 1 effect |
+| Reused SendMessage, lost response, either of the two headers | Success after retry, **2 effects**, identical RPC ID, body SHA256 and request ID |
+| Same case, GetBody=nil | Error, 1 effect |
+| Real SendMessage → GetTask order with poll failures | The original SendMessage remains the only one; GetTask itself may be retried |
 
-Опасный повтор SendMessage получен **после специального read-only warmup тем же
-SDK client**. В нынешнем invocation SendMessage первый на новом transport;
-эксперимент не обнаружил повторную dispatch в этом порядке. Сам header тоже
-не доказывает idempotency на сервере: fixture намеренно не скрывает физические
-повторы за deduplication. Request ID и JSON-RPC ID не дают exactly-once effects.
+The dangerous SendMessage retry was observed **after a deliberate read-only
+warmup using the same SDK client**. In the current invocation, SendMessage is
+first on a new transport; the experiment found no repeated dispatch in that
+order. The header alone does not establish server idempotency either: the fixture
+intentionally does not hide physical retries behind deduplication. Request ID
+and JSON-RPC ID do not provide exactly-once effects.
 
-Тестовый `GetBody=nil` оказался достаточен для запрета наблюдаемых скрытых
-повторов непустого POST, включая zero-write retry. Это вариант строгой политики
-«не повторять автоматически», а не уже внесённое исправление. Альтернатива —
-явно разрешить доказанно zero-write retry для GetTask и запретить расширение
-replayability headers. Выбор политики должен быть частью отдельной реализации.
+Test-only `GetBody=nil` was sufficient to prohibit the observed hidden retries
+of nonempty POST requests, including zero-write retry. This is a possible strict
+“no automatic retry” policy, not an implemented fix. An alternative is to
+explicitly permit proven zero-write retries for GetTask while prohibiting headers
+that expand replayability. Policy selection belongs to a separate implementation.
 
-## Сертификаты, allocation и завершение соединений
+## Certificates, allocation and connection termination
 
-| Проверка | Результат и граница |
+| Check | Result and boundary |
 | --- | --- |
-| Корректные CA/SAN, неверный SPKI | Обе стратегии отвергают peer до protected HTTP request |
-| Новый ключ на прежнем endpoint после закрытия старого соединения | Старый principal отвергается; новый явно bound invocation проходит отдельную handshake |
-| Сертификат уже истёк при первом соединении | Обе стратегии отклоняют запрос до HTTP |
-| Client verification clock проходит NotAfter между SendMessage и poll | Baseline делает новую handshake и отказывает; reuse выполняет poll по уже установленной сессии |
-| Cancel во время poll delay, headers/body первого SendMessage и активного GetTask | `planner_cancelled`; 1 SendMessage, 0 poll до его начала или 1 активный poll; все соединения закрыты |
-| Deadline во время headers/body первого SendMessage и активного GetTask | `worker_deadline_exceeded`, active request отменён, все соединения закрыты |
-| Следующая allocation на том же endpoint | Новый owned transport, новая handshake, точный tenant каждой invocation |
-| Simulated process retirement | Старые sockets закрыты; новый запрос со старым tenant достигает HTTP, но gate отклоняет его до Worker dispatch |
-| SDK Destroy и CloseIdleConnections на bounded HTTP client | Не закрывают pooled socket; явный вызов на исходном transport закрывает его |
+| Valid CA/SAN, wrong SPKI | Both strategies reject the peer before a protected HTTP request |
+| New key at the same endpoint after closing the old connection | Old principal rejected; a newly and explicitly bound invocation passes a separate handshake |
+| Certificate already expired at first connection | Both strategies reject the request before HTTP |
+| Client verification clock passes NotAfter between SendMessage and poll | Baseline performs a new handshake and fails; reuse polls over the established session |
+| Cancellation during poll delay, first SendMessage headers/body and active GetTask | `planner_cancelled`; 1 SendMessage, 0 polls before polling starts or 1 active poll; all connections closed |
+| Deadline during first SendMessage headers/body and active GetTask | `worker_deadline_exceeded`, active request cancelled, all connections closed |
+| Next allocation at the same endpoint | New owned transport, new handshake, exact tenant for each invocation |
+| Simulated process retirement | Old sockets closed; a new request with the old tenant reaches HTTP, but the gate rejects it before Worker dispatch |
+| SDK Destroy and CloseIdleConnections on the bounded HTTP client | Do not close the pooled socket; an explicit call on the original transport closes it |
 
-Активный GetTask отдельно подтверждён через `httptrace.GotConn`: baseline
-использует второе свежее соединение, reuse — первое повторно; при cancel/deadline
-обе стороны закрывают его.
+Active GetTask was separately confirmed with `httptrace.GotConn`: baseline uses
+a second fresh connection, while reuse uses the first again; on cancellation or
+deadline, both sides close it.
 
-Expiry проверяется управляемым клиентским `tls.Config.Time`, без ожидания
-календарного срока или изменения системных часов. Продолжение уже установленной
-TLS-сессии — обычное свойство keepalive; это не обход проверки SPKI. Но оно
-отличается от поведения нынешнего клиента. **Прозрачная замена с сохранением
-проверки сертификата на каждом poll не подтверждена.**
+Expiry is tested with a controlled client `tls.Config.Time`, without waiting for
+calendar expiry or changing the system clock. Continuing an established TLS
+session is normal keepalive behavior, not an SPKI-check bypass. It nevertheless
+differs from the current client's behavior. **A transparent replacement preserving
+certificate verification on every poll has not been demonstrated.**
 
-Сертификат идентифицирует principal, а не процесс или allocation. Same-key
-restart не делает старый tenant допустимым. Retirement fixture моделирует HTTP
-gate; он не доказывает production watchdog, Registry или двухфазный release.
-Закрытие transport само по себе не освобождает allocation. Эти границы взяты из
-[Runtime/A2A](../spec/02-runtime-and-a2a.md),
-[lifecycle](../spec/04-execution-lifecycle-and-metrics.md) и
+A certificate identifies a principal, not a process or allocation. A same-key
+restart does not make an old tenant valid. The retirement fixture models the
+HTTP gate; it does not prove production watchdog, Registry or two-phase release
+behavior. Closing the transport alone does not release an allocation. These
+boundaries come from [Runtime/A2A](../spec/02-runtime-and-a2a.md),
+[lifecycle](../spec/04-execution-lifecycle-and-metrics.md) and
 [identity/configuration](../spec/07-runtime-labels-and-infrastructure-config.md).
 
-## Bounded responses и условия reuse
+## Bounded responses and reuse conditions
 
-Каждый случай отправляет два последовательных SDK-запроса. Счётчик стоит под
-production bounded wrapper и измеряет bytes, которые приложение прочитало из
-response body; отдельно проверяется `Close` каждого body.
+Each case sends two sequential SDK requests. The counter sits below the
+production bounded wrapper and measures bytes the application reads from the
+response body; `Close` on every body is checked separately.
 
-| Ответ | Результат | TCP: baseline / reuse |
+| Response | Result | TCP: baseline / reuse |
 | --- | --- | --- |
-| Полный корректный Content-Length | Decode успешен | 2 / 1 |
-| Полный корректный chunked | Decode успешен | 2 / 1 |
-| Content-Length > 1 MiB | Отклонён до чтения body, 0 bytes | 2 / 2 |
-| Chunked JSON, для завершения которого нужен >1 MiB | Decode отклонён, ровно limit+1 bytes на ответ | 2 / 2 |
-| Короткий malformed/truncated JSON | Decode отклонён; полностью прочитанное entity может сохранить socket | 2 / 1 |
-| Корректный первый JSON, затем ответ намеренно не завершён | Первый объект принят без EOF; body закрыт, server context отменён | 2 / 2 |
+| Complete valid Content-Length | Decode succeeds | 2 / 1 |
+| Complete valid chunked | Decode succeeds | 2 / 1 |
+| Content-Length > 1 MiB | Rejected before body reading, 0 bytes | 2 / 2 |
+| Chunked JSON requiring >1 MiB to complete | Decode rejected, exactly limit+1 bytes per response | 2 / 2 |
+| Short malformed/truncated JSON | Decode rejected; a fully consumed entity may preserve the socket | 2 / 1 |
+| Valid first JSON, then a deliberately unfinished response | First object accepted without EOF; body closed, server context cancelled | 2 / 2 |
 
-SDK декодирует один JSON и закрывает body. Поэтому этот лимит не доказывает
-полную проверку размера HTTP entity, отсутствие хвоста, лимит bytes на проводе
-или RSS. Незавершённый хвост — управляемая проверка partial consumption,
-а не заявление об отклонении любого oversized ответа. Поведение наблюдается
-в обеих стратегиях; эксперимент не меняет существующий parser или валидации.
+The SDK decodes one JSON value and closes the body. This bound therefore does
+not prove full HTTP entity-size validation, absence of trailing data, a wire-byte
+limit or an RSS limit. The unfinished tail is a controlled partial-consumption
+check, not a claim that every oversized response is rejected. This behavior
+occurs in both strategies; the experiment changes neither the existing parser
+nor validation.
 
-## Решение и возможная отдельная задача
+## Decision and possible separate task
 
-Сейчас оставить `DisableKeepAlives=true`. Число handshakes удалось уменьшить,
-но включение reuse ещё требует согласованной certificate-lifetime policy,
-явного владельца transport и решения о скрытых повторах POST. Одной локальной
-серии недостаточно, чтобы обосновать этот объём изменений выигрышем Run latency.
+Retain `DisableKeepAlives=true` for now. Handshake count was reduced, but enabling
+reuse still requires an agreed certificate-lifetime policy, explicit transport
+ownership and a decision on hidden POST retries. One local series is insufficient
+to justify that scope of changes through a Run-latency benefit.
 
-Если измерения реальных запусков позднее покажут существенные затраты на TLS,
-отдельный follow-up должен содержать:
+If later measurements of real runs show substantial TLS costs, a separate
+follow-up must include:
 
-1. Один transport на invocation/principal/endpoint; SendMessage первым на новом
-   соединении, отсутствие общего pool между allocation/invocation.
-2. Явное решение о GetBody и idempotency headers; воспроизведение матрицы при
-   обновлении Go/SDK. Не вводить blind retry семантической операции.
-3. Политику срока жизни аутентифицированной сессии и её тесты, включая expiry,
-   key rotation и retirement; не обещать повторную TLS verification на poll.
-4. Cleanup исходного transport при success/error/cancel; active запросы
-   завершаются context cancellation. SDK Destroy недостаточен.
-5. Сохранение bounded reads без неограниченного drain; отдельные метрики TLS/CPU
-   и Run latency на репрезентативной нагрузке.
+1. One transport per invocation/principal/endpoint; SendMessage first on a new
+   connection, with no shared pool across allocations/invocations.
+2. An explicit decision on GetBody and idempotency headers; reproduce the matrix
+   when updating Go/SDK. Do not introduce blind retries of semantic operations.
+3. An authenticated-session lifetime policy and tests covering expiry, key
+   rotation and retirement; do not promise repeated TLS verification on each poll.
+4. Cleanup of the original transport on success/error/cancel; active requests
+   terminate through context cancellation. SDK Destroy alone is insufficient.
+5. Preserved bounded reads without unbounded draining; separate TLS/CPU and
+   Run-latency metrics under representative load.
 
-Такой follow-up в V57-005 не создаётся и не реализуется автоматически.
+V57-005 does not automatically create or implement that follow-up.
 
-## Воспроизводимость
+## Reproducibility
 
-Команды, результаты и наблюдения всех случаев — в
-[tasks/evidence/v57-005.json](../../tasks/evidence/v57-005.json). Основные проверки:
+Commands, results and observations for all cases are in
+[tasks/evidence/v57-005.json](../../tasks/evidence/v57-005.json). Main checks:
 
 ```sh
 go test -race -count=1 ./internal/planner/a2a -run '^TestConnectionReuseExperiment' -v
@@ -197,10 +201,10 @@ make test-mtls
 git diff --check
 ```
 
-Код опыта: [fixture и benchmark](../../internal/planner/a2a/client_connection_experiment_test.go),
+Experiment code: [fixture and benchmark](../../internal/planner/a2a/client_connection_experiment_test.go),
 [retry matrix](../../internal/planner/a2a/client_connection_retry_experiment_test.go),
 [lifecycle matrix](../../internal/planner/a2a/client_connection_lifecycle_experiment_test.go).
-Проверенное поведение production: [A2A client](../../internal/planner/a2a/client.go),
+Verified production behavior: [A2A client](../../internal/planner/a2a/client.go),
 [mTLS](../../internal/mtls/mtls.go); SDK `a2aclient/jsonrpc.go` (`newHTTPRequest`,
-`sendRequest`, `Destroy`), Go `net/http/transport.go` (`shouldRetryRequest`) и
-`net/http/request.go` (`isReplayable`) в указанных выше установленных версиях.
+`sendRequest`, `Destroy`), Go `net/http/transport.go` (`shouldRetryRequest`) and
+`net/http/request.go` (`isReplayable`) in the installed versions listed above.

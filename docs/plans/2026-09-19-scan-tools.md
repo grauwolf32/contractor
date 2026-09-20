@@ -1,103 +1,103 @@
-# ScanTools и детерминированные Workers
+# ScanTools and deterministic Workers
 
-План от 2026-09-19. Серия V55; V54 зарезервирована отдельным планом pentest Audit.
-Актуальные статусы, зависимости и проверки находятся в `tasks/v55-*.yml`.
+Plan dated 2026-09-19. Series V55; V54 is reserved for the separate pentest Audit plan.
+Current statuses, dependencies and verification are recorded in `tasks/v55-*.yml`.
 
-## Первый рабочий набор
+## First working set
 
-Расширяемый `scan@1` предоставляет типизированные операции nuclei, sqlmap,
-naabu, затем ffuf. При старте Runtime каждый бинарь независимо проверяется
-через ограниченный по времени запуск команды версии. В capabilities попадают
-только доступные операции. Отсутствие одного сканера не мешает другим или
-старту Runtime. Установка бинарей и nuclei templates остаётся настройкой среды.
+The extensible `scan@1` provides typed operations for nuclei, sqlmap, naabu and,
+later, ffuf. At Runtime startup, each binary is independently probed with a
+bounded version-command invocation. Capabilities include only available
+operations. A missing scanner does not prevent other scanners or Runtime from
+starting. Installing binaries and nuclei templates remains an environment concern.
 
-Общий слой управляет процессом, таймаутом, ограничением вывода, отменой,
-очисткой временных файлов и метриками. Описание конкретного сканера владеет
-командой проверки, схемой аргументов, подготовкой файлов и разбором результата.
-Добавление сканера требует регистрации адаптера и согласованного серверного
-дескриптора; отдельные ветвления по имени в общем исполнителе не нужны.
+The shared layer manages the process, timeout, output limit, cancellation,
+temporary-file cleanup and metrics. Each scanner descriptor owns its probe
+command, argument schema, file preparation and result parsing. Adding a scanner
+requires registering an adapter and a matching Server descriptor; name-based
+branches in the common executor are unnecessary.
 
-Псевдоагент — обычный Worker с `runtime: tool@1`. AgentTemplate фиксирует
-операцию из выбранного toolset, привязки входов, выходной слот и deadline.
-Входные данные не выбирают исполняемый файл, shell-команду или инструмент.
-Worker валидирует аргументы, вызывает ToolInstance и сохраняет отчёт через
-существующий Artifact API. A2A, Allocation, lease, очередь и WorkerCompletion
-сохраняют свои текущие обязанности. LLM, ModelPolicy, gateway, credentials
-модели, финализатор ADK и summarizer такому Worker не требуются.
+The pseudo-agent is an ordinary Worker with `runtime: tool@1`. AgentTemplate pins
+the operation from the selected toolset, input bindings, output slot and deadline.
+Input data does not select an executable, shell command or tool. The Worker
+validates arguments, calls ToolInstance and stores the report through the
+existing Artifact API. A2A, Allocation, lease, queue and WorkerCompletion retain
+their current responsibilities. This Worker needs no LLM, ModelPolicy, gateway,
+model credentials, ADK finalizer or summarizer.
 
-Точный YAML/wire-контракт входных привязок утверждается кодом и спецификацией
-в V55-002 до реализации V55-003. Он должен покрыть параметр `target` для nuclei
-без обязательного создания пользователем JSON-файла, константы шаблона и
-точные ссылки на входные артефакты. Нельзя неявно подмешивать текст objective
-или instructions в аргументы команды. Отдельный диспетчер на сервере не нужен:
-первый сценарий использует существующий `passthrough@1`.
+The exact YAML/wire contract for input bindings is established in code and the
+specification in V55-002 before implementing V55-003. It must cover the nuclei
+`target` parameter without requiring users to create a JSON file, template
+constants and exact input artifact refs. Objective or instruction text must not
+be implicitly mixed into command arguments. No separate Server dispatcher is
+needed: the first scenario uses the existing `passthrough@1`.
 
-Простые сценарии:
+Simple scenarios:
 
-1. nuclei: target URL, необязательные фильтры шаблонов, JSON-отчёт.
-2. naabu: один host, ограниченный набор TCP-портов, JSON-отчёт.
-3. sqlmap: один подготовленный HTTP-запрос с методом, URL, заголовками,
-   телом и выбором тестируемых параметров; адаптер формирует приватный `-r`.
-4. ffuf: URL с `FUZZ`, один словарь из точной ревизии артефакта, ограничения
-   скорости/времени и фильтры ответов; отчёт с явными признаками усечения.
+1. nuclei: target URL, optional template filters, JSON report.
+2. naabu: one host, a bounded set of TCP ports, JSON report.
+3. sqlmap: one prepared HTTP request with method, URL, headers, body and selected
+   test parameters; the adapter creates a private `-r` file.
+4. ffuf: URL containing `FUZZ`, one wordlist from an exact artifact revision,
+   rate/time limits and response filters; a report with explicit truncation indicators.
 
-Техническое завершение процесса, найденные совпадения и вывод об отсутствии
-уязвимостей различаются. Timeout, неизвестный исход, невалидный или усечённый
-вывод нельзя превращать в заключение о чистом target. Повторная доставка
-завершённого вызова возвращает ранее полученный результат. Неизвестный исход
-не инициирует автоматический повтор активного скана.
+Process completion, detected matches and a conclusion that no vulnerabilities
+exist are separate facts. Timeout, an unknown outcome, invalid output or truncated
+output cannot become a clean-target conclusion. Redelivery of a completed call
+returns its previous result. An unknown outcome does not trigger an automatic
+repeat of an active scan.
 
-## Словари и запросы как артефакты
+## Wordlists and requests as artifacts
 
-Используем существующие UserScope/ProjectScope и точные RunScope forks.
-Новый сервис хранения и локальные пути во входе инструмента не нужны.
+Use existing UserScope/ProjectScope and exact RunScope forks.
+No new storage service or local paths in tool inputs are needed.
 
-- `text/vnd.contractor.wordlist`: UTF-8, один payload на строку.
-- `text/plain`: допустим для пользовательского `.txt` в слоте wordlist.
-- `text/vnd.contractor.target-list`: список targets для последующего этапа.
-- `application/vnd.contractor.http-requests+json`: будущий RequestSet.
+- `text/vnd.contractor.wordlist`: UTF-8, one payload per line.
+- `text/plain`: accepted for user `.txt` files in the wordlist slot.
+- `text/vnd.contractor.target-list`: a target list for a later stage.
+- `application/vnd.contractor.http-requests+json`: the future RequestSet.
 
-V55-005 фиксирует границы размера, числа и длины строк, правила LF/CRLF,
-пустых строк и завершающего перевода строки. Валидатор не обрезает пробелы,
-не удаляет дубликаты и не интерпретирует payload как комментарий. Артефакт
-материализуется приватно на время вызова; большой список не помещается
-в контекст модели. Семантический тип в UI помогает выбрать файл, а Runtime
-проверяет фактическое содержимое.
+V55-005 defines limits on size, line count and line length, along with LF/CRLF,
+empty-line and final-newline rules. The validator does not trim whitespace,
+remove duplicates or interpret payloads as comments. The artifact is materialized
+privately for the duration of the call; a large list is not inserted into model
+context. The semantic type in the UI helps users select a file, while Runtime
+validates its actual contents.
 
-## Очерёдность
+## Sequence
 
-| Задача | Результат | Зависимости |
+| Task | Outcome | Dependencies |
 | --- | --- | --- |
-| V55-001 | Расширяемый ScanToolset: nuclei/sqlmap/naabu, capabilities, lifecycle | — |
-| V55-002 | Нормативный контракт tool Worker, привязок входов и отчёта | 001 |
-| V55-003 | Сервер и Runtime без LLM, nuclei/naabu через passthrough | 002 |
-| V55-004 | SQLMap по полному подготовленному HTTP-запросу | 003 |
-| V55-005 | Wordlist artifacts и ffuf | 003 |
-| V55-006 | Пользовательские Workflow/UI и сквозные проверки первого набора | 004, 005 |
-| V55-007 | RequestSet и детерминированное преобразование OpenAPI | 006 |
-| V55-008 | `scan-plan@1`: кандидаты, бюджеты, дедупликация, сохранённый план | 007 |
-| V55-009 | Необязательное LLM-ранжирование готовых кандидатов | 008 |
-| V55-010 | Katana как источник targets/RequestSet | 007 |
+| V55-001 | Extensible ScanToolset: nuclei/sqlmap/naabu, capabilities, lifecycle | — |
+| V55-002 | Normative tool Worker, input-binding and report contracts | 001 |
+| V55-003 | Server and Runtime without an LLM; nuclei/naabu through passthrough | 002 |
+| V55-004 | SQLMap using a complete prepared HTTP request | 003 |
+| V55-005 | Wordlist artifacts and ffuf | 003 |
+| V55-006 | User-facing Workflows/UI and end-to-end checks for the first set | 004, 005 |
+| V55-007 | RequestSet and deterministic OpenAPI conversion | 006 |
+| V55-008 | `scan-plan@1`: candidates, budgets, deduplication, persisted plan | 007 |
+| V55-009 | Optional LLM ranking of prepared candidates | 008 |
+| V55-010 | Katana as a source of targets/RequestSet | 007 |
 
-V55-001–006 — первый набор. V55-007–010 — P2, после проверки простых сценариев.
-LLM впоследствии выбирает идентификаторы уже подготовленных кандидатов с
-обоснованием; сервер проверяет принадлежность, границы бюджета и покрытие.
-OpenAPI не должен молча превращать отсутствующие auth, path parameters или
-body examples в произвольные рабочие запросы: пропуски отражаются в отчёте
-подготовки. Katana подключается через тот же реестр сканеров.
+V55-001–006 form the first set. V55-007–010 are P2, after verifying the simple
+scenarios. Later, the LLM selects IDs of already prepared candidates and supplies
+a rationale; the Server validates membership, budget bounds and coverage.
+OpenAPI must not silently turn missing auth, path parameters or body examples
+into arbitrary runnable requests: gaps appear in the preparation report.
+Katana integrates through the same scanner registry.
 
-## Точки интеграции
+## Integration points
 
-- `internal/config`, `internal/contracts`, `api/v1alpha1`: описание и pinning.
+- `internal/config`, `internal/contracts`, `api/v1alpha1`: description and pinning.
 - `internal/runtimeconfig`, `internal/controlplane`, `internal/scheduler`:
-  размещение и настройки Worker без маршрута к модели.
+  Worker placement and settings without a route to a model.
 - `runtime/src/contractor_runtime/worker`, `allocation`, `a2a_server.py`:
-  Worker lifecycle, детерминированное выполнение и состояние.
-- `runtime/src/contractor_runtime/toolsets/scan`: адаптеры сканеров.
-- `internal/planner/passthrough.go`: первый одношаговый вызов.
-- `ui/src/api/artifacts.ts`, формы артефактов и создания Run: загрузка списка.
+  Worker lifecycle, deterministic execution and state.
+- `runtime/src/contractor_runtime/toolsets/scan`: scanner adapters.
+- `internal/planner/passthrough.go`: the first single-step invocation.
+- `ui/src/api/artifacts.ts`, artifact and Run-creation forms: list upload.
 
-Изменения не включают установку инструментов, production rollout, массовый
-запуск сканов или новую программу Audit. Настроенный subprocess proxy нельзя
-молча обходить: пока конкретный адаптер не поддерживает его маршрутизацию,
-он возвращает явную ошибку. Proxy-совместимость должна быть видна в примерах.
+The changes do not include tool installation, production rollout, bulk scan
+execution or a new Audit program. A configured subprocess proxy must not be
+silently bypassed: until an adapter supports that routing, it returns an explicit
+error. Examples must make proxy compatibility clear.
