@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V60-040
+title: Include the retained repeat request in exact Project Run binding assertions
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-039]
+languages: [go, markdown]
+goal: Restore exact physical Run binding assertions while preserving required workflow artifacts and rejecting unrecognized system records.
+context:
+  authority: User requested completion of the remaining V60 reviews; the integrated required process gate reproduced this fixture assertion failure.
+  design: docs/plans/2026-09-20-project-review.md
+  specification: docs/spec/03-artifact-plane.md
+  reproduction: >-
+    After all Worker budget assertions pass, the Project Workspaces process
+    rejects the physical contractor-system/repeat-request binding. Commit
+    c008980672cdf8ac15a6f9204a9be11382e3c145 introduced that required retained
+    request; the exact expected binding set still contains only workflow data.
+scope:
+  in:
+    - Include exactly the required repeat-request binding using existing artifactpolicy constants.
+    - Retain exact binding count, names, media types, nonempty revisions and frozen-state checks for every workflow and system record.
+    - Rerun the existing full Project Workspaces process regression and review that its exact-set rejection checks remain unchanged.
+    - Review the remaining post-binding process assertions for the same catalog-history mismatch.
+  out:
+    - Change production artifact visibility, repeat request persistence, lifecycle behavior or public APIs.
+    - Exclude all system namespaces or permit arbitrary additional bindings.
+acceptance_criteria:
+  - id: A1
+    text: Exact physical binding validation accepts required workflow bindings plus the one retained repeat-request binding and rejects missing, malformed or additional records.
+  - id: A2
+    text: The full Project Workspaces process gate passes without required skips, preserving durable results, publication, lineage, restart, placement and cleanup assertions.
+tests:
+  - command: make test-project-workspaces-e2e
+    covers: [A1, A2]
+verification_requirements:
+  - Preserve the actual integrated gate failure and corrected full-process result.
+  - Keep source changes limited to the existing test fixture; avoid duplicating its assertions in new validator tests.
+  - Keep task-start, implementation and completion metadata commits separate.
