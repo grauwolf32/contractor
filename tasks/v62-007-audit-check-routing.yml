@@ -19,13 +19,13 @@ scope:
     - Admit proposals using trusted receipt/ordinal identity, validated exact dependencies, existing approval policy and cumulative item/Run budgets.
     - Persist selected Workflow role and admission decision with each accepted next-round item; reject ambiguous or unknown mappings explicitly.
     - Retain admitted, rejected and deferred reasons and deterministic selection order, without treating model rankings as authority.
-    - Preserve inventory.itemWorkflowRole fallback for legacy profiles and existing standard-mapping role selection.
+    - Preserve explicit inventory.itemWorkflowRole default routing for current-schema profiles without proposed-check mappings and existing standard-mapping role selection; do not add legacy schema readers.
     - Exercise verify and replay as distinct ordinary check bindings through typed fixtures without enabling autonomous pentest behavior.
   out:
     - Add verification/replay role kinds, execute model-selected Workflow refs, modify accepted rounds or implement pentest recipes and live proof.
 deliverables:
   - path: internal/config
-    description: Strict routing map validation, capability contracts and legacy snapshot regressions.
+    description: Strict routing map validation, capability contracts, current-schema snapshot regressions and obsolete-schema rejection fixtures.
   - path: internal/auditservice
     description: Typed proposal admission, decision retention and deterministic next-round routing.
   - path: internal/auditstore
@@ -40,7 +40,7 @@ acceptance_criteria:
   - id: A3
     text: Duplicate receipt delivery, concurrent admission, restart and exhausted budgets cannot create duplicate accepted items or extend the current round.
   - id: A4
-    text: Legacy default routing, standard mappings and existing review/approval behavior remain unchanged; decisions and deferrals are included in consistent report inputs.
+    text: Current-schema default routing, standard mappings and existing review/approval behavior remain unchanged; obsolete schemas are rejected and decisions and deferrals are included in consistent report inputs.
 tests:
   - command: go test -tags=integration -count=1 ./internal/config ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller
     covers: [A1, A2, A3, A4]

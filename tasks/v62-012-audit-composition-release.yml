@@ -7,7 +7,7 @@ status: pending
 implementation_commit: null
 depends_on: [V62-011]
 languages: [go, python, typescript, yaml, markdown]
-goal: Prove the complete preparation-to-scan journey and iterative data contracts with mandatory persistence, process, browser and compatibility evidence.
+goal: Prove the complete preparation-to-scan journey and iterative data contracts with mandatory persistence, process, browser and current-schema regression evidence.
 context:
   authority: User requested a concrete task plan for extending Audit Workflow composition.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
@@ -52,7 +52,7 @@ acceptance_criteria:
   - id: A4
     text: A real browser completes setup, preparation, approval, scans and evidence review and correctly displays pending/failed inventory and later-round provenance.
   - id: A5
-    text: Existing profiles, old snapshot bytes, current retained-output behavior, review, reporting, completion and deletion contracts pass their regression gates.
+    text: Current-schema profiles, deterministic snapshot round trips, obsolete-schema rejection, retained-output behavior, review, reporting, completion and deletion contracts pass their regression gates; historical schema bytes and old client support are not required.
 tests:
   - command: make test-audit-composition-e2e
     covers: [A1, A2, A3, A4, A5]

@@ -36,7 +36,7 @@ acceptance_criteria:
   - id: A1
     text: Generated OpenAPI with three supported operations creates exactly three correctly attributed items, and the same retained input deterministically reproduces the same inventory digest.
   - id: A2
-    text: Generated checklists, legacy input inventories and standards remain valid; original baseline and accepted worklists never change.
+    text: Generated checklists, direct-input inventories and standards remain valid; original baseline and accepted worklists never change.
   - id: A3
     text: Invalid/over-limit/unaccepted/zero-usable input follows the specified failure or explicit empty/gap policy without claiming successful coverage.
   - id: A4

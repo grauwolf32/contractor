@@ -12,7 +12,7 @@ context:
   authority: User-requested V62 Audit Workflow composition task series.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
-  contract: V62-001 owns exact phase, identity, retention and migration compatibility rules.
+  contract: V62-001 owns phase, identity, retention and current-schema validation; obsolete snapshots are rejected without compatibility readers or implicit conversion.
 scope:
   in:
     - Add preparation phase and Audit-scoped role execution persistence with explicit identity, attempt, revision, claim and receipt constraints.
@@ -20,7 +20,7 @@ scope:
     - Retain accepted outputs under protected Audit-managed ProjectScope and record exact role/attempt/Run/output lineage.
     - Keep original baseline immutable and implement accepted prepare-output resolution and reference holds under the new contract.
     - Extend lifecycle reads, deletion fences and credential/artifact holds for preparation-only Audits and collected/deleted source Runs.
-    - Add a forward migration using the next available version and verify existing Audit rows and snapshots survive unchanged.
+    - Add a forward migration using the next available version and verify persisted current-schema Audits preserve identities, immutable snapshots, receipts and holds without supporting obsolete snapshot formats.
   out:
     - Controller dispatch, generated inventory parsing, UI or direct ProjectScope access for Workers.
 deliverables:
@@ -36,7 +36,7 @@ acceptance_criteria:
   - id: A2
     text: Retained prepare outputs survive allowed source Run deletion; ordinary Project routes hide protected bindings and cannot mutate them.
   - id: A3
-    text: Upgrade fixtures preserve existing Audits, and pause/cancel/delete reference transactions cannot lose or leak required artifact and credential holds.
+    text: Upgrade fixtures preserve current-schema Audits and immutable accepted data; obsolete snapshots are rejected without implicit conversion, and pause/cancel/delete reference transactions cannot lose or leak required artifact and credential holds.
 tests:
   - command: go test -tags=integration -count=1 ./internal/auditstore ./internal/artifacts ./internal/runstore ./internal/persistence/...
     covers: [A1, A2, A3]

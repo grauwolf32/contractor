@@ -25,12 +25,12 @@ scope:
     - Implement atomic selection admission accepting complete pool/context revisions, exact selected IDs and accepted frozen-output receipt, converting the whole selected-set reservation and creating the immutable Round together.
     - Retain successful verdicts on incomplete cycles, all candidate dispositions and cycle history through permitted source Run deletion and Audit pause/recovery.
     - Extend owned artifact/credential holds, reference fences and deletion cleanup to frozen context, accepted results and ranking-only Audits.
-    - Add a forward migration with old Audit rows and snapshots unchanged; coordinate the next migration number at implementation time.
+    - Add a forward migration preserving persisted current-schema Audit identities, immutable snapshots, receipts and holds without supporting obsolete snapshot formats; coordinate the next migration number at implementation time.
   out:
     - Model calls, context summarization, ranking policy decisions, Controller dispatch or a new scheduler.
 deliverables:
   - path: internal/persistence/migrations
-    description: Additive inventory, cycle, intent, verdict, reservation and admission constraints preserving existing Audit state.
+    description: Additive inventory, cycle, intent, verdict, reservation and admission constraints preserving current-schema Audit state and immutable accepted data.
   - path: internal/auditstore
     description: Transactional inventory/cycle reads, claims, CAS, exact result acceptance and all-or-nothing Round admission.
   - path: internal/artifacts
@@ -43,7 +43,7 @@ acceptance_criteria:
   - id: A3
     text: Crashes at intent, result acceptance and admission boundaries recover without duplicate calls or admitted items; unknown intents remain distinguishable from calls never started.
   - id: A4
-    text: Source deletion, Audit deletion and reference-release races preserve required provenance without cross-owner reads, leaked holds or changes to legacy snapshots.
+    text: Source deletion, Audit deletion and reference-release races preserve required provenance without cross-owner reads, leaked holds or changes to immutable accepted snapshots; obsolete snapshot formats are rejected without conversion.
 tests:
   - command: go test -tags=integration -count=1 ./internal/auditstore ./internal/artifacts ./internal/runstore ./internal/persistence/...
     covers: [A1, A2, A3, A4]
@@ -53,4 +53,4 @@ test_prerequisites:
   - Disposable PostgreSQL via CONTRACTOR_TEST_DATABASE_URL; all mandatory migration, race and transaction cases must execute.
 verification_requirements:
   - Record exact transaction case counts and assert durable row identities, pool membership, reservations and hold counts, not only terminal state.
-  - Validate upgrades with historical Audit/profile fixtures and do not rename an already applied migration from another series.
+  - Validate upgrades with persisted current-schema Audit/profile fixtures and obsolete-schema rejection cases; do not rename an already applied migration from another series.

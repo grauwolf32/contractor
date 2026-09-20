@@ -18,6 +18,7 @@ context:
     V64-000 supplies the pure model-verdict and selection core. V62-001 supplies
     shared pre-Round lifecycle contracts; its current ordering through V62-009
     is a transitive delivery dependency, not a requirement to use OpenAPI input.
+  schema_policy: Use V62-001's current explicit inventory mappings; migrate repository profiles, fixtures and clients and reject obsolete fields and snapshots without compatibility readers or implicit conversion.
 scope:
   in:
     - Define strict versioned profile opt-in, prioritization role, inventory/cycle/context/verdict/selection schemas and finite field/collection limits from specification 34.
@@ -29,19 +30,19 @@ scope:
     - Specify exact failed/cancelled/paused/report-closure mappings, atomic budget admission, approval without backfill, no automatic model or whole-ranking-Run retries and all no-Round controls.
     - Pin sequential calls, complete context limits, utf8-bytes-v1 token admission and conservative ranking-plus-one-initial-check-Run-per-selected-item capacity reservations.
     - Specify exact context/candidates RunScope inputs and priorities output using application/vnd.contractor.audit-priorities+json with contractor.audit.priorities.v1 schema, frozen ordinary Run outputs and receipt-bound journal validation.
-    - Define the narrow audit-priority@1 zero-Worker execution contract, policy validation, capability gating and canonical compatibility for all existing shapes.
-    - Add strict public/config/domain types and executable valid/invalid/legacy fixtures while leaving new execution unavailable until dependent capabilities exist.
+    - Define the narrow audit-priority@1 zero-Worker execution contract, policy validation, capability gating and deterministic canonicalization for all current supported shapes.
+    - Add strict public/config/domain types, current-schema valid/invalid fixtures and obsolete-schema rejection fixtures while leaving new execution unavailable until dependent capabilities exist.
   out:
     - Execute models or Workers, enable a runnable profile, revise finding severity, generate new checklist entries or add deterministic fallback ranking.
 deliverables:
   - path: docs/spec/34-audit-check-prioritization.md
     description: Implementation-ready contract with exact bounds, transitions, independent verdict schema, eligibility and atomic selection behavior.
   - path: internal/config
-    description: Strict opt-in profile and planner/policy validation with capability gating and legacy canonical fixtures.
+    description: Strict opt-in profile and planner/policy validation with capability gating and current-schema canonical fixtures.
   - path: internal/contracts
     description: Versioned request/result shapes and strict validation for complete independent ranking.
   - path: api/testdata/audit-priority
-    description: New positive, boundary, invalid and unchanged legacy snapshot fixtures selected by executable tests.
+    description: New positive, boundary, invalid, current-schema round-trip and obsolete-snapshot rejection fixtures selected by executable tests.
   - path: api/openapi/contractor-public-v1.yaml
     description: Proposed public priority/cycle/inventory shapes and synchronized generated types and parsers without premature executable capability claims.
 acceptance_criteria:
@@ -52,7 +53,7 @@ acceptance_criteria:
   - id: A3
     text: Every lifecycle outcome before a Round exists and after selection has one defined projection; priority, confidence, disposition, execution state and finding severity cannot be conflated.
   - id: A4
-    text: Existing profiles and policies retain identical canonical bytes/digests and validation, while unsupported opt-ins remain non-runnable rather than partially executing.
+    text: Current-schema profiles and policies have deterministic canonical bytes/digests and preserve non-priority behavior; obsolete fields and snapshots are rejected, and unsupported opt-ins remain non-runnable rather than partially executing.
 tests:
   - command: go test ./internal/config ./internal/contracts ./internal/auditdomain ./internal/auditservice
     covers: [A1, A2, A3, A4]
@@ -61,5 +62,5 @@ tests:
   - command: git diff --check
     covers: [A1, A3]
 verification_requirements:
-  - Review the transition, limit and compatibility matrices against specification 34; prose-only cases do not satisfy executable fixture criteria.
+  - Review the transition, limit, capability and current/obsolete-schema matrices against specification 34; prose-only cases do not satisfy executable fixture criteria.
   - Treat V62-001 as a real pending dependency and avoid claiming the contract alone enables prioritization.

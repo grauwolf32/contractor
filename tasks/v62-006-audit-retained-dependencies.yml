@@ -43,7 +43,7 @@ acceptance_criteria:
   - id: A3
     text: Batches and retries preserve item/attempt/result attribution and correct original-to-Run ref mappings; Workers receive only declared inputs.
   - id: A4
-    text: Restart, cancellation and Audit deletion preserve then release required holds under existing fences; legacy retained-output behavior is unchanged.
+    text: Restart, cancellation and Audit deletion preserve then release required holds under existing fences; current same-round retained-output behavior is unchanged.
 tests:
   - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller ./internal/runservice ./internal/auditimport
     covers: [A1, A2, A3, A4]

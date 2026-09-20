@@ -26,12 +26,12 @@ scope:
     - Expire the Audit admission deadline before a Round and during ranking, assert pause with admitted Stage drain, then extend/disable/resume without repeating accepted verdicts or accepting a Round while paused.
     - Verify immutable snapshots, exact cycle pagination, retained evidence after source Run deletion, ownership fences and complete reference/credential hold cleanup.
     - Preflight an impossible final candidate/token total with zero observed gateway calls, verify whole-pool/per-call reservation transfer and eleven-Run capacity accounting without replay double charges, and reconcile separate Audit/cycle coverage counts.
-    - Run legacy Audit, review, completion, profile canonicalization and Scheduler/scan regressions and document capability rollout plus residual limitations.
+    - Run current-schema Audit, review, completion, profile canonicalization, obsolete-schema rejection and Scheduler/scan regressions and document capability rollout plus residual limitations.
   out:
     - Deploy production or demo services, call paid models, scan external targets or claim ranking accuracy from scripted responses.
 deliverables:
   - path: Makefile
-    description: New test-audit-priority-e2e fail-on-missing release target combining mandatory process, browser and compatibility selections.
+    description: New test-audit-priority-e2e fail-on-missing release target combining mandatory process, browser and current-schema regression selections.
   - path: scripts/test-audit-priority-e2e.py
     description: New prerequisite-checking orchestrator with executed case counts, zero-match detection and no silent mandatory skips.
   - path: tests/e2e/audit_priority_matrix.yml
@@ -54,7 +54,7 @@ acceptance_criteria:
   - id: A4
     text: Ownership, immutable context/report history, exact-revision pagination and retained provenance survive source deletion and concurrent analyst/control edits without data leaks.
   - id: A5
-    text: Existing non-prioritized Audit, profile, review, completion, Scheduler and scan paths pass regression gates and mandatory skips or zero-match selections fail release.
+    text: Current-schema non-prioritized Audit, profile, review, completion, Scheduler and scan paths pass regression gates with obsolete-schema rejection; mandatory skips or zero-match selections fail release, and historical schema bytes or old client support are not required.
 tests:
   - command: make test-audit-priority-e2e
     covers: [A1, A2, A3, A4, A5]

@@ -58,8 +58,20 @@ A new opt-in profile declares a pinned ranking Workflow, its resolved model
 route and finite ranking policy, plus existing check roles, limits and interaction
 policy. Proposed authoring field `prioritization` is reserved by V64-001 and is
 not accepted current syntax. Unknown/incomplete capabilities fail compatibility
-checks. No existing profile is opted in by default, and old canonical profile,
-Run and Artifact bytes/digests remain unchanged when the feature is absent.
+checks. No existing profile is opted in by default; current non-priority
+execution and review behavior remains supported.
+
+The 2026-09-21 alignment adopts V62's
+[current schema policy](../plans/2026-09-20-audit-workflow-composition.md#current-schema-policy).
+V64 MUST use current explicit inventory `source`/`settings` mappings and reject
+obsolete fields and persisted profile snapshots without compatibility readers,
+aliases or implicit conversion. Repository profiles, fixtures, public contracts
+and clients move together to that schema. Canonical bytes/digests may change
+with the schema; deterministic current-schema round trips remain required.
+Accepted baseline, Run and Artifact snapshots stay immutable, and current-schema
+Audits retain recovery, retention and deletion guarantees. Storage upgrade tests
+use current-schema snapshot fixtures; preserving historical schema readability
+is not an acceptance requirement.
 
 ## 3. Full inventory, candidates and pass identity
 
@@ -209,7 +221,7 @@ hex digest of RFC 8785 canonical JSON containing `schema` equal to
 `contractor.audit.priority-candidate-id.v1`, `inventory_digest`, `item_key` and
 `item_version`. Digests use `sha256:` plus 64 lowercase hex characters. Item
 version is nonblank UTF-8 without NUL, at most 160 bytes for this opt-in core;
-legacy checklist version limits are unchanged. Duplicate keys, including two
+current checklist version limits are unchanged. Duplicate keys, including two
 versions of the same key, are rejected. The pure pool has schema
 `contractor.audit.priority-candidates.v1`, the source inventory digest and
 candidate-ID-sorted identity rows; its canonical digest binds exact remaining
@@ -514,8 +526,11 @@ model or external target is required. Mandatory cases include:
   context, keep prior verdicts, and work with finding confirmation disabled.
 - Browser upload/configuration/ranking/progress/selection/deferred explanation/
   incomplete recovery and full-inventory report against production public API.
-- Existing non-priority profiles retain old canonical bytes and execution/review
-  behavior; tests explicitly distinguish planning mechanics from model quality.
+- Current-schema non-priority profiles retain execution/review behavior and
+  deterministic canonicalization; obsolete profile fields and snapshots are
+  rejected. Current public clients and storage upgrade/recovery fixtures pass
+  without compatibility readers. Tests explicitly distinguish planning mechanics
+  from model quality.
 
 The release task must register discoverable mandatory process/browser cases,
 fail on missing prerequisites/zero selected tests/skips, and retain actual

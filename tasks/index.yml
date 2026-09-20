@@ -737,6 +737,7 @@ milestones:
 
 audit_check_prioritization_planning:
   planned_on: "2026-09-20"
+  schema_policy_updated_on: "2026-09-21"
   status: in_progress
   implementation_started_on: "2026-09-20"
   review_status: reviewed
@@ -768,13 +769,17 @@ audit_check_prioritization_planning:
     prioritization does not require generated OpenAPI input. Whole-inventory
     coverage, complete independent verdicts,
     default topN 10 with no silent smaller Round, durable replay and existing
-    approval remain mandatory. V55-009 scanner ranking is a separate follow-up.
+    approval remain mandatory. Follow V62's current-schema policy: reject obsolete
+    fields and snapshots without compatibility readers; migrate catalog fixtures
+    and clients together. Preserve immutable accepted data and current-schema
+    recovery, not historical schema bytes. V55-009 scanner ranking is a separate follow-up.
     Zero-Worker ranking remains an ordinary globally scheduled Run. No new
     implementation, demo deployment, external scan or paid-model call is authorized
     by this planning record alone.
 
 audit_workflow_composition_planning:
   planned_on: "2026-09-20"
+  schema_policy_updated_on: "2026-09-21"
   status: planned
   authority: >-
     User requested task decomposition after discussing prepare, generated
@@ -795,7 +800,12 @@ audit_workflow_composition_planning:
   release_task: V62-012
   constraints: >-
     Add only the prepare lifecycle kind; verification and replay remain check
-    bindings. Preserve old profile canonical bytes and start-time inventory,
+    bindings. Use one explicit inventory source/settings schema; reject obsolete
+    sourceInput/settingsInput and obsolete persisted snapshots without compatibility
+    readers or implicit conversion. Migrate catalog fixtures and clients to the
+    current schema; historical schema bytes and old clients are not release
+    requirements. Preserve immutable accepted data and current-schema recovery.
+    Preserve direct-input start-time inventory,
     same-round retained-output and existing authorization/Scheduler boundaries.
     V62 owns generic dependencies/routing reused by specification 33, while
     autonomous pentest scope, identities, proof and transport remain separate.

@@ -15,7 +15,7 @@ context:
   contract: V62-001 fixes preparation lifecycle; V62-002 supplies durable transactions and exact output links.
 scope:
   in:
-    - Extend Audit start to pin all dependencies and enter preparation for opt-in profiles while retaining legacy start-time inventory.
+    - Extend Audit start to pin all dependencies and enter preparation for opt-in profiles while retaining direct-input start-time inventory under the current source schema.
     - Dispatch prepare roles with explicit dependency order through trusted Run Service and ordinary Scheduler paths.
     - Materialize only authorized exact inputs into RunScope, collect required frozen outputs and advance roles only after accepted receipts.
     - Reconcile submission response loss, crashes, stale claims, bounded retries and collection replay without duplicate accepted role execution.
@@ -35,7 +35,7 @@ deliverables:
     description: Preparation collection with exact output acceptance and protected retention.
 acceptance_criteria:
   - id: A1
-    text: Two dependent prepare roles run in order with exact input forks and accepted output receipts, while unchanged legacy profiles follow their previous start path.
+    text: Two dependent prepare roles run in order with exact input forks and accepted output receipts, while migrated direct-input profiles follow their previous start path.
   - id: A2
     text: Restart and duplicate delivery at every intent/Run/receipt boundary preserve identity and never rerun a role whose result is already accepted.
   - id: A3

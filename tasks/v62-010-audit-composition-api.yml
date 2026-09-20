@@ -38,7 +38,7 @@ acceptance_criteria:
   - id: A3
     text: Multi-page results/provenance are revision-consistent and expose no uncommitted retained artifacts, secret material or mutable latest resolution.
   - id: A4
-    text: Old Audit responses and clients remain compatible with the declared versioning rules and generated API/client checks pass.
+    text: OpenAPI, Go/UI clients and strict parsers implement the same current schema; obsolete fields and profile snapshots are rejected without compatibility readers, and current API/client checks pass.
 tests:
   - command: go test -tags=integration -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/auditstore
     covers: [A1, A2, A3, A4]

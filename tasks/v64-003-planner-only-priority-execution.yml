@@ -29,7 +29,7 @@ deliverables:
   - path: internal/planner/auditpriority
     description: New explicit planner registration and bounded execution interface for the later verdict implementation.
   - path: internal/config
-    description: Narrow zero-Worker planner/policy validation and unchanged legacy rejection fixtures.
+    description: Narrow zero-Worker planner/policy validation and regression fixtures rejecting unsupported shapes for existing Worker-backed planners under the current schema.
   - path: internal/scheduler
     description: Model-only preparation, reservation, claim recovery, cancellation and stage finalization without Runtime allocation.
   - path: internal/runstore

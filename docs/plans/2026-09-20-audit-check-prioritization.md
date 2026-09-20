@@ -91,7 +91,7 @@ keep unimplemented capabilities unavailable.
 | Task | Deliverable | Dependencies |
 | --- | --- | --- |
 | [000](../../tasks/v64-000-audit-priority-core.yml) | Strict model verdicts, stable candidate identities and pure deterministic top-N | V25-002, V25-011 |
-| [001](../../tasks/v64-001-audit-priority-contracts.yml) | Profile, context/verdict/selection contracts; lifecycle and old-byte compatibility | 000, V62-001, V25-011 |
+| [001](../../tasks/v64-001-audit-priority-contracts.yml) | Profile, context/verdict/selection contracts; lifecycle and current-schema validation | 000, V62-001, V25-011 |
 | [002](../../tasks/v64-002-audit-priority-store.yml) | Full inventory, cycles, evaluation journal, reservations and retention | 001, V62-002 |
 | [003](../../tasks/v64-003-planner-only-priority-execution.yml) | Explicit zero-Worker Planner shape through Scheduler/model accounting | 001 |
 | [004](../../tasks/v64-004-audit-priority-context.yml) | Consistent bounded context snapshots and item inputs | 002 |
@@ -110,6 +110,14 @@ authoritative.
 
 ## Delivery boundaries
 
+- The 2026-09-21 schema alignment follows V62's
+  [current schema policy](2026-09-20-audit-workflow-composition.md#current-schema-policy).
+  V64 uses the current explicit inventory mappings and rejects obsolete profile
+  snapshots without compatibility readers or implicit conversion. Update catalog
+  fixtures and API clients together; historical schema bytes/digests are not
+  acceptance targets. Current-schema canonicalization stays deterministic and
+  accepted baselines, receipts, artifacts and recovery guarantees stay intact.
+  Profiles without prioritization retain their current execution behavior.
 - V64-000 implements pure calculation and the model-verdict codec only. It does
   not authenticate context, accept Run receipts, persist or dispatch a Round.
 - V64-001 promotes the precise feature contract and executable schemas; the

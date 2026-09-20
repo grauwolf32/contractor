@@ -12,7 +12,7 @@ context:
   authority: User requested project analysis followed by OpenAPI generation and scanning in one Audit.
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/00-workflow-and-planner.md, docs/spec/19-audits.md, docs/spec/03-artifact-plane.md]
-  reuse: Extract the existing dependency/project discovery stages and templates from openapi-from-workspace; preserve openapi-from-analysis@4 and all published versions.
+  reuse: Extract the existing dependency/project discovery stages and templates from openapi-from-workspace and reuse openapi-from-analysis@4 under the current schema; accepted Workflow snapshots remain immutable and historical catalog variants need not be retained for compatibility.
 scope:
   in:
     - Add project-analysis@1 with source ZIP input and required dependency_report/project_report Markdown outputs using existing workspace analysis capabilities.
@@ -21,7 +21,7 @@ scope:
     - Verify required Runtime graph/workspace/validator capabilities and exact version/Skill/config pins before dispatch.
     - Document production profile composition and output contracts; the actual scan profile is published by V62-009 after its adapter exists.
   out:
-    - Rewrite immutable existing versions, introduce placeholder production refs, run paid models or publish an incomplete scan profile as runnable.
+    - Rewrite accepted immutable Workflow snapshots, introduce placeholder production refs, run paid models or publish an incomplete scan profile as runnable.
 deliverables:
   - path: configs/workflows/project_analysis.yaml
     description: New versioned reusable source/dependency analysis Workflow with explicit required outputs.

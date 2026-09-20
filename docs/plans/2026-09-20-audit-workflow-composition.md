@@ -81,15 +81,16 @@ attempts and restart apply before a Round exists. Count preparation attempts,
 time and retained bytes against the same existing Audit budgets.
 
 The proposed inventory source is an explicit choice of existing Audit input or
-accepted preparation output. Preserve the current `sourceInput` form for old
-profiles; reject simultaneous or contradictory source declarations. The exact
-new field shape is fixed and tested in V62-001 before dependent implementation.
+accepted preparation output. All profiles use explicit `source`/`settings`
+mappings. V62-001 rejects `sourceInput`/`settingsInput` without a compatibility
+reader, as requested by the user on 2026-09-20.
 Support both OpenAPI-operation and checklist inventories from preparation.
 Server retains its deterministic parser/expansion and bounds; a Worker cannot
 create items or approve a worklist. Invalid or oversized generated documents
 produce explicit failure, never a successful zero-item Audit.
 
-Legacy profiles without preparation keep start-time inventory and canonical
+Profiles without preparation keep start-time inventory; all profiles migrate
+to the current mapping schema rather than preserving old canonical
 snapshot bytes. Preparation is opt-in even for an already supplied checklist.
 
 ### Explicit input sources
@@ -131,7 +132,7 @@ Unknown/ambiguous mappings and unavailable capabilities have explicit decisions;
 no inference from Workflow names, free text or model-supplied refs is allowed.
 An accepted item pins role, dependencies, receipt/ordinal and budget/approval
 requirements. Subsequent checks enter only a later immutable round. Preserve
-the legacy default route for profiles without the new mapping.
+the current default route for profiles without the new mapping.
 
 ### Runnable scanning profile
 
@@ -160,7 +161,7 @@ acceptance and verification commands.
 
 | Task | Deliverable | Depends on within V62 |
 | --- | --- | --- |
-| [001](../../tasks/v62-001-audit-composition-contracts.yml) | Normative contracts, compatibility, schemas and shared fixtures | — |
+| [001](../../tasks/v62-001-audit-composition-contracts.yml) | Normative contracts, current schema and shared fixtures | — |
 | [002](../../tasks/v62-002-audit-preparation-store.yml) | Durable preparation state, executions, retention and migration | 001 |
 | [003](../../tasks/v62-003-audit-preparation-controller.yml) | Start and reconcile prepare Runs, recovery and controls before a Round exists | 002 |
 | [004](../../tasks/v62-004-audit-prepared-inventory.yml) | Build and atomically accept inventory from exact prepare output | 003 |
@@ -177,12 +178,43 @@ Implementation order starts with 001 → 002 → 003 → 004. Snapshot, dependen
 and catalog work can then proceed independently subject to task dependencies.
 Planning does not reassign existing in-progress tasks or start any implementation.
 
-## Compatibility and delivery boundaries
+## Schema and delivery boundaries
 
-- Do not modify existing exact profile/Workflow versions or reinterpret old
-  serialized fields. New public behavior is versioned and capability checked.
-- Existing audits, completion, review, coverage, retention and deletion gates
-  remain required regressions. No separate Scheduler, mutable task DAG or
+### Current schema policy
+
+On 2026-09-21 the user requested alignment of this plan and dependent V64 work
+with the decision to drop legacy schemas. The following rules apply to contracts,
+persistence, API clients and release acceptance throughout both series:
+
+- Support one current Audit profile schema with explicit `source`/`settings`
+  mappings. Reject `sourceInput`/`settingsInput` and obsolete persisted profile
+  snapshots; do not add compatibility readers, aliases or implicit conversion.
+- Migrate repository catalog resources, examples and fixtures to the current
+  schema, keeping only current variants. Synchronize OpenAPI, generated clients
+  and strict parsers together; supporting previous API shapes or client versions
+  is not an acceptance requirement. Schema changes may change canonical bytes
+  and digests; current-schema round trips must remain deterministic.
+- Accepted baselines, Workflow snapshots, receipts and artifact revisions remain
+  immutable. Catalog updates never rewrite a running Audit's pins. Obsolete
+  snapshots fail explicit validation instead of being reinterpreted or silently
+  upgraded. Current-schema Audits retain their recovery and deletion guarantees.
+- Database upgrade fixtures exercise persisted Audits whose snapshots use the
+  current schema, preserving identities, receipts, provenance and required holds.
+  Forward storage migrations do not imply support for obsolete serialized data.
+- Direct-input inventory, default `inventory.itemWorkflowRole` routing,
+  same-round `retained-output` and Worker-owned Audit completion are current
+  functionality. Their regressions remain mandatory. Absent `auditTask` on
+  ordinary Workflows and current Worker-completion checks is valid; unifying
+  these executors with the scan contract is outside this schema alignment.
+
+These rules also apply to deferred task descriptions without reactivating them.
+Historical verification records remain evidence for their original revisions.
+
+### Delivery boundaries
+
+- Current-schema Audit, completion, review, coverage, retention and deletion gates
+  remain required regressions. New capabilities remain explicitly gated until
+  implemented and verified. No separate Scheduler, mutable task DAG or
   general Project publication authority is introduced.
 - V55 owns scanner execution, RequestSet and scan planning; V62 owns their
   Audit adapter. Reuse delivered V55 behavior without reopening those tasks.

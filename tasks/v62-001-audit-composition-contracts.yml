@@ -19,7 +19,7 @@ context:
     - docs/spec/03-artifact-plane.md
     - docs/spec/25-audit-worker-finalization.md
     - docs/spec/33-autonomous-pentest-audits.md
-  compatibility: Existing profiles keep start-time inventory, same-round retained-output, default check routing and identical old canonical bytes/digests.
+  compatibility: One current schema only. Migrate repository profiles and fixtures; reject sourceInput/settingsInput and obsolete snapshots instead of adding compatibility readers.
 scope:
   in:
     - Specify prepare role kind, Audit-level execution identity, bounded attempts, phase transitions and valid absent-currentRound projections.
@@ -35,23 +35,23 @@ deliverables:
   - path: docs/spec/19-audits.md
     description: Normative lifecycle and composition contracts with valid/invalid authoring examples and failure outcomes.
   - path: api/testdata/audit-composition
-    description: New positive, boundary, invalid and old-snapshot compatibility fixtures selected by executable tests.
+    description: New positive, boundary, invalid and obsolete-schema rejection fixtures selected by executable tests.
   - path: internal/config
-    description: Typed profile extensions, strict validation and canonical compatibility tests.
+    description: Typed profile extensions, strict validation and current-schema round-trip tests.
   - path: api/openapi/contractor-public-v1.yaml
     description: Explicit public preparation/currentRound/provenance shapes and synchronized generated clients and strict parsers.
 requirements:
   - id: R1
     text: Role kind and declared source types determine behavior; names, labels and model output never select authority or arbitrary Workflows.
   - id: R2
-    text: Preserve legacy sourceInput and omit new absent fields; reject conflicting inventory sources, cycles, later-phase inputs, ambiguous check results and incompatible media types.
+    text: Use a single explicit source mapping; reject obsolete sourceInput/settingsInput, cycles, later-phase inputs, ambiguous check results and incompatible media types.
   - id: R3
     text: Reuse existing Audit budgets and record exact finite limits for new collections and schemas; no implementation-facing first-release contract remains unresolved.
 acceptance_criteria:
   - id: A1
-    text: Normative examples cover the full source-to-OpenAPI-to-inventory chain, legacy profiles, legal dependencies and every control transition before a Round exists.
+    text: Normative examples cover the full source-to-OpenAPI-to-inventory chain, direct-input profiles, legal dependencies and every control transition before a Round exists.
   - id: A2
-    text: Strict executable fixtures reject invalid sources, scopes, routes and limits while all existing profile snapshots retain their canonical bytes and digests.
+    text: Strict executable fixtures reject invalid sources, scopes, routes and limits and migrated profiles round-trip with deterministic canonical bytes and digests.
   - id: A3
     text: Public API models and clients represent preparation truthfully; incomplete capabilities cannot appear runnable and all existing catalog contracts remain valid.
 tests:

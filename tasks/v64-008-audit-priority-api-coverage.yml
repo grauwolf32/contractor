@@ -46,7 +46,7 @@ acceptance_criteria:
   - id: A3
     text: Stale pagination cursors and cross-owner references cannot mix revisions or disclose data; retained history survives allowed source Run deletion and later analyst edits.
   - id: A4
-    text: Reports and clients preserve independent priority/confidence/disposition/approval/execution/severity; Draft/Start topN obeys profile ceilings and immutable replay rules, with legacy API regressions passing.
+    text: Reports and current-schema clients preserve independent priority/confidence/disposition/approval/execution/severity; Draft/Start topN obeys profile ceilings and immutable replay rules, and synchronized API/client regression checks pass without legacy response readers.
 tests:
   - command: go test ./internal/auditservice ./internal/auditimport ./internal/httpapi/public
     covers: [A1, A2, A3, A4]
