@@ -340,28 +340,28 @@
       "tasks": [
         "V58-001"
       ],
-      "result": "Восстановлен просмотр Run с caido provenance; ошибка необязательной проекции не скрывает результаты."
+      "result": "Run viewing with caido provenance is restored; failure of an optional projection no longer hides results."
     },
     {
       "finding": "D02",
       "tasks": [
         "V58-002"
       ],
-      "result": "Форма New Audit помещается на 390 и 320 px; длинные версии и ссылки не растягивают страницу."
+      "result": "The New Audit form fits at 390 and 320 px; long versions and links do not stretch the page."
     },
     {
       "finding": "D03",
       "tasks": [
         "V58-002"
       ],
-      "result": "Сохранён контраст текста ZIP-файла при hover и выборе; строка файла имеет высоту 44 px."
+      "result": "ZIP file text retains contrast on hover and selection; file rows are 44 px high."
     },
     {
       "finding": "D04",
       "tasks": [
         "V58-003"
       ],
-      "result": "Ограниченный YAML frontmatter Skill показан как метаданные; основной Markdown читается отдельно, Source сохраняет оригинал."
+      "result": "Bounded Skill YAML frontmatter is shown as metadata; the main Markdown is read separately, and Source preserves the original."
     },
     {
       "finding": "D05",
@@ -369,7 +369,7 @@
         "V58-002",
         "V58-012"
       ],
-      "result": "Поля страниц и портальных диалогов получили единые размеры, фон, подписи и focus; проверен селектор версии Agent."
+      "result": "Page and portal-dialog fields share sizes, backgrounds, labels and focus styles; the Agent version selector was checked."
     },
     {
       "finding": "D06",
@@ -377,7 +377,7 @@
         "V58-004",
         "V58-010"
       ],
-      "result": "История Runs и allocations стала компактной; идентификаторы, labels и метрики доступны в раскрытии."
+      "result": "Run and allocation history is compact; identifiers, labels and metrics are available in expanded details."
     },
     {
       "finding": "D07",
@@ -385,28 +385,28 @@
         "V58-004",
         "V58-011"
       ],
-      "result": "Результаты Run предшествуют повторному запуску; успешное исполнение предлагает Read results, метрики свёрнуты."
+      "result": "Run results appear before rerun controls; successful execution offers Read results, with metrics collapsed."
     },
     {
       "finding": "D08",
       "tasks": [
         "V58-003"
       ],
-      "result": "Просмотр содержимого расположен перед обновлением; версия и происхождение доступны через Details и Versions во всех scopes."
+      "result": "Content viewing appears before updates; version and provenance are available through Details and Versions in every scope."
     },
     {
       "finding": "D09",
       "tasks": [
         "V58-005"
       ],
-      "result": "Audit показывает Partial coverage, долю завершённых проверок, кандидатов и решения отдельно от статуса исполнения."
+      "result": "Audit shows Partial coverage, the proportion of completed checks, candidates and decisions separately from execution status."
     },
     {
       "finding": "D10",
       "tasks": [
         "V58-005"
       ],
-      "result": "Краткое Finding и переход к решению доступны до длинного текста; непроверенные Findings идут первыми, есть фильтр вердикта."
+      "result": "A Finding summary and a link to the decision appear before the long text; unreviewed Findings come first, with a verdict filter."
     },
     {
       "finding": "D11",
@@ -414,21 +414,21 @@
         "V58-005",
         "V58-012"
       ],
-      "result": "Checks, Coverage и дочерние Runs используют сохранённые method/path или Check N; Runs ссылаются на точную проверку."
+      "result": "Checks, Coverage and child Runs use retained method/path values or Check N; Runs link to the exact check."
     },
     {
       "finding": "D12",
       "tasks": [
         "V58-005"
       ],
-      "result": "Внутри семейства профили упорядочены численно по версии; предлагается последняя загруженная совместимая версия, старые доступны."
+      "result": "Profiles within a family are ordered by numeric version; the latest loaded compatible version is suggested, with older versions available."
     },
     {
       "finding": "D13",
       "tasks": [
         "V58-006"
       ],
-      "result": "Home явно показывает паузу очереди; здоровый Runtime и свободные слоты не выдаются за разрешение запуска."
+      "result": "Home explicitly shows a paused queue; healthy Runtime and free slots do not imply permission to start."
     },
     {
       "finding": "D14",
@@ -437,21 +437,21 @@
         "V58-009",
         "V58-012"
       ],
-      "result": "Уплотнены заголовки, формы и Settings; удалены повторные декоративные блоки и дублирование причины остановки Audit."
+      "result": "Headers, forms and Settings are more compact; repeated decorative blocks and duplicate Audit stop reasons are removed."
     },
     {
       "finding": "D15",
       "tasks": [
         "V58-006"
       ],
-      "result": "Project overview показывает следующие действия, последние результаты, источники и число непроверенных Findings с явной областью подсчёта."
+      "result": "Project overview shows next actions, recent results, sources and the number of unreviewed Findings, with an explicit counting scope."
     },
     {
       "finding": "D16",
       "tasks": [
         "V58-007"
       ],
-      "result": "Workflow использует опубликованное описание или прямо сообщает об его отсутствии; совпадение формата входа не означает готовность задачи."
+      "result": "Workflow uses its published description or explicitly states that none is available; matching input formats do not imply task readiness."
     },
     {
       "finding": "D17",
@@ -459,35 +459,35 @@
         "V58-007",
         "V58-012"
       ],
-      "result": "Версии Agent сгруппированы на текущей странице результатов, доступны через селектор; поиск и курсоры сохранены."
+      "result": "Agent versions are grouped on the current result page and available through a selector; search and cursors are preserved."
     },
     {
       "finding": "D18",
       "tasks": [
         "V58-003"
       ],
-      "result": "Skills показывают назначение и число файлов; открытие пакета сохраняет контекст Catalog/Skills."
+      "result": "Skills show their purpose and file count; opening a package preserves Catalog/Skills context."
     },
     {
       "finding": "D19",
       "tasks": [
         "V58-008"
       ],
-      "result": "Evals показывают последнее исполнение и case/leg/sample; Runs подняты перед настройками. Вердикт качества из succeeded не выводится."
+      "result": "Evals show the latest execution and case/leg/sample; Runs appear before settings. A quality verdict is not inferred from succeeded."
     },
     {
       "finding": "D20",
       "tasks": [
         "V58-009"
       ],
-      "result": "У RuntimeConfig видны действующие labels/default; удалён повтор digest, Built-in заменяет фиктивную дату, Rebind без изменения выключен."
+      "result": "RuntimeConfig shows effective labels/default; the duplicate digest is removed, Built-in replaces the placeholder date, and unchanged Rebind is disabled."
     },
     {
       "finding": "D21",
       "tasks": [
         "V58-009"
       ],
-      "result": "Добавлены взаимные переходы между Runtime defaults, Models/Gateways, Credentials/Budgets и Scheduler/Git."
+      "result": "Cross-links were added between Runtime defaults, Models/Gateways, Credentials/Budgets and Scheduler/Git."
     },
     {
       "finding": "D22",
@@ -496,21 +496,21 @@
         "V58-009",
         "V58-011"
       ],
-      "result": "Загрузка, создание и clone открываются по запросу; выключенные секции RuntimeConfig скрывают зависимые поля, черновики сохраняются."
+      "result": "Upload, create and clone open on demand; disabled RuntimeConfig sections hide dependent fields, while drafts are preserved."
     },
     {
       "finding": "D23",
       "tasks": [
         "V58-007"
       ],
-      "result": "Objective и authorization scope стали многострочными; подписи читаются человеком, точные ключи и wire-значения сохраняются."
+      "result": "Objective and authorization scope are multiline; labels are human-readable, while exact keys and wire values are preserved."
     },
     {
       "finding": "D24",
       "tasks": [
         "V58-010"
       ],
-      "result": "Текущие CPU/RAM/GPU/DB и графики стоят перед подробными счётчиками; сохранены единицы, свежесть и разрывы сбора."
+      "result": "Current CPU/RAM/GPU/DB readings and charts appear before detailed counters; units, freshness and collection gaps are preserved."
     },
     {
       "finding": "D25",
@@ -518,7 +518,7 @@
         "V58-003",
         "V58-011"
       ],
-      "result": "Ошибки называют операцию и дают повтор чтения; write автоматически не повторяется. Лимит ZIP объясняет предел просмотра; 404 даёт навигацию."
+      "result": "Errors name the operation and offer a read retry; writes are not retried automatically. ZIP-limit errors explain browsing bounds; 404 offers navigation."
     },
     {
       "finding": "D26",
@@ -526,7 +526,7 @@
         "V58-002",
         "V58-011"
       ],
-      "result": "Audit и Operations используют подписанный мобильный выбор раздела; адаптивные списки проверены на desktop/mobile и критических 320 px."
+      "result": "Audit and Operations use a labeled mobile section selector; responsive lists were checked on desktop/mobile and at the critical 320 px width."
     },
     {
       "finding": "D27",
@@ -535,14 +535,14 @@
         "V58-005",
         "V58-011"
       ],
-      "result": "Главные действия выделены по сценарию; Delete нейтрален до взаимодействия, подтверждение остаётся явным; проверено управление фокусом."
+      "result": "Primary actions are emphasized for each journey; Delete remains neutral until interaction, confirmation stays explicit, and focus management was checked."
     },
     {
       "finding": "D28",
       "tasks": [
         "V58-006"
       ],
-      "result": "Project cards уплотнены: убраны дубли типа/иконки, ID сокращён, полное значение доступно, дата показывает давность."
+      "result": "Project cards are more compact: duplicate type/icon elements were removed, IDs shortened with full values available, and dates show elapsed time."
     },
     {
       "finding": "D29",
@@ -550,21 +550,21 @@
         "V58-005",
         "V58-012"
       ],
-      "result": "Читаемая Summary отчёта стоит перед экспортами; заголовок UUID уменьшен, есть переход к пробелам покрытия."
+      "result": "A readable report Summary appears before exports; the UUID heading is smaller, with a link to coverage gaps."
     },
     {
       "finding": "D30",
       "tasks": [
         "V58-009"
       ],
-      "result": "Опубликованная конфигурация и создание новой версии разделены; Clone открывает подготовленный редактируемый черновик."
+      "result": "Published configuration is separate from new-version creation; Clone opens a prepared editable draft."
     },
     {
       "finding": "D31",
       "tasks": [
         "V58-010"
       ],
-      "result": "Runtime Agents упорядочены online-first, есть фильтр связи; используются доступные labels/capabilities, отсутствующее имя хоста не выдумывается."
+      "result": "Runtime Agents are ordered online-first with a connection-status filter; available labels/capabilities are used, and missing hostnames are not invented."
     },
     {
       "finding": "D32",
@@ -574,7 +574,7 @@
         "V58-010",
         "V58-012"
       ],
-      "result": "Login и оболочка берут версию из package.json; даты имеют контекст, GiB/TiB читаемы, акценты и поля согласованы."
+      "result": "Login and the shell read the version from package.json; dates have context, GiB/TiB are readable, and accents and fields are consistent."
     }
   ],
   "limitations": [
