@@ -20,7 +20,7 @@ func TestPrecomputedAnalysisRunInputsAreExplicitAndStrict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, workflowRef := range []string{"openapi-from-analysis@2", "likec4-from-analysis@3"} {
+	for _, workflowRef := range []string{"openapi-from-analysis@4", "likec4-from-analysis@5"} {
 		t.Run(workflowRef, func(t *testing.T) {
 			workflow, workflowErr := snapshot.Workflow(workflowRef)
 			if workflowErr != nil {
@@ -94,7 +94,7 @@ func TestPrecomputedAnalysisRunForksReportsAndRejectsWrongMediaType(t *testing.T
 				inputs[input.slot] = written.Ref
 			}
 			body, err := json.Marshal(createRunRequest{
-				Workflow: "openapi-from-analysis@2", Artifacts: inputs,
+				Workflow: "openapi-from-analysis@4", Artifacts: inputs,
 			})
 			if err != nil {
 				t.Fatal(err)

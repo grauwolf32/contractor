@@ -9,8 +9,10 @@ They are not part of the operator catalog in `configs/` or the e2e catalog.
 - `test-strong-worker@1`: different model and limits for escalation tests.
 
 `configtest.CopyWithPolicies` copies the supplied catalog into `t.TempDir()` and
-overlays these policies, the test artifact builder and the test escalation
-profile. The other workflows, templates and instructions remain copied from the
+overlays these policies, the test artifact builder, its artifact-copy Workflow
+and instructions, and the test escalation profile. The artifact-copy pair is
+isolated behavioral test data, independent of the retired default catalog
+versions. The other workflows, templates and instructions remain copied from the
 supplied catalog. This preserves realistic wiring while keeping the budgets and
 model variants used in behavioral tests independent of production policy tuning.
 Tests of the actual shipped catalog load `configs/` directly.

@@ -1,24 +1,23 @@
-# Конфигурации toolsets на Run и MCP Streamable HTTP
+# Run-scoped toolset configuration and MCP Streamable HTTP
 
-План от 2026-09-19. Серия V61, статус: запланировано, реализация не выполнена.
-20.09.2026 задачи перенесены в main и перенумерованы из V56 в V61; объём сохранён.
-Статусы, зависимости, критерии готовности и команды проверки находятся в
-[`tasks/index.yml`](../../tasks/index.yml) и `tasks/v61-*.yml`.
+Plan dated 2026-09-19. Series V61, status: planned, not implemented.
+On 2026-09-20, tasks were moved into main and renumbered from V56 to V61 without
+changing scope. Statuses, dependencies, readiness criteria and verification
+commands are in [`tasks/index.yml`](../../tasks/index.yml) and `tasks/v61-*.yml`.
 
-Пользователь запросил общий механизм конфигурации инструментов через
-AgentTemplate и существующие bindings, выбор при запуске из UI и доступ к
-произвольному MCP endpoint. Приняты ограничения: только Streamable HTTP,
-одна конфигурация каждого toolset на весь Run, максимальное переиспользование
-RuntimeConfig и минимальные изменения YAML.
+The user requested a general tool-configuration mechanism through AgentTemplate
+and existing bindings, selection at launch in the UI, and access to arbitrary
+MCP endpoints. Accepted constraints: Streamable HTTP only, one configuration per
+toolset for the entire Run, maximum reuse of RuntimeConfig and minimal YAML changes.
 
-Этот документ фиксирует решения для реализации. V61-001 переносит нормативные
-контракты в существующие спецификации AgentTemplate, Runtime, RuntimeConfig и
-Audit и в общие schemas/fixtures. Реализация должна следовать этим контрактам;
-план и задачи не являются свидетельством готовности функции.
+This document records implementation decisions. V61-001 transfers normative
+contracts into the existing AgentTemplate, Runtime, RuntimeConfig and Audit
+specifications and shared schemas/fixtures. Implementation must follow those
+contracts; the plan and tasks are not evidence that the feature is ready.
 
-## Пользовательский контракт
+## User-facing contract
 
-AgentTemplate сохраняет текущую структуру и явно выбирает инструменты:
+AgentTemplate retains its current structure and explicitly selects tools:
 
 ```yaml
 spec:
@@ -27,8 +26,8 @@ spec:
       tools: [search, fetch]
 ```
 
-`mcp@1` — новая реализация toolset. Endpoint и credentials задаются новым
-разделом существующего RuntimeConfig:
+`mcp@1` is a new toolset implementation. Endpoint and credentials are supplied
+through a new section of the existing RuntimeConfig:
 
 ```yaml
 apiVersion: contractor/v1alpha1
@@ -44,317 +43,328 @@ spec:
         credential: knowledge-access
 ```
 
-Существующий runtime label `knowledge-prod` связывается с точными name, version
-и digest этого документа. Run-create использует существующее поле:
+The existing runtime label `knowledge-prod` binds to the document's exact name,
+version and digest. Run creation uses the existing field:
 
 ```json
 {"runtimeLabels": ["knowledge-prod"]}
 ```
 
-Workflow и Stage agent binding сохраняют текущую форму. Новые ToolConfiguration,
-configurationInputs, обязательный configBinding и toolset-поля executionConfig
-не вводятся. Конфигурация и аргументы вызова различаются: существующий
-`tool@1.execution.arguments` продолжает задавать literal/parameter/artifact
-аргументы операции.
+Workflow and Stage agent bindings retain their current shape. No new
+ToolConfiguration, configurationInputs, mandatory configBinding or toolset fields
+in executionConfig are introduced. Configuration differs from call arguments:
+existing `tool@1.execution.arguments` continues to define literal/parameter/artifact
+arguments for the operation.
 
-Ключ карты — точный `<toolset-id>@<version>`. Для native toolsets содержимое
-определяется их зарегистрированной схемой; механизм не привязан к endpoint.
-Допустимы собственные вложенные настройки отдельных инструментов, если это
-предусмотрено схемой их toolset. Для первой поставки единственная новая
-пользовательская схема — MCP; расширяемость проверяется тестовым native toolset.
+The map key is an exact `<toolset-id>@<version>`. For native toolsets, contents
+are defined by their registered schema; the mechanism is not endpoint-specific.
+Individual tools may have nested settings where their toolset schema permits it.
+The first delivery adds only one user-facing schema, MCP; extensibility is
+verified with a test native toolset.
 
-На `mcp@1` приходится один endpoint на Run. Два агента могут выбирать разные
-инструменты этого подключения. Несколько экземпляров одного ref, разные
-endpoint одного ref по агентам и динамическая регистрация произвольных aliases
-в эту поставку не входят. Разные будущие зарегистрированные toolset refs могут
-использовать одну реализацию клиента.
+`mcp@1` has one endpoint per Run. Two agents may select different tools from that
+connection. Multiple instances of one ref, different endpoints for the same ref
+per agent, and dynamic registration of arbitrary aliases are outside this delivery.
+Different future registered toolset refs may share one client implementation.
 
-## Descriptor, типизация и совместимость
+## Descriptor, typing and compatibility
 
-Расширяется существующий code-owned ToolsetDescriptor: источник инструментов
-`static` или `allocation`, схема/обязательность конфигурации, допустимые Worker
-runtimes и общие инфраструктурные каналы при динамическом списке инструментов.
-Эти свойства не дублируются в пользовательском YAML. Каждая схема регистрирует
-типизированные normalization/validation и извлечение credential references.
-Неизвестные refs, неподдерживаемая конфигурация и неизвестные поля отклоняются.
+Extend the existing code-owned ToolsetDescriptor with tool source `static` or
+`allocation`, configuration schema/requirement, supported Worker runtimes and
+shared infrastructure channels for dynamic tool lists. These properties are not
+duplicated in user YAML. Each schema registers typed normalization/validation
+and credential-reference extraction. Unknown refs, unsupported configuration and
+unknown fields are rejected.
 
-Для `mcp@1` обязательна MCP-конфигурация, список проверяется при allocation,
-первоначально поддерживается только `adk@1`; HTTP использует существующий канал
-`runtime-http-client`. Native статическая валидация, видимые имена, запрет
-коллизий и специальные имена Agent Skills сохраняются. Общая доставка native
-конфигурации работает и для model-free Worker без появления model credentials.
+`mcp@1` requires MCP configuration; its tool list is checked at allocation time.
+Initially, only `adk@1` is supported; HTTP uses the existing `runtime-http-client`
+channel. Native static validation, visible names, collision prevention and
+special Agent Skill names are preserved. Shared native configuration delivery
+also works for model-free Workers without introducing model credentials.
 
-Контракты расширяются синхронно в Go, Python, JSON Schema, OpenAPI и строгих
-UI-парсерах. Отсутствующие новые поля не сериализуются: старые canonical bytes,
-digests, пустой built-in RuntimeConfig и статические capabilities сохраняются.
-Остаётся единый private protocol `contractor/v1alpha1` из V50.
+Contracts are extended together in Go, Python, JSON Schema, OpenAPI and strict
+UI parsers. Absent new fields are not serialized: old canonical bytes, digests,
+the empty built-in RuntimeConfig and static capabilities are preserved.
+The unified V50 private protocol remains `contractor/v1alpha1`.
 
-Новая обязательная конфигурация существующего native toolset требует отдельной
-версии его контракта/capability: прежний static ref сам по себе не доказывает
-поддержку новых settings старым runtime. Тестовый native descriptor имеет свой
-ref; существующие production native toolsets в этой серии не переопределяются.
+New required configuration for an existing native toolset needs a separate
+contract/capability version: the old static ref alone does not establish that
+an older Runtime supports new settings. The test native descriptor has its own
+ref; this series does not redefine existing production native toolsets.
 
-## Схема MCP и credentials
+## MCP schema and credentials
 
-| Поле RuntimeConfig | Контракт |
+| RuntimeConfig field | Contract |
 | --- | --- |
-| `endpoint` | Обязательный HTTP/HTTPS URL, до 2048 байт; без userinfo, query и fragment, без добавления пути клиентом |
-| `credential` | Необязательный ID immutable credential вида `mcp-headers@1` |
-| `caBundlePem` | Необязательный дополнительный CA, существующий предел 64 KiB; обычная проверка TLS сохраняется |
-| `connectTimeoutSeconds` | Целое 1–60, default 10 |
-| `requestTimeoutSeconds` | Целое 1–600, default 60; полный бюджет отдельного MCP RPC |
+| `endpoint` | Required HTTP/HTTPS URL, up to 2048 bytes; no userinfo, query or fragment; the client does not append a path |
+| `credential` | Optional immutable credential ID of kind `mcp-headers@1` |
+| `caBundlePem` | Optional additional CA, existing 64 KiB limit; normal TLS verification preserved |
+| `connectTimeoutSeconds` | Integer 1–60, default 10 |
+| `requestTimeoutSeconds` | Integer 1–600, default 60; total budget for one MCP RPC |
 
-Более ранний enclosing deadline всегда ограничивает вложенную операцию.
-Таймаут отдельного HTTP connect, полного RPC, подготовки allocation и cleanup
-имеет своего владельца; настройка MCP не продлевает deadline Scheduler.
-Долгоживущий входящий stream не считается бесконечным бюджетом tools/call.
+An earlier enclosing deadline always bounds the nested operation. Individual
+HTTP connect, full RPC, allocation preparation and cleanup timeouts have distinct
+owners; MCP settings do not extend the Scheduler deadline. A long-lived inbound
+stream is not an unlimited tools/call budget.
 
-Карта toolsets ограничена 128 refs и существующим общим пределом RuntimeConfig
-128 KiB. Объекты нормализуются до сравнения и вычисления digest; optional
-defaults материализуются одинаково во всех слоях. Нормализация URL сохраняет
-значимую семантику пути и не переписывает произвольно пользовательский endpoint.
+The toolsets map is limited to 128 refs and the existing 128 KiB total RuntimeConfig
+bound. Objects are normalized before comparison and digest calculation; optional
+defaults are materialized consistently across layers. URL normalization preserves
+meaningful path semantics and does not arbitrarily rewrite the user's endpoint.
 
-Новый credential хранит `{"headers": {"Authorization": "Bearer ..."}}`.
-Переиспользуются шифрование, write-only create, idempotency и reference barrier.
-Нормализация заголовков общая с существующими header credentials: не более 32,
-имя до 64 байт, значение до 4096 байт, сумма значений до 16 KiB; case-insensitive
-duplicates и CR/LF запрещены. Кроме hop-by-hop/proxy headers запрещены
-управляемые SDK Accept, Content-Type, MCP-Session-Id, MCP-Protocol-Version и
-Last-Event-ID. Авторизация отсутствует, если credential не задан.
+The new credential stores `{"headers": {"Authorization": "Bearer ..."}}`.
+Reuse encryption, write-only creation, idempotency and the reference barrier.
+Header normalization is shared with existing header credentials: at most 32
+headers, names up to 64 bytes, values up to 4096 bytes, total values up to 16 KiB;
+case-insensitive duplicates and CR/LF are forbidden. Besides hop-by-hop/proxy
+headers, SDK-managed Accept, Content-Type, MCP-Session-Id, MCP-Protocol-Version
+and Last-Event-ID are forbidden. No authorization is supplied without a credential.
 
-RuntimeConfig, Run draft, provenance, descriptions и аргументы tools не содержат
-plaintext. Заголовки материализуются только перед private allocation delivery.
-Расширяются CHECK допустимых credential kinds, metadata validators, SQL-поиск
-использующих bindings, Run/Audit holds и allocation references. Все collectors
-редактирования секретов, safe repr, очистка и SDK logging учитывают новые значения
-и session IDs. Ротация использует новый credential ID и новую версию config.
-Интерактивный OAuth и автоматический refresh не входят в первую поставку.
+Implementation defines new defaults and bounds as named constants. URL, PEM and
+RuntimeConfig size bounds reuse existing constants. Shared header limits receive
+names without an OTLP prefix and are used by both credential kinds without changing
+values. V61-001 records the values in normative specifications and shared fixtures
+for Go, Python and JSON Schema default/boundary checks.
 
-## Merge, bindings и snapshot Run
+RuntimeConfig, Run drafts, provenance, descriptions and tool arguments contain no
+plaintext secrets. Headers are materialized only immediately before private
+allocation delivery. Extend allowed-credential-kind CHECK constraints, metadata
+validators, SQL lookup of referencing bindings, Run/Audit holds and allocation
+references. All secret-redaction collectors, safe repr, cleanup and SDK logging
+account for new values and session IDs. Rotation uses a new credential ID and
+config version. Interactive OAuth and automatic refresh are outside the first delivery.
 
-Для `worker.toolsets` действуют только слои `default` и явные `runtimeLabels`
-Run. Объект одного ref — атомарная настройка. В одном слое разные refs
-объединяются, одинаковые нормализованные значения deduplicate, разные значения
-одного ref дают стабильный конфликт с ref/path и источниками. Порядок labels
-не определяет победителя. Явный Run-слой целиком заменяет значение default.
+## Merge, bindings and Run snapshot
 
-Отсутствие ref наследует значение; `ref: null` очищает его; `toolsets: {}` не
-изменяет слой и нормализуется в отсутствие секции; `toolsets: null` запрещён.
-Очистка обязательной конфигурации приводит к ошибке создания Run. Конфликты
-проверяются по всем выбранным labels до проекции на отдельного агента.
+Only `default` and explicit Run `runtimeLabels` layers apply to `worker.toolsets`.
+The object for one ref is an atomic setting.
 
-Labels с непустой toolsets patch, включая очистку, нельзя назначать физическому
-Runtime Agent. Переназначение binding уже назначенного агентам label на такой
-документ также отклоняется под существующими locks/revision checks. Смешанный
-config подчиняется тому же правилу. Resolver дополнительно отвергает такой
-agent layer. Существующие правила proxy/telemetry не меняют выбранные Run
-endpoint и credential; физический маршрут может отличаться по текущей политике.
+| Input | Result |
+| --- | --- |
+| Ref absent from the Run layer | Inherit the value from `default` |
+| Object for a ref in the Run layer | Replace that ref's entire `default` value; object fields are not merged |
+| `ref: null` | Clear the ref's value in this layer |
+| `toolsets: {}` | Leave the layer unchanged; normalize to an absent section |
+| `toolsets: null` | Reject as invalid |
+| Different refs in labels of one layer | Combine into one map |
+| Identical normalized values for one ref in labels of one layer | Merge without conflict, preserving sources |
+| Different values for one ref in labels of one layer, including object vs `null` | Produce a stable conflict identifying ref/path and sources |
 
-При Run-create собирается объединение требований всех AgentTemplate workflow,
-включая поздние стадии. В транзакции фиксации bindings проверяются merge,
-обязательные конфигурации и credential kinds по тем же exact refs, которые
-будут записаны в Run snapshot. Сетевых обращений к MCP в этой транзакции нет.
-Используется существующее хранение immutable документов, без новой таблицы
-конфигураций или копии bodies в Run. Credentials входят в существующие holds.
+Label order does not determine a winner. Conflicts are checked across all selected
+labels before projecting onto an individual agent. If required configuration is
+missing after merging layers, Run creation fails.
 
-Повтор принятого idempotent запроса возвращает исходный Run до проверки текущих
-aliases. Действие Repeat создаёт новый Run и сохраняет существующее review
-изменившихся/удалённых bindings. Изменение default или label после Run-create
-не меняет настройки уже созданного Run, его поздних стадий и replacement
-allocations. Pinning endpoint не фиксирует реализацию удалённого сервера.
+Labels with a nonempty toolsets patch, including clearing, cannot be assigned to
+a physical Runtime Agent. Rebinding a label already assigned to agents to such a
+document is also rejected under existing locks/revision checks. Mixed configs
+follow the same rule. The resolver additionally rejects such an agent layer.
+Existing proxy/telemetry rules do not change Run-selected endpoint and credential;
+the physical route may differ under current policy.
 
-Audit переиспользует baseline/credential holds и проверяет требования всех
-своих workflow bindings. До появления доверенной классификации generic MCP
-имеет unknown external effects и несовместим с Audit-профилями, требующими
-классификации/согласования действий. Это явная compatibility reason через
-существующий admission, а не новый approval flow. MCP annotations и имена не
-считаются доверенной классификацией. Native Audit поведение сохраняется.
+Run creation collects the union of requirements from all Workflow AgentTemplates,
+including later Stages. Within the binding-pinning transaction, validate merge,
+required configurations and credential kinds using the same exact refs that will
+be stored in the Run snapshot. No network calls to MCP occur in that transaction.
+Reuse existing immutable-document storage, without a new configuration table or
+copies of document bodies in the Run. Credentials participate in existing holds.
 
-## Allocation и capabilities
+Replay of an accepted idempotent request returns the original Run before checking
+current aliases. Repeat creates a new Run and retains existing review of changed
+or deleted bindings. Changing a default or label after Run creation does not alter
+the existing Run, its later Stages or replacement allocations. Pinning an endpoint
+does not pin the remote server implementation.
 
-Общий pure resolver карты toolsets используется при Run-create и placement.
-Для allocation вычисляется пересечение effective карты с refs AgentTemplate
-до загрузки secrets и вычисления требований этого allocation. Дополнительные
-известные настройки в Run не доставляются чужим агентам. Existing snapshot
-может консервативно удерживать все выбранные credential references.
+Audit reuses baseline/credential holds and validates requirements across all its
+workflow bindings. Until trusted classification exists, generic MCP has unknown
+external effects and is incompatible with Audit profiles requiring action
+classification/approval. This is an explicit compatibility reason through existing
+admission, not a new approval flow. MCP annotations and names are not trusted
+classifications. Native Audit behavior is preserved.
 
-Расширяется существующий `AllocationSpec.runtimeSettings.toolsets`. В private
-значении для MCP находятся endpoint, materialized secret headers, CA и timeouts.
-Публичные и сохраняемые projections содержат только безопасные refs/origins.
-`origins.toolsets[ref]` использует существующий формат происхождения значения.
-Default/run pin refs и binding revisions сохраняются; при dedup источники
-отражаются детерминированно, без создания искусственного precedence.
+## Allocation and capabilities
 
-Предлагаемая новая capability:
+The shared pure toolsets-map resolver is used at Run creation and placement.
+For an allocation, intersect the effective map with AgentTemplate refs before
+loading secrets and computing that allocation's requirements. Additional known
+settings in the Run are not delivered to unrelated agents. The existing snapshot
+may conservatively retain all selected credential references.
+
+Add `toolsets` to the existing `AllocationSpec.runtimeSettings`.
+For MCP, the private value contains endpoint, materialized secret headers, CA
+and timeouts. Public and stored projections contain only safe refs/origins.
+`origins.toolsets[ref]` uses the existing value-provenance format.
+Default/run pin refs and binding revisions are preserved; deduplication records
+sources deterministically without inventing precedence.
+
+Proposed new capability:
 
 ```json
 {"ref": "mcp@1", "tools": [], "toolDiscovery": "allocation"}
 ```
 
-Отсутствующее `toolDiscovery` означает прежний `static`, где tools непустой.
-Allocation mode допустим только для соответствующего серверного descriptor и
-локальной factory. Wildcard names и ложный startup inventory запрещены.
-Startup probe проверяет локальную готовность клиента, без пользовательского
-endpoint. До реализации полного ADK пути production factory не объявляет MCP.
-Placement проверяет generic capability, а preparation — реальные selected tools.
-Нужные proxy adapters по-прежнему проходят существующие capability checks.
+Absent `toolDiscovery` means the existing `static` mode, where tools is nonempty.
+Allocation mode is allowed only for a matching Server descriptor and local
+factory. Wildcard names and fabricated startup inventories are forbidden.
+The startup probe checks local client readiness without a user endpoint.
+The production factory must not advertise MCP before the complete ADK path is
+implemented. Placement checks the generic capability; preparation checks actual
+selected tools. Required proxy adapters still pass existing capability checks.
 
-## Runtime: transport, lifecycle и Worker
+## Runtime: transport, lifecycle and Worker
 
-Используется официальный Python MCP SDK с совместимой зафиксированной в uv.lock
-версией и существующий ADK BaseTool. JSON-RPC, initialization, session headers,
-Streamable HTTP JSON/streaming ответы обслуживает SDK. Legacy HTTP+SSE, stdio,
-транспортный fallback и запуск серверных subprocess не реализуются.
+Use the official Python MCP SDK at a compatible version pinned in uv.lock and
+the existing ADK BaseTool. The SDK handles JSON-RPC, initialization, session
+headers and Streamable HTTP JSON/streaming responses. Legacy HTTP+SSE, stdio,
+transport fallback and server subprocess launch are not implemented.
 
-MCP-клиент получает отдельные HTTP state/headers/cookies. При настроенном
-`tool-http` route используется существующая proxy policy и host restrictions.
-Интеграция с SDK не обходит эти проверки через raw underlying AsyncClient и
-не позволяет закрытию MCP-клиента закрыть общий adapter allocation. Redirects
-выключены; CA, запреты внутренних Contractor origins и deadline проверяются и
-для запросов восстановления соединения. Существующие ограничения не заменяются
-общим запретом всех private/local endpoints.
+The MCP client receives separate HTTP state/headers/cookies. A configured
+`tool-http` route uses existing proxy policy and host restrictions. SDK integration
+must not bypass those checks through a raw underlying AsyncClient or allow closing
+the MCP client to close the allocation's shared adapter. Redirects are disabled;
+CA, forbidden internal Contractor origins and deadlines also apply to reconnect
+requests. Existing restrictions are not replaced by a blanket ban on all
+private/local endpoints.
 
-Фабрика создаёт ToolInstance и общего владельца сессии без сетевых ожиданий.
-Сначала allocation принимает ownership через текущий rollback/cleanup path,
-затем выполняется необязательная `prepare(deadline)` фаза, и только после неё
-создаётся Worker. Эквивалентный дизайн допустим при доказанном ownership до
-первого cancellable await; отдельный resource supervisor не требуется.
+The factory creates ToolInstance and a shared session owner without network waits.
+The allocation first takes ownership through the current rollback/cleanup path,
+then runs optional `prepare(deadline)`, and only then creates the Worker.
+An equivalent design is acceptable if ownership before the first cancellable await
+is demonstrated; a separate resource supervisor is unnecessary.
 
-У каждого allocation своя сессия. Выбранные tools одного ref делят owner.
-Owner входит и выходит из SDK async contexts в одной задаче, учитывает in-flight
-calls, имеет идемпотентное закрытие и подчиняется существующим deadlines,
-abort/release/lease-loss fencing. Неподтверждённая очистка не становится
-успешной из-за подавленного SDK исключения. Частичная preparation остаётся
-учтённой до подтверждённого освобождения.
+Each allocation has its own session. Selected tools of one ref share an owner.
+The owner enters and exits SDK async contexts in the same task, tracks in-flight
+calls, closes idempotently and obeys existing deadlines and abort/release/lease-loss
+fencing. Suppressing an SDK exception does not turn unconfirmed cleanup into
+success. Partial preparation remains accounted for until release is confirmed.
 
-Initialization и полный paginated tools/list выполняются с конечными лимитами
-времени, страниц, числа tools, bytes сообщений/описаний/schema и глубины schema.
-Лимиты фиксируются кодом и нормативной спецификацией до включения factory.
-Проверяются missing/duplicate/reserved names, exact allowlist и допустимость
-схем выбранных tools. Произвольные remote schema refs не загружаются.
-Невыбранные tools не становятся model-visible. Схемы/список выбранных tools
-замораживаются на allocation; list-changed не расширяет полномочия.
+Initialization and complete paginated tools/list have finite limits on time,
+pages, tool count, message/description/schema bytes and schema depth. Code and
+normative specifications define these limits before enabling the factory.
+Check missing/duplicate/reserved names, exact allowlists and supported schemas
+for selected tools. Arbitrary remote schema refs are not fetched. Unselected
+tools do not become model-visible. Selected schemas/tool lists are frozen per
+allocation; list-changed cannot expand authority.
 
-BaseTool использует description и JSON Schema выбранного инструмента, owner
-выполняет tools/call. Native callables продолжают проходить через FunctionTool.
-Сохраняются Worker callbacks, tool budgets, metrics, observation/completion
-semantics и tool-free finalizer/summarizer. Native typed effects/evidence не
-выводятся из удалённого имени или текста. Generic MCP под tool@1 отклоняется
-до allocation; параметры model-free native tools не становятся LLM-настройками.
+BaseTool uses the selected tool's description and JSON Schema; the owner performs
+tools/call. Native callables continue through FunctionTool. Worker callbacks,
+tool budgets, metrics, observation/completion semantics and the tool-free
+finalizer/summarizer are preserved. Native typed effects/evidence are not inferred
+from remote names or text. Generic MCP under tool@1 is rejected before allocation;
+model-free native tool parameters do not become LLM settings.
 
-Результаты сохраняют isError, structuredContent и поддерживаемые content blocks
-в bounded представлении. Неподдерживаемые blocks/превышение лимита имеют явный
-исход, без скрытой загрузки URI, потери признака ошибки или неограниченного
-base64 в контексте. Tool business error отличается от transport/protocol error.
-Exact supported schema/content subset и пределы закрепляются V61-001; V61-006
-добавляет fixtures и реализацию, прежде чем объявлять capability.
+Results preserve isError, structuredContent and supported content blocks in a
+bounded representation. Unsupported blocks or limit violations produce explicit
+outcomes, without hidden URI fetching, loss of the error flag or unbounded base64
+in context. Tool business errors differ from transport/protocol errors.
+V61-001 defines the exact supported schema/content subset and bounds; V61-006
+adds fixtures and implementation before advertising the capability.
 
-Setup/discovery можно ограниченно повторить в пределах preparation deadline.
-После неоднозначного tools/call новый POST автоматически не отправляется.
-Восстановление stream и повтор удалённой операции различаются; новая сессия
-сверяет frozen selected schemas. Отмена/закрытие не обещает remote rollback.
-Sampling, prompts, автоматическая загрузка resources и серверные запросы доступа
-к local roots не включаются. Session IDs и credentials не попадают в logs.
+Setup/discovery may retry within bounded preparation deadlines. After an
+ambiguous tools/call, no new POST is sent automatically. Stream recovery differs
+from repeating a remote operation; a new session rechecks frozen selected schemas.
+Cancellation/closure does not promise remote rollback. Sampling, prompts, automatic
+resource fetching and server requests for local-root access are not enabled.
+Session IDs and credentials do not appear in logs.
 
-## Public API, UI и наблюдаемость
+## Public API, UI and observability
 
-Workflow detail получает вычисляемые `toolsetConfigurationRequirements`: ref,
-required, объединение tools и bounded consumers (stage/agent). Label picker
-получает безопасное покрытие refs (configured/cleared), `valueDigest`
-нормализованного non-secret значения каждого configured ref и изменяемые секции,
-с точным config ref и binding revision. Digest значения исключает metadata
-документа: одинаковые settings в разных RuntimeConfig должны распознаваться как
-одинаковые. Формы не загружают по полному config
-для каждого label; projection/query count остаются bounded. Endpoint и secret
-values для выбора/сопоставления не нужны. Источником записи остаются текущие APIs.
+Workflow detail gains computed `toolsetConfigurationRequirements`: ref, required,
+a union of tools and bounded consumers (stage/agent). The label picker receives
+safe ref coverage (configured/cleared), a `valueDigest` for each configured ref's
+normalized non-secret value, modified sections, an exact config ref and binding
+revision. The value digest excludes document metadata: identical settings in
+different RuntimeConfigs must be recognized as identical. Forms do not fetch a
+full config for every label; projection/query count stays bounded. Endpoint and
+secret values are unnecessary for selection/comparison. Existing APIs remain
+the write surface.
 
-Форма Run показывает требуемые toolsets, инструменты/потребителей, выбранный
-профиль, наследование default, отсутствие настройки и конфликт. В draft/POST
-хранится только существующий runtimeLabels. Общий профиль выбирается один раз;
-смешанные LLM/telemetry эффекты показываются, а не молча отбрасываются.
+The Run form shows required toolsets, tools/consumers, selected profile, inherited
+defaults, missing settings and conflicts. Draft/POST stores only existing
+runtimeLabels. The shared profile is selected once; mixed LLM/telemetry effects
+are displayed rather than silently discarded.
 
-Создание подключения использует существующие Operations mutations: при
-необходимости create credential, publish RuntimeConfig, create binding, select
-label. Каждый шаг имеет устойчивую idempotency identity; после сбоя сохраняются
-полученные refs и повторяется незавершённый шаг. Уже существующий общий label не
-переназначается неявно. Незавершённая публикация не приводит к удалению чужих
-ресурсов. Secrets не пишутся в URL/localStorage/Run draft и не читаются обратно.
-Существующая глобальная Operations/auth модель сохраняется.
+Connection creation uses existing Operations mutations: create a credential if
+needed, publish RuntimeConfig, create a binding, select a label. Each step has a
+stable idempotency identity; after failure, obtained refs are preserved and only
+the unfinished step is retried. An existing shared label is not implicitly rebound.
+Incomplete publication does not delete someone else's resources. Secrets are not
+written to URLs/localStorage/Run drafts or read back. The current global
+Operations/auth model is preserved.
 
-Первоначально используется специализированная MCP-форма в существующем UI
-каркасе. Новая универсальная schema-form платформа и отдельный сетевой
-preflight job/RPC не требуются. Фактическую доступность проверяет runtime при
-preparation; UI показывает её честный статус, без имитации browser probe.
+Initially, use a dedicated MCP form within the existing UI framework. No new
+universal schema-form platform or separate network preflight job/RPC is required.
+Runtime checks actual availability during preparation; the UI reports that state
+accurately rather than simulating a browser probe.
 
-Диагностика различает missing/conflicting config, incompatible credential,
-unsupported capability, connect/auth/schema/missing-tool ошибки, tool business
-error, timeout/ambiguous call и cleanup unconfirmed. Происхождение настроек,
-выбранные имена, digest выбранных схем и bounded timings/counters безопасны;
-endpoint/session/credential plaintext не добавляются в метрики как labels.
+Diagnostics distinguish missing/conflicting config, incompatible credentials,
+unsupported capability, connect/auth/schema/missing-tool errors, tool business
+errors, timeout/ambiguous calls and unconfirmed cleanup. Setting provenance,
+selected names, selected-schema digests and bounded timings/counters are safe;
+endpoint/session/credential plaintext is not added as metric labels.
 
-## Задачи и зависимости
+## Tasks and dependencies
 
-| ID | Результат | Новые зависимости |
+| ID | Outcome | New dependencies |
 | --- | --- | --- |
-| V61-001 | Нормативные contracts, схемы, typed models и golden fixtures | — |
-| V61-002 | RuntimeConfig normalization/merge, MCP credentials и reference lifecycle | 001 |
-| V61-003 | Run/Audit pinning, allocation projection, secret materialization и origins | 002, 004 |
-| V61-004 | Dynamic tool discovery, template/placement validation и Audit admission | 001 |
-| V61-005 | Allocation-owned MCP transport/session, proxy integration и подготовка/cleanup | 003 |
-| V61-006 | MCP ToolsetFactory, ADK BaseTool, exact selection, вызовы и accounting | 005 |
+| V61-001 | Normative contracts, schemas, typed models and golden fixtures | — |
+| V61-002 | RuntimeConfig normalization/merge, MCP credentials and reference lifecycle | 001 |
+| V61-003 | Run/Audit pinning, allocation projection, secret materialization and origins | 002, 004 |
+| V61-004 | Dynamic tool discovery, template/placement validation and Audit admission | 001 |
+| V61-005 | Allocation-owned MCP transport/session, proxy integration and preparation/cleanup | 003 |
+| V61-006 | MCP ToolsetFactory, ADK BaseTool, exact selection, calls and accounting | 005 |
 | V61-007 | Public requirements/label coverage/provenance projections | 003 |
-| V61-008 | Operations и Run UI, создание/выбор подключения и draft recovery | 007 |
-| V61-009 | Сквозной release gate, примеры и документация | 006, 008 |
+| V61-008 | Operations and Run UI, connection creation/selection and draft recovery | 007 |
+| V61-009 | End-to-end release gate, examples and documentation | 006, 008 |
 
-Детальные depends_on также указывают необходимые завершённые задачи прежних
-серий. Очерёдность внутри V61: 001 → (002, 004) → 003 → (005 → 006,
-007 → 008) → 009. Это не меняет приоритеты других очередей в tasks/index.yml.
-Все V61 задачи остаются pending до начала своей реализации.
+Detailed depends_on also lists required completed tasks from earlier series.
+V61 order: 001 → (002, 004) → 003 → (005 → 006, 007 → 008) → 009.
+This does not change other queues' priorities in tasks/index.yml.
+All V61 tasks remain pending until their implementation begins.
 
-## Критерий поставки
+## Delivery criterion
 
-Контролируемый локальный MCP fixture и scripted model проводят обычный Run
-через реальные Server/PostgreSQL/Scheduler/private allocation/Runtime/ADK
-границы. Два агента используют одну pinned конфигурацию, разные allowlists и
-отдельные сессии; третий native агент не получает MCP settings или secrets.
-Изменение binding не влияет на позднюю стадию/replacement allocation исходного
-Run; Repeat нового Run показывает изменение и фиксирует новый config.
+A controlled local MCP fixture and scripted model execute an ordinary Run through
+real Server/PostgreSQL/Scheduler/private allocation/Runtime/ADK boundaries.
+Two agents use one pinned configuration, different allowlists and separate
+sessions; a third native agent receives no MCP settings or secrets. Rebinding
+does not affect a later Stage/replacement allocation of the original Run;
+Repeat for a new Run shows the change and pins the new config.
 
-Фикстуры покрывают JSON и streaming transport, pagination, missing/duplicate
-tools, несовместимую schema, auth/proxy/TLS failure, oversized content,
-неоднозначный call, cancellation во время setup/call, lease loss, failed prepare,
-concurrent close и неподтверждённый cleanup. Браузерный сценарий проверяет
-создание подключения, конфликт и восстановление между шагами публикации.
-Регрессионный native Run и model-free Worker проходят со старыми настройками.
+Fixtures cover JSON and streaming transport, pagination, missing/duplicate tools,
+incompatible schemas, auth/proxy/TLS failures, oversized content, ambiguous calls,
+cancellation during setup/call, lease loss, failed prepare, concurrent close and
+unconfirmed cleanup. The browser journey checks connection creation, conflicts
+and recovery between publication steps. A regression native Run and model-free
+Worker pass with the old settings.
 
-V61-009 добавляет `make test-toolset-runtime-configuration-release` с isolated
-database, MCP fixture и browser prerequisites. Отсутствующий prerequisite,
-невыбранный обязательный case или skipped mandatory case делает gate неуспешным.
-Внешний MCP, платный LLM и production deployment для подтверждения не нужны.
-Evidence точно описывает границы, исполненные cases и отсутствие утечек ресурсов.
+V61-009 adds `make test-toolset-runtime-configuration-release` with an isolated
+database, MCP fixture and browser prerequisites. A missing prerequisite,
+unselected required case or skipped mandatory case fails the gate. External MCP,
+a paid LLM and production deployment are unnecessary for verification. Evidence
+precisely records boundaries, executed cases and absence of resource leaks.
 
-Развёртывание: обновить schema/server, затем runtime с реализованной capability,
-затем включить новые шаблоны и подключения. Новый сервер принимает старые static
-registrations; старые runtime не получают allocations с неизвестными полями.
-Rollback после публикации новых документов требует сохранения совместимого
-reader либо явного отключения/дренирования новых запусков; старый бинарь не
-объявляется совместимым с документами, которых он не понимает.
+Rollout: update schema/server, then Runtime with the implemented capability,
+then enable new templates and connections. The new Server accepts old static
+registrations; old Runtimes do not receive allocations with unknown fields.
+Rollback after publishing new documents requires retaining a compatible reader
+or explicitly disabling/draining new runs; an old binary is not declared
+compatible with documents it cannot understand.
 
-## Основные точки переиспользования
+## Main reuse points
 
-- `internal/config/descriptors.go`, `template.go`: контракты toolsets и selections.
+- `internal/config/descriptors.go`, `template.go`: toolset and selection contracts.
 - `internal/runtimeconfig`: immutable versions, normalization, merge, bindings,
-  transaction pinning, credential references и origins.
-- `internal/credentials`: encrypted write-only store и usage barriers.
-- `internal/runservice`, `auditservice`: единая фиксация запуска и Audit baseline.
-- `internal/controlplane`, `scheduler`: placement, allocation и materialization.
+  transaction pinning, credential references and origins.
+- `internal/credentials`: encrypted write-only store and usage barriers.
+- `internal/runservice`, `auditservice`: shared Run pinning and Audit baseline.
+- `internal/controlplane`, `scheduler`: placement, allocation and materialization.
 - `runtime/src/contractor_runtime/factories.py`, `allocation`: ownership/cleanup.
-- `runtime/src/contractor_runtime/adapters/http_proxy.py`: HTTP route и guards.
-- `runtime/src/contractor_runtime/worker`, `llm/openai.py`: ADK и JSON Schema.
+- `runtime/src/contractor_runtime/adapters/http_proxy.py`: HTTP route and guards.
+- `runtime/src/contractor_runtime/worker`, `llm/openai.py`: ADK and JSON Schema.
 - `ui/src/routes/operations`, `routes/workflows/run-form.tsx`, `run-drafts`:
-  существующие CRUD, dialogs, labels и idempotent draft lifecycle.
+  existing CRUD, dialogs, labels and idempotent draft lifecycle.
 
-Протокольные источники: [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
-и [официальный Python SDK](https://github.com/modelcontextprotocol/python-sdk).
-Версия SDK и фактически поддерживаемые protocol/schema/content возможности
-фиксируются контрактными тестами; примеры из latest SDK не подменяют uv.lock.
+Protocol sources: [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+and the [official Python SDK](https://github.com/modelcontextprotocol/python-sdk).
+The SDK version and actual supported protocol/schema/content features are pinned
+by contract tests; latest-SDK examples do not supersede uv.lock.

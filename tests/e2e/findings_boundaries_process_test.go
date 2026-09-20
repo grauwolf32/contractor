@@ -74,7 +74,7 @@ func TestFindingsReaderBoundariesAcrossProcesses(t *testing.T) {
 		}
 		t.Run("inaccessible-input", func(t *testing.T) {
 			missingRevision := "missing-revision"
-			body, _ := json.Marshal(map[string]any{"workflow": "findings-review@1", "artifacts": map[string]artifactRef{
+			body, _ := json.Marshal(map[string]any{"workflow": "findings-review@2", "artifacts": map[string]artifactRef{
 				"findings": {Namespace: "projects", Name: "not-owned-or-missing", Revision: &missingRevision},
 			}})
 			request, _ := http.NewRequest(http.MethodPost, h.baseURL+"/v1/runs", bytes.NewReader(body))

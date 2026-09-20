@@ -108,6 +108,29 @@ func TestRunRepeatDraftRecoversLegacyLineageWithoutGuessingOverrides(t *testing.
 	}
 }
 
+func TestRunRepeatDraftBlocksRetiredDefaultWorkflow(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	run := queryRun("run-retired", "user-1", runstore.RunSucceeded, time.Now().UTC())
+	run.WorkflowName, run.WorkflowVersion = "artifact-copy", "1"
+	fixture.runs.runs[run.RunID] = run
+
+	response := serveQuery(t, fixture.handler, "/v1/runs/run-retired/repeat-draft")
+	var repeat runRepeatDraftResponse
+	decodeQueryResponse(t, response, &repeat)
+	if response.Code != http.StatusOK || repeat.Workflow.Name != "artifact-copy" || repeat.Workflow.Version != "1" {
+		t.Fatalf("retired identity was replaced: status %d, %+v", response.Code, repeat)
+	}
+	blocked := false
+	for _, notice := range repeat.Notices {
+		if notice.Code == "workflow_unavailable" && notice.Severity == "blocking" {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("Repeat did not block a retired Workflow: %+v", repeat)
+	}
+}
+
 func TestRunRepeatDraftPreservesAuditAuthorityAndTerminalBoundary(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	audit := queryRun("run-audit", "user-1", runstore.RunFailed, time.Now().UTC())

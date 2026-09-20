@@ -6,7 +6,7 @@ kind: Workflow
 
 metadata:
   name: router-openapi
-  version: "1"
+  version: "2"
 
 spec:
   parameters:
@@ -41,10 +41,10 @@ spec:
       planner: router@1
       agents:
         reviewer:
-          template: openapi_validator@1
+          template: openapi_validator@3
           namespace: review
         builder:
-          template: openapi_builder@1
+          template: openapi_builder@3
           namespace: openapi
       context:
         artifacts:

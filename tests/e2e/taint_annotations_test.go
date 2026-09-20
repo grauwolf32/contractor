@@ -425,7 +425,7 @@ func createTaintAnnotationsRun(
 ) string {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"workflow": "taint-trace-from-workspace@2",
+		"workflow": "taint-trace-from-workspace@4",
 		"parameters": map[string]string{
 			"target": target, "objective": "Trace the selected request flow",
 			"context": "Use only evidence in the supplied workspace",

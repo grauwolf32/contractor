@@ -252,7 +252,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPBodyArtifact(t, operations, publicClient, publicBaseURL, httpInitial.RunID)
 
 	oldRun := createHTTPCaidoRun(
-		operations, "security-analysis@2", "http-caido-old-run", "target.example",
+		operations, "security-analysis@4", "http-caido-old-run", "target.example",
 		[]string{"caido"},
 	)
 	select {
@@ -315,7 +315,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	)
 
 	newRun := createHTTPCaidoRun(
-		operations, "security-analysis@2", "http-caido-new-run", "target.example",
+		operations, "security-analysis@4", "http-caido-new-run", "target.example",
 		[]string{"caido"},
 	)
 	newStatus := waitForRunAcross(

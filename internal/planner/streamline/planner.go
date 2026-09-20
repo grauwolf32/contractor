@@ -247,21 +247,13 @@ func (p *streamlinePlanner) ExecutionReport() (contracts.ExecutionReport, bool) 
 func (p *streamlinePlanner) newRootAgent(
 	state *executionState, tools []tool.Tool, allowed map[string]struct{},
 ) (agent.Agent, error) {
-	// Legacy factories without ModelAccess retain their deterministic default.
-	legacyTemperature := float32(0)
-	temperature := &legacyTemperature
-	if p.invocation.ModelAccess != nil {
-		temperature = nil
-		if selected := p.invocation.ModelAccess.ModelPolicy.Temperature; selected != nil {
-			value := float32(*selected)
-			temperature = &value
-		}
+	var temperature *float32
+	if selected := p.invocation.ModelAccess.ModelPolicy.Temperature; selected != nil {
+		value := float32(*selected)
+		temperature = &value
 	}
 	instrumentation := planner.InvocationInstrumentation(p.invocation)
-	modelAlias := "configured-model"
-	if p.invocation.ModelAccess != nil {
-		modelAlias = p.invocation.ModelAccess.ModelPolicy.Model
-	}
+	modelAlias := p.invocation.ModelAccess.ModelPolicy.Model
 	var modelSpanMu sync.Mutex
 	var modelSpan telemetry.PlannerSpan
 	startModelSpan := func(request *model.LLMRequest) {

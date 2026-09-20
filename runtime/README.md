@@ -93,7 +93,7 @@ one prepared owner and match the allocation's trusted completion contract.
 
 ## Local Podman workflow
 
-The sample `podman-python-check@1` uses `podman_python_fixer@1`: read and fix a
+The sample `podman-python-check@2` uses `podman_python_fixer@2`: read and fix a
 small Python source, execute its offline checker, and explicitly publish
 `builder/check_report` as the ordinary JSON workflow output `report`. It uses
 local **direct** storage, not an overlay, and does not automatically export files.
@@ -154,7 +154,7 @@ sample_bundle_dir=$(mktemp -d /tmp/contractor-podman-source.XXXXXX)
 printf '%s\n' "$sample_bundle_dir/source.zip"
 ```
 
-Start/reload the Server with the `configs` catalog, select `podman-python-check@1`
+Start/reload the Server with the `configs` catalog, select `podman-python-check@2`
 in the Run form and upload this ZIP as `source` (`application/zip`). The Server
 resolves the exact input Artifact revision before allocation. The ordinary
 `worker@1` model policy uses the configured `local-litellm@1` gateway and

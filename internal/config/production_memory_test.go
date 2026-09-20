@@ -7,15 +7,14 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 type memoryCatalogEntry struct {
-	Legacy string `json:"legacy"`
-	Active string `json:"active"`
+	Retired string `json:"retired"`
+	Active  string `json:"active"`
 }
 type memoryCatalog struct {
+	SchemaVersion int                  `json:"schema_version"`
 	Templates     []memoryCatalogEntry `json:"templates"`
 	Workflows     []memoryCatalogEntry `json:"workflows"`
 	AuditProfiles []memoryCatalogEntry `json:"audit_profiles"`
@@ -30,40 +29,31 @@ func repositoryMemoryCatalog(t *testing.T) memoryCatalog {
 	return catalog
 }
 
-func TestProductionMemoryCatalogPreservesDomainContracts(t *testing.T) {
+func TestProductionMemoryCatalogIsClosedAndRejectsRetiredSelectors(t *testing.T) {
 	t.Parallel()
 	catalog := repositoryMemoryCatalog(t)
-	if len(catalog.Templates) != 20 || len(catalog.Workflows) != 16 || len(catalog.AuditProfiles) != 5 {
+	if catalog.SchemaVersion != 2 || len(catalog.Templates) != 20 || len(catalog.Workflows) != 16 || len(catalog.AuditProfiles) != 5 {
 		t.Fatalf("incomplete Memory inventory: %+v", catalog)
 	}
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	templates := map[string]string{}
+	templates := map[string]bool{}
 	for _, entry := range catalog.Templates {
-		if templates[entry.Legacy] != "" {
-			t.Fatalf("duplicate legacy role %s", entry.Legacy)
+		if templates[entry.Active] {
+			t.Fatalf("duplicate active role %s", entry.Active)
 		}
-		templates[entry.Legacy] = entry.Active
-		before, err := snapshot.AgentTemplate(entry.Legacy)
+		templates[entry.Active] = true
+		if _, err := snapshot.AgentTemplate(entry.Retired); err == nil {
+			t.Fatalf("retired template %s: %v", entry.Retired, err)
+		}
+		template, err := snapshot.AgentTemplate(entry.Active)
 		if err != nil {
 			t.Fatal(err)
 		}
-		after, err := snapshot.AgentTemplate(entry.Active)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if before.Ref.Version == after.Ref.Version || before.Ref.Digest == after.Ref.Digest {
-			t.Fatalf("%s did not advance identity/digest", entry.Active)
-		}
-		domain := []contracts.ToolsetSelection{}
+		assertDigest(t, template.Ref.Digest)
+		assertDigest(t, template.Instructions.Digest)
 		selected := 0
-		for _, toolset := range before.Toolsets {
-			if toolset.Ref.ToolsetID == "memory-tools" {
-				t.Fatalf("legacy %s gained Memory", entry.Legacy)
-			}
-		}
-		for _, toolset := range after.Toolsets {
+		for _, toolset := range template.Toolsets {
 			if toolset.Ref.ToolsetID != "memory-tools" {
-				domain = append(domain, toolset)
 				continue
 			}
 			selected++
@@ -77,74 +67,83 @@ func TestProductionMemoryCatalogPreservesDomainContracts(t *testing.T) {
 		if selected != 1 {
 			t.Fatalf("%s selects Memory %d times", entry.Active, selected)
 		}
-		if !strings.HasPrefix(after.Instructions.Text, strings.TrimSpace(before.Instructions.Text)) {
-			t.Fatalf("%s lost original domain instructions", entry.Active)
-		}
 		for _, phrase := range []string{"untrusted data", "immutable objectives", "32 KiB", "128 notes", "memory_changed", "new Run starts empty", "not result artifacts"} {
-			if !strings.Contains(after.Instructions.Text, phrase) {
+			if !strings.Contains(template.Instructions.Text, phrase) {
 				t.Errorf("%s lacks %q", entry.Active, phrase)
 			}
 		}
-		after.Toolsets = domain
-		after.Ref = before.Ref
-		after.Instructions = before.Instructions
-		if !reflect.DeepEqual(before, after) {
-			t.Fatalf("%s changed domain capabilities, completion or policy", entry.Active)
-		}
 	}
-	workflows := map[string]string{}
+	workflows := map[string]bool{}
 	for _, entry := range catalog.Workflows {
-		workflows[entry.Legacy] = entry.Active
-		before, err := snapshot.Workflow(entry.Legacy)
+		if workflows[entry.Active] {
+			t.Fatalf("duplicate active Workflow %s", entry.Active)
+		}
+		workflows[entry.Active] = true
+		if _, err := snapshot.Workflow(entry.Retired); err == nil {
+			t.Fatalf("retired Workflow %s: %v", entry.Retired, err)
+		}
+		workflow, err := snapshot.Workflow(entry.Active)
 		if err != nil {
 			t.Fatal(err)
 		}
-		after, err := snapshot.Workflow(entry.Active)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if before.Ref.Version == after.Ref.Version {
-			t.Fatalf("Workflow %s retained its old version", entry.Active)
-		}
-		for name, stage := range after.Stages {
-			old := before.Stages[name]
+		for name, stage := range workflow.Stages {
 			for role, binding := range stage.Agents {
-				prior := old.Agents[role]
-				oldRef := prior.Template.Ref.TemplateID + "@" + prior.Template.Ref.Version
-				newRef := binding.Template.Ref.TemplateID + "@" + binding.Template.Ref.Version
-				if templates[oldRef] != newRef {
-					t.Fatalf("%s/%s/%s selects %s, want %s", entry.Active, name, role, newRef, templates[oldRef])
+				ref := binding.Template.Ref.TemplateID + "@" + binding.Template.Ref.Version
+				if !templates[ref] {
+					t.Fatalf("%s/%s/%s selects a template outside the active catalog: %s", entry.Active, name, role, ref)
 				}
-				binding.Template = prior.Template
-				stage.Agents[role] = binding
 			}
-			after.Stages[name] = stage
-		}
-		after.Ref = before.Ref
-		if !reflect.DeepEqual(before, after) {
-			t.Fatalf("%s changed workflow behavior beyond versioned templates", entry.Active)
 		}
 	}
 	for _, entry := range catalog.AuditProfiles {
-		before, err := snapshot.AuditProfile(entry.Legacy)
+		if _, err := snapshot.AuditProfile(entry.Retired); err == nil {
+			t.Fatalf("retired AuditProfile %s: %v", entry.Retired, err)
+		}
+		profile, err := snapshot.AuditProfile(entry.Active)
 		if err != nil {
 			t.Fatal(err)
 		}
-		after, err := snapshot.AuditProfile(entry.Active)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for role, binding := range after.Workflows {
-			prior := before.Workflows[role]
-			if binding.Workflow.Ref.Name+"@"+binding.Workflow.Ref.Version != workflows[prior.Workflow.Ref.Name+"@"+prior.Workflow.Ref.Version] {
-				t.Fatalf("%s/%s did not select its Memory Workflow", entry.Active, role)
+		for role, binding := range profile.Workflows {
+			ref := binding.Workflow.Ref.Name + "@" + binding.Workflow.Ref.Version
+			if !workflows[ref] {
+				t.Fatalf("%s/%s selects a Workflow outside the active catalog: %s", entry.Active, role, ref)
 			}
-			binding.Workflow = prior.Workflow
-			after.Workflows[role] = binding
 		}
-		after.Ref = before.Ref
-		if !reflect.DeepEqual(before, after) {
-			t.Fatalf("%s changed Audit obligations", entry.Active)
-		}
+	}
+}
+
+func TestRetiredCatalogSelectorsRemainUsableOnlyFromPinnedSnapshots(t *testing.T) {
+	t.Parallel()
+	fixture := mustLoad(t, filepath.Join("..", "..", "testdata", "configs"), MVPDescriptors())
+	workflow, err := fixture.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := fixture.AuditProfile("source-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflowJSON, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileJSON, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	if _, err := current.ResolveRunWorkflow(t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, nil); err == nil {
+		t.Fatalf("new Run silently resolved retired Workflow: %v", err)
+	}
+	if _, err := current.AuditProfile("source-checklist@1"); err == nil {
+		t.Fatalf("new Audit silently resolved retired profile: %v", err)
+	}
+	decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(workflowJSON)
+	if err != nil || !reflect.DeepEqual(workflow, decodedWorkflow) {
+		t.Fatalf("pinned Workflow changed after catalog retirement: %v", err)
+	}
+	decodedProfile, err := DecodeResolvedAuditProfileSnapshot(profileJSON)
+	if err != nil || !reflect.DeepEqual(profile, decodedProfile) {
+		t.Fatalf("pinned AuditProfile changed after catalog retirement: %v", err)
 	}
 }

@@ -70,7 +70,7 @@ func TestWorkflowQueriesRejectInvalidParameters(t *testing.T) {
 
 func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
-	resolved := repositoryWorkflow(t, "openapi-from-workspace@5")
+	resolved := repositoryWorkflow(t, "openapi-from-workspace@7")
 	detail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
@@ -98,7 +98,7 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 
 func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
-	resolved := repositoryWorkflow(t, "likec4-from-workspace@5")
+	resolved := repositoryWorkflow(t, "likec4-from-workspace@7")
 	skillDetail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if skillDetail.Code != http.StatusOK {
 		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())

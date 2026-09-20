@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V62-001
+title: Specify Audit preparation and explicit Workflow data contracts
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V25-001, V25-011, V39-007]
+languages: [go, json, yaml, openapi, markdown]
+goal: >-
+  Define an opt-in Audit-level prepare phase and unambiguous inventory,
+  assessment snapshot, retained dependency and proposed-check routing contracts
+  before enabling their execution.
+context:
+  authority: User requested task decomposition for preparation, generated inventory, result snapshots and Workflow composition on 2026-09-20.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification:
+    - docs/spec/19-audits.md
+    - docs/spec/03-artifact-plane.md
+    - docs/spec/25-audit-worker-finalization.md
+    - docs/spec/33-autonomous-pentest-audits.md
+  compatibility: Existing profiles keep start-time inventory, same-round retained-output, default check routing and identical old canonical bytes/digests.
+scope:
+  in:
+    - Specify prepare role kind, Audit-level execution identity, bounded attempts, phase transitions and valid absent-currentRound projections.
+    - Specify baseline pinning before preparation and separate immutable derived artifacts without rewriting original input or scope provenance.
+    - Fix explicit inventory-source selection and prepare-output, round-results and retained-dependency input schemas with legal consumers and execution scopes.
+    - Define round snapshot contents, result selection, evidence materialization, analyst revision pins, finite limits and partitioning or explicit overflow behavior.
+    - Align generic proposedChecks routing and exact item dependency manifests with specification 33 without implementing pentest-specific policies.
+    - Define pause, deadline, cancellation, deletion, recovery, failure, zero-item inventory and cumulative budget semantics before and after Round creation.
+    - Add strict schema/Go fixtures, public contract types and profile validation with unsupported execution capability gating until dependent tasks land.
+  out:
+    - Enable prepare dispatch, publish a runnable new profile, add finalize or change existing authorization and Scheduler semantics.
+deliverables:
+  - path: docs/spec/19-audits.md
+    description: Normative lifecycle and composition contracts with valid/invalid authoring examples and failure outcomes.
+  - path: api/testdata/audit-composition
+    description: New positive, boundary, invalid and old-snapshot compatibility fixtures selected by executable tests.
+  - path: internal/config
+    description: Typed profile extensions, strict validation and canonical compatibility tests.
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Explicit public preparation/currentRound/provenance shapes and synchronized generated clients and strict parsers.
+requirements:
+  - id: R1
+    text: Role kind and declared source types determine behavior; names, labels and model output never select authority or arbitrary Workflows.
+  - id: R2
+    text: Preserve legacy sourceInput and omit new absent fields; reject conflicting inventory sources, cycles, later-phase inputs, ambiguous check results and incompatible media types.
+  - id: R3
+    text: Reuse existing Audit budgets and record exact finite limits for new collections and schemas; no implementation-facing first-release contract remains unresolved.
+acceptance_criteria:
+  - id: A1
+    text: Normative examples cover the full source-to-OpenAPI-to-inventory chain, legacy profiles, legal dependencies and every control transition before a Round exists.
+  - id: A2
+    text: Strict executable fixtures reject invalid sources, scopes, routes and limits while all existing profile snapshots retain their canonical bytes and digests.
+  - id: A3
+    text: Public API models and clients represent preparation truthfully; incomplete capabilities cannot appear runnable and all existing catalog contracts remain valid.
+tests:
+  - command: go test ./internal/config ./internal/contracts ./internal/auditdomain ./internal/auditservice
+    covers: [A1, A2, A3]
+  - command: make verify-public-api ui-generate-check ui-typecheck test-config
+    covers: [A2, A3]
+  - command: git diff --check
+    covers: [A1]
+verification_requirements:
+  - Review the transition/input-source matrices and confirm each negative contract is selected by a test, not only described in prose.
+  - Reconcile specification 33 references without enabling or claiming its unimplemented pentest capabilities.

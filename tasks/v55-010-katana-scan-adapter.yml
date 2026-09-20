@@ -98,6 +98,53 @@ progress:
       and staged diff remained byte-identical. Retained private integration
       snapshots and merge evidence under .local/evidence/v55-010/.
 remaining: []
+demo_deployment:
+  status: completed
+  requested_at: 2026-09-20
+  completed_at: 2026-09-20
+  revision: 1d66119636bd13578be24799d1ea70a7fb8eda97
+  release: .local/demo/releases/main-1d661196-20260920T123837Z
+  evidence: tasks/evidence/v55-010-demo.json
+  smoke_run: run_7d338556c85815d45a5363408920a9bb
+  progress:
+    - >-
+      User requested the demo restart with Katana. Preparing a pinned current-main
+      Server/Runtime release and rebuilding UI while preserving the 18 exact UI
+      files already deployed by the parallel Evals update. The tracked main
+      snapshot includes the newer Evals fixes and legacy-configuration cleanup.
+      Both Runtime slots are idle; queue is enabled and empty, all 185 existing
+      Runs and 11 Audits are terminal. Captured private configuration/secrets/unit
+      backups; preparing database restore preflight before service cutover.
+    - >-
+      Build, UI checks and database restore/readiness preflight passed with schema
+      version 61 unchanged. Before cutover an independently started XBOW evaluation
+      occupied Runtime A. The deployment guard left all services running; paused
+      new queue admissions using revision 32-to-33 and waiting for active Worker
+      completion. The queue's original enabled state is retained for restoration.
+    - >-
+      Waited for run_927d048ef0fbfd7862f6c0f69e9d2950 as requested; it reached
+      failed before any service restart and was not cancelled by deployment.
+      Restarted Server, UI and both Runtime services from the pinned release;
+      all are active with new PIDs and no automatic restarts. Both Runtime agents
+      retain every prior capability and advertise all five scan operations,
+      including Katana 1.7.0. Restored the enabled queue at revision 34.
+    - >-
+      Katana demo Run succeeded against a controlled loopback fixture: four
+      requests, four exported targets, zero out-of-origin requests and zero model
+      calls. Published exact report and TargetList revisions with matching digest;
+      report retains explicit incomplete-discovery accounting. All 185 previous
+      Run IDs and the count of 11 Audits are retained; the database now has 188 Runs.
+      Backup restore/readiness preflight passed; schema remains at version 61.
+    - >-
+      UI production build, typecheck and 11 static-server tests passed. Initial
+      unit run passed 495 of 500 tests under concurrent host load; all four affected
+      files passed on a single-worker recheck (33 tests), without source changes.
+      Preserved the 18 previously deployed Evals UI files. Ten browser/API smoke
+      checks passed, including seven scan Workflow contracts and desktop/mobile
+      login rendering. Authenticated browser pages were not exercised because no
+      browser password was available; real authenticated bearer API checks passed.
+      Recorded finalized service, data-retention and evidence checksums in the
+      deployment manifest. No user Run was cancelled or interrupted by deployment.
 verification:
   - >-
     Runtime regression suite: 411 passed across Katana parser/lifecycle,

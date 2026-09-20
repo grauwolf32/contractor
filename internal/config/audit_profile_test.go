@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,61 +8,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
-
-func TestDecodeResolvedAuditProfileSnapshotAcceptsLegacyRoleDigest(t *testing.T) {
-	t.Parallel()
-
-	root := copyAuditProfileConfigTree(t)
-	writeAuditProfile(t, root, "legacy-profile", validAuditProfileYAML("legacy-profile"))
-	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("legacy-profile@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	selector, err := ParseSelector("legacy-profile@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile.Ref.Digest, err = auditProfileLegacyDigest(selector, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := json.Marshal(profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var legacy map[string]any
-	if err := json.Unmarshal(encoded, &legacy); err != nil {
-		t.Fatal(err)
-	}
-	workflows := legacy["workflows"].(map[string]any)
-	for _, raw := range workflows {
-		delete(raw.(map[string]any), "kind")
-	}
-	encoded, err = json.Marshal(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	decoded, err := DecodeResolvedAuditProfileSnapshot(encoded)
-	if err != nil {
-		t.Fatalf("decode legacy AuditProfile snapshot: %v", err)
-	}
-	if decoded.Ref.Digest != profile.Ref.Digest ||
-		decoded.Workflows[decoded.Inventory.ItemWorkflowRole].Kind != AuditWorkflowCheck {
-		t.Fatalf("decoded legacy AuditProfile = %+v", decoded)
-	}
-
-	// Presence is schema-significant: a mixed old/new closure is not guessed.
-	first := workflows[decoded.Inventory.ItemWorkflowRole].(map[string]any)
-	first["kind"] = string(AuditWorkflowCheck)
-	mixed, err := json.Marshal(legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := DecodeResolvedAuditProfileSnapshot(mixed); err == nil {
-		t.Fatal("mixed legacy/current AuditProfile snapshot was accepted")
-	}
-}
 
 func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
@@ -93,7 +37,7 @@ func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 		t.Fatalf("unexpected resolved AuditProfile: %+v", profile)
 	}
 	binding := profile.Workflows["check"]
-	if binding.Workflow.Ref != (WorkflowRef{Name: "taint-trace-from-workspace", Version: "2"}) ||
+	if binding.Workflow.Ref != (WorkflowRef{Name: "taint-trace-from-workspace", Version: "4"}) ||
 		binding.Inputs["source"].Name != "source" ||
 		binding.Parameters["target"].Name != "subjectKey" ||
 		binding.Outputs["result"] != "taint_report" {
@@ -167,8 +111,8 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 		workflow       string
 		template       string
 	}{
-		{"source-checklist@1", AuditModeCustomChecklist, "checklist@1", "check", "checklist", 2, "audit-source-check", "audit_source_checker"},
-		{"openapi-operation-trace@2", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi", 1, "audit-openapi-operation-trace", "audit_openapi_operation_tracer"},
+		{"source-checklist@2", AuditModeCustomChecklist, "checklist@1", "check", "checklist", 2, "audit-source-check", "audit_source_checker"},
+		{"openapi-operation-trace@4", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi", 1, "audit-openapi-operation-trace", "audit_openapi_operation_tracer"},
 	} {
 		test := test
 		t.Run(test.ref, func(t *testing.T) {
@@ -187,7 +131,7 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 				profile.Interaction.ReportAcceptance != AuditReportAutomatic {
 				t.Fatalf("repository AuditProfile is not MVP-compatible: %+v", profile)
 			}
-			if binding.Workflow.Ref != (WorkflowRef{Name: test.workflow, Version: "1"}) ||
+			if binding.Workflow.Ref != (WorkflowRef{Name: test.workflow, Version: "3"}) ||
 				binding.Inputs["task"].Source != AuditInputFromItemPackage ||
 				binding.Inputs["execution_manifest"].Source != AuditInputFromExecutionManifest ||
 				binding.Inputs["source"].Source != AuditInputFromAudit || binding.Outputs["result"] != "result" {
@@ -292,7 +236,7 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 		},
 		{
 			name:        "unknown workflow",
-			manifest:    strings.Replace(valid, "taint-trace-from-workspace@2", "missing-workflow@1", 1),
+			manifest:    strings.Replace(valid, "taint-trace-from-workspace@4", "missing-workflow@1", 1),
 			wantMessage: "selects unknown Workflow",
 		},
 		{
@@ -490,7 +434,7 @@ spec:
   workflows:
     check:
       kind: check
-      ref: taint-trace-from-workspace@2
+      ref: taint-trace-from-workspace@4
       inputs:
         source: {source: audit-input, name: source}
       parameters:
@@ -541,7 +485,7 @@ spec:
       outputs: {result: taint_report}
       parameters: {target: {name: subjectKey, source: item-field}}
       inputs: {source: {name: source, source: audit-input}}
-      ref: taint-trace-from-workspace@2
+      ref: taint-trace-from-workspace@4
   inventory: {itemWorkflowRole: check, sourceInput: checklist, implementation: checklist@1}
   inputs:
     checklist: {mediaTypes: [application/json, application/yaml], required: true}
@@ -563,7 +507,7 @@ spec:
   workflows:
     a:
       kind: check
-      ref: security-analysis@2
+      ref: security-analysis@4
       inputs:
         context: {source: retained-output, role: b, name: result}
       parameters:
@@ -573,7 +517,7 @@ spec:
       outputs: {result: security_report}
     b:
       kind: assessment
-      ref: security-analysis@2
+      ref: security-analysis@4
       inputs:
         context: {source: retained-output, role: a, name: result}
       parameters:

@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V62-003
+title: Execute and recover prepare Workflows before the first Audit round
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-002]
+languages: [go]
+goal: Coordinate bounded ordinary prepare Runs and collect their outputs before initial inventory acceptance.
+context:
+  authority: User-requested V62 Audit Workflow composition task series.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/19-audits.md, docs/spec/04-execution-lifecycle-and-metrics.md]
+  contract: V62-001 fixes preparation lifecycle; V62-002 supplies durable transactions and exact output links.
+scope:
+  in:
+    - Extend Audit start to pin all dependencies and enter preparation for opt-in profiles while retaining legacy start-time inventory.
+    - Dispatch prepare roles with explicit dependency order through trusted Run Service and ordinary Scheduler paths.
+    - Materialize only authorized exact inputs into RunScope, collect required frozen outputs and advance roles only after accepted receipts.
+    - Reconcile submission response loss, crashes, stale claims, bounded retries and collection replay without duplicate accepted role execution.
+    - Preserve accepted preparation outputs across pause/resume and later rounds; distinguish logical completion from physical retry attempts.
+    - Apply shared submission/time/evidence budgets and pause, deadline, cancellation, deletion and failure before currentRound exists.
+    - Expose a durable preparation-complete boundary for inventory construction without falsely completing the Audit in the interim.
+  out:
+    - Inventory expansion, a second scheduler, live workspace sharing or exactly-once external side-effect claims.
+deliverables:
+  - path: internal/auditservice
+    description: Opt-in start, baseline/credential pinning and preparation lifecycle commands.
+  - path: internal/auditcontroller
+    description: Scope-aware dispatch, collection, phase progression and recovery without a Round.
+  - path: internal/runservice
+    description: Trusted ordinary prepare Run creation and immutable Audit association.
+  - path: internal/auditimport
+    description: Preparation collection with exact output acceptance and protected retention.
+acceptance_criteria:
+  - id: A1
+    text: Two dependent prepare roles run in order with exact input forks and accepted output receipts, while unchanged legacy profiles follow their previous start path.
+  - id: A2
+    text: Restart and duplicate delivery at every intent/Run/receipt boundary preserve identity and never rerun a role whose result is already accepted.
+  - id: A3
+    text: Pause/deadline/cancel/delete and exhausted attempts work with no Round; failures retain truthful diagnostics and existing Runs drain under the normal lifecycle.
+  - id: A4
+    text: Every preparation attempt and retained byte participates in existing Audit limits and ordinary global Scheduler admission.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/runservice ./internal/runstore
+    covers: [A1, A2, A3, A4]
+  - command: go test ./internal/scheduler ./internal/controlplane
+    covers: [A1, A4]
+test_prerequisites:
+  - Disposable PostgreSQL for required restart, transaction and reference-fence cases.
+verification_requirements:
+  - Fault tests must assert durable Run counts, accepted receipts, phase, budgets and release state, not only a terminal Audit status.

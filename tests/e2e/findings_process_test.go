@@ -175,7 +175,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	openAPI := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID,
 		"openapi", "findings-openapi", "application/yaml", []byte(findingsOpenAPI))
 	audit := runAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client,
-		h.baseURL, project.ProjectID, "openapi-operation-trace@3",
+		h.baseURL, project.ProjectID, "openapi-operation-trace@5",
 		map[string]artifactRef{"source": source, "openapi": openAPI}, 1, 1, 0, "")
 	var items struct {
 		Items []auditProgramItem `json:"items"`
@@ -231,7 +231,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 		delete(snapshot, "asOf")
 	}
 	if !reflect.DeepEqual(before, after) {
-		t.Fatal("collection analysis mutated Audit review state")
+		t.Fatalf("collection analysis mutated Audit review state: before=%+v after=%+v", before, after)
 	}
 	if h.gateway.CompletedStages() != 2 || len(h.gateway.Failures()) != 0 {
 		t.Fatalf("gateway completed %d stages: %v", h.gateway.CompletedStages(), h.gateway.Failures())
@@ -242,7 +242,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource", "read_artifact",
 		"read_audit_task", "submit_check_result", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding"}, completeCodeAnalysisTools...)
-	return domainGatewayStage{name: "findings/" + name, tools: tools, steps: []domainGatewayStep{
+	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("graph_summary", fixedArguments(map[string]any{})),
 		toolGatewayStep("read_file", func(request map[string]any) (map[string]any, error) {
@@ -347,7 +347,7 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 	}), finalGatewayStep("Finding collection analysis published", map[string]domainArtifactBinding{
 		"report": {namespace: "findings-review", name: "report"},
 	}))
-	return domainGatewayStage{name: "findings/reader", tools: []string{"list_findings", "read_artifact", "write_text_artifact"}, steps: steps}
+	return domainGatewayStage{name: "findings/reader", tools: withMemoryTools([]string{"list_findings", "read_artifact", "write_text_artifact"}), steps: steps}
 }
 
 func findingsDocumentArguments(index int, evidence bool) func(map[string]any) (map[string]any, error) {
@@ -468,7 +468,7 @@ func runFindingsReader(t *testing.T, h *findingsHarness, key string, input any) 
 
 func createFindingsReader(t *testing.T, h *findingsHarness, key string, input any) string {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"workflow": "findings-review@1", "artifacts": map[string]any{"findings": input}})
+	body, err := json.Marshal(map[string]any{"workflow": "findings-review@2", "artifacts": map[string]any{"findings": input}})
 	if err != nil {
 		t.Fatal(err)
 	}

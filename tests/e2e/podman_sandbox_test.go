@@ -51,7 +51,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	}
 	report := []byte("{\"passed\": 3, \"status\": \"ok\"}\n")
 	gateway := newBlockedDomainGateway(llmGatewayToken, []domainGatewayStage{{
-		name: "check", tools: []string{"edit", "exec_command", "read_file", "write_artifact"},
+		name: "check", tools: withMemoryTools([]string{"edit", "exec_command", "read_file", "write_artifact"}),
 		steps: []domainGatewayStep{
 			toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "calculator.py"})),
 			toolGatewayStep("edit", fixedArguments(map[string]any{"path": "calculator.py", "old": "return a - b", "new": "return a + b"})),
@@ -116,7 +116,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	input := uploadProjectScopeArtifact(t, client, publicURL, project.ProjectID, "sources", "python", "application/zip", source.Bytes())
-	body, err := json.Marshal(map[string]any{"workflow": "podman-python-check@1", "parameters": map[string]string{}, "artifacts": map[string]artifactRef{"source": input}})
+	body, err := json.Marshal(map[string]any{"workflow": "podman-python-check@2", "parameters": map[string]string{}, "artifacts": map[string]artifactRef{"source": input}})
 	if err != nil {
 		t.Fatal(err)
 	}

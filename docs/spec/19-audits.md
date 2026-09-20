@@ -6,6 +6,11 @@ Last implementation review: **2026-09-06**
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
 
+[33 — Autonomous pentest Audits](33-autonomous-pentest-audits.md) specifies
+planned engagement, proposed-check routing, retained-dependency and optional
+finding-review extensions. They are capability-gated implementation targets;
+existing profile support and lifecycle semantics below remain unchanged.
+
 ## 1. Purpose
 
 An `Audit` is the assessment abstraction above Workflows in Contractor's
@@ -118,6 +123,13 @@ identity `(name, version)`. The configuration loader validates it only after
 all referenced Workflows are dependency-resolved. An Audit persists the full
 resolved profile snapshot and its canonical digest; later catalog reloads do
 not affect that Audit.
+
+Persisted snapshots require an explicit valid `kind` for every Workflow role.
+Their canonical digest includes each role kind, complete embedded Workflow and
+any explicit `workerCompletion` contract. The reader validates that digest
+without inferring roles, consulting the current catalog or rewriting the
+snapshot. Historical snapshots that omit role kinds or use the former digest
+without role kinds are unsupported; start and recovery fail validation.
 
 `audit-profiles` becomes the seventh fixed configuration subtree alongside
 `workflows`, `agent-templates`, `model-policies`, `llm-gateways`,

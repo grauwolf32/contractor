@@ -22,11 +22,12 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	httpExplorer, err := snapshot.AgentTemplate("http_explorer@1")
+	httpExplorer, err := snapshot.AgentTemplate("http_explorer@3")
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertExactTemplateTools(t, httpExplorer, map[string][]string{
+		"memory-tools@1": {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 		"http-tools@1": {
 			"http_history", "http_read_body", "http_request",
 			"http_session_clear", "http_session_get", "http_session_set",
@@ -34,11 +35,12 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 		"text-artifacts@1": {"read_text_artifact", "write_text_artifact"},
 	})
 
-	caidoAnalyst, err := snapshot.AgentTemplate("caido_analyst@1")
+	caidoAnalyst, err := snapshot.AgentTemplate("caido_analyst@3")
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertExactTemplateTools(t, caidoAnalyst, map[string][]string{
+		"memory-tools@1": {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 		"caido@1": {
 			"caido_automate_results", "caido_automate_run", "caido_history",
 			"caido_replay", "caido_request_detail", "caido_scope", "caido_sitemap",
@@ -51,10 +53,10 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 		Namespace: contracts.AgentSkillNamespace,
 		Name:      "caido",
 	}}) {
-		t.Fatalf("caido_analyst@1 skills = %+v", caidoAnalyst.Skills)
+		t.Fatalf("caido_analyst@3 skills = %+v", caidoAnalyst.Skills)
 	}
 
-	workflow, err := snapshot.Workflow("security-analysis@2")
+	workflow, err := snapshot.Workflow("security-analysis@4")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,20 +66,20 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 		len(workflow.Inputs) != 1 || workflow.Inputs["context"].Required ||
 		len(workflow.Outputs) != 1 || !workflow.Outputs["security_report"].Required ||
 		!workflow.Outputs["security_report"].Primary {
-		t.Fatalf("security-analysis@2 contract = %+v", workflow)
+		t.Fatalf("security-analysis@4 contract = %+v", workflow)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
 	analyst, ok := stage.Agents["analyst"]
 	if !ok || analyst.Namespace != "security" || analyst.Template.Ref.TemplateID != "caido_analyst" ||
 		stage.Planner.PlannerID != "passthrough" || stage.WorkflowOutputs["security_report"] != "report" ||
 		stage.On.Failed.Kind != TransitionFail || stage.On.Interrupted.Kind != TransitionFail {
-		t.Fatalf("security-analysis@2 analyze Stage = %+v", stage)
+		t.Fatalf("security-analysis@4 analyze Stage = %+v", stage)
 	}
 
 	for _, relative := range []string{
-		"agent-templates/caido_analyst.yaml", "agent-templates/http_explorer.yaml",
-		"workflows/security_analysis.yaml", "instructions/caido-analyst-worker.md",
-		"instructions/http-explorer-worker.md", "instructions/security-analysis-planner.md",
+		"agent-templates/caido_analyst_v3_memory.yaml", "agent-templates/http_explorer_v3_memory.yaml",
+		"workflows/security_analysis_v4_memory.yaml", "instructions/caido-analyst-worker-memory.md",
+		"instructions/http-explorer-worker-memory.md", "instructions/security-analysis-planner.md",
 		"skills/caido/SKILL.md",
 	} {
 		contents, err := os.ReadFile(filepath.Join(repositoryConfigRoot, relative))
@@ -102,7 +104,7 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 func TestRepositoryCaidoAssignmentRejectsMissingToolOrMalformedSkillRef(t *testing.T) {
 	t.Run("missing named operation", func(t *testing.T) {
 		root := copyConfigTree(t)
-		path := filepath.Join(root, "agent-templates", "caido_analyst.yaml")
+		path := filepath.Join(root, "agent-templates", "caido_analyst_v3_memory.yaml")
 		replaceFile(t, path, "        - caido_replay\n", "")
 		snapshot := mustLoad(t, root, MVPDescriptors())
 		if err := validateRepositoryCaidoAssignment(root, snapshot); err == nil ||
@@ -113,7 +115,7 @@ func TestRepositoryCaidoAssignmentRejectsMissingToolOrMalformedSkillRef(t *testi
 
 	t.Run("malformed Skill ref", func(t *testing.T) {
 		root := copyConfigTree(t)
-		path := filepath.Join(root, "agent-templates", "caido_analyst.yaml")
+		path := filepath.Join(root, "agent-templates", "caido_analyst_v3_memory.yaml")
 		replaceFile(t, path, "    - namespace: skills\n      name: caido\n", "    - namespace: plugins\n      name: caido\n")
 		if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 			!strings.Contains(err.Error(), "versionless skills/<portable-name>") {
@@ -123,7 +125,7 @@ func TestRepositoryCaidoAssignmentRejectsMissingToolOrMalformedSkillRef(t *testi
 }
 
 func validateRepositoryCaidoAssignment(root string, snapshot *Snapshot) error {
-	template, err := snapshot.AgentTemplate("caido_analyst@1")
+	template, err := snapshot.AgentTemplate("caido_analyst@3")
 	if err != nil {
 		return err
 	}
@@ -148,7 +150,7 @@ func validateRepositoryCaidoAssignment(root string, snapshot *Snapshot) error {
 type repositoryCompatibilityError struct{ operation string }
 
 func (e *repositoryCompatibilityError) Error() string {
-	return "configs/skills/caido names operation " + e.operation + " omitted by caido_analyst@1"
+	return "configs/skills/caido names operation " + e.operation + " omitted by caido_analyst@3"
 }
 
 func assertExactTemplateTools(t *testing.T, template contracts.ResolvedAgentTemplate, want map[string][]string) {

@@ -20,6 +20,7 @@ context:
 scope:
   in:
     - Add bounded typed Toolsets map, registry normalization/validation, defaults, clones, Spec.Empty and canonical serialization.
+    - Use named constants for new defaults/bounds and reuse existing URL/PEM/document/header limits; give shared credential-header limits protocol-neutral names instead of OTLP-specific names.
     - Implement atomic per-ref same-layer merge and pure default/Run-layer resolution with deterministic source metadata.
     - Implement absent/object/per-ref-null semantics, normalize an empty map away and reject null for the whole map.
     - Add mcp-headers@1 material normalization, service/wire metadata validation and a migration extending the credential-kind CHECK.

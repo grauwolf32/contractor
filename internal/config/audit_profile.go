@@ -959,33 +959,15 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 }
 
 func auditProfileDigest(selector Selector, profile ResolvedAuditProfile) (string, error) {
-	return auditProfileDigestWithRoleKinds(selector, profile, true)
-}
-
-// auditProfileLegacyDigest is read-side compatibility for immutable snapshots
-// written before role kinds existed. New catalog documents always use the
-// current digest and can never select this path.
-func auditProfileLegacyDigest(selector Selector, profile ResolvedAuditProfile) (string, error) {
-	return auditProfileDigestWithRoleKinds(selector, profile, false)
-}
-
-func auditProfileDigestWithRoleKinds(
-	selector Selector, profile ResolvedAuditProfile, includeRoleKinds bool,
-) (string, error) {
 	workflows := make(map[string]any, len(profile.Workflows))
 	for role, binding := range profile.Workflows {
 		value := map[string]any{
+			"kind":     binding.Kind,
 			"workflow": binding.Workflow, "inputs": binding.Inputs,
 			"parameters": binding.Parameters, "outputs": binding.Outputs,
 		}
 		if binding.WorkerCompletion != nil {
-			if !includeRoleKinds {
-				return "", fmt.Errorf("legacy AuditProfile cannot contain workerCompletion")
-			}
 			value["workerCompletion"] = binding.WorkerCompletion
-		}
-		if includeRoleKinds {
-			value["kind"] = binding.Kind
 		}
 		workflows[role] = value
 	}

@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V62-011
+title: Show preparation and generated coverage in the Audit user journey
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-009, V62-010]
+languages: [typescript]
+goal: Let a user start the generated-OpenAPI profile, follow preparation and scans, and trace results back to exact inputs without understanding internal storage scopes.
+context:
+  authority: User-requested V62 Audit Workflow composition task series.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/19-audits.md, docs/spec/ui-user-stories.md]
+  boundary: UI consumes public projections from V62-010 and the fully resolving profile from V62-009; it does not infer phase or dependencies from role names.
+scope:
+  in:
+    - Show profile input requirements and the planned preparation/check sequence before start with normal exact input selection.
+    - Display preparation role progress, waiting/failed inventory and current controls when no Round or coverage denominator exists yet.
+    - Show generated OpenAPI, validation outcome, accepted operation count and coverage origin after inventory acceptance.
+    - Link checks and assessment to exact dependency/result snapshots, attempts, evidence and rejected/deferred proposal reasons.
+    - Preserve existing approval interaction and accessible pause/resume/cancel/delete flows through preparation and later rounds.
+    - Refresh all dependent projections after phase/revision changes, terminal transition and reconnect while preserving bounded query state.
+  out:
+    - Visual generic DAG editor, arbitrary artifact lookup, automatic authorization or changing assessment/proof semantics in presentation.
+deliverables:
+  - path: ui/src/routes/projects/audits
+    description: Accessible preparation, generated inventory, result provenance and control states in the Audit workspace.
+  - path: ui/src/api
+    description: Revision-aware queries and regression coverage for preparation/currentRound transitions.
+  - path: ui/e2e/audits.spec.ts
+    description: Browser coverage of preparation, scan approval, accepted results, gaps and failure recovery.
+acceptance_criteria:
+  - id: A1
+    text: A user starts the generated-OpenAPI profile and sees analysis, OpenAPI generation, pending inventory, accepted item count and scanning progress in the correct order.
+  - id: A2
+    text: Preparation failure, missing capabilities and incomplete scan inputs remain actionable visible states; pending/empty coverage never appears as a clean target verdict.
+  - id: A3
+    text: Controls, approval and exact output/evidence links remain usable before a Round, after reconnect and through terminal transition without stale projections.
+  - id: A4
+    text: Keyboard navigation, accessible labels, small-screen layout and the existing Audit browser journey pass against the versioned public contracts.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/projects/audits src/api/audits.test.ts
+    covers: [A1, A2, A3, A4]
+  - command: make ui-typecheck ui-test ui-build
+    covers: [A1, A2, A3, A4]
+  - command: cd ui && corepack pnpm exec playwright test e2e/audits.spec.ts
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Existing Playwright browser/test environment; full real public API journey is additionally mandatory in V62-012.
+verification_requirements:
+  - Record browser evidence of pending inventory, preparation failure, approval and retained result navigation at desktop and narrow viewport sizes.

@@ -689,11 +689,12 @@ executionConfig override cannot change it. Planner, its dispatch tools and
 `StageContentRequest` carry no session override, reset operation or ADK session
 identifier.
 
-The sole compatibility exception is persisted execution authority written
-before this field existed. A stored Workflow or Stage snapshot in which the
-field is genuinely absent decodes as `shared`, matching the pre-feature
-behavior. Explicit null, empty or unknown persisted values remain invalid.
-This legacy decode rule never applies to newly authored YAML or AllocationSpec.
+Persisted execution authority must contain the explicit `isolated` or `shared`
+value in every Stage, including Workflows embedded in AuditProfile snapshots.
+Missing, null, empty, unknown and non-string values are invalid. Snapshot readers
+never infer a session mode or repair the stored authority. Snapshots written
+before this field existed are unsupported; newly authored YAML still resolves
+omission to explicit `isolated` before persistence.
 
 ### Artifact slots and mappings
 

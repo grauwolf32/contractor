@@ -176,8 +176,8 @@ func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *t
 		"reviewer": successfulResult(workerCanary),
 	}}
 	sessions := newFakeSessions()
-	factory, err := NewFactory(
-		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, llm, DefaultLimits(),
+	factory, err := NewConfiguredFactory(
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -296,8 +296,8 @@ func TestRouterFactoryRejectsEmptyBindingsBeforeSideEffects(t *testing.T) {
 	llm := &scriptedModel{}
 	workers := &fakeWorkerInvoker{}
 	sessions := newFakeSessions()
-	factory, err := NewFactory(
-		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, llm, DefaultLimits(),
+	factory, err := NewConfiguredFactory(
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -351,8 +351,8 @@ func mustPlanner(
 ) planner.Planner {
 	t.Helper()
 	sessions := newFakeSessions()
-	factory, err := NewFactory(
-		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, llm, DefaultLimits(),
+	factory, err := NewConfiguredFactory(
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, testModelFactory(llm), DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -362,6 +362,10 @@ func mustPlanner(
 		t.Fatal(err)
 	}
 	return instance
+}
+
+func testModelFactory(llm model.LLM) InvocationModelFactory {
+	return func(planner.ModelAccess) (model.LLM, error) { return llm, nil }
 }
 
 type modelStep func(*model.LLMRequest) (*model.LLMResponse, error)
@@ -633,6 +637,17 @@ func testInvocation() planner.Invocation {
 	revision := "source-r1"
 	return planner.Invocation{
 		StageExecutionID: "stage-router", RunID: "run-router", Deadline: time.Now().Add(time.Minute),
+		ModelAccess: &planner.ModelAccess{
+			ModelPolicy: contracts.ResolvedModelPolicy{
+				Ref:   contracts.ModelPolicyRef{PolicyID: "router-test", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)},
+				Model: "fake-router-model", MaxOutputTokens: 1024,
+				MaxModelCalls: 32, MaxTotalTokens: 200_000, MaxWorkerCalls: 64,
+			},
+			LLMGateway: contracts.ResolvedLLMGatewayConfig{
+				Ref:      contracts.LLMGatewayConfigRef{GatewayID: "router-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+				Protocol: contracts.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
+			},
+		},
 		Stage: workflowconfig.ResolvedStage{
 			Objective:    "Build an API description",
 			Instructions: contracts.ResolvedInstructions{Text: "Route work by immutable capability."},

@@ -1,39 +1,39 @@
-# Исправления независимого ревью — 2026-09-20
+# Independent review fixes — 2026-09-20
 
-Пользователь поручил разбить [11 воспроизведённых замечаний](../research/2026-09-20-independent-code-review.md)
-на задачи и начать исправления. Основание реализации — текущий код и проверки,
-а не статус прежних обзоров. Исходный commit: `5856beb5c13429f4be54856015ad7e86bd8b573d`.
-Имеющиеся незакоммиченные изменения принадлежат предыдущей работе и сохраняются.
+The user requested breaking the [11 reproduced findings](../research/2026-09-20-independent-code-review.md)
+into tasks and starting the fixes. Implementation is based on current code and
+checks, not the status of earlier reviews. Baseline commit: `5856beb5c13429f4be54856015ad7e86bd8b573d`.
+Existing uncommitted changes belong to earlier work and are preserved.
 
-| Задача | Finding | Результат |
+| Task | Finding | Outcome |
 | --- | --- | --- |
-| V60-013 | CR-01 | Незавершённые операции и CLI validators не переживают подтверждённую очистку Runtime |
-| V60-014 | CR-02 | WorkerHandle копируется без общей изменяемой AgentCard |
-| V60-015 | CR-03 | Placement/Rebind читают credentials через свою транзакцию |
-| V60-016 | CR-04 | Resume escalation сохраняет конфигурацию и корректную историю попыток |
-| V60-017 | CR-05 | HTTP tool сохраняет исходные query bytes |
-| V60-018 | CR-06 | Старый session response не меняет новую авторизацию |
-| V60-019 | CR-07 | Audit projections получают последнее обновление |
-| V60-020 | CR-08 | HTTP credential picker поддерживает последующие страницы |
-| V60-021 | CR-09 | Static server принимает допустимые encoded route identities |
-| V60-022 | CR-10 | CLI download --force сохраняет приватные права файла |
-| V60-023 | CR-11 | CLI сохраняет защиту positional arguments после -- |
-| V60-024 | Все | Совместная проверка исправлений и актуализация результатов |
-| V60-025 | Читаемость | Отдельные обоснованные рефакторинги после исправлений |
+| V60-013 | CR-01 | Pending operations and CLI validators do not survive confirmed Runtime cleanup |
+| V60-014 | CR-02 | WorkerHandle is copied without sharing a mutable AgentCard |
+| V60-015 | CR-03 | Placement/Rebind read credentials through their own transaction |
+| V60-016 | CR-04 | Resume escalation preserves configuration and correct attempt history |
+| V60-017 | CR-05 | HTTP tool preserves original query bytes |
+| V60-018 | CR-06 | An old session response cannot change newer authentication state |
+| V60-019 | CR-07 | Audit projections receive the latest update |
+| V60-020 | CR-08 | HTTP credential picker supports subsequent pages |
+| V60-021 | CR-09 | Static server accepts valid encoded route identities |
+| V60-022 | CR-10 | CLI download --force preserves private file permissions |
+| V60-023 | CR-11 | CLI preserves positional-argument protection after -- |
+| V60-024 | All | Combined verification of the fixes and updated results |
+| V60-025 | Readability | Separate, justified refactors after the fixes |
 
-Первая реализация выполняется параллельно в непересекающихся областях:
+The first implementation proceeds in parallel across non-overlapping areas:
 Runtime (013/017), Go execution (014/015/016), UI (018–021), CLI (022/023).
-Задачи 013–023 переводятся в `in_progress` до правок. Task priority P2 соответствует
-политике repository follow-up; приоритет исходного finding CR-01 остаётся P1.
+Tasks 013–023 move to `in_progress` before edits. Task priority P2 follows the
+repository follow-up policy; the original CR-01 finding retains priority P1.
 
-Каждое исправление получает постоянный regression test на месте подсистемы,
-сначала воспроизводящий дефект. Для DB используется отдельный временный PostgreSQL,
-для Runtime — fake models и локальные subprocess fixtures. Миграция Resume должна
-учитывать сохранённые истории и автоматические escalation budgets. Изменения
-не должны ослаблять authority, CAS, revision pins, URL bounds или release guarantees.
+Each fix receives a permanent regression test in its subsystem that first
+reproduces the defect. DB checks use a separate temporary PostgreSQL instance;
+Runtime checks use fake models and local subprocess fixtures. The Resume
+migration must account for persisted histories and automatic escalation budgets.
+Changes must not weaken authority, CAS, revision pins, URL bounds or release guarantees.
 
-Implementation commits разделяются по задачам; completion metadata содержит
-точный hash и выполненные проверки. Интеграционная задача начинается после
-завершения исправлений. Большое структурное упрощение вынесено отдельно и не
-подменяет устранение воспроизведённых багов. Production deploy, live-model evals
-и внешние security targets в этот этап не входят.
+Implementation commits are separated by task; completion metadata records the
+exact hash and checks performed. The integration task starts after the fixes
+are complete. Broad structural simplification is a separate task and does not
+substitute for correcting reproduced bugs. Production deployment, live-model
+evals and external security targets are outside this phase.

@@ -16,7 +16,7 @@ func TestProjectWorkerBudgetMatchesPinnedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow, err := catalog.Workflow("openapi-from-workspace@5")
+	workflow, err := catalog.Workflow("openapi-from-workspace@7")
 	if err != nil {
 		t.Fatal(err)
 	}

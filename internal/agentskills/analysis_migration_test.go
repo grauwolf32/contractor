@@ -245,13 +245,6 @@ func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 		"audit_source_checker_v3_memory.yaml":           {"trace": false},
 		"audit_source_checker_v4_completion.yaml":       {"trace": false},
 		"workspace_taint_analyst_v3_memory.yaml":        {"trace": false},
-
-		"audit_openapi_operation_tracer_v2.yaml": {"trace": false},
-		"audit_openapi_operation_tracer.yaml":    {"trace": false},
-		"audit_asvs_source_verifier.yaml":        {"trace": false},
-		"audit_risk_source_checker.yaml":         {"trace": false},
-		"audit_source_checker.yaml":              {"trace": false},
-		"workspace_taint_analyst.yaml":           {"trace": false},
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {

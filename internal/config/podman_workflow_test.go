@@ -9,7 +9,7 @@ import (
 
 func TestRepositoryPodmanWorkflowUsesExplicitLocalDirectToolsAndOrdinaryOutput(t *testing.T) {
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("podman-python-check@1")
+	workflow, err := snapshot.Workflow("podman-python-check@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func TestRepositoryPodmanWorkflowUsesExplicitLocalDirectToolsAndOrdinaryOutput(t
 		!reflect.DeepEqual(workspace.Sources, []WorkspaceSource{{Artifact: "source", Target: ""}}) {
 		t.Fatalf("unexpected workspace: %+v", workspace)
 	}
-	template, err := snapshot.AgentTemplate("podman_python_fixer@1")
+	template, err := snapshot.AgentTemplate("podman_python_fixer@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,8 @@ func TestRepositoryPodmanWorkflowUsesExplicitLocalDirectToolsAndOrdinaryOutput(t
 		t.Fatalf("unexpected authority: %+v", template)
 	}
 	if !reflect.DeepEqual(selectedToolsets(template.Toolsets), map[string][]string{
-		"filesystem@1": {"read_file"}, "edit-files@1": {"edit"},
+		"memory-tools@1": {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
+		"filesystem@1":   {"read_file"}, "edit-files@1": {"edit"},
 		"code-execution@1": {"exec_command"}, "run-artifacts@1": {"write_artifact"},
 	}) {
 		t.Fatalf("unexpected tools: %+v", template.Toolsets)

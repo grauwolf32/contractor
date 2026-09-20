@@ -231,6 +231,9 @@ This slice must demonstrate:
 - Streamline and Router use their own exact ModelPolicy and LLMGatewayConfig
   selections from ResolvedExecutionConfig and never inherit a Worker
   token/model implicitly;
+  both factories require valid per-invocation ModelAccess before constructing
+  a provider client. Model/Worker-call and token budgets come from that policy;
+  an omitted temperature stays omitted, while explicit zero is forwarded;
   successful responses must include consistent token usage, while provider
   error bodies and tokens never enter durable session events, reports, logs or
   the public API;

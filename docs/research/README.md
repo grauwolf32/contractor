@@ -28,6 +28,10 @@ Scheduler decisions from these records.
 
 ## Drafts and evaluation design
 
+- [Autonomous pentest Audit specification](../spec/33-autonomous-pentest-audits.md)
+  — moved to the owning specification: source-optional web/API auditing,
+  engagement/session/proof contracts, recovery, budgets and release gates;
+  specified implementation target, not yet implemented.
 - [Annotation participation index](annotation-index-proposal.md) — proposed
   attribution and snapshot reconciliation. The accepted evidence boundary is
   in [specification 13](../spec/13-taint-annotations.md#annotation-artifacts-and-evidence).

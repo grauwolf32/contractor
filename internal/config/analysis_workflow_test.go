@@ -21,9 +21,9 @@ func TestRepositoryPrecomputedAnalysisWorkflows(t *testing.T) {
 		outputMediaTypes  map[string]ArtifactSlot
 	}{
 		{
-			workflowRef: "openapi-from-analysis@2",
+			workflowRef: "openapi-from-analysis@4",
 			buildStage:  "openapi_build", validateStage: "openapi_validate",
-			builderTemplate: "openapi_builder@1", validatorTemplate: "openapi_validator@1",
+			builderTemplate: "openapi_builder@3", validatorTemplate: "openapi_validator@3",
 			seedInput: "existing_openapi", buildResult: "openapi", buildMediaType: "application/yaml",
 			outputMediaTypes: map[string]ArtifactSlot{
 				"openapi":                   {Required: true, MediaTypes: []string{"application/yaml"}, Primary: true},
@@ -31,9 +31,9 @@ func TestRepositoryPrecomputedAnalysisWorkflows(t *testing.T) {
 			},
 		},
 		{
-			workflowRef: "likec4-from-analysis@3",
+			workflowRef: "likec4-from-analysis@5",
 			buildStage:  "likec4_build", validateStage: "likec4_validate",
-			builderTemplate: "likec4_builder@2", validatorTemplate: "likec4_validator@2",
+			builderTemplate: "likec4_builder@4", validatorTemplate: "likec4_validator@4",
 			seedInput: "existing_likec4", buildResult: "architecture", buildMediaType: "text/vnd.likec4",
 			outputMediaTypes: map[string]ArtifactSlot{
 				"likec4":                   {Required: true, MediaTypes: []string{"text/vnd.likec4"}, Primary: true},

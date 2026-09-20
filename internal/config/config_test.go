@@ -44,7 +44,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}
 
-	template, err := snapshot.AgentTemplate("artifact_builder@1")
+	template, err := snapshot.AgentTemplate("artifact_builder@2")
 	if err != nil {
 		t.Fatalf("resolve AgentTemplate: %v", err)
 	}
@@ -53,11 +53,11 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	if template.ModelPolicy.Ref.Digest != policy.Ref.Digest {
 		t.Fatalf("template policy digest = %q, want %q", template.ModelPolicy.Ref.Digest, policy.Ref.Digest)
 	}
-	if got, want := template.Toolsets[0].Tools, []string{"list_artifacts", "read_artifact", "write_artifact"}; !equalStrings(got, want) {
+	if got, want := selectedToolsets(template.Toolsets)["run-artifacts@1"], []string{"list_artifacts", "read_artifact", "write_artifact"}; !equalStrings(got, want) {
 		t.Fatalf("selected tools = %v, want %v", got, want)
 	}
 
-	workflow, err := snapshot.Workflow("artifact-copy@1")
+	workflow, err := snapshot.Workflow("artifact-copy@2")
 	if err != nil {
 		t.Fatalf("resolve Workflow: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestCodeAnalysisSelectionLoadsAndDigestsInWorkspaceTemplate(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	template, err := snapshot.AgentTemplate("workspace_source_graph_analyst@1")
+	template, err := snapshot.AgentTemplate("workspace_source_graph_analyst@3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,10 +585,10 @@ func TestWorkflowExamplesLoad(t *testing.T) {
 		name     string
 		selector string
 	}{
-		{"bounded_retry_workflow.yaml", "artifact-copy-with-retry@1"},
-		{"multi_stage_workflow.yaml", "artifact-build-review@1"},
-		{"router_openapi_workflow.yaml", "router-openapi@1"},
-		{"streamline_review_workflow.yaml", "streamline-review@1"},
+		{"bounded_retry_workflow.yaml", "artifact-copy-with-retry@2"},
+		{"multi_stage_workflow.yaml", "artifact-build-review@2"},
+		{"router_openapi_workflow.yaml", "router-openapi@2"},
+		{"streamline_review_workflow.yaml", "streamline-review@2"},
 	} {
 		t.Run(example.name, func(t *testing.T) {
 			root := copyConfigTree(t)
@@ -608,7 +608,7 @@ func TestStreamlineRequiresExactlyOneLogicalAgent(t *testing.T) {
 	example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", "streamline_review_workflow.yaml"))
 	writeFile(t, path, example)
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	workflow, err := snapshot.Workflow("streamline-review@1")
+	workflow, err := snapshot.Workflow("streamline-review@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -639,7 +639,7 @@ func TestRouterRequiresAtLeastOneLogicalAgent(t *testing.T) {
 	example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", "router_openapi_workflow.yaml"))
 	writeFile(t, path, example)
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	workflow, err := snapshot.Workflow("router-openapi@1")
+	workflow, err := snapshot.Workflow("router-openapi@2")
 	if err != nil {
 		t.Fatal(err)
 	}

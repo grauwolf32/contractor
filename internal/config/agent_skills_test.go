@@ -147,7 +147,7 @@ spec:
 
 func TestWorkflowSkillUnionIncludesAllRetainedTemplatesAndIsBounded(t *testing.T) {
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	template, _ := snapshot.AgentTemplate("artifact_builder@1")
+	template, _ := snapshot.AgentTemplate("artifact_builder@2")
 	workflow := ResolvedWorkflow{Stages: make(map[string]ResolvedStage)}
 	for stageIndex := range 5 {
 		variant := template

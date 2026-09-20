@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V62-006
+title: Retain exact item dependencies across Audit rounds
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-004]
+languages: [go, json, sql]
+goal: Let a later check consume precise earlier artifacts and accepted results through an immutable dependency manifest.
+context:
+  authority: User-requested V62 Audit Workflow composition task series.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification:
+    - docs/spec/19-audits.md
+    - docs/spec/03-artifact-plane.md
+    - docs/spec/33-autonomous-pentest-audits.md
+  boundary: Implement the generic retained-dependency contract from V62-001; pentest-specific recipe, proof and authorization checks remain outside this task.
+scope:
+  in:
+    - Persist bounded named dependencies binding Audit/baseline, source execution/round/item/attempt, retained ref/digest and intake receipt/ordinal where applicable.
+    - Validate source ownership, accepted collection, semantic dependency type, exact content and retention before admitting a dependent item.
+    - Resolve retained-dependency inputs only from the accepted item's manifest and create exact RunScope forks while preserving original-to-child ref mappings.
+    - Reuse Audit-level prepare outputs in later rounds without rerunning preparation or searching mutable Project bindings.
+    - Support exact selection of one accepted check result without relaxing generic retained-output or choosing an arbitrary batch/attempt.
+    - Preserve holds through source Run deletion and check cancellation, purge them through Audit deletion and report missing/corrupt dependencies explicitly.
+  out:
+    - Cross-owner or cross-Audit lookup, latest-version fallback, implicit previous-round role search or new proposal routing.
+deliverables:
+  - path: internal/auditdomain
+    description: Versioned item dependency manifest and canonical validation fixtures.
+  - path: internal/auditservice
+    description: Admission/retention of exact dependencies and task package references.
+  - path: internal/auditcontroller
+    description: Authorized dependency resolution and RunScope fork construction.
+  - path: internal/auditstore
+    description: Dependency holds, provenance relations and deletion lifecycle tests.
+acceptance_criteria:
+  - id: A1
+    text: A second-round check consumes the exact prepare and first-round accepted result revisions even after source Runs or current catalog entries are removed.
+  - id: A2
+    text: Foreign, unaccepted, ambiguous, missing, corrupt or media-incompatible dependencies are rejected or block the item with explicit reasons and no fallback lookup.
+  - id: A3
+    text: Batches and retries preserve item/attempt/result attribution and correct original-to-Run ref mappings; Workers receive only declared inputs.
+  - id: A4
+    text: Restart, cancellation and Audit deletion preserve then release required holds under existing fences; legacy retained-output behavior is unchanged.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore ./internal/auditcontroller ./internal/runservice ./internal/auditimport
+    covers: [A1, A2, A3, A4]
+  - command: go test ./internal/config ./internal/artifacts
+    covers: [A2, A4]
+test_prerequisites:
+  - Disposable PostgreSQL for mandatory retention, source-deletion, restart and cross-owner isolation scenarios.
+verification_requirements:
+  - Record exact source and child refs/digests in assertions and prove no current-binding read is used during dependent dispatch.

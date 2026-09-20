@@ -18,7 +18,7 @@ func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated Code Analysis process configuration must load: %v", err)
 	}
-	production, err := snapshot.AgentTemplate("workspace_source_graph_analyst@1")
+	production, err := snapshot.AgentTemplate("workspace_source_graph_analyst@3")
 	if err != nil {
 		t.Fatal(err)
 	}

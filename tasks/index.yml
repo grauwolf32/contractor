@@ -316,6 +316,13 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: audit-workflow-composition
+    exit_task: V62-012
+    outcome: >-
+      An opt-in Audit prepares source analysis and OpenAPI before accepting its
+      initial worklist, executes bounded checks, supplies assessment snapshots,
+      and routes later checks with exact retained dependencies and observable
+      lifecycle/provenance through existing Server, Runtime and UI boundaries.
   - id: toolset-runtime-configuration
     exit_task: V61-009
     outcome: >-
@@ -721,6 +728,35 @@ milestones:
       gateway retryability, and terminal summaries use configurable bounded
       instructions. Implicit byte-based context admission is removed; future
       compactification must be a separate explicit strategy.
+
+audit_workflow_composition_planning:
+  planned_on: "2026-09-20"
+  status: planned
+  authority: >-
+    User requested task decomposition after discussing prepare, generated
+    inventory, assessment inputs, check routing and cross-round data reuse.
+    This records planned work and does not start implementation.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  task_ids: [V62-001, V62-002, V62-003, V62-004, V62-005, V62-006, V62-007, V62-008, V62-009, V62-010, V62-011, V62-012]
+  dependency_layers:
+    - [V62-001]
+    - [V62-002]
+    - [V62-003]
+    - [V62-004]
+    - [V62-005, V62-006, V62-008]
+    - [V62-007, V62-009]
+    - [V62-010]
+    - [V62-011]
+    - [V62-012]
+  release_task: V62-012
+  constraints: >-
+    Add only the prepare lifecycle kind; verification and replay remain check
+    bindings. Preserve old profile canonical bytes and start-time inventory,
+    same-round retained-output and existing authorization/Scheduler boundaries.
+    V62 owns generic dependencies/routing reused by specification 33, while
+    autonomous pentest scope, identities, proof and transport remain separate.
+    Reuse delivered V55 scanners and scan planning. Finalize and arbitrary
+    Workflow DAGs are deferred; existing in-progress owners are unchanged.
 
 toolset_runtime_configuration_planning:
   planned_on: "2026-09-19"
@@ -2846,3 +2882,15 @@ tasks:
   - {id: V61-007, file: v61-007-toolset-configuration-read-api.yml}
   - {id: V61-008, file: v61-008-toolset-connections-ui.yml}
   - {id: V61-009, file: v61-009-toolset-configuration-release.yml}
+  - {id: V62-001, file: v62-001-audit-composition-contracts.yml}
+  - {id: V62-002, file: v62-002-audit-preparation-store.yml}
+  - {id: V62-003, file: v62-003-audit-preparation-controller.yml}
+  - {id: V62-004, file: v62-004-audit-prepared-inventory.yml}
+  - {id: V62-005, file: v62-005-audit-round-result-snapshots.yml}
+  - {id: V62-006, file: v62-006-audit-retained-dependencies.yml}
+  - {id: V62-007, file: v62-007-audit-check-routing.yml}
+  - {id: V62-008, file: v62-008-project-analysis-preparation.yml}
+  - {id: V62-009, file: v62-009-audit-openapi-scan-profile.yml}
+  - {id: V62-010, file: v62-010-audit-composition-api.yml}
+  - {id: V62-011, file: v62-011-audit-composition-ui.yml}
+  - {id: V62-012, file: v62-012-audit-composition-release.yml}

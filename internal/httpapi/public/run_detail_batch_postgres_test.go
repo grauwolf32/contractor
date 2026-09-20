@@ -44,12 +44,6 @@ func (q *detailQueryTrace) take() []string {
 	return result
 }
 
-// Hide optional batch interfaces to compare the identical production data
-// through the pre-batch composition contract, not a hand-built JSON fixture.
-type singleRunReader struct{ RunReader }
-type singleMetricsReader struct{ MetricsReader }
-type singlePlanReader struct{ PlannerPlanReader }
-
 func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -90,10 +84,6 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 		AllocationResources: telemetry.NewRepository(traced),
 		Artifacts:           artifacts.NewService(artifacts.NewPostgresRepository(traced)),
 	}}
-	single := &handler{dependencies: batch.dependencies}
-	single.dependencies.Runs = singleRunReader{batch.dependencies.Runs}
-	single.dependencies.Metrics = singleMetricsReader{batch.dependencies.Metrics}
-	single.dependencies.PlannerPlans = singlePlanReader{batch.dependencies.PlannerPlans}
 	get := func(h *handler, runID, owner string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/v1/runs/"+runID, nil)
 		r.SetPathValue("runID", runID)
@@ -202,18 +192,31 @@ VALUES ($1,$2,'builder','builder','{}','{}','private-physical-instance')`, "allo
 			if resourceQueries != 1 {
 				t.Errorf("allocation resource queries = %d, want 1", resourceQueries)
 			}
-			baseline := get(single, runID, "user-1")
-			baselineQueries := trace.take()
-			t.Logf("stages=%d total queries: per-stage=%d batched=%d; related batches=4", n, len(baselineQueries), len(queries))
-			if baseline.Code != http.StatusOK || baseline.Body.String() != response.Body.String() {
-				t.Fatalf("batch changed response\nbatch: %s\nsingle: %s", response.Body.String(), baseline.Body.String())
-			}
+			t.Logf("stages=%d total queries=%d; related batches=4", n, len(queries))
 			var detail runStatusResponse
 			if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
 				t.Fatal(err)
 			}
 			if len(detail.Attempts) != n || detail.ActiveStageExecutionID == nil || detail.Attempts[0].Plan == nil || detail.Attempts[0].Metrics == nil || detail.Outputs["result"].Revision == nil || *detail.Outputs["result"].Revision != *output.TargetRef.Revision {
 				t.Fatalf("incomplete detail: %+v", detail)
+			}
+			for i, attempt := range detail.Attempts {
+				id := fmt.Sprintf("%s-stage-%02d", runID, i)
+				if attempt.StageExecutionID != id || attempt.Objective != workflow.Stages[workflow.EntryStage].Objective {
+					t.Fatalf("attempt %d has incorrect identity or objective: %+v", i, attempt)
+				}
+				if i%2 == 0 {
+					if attempt.Metrics == nil || attempt.Plan == nil || attempt.Plan.Revision != 1 ||
+						attempt.Plan.CurrentSubtaskID != "0" || len(attempt.Plan.Subtasks) != 1 ||
+						attempt.Plan.Subtasks[0].Objective != "Read exact source" {
+						t.Fatalf("attempt %d lost metrics or its exact plan: %+v", i, attempt)
+					}
+				} else if attempt.Metrics != nil || attempt.Plan != nil || attempt.RuntimeConfiguration != nil {
+					t.Fatalf("attempt %d has unexpected optional data: %+v", i, attempt)
+				}
+			}
+			if *detail.ActiveStageExecutionID != fmt.Sprintf("%s-stage-%02d", runID, n-1) {
+				t.Fatalf("active execution = %s", *detail.ActiveStageExecutionID)
 			}
 			if strings.Contains(response.Body.String(), "private-physical-instance") {
 				t.Fatal("physical allocation identity leaked")

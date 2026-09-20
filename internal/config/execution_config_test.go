@@ -311,7 +311,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@1", patch, test.lookup)
+			_, err := snapshot.ResolveRunWorkflow(t.Context(), "artifact-copy@2", patch, test.lookup)
 			if err == nil || strings.Contains(err.Error(), "secret-value") ||
 				(!strings.Contains(err.Error(), "unavailable") && !strings.Contains(err.Error(), "another LLMGatewayConfig")) {
 				t.Fatalf("unsafe or missing credential error = %v", err)
@@ -319,7 +319,7 @@ func TestResolveRunWorkflowRejectsMissingOrMismatchedCredentialSafely(t *testing
 		})
 	}
 	if _, err := snapshot.ResolveRunWorkflow(
-		t.Context(), "artifact-copy@1", patch,
+		t.Context(), "artifact-copy@2", patch,
 		metadataLookup{"selected-credential": credentialMetadata("selected-credential", localGateway.Ref)},
 	); err != nil {
 		t.Fatalf("matching credential was rejected: %v", err)

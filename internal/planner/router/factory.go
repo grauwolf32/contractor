@@ -7,7 +7,6 @@ import (
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
-	"google.golang.org/adk/model"
 )
 
 const Ref = planner.RouterRef
@@ -20,43 +19,6 @@ func DefaultLimits() Limits { return streamline.DefaultLimits() }
 
 type Factory struct {
 	delegate *streamline.Factory
-}
-
-func NewFactory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	llm model.LLM,
-	limits Limits,
-) (*Factory, error) {
-	delegate, err := streamline.NewRouterDelegate(
-		sessions, adkSessions, invoker, inspector, stateReader, llm, limits,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &Factory{delegate: delegate}, nil
-}
-
-func NewFactoryWithMemory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	memoryStore plannermemory.Store,
-	llm model.LLM,
-	limits Limits,
-) (*Factory, error) {
-	delegate, err := streamline.NewRouterDelegateWithMemory(
-		sessions, adkSessions, invoker, inspector, stateReader, memoryStore, llm, limits,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &Factory{delegate: delegate}, nil
 }
 
 func NewConfiguredFactory(

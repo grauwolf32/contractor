@@ -109,7 +109,7 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("owasp-top10-2025-source-risk@1")
+	profile, err := snapshot.AuditProfile("owasp-top10-2025-source-risk@2")
 	if err != nil {
 		t.Fatal(err)
 	}

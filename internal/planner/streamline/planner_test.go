@@ -477,72 +477,100 @@ func TestStreamlineRejectsInvalidWorkerCardinalityBeforeSideEffects(t *testing.T
 }
 
 func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.T) {
-	sessions := newFakeSessions()
-	workers := &fakeWorkerInvoker{}
-	inspector := &fakeInspector{}
-	models := []*scriptedModel{{}, {}}
-	var accesses []planner.ModelAccess
-	factory, err := NewConfiguredFactory(
-		sessions, sessions, workers, inspector, unavailableWorkerStateReader{},
-		func(access planner.ModelAccess) (model.LLM, error) {
-			accesses = append(accesses, access)
-			return models[len(accesses)-1], nil
-		},
-		Limits{MaxWallTime: 19 * time.Second},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := factory.Create(testInvocation("builder")); err == nil ||
-		!strings.Contains(err.Error(), "requires resolved Planner model access") {
-		t.Fatalf("missing ModelAccess error = %v", err)
-	}
+	for _, profile := range []plannerProfile{streamlineProfile, routerProfile} {
+		t.Run(profile.agentName, func(t *testing.T) {
+			sessions := newFakeSessions()
+			workers := &fakeWorkerInvoker{}
+			inspector := &fakeInspector{}
+			models := []*scriptedModel{{}, {}}
+			var accesses []planner.ModelAccess
+			newConfigured := NewConfiguredFactory
+			if profile.ref == planner.RouterRef {
+				newConfigured = NewConfiguredRouterDelegate
+			}
+			factory, err := newConfigured(
+				sessions, sessions, workers, inspector, unavailableWorkerStateReader{},
+				func(access planner.ModelAccess) (model.LLM, error) {
+					accesses = append(accesses, access)
+					return models[len(accesses)-1], nil
+				},
+				Limits{MaxWallTime: 19 * time.Second},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, invalid := range []struct {
+				name   string
+				mutate func(*planner.Invocation)
+			}{
+				{"missing access", func(i *planner.Invocation) { i.ModelAccess = nil }},
+				{"missing model policy", func(i *planner.Invocation) { i.ModelAccess.ModelPolicy = contracts.ResolvedModelPolicy{} }},
+				{"invalid gateway", func(i *planner.Invocation) { i.ModelAccess.LLMGateway.URL = "invalid" }},
+				{"missing credential token", func(i *planner.Invocation) {
+					i.ModelAccess.Credential = &contracts.LLMCredentialRef{CredentialID: "selected"}
+				}},
+			} {
+				t.Run(invalid.name, func(t *testing.T) {
+					invocation := testInvocation("builder")
+					invocation.Stage.Planner.PlannerID = strings.TrimSuffix(profile.ref, "@1")
+					invalid.mutate(&invocation)
+					if _, err := factory.Create(invocation); err == nil {
+						t.Fatal("invalid ModelAccess was accepted")
+					}
+					if len(accesses) != 0 || sessions.adkCalls != 0 || len(workers.calls) != 0 {
+						t.Fatal("invalid ModelAccess reached a model factory, session or Worker")
+					}
+				})
+			}
 
-	for index, values := range []struct {
-		model, gateway, credential, token string
-		modelCalls, workerCalls, tokens   int
-	}{
-		{"planner-small", "small", "credential-small", "secret-small", 3, 4, 5000},
-		{"planner-strong", "strong", "credential-strong", "secret-strong", 7, 9, 15000},
-	} {
-		credential := contracts.LLMCredentialRef{CredentialID: values.credential}
-		access := planner.ModelAccess{
-			ModelPolicy: contracts.ResolvedModelPolicy{
-				Ref: contracts.ModelPolicyRef{
-					PolicyID: values.model, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('a'+index)), 64),
-				},
-				Model: values.model, MaxOutputTokens: 2048 + index,
-				MaxModelCalls: values.modelCalls, MaxWorkerCalls: values.workerCalls,
-				MaxTotalTokens: values.tokens,
-			},
-			LLMGateway: contracts.ResolvedLLMGatewayConfig{
-				Ref: contracts.LLMGatewayConfigRef{
-					GatewayID: values.gateway, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('c'+index)), 64),
-				},
-				Protocol: contracts.OpenAICompatibleProtocol,
-				URL:      "https://" + values.gateway + ".example/v1",
-			},
-			Credential: &credential,
-			Token:      contracts.NewSecretString(values.token),
-		}
-		invocation := testInvocation("builder")
-		invocation.ModelAccess = &access
-		created, err := factory.Create(invocation)
-		if err != nil {
-			t.Fatal(err)
-		}
-		instance := created.(*streamlinePlanner)
-		if instance.model != models[index] || instance.limits.MaxModelCalls != values.modelCalls ||
-			instance.limits.MaxWorkerCalls != values.workerCalls ||
-			instance.limits.MaxTokens != int64(values.tokens) ||
-			instance.limits.MaxWallTime != 19*time.Second {
-			t.Fatalf("configured Planner %d = model:%T limits:%+v", index, instance.model, instance.limits)
-		}
-	}
-	if len(accesses) != 2 || accesses[0].ModelPolicy.Model == accesses[1].ModelPolicy.Model ||
-		accesses[0].LLMGateway.URL == accesses[1].LLMGateway.URL ||
-		accesses[0].Token.Reveal() == accesses[1].Token.Reveal() {
-		t.Fatalf("per-invocation model access = %+v", accesses)
+			for index, values := range []struct {
+				model, gateway, credential, token string
+				modelCalls, workerCalls, tokens   int
+			}{
+				{"planner-small", "small", "credential-small", "secret-small", 3, 4, 5000},
+				{"planner-strong", "strong", "credential-strong", "secret-strong", 7, 9, 15000},
+			} {
+				credential := contracts.LLMCredentialRef{CredentialID: values.credential}
+				access := planner.ModelAccess{
+					ModelPolicy: contracts.ResolvedModelPolicy{
+						Ref: contracts.ModelPolicyRef{
+							PolicyID: values.model, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('a'+index)), 64),
+						},
+						Model: values.model, MaxOutputTokens: 2048 + index,
+						MaxModelCalls: values.modelCalls, MaxWorkerCalls: values.workerCalls,
+						MaxTotalTokens: values.tokens,
+					},
+					LLMGateway: contracts.ResolvedLLMGatewayConfig{
+						Ref: contracts.LLMGatewayConfigRef{
+							GatewayID: values.gateway, Version: "1", Digest: "sha256:" + strings.Repeat(string(rune('c'+index)), 64),
+						},
+						Protocol: contracts.OpenAICompatibleProtocol,
+						URL:      "https://" + values.gateway + ".example/v1",
+					},
+					Credential: &credential,
+					Token:      contracts.NewSecretString(values.token),
+				}
+				invocation := testInvocation("builder")
+				invocation.ModelAccess = &access
+				invocation.Stage.Planner.PlannerID = strings.TrimSuffix(profile.ref, "@1")
+				created, err := factory.Create(invocation)
+				if err != nil {
+					t.Fatal(err)
+				}
+				instance := created.(*streamlinePlanner)
+				if instance.model != models[index] || instance.limits.MaxModelCalls != values.modelCalls ||
+					instance.limits.MaxWorkerCalls != values.workerCalls ||
+					instance.limits.MaxTokens != int64(values.tokens) ||
+					instance.limits.MaxWallTime != 19*time.Second {
+					t.Fatalf("configured Planner %d = model:%T limits:%+v", index, instance.model, instance.limits)
+				}
+			}
+			if len(accesses) != 2 || accesses[0].ModelPolicy.Model == accesses[1].ModelPolicy.Model ||
+				accesses[0].LLMGateway.URL == accesses[1].LLMGateway.URL ||
+				accesses[0].Token.Reveal() == accesses[1].Token.Reveal() {
+				t.Fatalf("per-invocation model access = %+v", accesses)
+			}
+		})
 	}
 }
 
@@ -677,9 +705,13 @@ func TestStreamlineStopsWhenModelCallBudgetIsExhausted(t *testing.T) {
 	sessions := newFakeSessions()
 	factory := mustFactory(
 		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model,
-		Limits{MaxModelCalls: 2, MaxTokens: 1_000, MaxWorkerCalls: 4, MaxWallTime: time.Minute},
+		Limits{MaxWallTime: time.Minute},
 	)
-	instance, err := factory.Create(testInvocation("builder"))
+	invocation := testInvocation("builder")
+	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 2
+	invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 1_000
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 4
+	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -701,9 +733,13 @@ func TestStreamlineStopsWhenTokenBudgetIsExceeded(t *testing.T) {
 	}}
 	factory := mustFactory(
 		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model,
-		Limits{MaxModelCalls: 8, MaxTokens: 100, MaxWorkerCalls: 4, MaxWallTime: time.Minute},
+		Limits{MaxWallTime: time.Minute},
 	)
-	instance, err := factory.Create(testInvocation("builder"))
+	invocation := testInvocation("builder")
+	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 8
+	invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 100
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 4
+	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -726,9 +762,13 @@ func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
 	}}
 	factory := mustFactory(
 		t, newFakeSessions(), workers, &fakeInspector{}, model,
-		Limits{MaxModelCalls: 8, MaxTokens: 1_000, MaxWorkerCalls: 1, MaxWallTime: time.Minute},
+		Limits{MaxWallTime: time.Minute},
 	)
-	instance, err := factory.Create(testInvocation("builder"))
+	invocation := testInvocation("builder")
+	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 8
+	invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 1_000
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 1
+	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -742,9 +782,13 @@ func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
 func TestStreamlineWallDeadlineStopsBlockedModel(t *testing.T) {
 	factory := mustFactory(
 		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, blockingModel{},
-		Limits{MaxModelCalls: 8, MaxTokens: 1_000, MaxWorkerCalls: 4, MaxWallTime: 5 * time.Millisecond},
+		Limits{MaxWallTime: 5 * time.Millisecond},
 	)
-	instance, err := factory.Create(testInvocation("builder"))
+	invocation := testInvocation("builder")
+	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 8
+	invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 1_000
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 4
+	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1062,13 +1106,17 @@ func mustFactory(
 	limits Limits,
 ) *Factory {
 	t.Helper()
-	factory, err := NewFactory(
-		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, llm, limits,
+	factory, err := NewConfiguredFactory(
+		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, testModelFactory(llm), limits,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return factory
+}
+
+func testModelFactory(llm model.LLM) InvocationModelFactory {
+	return func(planner.ModelAccess) (model.LLM, error) { return llm, nil }
 }
 
 type unavailableWorkerStateReader struct{}
@@ -1108,6 +1156,17 @@ func testInvocation(bindings ...string) planner.Invocation {
 	}
 	return planner.Invocation{
 		StageExecutionID: "stage-1", RunID: "run-1", Deadline: time.Now().Add(time.Minute),
+		ModelAccess: &planner.ModelAccess{
+			ModelPolicy: contracts.ResolvedModelPolicy{
+				Ref:   contracts.ModelPolicyRef{PolicyID: "planner-test", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)},
+				Model: "fake-streamline-model", MaxOutputTokens: 1024,
+				MaxModelCalls: 32, MaxTotalTokens: 200_000, MaxWorkerCalls: 64,
+			},
+			LLMGateway: contracts.ResolvedLLMGatewayConfig{
+				Ref:      contracts.LLMGatewayConfigRef{GatewayID: "planner-test", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+				Protocol: contracts.OpenAICompatibleProtocol, URL: "https://gateway.example/v1",
+			},
+		},
 		Stage: workflowconfig.ResolvedStage{
 			Objective:    "Produce a reviewed report",
 			Instructions: contracts.ResolvedInstructions{Text: "Use the Workers carefully."},

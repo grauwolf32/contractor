@@ -1,88 +1,88 @@
-# Исправления публичного OpenAPI — результаты V59
+# Public OpenAPI corrections — V59 results
 
-Дата проверки: 2026-09-20. Основание — [ревью R01–R12](2026-09-19-public-openapi-review.md)
-на `b779dedf285f5d6645f064d423e8873b5c382ab6` и
-[план V59](../plans/2026-09-19-public-openapi-corrections.md).
+Verification date: 2026-09-20. Based on the [R01–R12 review](2026-09-19-public-openapi-review.md)
+at `b779dedf285f5d6645f064d423e8873b5c382ab6` and the
+[V59 plan](../plans/2026-09-19-public-openapi-corrections.md).
 
-Все 12 замечаний подтверждены с уточнениями и исправлены в существующем
-проекте. Переписывать API или менять его версию для этих исправлений не
-потребовалось. Проверка охватывала схемы, фактические HTTP-обработчики,
-доменные ограничения, сгенерированные Go/TypeScript-клиенты и UI.
-Машиночитаемые результаты находятся в [evidence V59-005](../../tasks/evidence/v59-005.json).
+All 12 findings were confirmed with clarifications and corrected in the existing
+project. These fixes required neither an API rewrite nor a version change.
+Verification covered schemas, actual HTTP handlers, domain constraints,
+generated Go/TypeScript clients and the UI. Machine-readable results are in
+[V59-005 evidence](../../tasks/evidence/v59-005.json).
 
-## Что исправлено
+## Corrections
 
-| Замечание / задача | Причина и итоговое исправление | Проверка результата |
+| Finding / task | Cause and final fix | Verification |
 | --- | --- | --- |
-| R01 / [V59-001](../../tasks/v59-001-audit-report-and-pagination.yml) | Публичный DTO терял уже полученный сервисом `review`. DTO и handler теперь сохраняют его; для `status=proposed` схема требует review. | Настоящий HTTP-handler: четыре статуса, сохранение ID/revision/state, авторизация; отрицательный schema-case proposed без review. |
-| R02 / [V59-002](../../tasks/v59-002-published-configuration-contracts.yml) | Закрытая схема Summarizer не знала действующее поле `instructions`. Добавлена optional exact-ссылка; UI сохраняет только безопасные ref/digest. | Настоящий каталог: 41 AgentTemplate, четыре ModelPolicy, один Gateway через list/detail; в 30 версиях AgentTemplate есть Summarizer instructions. Go-декодирование сохраняет ссылку, UI не переносит текст инструкций. |
-| R03 / V59-002 | Закрытая схема telemetry не знала действующее `export.retry`; UI тоже терял его. Описаны optional поля 1–60000 мс и существующие defaults 100/1000. UI сохраняет корректные значения и применяет действующую серверную проверку порядка после defaults. | Publication/list/detail: отсутствие retry, пустой объект, собственные значения, минимум и максимум; scalar/null/unknown и нарушенный порядок отвергаются. Defaults описаны текстом, чтобы генератор не делал optional request-поля обязательными. |
-| R04 / [V59-003](../../tasks/v59-003-runtime-config-author-and-nullable-client.yml) | Один union смешивал входной selector и сохранённую exact-ссылку. Разделены author/read документы. Дополнительно найдено, что UI-форма отправляла объект gateway туда, где сервер принимает selector; форма исправлена. | 11 форм сравниваются с настоящим author parser и обеими схемами. Настоящий POST разрешает selector, GET возвращает exact-ref и сохраняет разрешённые clear-поля. UI typecheck и тест формы. |
-| R05 / V59-001 | Публичная страница 200 требует внутренние 201 запись; мешали два ограничения: service validator и пакетная загрузка receipts. Внутренний предел допускает дополнительную строку, receipts загружаются пакетами по 200. | Изолированный PostgreSQL и race detector: 201 finding/review/provenance, страницы 199/200, оставшиеся 2/1, полное прохождение без пропусков и дублей; owner isolation, stale cursor, публичный 201 по-прежнему отвергается. |
-| R06 / [V59-004](../../tasks/v59-004-request-and-history-contracts.yml) | Схема не выражала зависимость полей от verdict. Добавлен closed `oneOf`: true_positive требует severity, duplicate требует target, остальные verdict запрещают чужие поля. UI создаёт соответствующую ветку. | Общие 18 wire-cases для схемы и настоящего domain validator, пять допустимых generated Go builders, тесты UI. |
-| R07 / V59-004 | Regex запрещал поддерживаемую пустую метку. Обе схемы Run lists принимают пустые значения, дополнительные `=` и переводы строк. | Восемь HTTP-сценариев двух list endpoints выбирают ровно нужный Run. В ходе независимой проверки исправлен первоначальный вариант `.*`, который ошибочно запрещал перевод строки. |
-| R08 / V59-004 | JSON Schema считает символы, сервер — UTF-8 байты. Удалены несовместимые character bounds, единицы описаны явно; UI больше не требует 12 символов. | Реальные bootstrap/hash/login для 12-байтового кириллического и 1024-байтового supplementary-Unicode паролей; 10/1028 байт отвергаются. UI-тесты ввода и отправки. |
-| R09 / V59-003 | `*T` с `omitempty` не различал пропуск и explicit null. Включён поддерживаемый pinned-генератором `nullable-type`, адаптированы CLI-вызовы. | Настоящие typed HTTP builders: 15 случаев absent/null/value для пяти RuntimeConfig-полей и шесть для Run credential selectors; проверяются отправляемые bytes и production parser. |
-| R10 / V59-004 | Четыре Git mutations не объявляли существующие Origin/CSRF параметры cookie auth. Добавлены reusable parameters, regenerated builders их передают. | Четыре операции × пять режимов авторизации; отклонённые запросы не достигают доменной мутации. Отдельно проверена сериализация заголовков generated client. |
-| R11 / V59-004 | `maxItems: 1024` не был реальным ограничением retained Run history. Удалён ложный cap схемы, документация описывает полную сохранённую историю. | Реальный config принимает retry=1025; HTTP-handler сохраняет 1025 fixture attempts/transitions, включая последние элементы. Это не запуск 1025 настоящих Scheduler executions. |
-| R12 / V59-004 | Описание ошибочно требовало explicit create precondition. Документация теперь отражает существующее create-only поведение при отсутствии заголовков и CAS для обновлений. | Реальная import precondition logic с fixture repository: отсутствующая/существующая binding, nil/stale/exact revision. |
+| R01 / [V59-001](../../tasks/v59-001-audit-report-and-pagination.yml) | The public DTO dropped `review`, which the service had already returned. The DTO and handler now preserve it; the schema requires review for `status=proposed`. | Real HTTP handler: four statuses, preserved ID/revision/state, authorization; negative schema case for proposed without review. |
+| R02 / [V59-002](../../tasks/v59-002-published-configuration-contracts.yml) | The closed Summarizer schema omitted the existing `instructions` field. An optional exact ref was added; the UI preserves only safe ref/digest values. | Real catalog: 41 AgentTemplates, four ModelPolicies and one Gateway via list/detail; 30 AgentTemplate versions have Summarizer instructions. Go decoding preserves the ref; the UI does not copy instruction text. |
+| R03 / V59-002 | The closed telemetry schema omitted the existing `export.retry`; the UI also dropped it. Optional fields spanning 1–60000 ms and existing defaults 100/1000 are documented. The UI preserves valid values and applies the existing Server ordering check after defaults. | Publication/list/detail: absent retry, empty object, custom values, minimum and maximum; scalar/null/unknown and invalid ordering are rejected. Defaults are described in prose so the generator does not make optional request fields mandatory. |
+| R04 / [V59-003](../../tasks/v59-003-runtime-config-author-and-nullable-client.yml) | One union mixed the input selector and stored exact ref. Author/read documents were separated. The UI form was also found to send a gateway object where the Server accepts a selector; the form was fixed. | 11 shapes compared against the real author parser and both schemas. Real POST resolves a selector; GET returns an exact ref and preserves permitted clear fields. UI typecheck and form test. |
+| R05 / V59-001 | A public page of 200 needs 201 internal rows; two limits interfered: service validation and receipt batch loading. The internal limit now permits the extra row, with receipts loaded in batches of 200. | Isolated PostgreSQL and race detector: 201 findings/reviews/provenance records, pages of 199/200 with 2/1 remaining, complete traversal without omissions or duplicates; owner isolation, stale cursor, public 201 remains rejected. |
+| R06 / [V59-004](../../tasks/v59-004-request-and-history-contracts.yml) | The schema did not express verdict-dependent fields. A closed `oneOf` now requires severity for true_positive and a target for duplicate; other verdicts forbid unrelated fields. The UI builds the matching branch. | 18 shared wire cases for the schema and real domain validator, five valid generated Go builders, UI tests. |
+| R07 / V59-004 | The regex rejected a supported empty label. Both Run-list schemas now accept empty values, additional `=` characters and newlines. | Eight HTTP scenarios across two list endpoints select exactly the intended Run. Independent review corrected the initial `.*` pattern, which incorrectly rejected newlines. |
+| R08 / V59-004 | JSON Schema counts characters; the Server counts UTF-8 bytes. Incompatible character bounds were removed and units documented explicitly; the UI no longer requires 12 characters. | Real bootstrap/hash/login for a 12-byte Cyrillic password and a 1024-byte supplementary-Unicode password; 10/1028 bytes rejected. UI input and submission tests. |
+| R09 / V59-003 | `*T` with `omitempty` did not distinguish omission from explicit null. Enabled `nullable-type`, supported by the pinned generator, and adapted CLI calls. | Real typed HTTP builders: 15 absent/null/value cases for five RuntimeConfig fields and six for Run credential selectors; serialized bytes and the production parser are checked. |
+| R10 / V59-004 | Four Git mutations did not declare existing Origin/CSRF parameters for cookie auth. Reusable parameters were added; regenerated builders send them. | Four operations × five authentication modes; rejected requests never reach the domain mutation. Generated-client header serialization is checked separately. |
+| R11 / V59-004 | `maxItems: 1024` was not an actual retained Run-history limit. The false schema cap was removed; documentation describes the full retained history. | Real config accepts retry=1025; the HTTP handler preserves 1025 fixture attempts/transitions, including the final entries. This does not execute 1025 real Scheduler executions. |
+| R12 / V59-004 | The description incorrectly required an explicit create precondition. Documentation now reflects existing create-only behavior without headers and CAS for updates. | Real import precondition logic with a fixture repository: absent/existing binding, nil/stale/exact revision. |
 
-## Почему это не свелось к правке YAML
+## Why YAML edits alone were insufficient
 
-R01 и R05 прежде всего были ошибками серверной проекции и pagination pipeline.
-R02/R03/R04/R08 затрагивали клиентскую нормализацию или формы; одной регенерации
-типов для них было недостаточно. R09 требовал проверки фактического JSON,
-отправляемого generated Go client, и исправления затронутых CLI call sites.
+R01 and R05 were primarily Server projection and pagination-pipeline defects.
+R02/R03/R04/R08 affected client normalization or forms; regenerating types alone
+was insufficient. R09 required checking the actual JSON sent by the generated
+Go client and correcting affected CLI call sites.
 
-Условие proposed → review выражено через запрет некорректной комбинации `not`:
-используемый kin-openapi не обеспечивал нужную проверку `if/then` даже при
-включённом режиме JSON Schema 2020. Отрицательный тест выявил это до завершения
-задачи. Выбранная форма также сохраняет удобные типы Go/TypeScript без большого
-union для всего отчёта.
+The proposed → review condition is expressed by rejecting the invalid combination
+with `not`: the kin-openapi version in use did not enforce the required `if/then`
+check even with JSON Schema 2020 mode enabled. A negative test exposed this
+before task completion. The chosen form also preserves convenient Go/TypeScript
+types without introducing a large union for the entire report.
 
-Проверки не снимались ради прохождения тестов. Закрытые объекты остаются
-закрытыми, границы owner/CAS и byte-policy паролей сохраняются. Убраны именно
-ограничения, не соответствовавшие действующему контракту: смешение author/read,
-символьные password bounds, запрет пустой метки и необеспеченный history cap.
-Для gateway и llmGateway не добавлена возможность clear через null. Общие
-лимиты WorkerCompletion, ADK-финализатор и модельные бюджеты не пересматривались.
+Checks were not removed just to make tests pass. Closed objects remain closed;
+owner/CAS boundaries and the password byte policy are preserved. Only constraints
+that contradicted the existing contract were removed: mixed author/read shapes,
+character-based password bounds, the empty-label prohibition and the unenforced
+history cap. No null-clearing support was added for gateway or llmGateway.
+Shared WorkerCompletion limits, the ADK finalizer and model budgets were not revised.
 
-## Проверки и их границы
+## Verification and its limits
 
-- OpenAPI 3.1 / YAML 1.2: уникальность ключей, 88 paths, 111 operations,
-  346 component schemas; проверка метасхемой Draft 2020-12.
-- `make verify-public-api`: проходит; в постоянный gate включены новые
-  contract cases и ранее не включённый Project Run handler test.
-- `make verify-public-api-postgres`: проходит с race detector и отдельным
-  локальным PostgreSQL 17. Без `CONTRACTOR_TEST_DATABASE_URL` команда обязана
-  завершаться ошибкой; это также проверено. Gate включён в `release-verify`.
-- Go public HTTP, auditservice, runtimeconfig, publicclient, CLI, config и auth
-  проверены с настоящим тестовым PostgreSQL. Вызовы прикладных сервисов в
-  некоторых HTTP contract cases заменены fixtures; это не выдаётся за DB-test.
-- `go test -count=1 ./...` и `go vet ./...` проходят. Первый общий Go-прогон
-  обнаружил отсутствие `runtime/.venv` в изолированном worktree; после
-  подключения существующего locked environment повторный полный прогон прошёл.
-- Полные UI typecheck, lint, Vitest, build и тесты static server проходят.
-  После включения параллельной V58-013 весь UI-набор выполнен повторно;
-  точные счётчики и результаты приведены в evidence.
-- Go generator 2.8.0 и openapi-typescript 7.13.0 запущены повторно; оба
-  generated artifact побайтно воспроизводимы, SHA-256 записаны в evidence.
+- OpenAPI 3.1 / YAML 1.2: unique keys, 88 paths, 111 operations,
+  346 component schemas; validation against the Draft 2020-12 metaschema.
+- `make verify-public-api`: passes; the permanent gate includes new contract
+  cases and a previously omitted Project Run handler test.
+- `make verify-public-api-postgres`: passes with the race detector and a separate
+  local PostgreSQL 17. The command must fail without `CONTRACTOR_TEST_DATABASE_URL`;
+  this was also verified. The gate is included in `release-verify`.
+- Go public HTTP, auditservice, runtimeconfig, publicclient, CLI, config and auth
+  were checked with a real test PostgreSQL instance. Application service calls
+  in some HTTP contract cases use fixtures; those cases are not claimed as DB tests.
+- `go test -count=1 ./...` and `go vet ./...` pass. The first full Go run exposed
+  a missing `runtime/.venv` in the isolated worktree; after connecting the existing
+  locked environment, the repeated full run passed.
+- Full UI typecheck, lint, Vitest, build and static-server tests pass. After
+  integrating concurrent V58-013 work, the entire UI suite was rerun; exact
+  counts and results are recorded in the evidence.
+- Go generator 2.8.0 and openapi-typescript 7.13.0 were rerun; both generated
+  artifacts are byte-for-byte reproducible, with SHA-256 values in the evidence.
 
-Использовались Go 1.25.6, Node 26.7.0 и pnpm 11.24.0. В UI объявлен Node
-24.20.x: результаты этого прогона относятся к фактическому Node 26.7.0,
-несмотря на успешное выполнение проверок. Browser E2E, live-model evals,
-деплой и production workloads этим прогоном не проверялись. Он не доказывает
-отсутствие иных ошибок проекта или улучшение качества модельных результатов.
+The run used Go 1.25.6, Node 26.7.0 and pnpm 11.24.0. The UI declares Node
+24.20.x: these results apply to the actual Node 26.7.0 environment, despite all
+checks passing. Browser E2E, live-model evals, deployment and production workloads
+were not checked by this run. It does not prove the absence of other project
+defects or an improvement in model-result quality.
 
-## Интеграция и дальнейшее ревью
+## Integration and further review
 
-V59-001–004 имеют отдельные implementation commits и последующие completion
-metadata с полными исходными хешами. V59-005 добавляет постоянные gates, этот
-разбор и общий verification record. Параллельная V58-013 включена в объединённое
-состояние; существующие незакоммиченные планы в основном worktree сохраняются
-отдельно от исправлений V59.
+V59-001–004 have separate implementation commits and subsequent completion
+metadata with full original hashes. V59-005 adds permanent gates, this analysis
+and a combined verification record. Concurrent V58-013 work is included in the
+combined state; existing uncommitted plans in the main worktree are preserved
+separately from V59 fixes.
 
-Следующий обзор должен проверять проект по пользовательским сценариям и
-границам доверия, включая recovery и конкурентные операции. Успешный OpenAPI
-gate — проверка известных контрактных сценариев, а не сертификат корректности
-всех ответов, переходов состояний или будущих конфигураций.
+The next review should examine user journeys and trust boundaries, including
+recovery and concurrent operations. A passing OpenAPI gate verifies known
+contract scenarios; it does not certify the correctness of every response,
+state transition or future configuration.

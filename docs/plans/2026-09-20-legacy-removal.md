@@ -1,8 +1,10 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C04 implemented, verified and integrated into local `main`.
-C01–C03 were integrated as `1d661196`; C04 followed on
-`refactor/scheduler-legacy-removal`. C05–C07 and D01–D07 remain planned.
+Status: C01–C07 and D01–D03 implemented, verified and integrated into local `main`;
+D04–D07 remain planned.
+C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
+C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
+`refactor/catalog-legacy-removal`.
 Reviewed working tree on 2026-09-20, HEAD
 `e1ea6209713d1c8d637d1106ce92a4960a4a2c58`, including existing uncommitted
 documentation. The user requested finding code retained only for backward
@@ -159,83 +161,98 @@ resolver with explicit fixture inputs. Model-free `tool@1` Workers remain valid
 with no LLM route. Updated specification 05. V61 toolset pinning is separate
 work on overlapping allocation/configuration paths and is not merged here.
 
-### C05 — model-backed Planner constructors
+### C05 — model-backed Planner constructors (implemented)
 
-[streamline/factory.go](../../internal/planner/streamline/factory.go) retains
-both `model` and `modelFactory`, direct-LLM `NewFactory`/`NewFactoryWithMemory`
-constructors and corresponding Router delegates.
-[router/factory.go](../../internal/planner/router/factory.go) exposes both forms.
-[streamline/planner.go](../../internal/planner/streamline/planner.go)'s
-`newRootAgent` explicitly uses a legacy zero temperature without ModelAccess.
+Removed the direct-LLM `NewFactory`/`NewFactoryWithMemory` constructors from
+[Streamline](../../internal/planner/streamline/factory.go) and
+[Router](../../internal/planner/router/factory.go), their unconfigured Router
+delegates and `Factory.model`. The configured factories are now the only
+model-backed construction path. Each invocation requires valid ModelAccess
+before constructing its model client; execution budgets come from ModelPolicy.
 
-[composition_execution.go](../../internal/app/composition_execution.go) uses
-configured factories. No ordinary application caller of the direct-LLM
-Streamline/Router constructors was found; their remaining callers are tests.
-Update those tests with valid ModelAccess and a fake InvocationModelFactory,
-then remove the unused constructors, `Factory.model` and the missing-access
-branches. Preserve the distinction between omitted temperature and explicit
-zero. Do not impose ModelAccess on `passthrough@1` or `scan-plan@1`.
+Removed the missing-access branches in
+[streamline/planner.go](../../internal/planner/streamline/planner.go), including
+the implicit zero temperature and placeholder telemetry model alias. An omitted
+policy temperature stays omitted; an explicit zero remains explicit.
 
-### C06 — HTTP batch reader fallbacks
+Unit fixtures now supply valid ModelAccess and inject scripted models through
+InvocationModelFactory. Budget tests set the invocation's ModelPolicy;
+configuration rejection and per-invocation model selection cover both profiles.
+The PostgreSQL/Gateway recovery test and opt-in live Router harness construct
+clients from the supplied ModelAccess. Their deterministic zero temperature is
+an explicit fixture setting.
 
-[run_detail_batch.go](../../internal/httpapi/public/run_detail_batch.go) tries
-three optional interfaces and otherwise loops over individual Stage reads.
-The comment explicitly reserves these paths for older/non-PostgreSQL
-implementations. Production already has:
+[composition_execution.go](../../internal/app/composition_execution.go) already
+used configured factories. `passthrough@1` and `scan-plan@1` remain model-free.
+
+### C06 — HTTP batch reader fallbacks (implemented)
+
+[run_detail_batch.go](../../internal/httpapi/public/run_detail_batch.go) now
+calls the batch methods required by the corresponding interfaces in
+[public/types.go](../../internal/httpapi/public/types.go). Removed the three
+optional-interface assertions and individual Stage read loops. Production uses:
 
 - `PostgresStore.ListStageAllocationsBatch`;
 - `telemetry.Repository.GetStageMetricsBatch`;
 - `planner/session.Service.LoadPlans`.
 
-Require these methods on the corresponding interfaces in
-[public/types.go](../../internal/httpapi/public/types.go), implement them in
-test readers and remove type assertions and per-stage loops. Optional Metrics
-and PlannerPlans dependencies can remain optional. Do not remove individual
-read methods that have other consumers. Preserve authorized-Run reads,
+Also removed the nested per-session fallback in
+[planner/session.LoadPlans](../../internal/planner/session/plans_batch.go),
+requiring `GetPlannerSessions` on the session store. Test readers now implement
+the current batch contracts. Individual methods used by other consumers remain
+available on the production stores and Planner session service.
+
+Metrics and PlannerPlans dependencies remain optional. Authorized-Run reads,
 best-effort metrics, exact Planner session identity checks and bounded SQL
-query counts.
+query counts retain their existing behavior. The PostgreSQL regression test
+asserts response contents and query bounds directly instead of comparing with
+the retired per-stage path. Updated specification 06.
 
-## C07 — retire superseded configuration from the default catalog
+## C07 — retire superseded configuration from the default catalog (implemented)
 
-[memory-catalog.json](../../configs/memory-catalog.json) explicitly maps
-**20 AgentTemplates, 16 Workflows and 5 AuditProfiles** from `legacy` to `active`.
-All 41 legacy files and all 41 successor files exist. These are configuration
-duplicates retained for compatibility, not 41 independently obsolete engines.
+Removed the 41 superseded definitions inventoried in
+[memory-catalog.json](../../configs/memory-catalog.json): **20 AgentTemplates,
+16 Workflows and 5 AuditProfiles**. All 41 successor YAML files retain their
+previous bytes. The default catalog now contains 21 AgentTemplates, 17 Workflows,
+6 AuditProfiles and 38 instruction files; the separate Audit completion example
+remains supported.
 
-A literal-selector scan of configuration YAML outside the 41-file removal set
-found these remaining references:
+Removed 14 instruction files with no remaining default-catalog consumer. Other
+pre-Memory instruction files are still selected by current Planner stages and
+remain required. The four ordinary examples now use current templates under
+version 2. Router/Streamline examples use their existing Memory example
+bytes at the canonical filenames; the two duplicate `_memory.yaml` copies are
+removed.
 
-| Legacy selector | Consumers outside the removal set |
-| --- | --- |
-| `artifact_builder@1` | `configs/examples/{streamline_review_workflow,multi_stage_workflow,bounded_retry_workflow}.yaml`; `configs/e2e/workflows/{escalating_copy,artifact_copy,router_review,streamline_copy}.yaml` |
-| `openapi_builder@1`, `openapi_validator@1` | `configs/examples/router_openapi_workflow.yaml` |
+Consumers and tests:
 
-This scan is evidence, not a full resolved dependency proof: test code and
-external operator catalogs can refer to selectors differently.
+- Updated repository-catalog assertions, process Workflow/Audit selectors,
+  shared Skill assignment checks and ordinary project/Audit evaluation harnesses.
+  Exact tool allowlists now include their existing Memory operations. Domain
+  capabilities, outputs, topology, completion policy and snapshot-copy assertions
+  remain covered.
+- The isolated `configs/e2e`, `testdata/configs` and minimal loader catalogs keep
+  their own behavioral fixtures. `configtest` now includes its artifact-copy
+  Workflow and instructions alongside the existing test-only artifact builder
+  and policies. Its escalation fixture uses the current validator template.
+- Frozen V40 `catalog-baseline.json`, variants, candidate definitions and release
+  manifests remain unchanged; their tests load the retained catalog directly.
+- [production_memory_test.go](../../internal/config/production_memory_test.go)
+  verifies current closure, all six Memory operations, retired-selector rejection
+  and reading complete pinned Workflow/AuditProfile snapshots without a catalog
+  lookup. [catalog_cleanup_test.go](../../internal/config/catalog_cleanup_test.go)
+  verifies the exact current Workflow set and instruction/template reachability.
+- New requests for absent exact selectors fail resolution. Repeat retains the
+  original identity and reports blocking `workflow_unavailable`; it never picks
+  a successor automatically. Independently published managed/operator resources
+  are outside this source-catalog deletion.
 
-Removal sequence:
+[configs/README.md](../../configs/README.md) and
+[configs/MEMORY.md](../../configs/MEMORY.md) describe the current inventory.
+`memory-catalog.json` schema version 2 keeps `retired`, `active` and `active_file`
+as an inventory and retirement record, with no paths to deleted definitions.
 
-1. Build the complete resolved reference closure, including bundled examples,
-   process fixtures, managed/operator configuration and frozen evaluation inputs.
-2. Move genuinely necessary old test/evaluation definitions into dedicated
-   fixture roots with their exact content. Keep frozen V40 experiment inputs
-   unchanged; substituting Memory-enabled successors changes the experiment.
-   Update ordinary examples to current selectors and validate their closure.
-3. Adjust [production_memory_test.go](../../internal/config/production_memory_test.go)
-   and [catalog_cleanup_test.go](../../internal/config/catalog_cleanup_test.go):
-   current tests deliberately require both versions in the default catalog.
-   Retain successor behavior, reachability and immutable-identity checks.
-4. Remove the 41 old YAML files from the default catalog, then remove only
-   instructions/policies proven unreachable from all retained configurations.
-   Update `configs/README.md`, `configs/MEMORY.md` and their inventory semantics.
-5. Verify retained Run/Audit execution from pinned snapshots. Define how Repeat
-   and new requests using a removed exact selector fail; never silently map
-   an old identity to its successor or reuse the old identity for new bytes.
-
-The server-managed catalog is a separate source. Removing a repository file
-does not prove that a published resource or external reference disappeared.
-
-## Historical-data readers: planned strict-format cleanup
+## Historical-data readers: strict-format cleanup
 
 These are confirmed compatibility branches. Under the user's fresh-project
 decision, old shapes can become unsupported. Their removal remains separate
@@ -244,9 +261,9 @@ data needs a compatibility window.
 
 | ID | Code and historical shape | Current behavior to preserve when removing it |
 | --- | --- | --- |
-| D01 | [config/persisted.go](../../internal/config/persisted.go): missing Stage `session` means `shared`, whereas newly authored omission becomes explicit `isolated`. | Require the explicit persisted mode; preserve intentional shared/isolated execution and reject missing or invalid persisted modes. |
-| D02 | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): infer old Workflow role kinds and verify `auditProfileLegacyDigest`. | Require current role kinds and digest validation, including embedded closures. Do not re-sign or reinterpret an old snapshot as a current one. |
-| D03 | [evalstore/receipts.go](../../internal/evalstore/receipts.go): convert old `{id, revision, state}` into typed receipts. | Keep typed receipt replay and idempotency identity; reject old overloaded receipts rather than inventing typed fields. |
+| D01 (implemented) | [config/persisted.go](../../internal/config/persisted.go): removed the missing Stage `session` → `shared` compatibility rule. | Both snapshot decoders require an explicit valid mode; authored omission still becomes `isolated` before persistence. |
+| D02 (implemented) | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): removed old Workflow role inference and the legacy digest algorithm. | Require explicit current role kinds and the current digest, including embedded closures and optional Worker completion. Old snapshots fail without reinterpretation or rewriting. |
+| D03 (implemented) | [evalstore/receipts.go](../../internal/evalstore/receipts.go): removed conversion from old `{id, revision, state}` to typed receipts. | Require the current operation-specific shape, reject legacy/mixed receipts and preserve typed replay identity without new effects or byte rewriting. |
 | D04 | [auditservice/resume.go](../../internal/auditservice/resume.go): continue terminal `deadline_exhausted` Audits; reopen items and archive report links. | Preserve ordinary paused Resume, review expiration, replay and holds. Remove terminal continuation across backend, reports, UI and public contract together. |
 | D05 | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
 | D06 | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): reconstruct inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
@@ -258,6 +275,71 @@ For D04, the change extends beyond `Resume`: inspect
 `continuation_count`, report naming, UI Continue controls and public OpenAPI.
 Previously continued records may become unsupported; ensure no current path
 still creates or consumes the removed continuation state.
+
+### D01 — explicit persisted Stage session mode (implemented)
+
+Removed `normalizePersistedStageSession` and the extra JSON shape pass used to
+infer a missing field. The Workflow and Stage snapshot decoders now validate
+the already decoded `WorkerSessionMode` directly. Missing, null, empty, unknown
+and non-string values fail decoding without a repaired or partially usable
+snapshot. Existing AuditProfile closure validation applies the same explicit
+mode requirement to its embedded Workflows.
+
+Current writers already resolve authored omission to `isolated` and persist
+`ResolvedStage.Session` without `omitempty`. Explicit `shared` retains its
+intentional allocation-local conversation behavior. No writer, current snapshot
+format or Runtime session lifecycle needed changing.
+
+Updated [specification 00](../spec/00-workflow-and-planner.md). The
+[configuration tests](../../internal/config/worker_session_test.go) cover both
+valid modes through Workflow/Stage round trips, malformed and missing modes,
+and a missing mode inside an AuditProfile. The
+[Scheduler regression](../../internal/scheduler/worker_session_test.go) verifies
+that missing Workflow or Stage session authority fails before allocation or
+Planner/Worker execution, including recovery of preparing/running Stages, and
+that no snapshot is rewritten. Existing retry and escalation tests retain
+explicit `shared` across fresh attempts.
+
+### D02 — explicit persisted Audit Workflow roles (implemented)
+
+Removed the extra JSON shape pass, missing-kind inference and alternate digest
+algorithm from AuditProfile decoding. Every persisted Workflow binding now
+requires `check`, `discovery` or `assessment`; the single digest implementation
+always includes that kind, the embedded Workflow and any explicit
+`workerCompletion` contract. Current authors already provide explicit role kinds
+and current writers retain them. Their serialized format and digest are unchanged.
+
+Updated [specification 19](../spec/19-audits.md). The
+[snapshot tests](../../internal/config/persisted_audit_profile_test.go) cover
+current role round trips, legacy and mixed snapshots, missing/null/empty/unknown/
+non-string kinds, a changed valid kind and a frozen digest from the removed
+algorithm. Invalid snapshots return no usable profile and retain original bytes.
+The [completion test](../../internal/config/audit_completion_test.go) also rejects
+removing an explicit completion contract without changing its digest. The
+[Controller regression](../../internal/auditcontroller/controller_test.go) closes
+dispatch for the retired shape in accepted and assessing rounds before any
+child Run or execution intent, preserving the stored snapshot and round/items.
+
+### D03 — typed Eval mutation receipts (implemented)
+
+Removed `legacyReceipt` and its four conversion callbacks. Dataset, experiment,
+command and submission readers now decode their own current fields directly,
+rejecting unknown fields and trailing JSON as well as missing/invalid identity
+and revision. A rejected read returns no partially usable typed receipt.
+Current writers already marshal these four types; no writer, stored current
+format, public response schema or database migration needed changing.
+
+Updated the [persistence contract](../../internal/evalstore/README.md). The
+[receipt tests](../../internal/evalstore/receipts_test.go) cover current reads and
+replays, cross-type rejection, legacy/mixed bodies and malformed/missing typed
+fields without changing response bytes. The
+[PostgreSQL HTTP regression](../../internal/httpapi/public/eval_receipts_postgres_test.go)
+seeds historical receipt bytes for all four operations and verifies that
+repeated requests fail at the response boundary without changing receipts,
+datasets, experiment revisions/clocks, commands or submission intents. Current
+receipts still replay their exact original response after those rejected reads.
+Transaction ordering, owner checks and request-digest conflict handling remain
+unchanged; an unsupported stored response never triggers a replacement mutation.
 
 ### Removal rules for persisted formats
 
@@ -293,8 +375,10 @@ shrinking that contract is separate from removing an internal no-op.
 
 ## Execution order and acceptance
 
-C01/C02 are implemented in the first increment, C03 in the second and C04 in
-the third; later items remain planned.
+C01/C02 are implemented in the first increment, C03 in the second, C04 in
+the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
+D01 is implemented in the seventh increment, D02 in the eighth and D03 in the
+ninth; D04–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -421,4 +505,181 @@ Verification completed on 2026-09-20:
   one manual-Resume fixture family without creation times; it was updated and
   the complete database-backed race run passed afterward.
 
-Next increment: C05, obsolete model-backed Planner constructors.
+## Fourth increment — C05 results
+
+Removed the direct-LLM constructors and missing-ModelAccess branches from
+Streamline/Router. Updated unit and integration fixtures to use the configured
+factories with explicit per-invocation policies. Implemented in the isolated
+`refactor/planner-legacy-removal` worktree based on `bc32a76b` and integrated
+into local `main`, preserving unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to a disposable PostgreSQL 17
+  container, `go test -race -count=1 -timeout=8m ./internal/planner/... ./internal/scheduler ./internal/controlplane ./tests/integration/streamline`
+  passed. Database tests were enabled, including Gateway/Worker recovery
+  without semantic replay.
+- Both Planner profiles reject missing or invalid ModelAccess before model,
+  session or Worker side effects. Existing per-invocation model selection,
+  model/token/Worker budgets and omitted-versus-explicit-zero temperature
+  checks pass through the current factory path.
+- `go test -run '^$' ./...` and
+  `go test -tags=e2e -run '^$' ./tests/e2e ./tests/ui-stack ./tests/eval/project_workflows`
+  passed as compile checks. Full process/browser and opt-in live-model suites
+  were not run for this increment.
+- Go formatting, local plan-link validation and `git diff --check` passed.
+  Searches found no remaining retired constructors or missing-access
+  compatibility branches in the affected implementation and tests.
+
+## Fifth increment — C06 results
+
+Removed three optional batch-interface checks and per-stage loops from the Run
+detail handler, plus the nested compatibility loop in Planner session loading.
+The HTTP readers and Planner session store now require batch methods. Updated
+test readers, direct response assertions and specification 06. Implemented in
+`refactor/http-batch-legacy-removal` and integrated into local `main`, preserving
+unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to a disposable PostgreSQL 17
+  container, `go test -race -count=1 -timeout=8m ./internal/httpapi/public ./internal/runstore ./internal/telemetry ./internal/planner/session`
+  passed. All four packages completed with database tests enabled.
+- The PostgreSQL Run detail regression test verifies a constant query count
+  for 1, 5 and 30 Stages, one query per related collection, exact plans and
+  outputs, absent/corrupt optional metrics, and owner rejection before related
+  reads. Planner session tests retain missing/mismatched identity rejection.
+- HTTP regression tests cover absent optional readers, unavailable metrics,
+  required allocation/plan read failures, sanitized errors and an empty Run
+  that needs no related reads.
+- `go test -run '^$' ./...` and
+  `go test -tags=e2e -run '^$' ./tests/e2e ./tests/ui-stack ./tests/eval/project_workflows`
+  passed as compile checks. Full process/browser/live-model suites were not run
+  for this increment.
+- Go formatting, local plan-link validation and `git diff --check` passed.
+  The four retired optional batch interfaces and their compatibility branches
+  have no remaining implementation references.
+
+## Sixth increment — C07 results
+
+Retired the superseded default-catalog definitions and their orphan instructions,
+updated the ordinary examples, and moved all default-catalog consumers to current
+selectors. Implemented in `refactor/catalog-legacy-removal` and integrated into
+local `main`, preserving unrelated working-tree changes. The 41 successor YAML files and frozen V40 catalog inputs
+retain their exact bytes.
+
+Verification completed on 2026-09-20:
+
+- `make test-config` passed, including command-line validation of all 21 templates,
+  17 Workflows, 6 AuditProfiles and 38 instructions.
+- PostgreSQL 17 race tests passed for configuration, Agent Skills, Audit
+  controller, public HTTP API, Run service, scheduler, ordinary and frozen eval
+  harnesses, untagged E2E matrix tests and fault matrix tests.
+- Seven process scenarios for Memory, project Workflows, Audit programs, Findings,
+  Agent Skills, HTTP/Caido and taint annotations passed against real Go/Python processes and scripted model gateways.
+  The Audit scenario includes removal of its current staged catalog and a Server
+  restart before checking retained results and provenance.
+- The real Chromium Operations/Project/Streamline browser scenario passed with
+  Node 24.20.0 and pnpm 11.24.0; optional screenshot OCR was unavailable. Full
+  managed-Evals browser journeys and paid-model/real-Podman-container gates were
+  not run in this increment.
+- Four offline Python Podman Workflow tests passed with warnings as errors.
+- Browser fixture closure tests load both ordinary and managed-Evals catalogs,
+  including both Workflow/Audit arms. E2E, UI-stack and project-eval packages
+  compile with the `e2e` build tag.
+- Initial runs exposed stale test assumptions: removed selectors/files, exact
+  tool lists without Memory, old policy budgets, an omitted summarizer instruction
+  dependency, a fault-matrix source-file pointer, and a Findings comparison that
+  included the changing read timestamp. The Agent Skills retry fixture now uses
+  a transient Gateway response with HTTP retries disabled, so it exercises the
+  intended Stage retry. Updated those fixtures while retaining
+  domain, authorization, snapshot, review-state and tool-boundary assertions.
+- Local documentation links, formatting and `git diff --check` passed.
+
+## Seventh increment — D01 results
+
+Implemented in `refactor/persisted-session-legacy-removal`, based on C07 commit
+`97240aa0`, and integrated into local `main`. Unrelated working-tree edits were
+preserved.
+
+Verification completed on 2026-09-20:
+
+- `go test -count=1 -timeout=8m ./...` passed with optional database/live-model
+  environment variables unset: **63 packages with tests**. No unrelated fixtures
+  needed updating to retain the removed historical interpretation.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=8m` passed for `./internal/config/...`,
+  `./internal/scheduler`, `./internal/runservice`, `./internal/app`,
+  `./internal/auditservice`, `./internal/auditcontroller`, `./internal/auditimport`,
+  `./internal/findingintake` and `./internal/httpapi/public`.
+- Focused configuration tests cover explicit shared/isolated round trips,
+  missing/null/empty/unknown/non-string persisted modes, the AuditProfile closure
+  and the current authored default. The Scheduler rejects missing authority in
+  queued and recovering Workflows and preparing/running Stages before reservation,
+  Worker preparation or Planner creation/invocation; original bytes are retained.
+- `TestWorkerSessionModesAcrossProductionProcesses` passed with a disposable
+  PostgreSQL 17 database, real Go/Python processes and a scripted model gateway.
+  It covers Streamline isolated sessions, Router shared sessions in separate
+  logical Worker allocations, later isolated Stages and Runtime reuse.
+- Go formatting, specification/plan link validation and `git diff --check`
+  passed. Searches found no remaining implementation reference to the removed
+  normalizer. No paid model call, browser run or data migration was needed.
+
+## Eighth increment — D02 results
+
+Implemented in `refactor/audit-role-legacy-removal`, based on D01 commit
+`a4643be9`, and integrated into local `main`. Unrelated working-tree edits were
+preserved.
+
+Verification completed on 2026-09-20:
+
+- Compared all six default AuditProfile digests before and after removing the
+  alternate algorithm: every current digest is identical, including the profile
+  with explicit Worker completion.
+- `go test -count=1 -timeout=8m ./...` passed with optional database/live-model
+  environment variables unset: **63 packages with tests**.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=8m` passed for `./internal/config/...`,
+  `./internal/auditservice`, `./internal/auditcontroller`, `./internal/auditimport`,
+  `./internal/runservice` and `./internal/httpapi/public`. Existing draft/start,
+  paused Resume, replay and completion tests continue to pass.
+- `TestAuditProgramsAcrossProductionProcesses` passed against disposable
+  PostgreSQL 17, real Go/Python processes and a scripted model gateway. It covers
+  the current Audit programs and retained results/provenance after removing the
+  staged catalog and restarting the Server.
+- `go vet ./...`, changed-file Go formatting, local specification/plan links
+  and `git diff --check` passed. Searches found no remaining implementation of
+  the removed role inference or legacy digest helpers.
+- Full `make verify`, browser journeys and paid-model tests were not run in
+  this Go-only increment. No public wire schema, UI or Runtime code changed,
+  and no obsolete-data migration was introduced.
+
+## Ninth increment — D03 results
+
+Implemented in `refactor/eval-receipt-legacy-removal`, based on D02 commit
+`3e29ed16`, and integrated into local `main`. Unrelated working-tree edits were
+preserved.
+
+Verification completed on 2026-09-20:
+
+- `go test -count=1 -timeout=8m ./...` passed with optional database/live-model
+  environment variables unset: **63 packages with tests**.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=8m` passed for `./internal/evaldomain`,
+  `./internal/evalstore`, `./internal/evalservice`, `./internal/evalcoordinator`,
+  `./internal/persistence/postgres` and `./internal/httpapi/public`. Existing
+  owner/CAS/digest-conflict, response-loss recovery and replay-after-purge
+  coverage passed with the current receipt format.
+- `TestEvalPostgresRejectsLegacyReceiptReplayWithoutNewEffects` passed for
+  dataset, experiment, command and submission receipts, including both legacy
+  and mixed shapes. Each rejected request is retried; exact database snapshots
+  prove retained receipt bytes, revisions, clocks and mutation effects stay
+  unchanged. Current receipts then replay their original HTTP responses.
+- `go vet ./...`, changed-file Go formatting, documentation links and
+  `git diff --check` passed. Searches found no remaining legacy receipt type or
+  conversion implementation.
+- Full `make verify`, browser/process journeys and paid-model tests were not run
+  in this Go-only increment. Public schemas and clients did not need regeneration.
+
+Next increment: D04, remove terminal deadline-exhausted Audit continuation across
+backend, reports, UI and public contract while preserving ordinary paused Resume.

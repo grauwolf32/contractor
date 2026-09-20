@@ -1,9 +1,11 @@
 package evalstore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -41,63 +43,64 @@ func mutate[T any](ctx context.Context, s *Store, scope Scope, resource, operati
 	})
 }
 
-// Old receipts are immutable and must still replay after an upgrade. This is
-// the only place where the legacy overloaded wire fields are interpreted.
-type legacyReceipt struct {
-	ID       string `json:"id"`
-	Revision int64  `json:"revision"`
-	State    string `json:"state"`
-}
-
-func decodeReceipt[T any](r Receipt, convert func(legacyReceipt) T) (T, error) {
+// Receipts retain the current operation-specific shape. Reading never infers
+// typed fields from an old receipt or rewrites the stored response.
+func decodeReceipt[T any](r Receipt) (T, error) {
 	var result T
-	var legacy legacyReceipt
-	if err := json.Unmarshal(r.Response, &legacy); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(r.Response))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
 		return result, err
 	}
-	if legacy.ID != "" {
-		return convert(legacy), nil
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return result, errReceipt
 	}
-	err := json.Unmarshal(r.Response, &result)
-	return result, err
+	return result, nil
 }
 
 var errReceipt = errors.New("invalid stored evaluation receipt")
 
 func (r Receipt) Dataset() (DatasetReceipt, error) {
-	value, err := decodeReceipt(r, func(old legacyReceipt) DatasetReceipt { return DatasetReceipt{old.ID, old.State} })
+	value, err := decodeReceipt[DatasetReceipt](r)
 	if err == nil && (value.DatasetID == "" || value.DatasetRevision == "") {
 		err = errReceipt
 	}
-	return value, err
+	if err != nil {
+		return DatasetReceipt{}, err
+	}
+	return value, nil
 }
 
 func (r Receipt) Experiment() (ExperimentReceipt, error) {
-	value, err := decodeReceipt(r, func(old legacyReceipt) ExperimentReceipt {
-		return ExperimentReceipt{old.ID, old.Revision, evaldomain.State(old.State)}
-	})
+	value, err := decodeReceipt[ExperimentReceipt](r)
 	if err == nil && (value.ExperimentID == "" || value.Revision < 1) {
 		err = errReceipt
 	}
-	return value, err
+	if err != nil {
+		return ExperimentReceipt{}, err
+	}
+	return value, nil
 }
 
 func (r Receipt) Command() (AcceptedCommandReceipt, error) {
-	value, err := decodeReceipt(r, func(old legacyReceipt) AcceptedCommandReceipt {
-		return AcceptedCommandReceipt{old.ID, old.Revision, old.State}
-	})
+	value, err := decodeReceipt[AcceptedCommandReceipt](r)
 	if err == nil && (value.CommandID == "" || value.ExperimentRevision < 1) {
 		err = errReceipt
 	}
-	return value, err
+	if err != nil {
+		return AcceptedCommandReceipt{}, err
+	}
+	return value, nil
 }
 
 func (r Receipt) Submission() (AcceptedSubmissionReceipt, error) {
-	value, err := decodeReceipt(r, func(old legacyReceipt) AcceptedSubmissionReceipt {
-		return AcceptedSubmissionReceipt{old.ID, old.Revision, old.State}
-	})
+	value, err := decodeReceipt[AcceptedSubmissionReceipt](r)
 	if err == nil && (value.SubmissionKey == "" || value.ExperimentRevision < 1) {
 		err = errReceipt
 	}
-	return value, err
+	if err != nil {
+		return AcceptedSubmissionReceipt{}, err
+	}
+	return value, nil
 }

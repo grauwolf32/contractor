@@ -32,6 +32,9 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 		"write_likec4", "write_text_artifact",
 	}
 
+	likeC4BuilderTools = withMemoryTools(likeC4BuilderTools)
+	likeC4ValidatorTools = withMemoryTools(likeC4ValidatorTools)
+
 	return []domainGatewayStage{
 		artifactCopyGatewayStage("blocker/copy"),
 		failedAgentSkillGatewayStage("old/likec4_build_attempt_1", likeC4BuilderTools, fixture, fixture.PackageACanary),
@@ -62,7 +65,7 @@ func renameGatewayStage(stage domainGatewayStage, name string) domainGatewayStag
 
 func artifactCopyGatewayStage(name string) domainGatewayStage {
 	return domainGatewayStage{
-		name: name, tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
+		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"}),
 		steps: []domainGatewayStep{
 			toolGatewayStep("read_artifact", fixedArguments(map[string]any{
 				"namespace": "inputs", "name": "source", "revision": nil,

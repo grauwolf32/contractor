@@ -10,29 +10,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-type batchSessionStore interface {
-	GetPlannerSessions(context.Context, []string) (map[string]runstore.PlannerSession, error)
-}
-
 // LoadPlans returns projections keyed by StageExecution ID; absent plans are
 // omitted, but missing sessions or mismatched invocation ownership still fail.
 func (s *Service) LoadPlans(ctx context.Context, identities []planner.SessionIdentity) (map[string]planner.PlannerPlanProjection, error) {
 	result := make(map[string]planner.PlannerPlanProjection, len(identities))
 	if len(identities) == 0 {
-		return result, nil
-	}
-	batch, ok := s.store.(batchSessionStore)
-	if !ok {
-		// Compatibility for non-PostgreSQL session stores.
-		for _, identity := range identities {
-			plan, present, err := s.LoadPlan(ctx, identity)
-			if err != nil {
-				return nil, err
-			}
-			if present {
-				result[identity.StageExecutionID] = plan
-			}
-		}
 		return result, nil
 	}
 	ids := make([]string, len(identities))
@@ -42,7 +24,7 @@ func (s *Service) LoadPlans(ctx context.Context, identities []planner.SessionIde
 		}
 		ids[i] = identity.SessionID
 	}
-	sessions, err := batch.GetPlannerSessions(ctx, ids)
+	sessions, err := s.store.GetPlannerSessions(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load Planner sessions: %w", err)
 	}

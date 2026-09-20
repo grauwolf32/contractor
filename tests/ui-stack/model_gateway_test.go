@@ -204,9 +204,10 @@ func (g *modelGateway) nextStreamline(
 	}
 	if model == "planner-model" && strings.Contains(payload, streamlineGlobalMarker) {
 		scenario = "streamline-planner"
+		wantTools = withMemoryTools(wantTools)
 	} else if model == "worker-model" && strings.Contains(payload, streamlineWorkerMarker) {
 		scenario = "streamline-worker"
-		wantTools = []string{"list_artifacts", "read_artifact", "write_artifact"}
+		wantTools = withMemoryTools([]string{"list_artifacts", "read_artifact", "write_artifact"})
 	} else {
 		return nil, "", "", fmt.Errorf("unexpected streamline model/context %q", model)
 	}
@@ -348,6 +349,11 @@ func (g *modelGateway) writeFailure(w http.ResponseWriter, status int, message s
 	})
 }
 
+func withMemoryTools(tools []string) []string {
+	return append(append([]string(nil), tools...),
+		"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory")
+}
+
 func openAPIGatewayStages() []gatewayStage {
 	analystTools := []string{
 		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
@@ -370,6 +376,9 @@ func openAPIGatewayStages() []gatewayStage {
 		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 		"validate_openapi", "write_text_artifact",
 	}
+	analystTools = withMemoryTools(analystTools)
+	builderTools = withMemoryTools(builderTools)
+	validatorTools = withMemoryTools(validatorTools)
 	return []gatewayStage{
 		discoveryGatewayStage("openapi/dependency_discovery", analystTools, true),
 		discoveryGatewayStage("openapi/project_discovery", analystTools, false),

@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/adk/model"
 )
 
 const (
@@ -42,12 +43,12 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	const gatewayToken = "sk-streamline-integration-secret"
 	gateway := newScriptedGateway(t, gatewayToken)
 	defer gateway.server.Close()
-	llm, err := streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-		URL: gateway.server.URL + "/v1", Token: contracts.NewSecretString(gatewayToken),
-		Model: "planner-model", HTTPClient: gateway.server.Client(),
-	})
-	if err != nil {
-		t.Fatal(err)
+	modelFactory := func(access planner.ModelAccess) (model.LLM, error) {
+		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
+			URL: access.LLMGateway.URL, Token: access.Token,
+			Model: access.ModelPolicy.Model, MaxOutputTokens: access.ModelPolicy.MaxOutputTokens,
+			HTTPClient: gateway.server.Client(),
+		})
 	}
 	sessions, err := plannersession.New(store, plannersession.Options{})
 	if err != nil {
@@ -55,14 +56,15 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	}
 	workers := &workerInvoker{}
 	inspector := artifactInspector{}
-	factory, err := streamline.NewFactory(
-		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, llm,
-		streamline.Limits{MaxModelCalls: 8, MaxTokens: 10_000, MaxWorkerCalls: 8, MaxWallTime: time.Minute},
+	factory, err := streamline.NewConfiguredFactory(
+		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, modelFactory,
+		streamline.Limits{MaxWallTime: time.Minute},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	invocation := testInvocation()
+	invocation.ModelAccess = integrationModelAccess("planner-model", gateway.server.URL+"/v1", gatewayToken)
 	first, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
@@ -81,9 +83,9 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restartedFactory, err := streamline.NewFactory(
+	restartedFactory, err := streamline.NewConfiguredFactory(
 		restartedSessions, restartedSessions, workers, inspector,
-		unavailableWorkerStateReader{}, llm, streamline.DefaultLimits(),
+		unavailableWorkerStateReader{}, modelFactory, streamline.DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -309,6 +311,23 @@ func (artifactInspector) Inspect(
 		return planner.ArtifactMetadata{MediaType: "application/json"}, nil
 	default:
 		return planner.ArtifactMetadata{}, errors.New("artifact absent")
+	}
+}
+
+func integrationModelAccess(modelName, gatewayURL, token string) *planner.ModelAccess {
+	temperature := 0.0
+	return &planner.ModelAccess{
+		ModelPolicy: contracts.ResolvedModelPolicy{
+			Ref:   contracts.ModelPolicyRef{PolicyID: "integration-planner", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)},
+			Model: modelName, MaxOutputTokens: 8_192, MaxModelCalls: 8,
+			MaxTotalTokens: 10_000, MaxWorkerCalls: 8, Temperature: &temperature,
+		},
+		LLMGateway: contracts.ResolvedLLMGatewayConfig{
+			Ref:      contracts.LLMGatewayConfigRef{GatewayID: "integration-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+			Protocol: contracts.OpenAICompatibleProtocol, URL: gatewayURL,
+		},
+		Credential: &contracts.LLMCredentialRef{CredentialID: "integration-planner"},
+		Token:      contracts.NewSecretString(token),
 	}
 }
 

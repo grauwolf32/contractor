@@ -49,7 +49,7 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	settings := liveSettings{
 		model: `offline/custom: "選択"`, gatewayURL: "https://gateway.invalid/isolated/v1",
 		gatewayToken: "never-retain-gateway-credential",
-		workflows:    []string{"openapi-from-workspace@5", "likec4-from-workspace@5"},
+		workflows:    []string{"openapi-from-workspace@7", "likec4-from-workspace@7"},
 	}
 	target := filepath.Join(t.TempDir(), "configs")
 	selections, err := copyLiveConfiguration(fixture, target, settings)
@@ -153,7 +153,7 @@ func TestProjectWorkflowModelSelectionRejectsUnresolvedRoutes(t *testing.T) {
 			}
 			settings := liveSettings{
 				model: "selected-offline-model", gatewayURL: "https://gateway.invalid/v1",
-				workflows: []string{"openapi-from-workspace@5", "likec4-from-workspace@5"},
+				workflows: []string{"openapi-from-workspace@7", "likec4-from-workspace@7"},
 			}
 			if broken == "selected-workflow" {
 				settings.workflows = []string{"unavailable-workflow@1"}

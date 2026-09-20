@@ -21,7 +21,7 @@ func TestRepositoryOpenAPIRetriesPreserveRunPolicy(t *testing.T) {
 	writeFile(t, filepath.Join(root, "model-policies/test-retry-worker.yaml"), []byte(raw))
 	snapshot := mustLoad(t, root, MVPDescriptors())
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-retry-worker@2"}}`)
-	for _, selector := range []string{"openapi-from-analysis@2", "openapi-from-workspace@5", "openapi-from-workspace-streamline@1"} {
+	for _, selector := range []string{"openapi-from-analysis@4", "openapi-from-workspace@7", "openapi-from-workspace-streamline@2"} {
 		workflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, patch, developmentCredentialLookup(t, snapshot))
 		if err != nil {
 			t.Fatal(err)
@@ -39,7 +39,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("openapi-from-workspace@5")
+	workflow, err := snapshot.Workflow("openapi-from-workspace@7")
 	if err != nil {
 		t.Fatalf("resolve OpenAPI Workflow: %v", err)
 	}
@@ -150,8 +150,9 @@ func TestRepositoryOpenAPIAgentToolAllowlists(t *testing.T) {
 		expected map[string][]string
 	}{
 		{
-			ref: "openapi_builder@1",
+			ref: "openapi_builder@3",
 			expected: map[string][]string{
+				"memory-tools@1":    {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 				"source-analysis@1": {"list_source_files", "open_source_archive", "read_source", "search_source"},
 				"text-artifacts@1":  {"read_text_artifact"},
 				"openapi@1": {
@@ -164,8 +165,9 @@ func TestRepositoryOpenAPIAgentToolAllowlists(t *testing.T) {
 			},
 		},
 		{
-			ref: "openapi_validator@1",
+			ref: "openapi_validator@3",
 			expected: map[string][]string{
+				"memory-tools@1":    {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 				"source-analysis@1": {"open_source_archive", "read_source", "search_source"},
 				"text-artifacts@1":  {"read_text_artifact", "write_text_artifact"},
 				"openapi@1": {
@@ -203,10 +205,10 @@ func TestRepositoryOpenAPIInstructionsPinArtifactAndValidationRules(t *testing.T
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	checks := map[string][]string{
-		"instructions/dependency-discovery-planner.md": {"relative/path:line", "analysis/dependencies", "semantic completion result"},
-		"instructions/project-discovery-planner.md":    {"relative/path:line", "analysis/project", "dependency_report"},
-		"instructions/openapi-builder-worker.md":       {"inputs/existing_openapi", "generic artifact writer", "evidence_files"},
-		"instructions/openapi-validator-worker.md":     {"exactly once more", "validation-report", "valid: true"},
+		"instructions/dependency-discovery-planner.md":    {"relative/path:line", "analysis/dependencies", "semantic completion result"},
+		"instructions/project-discovery-planner.md":       {"relative/path:line", "analysis/project", "dependency_report"},
+		"instructions/openapi-builder-worker-memory.md":   {"inputs/existing_openapi", "generic artifact writer", "evidence_files"},
+		"instructions/openapi-validator-worker-memory.md": {"exactly once more", "validation-report", "valid: true"},
 	}
 	for ref, fragments := range checks {
 		instructions, err := snapshot.Instructions(ref)
@@ -237,7 +239,7 @@ func assertSingleAgent(t *testing.T, stage ResolvedStage, logicalName, templateI
 		t.Fatalf("agents = %+v", stage.Agents)
 	}
 	agent, ok := stage.Agents[logicalName]
-	if !ok || agent.Template.Ref.TemplateID != templateID || agent.Template.Ref.Version != "1" || agent.Namespace != namespace {
+	if !ok || agent.Template.Ref.TemplateID != templateID || agent.Template.Ref.Version != "3" || agent.Namespace != namespace {
 		t.Fatalf("Agent %q = %+v", logicalName, agent)
 	}
 }

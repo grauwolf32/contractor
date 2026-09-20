@@ -5,7 +5,6 @@ package e2e
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
@@ -32,31 +31,26 @@ func TestAuditProgramCatalogReplacementPreservesSharedInstructions(t *testing.T)
 		{"audit-top10-source-risk", "audit_risk_source_checker", "owasp-top10-2025-source-risk", "audit-risk-source-checker-worker.md", "owasp-web-top10-2025"},
 	} {
 		t.Run(program.workflow, func(t *testing.T) {
-			if _, err := before.Workflow(program.workflow + "@1"); err != nil {
+			if _, err := before.Workflow(program.workflow + "@3"); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := after.Workflow(program.workflow + "@1"); err == nil {
+			if _, err := after.Workflow(program.workflow + "@3"); err == nil {
 				t.Fatal("original Workflow remains available")
 			}
-			if _, err := after.AgentTemplate(program.template + "@1"); err == nil {
+			if _, err := after.AgentTemplate(program.template + "@3"); err == nil {
 				t.Fatal("original AgentTemplate remains available")
 			}
-			if _, err := after.AuditProfile(program.profile + "@1"); err == nil {
+			if _, err := after.AuditProfile(program.profile + "@2"); err == nil {
 				t.Fatal("original AuditProfile remains available")
 			}
 			if _, err := os.Stat(filepath.Join(root, "audit-standards", program.standard)); !os.IsNotExist(err) {
 				t.Fatalf("original standard authoring directory remains: %v", err)
 			}
-			original, err := before.Workflow(program.workflow + "@3")
-			if err != nil {
-				t.Fatal(err)
+			if _, err := before.AgentTemplate(program.template + "@3"); err != nil {
+				t.Fatalf("current AgentTemplate missing before replacement: %v", err)
 			}
-			retained, err := after.Workflow(program.workflow + "@3")
-			if err != nil || !reflect.DeepEqual(original, retained) {
-				t.Fatalf("surviving Workflow changed during catalog replacement: %v", err)
-			}
-			if _, err := after.AuditProfile(program.profile + "@2"); err == nil {
-				t.Fatal("successor AuditProfile still requires the removed standard")
+			if _, err := before.AuditProfile(program.profile + "@2"); err != nil {
+				t.Fatalf("current AuditProfile missing before replacement: %v", err)
 			}
 			instructionRef := "instructions/" + program.instruction
 			want, err := before.Instructions(instructionRef)

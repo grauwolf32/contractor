@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V62-010
+title: Expose Audit preparation and exact composition provenance through the API
+milestone: audit-workflow-composition
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V62-007]
+languages: [go, openapi, typescript]
+goal: Make preparation, generated inventory, result snapshots and routed dependencies observable and controllable through existing owner-scoped Audit APIs.
+context:
+  authority: User-requested V62 Audit Workflow composition task series.
+  design: docs/plans/2026-09-20-audit-workflow-composition.md
+  specification: [docs/spec/19-audits.md, docs/spec/06-server-ui-and-operations.md]
+  contract: V62-001 fixes public wire shapes; implemented preparation, snapshots and admission are authoritative sources for projections.
+scope:
+  in:
+    - Implement safe preparation role/attempt/status/output projections and valid absent-currentRound responses before inventory acceptance.
+    - Expose pinned generated inventory source, coverage denominator origin, round snapshot digest and exact dependency/routing decisions.
+    - Support existing start/pause/resume/cancel/delete and their CAS/idempotency rules in preparation and between-round states.
+    - Expose only committed accepted artifact links through Audit read routes, preserving protected Project prefix and owner isolation.
+    - Keep pagination and multi-page reads revision-consistent; distinguish unknown/pending coverage from genuinely empty accepted scope.
+    - Synchronize OpenAPI, public Go/UI clients and strict parsers and reject incomplete profile capabilities with useful diagnostics.
+  out:
+    - New generic Project artifact browsing authority, API-controlled arbitrary Workflow selection or replacement of pinned inputs during resume.
+deliverables:
+  - path: internal/httpapi/public
+    description: Owner-safe projections, controls and revision-consistent provenance/artifact routes.
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Verified public API behavior and synchronized generated contracts.
+  - path: ui/src/api
+    description: Strict preparation, result snapshot and dependency DTO parsers and client methods.
+acceptance_criteria:
+  - id: A1
+    text: Public clients can distinguish preparation, pending inventory, executing checks and assessment and identify exact accepted source/output revisions.
+  - id: A2
+    text: Existing control commands work before a Round exists with valid CAS/idempotency, and stale/foreign requests cannot mutate or disclose Audit state.
+  - id: A3
+    text: Multi-page results/provenance are revision-consistent and expose no uncommitted retained artifacts, secret material or mutable latest resolution.
+  - id: A4
+    text: Old Audit responses and clients remain compatible with the declared versioning rules and generated API/client checks pass.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/httpapi/public ./internal/auditservice ./internal/auditstore
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api verify-public-api-postgres ui-generate-check ui-typecheck
+    covers: [A1, A2, A3, A4]
+  - command: cd ui && corepack pnpm test --run src/api/audits.test.ts src/api/audit-report.test.ts
+    covers: [A1, A3, A4]
+test_prerequisites:
+  - Disposable PostgreSQL for mandatory lifecycle, ownership, retained-read and pagination cases.
+verification_requirements:
+  - Cover source Run deletion and an analyst edit between pages; public errors must remain truthful without disclosing internal staging or credentials.
