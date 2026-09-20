@@ -1,0 +1,39 @@
+schema_version: "1.0"
+id: V60-034
+title: Preserve shared instructions in the Audit catalog replacement fixture
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-008]
+languages: [go, markdown]
+goal: Keep the disposable replacement catalog valid while proving retained Audit history survives loss of its original authoring entries.
+context:
+  authority: User requested completion of the remaining V60 reviews; read-only release-fixture inspection reproduced this blocker.
+  design: docs/plans/2026-09-20-project-review.md
+  specification: docs/spec/19-audits.md
+  reproduction: >-
+    The exact filesystem removals in replaceAuditProgramCatalog leave version-3
+    Memory workflows referencing two deleted worker instruction files.
+    contractor-server config validate passes on the original isolated copy and
+    fails after replacement with unknown instruction ref before Server restart.
+scope:
+  in:
+    - Preserve instruction files shared by surviving workflows while removing the original Audit profiles, workflows, templates and current standard bindings.
+    - Add a focused regression for the catalog replacement fixture's configuration validity and intended removals.
+    - Verify the affected production-process gate with retained-history and unavailable-catalog assertions intact.
+  out:
+    - Change production configuration loading, durable pins, retention behavior or weaken the original restart assertions.
+acceptance_criteria:
+  - id: A1
+    text: Replacement preserves a valid remaining authoring catalog and removes the intended original entries.
+  - id: A2
+    text: The full Audit process gate still proves original profile/standard unavailability and unchanged pinned history after restart.
+tests:
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditProgramCatalogReplacementPreservesSharedInstructions$'
+    covers: [A1]
+  - command: make test-audits-process
+    covers: [A1, A2]
+verification_requirements:
+  - Record the original successful validation and reproduced post-replacement failure before editing the fixture.
+  - Use only disposable configuration/database state; preserve the production-process assertions.
+  - Keep task-start, implementation and completion metadata commits separate.
