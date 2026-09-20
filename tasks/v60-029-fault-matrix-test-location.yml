@@ -3,8 +3,8 @@ id: V60-029
 title: Restore fault gate reference after Runtime batch test extraction
 milestone: project-review-v60
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: bd48fe4a9e2555eb4f5c369650491e8c7ba9c77d
 depends_on: [V60-025]
 languages: [yaml, markdown]
 goal: Restore the mandatory fault gate without weakening partial preparation cleanup coverage.
@@ -39,4 +39,8 @@ verification_requirements:
 review_evidence:
   report: docs/research/2026-09-20-v60-005-execution-review.md
   evidence: tasks/evidence/v60-029.json
-  result: All required checks passed on the isolated review worktree; completion metadata awaits implementation commit.
+  result: All required checks passed on the isolated review worktree; implementation and completion metadata are recorded in separate commits.
+verification:
+  evidence: tasks/evidence/v60-029.json
+  report: docs/research/2026-09-20-v60-005-execution-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
