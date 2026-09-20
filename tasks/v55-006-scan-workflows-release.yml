@@ -3,7 +3,7 @@ id: V55-006
 title: Deliver simple scan Workflows and artifact upload journey
 milestone: scan-tools-first-slice
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V55-004, V55-005]
 languages: [go, python, typescript, yaml, markdown]
 goal: Let a user select a simple scan Workflow, supply a target/request/list and inspect a report through the existing product.
@@ -109,6 +109,40 @@ progress:
       Final config and ordinary e2e checks plus Go vet passed. Main advanced
       concurrently with managed Evals UI changes; rebase and integration checks
       remain before closing the task.
-remaining:
-  - Rebase onto current main and verify the combined UI/process state.
-  - Record validation evidence and integrate into main.
+  - date: 2026-09-20
+    step: integrated_into_main
+    details: >-
+      Rebased without conflicts onto main 54b9b7a1 after managed Evals integration.
+      Repeated UI typecheck, all 486 UI tests across 69 files, 11 static-server
+      tests and build; all passed. Repeated affected Go/PostgreSQL package checks
+      and the complete real process/browser gate; all nine scenarios passed in
+      171.102s on implementation commit 3728168c. Fast-forwarded local main to
+      that commit and verified all 36 pre-existing dirty files and staged changes
+      remained unchanged. Recorded checks, scanner versions, exact browser refs,
+      screenshot/log hashes and deployment migration requirement in
+      tasks/evidence/v55-006.json. A1, A2 and A3 are verified; V55-006 is completed.
+remaining: []
+verification:
+  - >-
+    Node 24.20.0: make ui-typecheck ui-test ui-build passed after rebase with
+    486 Vitest tests, 11 static-server tests and production build.
+  - >-
+    Disposable local PostgreSQL 17: go test ./internal/config
+    ./internal/controlplane ./internal/runstore ./internal/runtimeconfig
+    ./internal/persistence/postgres ./tests/e2e passed after rebase.
+    Model-free placement and forward migration 60-to-61 regressions cover
+    legacy model-bearing configurations and explicit rejection of malformed JSON.
+  - >-
+    CONTRACTOR_SCAN_BROWSER=1 CONTRACTOR_SCAN_UI_PREBUILT=1 with an explicit
+    persistent evidence directory: go test -tags=e2e -count=1 -timeout=6m
+    ./tests/e2e -run '^TestScanToolsAcrossProductionProcesses$' passed all nine
+    scenarios, including real nuclei, naabu, SQLMap, ffuf and Chromium.
+    All targets were controlled loopback fixtures; no model gateway was used.
+  - >-
+    Runtime test_tool_worker.py and test_metrics.py passed 27 tests, including
+    report-publication diagnostics, redaction and durable replay without rescan.
+    Go vet, Ruff, changed UI ESLint/Prettier, gofmt and git diff --check passed.
+  - >-
+    Evidence manifest: tasks/evidence/v55-006.json. Retained local screenshots
+    and logs: .local/evidence/v55-006/rebased/. Apply database migration 000061
+    before deployment; scanner binaries/templates remain operator-provisioned.

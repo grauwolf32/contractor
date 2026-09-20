@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "task": "V55-006",
+  "status": "verified",
+  "date": "2026-09-20",
+  "codeRevision": "3728168c03155279a0145c65e2898d613886ce18",
+  "baseRevision": "54b9b7a1c52f6f08c579c284ee4a49a9f82f9ae2",
+  "environment": {
+    "go": "1.25.6",
+    "python": "3.13.14",
+    "node": "24.20.0",
+    "postgres": "17",
+    "nuclei": "3.6.2",
+    "naabu": "2.6.1",
+    "sqlmap": "1.10.9.18#dev",
+    "ffuf": "2.3.0"
+  },
+  "checks": [
+    {
+      "command": "make ui-typecheck ui-test ui-build",
+      "result": "passed",
+      "uiTests": 486,
+      "uiTestFiles": 69,
+      "staticServerTests": 11,
+      "environment": {
+        "pnpm_config_verify_deps_before_run": "false"
+      },
+      "note": "Pinned Node 24.20.0; existing node_modules reused in isolated worktree."
+    },
+    {
+      "command": "go test ./internal/config ./internal/controlplane ./internal/runstore ./internal/runtimeconfig ./internal/persistence/postgres ./tests/e2e",
+      "result": "passed",
+      "database": "disposable local PostgreSQL; isolated test databases/schemas"
+    },
+    {
+      "command": "CONTRACTOR_SCAN_BROWSER=1 CONTRACTOR_SCAN_UI_PREBUILT=1 go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestScanToolsAcrossProductionProcesses$' -v",
+      "result": "passed",
+      "scenarios": [
+        {
+          "name": "missing_binaries_wait_for_capacity",
+          "seconds": 11.97
+        },
+        {
+          "name": "nuclei_local_template",
+          "seconds": 0.25
+        },
+        {
+          "name": "naabu_local_connect",
+          "seconds": 22.82
+        },
+        {
+          "name": "sqlmap_exact_request",
+          "seconds": 19.43
+        },
+        {
+          "name": "ffuf_pins_uploaded_revision",
+          "seconds": 18.87
+        },
+        {
+          "name": "invalid_input_is_failure",
+          "seconds": 19.73
+        },
+        {
+          "name": "cancel_running_scanner",
+          "seconds": 39.06
+        },
+        {
+          "name": "report_publication_failure",
+          "seconds": 0.45
+        },
+        {
+          "name": "browser_upload_run_report",
+          "seconds": 21.96
+        }
+      ]
+    },
+    {
+      "command": "cd runtime && PYTHONPATH=src .venv/bin/python -m pytest tests/test_tool_worker.py tests/test_metrics.py -o addopts= -q",
+      "result": "passed",
+      "tests": 27
+    },
+    {
+      "command": "go test ./internal/persistence/postgres -run '^TestPostgresToolAllocationConfigurationMigration$' -count=1 -v",
+      "result": "passed",
+      "covers": [
+        "upgrade 60 to 61",
+        "idempotence",
+        "existing model-bearing allocations",
+        "model-free allocations",
+        "malformed JSON returns SQL FALSE"
+      ]
+    },
+    {
+      "command": "go vet ./internal/config ./internal/controlplane ./internal/persistence/postgres",
+      "result": "passed"
+    },
+    {
+      "checks": [
+        "gofmt",
+        "Ruff lint and format for changed Python files",
+        "ESLint and Prettier for changed UI files",
+        "git diff --check"
+      ],
+      "result": "passed"
+    }
+  ],
+  "acceptance": {
+    "A1": {
+      "result": "verified",
+      "evidence": "Real Chromium Project upload, literal preview, exact revision selection, ffuf Run and report; no API mocks."
+    },
+    "A2": {
+      "result": "verified",
+      "evidence": "Real nuclei local-template match, naabu local TCP port, SQLMap prepared request and ffuf; production Server/Runtime with zero model calls."
+    },
+    "A3": {
+      "result": "verified",
+      "evidence": "Missing binaries prevent allocation; invalid input never reaches target; cancellation releases Runtime; report publication failure has no success output and records trusted error diagnostics. UI unit tests cover incomplete/unavailable/failed/unknown reports."
+    }
+  },
+  "browser": {
+    "schemaVersion": 1,
+    "workflow": "ffuf-wordlist@1",
+    "target": "http://127.0.0.1:41209/FUZZ",
+    "wordlistDigest": "sha256:aa5f4d96164e4d24546c07186db403cb531d5a0a356752e95869c849d786f841",
+    "screenshots": {
+      "wordlist-upload": "wordlist-upload.png",
+      "wordlist-preview": "wordlist-preview.png",
+      "selected-input": "selected-input.png",
+      "scan-report": "scan-report.png"
+    },
+    "passed": true,
+    "projectId": "project_59cbcee0e8a6e74c3d41f98ddad2ac06",
+    "uploadedArtifact": {
+      "namespace": "lists",
+      "name": "paths",
+      "revision": "rev_b260a9ae937b9d4fc9c3244e82d91ec0"
+    },
+    "submittedArtifact": {
+      "namespace": "lists",
+      "name": "paths",
+      "revision": "rev_b260a9ae937b9d4fc9c3244e82d91ec0"
+    },
+    "runId": "run_a595b1bab732c7a444874a8251c4453c",
+    "runState": "succeeded",
+    "runInput": {
+      "namespace": "inputs",
+      "name": "wordlist",
+      "revision": "rev_62464d542bb000121c8d2e1a784c1824"
+    },
+    "reportArtifact": {
+      "namespace": "outputs",
+      "name": "report",
+      "revision": "rev_34594c7487400cbfac4c9e483105247a"
+    },
+    "technicalOutcome": "Completed",
+    "observation": {
+      "status": "completed",
+      "exitCode": 0,
+      "errorCode": null,
+      "stdout": "",
+      "stderr": "",
+      "stdoutTruncated": false,
+      "stderrTruncated": false,
+      "outputLimitExceeded": false,
+      "durationMs": 258,
+      "scanner": "ffuf",
+      "diagnosticsRedacted": true,
+      "results": [
+        {
+          "input": {
+            "FUZZ": "health"
+          },
+          "position": 1,
+          "status": 200,
+          "length": 35,
+          "words": 1,
+          "lines": 2,
+          "durationNs": 361514,
+          "url": "http://127.0.0.1:41209/health",
+          "contentType": "text/plain",
+          "redirectLocation": ""
+        },
+        {
+          "input": {
+            "FUZZ": "missing"
+          },
+          "position": 2,
+          "status": 404,
+          "length": 35,
+          "words": 1,
+          "lines": 2,
+          "durationNs": 206417,
+          "url": "http://127.0.0.1:41209/missing",
+          "contentType": "text/plain",
+          "redirectLocation": ""
+        }
+      ],
+      "resultsTruncated": false,
+      "invalidResultLines": 0,
+      "scanComplete": true,
+      "payloadsAttempted": 2,
+      "requestErrors": 0,
+      "wordlistEntries": 2,
+      "wordlistArtifact": {
+        "namespace": "inputs",
+        "name": "wordlist",
+        "revision": "rev_62464d542bb000121c8d2e1a784c1824"
+      }
+    }
+  },
+  "screenshots": [
+    {
+      "path": ".local/evidence/v55-006/rebased/wordlist-upload.png",
+      "sha256": "074472d92dc50a869b4ce58c720a969d8461d50e296492f77c104a171c7fc748",
+      "bytes": 76250
+    },
+    {
+      "path": ".local/evidence/v55-006/rebased/wordlist-preview.png",
+      "sha256": "cc22c5f1bbd00f35f8893758b547cfd99ae3630772ebd9de1ee1e2c3c2d5833c",
+      "bytes": 139337
+    },
+    {
+      "path": ".local/evidence/v55-006/rebased/selected-input.png",
+      "sha256": "12f6fa4b34cb1c63f387cffbb7d03a55664b51ba53805d71cd9cc09616b83982",
+      "bytes": 318926
+    },
+    {
+      "path": ".local/evidence/v55-006/rebased/scan-report.png",
+      "sha256": "de59e77a528da22ba0be496cded22e42ff43ca1b3374cd205f052c46ecc24bb0",
+      "bytes": 845906
+    }
+  ],
+  "logs": [
+    {
+      "path": ".local/evidence/v55-006/ui-rebased-gates.log",
+      "sha256": "eef7cf83b490c54901cd99ec6b5fd023546efaa8337727b9a2cc1ca8cf1f6845",
+      "bytes": 13333
+    },
+    {
+      "path": ".local/evidence/v55-006/go-rebased-gates.log",
+      "sha256": "f408a087938e3e08be8e072337e198c44363e4c52c7ac92d412c9e8a2680854f",
+      "bytes": 396
+    },
+    {
+      "path": ".local/evidence/v55-006/rebased/process-browser-gate.log",
+      "sha256": "4fabd0a5e62dadf28f27c3c91cbba3bd3e3a366e80952d81bb64086116d2b53f",
+      "bytes": 3024
+    },
+    {
+      "path": ".local/evidence/v55-006/runtime-worker-metrics-tests.log",
+      "sha256": "0b9103a70aad76c14695c058689a23298411a29195b303e2fe89e5defb72ef67",
+      "bytes": 99
+    },
+    {
+      "path": ".local/evidence/v55-006/migration-gate.log",
+      "sha256": "e61f9f59e81c6ee12d40ee965962dd647f4fc5b36ab32b23fb06099f5fea03b2",
+      "bytes": 15020
+    },
+    {
+      "path": ".local/evidence/v55-006/rebased/browser-evidence.json",
+      "sha256": "5122132e64b00bdf2165acc05734565193f2aa3d44f1bd46ba79adaf29df30e8",
+      "bytes": 2398
+    }
+  ],
+  "productionFixes": [
+    "Forward migration 000061 permits model-free allocation provenance and rejects retained LLM route fields.",
+    "Report publication failure contributes a fixed bounded Worker execution error, including durable replay, while preserving successful scanner call metrics.",
+    "Long Project IDs and wordlist media types wrap within exact input review metadata."
+  ],
+  "deployment": {
+    "requiredMigration": "000061_model_free_allocation_configuration.sql",
+    "scannerProvisioning": "Scanners must already be installed on Runtime PATH; nuclei additionally requires templates. Runtime does not install binaries."
+  },
+  "scope": "All scanner targets are controlled loopback fixtures. Reports describe technical execution and do not establish target safety.",
+  "naabuTestProvisioning": {
+    "source": "https://github.com/projectdiscovery/naabu/releases/tag/v2.6.1",
+    "archiveSha256": "018c4c9884dea971eda860435ede3021d1150732f34cfd245498c6726d8cab90"
+  },
+  "integration": {
+    "previousMain": "54b9b7a1c52f6f08c579c284ee4a49a9f82f9ae2",
+    "integratedRevision": "3728168c03155279a0145c65e2898d613886ce18",
+    "preservedDirtyFiles": 36,
+    "method": "fast-forward"
+  },
+  "browserScreenshotsReviewed": true
+}
