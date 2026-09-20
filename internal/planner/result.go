@@ -2,7 +2,6 @@ package planner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
@@ -22,8 +21,8 @@ func validateCandidate(
 			"invalid_worker_result", "Worker returned an invalid StageContentResult", false, err,
 		)
 	}
-	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > contracts.MaxStageResultBytes ||
+	size, err := contracts.ResultJSONSize(result)
+	if err != nil || size > contracts.MaxStageResultBytes ||
 		len(result.Summary) > contracts.MaxStageResultSummaryBytes || len(result.Artifacts) > contracts.MaxStageResultArtifacts {
 		return NewError(
 			"invalid_worker_result", "Worker returned an oversized StageContentResult", false, err,

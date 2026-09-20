@@ -125,6 +125,13 @@ or model-authored failure status is deliberately not defined in this increment.
 non-empty `message` is at most 4,096 UTF-8 bytes. `invocation_id` is an opaque
 Runtime-generated 1..128-byte identifier and `state_revision` is positive.
 
+The 256 KiB encoded limits for `WorkerCompletion`, the Planner-facing
+`WorkerResult` and the resulting `StageResult` count compact UTF-8 JSON bytes.
+Optional HTML (`<`, `>`, `&`) and JavaScript line-separator escaping must not
+consume extra budget in one language. Required JSON escaping, object/envelope
+overhead and exact integer digits still count. The 64 KiB result-text bound,
+model-output bounds and outer transport limits remain separate and unchanged.
+
 For Streamline and Router, `execute_current_subtask` returns the bounded
 model-facing portion of `WorkerResult`. A `WorkerFailure` becomes its existing
 closed tool error and marks that dispatch failed, leaving Planner to reason or

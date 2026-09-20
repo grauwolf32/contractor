@@ -2822,6 +2822,7 @@ tasks:
   - {id: V60-023, file: v60-023-cli-positional-separator.yml}
   - {id: V60-024, file: v60-024-independent-review-integration.yml}
   - {id: V60-025, file: v60-025-review-readability-followups.yml}
+  - {id: V60-026, file: v60-026-worker-result-json-size-parity.yml}
   - {id: V61-001, file: v61-001-toolset-configuration-contracts.yml}
   - {id: V61-002, file: v61-002-toolset-runtime-config-store.yml}
   - {id: V61-003, file: v61-003-run-toolset-pinning-allocation.yml}

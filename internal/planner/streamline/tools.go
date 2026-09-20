@@ -429,8 +429,8 @@ func (p *streamlinePlanner) workerRequest(
 func (p *streamlinePlanner) validateWorkerResult(
 	ctx context.Context, result contracts.WorkerResult,
 ) *planner.Error {
-	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > contracts.MaxWorkerResultPayloadBytes ||
+	size, err := contracts.ResultJSONSize(result)
+	if err != nil || size > contracts.MaxWorkerResultPayloadBytes ||
 		len(result.Result) > contracts.MaxWorkerResultBytes || len(result.Artifacts) > contracts.MaxWorkerResultArtifacts {
 		return planner.NewError(
 			"invalid_worker_result", "Worker returned an oversized WorkerResult", false, err,

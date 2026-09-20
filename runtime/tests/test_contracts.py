@@ -659,3 +659,30 @@ def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
             validator = Draft202012Validator({"$ref": reference}, registry=registry)
             errors = list(validator.iter_errors(json.loads(path.read_text(encoding="utf-8"))))
             assert bool(errors) is not expected_valid, (path.name, errors)
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((FIXTURES / "worker-result-size-cases.json").read_text()),
+    ids=lambda case: case["name"],
+)
+def test_worker_result_size_shared_golden_cases(case: dict[str, Any]) -> None:
+    value = json.loads((FIXTURES / "valid/worker-completion-empty-observations.json").read_text())
+    value["result"]["result"] = case["prefix"] + case["unit"] * case["repeat"]
+    if case["padding"]:
+        value["result"]["artifacts"] = {
+            "p" * case["padding"]: {"namespace": "review", "name": "report", "revision": "r1"}
+        }
+    if case["max_uint64"]:
+        value["stateRevision"] = 2**64 - 1
+        value["result"]["observations"]["tools"] = {
+            "read_file": {"calls": 2**64 - 1, "failures": 0}
+        }
+    raw = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    assert len(raw) == case["json_bytes"]
+    if case["valid"]:
+        parsed = decode_private(WorkerCompletion, raw)
+        assert len(parsed.model_dump_json(by_alias=True, exclude_none=True).encode()) == len(raw)
+    else:
+        with pytest.raises(PrivateProtocolDecodeError):
+            decode_private(WorkerCompletion, raw)

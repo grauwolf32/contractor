@@ -1,7 +1,6 @@
 package contracts
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -205,8 +204,8 @@ func (c WorkerCompletion) Validate() error {
 	if c.StateRevision == 0 {
 		return invalidf("Worker stateRevision must be positive")
 	}
-	encoded, err := json.Marshal(c)
-	if err != nil || len(encoded) > MaxWorkerCompletionBytes {
+	size, err := ResultJSONSize(c)
+	if err != nil || size > MaxWorkerCompletionBytes {
 		return invalidf("WorkerCompletion exceeds its bounded contract")
 	}
 	return nil

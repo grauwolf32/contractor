@@ -1,0 +1,49 @@
+schema_version: '1.0'
+id: V60-026
+title: Align Go result size accounting with the compact UTF-8 Runtime contract
+milestone: project-review-v60
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V57-004]
+languages: [go, python, json, markdown]
+goal: Accept the same bounded Worker results in Go and Python without changing numeric limits or completion semantics.
+context:
+  authority: User requested completion of the V60 review and bounded corrections for confirmed defects.
+  specification:
+  - docs/spec/14-worker-results-and-live-state.md
+  design: docs/plans/2026-09-20-project-review.md
+  review_task: V60-006
+  reproduction: >-
+    At 8edeabf21194f5bba8dd258d53a072af713c630e, Python decode_private accepts a
+    WorkerCompletion containing 65536 '<', '>' or '&' characters with a 65769-byte
+    compact UTF-8 envelope. Go DecodeStrict rejects the identical document because
+    json.Marshal HTML escaping inflates its size to 393449 bytes above the unchanged
+    262144-byte cap. ASCII and Cyrillic controls agree, and actual control-character
+    escaping above the cap is rejected by both readers.
+scope:
+  in:
+  - Count compact UTF-8 JSON result bytes without optional HTML or JavaScript separator escaping and without converting integer values through float64.
+  - Apply the same sizing to WorkerCompletion, Planner WorkerResult and mapped StageResult boundaries.
+  - Add shared Go/Python cases and actual Planner/A2A regressions for HTML, Unicode, literal escapes and exact byte limits.
+  - Clarify the existing result size contract and record before/after evidence.
+  out:
+  - Change numeric text/result/wire caps, ordinary finalizer, summarizer, budgets or A2A transport behavior.
+  - Change general private-wire encoding, digests, request validation or unrelated State sizing.
+acceptance_criteria:
+- id: A1
+  text: Shared Go/Python readers agree on supported text and actual encoded overflow, including the original HTML reproduction.
+- id: A2
+  text: Result size accounting preserves exact uint64 digits and handles real/literal Unicode escapes, controls, quotes and backslashes at exact boundaries.
+- id: A3
+  text: Valid HTML results reach existing A2A/Planner result paths; oversized actual results still fail with the existing safe error.
+- id: A4
+  text: Wire, cross-language and focused Planner regression gates pass without changing accepted completion/transport policies.
+tests:
+- command: make verify-wire-contracts test-wire-cross-language
+  covers: [A1, A2, A4]
+- command: go test -race -count=1 ./internal/contracts ./internal/planner ./internal/planner/a2a ./internal/planner/streamline
+  covers: [A1, A2, A3, A4]
+verification_requirements:
+- Record failing pre-fix cases and exact accepted/rejected bytes; no live models or external endpoints.
+- Keep implementation and subsequent completion metadata commits separate; root records the full implementation hash.

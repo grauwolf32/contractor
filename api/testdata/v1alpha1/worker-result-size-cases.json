@@ -1,0 +1,182 @@
+[
+  {
+    "name": "ascii",
+    "unit": "x",
+    "repeat": 65535,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "html_lt",
+    "unit": "<",
+    "repeat": 65535,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "html_gt",
+    "unit": ">",
+    "repeat": 65535,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "html_amp",
+    "unit": "&",
+    "repeat": 65535,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "cyrillic",
+    "unit": "я",
+    "repeat": 32767,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65768
+  },
+  {
+    "name": "line_separator",
+    "unit": " ",
+    "repeat": 21845,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "paragraph_separator",
+    "unit": " ",
+    "repeat": 21845,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "literal_html_escape",
+    "unit": "\\u003c",
+    "repeat": 9000,
+    "prefix": "",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 63233
+  },
+  {
+    "name": "literal_separator_escape",
+    "unit": "\\u2028",
+    "repeat": 9000,
+    "prefix": "",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 63233
+  },
+  {
+    "name": "mixed_escapes",
+    "unit": "<>&  \"\\u2028\\u003c\\",
+    "repeat": 1000,
+    "prefix": "",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 27233
+  },
+  {
+    "name": "uint64_max",
+    "unit": "x",
+    "repeat": 1,
+    "prefix": "",
+    "padding": 0,
+    "max_uint64": true,
+    "valid": true,
+    "json_bytes": 308
+  },
+  {
+    "name": "text_at_limit",
+    "unit": "x",
+    "repeat": 65536,
+    "prefix": "",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 65769
+  },
+  {
+    "name": "text_over_limit",
+    "unit": "x",
+    "repeat": 65537,
+    "prefix": "",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": false,
+    "json_bytes": 65770
+  },
+  {
+    "name": "actual_control_overflow",
+    "unit": "\u0001",
+    "repeat": 65535,
+    "prefix": "x",
+    "padding": 0,
+    "max_uint64": false,
+    "valid": false,
+    "json_bytes": 393444
+  },
+  {
+    "name": "envelope_at_limit",
+    "unit": "x",
+    "repeat": 1,
+    "prefix": "",
+    "padding": 261853,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 262144
+  },
+  {
+    "name": "envelope_over_limit",
+    "unit": "x",
+    "repeat": 1,
+    "prefix": "",
+    "padding": 261854,
+    "max_uint64": false,
+    "valid": false,
+    "json_bytes": 262145
+  },
+  {
+    "name": "separator_envelope_at_limit",
+    "unit": " ",
+    "repeat": 21000,
+    "prefix": "x",
+    "padding": 198853,
+    "max_uint64": false,
+    "valid": true,
+    "json_bytes": 262144
+  },
+  {
+    "name": "separator_envelope_over_limit",
+    "unit": " ",
+    "repeat": 21000,
+    "prefix": "x",
+    "padding": 198854,
+    "max_uint64": false,
+    "valid": false,
+    "json_bytes": 262145
+  }
+]
