@@ -3,7 +3,8 @@ id: V55-004
 title: Scan a complete prepared HTTP request with sqlmap
 milestone: scan-tools-first-slice
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 716c51f0fd7c861125288f579f102487381cd435
 depends_on: [V55-003]
 languages: [python, yaml, markdown]
 goal: Preserve the method, URL, headers and body of one supplied HTTP request when invoking sqlmap.
@@ -96,8 +97,14 @@ progress:
       Updated this worktree to main 22c464c1 by fast-forward; incoming Evals changes
       do not overlap the implementation or its Runtime/configuration dependencies.
       Implementation is ready to commit and integrate.
-remaining:
-  - Record verification evidence, commit and integrate the completed task into main.
+  - date: 2026-09-20
+    step: integrated
+    details: >-
+      Committed the implementation as 716c51f0fd7c861125288f579f102487381cd435
+      and fast-forwarded main to that commit. A1, A2 and A3 are verified; task
+      completed. Broader scan UI/release integration remains the separate V55-006
+      scope; OpenAPI/RequestSet and ffuf remain separate tasks.
+remaining: []
 verification:
   - >-
     Expanded Python gate passed with warnings treated as errors: 407 tests covering
