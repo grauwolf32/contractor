@@ -3,7 +3,7 @@ id: V55-007
 title: Prepare deterministic scan requests from OpenAPI
 milestone: scan-tools-followups
 priority: P2
-status: completed
+status: in_progress
 implementation_commit: 8e38e25cce5d43cb3f3dad5f00efa2f81bccc371
 depends_on: [V55-006]
 languages: [go, json, yaml, markdown]
@@ -19,6 +19,7 @@ scope:
     - Bound bytes, references and request count; deduplicate canonical requests without losing provenance.
   out:
     - Active scan execution, guessed credentials, implicit remote reference fetching and LLM planning.
+    - Exact OpenAPI or JSON Schema validation; request preparation extracts concrete data on a best-effort basis.
 acceptance_criteria:
   - id: A1
     text: Identical exact inputs yield stable request IDs and content digests across repeated preparation.
@@ -107,7 +108,44 @@ progress:
       RequestSet v1, exact provenance and request identities can be retained.
       Broad external resources, arbitrary dialects and advanced dynamic reference
       semantics should be scoped separately from the initial 3.1 follow-up.
-remaining: []
+  - date: 2026-09-20
+    step: best_effort_followup_started
+    details: >-
+      User explicitly changed the follow-up direction to best-effort extraction of
+      concrete request data, without exact schema validation. Reopened V55-007 in
+      feat/v55-007-best-effort from main 5856beb5. Preparation policy 2 will accept
+      OpenAPI 3.0.x and 3.1.x, use supplied values before inspecting schemas, then
+      extract examples/default/const/enum and property hints. Schema constraints
+      must not reject usable HTTP input. Keep bounded parsing, deterministic
+      output, explicit auth, local-only references and concrete HTTP validation.
+      The earlier native JSON Schema validation adapter is no longer required.
+  - date: 2026-09-20
+    step: best_effort_preparation_implemented
+    details: >-
+      Policy 2 accepts OpenAPI 3.0.x and 3.1.x. Concrete option/example values bypass
+      unused schema references and constraints; lazy extraction handles schema
+      examples arrays, default/const/enum, property samples and bounded composed
+      samples. Optional unavailable inputs are omitted with diagnostics; required
+      unavailable inputs only skip their operation. Supplied JSON/text bodies can
+      survive absent or broken declarations with a gap. Unknown operation metadata
+      warns without dropping known request fields, and concrete bodies are kept
+      for all supported methods. No new dependency or exact validator was added.
+      Initial scanplan/contracts tests pass; reviewing extraction amplification
+      bounds and completing new regression tests before the required final gates.
+  - date: 2026-09-20
+    step: best_effort_final_checks_passed
+    details: >-
+      Added OpenAPI 3.1 integration regressions, lazy-reference and composition
+      tests, and bounded concrete-value measurement before encoding. Repeated
+      allOf/overlay map copies consume the work budget. Independent review found
+      and fixed a canonical negative-zero size overcount; its regression passes.
+      Required package tests pass with 624 test/subtest events (262 scanplan,
+      362 contracts). Race-enabled tests, go vet, gofmt, task YAML and diff checks
+      pass. Documentation now describes policy 2 and its explicit limits, including
+      scalar parameter serialization, JSON/text bodies and one sample per operation.
+      No network fetches, credentials inference or new dependencies were introduced.
+remaining:
+  - Review and integrate the follow-up while preserving unrelated workspace changes.
 verification:
   - >-
     go test -json -count=1 ./internal/scanplan/... ./internal/contracts/... passed.
@@ -121,3 +159,13 @@ verification:
     Preparation and tests perform no external HTTP requests or scanner execution.
     API availability is the internal preparation package; Workflow dispatch remains
     V55-008. V55-006 remains pending, as explicitly bypassed by the user for this task.
+  - >-
+    Best-effort follow-up: go test -json -count=1 ./internal/scanplan/...
+    ./internal/contracts/... passed with 624 test/subtest events (262 scanplan,
+    362 contracts). Log: /tmp/v55-007-best-effort-tests.jsonl.
+  - >-
+    Best-effort follow-up: go test -race -count=1 ./internal/scanplan/...
+    ./internal/contracts/... passed. Log: /tmp/v55-007-best-effort-race.log.
+  - >-
+    Best-effort follow-up: go vet ./internal/scanplan/... ./internal/contracts/...,
+    gofmt, task YAML parsing and git diff --check passed.

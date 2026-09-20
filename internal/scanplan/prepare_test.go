@@ -282,8 +282,10 @@ func TestPrepareServerPrecedenceVariablesAndBasePath(t *testing.T) {
 	if len(view.Requests) != 1 || view.Requests[0].Request.URL != "https://us.example.test/v1/x" {
 		t.Fatal("server variables were not bound")
 	}
-	view = mustDocument(t, doc, scanplan.Options{ServerVariables: map[string]string{"region": "invalid-region"}})
-	requireSkipped(t, view)
+	view = mustDocument(t, doc, scanplan.Options{ServerVariables: map[string]string{"region": "other-region"}})
+	if len(view.Requests) != 1 || view.Requests[0].Request.URL != "https://other-region.example.test/v1/x" {
+		t.Fatal("server enum constraint rejected concrete data")
+	}
 }
 
 func TestPrepareBodiesUseDeterministicExamplesAndExplicitInput(t *testing.T) {
@@ -303,12 +305,15 @@ func TestPrepareBodiesUseDeterministicExamplesAndExplicitInput(t *testing.T) {
 		t.Fatal("neutral body input was changed or not selected")
 	}
 	options.Operations["#/paths/~1items/post"] = scanplan.OperationInput{Body: &scanplan.BodyInput{MediaType: "application/json", Value: map[string]any{"name": "missing-required-id"}}}
-	requireSkipped(t, mustDocument(t, doc, options))
+	view = mustDocument(t, doc, options)
+	if len(view.Requests) != 1 || view.Requests[0].Request.Body != `{"name":"missing-required-id"}` {
+		t.Fatal("schema validation rejected explicit body data")
+	}
 }
 
 func TestPrepareMissingInputsUnsupportedMethodsAndCallbacksAreCoverageGaps(t *testing.T) {
 	parameter := func(required bool) any {
-		return map[string]any{"name": "q", "in": "query", "required": required, "schema": map[string]any{"type": "string", "default": "do-not-invent", "enum": []any{"do-not-invent"}}}
+		return map[string]any{"name": "q", "in": "query", "required": required, "schema": map[string]any{"type": "string"}}
 	}
 	body := func(required bool) any {
 		return map[string]any{"required": required, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"type": "object"}}}}
@@ -403,7 +408,7 @@ func (transport *forbiddenPreparationTransport) RoundTrip(*http.Request) (*http.
 	return nil, errors.New("preparation must not perform network I/O")
 }
 
-func TestPrepareSelectedReferencesFailClosedWithoutHTTPAndIgnoreResponses(t *testing.T) {
+func TestPrepareOnlyResolvesReferencesNeededForDataWithoutHTTP(t *testing.T) {
 	guard := &forbiddenPreparationTransport{}
 	previous := http.DefaultTransport
 	http.DefaultTransport = guard
@@ -413,6 +418,12 @@ func TestPrepareSelectedReferencesFailClosedWithoutHTTPAndIgnoreResponses(t *tes
 			doc := document(map[string]any{"/x": map[string]any{"get": map[string]any{"parameters": []any{map[string]any{"name": "q", "in": "query", "required": true, "schema": map[string]any{"$ref": ref}, "example": "value-canary"}}}}})
 			doc["components"] = map[string]any{"schemas": map[string]any{"Cycle": map[string]any{"$ref": "#/components/schemas/Cycle"}}}
 			view := mustDocument(t, doc, scanplan.Options{})
+			if len(view.Requests) != 1 || !strings.Contains(view.Requests[0].Request.URL, "q=value-canary") {
+				t.Fatal("unused schema reference blocked concrete example")
+			}
+			parameter := doc["paths"].(map[string]any)["/x"].(map[string]any)["get"].(map[string]any)["parameters"].([]any)[0].(map[string]any)
+			delete(parameter, "example")
+			view = mustDocument(t, doc, scanplan.Options{})
 			requireSkipped(t, view)
 			if strings.Contains(string(encoded(t, view.Gaps)), "canary") {
 				t.Fatal("reference diagnostic leaked supplied values")
@@ -429,7 +440,7 @@ func TestPrepareSelectedReferencesFailClosedWithoutHTTPAndIgnoreResponses(t *tes
 	}
 }
 
-func TestPrepareUnsupportedStylesBodiesExamplesAndSchemaAreGaps(t *testing.T) {
+func TestPrepareDistinguishesSerializationLimitsFromSchemaConstraints(t *testing.T) {
 	for name, operation := range map[string]any{
 		"style":            map[string]any{"parameters": []any{map[string]any{"name": "q", "in": "query", "required": true, "style": "deepObject", "schema": map[string]any{"type": "object"}, "example": map[string]any{"x": 1}}}},
 		"array":            map[string]any{"parameters": []any{map[string]any{"name": "q", "in": "query", "required": true, "schema": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "example": []any{"x"}}}},
@@ -444,7 +455,14 @@ func TestPrepareUnsupportedStylesBodiesExamplesAndSchemaAreGaps(t *testing.T) {
 			doc := document(map[string]any{"/x": map[string]any{"post": operation}})
 			doc["components"] = map[string]any{"parameters": map[string]any{"Q": map[string]any{"name": "q", "in": "query", "required": true, "schema": map[string]any{"type": "string"}, "example": "value"}}}
 			view := mustDocument(t, doc, scanplan.Options{})
-			requireSkipped(t, view)
+			switch name {
+			case "wrong-type", "ref-sibling", "binary", "ambiguous-one-of":
+				if len(view.Requests) != 1 || !view.Coverage.Complete {
+					t.Fatal("schema constraint rejected serializable request data")
+				}
+			default:
+				requireSkipped(t, view)
+			}
 			if strings.Contains(string(encoded(t, view.Gaps)), "canary") {
 				t.Fatal("coverage gaps leaked supplied examples")
 			}
@@ -554,15 +572,21 @@ func TestPrepareRequestBodiesRespectSupportedOperationMethods(t *testing.T) {
 				}},
 			}}}})
 			view := mustDocument(t, doc, scanplan.Options{})
-			if method == "post" {
-				if len(view.Requests) != 1 || !view.Coverage.Complete || view.Requests[0].Request.Body != "explicit-body" {
-					t.Fatal("POST request body was not preserved")
-				}
-				return
+			if len(view.Requests) != 1 || !view.Coverage.Complete || view.Requests[0].Request.Body != "explicit-body" || view.Requests[0].Request.Method != strings.ToUpper(method) {
+				t.Fatal("concrete request body was not preserved")
 			}
-			requireSkipped(t, view)
-			if len(view.Gaps) != 1 || view.Gaps[0].Code != "unsupported_body_method" || view.Gaps[0].Pointer != "#/paths/~1x/"+method {
-				t.Fatalf("unsupported method/body combination has no explicit diagnostic: %+v", view.Gaps)
+		})
+	}
+}
+
+func TestPrepareAcceptsOpenAPI30And31PatchVersions(t *testing.T) {
+	for _, version := range []string{"3.0.0", "3.0.4", "3.0.5", "3.1.0", "3.1.1"} {
+		t.Run(version, func(t *testing.T) {
+			doc := document(map[string]any{"/x": map[string]any{"get": map[string]any{}}})
+			doc["openapi"] = version
+			view := mustDocument(t, doc, scanplan.Options{})
+			if len(view.Requests) != 1 || !view.Coverage.Complete {
+				t.Fatal("supported OpenAPI patch version did not produce a request")
 			}
 		})
 	}
@@ -576,7 +600,7 @@ func TestPrepareInvalidWholeInputsAndBindingsHavePrivateErrors(t *testing.T) {
 		ref     contracts.ArtifactRef
 		options scanplan.Options
 	}{
-		"unsupported-version": {data: bytes.Replace(valid, []byte("3.0.3"), []byte("3.1.0"), 1)},
+		"unsupported-version": {data: bytes.Replace(valid, []byte("3.0.3"), []byte("2.0.0"), 1)},
 		"duplicate-json":      {data: []byte(`{"openapi":"3.0.3","openapi":"secret-canary","paths":{}}`)},
 		"nonfinite":           {data: []byte(`{"openapi":"3.0.3","paths":{},"secret-canary":NaN}`)},
 		"large-integer":       {data: []byte(`{"openapi":"3.0.3","paths":{},"secret-canary":9007199254740993}`)},

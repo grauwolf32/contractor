@@ -14,10 +14,12 @@ func TestPrepareMisspelledPathMethodReportsGap(t *testing.T) {
 	}
 }
 
-func TestPrepareUnknownOperationFieldSkipsRequest(t *testing.T) {
+func TestPrepareUnknownOperationFieldWarnsAndRetainsRequest(t *testing.T) {
 	doc := document(map[string]any{"/x": map[string]any{"get": map[string]any{"paramaters": []any{map[string]any{"name": "required-value", "in": "query", "required": true}}}}})
 	view := mustDocument(t, doc, scanplan.Options{})
-	requireSkipped(t, view)
+	if len(view.Requests) != 1 || view.Coverage.Complete || len(view.Gaps) != 1 || view.Gaps[0].Code != "unsupported_operation_field" {
+		t.Fatalf("unknown metadata should warn without dropping known request data: %+v", view.Coverage)
+	}
 }
 
 func TestPrepareServerVariablesDoNotRecursivelyExpand(t *testing.T) {

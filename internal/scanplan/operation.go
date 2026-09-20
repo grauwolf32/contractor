@@ -13,9 +13,6 @@ var variablePattern = regexp.MustCompile(`\{([^{}]+)\}`)
 
 func (p *preparer) operation(path, method string, item, op map[string]any, pointer string) (contracts.PreparedHTTPRequest, string) {
 	empty := contracts.PreparedHTTPRequest{}
-	if _, exists := op["requestBody"]; exists && (method == "GET" || method == "HEAD" || method == "DELETE") {
-		return empty, "unsupported_body_method"
-	}
 	server, code := p.server(item, op)
 	if code != "" {
 		return empty, code
@@ -40,43 +37,24 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 			p.gap(pointer, "ignored_reserved_header_parameter")
 			continue
 		}
-		style := "form"
-		if location == "path" || location == "header" {
-			style = "simple"
-		}
-		if specified, exists := param["style"]; exists && specified != style {
-			return empty, "unsupported_parameter_style"
-		}
-		if _, exists := param["content"]; exists {
-			return empty, "unsupported_parameter_content"
-		}
-		if value, exists := param["allowReserved"]; exists && value != false {
-			return empty, "unsupported_allow_reserved"
-		}
-		if value, exists := param["explode"]; exists {
-			if _, ok := value.(bool); !ok {
-				return empty, "invalid_parameter"
-			}
-		}
 		required, code := booleanField(param, "required")
 		if code != "" {
 			return empty, code
 		}
-		if location == "path" && !required {
-			return empty, "invalid_path_parameter"
-		}
-		schema, code := p.schema(param["schema"], nil, 1)
-		if code != "" {
-			return empty, code
-		}
-		value, exists := input.Parameters[key]
-		if exists {
+		// A path placeholder always needs data, regardless of schema metadata.
+		required = required || location == "path"
+		value, supplied := input.Parameters[key]
+		if supplied {
 			used[key] = true
-		} else {
-			value, exists, code = p.example(param, schema)
-			if code != "" {
+		}
+		text, exists, code := p.parameterValue(param, value, supplied)
+		if code != "" {
+			if required || supplied {
 				return empty, code
 			}
+			p.gap(pointer, code)
+			p.gap(pointer, "optional_parameter_omitted")
+			continue
 		}
 		if !exists {
 			if required {
@@ -84,13 +62,6 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 			}
 			p.gap(pointer, "optional_parameter_omitted")
 			continue
-		}
-		if code = validateExample(value, schema); code != "" {
-			return empty, code
-		}
-		text, ok := scalar(value)
-		if !ok {
-			return empty, "unsupported_parameter_value"
 		}
 		switch location {
 		case "path":
@@ -104,9 +75,6 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 		case "header":
 			headers[strings.ToLower(name)] = text
 		case "cookie":
-			if !cookieToken(name) || !cookieValue(text) {
-				return empty, "invalid_cookie_parameter"
-			}
 			cookies[name] = text
 		}
 	}
@@ -181,12 +149,9 @@ func (p *preparer) server(item, op map[string]any) (string, string) {
 			}
 		}
 		for _, match := range variablePattern.FindAllStringSubmatch(server, -1) {
-			definition, ok := variables[match[1]].(map[string]any)
-			if !ok {
-				return "", "missing_server_variable"
-			}
 			value, exists := p.options.ServerVariables[match[1]]
 			if !exists {
+				definition, _ := variables[match[1]].(map[string]any)
 				value, ok = definition["default"].(string)
 				if !ok {
 					return "", "missing_server_variable"
@@ -194,21 +159,6 @@ func (p *preparer) server(item, op map[string]any) (string, string) {
 			}
 			if strings.ContainsAny(value, "{}") {
 				return "", "invalid_server_variable"
-			}
-			if raw, exists := definition["enum"]; exists {
-				values, ok := raw.([]any)
-				if !ok {
-					return "", "invalid_server_variable"
-				}
-				found := false
-				for _, allowed := range values {
-					if text, ok := allowed.(string); ok && text == value {
-						found = true
-					}
-				}
-				if !found {
-					return "", "invalid_server_variable"
-				}
 			}
 			server = strings.ReplaceAll(server, match[0], value)
 		}
@@ -270,12 +220,72 @@ func (p *preparer) parameters(item, op map[string]any) (map[string]map[string]an
 	return result, ""
 }
 
+// parameterValue validates only the serialization we can perform. Schema
+// constraints do not determine whether concrete request data can be retained.
+func (p *preparer) parameterValue(param map[string]any, value any, supplied bool) (string, bool, string) {
+	exists := supplied
+	if !supplied {
+		var code string
+		value, exists, code = p.example(param, param["schema"])
+		if code != "" {
+			return "", false, code
+		}
+	}
+	if !exists {
+		return "", false, ""
+	}
+	style := "form"
+	if param["in"] == "path" || param["in"] == "header" {
+		style = "simple"
+	}
+	if specified, exists := param["style"]; exists && specified != style {
+		return "", false, "unsupported_parameter_style"
+	}
+	if _, exists := param["content"]; exists {
+		return "", false, "unsupported_parameter_content"
+	}
+	if value, exists := param["allowReserved"]; exists && value != false {
+		return "", false, "unsupported_allow_reserved"
+	}
+	if value, exists := param["explode"]; exists {
+		if _, ok := value.(bool); !ok {
+			return "", false, "invalid_parameter"
+		}
+	}
+	text, ok := scalar(value)
+	if !ok {
+		return "", false, "unsupported_parameter_value"
+	}
+	name, _ := param["name"].(string)
+	if param["in"] == "cookie" && (!cookieToken(name) || !cookieValue(text)) {
+		return "", false, "invalid_cookie_parameter"
+	}
+	if param["in"] == "header" {
+		check := contracts.PreparedHTTPRequest{Method: "GET", URL: "https://validation.invalid/", Headers: []contracts.HTTPRequestHeader{{Name: strings.ToLower(name), Value: text}}}
+		if check.Validate() != nil {
+			return "", false, "invalid_header_parameter"
+		}
+	}
+	return text, true, ""
+}
+
 func (p *preparer) body(op map[string]any, input *BodyInput, pointer string) (string, string, string) {
 	raw, exists := op["requestBody"]
-	if !exists {
-		if input != nil {
-			return "", "", "unexpected_body_binding"
+	if input != nil {
+		// Caller-supplied data is already concrete. A broken definition should
+		// not prevent serialization; keep its diagnostic alongside the request.
+		if !exists {
+			p.gap(pointer, "unexpected_body_binding")
+		} else if definition, code := p.resolve(raw, nil); code != "" {
+			p.gap(pointer, code)
+		} else if content, ok := definition["content"].(map[string]any); !ok {
+			p.gap(pointer, "invalid_body")
+		} else if _, declared := content[input.MediaType]; !declared {
+			p.gap(pointer, "undeclared_body_media_type")
 		}
+		return serializeBody(input.Value, input.MediaType)
+	}
+	if !exists {
 		return "", "", ""
 	}
 	body, code := p.resolve(raw, nil)
@@ -286,67 +296,63 @@ func (p *preparer) body(op map[string]any, input *BodyInput, pointer string) (st
 	if code != "" {
 		return "", "", code
 	}
-	content, ok := body["content"].(map[string]any)
-	if !ok || len(content) == 0 {
-		return "", "", "invalid_body"
-	}
-	mediaType := ""
-	if input != nil {
-		mediaType = input.MediaType
-	} else {
-		for _, candidate := range keys(content) {
-			if candidate == "application/json" || candidate == "text/plain" {
-				mediaType = candidate
-				break
-			}
-		}
-	}
-	if mediaType != "application/json" && mediaType != "text/plain" {
-		return "", "", "unsupported_body_media_type"
-	}
-	media, ok := content[mediaType].(map[string]any)
-	if !ok {
-		return "", "", "undeclared_body_media_type"
-	}
-	if _, exists := media["encoding"]; exists {
-		return "", "", "unsupported_body_encoding"
-	}
-	schema := map[string]any{}
-	if raw, exists := media["schema"]; exists {
-		schema, code = p.schema(raw, nil, 1)
-		if code != "" {
-			return "", "", code
-		}
-	}
-	var value any
-	if input != nil {
-		value = input.Value
-		exists = true
-	} else {
-		value, exists, code = p.example(media, schema)
-		if code != "" {
-			return "", "", code
-		}
-	}
-	if !exists {
+	omitOrFail := func(code string) (string, string, string) {
 		if required {
-			return "", "", "missing_required_body"
+			return "", "", code
 		}
+		p.gap(pointer, code)
 		p.gap(pointer, "optional_body_omitted")
 		return "", "", ""
 	}
-	if code = validateExample(value, schema); code != "" {
-		return "", "", code
+	content, ok := body["content"].(map[string]any)
+	if !ok || len(content) == 0 {
+		return omitOrFail("invalid_body")
 	}
+	lastCode := "unsupported_body_media_type"
+	for _, mediaType := range keys(content) {
+		if mediaType != "application/json" && mediaType != "text/plain" {
+			continue
+		}
+		media, ok := content[mediaType].(map[string]any)
+		if !ok {
+			lastCode = "invalid_body"
+			continue
+		}
+		value, exists, code := p.example(media, media["schema"])
+		if code != "" {
+			lastCode = code
+			continue
+		}
+		if !exists {
+			lastCode = "missing_required_body"
+			continue
+		}
+		encoded, selectedType, code := serializeBody(value, mediaType)
+		if code == "" {
+			return encoded, selectedType, ""
+		}
+		lastCode = code
+	}
+	if !required && lastCode == "missing_required_body" {
+		p.gap(pointer, "optional_body_omitted")
+		return "", "", ""
+	}
+	return omitOrFail(lastCode)
+}
+
+func serializeBody(value any, mediaType string) (string, string, string) {
 	if mediaType == "text/plain" {
 		text, ok := value.(string)
-		if !ok {
+		if !ok || len(text) > contracts.MaxHTTPRequestBodyBytes {
 			return "", "", "invalid_body_value"
 		}
 		return text, mediaType, ""
 	}
+	if mediaType != "application/json" {
+		return "", "", "unsupported_body_media_type"
+	}
 	encoded, err := contracts.MarshalPrivateCanonical(value)
-	if err != nil {
+	if err != nil || len(encoded) > contracts.MaxHTTPRequestBodyBytes {
 		return "", "", "invalid_body_value"
 	}
 	return string(encoded), mediaType, ""

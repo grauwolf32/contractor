@@ -36,7 +36,7 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		return empty, err
 	}
 	version, _ := root["openapi"].(string)
-	if version != "3.0.0" && version != "3.0.1" && version != "3.0.2" && version != "3.0.3" && version != "3.0.4" {
+	if !supportedOpenAPIVersion(version) {
 		return empty, failure("unsupported_openapi_version")
 	}
 	paths, ok := root["paths"].(map[string]any)
@@ -58,7 +58,7 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		Source        contracts.RequestSetSource `json:"source"`
 		MediaType     string                     `json:"mediaType"`
 		Options       Options                    `json:"options"`
-	}{1, set.Source, mediaType, options})
+	}{2, set.Source, mediaType, options})
 	if err != nil {
 		return empty, failure("invalid_options")
 	}
@@ -119,7 +119,6 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			}
 			if unknown {
 				p.gap(opPointer, "unsupported_operation_field")
-				continue
 			}
 			if _, exists := op["callbacks"]; exists {
 				p.gap(opPointer, "unsupported_callbacks")
@@ -193,6 +192,19 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		return empty, failure("request_set_limit_or_contract_error")
 	}
 	return set, nil
+}
+
+func supportedOpenAPIVersion(version string) bool {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 || parts[0] != "3" || (parts[1] != "0" && parts[1] != "1") || parts[2] == "" {
+		return false
+	}
+	for _, digit := range parts[2] {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeOptions(options Options) (Options, error) {
