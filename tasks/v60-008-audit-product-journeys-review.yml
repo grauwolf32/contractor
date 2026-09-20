@@ -3,7 +3,7 @@ id: V60-008
 title: Review Audit consistency and complete Project Run and finding journeys
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 - V60-003
@@ -93,3 +93,9 @@ review_evidence:
   evidence: tasks/evidence/v60-008.json
   corrections: [V60-027, V60-028, V60-031, V60-032, V60-035]
   result: Source/history review complete; all five required gates passed with real PostgreSQL/process/browser evidence and no selected skips.
+
+implementation_commit: 650d04d16ac82ab1466a56cc3027ee3dc119ec5f
+verification:
+  evidence: tasks/evidence/v60-008.json
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
