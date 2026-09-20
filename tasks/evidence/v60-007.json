@@ -130,5 +130,6 @@
     "No live models or production deployment/data were used.",
     "Filesystem crash/power-loss durability, S3 and populated-store backend switching remain outside the supported contract.",
     "Backup restoration is separate V60-009 evidence; migration recovery is not represented as backup restoration."
-  ]
+  ],
+  "implementation_commit": "8ab37c135462ec22cd6270d147f55280e991174f"
 }

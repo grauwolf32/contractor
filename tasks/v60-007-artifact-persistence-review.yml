@@ -3,7 +3,7 @@ id: V60-007
 title: Review Artifact authority, deletion races and persistence recovery
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -67,3 +67,9 @@ verification_requirements:
 - Read relevant decision history; list exact scenarios and test results in the project review report.
 - Keep implementation and subsequent completion metadata commits separate with the full original implementation
   hash.
+
+implementation_commit: 8ab37c135462ec22cd6270d147f55280e991174f
+verification:
+  evidence: tasks/evidence/v60-007.json
+  report: docs/research/2026-09-20-v60-007-storage-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
