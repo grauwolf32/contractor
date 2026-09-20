@@ -8,6 +8,7 @@ depends_on:
 - V60-001
 - V60-003
 - V60-004
+- V60-012
 languages:
 - go
 - python
@@ -25,14 +26,20 @@ context:
   - docs/spec/27-findings-tools-and-collections.md
   - docs/spec/ui-user-stories.md
   design: docs/plans/2026-09-20-project-review.md
+  discovered_import_limitation: V60-012 PostgreSQL probe confirmed same-Audit receipt replay succeeds, but importing
+    that receipt into a second compatible Audit fails with audit_findings_pkey SQLSTATE 23505 and rolls back.
+    Migration 041 derives the global finding ID solely from receipt ID. Explicit accepted same-receipt multi-Audit
+    semantics were not found; clarify that contract and expected HTTP outcome before choosing identity/migration changes.
 scope:
   in:
   - Exercise review TTL, decision replay, multiround restart and retained evidence/report consistency.
+  - Resolve the documented same-receipt multi-Audit import contract; reproduce the current identity collision and
+    create a bounded correction task with an explicit compatibility and migration decision.
   - Run browser Project/input/Run/result/repeat and Audit/finding/review/report journeys, including errors and unavailable
     exact sources.
   - Distinguish current delivered behavior from pending scan/SARIF/Evals UX work.
   out:
-  - Take over active V38 managed Evals, V40-002, V55-004 or V56 toolsets; change intentionally deferred semantics without a contract decision.
+  - Take over active V38 managed Evals, V40-002, V55-004 or V61 toolsets; change intentionally deferred semantics without a contract decision.
   - Live model runs, production data mutation or deployment.
   - Claim whole-project correctness from one review slice.
 acceptance_criteria:

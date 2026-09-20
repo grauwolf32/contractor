@@ -11,6 +11,9 @@ transitions, admission, budget stops and command recovery. Deadline/token stops
 continue through settling until all accepted work drains. Unknown preparation
 failures stay pending for retry, with a safe diagnostic and the original cause
 returned to the coordinator. Confirmed configuration failures return to draft.
+Preflight records both LLM and Runtime credential lookup failures before catalog
+validation or Runtime pinning can obscure their classification. Database failures
+remain retryable even when a downstream validator adds `ErrInvalid`.
 
 Portable documents and operation receipts have named types. Plan construction
 uses separate check/case/variant/member builders. Nested validation follows known
@@ -24,6 +27,8 @@ the portable plan and its private resource closure atomically. Required equality
 pins must be observed, present and equal; unavailable provider model revisions
 are not inferred from model names. Human review is the initial fixed check;
 V38-006 extends the bounded validator registry. No uploaded evaluator is executed.
+Binding selection and dependency pinning, case eligibility, artifact checks and
+comparison pins have separate implementations; `Resolve` owns their transaction.
 
 Input/output mappings run from case role to executable slot. Omitted input roles
 use their own name; collisions and unknown mappings fail. Variant parameters

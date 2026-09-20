@@ -48,3 +48,45 @@ All checks passed on 2026-09-20:
 No live models, targets or shared demo data were used. The unfinished V38-006 work
 was saved separately before this follow-up and is not part of its implementation
 commit.
+
+## Credential recovery and integration follow-up
+
+The second review found a remaining failure path: `PinRunSnapshot` joins
+`ErrInvalid` to credential lookup errors, including database failures. Commit
+`0169c0f7` records dependency failures before that wrapper for both LLM and Runtime
+credentials. Unknown failures keep preparation pending; missing credentials and
+incompatible identities return to draft. Runtime credential reads preserve the
+database cause without rendering SQL or credential content in the public message.
+
+Regression coverage exercises a real unavailable `runtime_credentials` table,
+restores it and checks automatic preparation recovery. Additional Audit fixtures
+exercise Runtime-selected LLM credentials with transient lookup errors, missing
+credentials and mismatched identities.
+
+The follow-up also separates preflight binding selection, dependency pinning,
+case eligibility, artifact checks and comparison pins. Member construction is
+split by case and computes each shuffle hash once. Result scope validation uses
+typed execution references. Query, polling and cursor limits use named constants;
+state transitions and HTTP handlers reuse their existing constants. SQL and Go
+literals are formatted for review. The OpenAPI generator now emits indented
+blocks; a parsed-document comparison confirms the contract is unchanged.
+
+Integration verification on 2026-09-20:
+
+- Disposable PostgreSQL 17 with isolated test schemas: `go test -race -count=1
+  -p 4 ./internal/evaldomain ./internal/evalstore ./internal/evalservice
+  ./internal/evalcoordinator ./internal/httpapi/public ./internal/projectlifecycle
+  ./internal/credentials ./internal/runtimeconfig ./internal/auditservice
+  ./internal/runservice ./internal/app ./internal/persistence/postgres` passed.
+- `go vet ./...` and compilation of every Go package passed.
+- Both UI TypeScript configurations passed. OpenAPI synchronization and Go client
+  generation are repeatable; the TypeScript client was regenerated from the
+  merged schema. The Python generator passes Ruff formatting and lint checks.
+- SQL token comparison against the reviewed implementation confirms that the
+  query formatting changes preserve SQL semantics.
+- After including the concurrently merged V60-012 correction from `main`
+  (`e2d1fbdc`), the PostgreSQL race suite passed again for `evalservice`, public
+  HTTP, `runstore`, `auditstore`, `findingintake` and `projectlifecycle`.
+
+The merged scope remains V38-002–005. Uncommitted V38-006 stays in its original
+worktree and is not included in this integration.

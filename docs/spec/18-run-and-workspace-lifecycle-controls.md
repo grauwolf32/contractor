@@ -97,6 +97,15 @@ including:
   publication receipts and create-idempotency records;
 - the WorkflowRun row itself.
 
+The same transaction advances the revision of every affected owner Audit:
+the managed execution's Audit, native proposal-receipt Audits and destination
+Audits retaining imported proposals. Each Audit advances once per successful
+Run deletion, including terminal Audits. A rollback or rejected deletion leaves
+both the Run and these revisions unchanged. This invalidates old Audit ETags,
+revision pins and cursors when retained provenance starts reporting `runDeleted`.
+Finding assessments and frozen review subjects keep their own revisions;
+the finalizing report timestamp rule is defined in [19](19-audits.md).
+
 Source UserScope and ProjectScope artifacts selected as Run inputs are not
 Run-owned and remain. A ProjectScope output previously published from the Run
 is also an independent Project artifact and remains when only the Run is
@@ -179,4 +188,3 @@ an allocation or ProjectScope artifact is still retained.
 7. Artifact garbage collection is reference-safe across all scopes.
 8. Only authenticated public lifecycle endpoints and trusted Server recovery
    code can enter the controlled deletion path.
-
