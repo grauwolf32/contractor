@@ -2939,6 +2939,7 @@ tasks:
   - {id: V62-010, file: v62-010-audit-composition-api.yml}
   - {id: V62-011, file: v62-011-audit-composition-ui.yml}
   - {id: V62-012, file: v62-012-audit-composition-release.yml}
+  - {id: V63-002, file: v63-002-read-file-line-numbers.yml}
   - {id: V64-000, file: v64-000-audit-priority-core.yml}
   - {id: V64-001, file: v64-001-audit-priority-contracts.yml}
   - {id: V64-002, file: v64-002-audit-priority-store.yml}

@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V63-002
+title: Restore opt-in absolute line numbers in workspace read_file
+milestone: findings-benchmark-contracts
+priority: P1
+status: completed
+implementation_commit: 6253c99df7a4ce240d9cda6c1e88272d448ff099
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Let source-analysis workers request numbered file excerpts for precise finding
+  coordinates while keeping ordinary read_file output unchanged by default.
+context:
+  authority: User requested the disabled-by-default option from Contractor v.1.0 on 2026-09-20 and asked for a task for required Contractor work.
+  specification:
+    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+  historical_evidence:
+    branch: v.1.0
+    implementation: contractor/tools/fs/read_tools.py
+    test: tests/units/contractor_tests/tools/test_fs.py::test_read_file_with_line_numbers
+    behavior: with_line_numbers defaults to false; enabled text uses absolute one-based N | text prefixes, including paged reads.
+  current_implementation: runtime/src/contractor_runtime/toolsets/filesystem/tools.py
+scope:
+  in:
+    - Add with_line_numbers boolean defaulting to false to the current read_file tool.
+    - When enabled, prefix each returned lines element with its absolute one-based number in the N | text format.
+    - Preserve startLine/totalLines/nextLine/truncated behavior and count displayed prefix bytes in returnedBytes and the existing output byte limit.
+    - Preserve plain read output exactly when omitted or false; validate the flag strictly without accepting string/integer booleans.
+    - Update the tool description, tool-schema coverage, workspace observations and filesystem specification as needed.
+  out:
+    - Change start_line to the old zero-based offset API, modify workspace bytes or add finding-specific behavior to filesystem tools.
+    - Raise existing byte/line limits, change backend authorization or deploy Runtime services.
+acceptance_criteria:
+  - id: A1
+    text: Omitted/false flags preserve current output; true uses absolute numbering for whole-file and non-first-page reads.
+  - id: A2
+    text: Unicode, CRLF, empty lines, empty files, EOF and oversized lines preserve truthful byte limits and pagination with prefixes included.
+  - id: A3
+    text: Tool declarations expose a boolean default false; invalid flags fail before unnecessary workspace reads and observations still record the same source path.
+tests:
+  - command: runtime/.venv/bin/pytest runtime/tests/test_filesystem_toolset.py runtime/tests/test_filesystem_observations.py runtime/tests/test_capabilities.py runtime/tests/test_numbered_file_reads.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1]
+verification_requirements:
+  - Test the actual model-facing tool and at least one multibyte boundary; testing only a formatting helper is insufficient.
+  - Record the relevant legacy comparison without restoring legacy path access or offset semantics.
