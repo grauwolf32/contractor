@@ -1,0 +1,430 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-032",
+  "verified_at": "2026-09-20T11:38:21.829794+00:00",
+  "baseline_commit": "7afb380963f918a8fd8220f7c33262d6068d5d8c",
+  "implementation_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+  "status": "passed",
+  "report": "docs/research/2026-09-20-v60-032-browser-fixture-review.md",
+  "findings": [
+    {
+      "file": "ui/e2e/audits.spec.ts",
+      "cause": "640b4890 exposes the assessment in both a badge and conclusion excerpt and places full task/result/gaps under Read task and result. The old broad locator is ambiguous; the old detail assertions target hidden content.",
+      "correction": "Select the exact badge, open Read task and result, and retain all three original gap/task/result assertions scoped to that disclosure.",
+      "priority": "P2"
+    },
+    {
+      "file": "ui/e2e/lifecycle-controls.spec.ts",
+      "cause": "90a1ab39/spec06 replaced Additional actions with the accessible Project actions menu; the old locator times out.",
+      "correction": "Use the exact Project actions accessible name. Retain confirmation, pending release, eventual deletion, CSRF and If-Match assertions.",
+      "priority": "P2"
+    },
+    {
+      "file": "ui/e2e/performance.spec.ts",
+      "cause": "f5ae4a4f/V58-010 intentionally introduced compact current GPU summaries and placed the full measurements under Detailed counters and collection diagnostics.",
+      "correction": "Open detailed counters, verify exact 44 °C and absent unsupported Power draw in the same GPU card, then close the disclosure and retain all existing chart/color/mobile/missing-device assertions.",
+      "priority": "P2"
+    }
+  ],
+  "browser_checks": [
+    {
+      "phase": "before",
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/project-workspace.spec.ts",
+        "e2e/run-repeat.spec.ts",
+        "e2e/scheduler-settings.spec.ts",
+        "e2e/performance.spec.ts",
+        "--reporter=line,json"
+      ],
+      "orchestration_command": [
+        "node",
+        ".local/v60-review/v60-031-preflight.mjs",
+        "before"
+      ],
+      "cwd": "ui",
+      "exit_code": 1,
+      "elapsed_seconds": 53.764,
+      "stats": {
+        "startTime": "2026-09-20T11:11:00.594Z",
+        "duration": 52829.853,
+        "expected": 16,
+        "skipped": 0,
+        "unexpected": 3,
+        "flaky": 0
+      },
+      "per_file_counts": {
+        "audits.spec.ts": {
+          "expected": 3,
+          "unexpected": 1,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "lifecycle-controls.spec.ts": {
+          "expected": 0,
+          "unexpected": 1,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "performance.spec.ts": {
+          "expected": 1,
+          "unexpected": 1,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "project-workspace.spec.ts": {
+          "expected": 5,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "run-repeat.spec.ts": {
+          "expected": 6,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "scheduler-settings.spec.ts": {
+          "expected": 1,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        }
+      },
+      "log": ".local/v60-review/v60-031-fixtures-before.log",
+      "log_sha256": "480d545ed2af7cf8b463ff7cf48bd87f34d05a3d7b0c5fe1a9e85a04b3d789cb",
+      "report": ".local/v60-review/v60-031-fixtures-before.report.json",
+      "report_sha256": "7ee7235a7960d6a05ee5f91372fa93762af97177b98be472cc2b71dcd8d8a63c",
+      "copied_assets_manifest_sha256": "aa8314ebc60cc0ee4530dd7a1a25575eec249f59108dfa18e8915ac0f86225c1",
+      "local_metadata": ".local/v60-review/v60-031-fixtures-before.json"
+    },
+    {
+      "phase": "after",
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/project-workspace.spec.ts",
+        "e2e/run-repeat.spec.ts",
+        "e2e/scheduler-settings.spec.ts",
+        "e2e/performance.spec.ts",
+        "--reporter=line,json"
+      ],
+      "orchestration_command": [
+        "node",
+        ".local/v60-review/v60-031-preflight.mjs",
+        "after"
+      ],
+      "cwd": "ui",
+      "exit_code": 1,
+      "elapsed_seconds": 41.471,
+      "stats": {
+        "startTime": "2026-09-20T11:14:33.511Z",
+        "duration": 39534.954000000005,
+        "expected": 18,
+        "skipped": 0,
+        "unexpected": 1,
+        "flaky": 0
+      },
+      "per_file_counts": {
+        "audits.spec.ts": {
+          "expected": 3,
+          "unexpected": 1,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "lifecycle-controls.spec.ts": {
+          "expected": 1,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "performance.spec.ts": {
+          "expected": 2,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "project-workspace.spec.ts": {
+          "expected": 5,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "run-repeat.spec.ts": {
+          "expected": 6,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "scheduler-settings.spec.ts": {
+          "expected": 1,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        }
+      },
+      "log": ".local/v60-review/v60-031-fixtures-after.log",
+      "log_sha256": "d2ac572ca2d443e46d840b1239b451bf3c97ad2bde31ef7db7c75ab342c452a2",
+      "report": ".local/v60-review/v60-031-fixtures-after.report.json",
+      "report_sha256": "53ae80d9e6fd8bcbe1639f758bcf60194512a26cf5b7540125f5959fb80613ee",
+      "copied_assets_manifest_sha256": "aa8314ebc60cc0ee4530dd7a1a25575eec249f59108dfa18e8915ac0f86225c1",
+      "local_metadata": ".local/v60-review/v60-031-fixtures-after.json"
+    },
+    {
+      "phase": "final",
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/project-workspace.spec.ts",
+        "e2e/run-repeat.spec.ts",
+        "e2e/scheduler-settings.spec.ts",
+        "e2e/performance.spec.ts",
+        "--reporter=line,json"
+      ],
+      "orchestration_command": [
+        "node",
+        ".local/v60-review/v60-031-preflight.mjs",
+        "final"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 20.631,
+      "stats": {
+        "startTime": "2026-09-20T11:15:46.092Z",
+        "duration": 19642.663,
+        "expected": 19,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "per_file_counts": {
+        "audits.spec.ts": {
+          "expected": 4,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "lifecycle-controls.spec.ts": {
+          "expected": 1,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "performance.spec.ts": {
+          "expected": 2,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "project-workspace.spec.ts": {
+          "expected": 5,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "run-repeat.spec.ts": {
+          "expected": 6,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        },
+        "scheduler-settings.spec.ts": {
+          "expected": 1,
+          "unexpected": 0,
+          "skipped": 0,
+          "flaky": 0
+        }
+      },
+      "log": ".local/v60-review/v60-031-fixtures-final.log",
+      "log_sha256": "03cc20edc0886972edf2b75edadead76db2b7b8f95476052b2ac92d056f32a5d",
+      "report": ".local/v60-review/v60-031-fixtures-final.report.json",
+      "report_sha256": "7d437c064ebbf486e02d20f39ec791bc7d4dbf65e05494c0275a60c8a7bca6a2",
+      "copied_assets_manifest_sha256": "aa8314ebc60cc0ee4530dd7a1a25575eec249f59108dfa18e8915ac0f86225c1",
+      "local_metadata": ".local/v60-review/v60-031-fixtures-final.json"
+    }
+  ],
+  "static_checks": [
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/performance.spec.ts"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 1.698,
+      "log": ".local/v60-review/v60-032-static-0.log",
+      "log_sha256": "3913ce961ba840428eed0aef8ea93bf6c871a67445657961dc9c46d814ec3a7c"
+    },
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "eslint",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/performance.spec.ts"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 1.672,
+      "log": ".local/v60-review/v60-032-static-1.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "tsc",
+        "--project",
+        "tsconfig.e2e.json",
+        "--noEmit"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 3.233,
+      "log": ".local/v60-review/v60-032-static-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "e2e/audits.spec.ts",
+        "e2e/lifecycle-controls.spec.ts",
+        "e2e/performance.spec.ts"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 1.796,
+      "log": ".local/v60-review/v60-032-static-final-0.log",
+      "log_sha256": "0a5bcb4595551d8ec06f043ce68b84ad43ac0bce010fc1f6442adec98c3fed72"
+    },
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "eslint",
+        "e2e/audits.spec.ts"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 1.777,
+      "log": ".local/v60-review/v60-032-static-final-1.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "corepack",
+        "pnpm",
+        "exec",
+        "tsc",
+        "--project",
+        "tsconfig.e2e.json",
+        "--noEmit"
+      ],
+      "cwd": "ui",
+      "exit_code": 0,
+      "elapsed_seconds": 3.289,
+      "log": ".local/v60-review/v60-032-static-final-2.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_sha256": {
+    "ui/e2e/audits.spec.ts": "ac9b467f74841994764fd6c1a0d5bddf0e5d627c82df6c3fdda585369da29d17",
+    "ui/e2e/lifecycle-controls.spec.ts": "1be92a1ed8288030d591c6b75db427441071e437e1476f49123beafc6cd92cd4",
+    "ui/e2e/performance.spec.ts": "1586dd7ca9c6a22cb1d3735184edf77dfcd3d60524bbb7c2f09a09703188fc69"
+  },
+  "same_built_assets_for_all_runs": true,
+  "execution_boundary": {
+    "served": "Unchanged ui/dist and ui/server copied to owned temporary directory; separate loopback Node on OS-selected port; copied server code serves copied assets. Temporary server/directory stopped/removed after every invocation.",
+    "backend": "All six files use Playwright route fixtures. No real API, PostgreSQL or model claim. The seventh required file, stack.spec.ts, is deliberately excluded from this fixture-only preflight.",
+    "preserved": "No build, write to ui/dist, product edit, or interference with the already running UI stack.",
+    "reporter": "Actual Playwright line,json with PLAYWRIGHT_JSON_OUTPUT_FILE and output directory scoped under .local/v60-review."
+  },
+  "acceptance": {
+    "A1": "PASS: prior UI commits and normative task/spec decisions explain each stale fixture. Behavioral assertions retained.",
+    "A2": "PASS: all 19 cases across six required fixture files; zero skipped/unexpected/flaky.",
+    "A3": "PASS: full make test-ui-stack executed through the combined actual invocation, 21 Go pass events and zero Go skips; all seven selected Playwright files produced 20 expected passes, zero skipped/unexpected/flaky; native and external managed Evals process cases passed."
+  },
+  "local_orchestration": {
+    "path": ".local/v60-review/v60-031-preflight.mjs",
+    "sha256": "acb9eccb724f2ddadae1c62d3c09fd36b066346715e8a1d7485b22da8138061d",
+    "purpose": "Local executed rehearsal only; canonical fresh-checkout verification is make test-ui-stack."
+  },
+  "full_stack_verification": {
+    "command": [
+      "make",
+      "--trace",
+      "test-ui-stack",
+      "test-audits-browser",
+      "test-lifecycle-controls-browser",
+      "test-scheduler-concurrency-browser",
+      "test-performance-browser"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 1107.48,
+    "log": ".local/v60-review/v60-final-browser.log",
+    "go_passing_events": 21,
+    "go_skips": [],
+    "summaries": [
+      "    stack_test.go:357: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5"
+    ],
+    "log_sha256": "7a2c7e17cc2f17c8b5eeb0534e9e721fdef08ac5652ef61f5bd4b9aa2cdd6831",
+    "playwright_report": ".local/v60-review/v60-031-browser/run-1215948544/browser-report.json",
+    "playwright_report_sha256": "99ae4c066f6919d73361aab515ca8a547b09a0558d23ad18f2ed0c940f02ddf5",
+    "playwright_stats": {
+      "startTime": "2026-09-20T11:18:32.779Z",
+      "duration": 100598.48599999999,
+      "expected": 20,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "executed_per_file": {
+      "audits.spec.ts": 4,
+      "lifecycle-controls.spec.ts": 1,
+      "performance.spec.ts": 2,
+      "project-workspace.spec.ts": 5,
+      "run-repeat.spec.ts": 6,
+      "scheduler-settings.spec.ts": 1,
+      "stack.spec.ts": 1
+    },
+    "shared_gate": "All aliases reuse the same actual test-ui-stack prerequisite; this is one invocation, not multiple independent runs.",
+    "optional_checks": [
+      "Screenshot OCR was unavailable (exit 1); it is optional and not a skipped Go/Playwright case. Required network, storage and trace secret checks still ran."
+    ],
+    "additional_process_cases": {
+      "TestBrowserOperationsStack_seconds": 111.68,
+      "TestManagedEvalsNativeStack_seconds": 511.67,
+      "TestManagedEvalsExternalStack_seconds": 481.69
+    }
+  }
+}

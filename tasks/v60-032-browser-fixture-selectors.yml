@@ -3,7 +3,7 @@ id: V60-032
 title: Refresh stale browser fixture selectors exposed by restored gate coverage
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-031]
 languages: [typescript, markdown]
 goal: Restore the required browser fixture assertions without changing product behavior or reducing coverage.
@@ -30,11 +30,15 @@ acceptance_criteria:
   - id: A3
     text: The subsequent full affected test-ui-stack gate passes with all seven required browser files executed.
 tests:
-  - command: node .local/v60-review/v60-031-preflight.mjs after
-    covers: [A1, A2]
   - command: make test-ui-stack
-    covers: [A3]
+    covers: [A1, A2, A3]
 verification_requirements:
   - Record failing and passing JSON report hashes, case counts and exact assertion changes.
   - Keep isolated static UI fixture evidence separate from the following full stack gate.
   - Keep implementation and completion metadata commits separate.
+
+implementation_commit: 45b31abfd848739a0a1b32d7027028989a911a25
+verification:
+  evidence: tasks/evidence/v60-032.json
+  report: docs/research/2026-09-20-v60-032-browser-fixture-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
