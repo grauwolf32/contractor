@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V64-000
+title: Implement independent priority verdict contracts and deterministic selection core
+milestone: audit-check-prioritization
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: [V25-002, V25-011]
+languages: [go, json, yaml, markdown]
+goal: >-
+  Deliver the pure independently testable verdict and top-N calculation used by
+  later Audit integration without depending on unfinished preparation lifecycle.
+context:
+  authority: User requested starting the reviewed V64 implementation on 2026-09-20.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  extraction: >-
+    Concurrent V62 replanning places V62-009 ahead of V62-001 and V62-009 is
+    already in progress. Extract the pure portion of V64-001/006 so useful
+    implementation proceeds without taking over that work or bypassing their
+    lifecycle prerequisites. Profile/API/store admission remains in later tasks.
+scope:
+  in:
+    - Implement bounded strict model-verdict JSON decoding with exact required fields, assigned item identity and context evidence membership.
+    - Define stable candidate identities from inventory digest, original item key and version, plus a complete bounded remaining pool.
+    - Resolve default/profile/override topN with explicit absence, minimum ten and maximum one thousand; never silently clamp invalid values.
+    - Bind validated verdicts to the exact cycle, pool, context, prompt and policy/model configuration digests supplied by the trusted caller.
+    - Compute all-or-nothing complete-pool priority ordering and exact min(topN, remaining) selection with stable ties, separate confidence and truthful deferral reasons.
+    - Produce reproducible canonical selection bytes/digests and detached results; reject unknown, duplicate, missing or mixed-binding verdicts.
+    - Add executable schema fixtures, adversarial boundary tests and compatibility checks for shared codecs without enabling a runtime capability.
+  out:
+    - Model calls, Runtime/Planner registration, public API/profile changes, database migrations, receipt acceptance, budget reservation or actual Round admission.
+deliverables:
+  - path: internal/auditpriority
+    description: Pure candidate/policy/verdict/selection package and meaningful contract/algorithm tests.
+  - path: api/audit-priority/v1
+    description: Strict model-verdict schema and selected canonical fixtures.
+  - path: docs/spec/34-audit-check-prioritization.md
+    description: Implemented core boundary and exact model-verdict/identity contract, with remaining feature clearly unimplemented.
+acceptance_criteria:
+  - id: A1
+    text: Strict verdict fixtures reject unknown/duplicate/case-variant/missing/null fields, malformed Unicode, forged item/evidence IDs and all byte/count overflows without leaking input in errors.
+  - id: A2
+    text: Counts 0/1/3/9/10/11/100/1000, default ten and explicit twelve produce exact selected membership; invalid topN/oversized pools and incomplete or mixed-bound verdicts fail wholly.
+  - id: A3
+    text: Permuted candidate/verdict inputs, ties with differing confidence and shared concurrent reads produce identical canonical selection/digest without input/result aliasing; high priority at rank eleven stays high and deferred.
+  - id: A4
+    text: Core code has no execution/persistence side effects and existing contract/audit/scan tests remain compatible; pure selection does not assert trusted receipt or dispatch authority.
+tests:
+  - command: go test -count=1 ./internal/auditpriority ./internal/contracts ./internal/auditdomain ./internal/scanplan
+    covers: [A1, A2, A3, A4]
+  - command: go test -race -count=1 ./internal/auditpriority
+    covers: [A1, A2, A3]
+  - command: go vet ./internal/auditpriority
+    covers: [A1, A2, A3, A4]
+  - command: git diff --check
+    covers: [A4]
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      Started isolated feat/v64-priority-core from main 48651a9d. Recorded the
+      changed dependency situation before implementation; V62-009 remains owned
+      by the parallel scan work. Implementing a pure core with no capability,
+      profile or lifecycle activation. Existing unrelated workspace changes are
+      outside this task.
+  - date: 2026-09-20
+    step: implemented
+    details: >-
+      Added internal/auditpriority with strict six-field model verdict decoding,
+      bounded Unicode-safe canonical encoding, inventory-bound candidate IDs,
+      explicit default/override policy resolution and complete-cycle selection.
+      Selection is a detached deterministic calculation; accepted Run receipts,
+      journal authority, persistence and actual Round admission remain required
+      future integration. Added a JSON Schema and fourteen executable fixtures.
+      Updated the V64 plan, task registry and 001/006 dependencies to reuse this
+      core without changing V62 task ownership or existing profile/API contracts.
+  - date: 2026-09-20
+    step: reviewed
+    details: >-
+      Independent review found no P1/P2 correctness issues in decoding, identity,
+      policy, complete-pool selection, authority boundaries or slice ownership.
+      Closed both P3 test-strengthening suggestions: independent SHA-256 golden
+      candidate/pool vectors and eleven high-priority candidates proving rank
+      eleven retains its original high verdict despite higher confidence.
+  - date: 2026-09-20
+    step: verified
+    details: >-
+      All four required commands passed, including full package compatibility,
+      race detection and vet. Decoder fuzzing passed 274455 executions in fifteen
+      seconds. Task metadata validation passed for twelve V64 tasks and 52
+      acceptance criteria with acyclic dependency closure. Evidence is retained
+      at .local/evidence/v64/core-verification.json and core-task-validation.json.
+      No database, live model, scanner, demo restart or runnable capability was
+      needed or exercised for this pure-core task.

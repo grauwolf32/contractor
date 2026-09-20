@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 priority: P1
 status: pending
 implementation_commit: null
-depends_on: [V64-002]
+depends_on: [V64-000, V64-002]
 languages: [go]
 goal: >-
   Select at least ten highest-priority remaining checklist checks when ten exist,
@@ -14,10 +14,10 @@ context:
   authority: User explicitly required filtering no fewer than ten candidates with the highest priority.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
   specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
-  contract: The deterministic selector consumes complete already accepted verdicts and delegates atomic admission to the V64-002 store interface.
+  contract: The V64-000 pure selector consumes complete validated verdicts; this task verifies accepted receipt/journal authority and delegates atomic admission to the V64-002 store interface.
 scope:
   in:
-    - Implement a pure selector over the exact frozen remaining pool and complete validated verdict set using critical/high/medium/low descending and canonical candidate ID ascending for ties.
+    - Integrate the V64-000 pure selector with the exact frozen remaining pool and complete receipt/journal-accepted verdict set using critical/high/medium/low descending and canonical candidate ID ascending for ties.
     - Select exact min(topN, remaining) using the immutable effective topN pinned from profile/default or valid Draft/Start override within maxTopN; select all candidates when fewer remain.
     - Reject missing, extra, duplicate, stale-cycle or mixed-context verdicts before selection; confidence and finding severity are never implicit sorting keys.
     - Preserve actual priority and rationale for all candidates and distinguish selected, deferred and blocked from approval readiness and execution status.
@@ -30,7 +30,7 @@ scope:
     - Model calls, confidence-weighted sorting, arbitrary fallback scores, implicit applicability filtering or insertion of model-proposed checks.
 deliverables:
   - path: internal/auditpriority
-    description: Pure complete-pool ranking/selection implementation and exact admission request construction.
+    description: Integration of the existing pure selector with trusted accepted verdicts and exact admission request construction.
   - path: internal/auditstore
     description: Integration of selection revision and full-set reservations with the atomic admission contract from V64-002.
 acceptance_criteria:
@@ -50,7 +50,7 @@ tests:
   - command: go test -tags=integration -count=1 ./internal/auditstore
     covers: [A3, A4, A5]
 test_prerequisites:
-  - Create internal/auditpriority if V64-004 has not landed; this shared package is an explicit new deliverable, not an external dependency.
+  - Reuse internal/auditpriority from V64-000; pure calculation tests do not satisfy receipt/journal or persisted admission acceptance criteria.
   - Required admission/race cases use disposable PostgreSQL and no model service.
 verification_requirements:
   - Test the user-facing minimum-ten rule as exact selected membership and persisted Round size; an assertion on a configurable limit alone is insufficient.

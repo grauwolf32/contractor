@@ -1,0 +1,1 @@
+{"confidence":"low","evidence_ids":[],"item_key":"AUTHZ-07","missing_context":["Описание сервиса отсутствует."],"priority":"medium","rationale":"Проверить разграничение доступа 🔐; буквальный символ замены � допустим."}

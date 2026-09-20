@@ -737,18 +737,21 @@ milestones:
 
 audit_check_prioritization_planning:
   planned_on: "2026-09-20"
-  status: planned
+  status: in_progress
+  implementation_started_on: "2026-09-20"
   review_status: reviewed
   review_findings_resolved: 9
   authority: >-
     User requested independent context-aware checklist verdicts, selection of
     at least ten highest-priority checks per pass, task specification and detailed
-    review. This records planned work and does not start implementation.
+    review, then authorized implementation. V64-000 extracts the independent
+    pure core while V62-001's current V62-009 delivery prerequisite is in progress.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
   specification: docs/spec/34-audit-check-prioritization.md
   review: docs/research/2026-09-20-audit-check-prioritization-review.md
-  task_ids: [V64-001, V64-002, V64-003, V64-004, V64-005, V64-006, V64-007, V64-008, V64-009, V64-010, V64-011]
+  task_ids: [V64-000, V64-001, V64-002, V64-003, V64-004, V64-005, V64-006, V64-007, V64-008, V64-009, V64-010, V64-011]
   dependency_layers:
+    - [V64-000]
     - [V64-001]
     - [V64-002, V64-003]
     - [V64-004, V64-006]
@@ -757,12 +760,13 @@ audit_check_prioritization_planning:
     - [V64-008]
     - [V64-009, V64-010]
     - [V64-011]
-  external_foundations: [V62-001, V62-002, V62-003, V25-011]
+  external_foundations: [V62-001, V62-002, V62-003, V25-002, V25-011]
   release_task: V64-011
   constraints: >-
     Shared pre-Round lifecycle foundations are explicit pending prerequisites;
-    generated OpenAPI and the rest of V62 are not required for the supplied
-    checklist profile. Whole-inventory coverage, complete independent verdicts,
+    V62-001 currently follows V62-009 in delivery, while supplied-checklist
+    prioritization does not require generated OpenAPI input. Whole-inventory
+    coverage, complete independent verdicts,
     default topN 10 with no silent smaller Round, durable replay and existing
     approval remain mandatory. V55-009 scanner ranking is a separate follow-up.
     Zero-Worker ranking remains an ordinary globally scheduled Run. No new
@@ -2935,6 +2939,7 @@ tasks:
   - {id: V62-010, file: v62-010-audit-composition-api.yml}
   - {id: V62-011, file: v62-011-audit-composition-ui.yml}
   - {id: V62-012, file: v62-012-audit-composition-release.yml}
+  - {id: V64-000, file: v64-000-audit-priority-core.yml}
   - {id: V64-001, file: v64-001-audit-priority-contracts.yml}
   - {id: V64-002, file: v64-002-audit-priority-store.yml}
   - {id: V64-003, file: v64-003-planner-only-priority-execution.yml}

@@ -1,6 +1,6 @@
 # 34 — Contextual Audit checklist prioritization
 
-Status: **Draft; specified implementation target; not implemented.**
+Status: **Draft integration target; pure core implemented in V64-000. Audit capability not enabled.**
 
 Date: 2026-09-20. Implementation series: **V64**. The
 [plan](../plans/2026-09-20-audit-check-prioritization.md) owns task sequencing;
@@ -48,9 +48,10 @@ Reuse V62-001–003's shared contracts, persistence foundations and control path
 for Audit work before a Round exists. V64 adds a `prioritization` execution role
 and phase at the initial and later round boundary; it does not duplicate V62's
 `prepare` producer or redefine its once-per-Audit semantics. Contract work MUST
-name and test these extension points. V64 integration requires those three tasks;
-it does not require generated-input, OpenAPI, retained-dependency or routing
-features from V62-004–012. A later prepared-checklist bridge must explicitly
+name and test these extension points. V64 integration requires those three tasks.
+Their current delivery order includes V62-001's transitive V62-009 prerequisite;
+the prioritization feature itself does not require generated-input, OpenAPI,
+retained-dependency or routing inputs from V62-004–012. A later prepared-checklist bridge must explicitly
 depend on V62-004 instead of implying that it already works.
 
 A new opt-in profile declares a pinned ranking Workflow, its resolved model
@@ -145,8 +146,9 @@ review changes are eligible only for a subsequent cycle.
 
 ## 5. Verdict and comparison rubric
 
-Model output is one strict object, not prose surrounding JSON. Proposed semantic
-shape (V64-001 fixes executable schemas and positive/negative fixtures):
+Model output is one strict object, not prose surrounding JSON. V64-000 implements
+this exact model-verdict shape and executable fixtures; V64-001 integrates it
+with public/profile and persisted cycle contracts:
 
 ```json
 {
@@ -188,6 +190,56 @@ candidate ID ascending. Same input, accepted verdicts and policy reproduce the
 same order and selection digest. Model calls themselves are not asserted to be
 deterministic. Tests cover both mechanics and scripted rubric examples; they do
 not claim live-model prioritization quality.
+
+### Implemented pure core boundary (V64-000)
+
+`internal/auditpriority` has no gateway, storage, Scheduler or Worker access.
+Its schema and fixtures are in `api/audit-priority/v1`. The model object requires
+all six fields above with exact case and non-null values; empty arrays are `[]`.
+Unknown/duplicate fields, trailing data, invalid UTF-8 and unpaired escaped
+surrogates fail. A legitimately encoded U+FFFD remains valid text. Item/evidence
+IDs are ASCII `[A-Za-z0-9][A-Za-z0-9._:-]*`, at most 160 bytes. Rationale and
+missing-context strings are nonblank UTF-8 without NUL. Evidence references and
+missing-context strings must be unique within their respective arrays. Both raw
+response bytes and canonical programmatic verdicts respect the 8 KiB bound;
+the other response limits in section 6 apply before selection as well.
+
+Candidate identity is `priority-candidate-` followed by the lowercase SHA-256
+hex digest of RFC 8785 canonical JSON containing `schema` equal to
+`contractor.audit.priority-candidate-id.v1`, `inventory_digest`, `item_key` and
+`item_version`. Digests use `sha256:` plus 64 lowercase hex characters. Item
+version is nonblank UTF-8 without NUL, at most 160 bytes for this opt-in core;
+legacy checklist version limits are unchanged. Duplicate keys, including two
+versions of the same key, are rejected. The pure pool has schema
+`contractor.audit.priority-candidates.v1`, the source inventory digest and
+candidate-ID-sorted identity rows; its canonical digest binds exact remaining
+membership. This identity pool is not yet the metadata-bearing Run input.
+
+The caller binds each verdict to the cycle ID, inventory/pool/context/policy/
+prompt/model-configuration digests and effective topN. Selection requires exact
+agreement on the entire binding, all candidates exactly once and evidence
+membership in the caller-supplied retained-context whitelist (at most 100 IDs).
+The caller is responsible for proving that the whitelist and input digests
+actually belong to that retained context and accepted model Run. Pure validation
+does not authenticate them or prove receipt/journal authority.
+
+The internal calculation has schema `contractor.audit.priority-selection.v1`,
+the complete binding, ordered candidate/verdict rows, one-based rank, selected
+boolean, row reason code, selected/deferred counts and overall reason code.
+Deferred rows use `deferred_top_n`; selected rows have an empty reason code.
+Rationale, original priority, rank and the binding's topN allow a truthful cutoff
+explanation without overwriting priority. Fewer-than-topN and empty remaining
+pools use `fewer_candidates_remaining` and `no_remaining_candidates` respectively;
+the Audit layer must still reject an empty original inventory. Canonical result
+bytes are bounded by 16 MiB. Results detach all mutable slices from inputs;
+confidence and input response order never break priority ties.
+
+`Selection.Validate` and `MarshalSelection` check internal consistency only.
+They are not the future accepted `contractor.audit.priorities.v1` Run output or
+an admission receipt. V64-001/002/005/006 must add the persisted provenance,
+accepted output/journal comparison and atomic budget/selection admission before
+the result can authorize a Round. The pure package registers no planner or
+profile capability and changes no existing API or canonical contract.
 
 ## 6. Evaluation execution, bounds and accounting
 

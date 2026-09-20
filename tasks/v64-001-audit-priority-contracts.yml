@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 priority: P1
 status: pending
 implementation_commit: null
-depends_on: [V62-001, V25-011]
+depends_on: [V64-000, V62-001, V25-011]
 languages: [go, json, yaml, openapi, markdown]
 goal: >-
   Freeze independently scored checklist candidates, complete ranking cycles and
@@ -14,11 +14,14 @@ context:
   authority: User requested independent contextual checklist verdicts, at least ten highest-priority checks per pass, task specifications and detailed review on 2026-09-20.
   design: docs/plans/2026-09-20-audit-check-prioritization.md
   specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
-  foundations: V62-001 supplies shared pre-Round lifecycle contracts; generated OpenAPI inventory and the remaining V62 composition tasks are not prerequisites.
+  foundations: >-
+    V64-000 supplies the pure model-verdict and selection core. V62-001 supplies
+    shared pre-Round lifecycle contracts; its current ordering through V62-009
+    is a transitive delivery dependency, not a requirement to use OpenAPI input.
 scope:
   in:
     - Define strict versioned profile opt-in, prioritization role, inventory/cycle/context/verdict/selection schemas and finite field/collection limits from specification 34.
-    - Fix Audit-wide stable candidate identity, remaining-pool membership as never-admitted candidates and the distinction between inventory capacity and immutable selected Round item budgets.
+    - Integrate V64-000 stable candidate identity and strict verdicts into Audit-wide contracts; fix remaining-pool membership as never-admitted candidates and the distinction between inventory capacity and immutable selected Round item budgets.
     - Define optional description/findings snapshots, analyst revision pins, evidence references and a common low/medium/high/critical rubric with confidence separate from priority.
     - Require complete valid verdicts for the entire remaining pool before sorting and selecting exact min(topN, remaining), with topN default 10 and range 10 through 1000.
     - Define profile topN/maxTopN and optional Draft/Start prioritization.topN within the profile ceiling, pinned into baseline/cycle/selection and immutable after start; changed-value idempotency replay conflicts.

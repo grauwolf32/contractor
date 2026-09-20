@@ -1,0 +1,10 @@
+{
+  "item_key": "AUTHZ-07",
+  "priority": "high",
+  "confidence": "medium",
+  "rationale": "Existing cross-tenant access reports make this check useful.",
+  "evidence_ids": null,
+  "missing_context": [
+    "The tenant isolation design is not supplied."
+  ]
+}

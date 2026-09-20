@@ -1,6 +1,6 @@
 # Contextual Audit checklist prioritization
 
-Date: 2026-09-20. Series: **V64**. Status: **planned; implementation not started**.
+Date: 2026-09-20. Series: **V64**. Status: **implementation started; opt-in Audit integration pending**.
 
 The user requested optional service/finding context, independent checklist-item
 priority verdicts and selection of at least ten highest-priority checks for each
@@ -81,17 +81,22 @@ this planning change unless explicitly referenced.
 
 ## Task decomposition
 
-All V64 tasks are pending. Each implementation commit must satisfy its own
-acceptance checks and keep unimplemented capabilities unavailable.
+Implementation starts with the independent V64-000 core extracted from 001/006.
+On 2026-09-20 concurrent V62 replanning placed the already in-progress V62-009
+ahead of V62-001. The core has no pre-Round lifecycle dependency; this extraction
+allows implementation without taking over that work. Tasks 001–011 remain
+pending. Each implementation commit must satisfy its own acceptance checks and
+keep unimplemented capabilities unavailable.
 
 | Task | Deliverable | Dependencies |
 | --- | --- | --- |
-| [001](../../tasks/v64-001-audit-priority-contracts.yml) | Profile, context/verdict/selection contracts; lifecycle and old-byte compatibility | V62-001, V25-011 |
+| [000](../../tasks/v64-000-audit-priority-core.yml) | Strict model verdicts, stable candidate identities and pure deterministic top-N | V25-002, V25-011 |
+| [001](../../tasks/v64-001-audit-priority-contracts.yml) | Profile, context/verdict/selection contracts; lifecycle and old-byte compatibility | 000, V62-001, V25-011 |
 | [002](../../tasks/v64-002-audit-priority-store.yml) | Full inventory, cycles, evaluation journal, reservations and retention | 001, V62-002 |
 | [003](../../tasks/v64-003-planner-only-priority-execution.yml) | Explicit zero-Worker Planner shape through Scheduler/model accounting | 001 |
 | [004](../../tasks/v64-004-audit-priority-context.yml) | Consistent bounded context snapshots and item inputs | 002 |
 | [005](../../tasks/v64-005-independent-priority-verdicts.yml) | Independent model calls, validation, durable verdicts and recovery | 003, 004 |
-| [006](../../tasks/v64-006-audit-priority-selection.yml) | Pure top-N plus immutable atomic Round admission | 002 |
+| [006](../../tasks/v64-006-audit-priority-selection.yml) | Accepted verdict integration and immutable atomic Round admission | 000, 002 |
 | [007](../../tasks/v64-007-audit-priority-controller.yml) | Initial/later pass coordination, budgets and no-Round controls | 005, 006, V62-003 |
 | [008](../../tasks/v64-008-audit-priority-api-coverage.yml) | Full coverage, history, reports, API and generated clients | 007 |
 | [009](../../tasks/v64-009-audit-priority-ui.yml) | Setup, progress, selected/deferred list and explanation journey | 008 |
@@ -105,6 +110,8 @@ authoritative.
 
 ## Delivery boundaries
 
+- V64-000 implements pure calculation and the model-verdict codec only. It does
+  not authenticate context, accept Run receipts, persist or dispatch a Round.
 - V64-001 promotes the precise feature contract and executable schemas; the
   draft above is not evidence that new authoring or public API fields work now.
 - V62-001–003 supply common pre-Round lifecycle foundations. V64 must name their
@@ -113,8 +120,10 @@ authoritative.
 - Supplied checklists are the first runnable profile. Generated checklist/OpenAPI
   integration is a later explicitly scoped bridge requiring V62-004. Existing
   findings may inform priority without requiring V62's proposed-check routing.
-- No dependency on V54/specification33 autonomous pentest, V55-009 scanner
-  ranking, V62-008 source generation or V62-009 scan adapter is introduced.
+- No feature dependency on V54/specification33 autonomous pentest, V55-009
+  scanner ranking or V62-008 source generation is introduced. V62-001's current
+  dependency on V62-009 orders delivery; the supplied-checklist prioritization
+  feature does not require OpenAPI or a scan adapter as its input.
 - Existing scanner Workflows and `scan-plan@1` are unchanged. Verification may
   use controlled check Workers; no production scan or stand update is requested.
 - Profile activation comes after implemented contracts, journal, selection,
