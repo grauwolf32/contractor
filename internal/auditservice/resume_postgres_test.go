@@ -1,6 +1,7 @@
 package auditservice
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -124,60 +125,120 @@ func TestAuditStartWithoutDeadline(t *testing.T) {
 	}
 }
 
-func TestAuditContinuesLegacyDeadlineClosureWithoutChangingAcceptedResults(t *testing.T) {
-	ctx, pool, service, started, _ := newTimeControlAudit(t, 7200)
-	// A legacy closure has settled undispatched work and retained a partial report.
-	for _, sql := range []string{
-		`UPDATE audits SET state='completed',dispatch_state='closed',hold_state='released',deadline_at=clock_timestamp()-interval '1 hour',finished_at=clock_timestamp(),stop_reason_code='deadline_exhausted',stop_reason_message='Legacy deadline' WHERE audit_id='audit-time'`,
-		`UPDATE audit_rounds SET state='closed' WHERE audit_id='audit-time'`,
-		`UPDATE audit_items SET state='settled',final_disposition=CASE WHEN item_key='accepted' THEN 'accepted-result' WHEN item_key='cancelled' THEN 'execution-cancelled' ELSE 'excluded' END,accepted_result_ref=CASE WHEN item_key='accepted' THEN task_ref END,accepted_result_digest=CASE WHEN item_key='accepted' THEN task_digest END WHERE audit_id='audit-time'`,
-		`UPDATE audit_coverage_rows SET gaps='["audit-closed-before-dispatch"]'::jsonb WHERE audit_id='audit-time' AND item_key IN ('remaining','manual')`,
-		`UPDATE audit_review_requests SET expires_at=clock_timestamp()-interval '1 hour' WHERE audit_id='audit-time'`,
-		`INSERT INTO audit_artifact_links(audit_id,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance,display_ref) SELECT audit_id,'report/machine',task_ref,task_digest,'application/json',1,'{}'::jsonb,'Historical report' FROM audit_items WHERE audit_id='audit-time' AND item_key='accepted'`,
-	} {
-		if _, err := pool.Exec(ctx, sql); err != nil {
-			t.Fatal(err)
-		}
+func TestAuditRejectsTerminalDeadlineResumeWithoutChangingRetainedState(t *testing.T) {
+	for _, state := range []auditstore.AuditState{auditstore.AuditCompleted, auditstore.AuditFailed} {
+		t.Run(string(state), func(t *testing.T) {
+			ctx, pool, service, started, _ := newTimeControlAudit(t, 7200)
+			if _, err := pool.Exec(ctx, `UPDATE audits SET state=$1,dispatch_state='closed',hold_state='released',deadline_at=clock_timestamp()-interval '1 hour',finished_at=clock_timestamp(),stop_reason_code='deadline_exhausted',stop_reason_message='Legacy deadline' WHERE audit_id='audit-time'`, state); err != nil {
+				t.Fatal(err)
+			}
+			// Retain a terminal round, accepted/interrupted work, expired review and report.
+			for _, sql := range []string{
+				`UPDATE audit_rounds SET state='closed' WHERE audit_id='audit-time'`,
+				`UPDATE audit_items SET state='settled',final_disposition=CASE WHEN item_key='accepted' THEN 'accepted-result' WHEN item_key='cancelled' THEN 'execution-cancelled' ELSE 'excluded' END,accepted_result_ref=CASE WHEN item_key='accepted' THEN task_ref END,accepted_result_digest=CASE WHEN item_key='accepted' THEN task_digest END WHERE audit_id='audit-time'`,
+				`UPDATE audit_coverage_rows SET gaps='["audit-closed-before-dispatch"]'::jsonb WHERE audit_id='audit-time' AND item_key IN ('remaining','manual')`,
+				`UPDATE audit_review_requests SET expires_at=clock_timestamp()-interval '1 hour' WHERE audit_id='audit-time'`,
+				`INSERT INTO audit_artifact_links(audit_id,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance,display_ref) SELECT audit_id,'report/machine',task_ref,task_digest,'application/json',1,'{}'::jsonb,'Historical report' FROM audit_items WHERE audit_id='audit-time' AND item_key='accepted'`,
+			} {
+				if _, err := pool.Exec(ctx, sql); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := auditTimeControlSnapshot(t, ctx, pool)
+			zero, hour := 0, 3600
+			for _, override := range []*int{nil, &zero, &hour} {
+				params := MutationParams{OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "continue-time", RequestDigest: serviceTestDigest("continue-time"), DeadlineSeconds: override}
+				for range 2 {
+					if _, err := service.Resume(ctx, params); !errors.Is(err, auditstore.ErrPrecondition) {
+						t.Fatalf("terminal Resume = %v, want precondition failure", err)
+					}
+				}
+			}
+			if after := auditTimeControlSnapshot(t, ctx, pool); !bytes.Equal(before, after) {
+				t.Fatal("terminal Resume changed retained authority, reports, items or reviews")
+			}
+		})
 	}
-	var acceptedBefore, acceptedAfter string
-	if err := pool.QueryRow(ctx, `SELECT row_to_json(i)::text FROM audit_items i WHERE audit_id='audit-time' AND item_key='accepted'`).Scan(&acceptedBefore); err != nil {
+}
+
+func TestAuditDeadlinePauseResumesAndRenewsExpiredReviews(t *testing.T) {
+	for _, mode := range []string{"default", "extended", "unlimited"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx, pool, service, started, now := newTimeControlAudit(t, 7200)
+			*now = started.Audit.DeadlineAt.Add(time.Minute)
+			if _, err := pool.Exec(ctx, `UPDATE audits SET state='paused',paused_at=deadline_at,stop_reason_code='deadline_exhausted',stop_reason_message='Time limit reached' WHERE audit_id='audit-time'`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at=$1 WHERE audit_id='audit-time'`, started.Audit.DeadlineAt); err != nil {
+				t.Fatal(err)
+			}
+			params := MutationParams{OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "resume-deadline", RequestDigest: serviceTestDigest("resume-deadline")}
+			profile, err := config.DecodeResolvedAuditProfileSnapshot(started.Audit.ProfileSnapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seconds := profile.Execution.DeadlineSeconds
+			if mode == "extended" {
+				seconds = 86400
+				params.DeadlineSeconds = &seconds
+			}
+			if mode == "unlimited" {
+				seconds = 0
+				params.DeadlineSeconds = &seconds
+			}
+			resumed, err := service.Resume(ctx, params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resumed.Audit.State != auditstore.AuditActive || resumed.Audit.Hold != auditstore.HoldHeld || resumed.Audit.Dispatch != auditstore.DispatchOpen || resumed.Audit.PausedAt != nil || resumed.Audit.StopReason != nil {
+				t.Fatalf("deadline Resume = %+v", resumed.Audit)
+			}
+			if seconds == 0 {
+				if resumed.Audit.DeadlineAt != nil {
+					t.Fatal("unlimited Resume retained deadline")
+				}
+			} else if resumed.Audit.DeadlineAt == nil || !resumed.Audit.DeadlineAt.Equal(now.Add(time.Duration(seconds)*time.Second)) {
+				t.Fatal("deadline Resume did not apply the selected allowance")
+			}
+			var pending, expired, awaiting int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE state='pending'),count(*) FILTER (WHERE state='expired') FROM audit_review_requests WHERE audit_id='audit-time'`).Scan(&pending, &expired); err != nil {
+				t.Fatal(err)
+			}
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id='audit-time' AND item_key='manual' AND state='awaiting_review'`).Scan(&awaiting); err != nil {
+				t.Fatal(err)
+			}
+			if pending != 1 || expired != 1 || awaiting != 1 {
+				t.Fatalf("reviews pending=%d expired=%d awaiting=%d", pending, expired, awaiting)
+			}
+			if !bytes.Equal(resumed.Audit.BaselineSnapshot, started.Audit.BaselineSnapshot) {
+				t.Fatal("Resume rewrote baseline")
+			}
+			before := auditTimeControlSnapshot(t, ctx, pool)
+			replayed, err := service.Resume(ctx, params)
+			if err != nil || !replayed.Replayed || replayed.Audit.Revision != resumed.Audit.Revision {
+				t.Fatalf("Resume replay = %+v, %v", replayed, err)
+			}
+			if after := auditTimeControlSnapshot(t, ctx, pool); !bytes.Equal(before, after) {
+				t.Fatal("Resume replay changed retained state")
+			}
+		})
+	}
+}
+
+func auditTimeControlSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.Pool) []byte {
+	t.Helper()
+	var data []byte
+	if err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
+'audit', (SELECT to_jsonb(a) FROM audits a WHERE audit_id='audit-time'),
+'rounds', (SELECT jsonb_agg(to_jsonb(r) ORDER BY round_id) FROM audit_rounds r WHERE audit_id='audit-time'),
+'items', (SELECT jsonb_agg(to_jsonb(i) ORDER BY item_id) FROM audit_items i WHERE audit_id='audit-time'),
+'coverage', (SELECT jsonb_agg(to_jsonb(c) ORDER BY item_id) FROM audit_coverage_rows c WHERE audit_id='audit-time'),
+'reviews', (SELECT jsonb_agg(to_jsonb(r) ORDER BY request_id) FROM audit_review_requests r WHERE audit_id='audit-time'),
+'links', (SELECT jsonb_agg(to_jsonb(l) ORDER BY logical_key) FROM audit_artifact_links l WHERE audit_id='audit-time'),
+'events', (SELECT jsonb_agg(to_jsonb(e) ORDER BY sequence_number) FROM audit_events e WHERE audit_id='audit-time'),
+'receipts', (SELECT jsonb_agg(to_jsonb(i) ORDER BY idempotency_key) FROM audit_idempotency i WHERE audit_id='audit-time')
+)`).Scan(&data); err != nil {
 		t.Fatal(err)
 	}
-	zero := 0
-	params := MutationParams{OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "continue-time", RequestDigest: serviceTestDigest("continue-time"), DeadlineSeconds: &zero}
-	resumed, err := service.Resume(ctx, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resumed.Audit.State != auditstore.AuditActive || resumed.Audit.DeadlineAt != nil || resumed.Audit.Hold != auditstore.HoldHeld || resumed.Audit.ContinuationCount != 1 || resumed.Audit.StopReason != nil {
-		t.Fatal("continuation state is wrong")
-	}
-	if err := pool.QueryRow(ctx, `SELECT row_to_json(i)::text FROM audit_items i WHERE audit_id='audit-time' AND item_key='accepted'`).Scan(&acceptedAfter); err != nil {
-		t.Fatal(err)
-	}
-	if acceptedBefore != acceptedAfter {
-		t.Fatal("accepted result changed")
-	}
-	var ready, awaiting, history, pending, expired int
-	for _, check := range []struct {
-		sql  string
-		dest *int
-	}{
-		{`SELECT count(*) FROM audit_items WHERE audit_id='audit-time' AND state='ready'`, &ready},
-		{`SELECT count(*) FROM audit_items WHERE audit_id='audit-time' AND state='awaiting_review'`, &awaiting},
-		{`SELECT count(*) FROM audit_artifact_links WHERE audit_id='audit-time' AND logical_key LIKE 'report/history/%'`, &history},
-		{`SELECT count(*) FROM audit_review_requests WHERE audit_id='audit-time' AND state='pending' AND expires_at IS NULL`, &pending},
-		{`SELECT count(*) FROM audit_review_requests WHERE audit_id='audit-time' AND state='expired'`, &expired},
-	} {
-		if err := pool.QueryRow(ctx, check.sql).Scan(check.dest); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if ready != 2 || awaiting != 1 || history != 1 || pending != 1 || expired != 1 {
-		t.Fatalf("ready=%d awaiting=%d history=%d pending=%d expired=%d", ready, awaiting, history, pending, expired)
-	}
-	replay, err := service.Resume(ctx, params)
-	if err != nil || !replay.Replayed || replay.Audit.ContinuationCount != 1 {
-		t.Fatalf("continuation replay: %v", err)
-	}
+	return data
 }

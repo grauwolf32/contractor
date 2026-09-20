@@ -281,11 +281,7 @@ export function AuditControls({
   if (audit.state === "active" || audit.state === "waiting_review") {
     buttons.push({ action: "pause", label: "Pause new Audit Runs" });
   }
-  if (
-    audit.state === "paused" ||
-    ((audit.state === "completed" || audit.state === "failed") &&
-      audit.stopReason?.code === "deadline_exhausted")
-  )
+  if (audit.state === "paused")
     buttons.push({ action: "resume", label: "Continue Audit" });
   if (
     audit.state === "active" ||
@@ -305,7 +301,9 @@ export function AuditControls({
   }
   return (
     <div className="audit-controls" id={compact ? undefined : "audit-controls"}>
-      {!compact && audit.stopReason?.code === "deadline_exhausted" ? (
+      {!compact &&
+      audit.state === "paused" &&
+      audit.stopReason?.code === "deadline_exhausted" ? (
         <p className="audit-control-reason">
           <strong>Time limit reached.</strong> Continue with a longer limit;
           collected results are retained.

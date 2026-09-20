@@ -255,13 +255,9 @@ func (i *Importer) Finalize(
 		return false, fmt.Errorf("%w: human report exceeds its bound", ErrPermanent)
 	}
 	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
-	reportName := "report"
-	if snapshot.Audit.ContinuationCount > 0 {
-		reportName = fmt.Sprintf("report-continuation-%d", snapshot.Audit.ContinuationCount)
-	}
 	machineArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: reportName + ".json"},
+		contracts.ArtifactRef{Namespace: namespace, Name: "report.json"},
 		artifacts.Payload{MediaType: "application/json", Data: machineBytes},
 	)
 	if err != nil {
@@ -269,7 +265,7 @@ func (i *Importer) Finalize(
 	}
 	summaryArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: reportName + ".md"},
+		contracts.ArtifactRef{Namespace: namespace, Name: "report.md"},
 		artifacts.Payload{MediaType: "text/markdown", Data: summaryBytes},
 	)
 	if err != nil {

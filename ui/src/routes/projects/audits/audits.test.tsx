@@ -1827,11 +1827,11 @@ describe("Project Audit routes", () => {
     expect(decided).toBe(true);
   });
 
-  it.each(["draft", "completed"] as const)(
+  it.each(["draft", "paused"] as const)(
     "chooses unlimited time before starting or continuing a %s Audit",
     async (state) => {
       let current = auditAt(state, 2);
-      if (state === "completed")
+      if (state === "paused")
         current = {
           ...current,
           stopReason: {
@@ -1893,6 +1893,46 @@ describe("Project Audit routes", () => {
       ).toBeVisible();
       expect(writes).toHaveLength(1);
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(["completed", "failed"] as const)(
+    "keeps a terminal %s Audit with an old deadline reason final",
+    async (state) => {
+      const current = {
+        ...auditAt(state, 2),
+        stopReason: {
+          code: "deadline_exhausted",
+          message: "The Audit wall-time deadline was reached",
+        },
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const path = new URL(request.url).pathname;
+          expect(request.method).toBe("GET");
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (path === "/v1/audits/audit_example")
+            return jsonResponse(current, { headers: { ETag: '"2"' } });
+          if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+            return jsonResponse({ items: [], page: { hasMore: false } });
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      renderApplication(api, "/projects/project_example/audits/audit_example");
+      expect(
+        await screen.findByRole("button", { name: "Delete Audit" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Continue Audit" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText(current.stopReason.message)).toBeVisible();
+      expect(
+        screen.queryByText(/Continue with a longer limit/),
+      ).not.toBeInTheDocument();
     },
   );
 

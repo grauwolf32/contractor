@@ -619,12 +619,14 @@ export function ProjectAuditWorkspace({
                 {audit.stopReason ? (
                   <p
                     className={
+                      audit.state === "paused" &&
                       audit.stopReason.code === "deadline_exhausted"
                         ? "muted-copy"
                         : "form-error"
                     }
                   >
-                    {audit.stopReason.code === "deadline_exhausted"
+                    {audit.state === "paused" &&
+                    audit.stopReason.code === "deadline_exhausted"
                       ? "Time limit reached. Continue with a longer limit or no time limit."
                       : audit.stopReason.message}
                   </p>

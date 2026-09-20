@@ -141,6 +141,46 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 	if page.Items[0].Details == nil || page.Items[0].Details.Objective == "" || !json.Valid(page.Items[0].Details.TaskDocument) {
 		t.Fatalf("coverage omitted the worker task: %s", coverageResponse.Body.String())
 	}
+
+	t.Run("paused Resume and terminal rejection", func(t *testing.T) {
+		mutate := func(action, key, revision string, body []byte, handler func(http.ResponseWriter, *http.Request)) *httptest.ResponseRecorder {
+			t.Helper()
+			request := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/"+draft.AuditID+"/"+action, body)
+			request.SetPathValue("auditId", draft.AuditID)
+			request.Header.Set("Idempotency-Key", key)
+			request.Header.Set("If-Match", revision)
+			if body != nil {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			response := httptest.NewRecorder()
+			handler(response, request)
+			return response
+		}
+		paused := mutate("pause", "pause-public-audit", `"2"`, nil, h.pauseAudit)
+		if paused.Code != http.StatusOK {
+			t.Fatalf("pause = %d %s", paused.Code, paused.Body.String())
+		}
+		body := []byte(`{"deadlineSeconds":0}`)
+		resumed := mutate("resume", "resume-public-audit", `"3"`, body, h.resumeAudit)
+		var current auditResponse
+		if resumed.Code != http.StatusOK || json.Unmarshal(resumed.Body.Bytes(), &current) != nil || current.State != auditstore.AuditActive || current.DeadlineAt != nil || current.Baseline == nil {
+			t.Fatalf("paused Resume = %d %s", resumed.Code, resumed.Body.String())
+		}
+		replayed := mutate("resume", "resume-public-audit", `"3"`, body, h.resumeAudit)
+		if replayed.Code != http.StatusOK || replayed.Header().Get("Idempotency-Replayed") != "true" || replayed.Body.String() != resumed.Body.String() {
+			t.Fatalf("Resume replay = %d %s", replayed.Code, replayed.Body.String())
+		}
+		for _, state := range []auditstore.AuditState{auditstore.AuditCompleted, auditstore.AuditFailed} {
+			if _, err := pool.Exec(ctx, `UPDATE audits SET state=$2,dispatch_state='closed',hold_state='released',finished_at=clock_timestamp(),stop_reason_code='deadline_exhausted',stop_reason_message='Legacy deadline' WHERE audit_id=$1`, draft.AuditID, state); err != nil {
+				t.Fatal(err)
+			}
+			rejected := mutate("resume", "resume-terminal-"+string(state), `"4"`, body, h.resumeAudit)
+			if rejected.Code != http.StatusPreconditionFailed {
+				t.Fatalf("terminal %s Resume = %d %s", state, rejected.Code, rejected.Body.String())
+			}
+		}
+	})
+
 }
 
 func loadPublicAuditConfiguration(t *testing.T) *config.Snapshot {

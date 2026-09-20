@@ -78,7 +78,7 @@ deadline_at, max_rounds, batch_size, max_items_per_round, max_items_total,
 max_submitted_runs, max_item_run_attempts, max_evidence_bytes,
 reserved_run_count, submitted_run_count, outstanding_run_count, retained_evidence_bytes,
 next_event_sequence - 1, stop_reason_code, stop_reason_message,
-created_at, updated_at, started_at, finished_at, deletion_requested_at, paused_at, continuation_count`
+created_at, updated_at, started_at, finished_at, deletion_requested_at, paused_at`
 
 func prefixedAuditColumns(prefix string) string {
 	return prefix + ".audit_id, " + prefix + ".owner_id, " + prefix + ".project_id, " +
@@ -93,7 +93,7 @@ func prefixedAuditColumns(prefix string) string {
 		prefix + ".outstanding_run_count, " + prefix + ".retained_evidence_bytes, " + prefix + ".next_event_sequence - 1, " +
 		prefix + ".stop_reason_code, " + prefix + ".stop_reason_message, " +
 		prefix + ".created_at, " + prefix + ".updated_at, " + prefix + ".started_at, " + prefix + ".finished_at, " +
-		prefix + ".deletion_requested_at, " + prefix + ".paused_at, " + prefix + ".continuation_count"
+		prefix + ".deletion_requested_at, " + prefix + ".paused_at"
 }
 
 func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParams) (Audit, bool, error) {
@@ -280,7 +280,7 @@ func scanAudit(row scanner) (Audit, error) {
 		&result.RetainedEvidenceBytes,
 		&eventSequence, &stopCode, &stopMessage,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
-		&result.DeletionRequestedAt, &result.PausedAt, &result.ContinuationCount,
+		&result.DeletionRequestedAt, &result.PausedAt,
 	)
 	if err != nil {
 		return Audit{}, err

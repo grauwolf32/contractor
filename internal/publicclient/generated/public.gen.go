@@ -10256,14 +10256,14 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/report (the `GetAuditReport` operationId).
 	GetAuditReport(ctx context.Context, auditId AuditId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ResumeAuditWithBody Resume a paused Audit or continue a legacy deadline closure with retained results
+	// ResumeAuditWithBody Resume a paused Audit with retained results and an optional time-limit override
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /v1/audits/{auditId}/resume (the `ResumeAudit` operationId).
 	ResumeAuditWithBody(ctx context.Context, auditId AuditId, params *ResumeAuditParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ResumeAudit Resume a paused Audit or continue a legacy deadline closure with retained results
+	// ResumeAudit Resume a paused Audit with retained results and an optional time-limit override
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -11631,7 +11631,7 @@ func (c *Client) GetAuditReport(ctx context.Context, auditId AuditId, reqEditors
 	return c.Client.Do(req)
 }
 
-// ResumeAuditWithBody Resume a paused Audit or continue a legacy deadline closure with retained results
+// ResumeAuditWithBody Resume a paused Audit with retained results and an optional time-limit override
 //
 // Takes any type of body and a specified content type.
 //
@@ -11648,7 +11648,7 @@ func (c *Client) ResumeAuditWithBody(ctx context.Context, auditId AuditId, param
 	return c.Client.Do(req)
 }
 
-// ResumeAudit Resume a paused Audit or continue a legacy deadline closure with retained results
+// ResumeAudit Resume a paused Audit with retained results and an optional time-limit override
 //
 // Takes a body of the `application/json` content type.
 //
@@ -23620,14 +23620,14 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/report (the `GetAuditReport` operationId).
 	GetAuditReportWithResponse(ctx context.Context, auditId AuditId, reqEditors ...RequestEditorFn) (*GetAuditReportResponse, error)
 
-	// ResumeAuditWithBodyWithResponse Resume a paused Audit or continue a legacy deadline closure with retained results
+	// ResumeAuditWithBodyWithResponse Resume a paused Audit with retained results and an optional time-limit override
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /v1/audits/{auditId}/resume (the `ResumeAudit` operationId).
 	ResumeAuditWithBodyWithResponse(ctx context.Context, auditId AuditId, params *ResumeAuditParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResumeAuditResponse, error)
 
-	// ResumeAuditWithResponse Resume a paused Audit or continue a legacy deadline closure with retained results
+	// ResumeAuditWithResponse Resume a paused Audit with retained results and an optional time-limit override
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -42715,7 +42715,7 @@ func (c *ClientWithResponses) GetAuditReportWithResponse(ctx context.Context, au
 	return ParseGetAuditReportResponse(rsp)
 }
 
-// ResumeAuditWithBodyWithResponse Resume a paused Audit or continue a legacy deadline closure with retained results
+// ResumeAuditWithBodyWithResponse Resume a paused Audit with retained results and an optional time-limit override
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -42728,7 +42728,7 @@ func (c *ClientWithResponses) ResumeAuditWithBodyWithResponse(ctx context.Contex
 	return ParseResumeAuditResponse(rsp)
 }
 
-// ResumeAuditWithResponse Resume a paused Audit or continue a legacy deadline closure with retained results
+// ResumeAuditWithResponse Resume a paused Audit with retained results and an optional time-limit override
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

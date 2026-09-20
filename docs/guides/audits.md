@@ -36,11 +36,10 @@ omitting it at resume preserves the remaining paused time, or renews the profile
 allowance if it was exhausted. These mutations still require `If-Match` and
 `Idempotency-Key`.
 
-An older Audit completed or failed with `deadline_exhausted` also offers
-**Continue Audit**. It reopens undispatched tasks and interrupted tasks with
-attempts remaining, preserving accepted results, attempt history, findings and
-the exact baseline. Its previous report remains retained; the next report is a
-new artifact. Other exhausted budgets and unrelated failed checks are unchanged.
+**Continue Audit** is available for paused Audits, including those paused at
+the time limit. Completed, failed and cancelled Audits remain final, including
+older records closed with `deadline_exhausted`. Their results and reports remain
+available for inspection.
 Expired task approvals require a new human decision.
 
 ## Start a checklist Audit

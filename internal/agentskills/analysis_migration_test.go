@@ -244,6 +244,7 @@ func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 		"audit_risk_source_checker_v3_memory.yaml":      {"trace": false},
 		"audit_source_checker_v3_memory.yaml":           {"trace": false},
 		"audit_source_checker_v4_completion.yaml":       {"trace": false},
+		"audit_standard_source_verifier.yaml":           {"trace": false},
 		"workspace_taint_analyst_v3_memory.yaml":        {"trace": false},
 	}
 	for _, entry := range entries {

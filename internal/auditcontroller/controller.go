@@ -170,8 +170,7 @@ func (c *Controller) reconcileRolePhase(
 			if disposition == auditstore.CollectionAccepted {
 				continue
 			}
-			if !roleDispositionRetryable(disposition, receiptErrorCode(snapshot, latest.ExecutionID)) &&
-				!(snapshot.Audit.ContinuationCount > 0 && disposition == auditstore.CollectionExecutionCancelled) {
+			if !roleDispositionRetryable(disposition, receiptErrorCode(snapshot, latest.ExecutionID)) {
 				return false, false, &auditstore.StopReason{
 					Code: "role_execution_not_retryable",
 					Message: fmt.Sprintf(
@@ -657,11 +656,6 @@ func snapshotItem(items []auditstore.Item, itemID string) (auditstore.Item, bool
 		}
 	}
 	return auditstore.Item{}, false
-}
-
-func deadlineClosure(audit auditstore.Audit) bool {
-	return audit.State == auditstore.AuditFinalizing && audit.StopReason != nil &&
-		audit.StopReason.Code == "deadline_exhausted"
 }
 
 func auditSettlementBarrier(snapshot auditstore.ReconcileSnapshot) bool {

@@ -71,7 +71,7 @@ export function AuditTimeLimitDialog({
         <p>
           {action === "start"
             ? "Choose how long this audit may submit new Runs."
-            : "Continue with the same inputs and accepted results. Only unfinished work with attempts remaining will run; previous reports and attempt history are retained."}
+            : "Continue with the same inputs and accepted results. Finished checks stay complete; running work can finish."}
         </p>
         <label>
           Audit time limit

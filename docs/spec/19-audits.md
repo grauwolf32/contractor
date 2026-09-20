@@ -442,7 +442,7 @@ erDiagram
 
 | Record | Minimum durable fields |
 | --- | --- |
-| `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, optional deadline_at and paused_at, continuation_count, limits/counters, stop reason, optional deletion_requested_at, timestamps |
+| `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, optional deadline_at and paused_at, limits/counters, stop reason, optional deletion_requested_at, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
 | `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, approval kind and optional exact approval-subject digest, final disposition, optional accepted result ref, optional last_execution_item_id |
 | `AuditExecution` | id, audit_id, optional round_id, role kind, exact named workflow_role from the pinned profile, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
@@ -851,8 +851,6 @@ stateDiagram-v2
   finalizing --> cancelling: cancel before report commit
   cancelling --> cancelled: children terminal and released
   finalizing --> failed: structural finalization failure
-  completed --> active: continue legacy deadline_exhausted
-  failed --> active: continue legacy deadline_exhausted
   draft --> deleting: delete
   completed --> deleting: delete
   cancelled --> deleting: delete
@@ -873,21 +871,14 @@ collection updates while paused. The admission clock includes owner Queue
 waiting; an Audit pause freezes it. Waiting for a frozen report decision uses
 that decision's own expiry rather than the Audit admission clock.
 
-As a compatibility exception, owner resume may reopen a legacy `completed` or
-`failed` Audit whose stop reason is exactly `deadline_exhausted`. This requires
-an active Project, an existing current Round, no frozen report candidate, no
-outstanding or uncollected executions, and revalidation of exact inputs and
-credential dependencies before restoring the dispatch hold. It reopens only
-undispatched closure exclusions or deadline-interrupted items with attempts
-remaining in the current round. Accepted items, receipts, evidence and baseline
-bytes never change. Old report links move to `report/history/<revision>/...`,
-the immutable report bytes remain retained, and a continuation counter distinguishes future
-report artifact names. The resume event records the previous state/reason and
-new deadline. Other terminal states remain final. Expired task approvals require
-fresh exact-subject requests; resuming never silently extends human authority.
-Ordinary resume also requires an active Project, a current Round, and no frozen
-report candidate. Successful resume clears `paused_at`, `finished_at` and the
-stop reason; only legacy terminal continuation increments `continuation_count`.
+Only a `paused` Audit can resume. Terminal `completed`, `failed` and `cancelled`
+Audits remain final, including historical records whose stop reason is
+`deadline_exhausted`. Resume requires an active Project, a current Round and no
+frozen report candidate. Accepted items, receipts, evidence and baseline bytes
+never change; report links are not archived or rewritten by Resume.
+Expired task approvals require fresh exact-subject requests; resuming never
+silently extends human authority. Successful resume clears `paused_at` and the
+stop reason and applies the selected deadline allowance.
 
 `completed` means the bounded Audit process closed, not that the application is
 secure. Completion requires a durable collection receipt for every execution,
@@ -1449,7 +1440,7 @@ Owner comes from authentication and Project membership, never a request body.
 | `GET /v1/audits/{auditId}` | Authoritative projection and revision |
 | `POST /v1/audits/{auditId}/start` | CAS-pin baseline and enter active with an optional time-limit override |
 | `POST /v1/audits/{auditId}/pause` | Stop new Audit submissions; optionally gate admission |
-| `POST /v1/audits/{auditId}/resume` | Resume a paused Audit or eligible legacy deadline closure with an optional time-limit override |
+| `POST /v1/audits/{auditId}/resume` | Resume a paused Audit with an optional time-limit override |
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
 | `GET /v1/audits/{auditId}/items` | Paginated items filtered by round/state/subject |
 | `GET /v1/audits/{auditId}/findings` | Keyset list with triage, analyst verdict/severity and duplicate target; filters apply before pagination |
@@ -1477,7 +1468,7 @@ both omit the override. The effective allowance follows these rules:
 | --- | --- | --- |
 | Positive `deadlineSeconds` | Set deadline to now plus the supplied seconds | Replace the allowance with the supplied seconds from now |
 | `deadlineSeconds: 0` | Start without a deadline | Clear the deadline |
-| Override omitted | Use the pinned profile's default | Preserve no-limit mode or the positive remainder frozen at `paused_at`; otherwise renew the pinned profile's default, including for legacy terminal continuation |
+| Override omitted | Use the pinned profile's default | Preserve no-limit mode or the positive remainder frozen at `paused_at`; otherwise renew the pinned profile's default |
 
 The optional override participates in the mutation's request digest. Reusing
 an idempotency key with a changed override conflicts; omission and zero are
@@ -1534,12 +1525,12 @@ Audit cards and detail views expose accessible Start, Pause new Audit Runs,
 Continue Audit, Cancel and Delete controls where applicable. Start and Continue
 open a time-limit dialog with seven days, 24 hours, no limit and a custom
 duration bounded to 365 days. Seven days is the UI default for start and
-deadline continuation. Ordinary paused Audits default to Keep remaining time,
+resuming after the time limit. Ordinary paused Audits default to Keep remaining time,
 which omits the API override and also preserves no-limit mode. The UI explains
 that queue waiting consumes time, Audit pauses do not, and in-flight Runs may
 finish after the limit. Closing the dialog before confirmation sends no mutation.
-Continue is offered for paused Audits and legacy `completed`/`failed` Audits
-with `deadline_exhausted`; Server remains authoritative for all preconditions.
+Continue is offered only for paused Audits; terminal Audits have no Resume
+action. Server remains authoritative for all preconditions.
 Cancel and Delete retain their consequence-aware confirmation dialogs.
 
 Finding detail offers True positive / False positive, severity and rationale
@@ -1770,11 +1761,12 @@ implied by artifact writes.
     value in validation and idempotency. Pauses preserve remaining time across
     collection updates and restart; owner Queue waiting consumes it. Time-limit
     expiry pauses admission while existing Runs drain and collect.
-29. Legacy deadline continuation preserves accepted results, exact baseline,
-    evidence, attempt history and old reports; only eligible unfinished items
-    with attempts remaining reopen. Other terminal reasons cannot resume,
-    missing dependencies reject continuation, and expired approvals need fresh
-    exact-subject decisions. Replay cannot increment the continuation twice.
+29. Terminal Audits, including old `completed`/`failed` records with
+    `deadline_exhausted`, reject Resume without changing reports, accepted
+    results, exact baseline, evidence, attempts, holds or reviews. A current
+    deadline pause can resume with the default allowance, a new limit or no
+    limit. Expired approvals require fresh exact-subject decisions; replay
+    does not renew a review or change the deadline twice.
 30. Audit input autoselection waits for complete pagination, preserves explicit
     choices and does not infer uniqueness after a load error. Start/Continue
     dialogs submit the selected allowance, preserve ordinary paused time by

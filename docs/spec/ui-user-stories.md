@@ -157,8 +157,8 @@ Start and Continue open the time-limit dialog specified in
 custom duration or no time limit. Ordinary paused Audits default to keeping
 their remaining allowance. The UI explains that queue waiting consumes time,
 pauses preserve it, and reaching the limit pauses new Runs while existing work
-finishes. Eligible legacy deadline closures offer Continue with accepted
-results and previous reports retained. Dismissing time settings sends no
+finishes. Continue is available only for paused Audits; completed, failed and
+cancelled Audits remain final. Dismissing time settings sends no
 mutation; icon actions retain accessible names and explanatory tooltips.
 
 Implementation tasks: V37-001, V37-005, V37-010.

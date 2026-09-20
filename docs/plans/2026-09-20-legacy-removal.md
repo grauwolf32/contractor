@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01–D03 implemented, verified and integrated into local `main`;
-D04–D07 remain planned.
+Status: C01–C07 and D01–D04 implemented, verified and integrated into local `main`;
+D05–D07 remain planned.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -264,17 +264,15 @@ data needs a compatibility window.
 | D01 (implemented) | [config/persisted.go](../../internal/config/persisted.go): removed the missing Stage `session` → `shared` compatibility rule. | Both snapshot decoders require an explicit valid mode; authored omission still becomes `isolated` before persistence. |
 | D02 (implemented) | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): removed old Workflow role inference and the legacy digest algorithm. | Require explicit current role kinds and the current digest, including embedded closures and optional Worker completion. Old snapshots fail without reinterpretation or rewriting. |
 | D03 (implemented) | [evalstore/receipts.go](../../internal/evalstore/receipts.go): removed conversion from old `{id, revision, state}` to typed receipts. | Require the current operation-specific shape, reject legacy/mixed receipts and preserve typed replay identity without new effects or byte rewriting. |
-| D04 | [auditservice/resume.go](../../internal/auditservice/resume.go): continue terminal `deadline_exhausted` Audits; reopen items and archive report links. | Preserve ordinary paused Resume, review expiration, replay and holds. Remove terminal continuation across backend, reports, UI and public contract together. |
+| D04 (implemented) | [auditservice/resume.go](../../internal/auditservice/resume.go): removed reopening terminal `deadline_exhausted` Audits, item reopening and report-link archival. | Resume accepts only paused Audits, including current deadline pauses. Terminal Resume fails without changing retained state; expired-review renewal, time-limit choices, replay and holds remain supported. |
 | D05 | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
 | D06 | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): reconstruct inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
 | D07 | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): accept old `text/plain` report summaries; current publisher writes `text/markdown`. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
 
-For D04, the change extends beyond `Resume`: inspect
-[auditcontroller/controller.go](../../internal/auditcontroller/controller.go),
-[auditimport/report.go](../../internal/auditimport/report.go), stored
-`continuation_count`, report naming, UI Continue controls and public OpenAPI.
-Previously continued records may become unsupported; ensure no current path
-still creates or consumes the removed continuation state.
+D04 concerns only the historical terminal-closure path. Current time-limit
+expiry pauses an Audit, and continuing that paused Audit is core functionality.
+The removed compatibility state is no longer written or consumed by the
+controller, importer, store or UI. Existing terminal records remain final.
 
 ### D01 — explicit persisted Stage session mode (implemented)
 
@@ -341,6 +339,39 @@ receipts still replay their exact original response after those rejected reads.
 Transaction ordering, owner checks and request-digest conflict handling remain
 unchanged; an unsupported stored response never triggers a replacement mutation.
 
+### D04 — terminal Audit deadline continuation (implemented)
+
+Removed terminal-state admission and its dependency revalidation, item/round
+reopening, report-link archival and continuation event flag from Resume.
+The controller no longer retries cancelled roles through a continuation counter
+or specially cancels children for a historical deadline finalization. Current
+deadline pauses continue to let running children finish and collect results.
+The importer publishes ordinary `report.json` and `report.md` artifacts.
+
+Removed `ContinuationCount` from the store model/read projections.
+[Migration 63](../../internal/persistence/migrations/000063_remove_audit_terminal_continuation.sql)
+drops its obsolete column; checksum-verified migration 55 is unchanged.
+The [forward migration test](../../internal/persistence/postgres/audit_continuation_removal_test.go)
+preserves all other fields of paused/completed/failed records and exact old report
+links, including historical artifact names. No report or accepted result is
+rewritten or purged.
+
+The UI offers Continue only for paused Audits. Terminal deadline records retain
+their reason and results without a misleading prompt to resume. Start and paused
+Resume still support default/remaining time, a new limit and no limit. Updated
+the Audit specification, user stories, guide and public OpenAPI description;
+regenerated Go and TypeScript clients. The current request/response shapes stay
+the same; terminal Resume now returns the existing precondition failure.
+
+The [service regression](../../internal/auditservice/resume_postgres_test.go)
+compares retained authority before/after rejected terminal requests and covers
+current deadline pauses, fresh decisions for expired reviews and exact replay.
+The [HTTP regression](../../internal/httpapi/public/audit_postgres_integration_test.go)
+checks successful paused Resume/replay and HTTP 412 for old terminal closures.
+The [UI tests](../../ui/src/routes/projects/audits/audits.test.tsx) keep the
+deadline-pause Continue flow and reject Continue controls on completed/failed
+records. Existing controller tests cover retaining in-flight work at the limit.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -377,8 +408,8 @@ shrinking that contract is separate from removing an internal no-op.
 
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
-D01 is implemented in the seventh increment, D02 in the eighth and D03 in the
-ninth; D04–D07 remain planned.
+D01 is implemented in the seventh increment, D02 in the eighth, D03 in the
+ninth and D04 in the tenth; D05–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -681,5 +712,42 @@ Verification completed on 2026-09-20:
 - Full `make verify`, browser/process journeys and paid-model tests were not run
   in this Go-only increment. Public schemas and clients did not need regeneration.
 
-Next increment: D04, remove terminal deadline-exhausted Audit continuation across
-backend, reports, UI and public contract while preserving ordinary paused Resume.
+## Tenth increment — D04 results
+
+Implemented in `refactor/audit-continuation-legacy-removal`, rebased onto
+`6b1a3e53` to retain the new Audit preset catalog, ASVS and WSTG definitions.
+Integrated into local `main`, preserving unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- Full `make verify` passed: formatting/static checks, Go tests and builds,
+  **2468 Python tests** (39 optional tests skipped), generated TypeScript client
+  consistency, UI lint/typecheck, **506 UI tests**, **11 static-server tests**
+  and the production UI build. `make verify-public-api` also passed.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=10m` passed for `./internal/auditstore`,
+  `./internal/auditservice`, `./internal/auditcontroller`, `./internal/auditimport`,
+  `./internal/httpapi/public`, `./internal/persistence/postgres` and
+  `./internal/app`.
+- `TestAuditProgramsAcrossProductionProcesses` passed against PostgreSQL 17,
+  real Go/Python processes and a scripted model gateway. Retained results and
+  provenance remain readable after removing the staged catalog and restarting
+  the Server.
+- Terminal deadline Resume is rejected for both completed and failed records,
+  including repeated requests with omitted, positive and zero time limits.
+  Database snapshots verify unchanged authority, items, coverage, reviews,
+  reports, events and receipts. Current paused Resume, remaining-time behavior,
+  expired-review renewal, unlimited mode and idempotent replay pass.
+- Migration 63 preserves all other Audit fields and historical report references
+  and remains idempotent. Updated the migration 62 test to exclude the column
+  subsequently removed by migration 63 from its retained-row comparison.
+- Integration with the new catalog exposed an outdated Skill assignment list.
+  Added its new `audit_standard_source_verifier` template to the expected
+  `trace` users without changing the catalog or weakening package checks.
+- Local documentation links, Go formatting and `git diff --check` passed.
+  The obsolete counter has no remaining production reader or writer; its only
+  references are migration history, the forward removal and migration tests.
+- Browser journeys and paid-model tests were not run in this increment.
+
+Next increment: D05, remove historical allocation provenance/policy inference
+while retaining current model-free and incomplete-report behavior.

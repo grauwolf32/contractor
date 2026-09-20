@@ -33,7 +33,8 @@ export function AuditOverview({ audit }: { audit: Audit }) {
   return (
     <div className="audit-detail-stack">
       {audit.stopReason === undefined ||
-      audit.stopReason.code === "deadline_exhausted" ? null : (
+      (audit.state === "paused" &&
+        audit.stopReason.code === "deadline_exhausted") ? null : (
         <section className="notice notice-error audit-stop-reason" role="alert">
           <strong>{audit.stopReason.code}</strong>
           <p>{audit.stopReason.message}</p>

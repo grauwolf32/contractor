@@ -15,7 +15,7 @@ func (c *Controller) settleClosedAudit(ctx context.Context, claim auditstore.Con
 	if changed, err := c.failOneUnboundIntent(ctx, claim, snapshot); changed || err != nil {
 		return changed, err
 	}
-	if audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditDeleting || deadlineClosure(audit) {
+	if audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditDeleting {
 		if changed, err := c.cancelOneSubmittedRun(ctx, snapshot); changed || err != nil {
 			return changed, err
 		}

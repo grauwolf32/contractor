@@ -3990,7 +3990,7 @@ paths:
     post:
       operationId: resumeAudit
       tags: [Audits]
-      summary: Resume a paused Audit or continue a legacy deadline closure with retained results
+      summary: Resume a paused Audit with retained results and an optional time-limit override
       x-contractor-implementation: implemented
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'

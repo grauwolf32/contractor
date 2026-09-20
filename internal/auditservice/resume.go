@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
-	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -23,8 +20,8 @@ func validateDeadlineSeconds(seconds *int) error {
 	return nil
 }
 
-// Resume keeps the pinned baseline and every accepted result. The only terminal
-// states it can reopen are legacy deadline closures; other failures stay final.
+// Resume continues a paused Audit with its pinned baseline and accepted results.
+// Terminal Audits cannot be reopened, including historical deadline closures.
 func (s *Service) Resume(ctx context.Context, params MutationParams) (MutationResult, error) {
 	if err := validateMutationParams(params); err != nil {
 		return MutationResult{}, err
@@ -70,8 +67,7 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if err != nil {
 		return MutationResult{}, err
 	}
-	legacy := (audit.State == auditstore.AuditCompleted || audit.State == auditstore.AuditFailed) && audit.StopReason != nil && audit.StopReason.Code == "deadline_exhausted"
-	if audit.Revision != params.ExpectedRevision || (audit.State != auditstore.AuditPaused && !legacy) || audit.CurrentRoundID == nil {
+	if audit.Revision != params.ExpectedRevision || audit.State != auditstore.AuditPaused || audit.CurrentRoundID == nil {
 		return MutationResult{}, auditstore.ErrPrecondition
 	}
 	var candidate bool
@@ -86,40 +82,13 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if legacy {
-		if audit.OutstandingRunCount != 0 {
-			return MutationResult{}, auditstore.ErrPrecondition
-		}
-		var unfinished bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_executions WHERE audit_id=$1 AND state <> 'collected')`, audit.AuditID).Scan(&unfinished); err != nil {
-			return MutationResult{}, err
-		}
-		if unfinished {
-			return MutationResult{}, auditstore.ErrPrecondition
-		}
-		if err := s.validateContinuationDependencies(ctx, tx, audit); err != nil {
-			return MutationResult{}, err
-		}
-		if err := reopenDeadlineItems(ctx, tx, audit); err != nil {
-			return MutationResult{}, err
-		}
-		// Historical report links and exact bytes remain available. New report
-		// publication uses a distinct artifact name for this continuation.
-		if _, err := tx.Exec(ctx, `UPDATE audit_artifact_links SET logical_key = 'report/history/' || $2::text || '/' || split_part(logical_key, '/', 2) WHERE audit_id=$1 AND logical_key IN ('report/machine','report/summary')`, audit.AuditID, fmt.Sprint(audit.Revision)); err != nil {
-			return MutationResult{}, err
-		}
-		// Re-enter the existing round; accepted discovery results are reused.
-		if _, err := tx.Exec(ctx, `UPDATE audit_rounds SET state='accepted', revision=revision+1, updated_at=clock_timestamp() WHERE audit_id=$1 AND round_id=$2`, audit.AuditID, *audit.CurrentRoundID); err != nil {
-			return MutationResult{}, err
-		}
-	}
 	if err := renewExpiredItemReviews(ctx, tx, audit, deadline, now); err != nil {
 		return MutationResult{}, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE audits SET state='active', dispatch_state='open', hold_state='held', deadline_at=$2, paused_at=NULL, finished_at=NULL, stop_reason_code=NULL, stop_reason_message=NULL, continuation_count=continuation_count+$3, revision=revision+1, next_event_sequence=next_event_sequence+1, updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond') WHERE audit_id=$1`, audit.AuditID, deadline, boolInt(legacy)); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE audits SET state='active', dispatch_state='open', hold_state='held', deadline_at=$2, paused_at=NULL, finished_at=NULL, stop_reason_code=NULL, stop_reason_message=NULL, revision=revision+1, next_event_sequence=next_event_sequence+1, updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond') WHERE audit_id=$1`, audit.AuditID, deadline); err != nil {
 		return MutationResult{}, err
 	}
-	summary, _ := json.Marshal(map[string]any{"from": audit.State, "to": "active", "previousStopReason": audit.StopReason, "deadlineAt": deadline, "continued": legacy})
+	summary, _ := json.Marshal(map[string]any{"from": audit.State, "to": "active", "previousStopReason": audit.StopReason, "deadlineAt": deadline})
 	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(audit_id,sequence_number,kind,entity_id,entity_revision,summary) SELECT audit_id,next_event_sequence-1,'audit.resumed',audit_id,revision,$2::jsonb FROM audits WHERE audit_id=$1`, audit.AuditID, summary); err != nil {
 		return MutationResult{}, err
 	}
@@ -129,13 +98,6 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	}
 	updated, err := store.Get(ctx, params.OwnerID, audit.AuditID)
 	return MutationResult{Audit: updated}, err
-}
-
-func boolInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 func resumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.Time, error) {
@@ -159,55 +121,6 @@ func resumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.
 	}
 	deadline := now.Add(timeDurationSeconds(profile.Execution.DeadlineSeconds))
 	return &deadline, nil
-}
-
-func (s *Service) validateContinuationDependencies(ctx context.Context, tx pgx.Tx, audit auditstore.Audit) error {
-	baseline, err := DecodeBaseline(audit.BaselineSnapshot)
-	if err != nil {
-		return err
-	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-	if err != nil {
-		return err
-	}
-	selection, err := DecodeDraftSelection(audit.InputSelection)
-	if err != nil {
-		return err
-	}
-	if _, err := readAndVerifyInputs(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), audit.ProjectID, profile, selection); err != nil {
-		return err
-	}
-	lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, s.transactionLLMCredentials)
-	if err != nil {
-		return err
-	}
-	if _, _, _, err := s.validateProfileDependencies(ctx, profile, lookup); err != nil {
-		return err
-	}
-	for _, id := range baseline.LLMCredentialIDs {
-		if _, err := lookup.LookupLLMCredential(ctx, id); err != nil {
-			return err
-		}
-	}
-	repository := credentials.NewRuntimeCredentialRepository(tx)
-	for _, id := range baseline.RuntimeCredentialIDs {
-		if _, err := repository.GetActiveRecord(ctx, id); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func reopenDeadlineItems(ctx context.Context, tx pgx.Tx, audit auditstore.Audit) error {
-	_, err := tx.Exec(ctx, `WITH reopened AS (
-        UPDATE audit_items AS item SET state=CASE WHEN approval_kind='none' THEN 'ready' ELSE 'awaiting_review' END, final_disposition=NULL, updated_at=clock_timestamp()
-        WHERE item.audit_id=$1 AND item.round_id=$2 AND item.state='settled'
-          AND ((item.final_disposition='excluded' AND EXISTS(SELECT 1 FROM audit_coverage_rows c WHERE c.item_id=item.item_id AND c.gaps ? 'audit-closed-before-dispatch'))
-            OR (item.final_disposition='execution-cancelled' AND item.updated_at >= $3))
-          AND (SELECT COALESCE(max(ei.item_attempt),0) FROM audit_execution_items ei WHERE ei.item_id=item.item_id) < $4
-        RETURNING item.item_id
-    ) UPDATE audit_coverage_rows AS c SET status='not-tested', gaps=c.gaps-'audit-closed-before-dispatch', rationale='Awaiting continuation after the Audit time limit.', updated_at=clock_timestamp() FROM reopened WHERE c.item_id=reopened.item_id`, audit.AuditID, *audit.CurrentRoundID, audit.DeadlineAt, audit.Limits.MaxItemRunAttempts)
-	return err
 }
 
 // Expired human decisions are never silently extended by resuming an Audit.

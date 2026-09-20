@@ -908,7 +908,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a paused Audit or continue a legacy deadline closure with retained results */
+        /** Resume a paused Audit with retained results and an optional time-limit override */
         post: operations["resumeAudit"];
         delete?: never;
         options?: never;
