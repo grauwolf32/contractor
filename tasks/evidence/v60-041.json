@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-041",
+  "recorded_at": "2026-09-20T14:58:04.138489+00:00",
+  "status": "verified-ready-for-task-completion",
+  "task_start_commit": "083e931f279c6fae3d843f8a5c1070a709e9bbef",
+  "implementation_commit": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+  "report": "docs/research/2026-09-20-v60-041-findings-reader-memory-tools-review.md",
+  "finding": {
+    "priority": "P2",
+    "owner": "tests/e2e/findings_boundaries_process_test.go:findingsBoundaryReaderStage",
+    "reproduction": "The current findings-review@2 selects findings_analyst@2, whose three reader operations plus six Memory operations are rejected by a stale three-tool Gateway expectation. The first successful-empty-collection scenario fails; later boundary subtests encounter the same retained Gateway failure.",
+    "normative_basis": [
+      "docs/spec/08-memory-tools.md:176-203,248-265: six operations and exact explicitly selected operation set",
+      "docs/spec/27-findings-tools-and-collections.md:227-267: collection preparation and expose the reader only after exact refs are validated",
+      "configs/workflows/findings_review_v2_memory.yaml selects findings_analyst@2",
+      "configs/agent-templates/findings_analyst_v2_memory.yaml selects six Memory operations and three reader operations"
+    ],
+    "correction": "Wrap only the existing three-tool fixture list with the existing explicit withMemoryTools helper. Keep sorted exact equality, scenario steps and all authority/preparation assertions unchanged.",
+    "expected_tool_set": [
+      "append_memory",
+      "list_findings",
+      "list_memories",
+      "list_memory_tags",
+      "read_artifact",
+      "read_memory",
+      "search_memory",
+      "write_memory",
+      "write_text_artifact"
+    ]
+  },
+  "checks": [
+    {
+      "phase": "before",
+      "command": [
+        "make",
+        "--trace",
+        "test-findings-e2e"
+      ],
+      "execution": "Required target within bash .local/v60-review/run-main-integration.sh; the subsequent test-ui-stack target was not reached.",
+      "source_commit": "43cea5b89ac8c9bf9d43101f399079c31aabd439",
+      "shared_invocation_exit_code": 2,
+      "shared_invocation_seconds": 1229.67,
+      "findings_wrapper_exit_code": 1,
+      "go_process_package_seconds": 127.393,
+      "go_pass_events": 8,
+      "go_fail_events": 5,
+      "go_skip_events": 0,
+      "python_passed": 48,
+      "python_seconds": 0.6,
+      "python_skips": 0,
+      "failed_parent": "TestFindingsReaderBoundariesAcrossProcesses",
+      "failed_parent_seconds": 15.77,
+      "passing_parents": {
+        "TestFindingsProducerAndReaderAcrossProcesses": 35.79,
+        "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts": 75.82
+      },
+      "log": ".local/v60-review/v60-041-findings-before.log",
+      "log_sha256": "26bc44869ea9f258ae57bd371d1d14880e2c28190dd4a0e6b0e40f2c81cba775",
+      "source_log": ".local/v60-review/v60-main-integration.log",
+      "source_log_sha256": "9d141415570550744a2396d500ea5cc23e14ed66072fe7544db43b6dc993694f",
+      "source_line_start": 3463,
+      "source_line_end": 3551,
+      "count_scope": "Go events include parents and subtests, not 13 independent top-level scenarios."
+    },
+    {
+      "phase": "full-required-target",
+      "command": [
+        "make",
+        "--trace",
+        "test-findings-e2e"
+      ],
+      "execution": "Complete first target in make --trace test-findings-e2e test-ui-stack; the gate explicitly reported all required cases passed and make advanced to UI installation.",
+      "source_commit": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+      "exit_code": 0,
+      "go_process_package_seconds": 177.265,
+      "go_pass_events": 13,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "python_passed": 48,
+      "python_seconds": 0.65,
+      "python_skips": 0,
+      "passing_parents_seconds": {
+        "TestFindingsReaderBoundariesAcrossProcesses": 65.58,
+        "TestFindingsProducerAndReaderAcrossProcesses": 35.77,
+        "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts": 75.9
+      },
+      "log": ".local/v60-review/v60-041-findings-final.log",
+      "log_sha256": "3590873f356f755492ee6d44a06b38b48695f7ec26a9a660327c794a0f68de6e",
+      "source_log": ".local/v60-review/v60-main-remainder.log",
+      "source_line_start": 1,
+      "source_line_end": 33,
+      "count_scope": "Three parent process tests and ten subtests, not 13 independent top-level scenarios.",
+      "completion_observed_by": "Findings gate passed: 13 required process cases and Runtime contracts; fail-fast make advanced to ui-install.",
+      "overall_remainder_status": "UI stack still running when this immutable Findings segment was captured; no overall remainder success claimed."
+    }
+  ],
+  "previous_integration_scope": {
+    "source_commit": "43cea5b89ac8c9bf9d43101f399079c31aabd439",
+    "command": [
+      "bash",
+      ".local/v60-review/run-main-integration.sh"
+    ],
+    "command_file_sha256": "f4c83c6a48a2e6bdc05ca0c304a6e8b26ad3229c458844390b541bc5e6887e9a",
+    "log": ".local/v60-review/v60-main-integration.log",
+    "log_sha256": "9d141415570550744a2396d500ea5cc23e14ed66072fe7544db43b6dc993694f",
+    "whole_invocation_result": "FAIL; successful earlier checks remain separately attributable.",
+    "passed_before_findings": [
+      "focused configuration/fixture regressions",
+      "configuration CLI validation",
+      "database-backed race checks for config, Scheduler, Planner, public HTTP, Audit service/controller and Eval store",
+      "Streamline PostgreSQL Gateway/Worker recovery",
+      "go build ./...",
+      "E2E/UI-stack compile-only checks",
+      "test-production-memory-e2e",
+      "test-project-workspaces-e2e",
+      "test-audits-process",
+      "test-agent-skills-mvp"
+    ],
+    "go_pass_events_across_whole_invocation": 1471,
+    "process_test_seconds": {
+      "TestProductionMemoryTemplatesAcrossProcesses": 105.25,
+      "TestProjectWorkspaceLifecycleAcrossProductionProcesses": 164.74,
+      "TestAuditProgramsAcrossProductionProcesses": 356.68,
+      "TestHeterogeneousRuntimeCapabilityPlacement": 45.9,
+      "TestSchedulerConcurrencyAcrossProductionProcesses": 65.18,
+      "TestAgentSkillsMVPProcesses": 145.05
+    },
+    "not_executed": [
+      "test-ui-stack"
+    ]
+  },
+  "source_sha256": {
+    "tests/e2e/findings_boundaries_process_test.go": "1b41134efe74286fded8fbe955f7a473c749339f51c7a6fec0d31a1402635f50",
+    "tests/e2e/fake_domain_gateway_test.go": "42a6be71b08303ac72e3aaa898ac75ef69ea2114c51c892e7a3cc174ae477e63",
+    "configs/workflows/findings_review_v2_memory.yaml": "cfca2d86089f360352c2ad5bcda021705b9cc9bd5361118f0f690ef0b9136f13",
+    "configs/agent-templates/findings_analyst_v2_memory.yaml": "89c858fc38c7183a96ff81254351ab7b108261e11e4632c9955e955141d4394f"
+  },
+  "acceptance": {
+    "A1": "PASS: the unchanged exact-tool validator accepted all nine explicitly selected operations in the full boundary process. Only its fixture expectation changed; missing/extra rejection logic remains unchanged.",
+    "A2": "PASS: complete Findings gate at c25b4b28, 13 Go events (three parents, ten subtests) and 48 Runtime cases, zero skips/failures. Empty success, inaccessible input, interrupted preparation, conflict/invalid-ZIP and retention assertions passed."
+  },
+  "limitations": [
+    "The original integration invocation failed, despite successful earlier targets.",
+    "No production behavior, catalog selection or Gateway validation was changed.",
+    "The full UI remainder is independently tracked; this task completion requires the full Findings gate."
+  ],
+  "verified_at": "2026-09-20T15:00:59.547846+00:00"
+}
