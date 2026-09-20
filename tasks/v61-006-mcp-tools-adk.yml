@@ -3,8 +3,8 @@ id: V61-006
 title: Expose exact prepared MCP tools through ADK with normal Worker accounting
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c36af6108bcf76a803c08d77ecb64913574b3a28
 depends_on: [V61-005]
 languages: [python, go, json, yaml]
 goal: >-
@@ -75,3 +75,10 @@ tests:
 verification_requirements:
   - Use the pinned real ADK Runner and existing gateway conversion with a scripted model; direct invocation of a mocked wrapper alone does not prove A2/A5.
   - Record exact SDK version, selected schema digest behavior and executed unsupported-content fixtures before enabling production capability.
+verification_evidence:
+  - All required commands passed on 2026-09-20; Go persistence tests used isolated contractor-v61-tests. The combined Runtime regression suite passed 244 tests, followed by 30 passing toolset tests after adding the typed native configuration fixture; Ruff and git diff checks passed.
+  - Real ADK 2.8.0 Runner and OpenAI-compatible gateway conversion delivered exact search/fetch JSON Schemas, bounded envelopes and safe distinct argument/business/content/private/unknown-outcome errors with normal budgets, failed-call observations and spans.
+  - Finalizer and summarizer were tool-free; budget rejection prevented remote dispatch; cancellation joined SDK tasks. Frozen declarations remained available for model completion after a lost response, with no remote replay or schema refresh.
+  - Official MCP SDK 1.30.0; selected canonical schema digest stayed unchanged after listChanged and remote schema mutation. Images, audio, resource links, embedded resources, unknown content, non-object structured content and oversized/secret-bearing responses were executed as negative fixtures.
+  - Production MCP factory was exercised through allocation prepare/finalize/lease/cancellation/failure paths. Missing local SDK suppressed MCP while native capabilities remained available; a test-native typed factory reused common configuration delivery and FunctionTool adaptation.
+  - Named the optional lifecycle hook prepare_allocation to avoid scanner prepare method collisions; existing scanner tool@1, Agent Skills, workspace and allocation regressions passed. Empty inventory fixture builders now preserve explicit allocation discovery.

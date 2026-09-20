@@ -3,7 +3,7 @@ id: V61-007
 title: Project workflow toolset requirements and safe runtime-label coverage
 milestone: toolset-runtime-configuration
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V61-003]
 languages: [go, typescript, yaml, markdown]
