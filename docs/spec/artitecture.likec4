@@ -983,7 +983,7 @@ model {
   server.performanceMonitoring.historyWriter -> artifactDatabase.performanceMinutes 'Via diagnostic pool: generation/minute idempotency, 7-day TTL; disabled periods/restarts/loss remain gaps'
   server.performanceMonitoring.performanceApi -> artifactDatabase.performanceMinutes 'Authorized request-pool reads: 7 days, at most 1000 points, filter expired data even when collection is off'
   server.runtimeOperations.controlPlane -> artifactDatabase.allocationPolicy 'Persist requested/disabled/unsupported once; duplicate prepare/restart retains original decision'
-  server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy 'Read trusted pinned decision; legacy/missing reports remain visible as unknown resources'
+  server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy 'Require trusted pinned decision; missing reports remain visible as unknown resources'
   server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
   runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane 'Trusted allocation final report'

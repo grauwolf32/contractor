@@ -1,6 +1,7 @@
 package auditstore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -721,8 +722,8 @@ func scanItem(row scanner) (Item, error) {
 	if validateDigest("stored item task digest", result.Task.Digest) != nil {
 		return Item{}, errors.New("stored Audit item task digest is invalid")
 	}
-	if err := json.Unmarshal(origin, &result.Origin); err != nil ||
-		validateItemOrigin(result.Origin, result.ItemKey, true) != nil {
+	if err := decodeStoredProvenance(origin, &result.Origin); err != nil ||
+		validateItemOrigin(result.Origin, result.ItemKey) != nil {
 		return Item{}, errors.New("stored Audit item origin is invalid")
 	}
 	result.State = ItemState(state)
@@ -810,6 +811,16 @@ func scanExecution(row scanner) (Execution, error) {
 	return result, nil
 }
 
+// Historical or mixed provenance must fail without reinterpreting stored bytes.
+func decodeStoredProvenance(encoded []byte, target any) error {
+	if !json.Valid(encoded) {
+		return errors.New("stored Audit provenance is not valid JSON")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(target)
+}
+
 func decodeRunProvenance(encoded []byte, runID *string, target **RunProvenance) error {
 	if runID == nil {
 		if encoded != nil {
@@ -821,19 +832,17 @@ func decodeRunProvenance(encoded []byte, runID *string, target **RunProvenance) 
 		return errors.New("stored Audit execution has no Run provenance")
 	}
 	var value RunProvenance
-	if json.Unmarshal(encoded, &value) != nil || value.Schema != "contractor.audit.run-provenance.v1" ||
-		value.RunID != *runID || value.ProvenanceIncomplete == (value.Workflow != nil) {
+	if decodeStoredProvenance(encoded, &value) != nil || value.Schema != "contractor.audit.run-provenance.v1" ||
+		value.RunID != *runID || value.Workflow == nil {
 		return errors.New("stored Audit execution Run provenance is invalid")
 	}
-	if value.Workflow != nil {
-		workflow := value.Workflow
-		if validateText("stored Workflow name", workflow.Name, 128, true) != nil ||
-			validateText("stored Workflow version", workflow.Version, 128, true) != nil ||
-			validateText("stored Workflow schema version", workflow.SchemaVersion, 128, true) != nil ||
-			validateDigest("stored Workflow closure digest", workflow.ClosureDigest) != nil ||
-			workflow.ConfigurationRef.Name != workflow.Name || workflow.ConfigurationRef.Version != workflow.Version {
-			return errors.New("stored Audit execution Workflow provenance is invalid")
-		}
+	workflow := value.Workflow
+	if validateText("stored Workflow name", workflow.Name, 128, true) != nil ||
+		validateText("stored Workflow version", workflow.Version, 128, true) != nil ||
+		validateText("stored Workflow schema version", workflow.SchemaVersion, 128, true) != nil ||
+		validateDigest("stored Workflow closure digest", workflow.ClosureDigest) != nil ||
+		workflow.ConfigurationRef.Name != workflow.Name || workflow.ConfigurationRef.Version != workflow.Version {
+		return errors.New("stored Audit execution Workflow provenance is invalid")
 	}
 	*target = &value
 	return nil

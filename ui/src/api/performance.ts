@@ -65,7 +65,6 @@ const RESOURCE_REASONS = new Set([
   "sampling_gap",
   "counter_reset",
   "invalid_report",
-  "legacy",
   "report_missing",
 ]);
 const RUNTIME_RESOURCE_REASONS = new Set([
@@ -619,9 +618,6 @@ export function safeAllocationResourceSummary(
     (value.collectionPolicy === "disabled" && value.status === "disabled") ||
     (value.collectionPolicy === "unsupported" &&
       value.status === "unsupported") ||
-    (value.collectionPolicy === "legacy" &&
-      value.status === "unavailable" &&
-      value.reason === "legacy") ||
     (value.collectionPolicy === "requested" &&
       ["pending", "available", "partial", "unavailable"].includes(
         value.status,

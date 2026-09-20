@@ -989,8 +989,17 @@ func seedAuditFindingAttemptHistory(
 	digest := func(value string) string { return serviceTestDigest("attempt-" + value) }
 	taskRef := `{"namespace":"audit-task-packages","name":"check-one","revision":"task-r1"}`
 	resultRef := `{"namespace":"audit-results","name":"check-one","revision":"result-r2"}`
-	origin := `{"schema":"contractor.audit.item-origin.v1","entryKey":"check-one","provenanceIncomplete":true}`
-	err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	sourceRevision := "checks-r1"
+	origin, err := json.Marshal(auditstore.ItemOrigin{
+		Schema: auditstore.ItemOriginSchema, EntryKey: "check-one",
+		SourceRef:           &contracts.ArtifactRef{Namespace: "inputs", Name: "checks", Revision: &sourceRevision},
+		SourceContentDigest: digest("source"), SourceMediaType: "application/json",
+		CanonicalInventoryDigest: digest("inventory"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 INSERT INTO audit_rounds (
     round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count
@@ -1019,9 +1028,15 @@ INSERT INTO audit_items (
 			{"execution-attempt-one", "execution-item-attempt-one", "deleted-run-attempt-one", "failed", "execution-failed", 1, false},
 			{"execution-attempt-two", "execution-item-attempt-two", "deleted-run-attempt-two", "succeeded", "accepted-result", 2, true},
 		} {
+			workflow := &auditstore.WorkflowProvenance{
+				Name: "check", Version: "1", SchemaVersion: contracts.APIVersion,
+				ClosureDigest: digest("workflow"),
+			}
+			workflow.ConfigurationRef.Name = workflow.Name
+			workflow.ConfigurationRef.Version = workflow.Version
 			runProvenance, _ := json.Marshal(auditstore.RunProvenance{
 				Schema: "contractor.audit.run-provenance.v1", RunID: attempt.runID,
-				ProvenanceIncomplete: true,
+				Workflow: workflow,
 			})
 			if _, err := tx.Exec(ctx, `
 INSERT INTO audit_executions (

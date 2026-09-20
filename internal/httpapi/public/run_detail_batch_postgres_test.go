@@ -55,6 +55,22 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	gateway := contracts.LLMGatewayConfigRef{GatewayID: "test-gateway", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)}
+	configuration := &runstore.AllocationRuntimeConfiguration{
+		ModelPolicy: contracts.ModelPolicyRef{PolicyID: "worker", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64)},
+		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
+			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
+		},
+		Provenance: contracts.ResolvedRuntimeConfigProvenance{
+			Default: contracts.RuntimeLabelBindingProvenance{
+				Label: "default", BindingRevision: 1,
+				Config: contracts.RuntimeConfigRef{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
+			},
+			RunLabels: []contracts.RuntimeLabelBindingProvenance{}, AgentLabels: []contracts.RuntimeLabelBindingProvenance{},
+			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
+			LLMGatewayConfig: &gateway,
+		},
+	}
 	defer traced.Close()
 	runs := runstore.NewPostgresStore(pool)
 	metrics := telemetry.NewRepository(pool)
@@ -131,10 +147,16 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 					if _, err := metrics.RebuildStageMetrics(ctx, id, contracts.APIVersion); err != nil {
 						t.Fatal(err)
 					}
-					// Legacy persisted allocations still have to be decoded and
-					// ordered correctly; odd stages deliberately have none.
-					if _, err := pool.Exec(ctx, `INSERT INTO stage_allocations (allocation_id,stage_execution_id,logical_agent_name,namespace,agent_template_ref,worker_runtime_ref,runtime_agent_instance_id)
-VALUES ($1,$2,'builder','builder','{}','{}','private-physical-instance')`, "allocation-"+id, id); err != nil {
+					// Current allocations must retain full provenance; odd stages
+					// deliberately have no allocation or optional metrics yet.
+					if err := runs.RecordStageAllocation(ctx, runstore.StageAllocation{
+						AllocationID: "allocation-" + id, StageExecutionID: id, LogicalAgentName: "builder", Namespace: "builder",
+						AgentTemplateRef: contracts.AgentTemplateRef{TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("c", 64)},
+						WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
+						RuntimeAgentID:   strings.Repeat("1", 64), RuntimeAgentInstanceID: "private-physical-instance", RuntimeAgentLabelRevision: 1,
+						RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+						RuntimeConfiguration:              configuration, PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+					}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -206,6 +228,9 @@ VALUES ($1,$2,'builder','builder','{}','{}','private-physical-instance')`, "allo
 					t.Fatalf("attempt %d has incorrect identity or objective: %+v", i, attempt)
 				}
 				if i%2 == 0 {
+					if attempt.RuntimeConfiguration == nil || len(attempt.RuntimeConfiguration.Allocations) != 1 || attempt.RuntimeConfiguration.Allocations[0].LogicalAgent != "builder" {
+						t.Fatalf("attempt %d lost its committed allocation provenance: %+v", i, attempt)
+					}
 					if attempt.Metrics == nil || attempt.Plan == nil || attempt.Plan.Revision != 1 ||
 						attempt.Plan.CurrentSubtaskID != "0" || len(attempt.Plan.Subtasks) != 1 ||
 						attempt.Plan.Subtasks[0].Objective != "Read exact source" {

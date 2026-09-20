@@ -10,16 +10,13 @@ const PerformanceMetricsVersion = 1
 const PerformanceMetricsIntervalSeconds = 15
 const MaxResourceInteger = 1<<53 - 1 // exact in all JSON consumers, including TypeScript
 
-// PerformanceCollectionPolicy is the Server decision pinned with an
-// allocation. Legacy is a read projection for rows created before the policy
-// column existed and must never be written for a new allocation.
+// PerformanceCollectionPolicy is the Server decision pinned with an allocation.
 type PerformanceCollectionPolicy string
 
 const (
 	PerformanceCollectionRequested   PerformanceCollectionPolicy = "requested"
 	PerformanceCollectionDisabled    PerformanceCollectionPolicy = "disabled"
 	PerformanceCollectionUnsupported PerformanceCollectionPolicy = "unsupported"
-	PerformanceCollectionLegacy      PerformanceCollectionPolicy = "legacy"
 )
 
 func (p PerformanceCollectionPolicy) ValidatePinned() error {

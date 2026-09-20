@@ -240,31 +240,33 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 		if err := json.Unmarshal(runtimeRef, &allocation.WorkerRuntimeRef); err != nil {
 			return nil, fmt.Errorf("decode persisted WorkerRuntime ref: %w", err)
 		}
-		if runtimeAgentID != nil || runtimeAgentLabelRevision != nil || runtimeConfigurationVersion != nil || runtimeConfiguration != nil {
-			if runtimeAgentID == nil || runtimeAgentLabelRevision == nil || runtimeConfigurationVersion == nil || runtimeConfiguration == nil {
-				return nil, fmt.Errorf("decode persisted allocation Runtime configuration: incomplete legacy projection")
-			}
-			revision, parseErr := strconv.ParseUint(*runtimeAgentLabelRevision, 10, 64)
-			if parseErr != nil {
-				return nil, fmt.Errorf("decode persisted Runtime Agent label revision")
-			}
-			var configuration AllocationRuntimeConfiguration
-			if err := json.Unmarshal(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
-				return nil, fmt.Errorf("decode persisted allocation Runtime configuration")
-			}
-			if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (configuration.ModelPolicy == (contracts.ModelPolicyRef{})) {
-				return nil, fmt.Errorf("persisted allocation model policy does not match Worker runtime")
-			}
-			allocation.RuntimeAgentID = *runtimeAgentID
-			allocation.RuntimeAgentLabelRevision = revision
-			allocation.RuntimeConfigurationSchemaVersion = *runtimeConfigurationVersion
-			allocation.RuntimeConfiguration = &configuration
+		if runtimeAgentID == nil || runtimeAgentLabelRevision == nil || runtimeConfigurationVersion == nil || runtimeConfiguration == nil {
+			return nil, fmt.Errorf("decode persisted allocation Runtime configuration: missing provenance")
 		}
-		if performanceCollectionPolicy != nil {
-			allocation.PerformanceCollectionPolicy = contracts.PerformanceCollectionPolicy(*performanceCollectionPolicy)
-			if allocation.PerformanceCollectionPolicy.ValidatePinned() != nil {
-				return nil, fmt.Errorf("decode persisted allocation performance collection policy")
-			}
+		if !runtimeAgentPrincipalPattern.MatchString(*runtimeAgentID) || *runtimeConfigurationVersion != AllocationRuntimeConfigurationSchemaVersion {
+			return nil, fmt.Errorf("decode persisted allocation Runtime identity or schema version")
+		}
+		revision, parseErr := strconv.ParseUint(*runtimeAgentLabelRevision, 10, 64)
+		if parseErr != nil || revision == 0 {
+			return nil, fmt.Errorf("decode persisted Runtime Agent label revision")
+		}
+		var configuration AllocationRuntimeConfiguration
+		if err := json.Unmarshal(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
+			return nil, fmt.Errorf("decode persisted allocation Runtime configuration")
+		}
+		if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (configuration.ModelPolicy == (contracts.ModelPolicyRef{})) {
+			return nil, fmt.Errorf("persisted allocation model policy does not match Worker runtime")
+		}
+		allocation.RuntimeAgentID = *runtimeAgentID
+		allocation.RuntimeAgentLabelRevision = revision
+		allocation.RuntimeConfigurationSchemaVersion = *runtimeConfigurationVersion
+		allocation.RuntimeConfiguration = &configuration
+		if performanceCollectionPolicy == nil {
+			return nil, fmt.Errorf("decode persisted allocation performance collection policy: missing policy")
+		}
+		allocation.PerformanceCollectionPolicy = contracts.PerformanceCollectionPolicy(*performanceCollectionPolicy)
+		if allocation.PerformanceCollectionPolicy.ValidatePinned() != nil {
+			return nil, fmt.Errorf("decode persisted allocation performance collection policy")
 		}
 		result = append(result, allocation)
 	}

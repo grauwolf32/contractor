@@ -11301,12 +11301,11 @@ components:
     AuditRunProvenance:
       type: object
       additionalProperties: false
-      required: [schema, runId]
+      required: [schema, runId, workflow]
       properties:
         schema: {type: string, const: contractor.audit.run-provenance.v1}
         runId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/AuditWorkflowProvenance'}
-        provenanceIncomplete: {type: boolean}
     AuditItemAttempt:
       type: object
       additionalProperties: false
@@ -11351,7 +11350,7 @@ components:
     AuditItemOrigin:
       type: object
       additionalProperties: false
-      required: [schema, entryKey]
+      required: [schema, sourceRef, sourceContentDigest, sourceMediaType, canonicalInventoryDigest, entryKey]
       properties:
         schema: {type: string, const: contractor.audit.item-origin.v1}
         sourceRef: {$ref: '#/components/schemas/ArtifactRef'}
@@ -11361,9 +11360,6 @@ components:
         entryKey: {type: string, minLength: 1, maxLength: 256}
         entryVersion: {type: string, minLength: 1, maxLength: 256}
         standard: {$ref: '#/components/schemas/AuditStandardItemOrigin'}
-        provenanceIncomplete:
-          type: boolean
-          description: True only for an item materialized before durable origin projection existed.
     AuditStandardEvidenceOrigin:
       type: object
       additionalProperties: false
@@ -14164,9 +14160,9 @@ components:
         logicalAgent: {$ref: '#/components/schemas/ConfigId'}
         outcome: {$ref: '#/components/schemas/StageExecutionState'}
         finishedAt: {type: string, format: date-time}
-        collectionPolicy: {enum: [requested, disabled, unsupported, legacy]}
+        collectionPolicy: {enum: [requested, disabled, unsupported]}
         status: {enum: [disabled, unsupported, pending, available, partial, unavailable]}
-        reason: {enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report, legacy, report_missing]}
+        reason: {enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report, report_missing]}
         resources: {$ref: '#/components/schemas/RuntimeResourceSummary'}
       example:
         allocationId: allocation-example
@@ -14176,9 +14172,9 @@ components:
         logicalAgent: builder
         outcome: succeeded
         finishedAt: '2026-09-06T10:00:00Z'
-        collectionPolicy: legacy
+        collectionPolicy: requested
         status: unavailable
-        reason: legacy
+        reason: report_missing
     AllocationResourcePage:
       type: object
       additionalProperties: false

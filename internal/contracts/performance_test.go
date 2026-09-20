@@ -136,7 +136,7 @@ func TestPerformanceCollectionPolicyPinsOnlyAllocationDecisions(t *testing.T) {
 			t.Fatalf("policy %q produced invalid request: %+v", policy, request)
 		}
 	}
-	for _, policy := range []PerformanceCollectionPolicy{"", PerformanceCollectionLegacy, "unknown"} {
+	for _, policy := range []PerformanceCollectionPolicy{"", "legacy", "unknown"} {
 		if policy.ValidatePinned() == nil {
 			t.Fatalf("read-only or unknown policy %q accepted as a pin", policy)
 		}

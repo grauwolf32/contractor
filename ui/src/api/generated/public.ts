@@ -3334,8 +3334,7 @@ export interface components {
             /** @constant */
             schema: "contractor.audit.run-provenance.v1";
             runId: components["schemas"]["ResourceId"];
-            workflow?: components["schemas"]["AuditWorkflowProvenance"];
-            provenanceIncomplete?: boolean;
+            workflow: components["schemas"]["AuditWorkflowProvenance"];
         };
         AuditItemAttempt: {
             executionItemId: components["schemas"]["ResourceId"];
@@ -3379,15 +3378,13 @@ export interface components {
         AuditItemOrigin: {
             /** @constant */
             schema: "contractor.audit.item-origin.v1";
-            sourceRef?: components["schemas"]["ArtifactRef"];
-            sourceContentDigest?: components["schemas"]["Digest"];
-            sourceMediaType?: string;
-            canonicalInventoryDigest?: components["schemas"]["Digest"];
+            sourceRef: components["schemas"]["ArtifactRef"];
+            sourceContentDigest: components["schemas"]["Digest"];
+            sourceMediaType: string;
+            canonicalInventoryDigest: components["schemas"]["Digest"];
             entryKey: string;
             entryVersion?: string;
             standard?: components["schemas"]["AuditStandardItemOrigin"];
-            /** @description True only for an item materialized before durable origin projection existed. */
-            provenanceIncomplete?: boolean;
         };
         AuditStandardEvidenceOrigin: {
             id: string;
@@ -5373,9 +5370,9 @@ export interface components {
          *       "logicalAgent": "builder",
          *       "outcome": "succeeded",
          *       "finishedAt": "2026-09-06T10:00:00Z",
-         *       "collectionPolicy": "legacy",
+         *       "collectionPolicy": "requested",
          *       "status": "unavailable",
-         *       "reason": "legacy"
+         *       "reason": "report_missing"
          *     }
          */
         AllocationResourceSummary: {
@@ -5388,11 +5385,11 @@ export interface components {
             /** Format: date-time */
             finishedAt: string;
             /** @enum {unknown} */
-            collectionPolicy: "requested" | "disabled" | "unsupported" | "legacy";
+            collectionPolicy: "requested" | "disabled" | "unsupported";
             /** @enum {unknown} */
             status: "disabled" | "unsupported" | "pending" | "available" | "partial" | "unavailable";
             /** @enum {unknown} */
-            reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report" | "legacy" | "report_missing";
+            reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report" | "report_missing";
             resources?: components["schemas"]["RuntimeResourceSummary"];
         };
         AllocationResourcePage: {

@@ -580,4 +580,36 @@ describe("performance API", () => {
       listAllocationResourceHistory(inconsistentResources),
     ).rejects.toMatchObject({ code: "invalid_api_response" });
   });
+
+  it.each([
+    { collectionPolicy: "legacy", reason: "legacy" },
+    { collectionPolicy: "requested", reason: "legacy" },
+    { collectionPolicy: undefined, reason: "report_missing" },
+    { collectionPolicy: "unknown", reason: "report_missing" },
+  ])("rejects unsupported allocation authority: %j", async (authority) => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          items: [
+            {
+              allocationId: "allocation-1",
+              runId: "run-1",
+              stageExecutionId: "stage-1",
+              stage: "analyze",
+              logicalAgent: "builder",
+              outcome: "succeeded",
+              finishedAt: "2026-09-06T12:00:00Z",
+              status: "unavailable",
+              ...authority,
+            },
+          ],
+          page: { hasMore: false },
+        }),
+      ),
+    );
+    await expect(listAllocationResourceHistory(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
 });

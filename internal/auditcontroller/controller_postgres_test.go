@@ -599,7 +599,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 		t.Fatalf("retained Audit items = (%+v, %v)", retainedItems, err)
 	}
 	origin := retainedItems[0].Origin
-	if origin.ProvenanceIncomplete || origin.SourceRef == nil || origin.SourceRef.Revision == nil ||
+	if origin.SourceRef == nil || origin.SourceRef.Revision == nil ||
 		origin.EntryKey != "check-0" || origin.EntryVersion != "1" ||
 		origin.SourceContentDigest == "" || origin.CanonicalInventoryDigest == "" {
 		t.Fatalf("retained exact checklist origin = %+v", origin)

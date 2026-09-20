@@ -120,6 +120,7 @@ WHERE allocation_id = 'allocation-1'`)
 	reportParams := RecordStageExecutionReportParams{
 		StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 		LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
+		PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
 		Report: contracts.AllocationFinalReport{
 			ReportID: "allocation-report-1", AllocationID: allocation.AllocationID,
 			StartedAt: reportFinished.Add(-time.Second), FinishedAt: reportFinished,

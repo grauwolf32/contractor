@@ -2952,17 +2952,14 @@ type AuditItemAttempt struct {
 
 // AuditItemOrigin defines model for AuditItemOrigin.
 type AuditItemOrigin struct {
-	CanonicalInventoryDigest *Digest `json:"canonicalInventoryDigest,omitempty"`
-	EntryKey                 string  `json:"entryKey"`
-	EntryVersion             *string `json:"entryVersion,omitempty"`
-
-	// ProvenanceIncomplete True only for an item materialized before durable origin projection existed.
-	ProvenanceIncomplete *bool                    `json:"provenanceIncomplete,omitempty"`
-	Schema               AuditItemOriginSchema    `json:"schema"`
-	SourceContentDigest  *Digest                  `json:"sourceContentDigest,omitempty"`
-	SourceMediaType      *string                  `json:"sourceMediaType,omitempty"`
-	SourceRef            *ArtifactRef             `json:"sourceRef,omitempty"`
-	Standard             *AuditStandardItemOrigin `json:"standard,omitempty"`
+	CanonicalInventoryDigest Digest                   `json:"canonicalInventoryDigest"`
+	EntryKey                 string                   `json:"entryKey"`
+	EntryVersion             *string                  `json:"entryVersion,omitempty"`
+	Schema                   AuditItemOriginSchema    `json:"schema"`
+	SourceContentDigest      Digest                   `json:"sourceContentDigest"`
+	SourceMediaType          string                   `json:"sourceMediaType"`
+	SourceRef                ArtifactRef              `json:"sourceRef"`
+	Standard                 *AuditStandardItemOrigin `json:"standard,omitempty"`
 }
 
 // AuditItemOriginSchema defines model for AuditItemOrigin.Schema.
@@ -3175,10 +3172,9 @@ type AuditRoundState = interface{}
 
 // AuditRunProvenance defines model for AuditRunProvenance.
 type AuditRunProvenance struct {
-	ProvenanceIncomplete *bool                    `json:"provenanceIncomplete,omitempty"`
-	RunId                ResourceId               `json:"runId"`
-	Schema               AuditRunProvenanceSchema `json:"schema"`
-	Workflow             *AuditWorkflowProvenance `json:"workflow,omitempty"`
+	RunId    ResourceId               `json:"runId"`
+	Schema   AuditRunProvenanceSchema `json:"schema"`
+	Workflow AuditWorkflowProvenance  `json:"workflow"`
 }
 
 // AuditRunProvenanceSchema defines model for AuditRunProvenance.Schema.

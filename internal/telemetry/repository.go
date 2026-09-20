@@ -545,14 +545,8 @@ func validateAllocationEnvelope(value AllocationReportEnvelope) error {
 			return err
 		}
 	}
-	switch value.PerformanceCollectionPolicy {
-	case "", contracts.PerformanceCollectionLegacy:
-		// Empty/legacy is accepted only for reports belonging to allocations
-		// created before collection policy became durable provenance.
-	default:
-		if err := value.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
-			return fmt.Errorf("%w: performance collection policy is invalid", ErrInvalid)
-		}
+	if err := value.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
+		return fmt.Errorf("%w: performance collection policy is invalid", ErrInvalid)
 	}
 	return nil
 }

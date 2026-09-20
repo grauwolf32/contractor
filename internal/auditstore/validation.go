@@ -378,15 +378,9 @@ func validateCoverage(value Coverage) error {
 	return nil
 }
 
-func validateItemOrigin(value ItemOrigin, itemKey string, allowIncomplete bool) error {
+func validateItemOrigin(value ItemOrigin, itemKey string) error {
 	if value.Schema != ItemOriginSchema || value.EntryKey != itemKey {
 		return invalidf("item origin identity is invalid")
-	}
-	if value.ProvenanceIncomplete {
-		if !allowIncomplete {
-			return invalidf("new item origin cannot be incomplete")
-		}
-		return nil
 	}
 	if value.SourceRef == nil || value.SourceRef.ValidateExact() != nil {
 		return invalidf("item origin source ref is invalid")
@@ -574,7 +568,7 @@ func validateRoundItems(items []MaterializedItem) error {
 		if err := validateExactArtifact("item task", item.Task, false); err != nil {
 			return err
 		}
-		if err := validateItemOrigin(item.Origin, item.ItemKey, false); err != nil {
+		if err := validateItemOrigin(item.Origin, item.ItemKey); err != nil {
 			return err
 		}
 		if err := validateCoverage(item.Coverage); err != nil || item.Coverage.Status != CoverageNotTested {

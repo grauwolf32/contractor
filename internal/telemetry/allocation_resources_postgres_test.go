@@ -24,7 +24,6 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 	for _, test := range []struct {
 		name         string
 		policy       contracts.PerformanceCollectionPolicy
-		legacy       bool
 		report       bool
 		released     bool
 		expired      bool
@@ -45,7 +44,6 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 		{name: "wrong-type", report: true, resources: `[]`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
 		{name: "disabled", policy: contracts.PerformanceCollectionDisabled, wantStatus: telemetry.AllocationResourceDisabled},
 		{name: "unsupported", policy: contracts.PerformanceCollectionUnsupported, wantStatus: telemetry.AllocationResourceUnsupported},
-		{name: "legacy", legacy: true, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceLegacy},
 		{name: "pending", wantStatus: telemetry.AllocationResourcePending},
 		{name: "missing", released: true, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
 		{name: "expired", report: true, expired: true, released: true, resources: `{"version":1,"scope":"runtime_process","status":"partial"}`, wantStatus: telemetry.AllocationResourceUnavailable, wantReason: telemetry.AllocationResourceReportMissing},
@@ -56,19 +54,8 @@ func TestAllocationResourceProjectionPreservesOptionalResourceStates(t *testing.
 				policy = contracts.PerformanceCollectionRequested
 			}
 			allocation := "allocation-" + test.name
-			seedAllocation := allocation
-			if test.legacy {
-				seedAllocation += "-seed"
-			}
-			stage := createTelemetryStageWithPolicy(t, ctx, runs, "stage-"+test.name, seedAllocation, "session-"+test.name, policy)
+			stage := createTelemetryStageWithPolicy(t, ctx, runs, "stage-"+test.name, allocation, "session-"+test.name, policy)
 			finishTelemetryStage(t, ctx, runs, stage)
-			if test.legacy {
-				if _, err := pool.Exec(ctx, `INSERT INTO stage_allocations (allocation_id,stage_execution_id,logical_agent_name,namespace,agent_template_ref,worker_runtime_ref,runtime_agent_instance_id)
-VALUES ($1,$2,'legacy','legacy','{}','{}','legacy-runtime')`, allocation, stage); err != nil {
-					t.Fatal(err)
-				}
-				policy = contracts.PerformanceCollectionLegacy
-			}
 			if test.released {
 				if err := runs.MarkStageAllocationReleased(ctx, allocation); err != nil {
 					t.Fatal(err)

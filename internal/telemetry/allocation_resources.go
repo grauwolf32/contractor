@@ -21,7 +21,6 @@ const (
 	AllocationResourcePartial     AllocationResourceStatus = "partial"
 	AllocationResourceUnavailable AllocationResourceStatus = "unavailable"
 
-	AllocationResourceLegacy        AllocationResourceReason = "legacy"
 	AllocationResourceReportMissing AllocationResourceReason = "report_missing"
 )
 
@@ -209,7 +208,7 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 	result := make([]AllocationResourceSummary, 0)
 	for rows.Next() {
 		var item AllocationResourceSummary
-		var persistedPolicy *string
+		var persistedPolicy string
 		var releaseCompletedAt *time.Time
 		var hasReport bool
 		var reportedAllocationID *string
@@ -223,6 +222,10 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 			return nil, fmt.Errorf("scan allocation resource summary: %w", err)
 		}
 		item.FinishedAt = item.FinishedAt.UTC()
+		item.CollectionPolicy = contracts.PerformanceCollectionPolicy(persistedPolicy)
+		if item.CollectionPolicy.ValidatePinned() != nil {
+			return nil, errors.New("decode persisted allocation performance collection policy")
+		}
 		var resources *contracts.RuntimeResources
 		if hasReport {
 			if reportedAllocationID == nil || *reportedAllocationID != item.AllocationID {
@@ -237,7 +240,7 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 				}
 			}
 		}
-		projectAllocationResources(&item, persistedPolicy, releaseCompletedAt, hasReport, resources)
+		projectAllocationResources(&item, releaseCompletedAt, hasReport, resources)
 		result = append(result, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -248,30 +251,16 @@ func scanAllocationResourceSummaries(rows pgx.Rows) ([]AllocationResourceSummary
 
 func projectAllocationResources(
 	item *AllocationResourceSummary,
-	persistedPolicy *string,
 	releaseCompletedAt *time.Time,
 	hasReport bool,
 	resources *contracts.RuntimeResources,
 ) {
-	if persistedPolicy == nil {
-		item.CollectionPolicy = contracts.PerformanceCollectionLegacy
-		item.Status = AllocationResourceUnavailable
-		item.Reason = allocationResourceReason(AllocationResourceLegacy)
-		return
-	}
-	item.CollectionPolicy = contracts.PerformanceCollectionPolicy(*persistedPolicy)
 	switch item.CollectionPolicy {
 	case contracts.PerformanceCollectionDisabled:
 		item.Status = AllocationResourceDisabled
 		return
 	case contracts.PerformanceCollectionUnsupported:
 		item.Status = AllocationResourceUnsupported
-		return
-	case contracts.PerformanceCollectionRequested:
-	default:
-		item.Status = AllocationResourceUnavailable
-		item.Reason = allocationResourceReason(AllocationResourceLegacy)
-		item.CollectionPolicy = contracts.PerformanceCollectionLegacy
 		return
 	}
 	if !hasReport {

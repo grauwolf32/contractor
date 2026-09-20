@@ -349,8 +349,7 @@ type ExactArtifact struct {
 
 // ItemOrigin is the immutable attribution of a materialized Audit item to the
 // exact source document and normalized inventory entry from which it was
-// generated. ProvenanceIncomplete is reserved for rows created before this
-// projection existed; newly materialized items must always be complete.
+// generated. Every stored item must retain this complete projection.
 type ItemOrigin struct {
 	Schema                   string                 `json:"schema"`
 	SourceRef                *contracts.ArtifactRef `json:"sourceRef,omitempty"`
@@ -360,7 +359,6 @@ type ItemOrigin struct {
 	EntryKey                 string                 `json:"entryKey"`
 	EntryVersion             string                 `json:"entryVersion,omitempty"`
 	Standard                 *StandardItemOrigin    `json:"standard,omitempty"`
-	ProvenanceIncomplete     bool                   `json:"provenanceIncomplete,omitempty"`
 }
 
 // StandardItemOrigin identifies the authoritative mapping that caused a
@@ -549,10 +547,9 @@ type Execution struct {
 // is bound. It deliberately stores configuration identity and a closure digest
 // rather than the resolved Workflow body, credential material, or live grants.
 type RunProvenance struct {
-	Schema               string              `json:"schema"`
-	RunID                string              `json:"runId"`
-	Workflow             *WorkflowProvenance `json:"workflow,omitempty"`
-	ProvenanceIncomplete bool                `json:"provenanceIncomplete,omitempty"`
+	Schema   string              `json:"schema"`
+	RunID    string              `json:"runId"`
+	Workflow *WorkflowProvenance `json:"workflow,omitempty"`
 }
 
 type WorkflowProvenance struct {

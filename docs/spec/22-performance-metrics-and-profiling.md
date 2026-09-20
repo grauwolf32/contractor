@@ -395,7 +395,11 @@ Use existing 30-day terminal execution-report retention for allocation summaries
 History includes terminal allocation records even when their report is missing;
 show `disabled`, `unsupported`, `pending`, `available`, `partial` or `unavailable`
 from trusted policy and available reports, rather than silently omitting failures.
-Old allocations without pinned policy are `unavailable` with a legacy reason.
+Every allocation must retain an explicit `requested`, `disabled` or `unsupported`
+policy. Resource history rejects missing or invalid stored policy instead of
+inventing a legacy projection. Report ingestion likewise rejects an absent or
+unsupported envelope policy before persisting or replaying a report. A valid
+policy with missing or partial observations remains a supported resource state.
 Late reports follow [04]'s existing related-telemetry rules; no frozen Stage
 outcome or StageMetrics is rewritten to populate history.
 

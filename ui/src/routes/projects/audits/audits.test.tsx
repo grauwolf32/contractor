@@ -359,6 +359,10 @@ describe("Project Audit routes", () => {
         origin: {
           schema: "contractor.audit.item-origin.v1",
           entryKey: "check_final",
+          sourceRef: current.inputs.source!.ref,
+          sourceContentDigest: current.inputs.source!.digest,
+          sourceMediaType: "application/zip",
+          canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
         },
         workflowRole: "check",
         state: "settled",
@@ -1419,7 +1423,14 @@ describe("Project Audit routes", () => {
                     itemOrigin: {
                       schema: "contractor.audit.item-origin.v1",
                       entryKey: "check-one",
-                      provenanceIncomplete: true,
+                      sourceRef: {
+                        namespace: "inputs",
+                        name: "checks",
+                        revision: "checks-r1",
+                      },
+                      sourceContentDigest: `sha256:${"b".repeat(64)}`,
+                      sourceMediaType: "application/json",
+                      canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
                     },
                     result: {
                       ref: {
@@ -1596,6 +1607,10 @@ describe("Project Audit routes", () => {
       origin: {
         schema: "contractor.audit.item-origin.v1",
         entryKey: "request-authorization",
+        sourceRef: currentAudit.inputs.source!.ref,
+        sourceContentDigest: currentAudit.inputs.source!.digest,
+        sourceMediaType: "application/zip",
+        canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
       },
       workflowRole: "check",
       state: "awaiting_review",

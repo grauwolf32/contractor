@@ -218,7 +218,8 @@ func allocationEnvelope(
 	startedAt := receivedAt.Add(-time.Second)
 	stopReason := "provider returned " + postgresSecret
 	return telemetry.AllocationReportEnvelope{
-		StageExecutionID: stageExecutionID, AllocationID: allocationID,
+		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+		StageExecutionID:            stageExecutionID, AllocationID: allocationID,
 		LogicalAgentName: "builder", ReportSchemaVersion: contracts.APIVersion,
 		Secrets: []string{postgresSecret}, ReceivedAt: receivedAt,
 		Report: contracts.AllocationFinalReport{

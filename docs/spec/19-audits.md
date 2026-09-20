@@ -1374,9 +1374,11 @@ does not prevent explicit Audit/Project purge.
 The checklist origin is a first-class immutable `AuditItem` projection rather
 than an inference from the current catalog. It contains the exact source
 ArtifactRef and source-content digest, canonical inventory digest, entry key,
-and optional checklist entry version. A bounded `provenanceIncomplete` marker
-is permitted only for rows materialized before this projection existed; new
-round materialization rejects incomplete origin.
+and optional checklist entry version. Both materialization and stored reads
+require complete origin. Historical or mixed `provenanceIncomplete` records
+are rejected without rewriting their retained bytes. Bound execution history
+also requires the exact Workflow identity and closure digest, including after
+the child Run is deleted; unbound executions have no Run provenance yet.
 
 Audit-level credential dispatch holds and evidence holds are not released by
 the same transition. Dispatch holds may be released once dispatch is durably

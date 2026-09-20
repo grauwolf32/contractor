@@ -174,8 +174,10 @@ This slice must demonstrate:
   Runtime configuration, identity/label revision and an explicit performance
   collection policy. Missing placement inputs fail before Worker preparation;
   Scheduler does not invent configuration provenance or default a missing
-  collection policy to disabled. Model-free Workers retain a complete Runtime
-  configuration with no LLM route;
+  collection policy to disabled. Stored allocation reads require the same
+  identity, positive label revision, current configuration schema and explicit
+  policy; incomplete historical records fail without rewriting stored bytes.
+  Model-free Workers retain a complete Runtime configuration with no LLM route;
 - WorkflowRun records `initializing -> running -> succeeded`, with the final
   Stage acceptance, required output bindings and Run success in one transaction;
 - cancellation or participant loss records

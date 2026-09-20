@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01–D04 implemented, verified and integrated into local `main`;
-D05–D07 remain planned.
+Status: C01–C07 and D01–D05 implemented, verified and integrated into local `main`;
+D06–D07 remain planned.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -265,7 +265,7 @@ data needs a compatibility window.
 | D02 (implemented) | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): removed old Workflow role inference and the legacy digest algorithm. | Require explicit current role kinds and the current digest, including embedded closures and optional Worker completion. Old snapshots fail without reinterpretation or rewriting. |
 | D03 (implemented) | [evalstore/receipts.go](../../internal/evalstore/receipts.go): removed conversion from old `{id, revision, state}` to typed receipts. | Require the current operation-specific shape, reject legacy/mixed receipts and preserve typed replay identity without new effects or byte rewriting. |
 | D04 (implemented) | [auditservice/resume.go](../../internal/auditservice/resume.go): removed reopening terminal `deadline_exhausted` Audits, item reopening and report-link archival. | Resume accepts only paused Audits, including current deadline pauses. Terminal Resume fails without changing retained state; expired-review renewal, time-limit choices, replay and holds remain supported. |
-| D05 | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
+| D05 (implemented) | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): removed readers for absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
 | D06 | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): reconstruct inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
 | D07 | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): accept old `text/plain` report summaries; current publisher writes `text/markdown`. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
 
@@ -372,6 +372,39 @@ The [UI tests](../../ui/src/routes/projects/audits/audits.test.tsx) keep the
 deadline-pause Continue flow and reject Continue controls on completed/failed
 records. Existing controller tests cover retaining in-flight work at the limit.
 
+### D05 — allocation and Audit provenance (implemented)
+
+[RunStore](../../internal/runstore/allocation_store.go) requires complete persisted
+Runtime identity, positive Agent-label revision, the current configuration schema,
+valid resolved configuration and an explicit performance policy on both ordinary
+and batch reads. The current writer already requires these fields. Model-free
+Workers retain the current configuration without LLM routing.
+
+[Telemetry](../../internal/telemetry/allocation_resources.go) no longer maps absent
+or unrecognized policy to `legacy`. History and per-Stage projections fail on
+missing/invalid policy; report ingestion requires a current envelope policy before
+writing or replaying. Disabled, unsupported, pending, missing/expired reports,
+partial observations and malformed optional resource blocks keep their existing
+semantics. Removed the obsolete policy/reason constants and public enum values,
+and updated the UI response parser and examples.
+
+[AuditStore](../../internal/auditstore/read.go) requires complete item origin and
+Workflow provenance for bound executions. Removed `ProvenanceIncomplete` and the
+read-only incomplete-origin exception. Strict decoding rejects historical and
+mixed marker shapes, including a marker added to an otherwise complete record.
+Current tombstones still retain provenance after deleting a child Run. Unbound
+executions still have no Run provenance.
+
+Updated OpenAPI required fields, regenerated Go/TypeScript clients and moved
+current finding-history/UI fixtures to full origin and Workflow identity. The
+[allocation regression](../../internal/telemetry/allocation_legacy_postgres_test.go)
+checks individual/batch reads, resource history, owner isolation and report replay.
+The [Audit regression](../../internal/auditservice/provenance_postgres_test.go)
+checks current, historical, mixed and missing-field records, including deleted
+Runs. Repeated rejected operations preserve exact stored state. Existing SQL
+migrations remain unchanged; no historical provenance is inferred, repaired or
+purged.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -409,7 +442,7 @@ shrinking that contract is separate from removing an internal no-op.
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
 D01 is implemented in the seventh increment, D02 in the eighth, D03 in the
-ninth and D04 in the tenth; D05–D07 remain planned.
+ninth, D04 in the tenth and D05 in the eleventh; D06–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -749,5 +782,48 @@ Verification completed on 2026-09-20:
   references are migration history, the forward removal and migration tests.
 - Browser journeys and paid-model tests were not run in this increment.
 
-Next increment: D05, remove historical allocation provenance/policy inference
-while retaining current model-free and incomplete-report behavior.
+## Eleventh increment — D05 results
+
+Implemented in `refactor/allocation-provenance-legacy-removal`, initially based on
+`14905d0e` and rebased onto `1a1b8afd` to retain the independent Evals refresh fix.
+Integrated into local `main`, preserving unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- Full `make verify` passed: formatting/static checks, Go tests and builds,
+  **2468 Python tests** (39 optional tests skipped), generated client consistency,
+  UI lint/typecheck, **510 UI tests**, **11 static-server tests** and the UI build.
+  After rebasing onto the Evals fix, `make ui-verify` passed again with **515 UI
+  tests**, generated-client validation, static-server tests and the build.
+- `make verify-wire-contracts test-wire-cross-language verify-public-api` passed,
+  including shared Go/Python contract fixtures and public OpenAPI conformance.
+- With disposable PostgreSQL 17, `go test -race -count=1` passed for
+  `./internal/runstore`, `./internal/telemetry`, `./internal/controlplane`,
+  `./internal/scheduler`, `./internal/auditstore`, `./internal/auditservice`,
+  `./internal/auditcontroller`, `./internal/auditimport`, `./internal/httpapi/public`,
+  `./internal/app` and `./internal/persistence/postgres`. This includes durable
+  placement of model-free `tool@1` Workers and current Scheduler recovery.
+- PostgreSQL regressions reject allocations without Runtime provenance or
+  collection policy through individual and batch reads. Resource history and
+  per-Stage views reject missing policy while retaining owner isolation.
+  Empty/legacy/unknown report policies fail before replay or writes; current
+  report replay preserves the exact retained row.
+- Audit PostgreSQL regressions reject historical, mixed and missing provenance,
+  preserve the stored bytes across repeated reads and accept complete current
+  origin and deleted-Run Workflow tombstones.
+- `TestAuditProgramsAcrossProductionProcesses` and
+  `TestLabelDrivenRuntimeConfigurationAcrossProcesses` passed against real
+  Go/Python processes, PostgreSQL 17 and scripted model gateways. Audit results
+  and provenance survive removal of the staged catalog and a Server restart;
+  label-driven configuration still reaches the intended Runtime allocations.
+- Updated the RunStore report fixture to carry its allocation's explicit policy,
+  and the public batch-query fixture to use the current allocation writer.
+  The latter still checks constant query counts for 1, 5 and 30 Stages, exact
+  plans/outputs, optional metrics, owner isolation and physical-identity redaction;
+  it now also asserts that committed allocation provenance reaches the response.
+- Documentation links, formatting and `git diff --check` passed. No historical
+  data rewrite or new SQL migration was introduced. Browser journeys and paid
+  model calls were not run in this increment.
+
+Next increment: D06, remove Repeat input reconstruction when retained request
+authority is absent.
