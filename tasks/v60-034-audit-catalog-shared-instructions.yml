@@ -16,20 +16,22 @@ context:
     Memory workflows referencing two deleted worker instruction files.
     contractor-server config validate passes on the original isolated copy and
     fails after replacement with unknown instruction ref before Server restart.
+    After the instruction-only correction, the actual process restart fails
+    because the remaining version-2 profiles require removed standard packages.
 scope:
   in:
-    - Preserve instruction files shared by surviving workflows while removing the original Audit profiles, workflows, templates and current standard bindings.
-    - Add a focused regression for the catalog replacement fixture's configuration validity and intended removals.
+    - Preserve shared workflow instructions while removing all profiles depending on the removed current standards, original workflows/templates, and current standard bindings.
+    - Verify the replacement fixture through config.Load and an actual Server restart with standardsstore pins, checking intended removals and unchanged retained copies.
     - Verify the affected production-process gate with retained-history and unavailable-catalog assertions intact.
   out:
     - Change production configuration loading, durable pins, retention behavior or weaken the original restart assertions.
 acceptance_criteria:
   - id: A1
-    text: Replacement preserves a valid remaining authoring catalog and removes the intended original entries.
+    text: Replacement preserves loadable remaining authoring entries and actual Server startup, removes both profile versions/current standards, and retains exact Project standard pins.
   - id: A2
     text: The full Audit process gate still proves original profile/standard unavailability and unchanged pinned history after restart.
 tests:
-  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditProgramCatalogReplacementPreservesSharedInstructions$'
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditProgramCatalogReplacement(PreservesSharedInstructions|RestartsServer)$'
     covers: [A1]
   - command: make test-audits-process
     covers: [A1, A2]
