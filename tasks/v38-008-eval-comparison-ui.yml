@@ -4,7 +4,7 @@ title: "Show complete experiment comparisons, evidence and review in Evals"
 milestone: "managed-evals-ui"
 priority: "P2"
 status: "completed"
-implementation_commit: "d0e37d1acfbc5abe14d343f3484a4a297c1c313d"
+implementation_commit: "a5aaa119d99b842ab84e2a3a41923f3cd4078d47"
 implementation_repository: "contractor"
 depends_on: ["V38-007"]
 languages: ["typescript"]
@@ -135,6 +135,7 @@ tests:
 verification_result:
   date: "2026-09-20"
   evidence: "docs/plans/2026-09-20-managed-evals-ui.md"
+  rebase_evidence: "docs/plans/2026-09-20-v38-rebase-verification.md"
   result: >-
     Complete comparison, chart/table parity, selected evidence, attributed review and
     legacy navigation pass at 390px and 1280px. Mobile Overview switches one chart at

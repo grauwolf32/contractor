@@ -1,5 +1,8 @@
 # V38-007–010 implementation
 
+This is the original delivery record. For the rebased branch and current commit
+references, see [rebase verification](2026-09-20-v38-rebase-verification.md).
+
 Initial base: main `22c464c1`. Worktree: `feat/v38-managed-evals-ui`.
 Committed main through `033cccd4` was integrated during verification; unrelated
 uncommitted work in the canonical checkout remains separate.
