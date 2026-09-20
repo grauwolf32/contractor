@@ -1,8 +1,9 @@
 # Supplied OpenAPI scan inputs
 
 These inputs exercise V62-009 preparation, inventory and trusted scan execution.
-The catalog contains `openapi-sqlmap-scan@1` and `openapi-nuclei-scan@1` candidate
-profiles; production-process acceptance is still pending.
+The catalog contains accepted `openapi-sqlmap-scan@1` and
+`openapi-nuclei-scan@1` profiles. See the
+[setup and approval walkthrough](../../../../docs/guides/audits.md#scan-a-supplied-openapi).
 
 Both settings files explicitly select `#/paths/~1pets~1{id}/post` and the local
 server `http://127.0.0.1:8080/api`. The prepared URL is
@@ -30,4 +31,6 @@ go test ./internal/planner/scan -run '^TestAuditExecutor'
 This check performs no scanner or network calls. It verifies the concrete
 request/URL and the exact source/settings provenance against the files here.
 See the [adapter contract](../../../../docs/spec/openapi-audit-scans.md) for
-execution, result and recovery requirements that remain before profile release.
+execution, result and recovery requirements. With disposable PostgreSQL and
+installed SQLMap/Nuclei, run `make test-openapi-audit-scan-e2e` for the mandatory
+process acceptance gate against its own local target.

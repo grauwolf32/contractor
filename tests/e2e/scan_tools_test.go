@@ -37,18 +37,24 @@ type scanProcessHarness struct {
 	server, runtime                                    *childProcess
 	pool                                               *pgxpool.Pool
 	fixture                                            *scanHTTPFixture
+	restartServer                                      func()
 }
 
 type scanHTTPFixture struct {
 	mu            sync.Mutex
 	paths         []string
 	sqlmapQueries []string
+	requests      []scanHTTPRequest
 	slowStarted   chan struct{}
 	slowOnce      sync.Once
 }
 
+type scanHTTPRequest struct{ method, uri, authorization, body string }
+
 func (f *scanHTTPFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 65536))
 	f.mu.Lock()
+	f.requests = append(f.requests, scanHTTPRequest{r.Method, r.URL.RequestURI(), r.Header.Get("Authorization"), string(body)})
 	f.paths = append(f.paths, r.URL.Path)
 	if r.URL.Path == "/query" {
 		f.sqlmapQueries = append(f.sqlmapQueries, r.URL.RawQuery)
@@ -241,6 +247,11 @@ func startScanStack(t *testing.T) *scanProcessHarness {
 
 func startScanStackForTools(t *testing.T, capacityWorkflow string, binaries ...string) *scanProcessHarness {
 	t.Helper()
+	return startConfiguredScanStack(t, capacityWorkflow, nil, binaries...)
+}
+
+func startConfiguredScanStack(t *testing.T, capacityWorkflow string, configure func(*scanProcessHarness, string), binaries ...string) *scanProcessHarness {
+	t.Helper()
 	for _, binary := range binaries {
 		if _, err := exec.LookPath(binary); err != nil {
 			t.Fatalf("real scanner %s is required on PATH for the scan release gate", binary)
@@ -302,6 +313,9 @@ http:
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if configure != nil {
+		configure(h, configRoot)
+	}
 	serverBinary := filepath.Join(h.temporaryRoot, "contractor-server")
 	runChecked(t, h.repositoryRoot, nil, "go", "build", "-o", serverBinary, "./cmd/contractor-server")
 	runChecked(t, h.repositoryRoot, map[string]string{"CONTRACTOR_DATABASE_URL": h.databaseURL}, serverBinary, "migrate")
@@ -327,15 +341,22 @@ http:
 		configureScanBrowser(t, h)
 	}
 	privateURL := "https://" + privateAddress
-	h.server = startProcess(t, "Go Scan Server", h.repositoryRoot, map[string]string{
+	serverEnvironment := map[string]string{
 		"CONTRACTOR_DATABASE_URL": h.databaseURL, "CONTRACTOR_OPERATOR_CONFIG_ROOT": configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN": publicAddress, "CONTRACTOR_PRIVATE_LISTEN": privateAddress, "CONTRACTOR_PRIVATE_URL": privateURL,
 		"CONTRACTOR_CA_FILE": caPaths.Certificate, "CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPaths.Certificate, "CONTRACTOR_CONTROL_PLANE_KEY_FILE": controlPaths.PrivateKey,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN": publicToken,
 		"CONTRACTOR_LOCAL_AUTH_FILE":     writeE2ELocalAuth(t, h.temporaryRoot, h.userID), "CONTRACTOR_BROWSER_ORIGINS": h.browserBaseURL,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN": "",
-	}, serverBinary, "serve")
-	waitForHTTP(t, ctx, h.server, h.client, h.baseURL+"/readyz", http.StatusOK)
+	}
+	h.restartServer = func() {
+		if h.server != nil {
+			h.server.stop(t)
+		}
+		h.server = startProcess(t, "Go Scan Server", h.repositoryRoot, serverEnvironment, serverBinary, "serve")
+		waitForHTTP(t, ctx, h.server, h.client, h.baseURL+"/readyz", http.StatusOK)
+	}
+	h.restartServer()
 	python := os.Getenv("CONTRACTOR_SCAN_PYTHON")
 	if python == "" {
 		python = filepath.Join(h.repositoryRoot, "runtime", ".venv", "bin", "python")
@@ -361,27 +382,29 @@ http:
 		waitForProcessLog(t, ctx, process, "runtime agent registered")
 		return process
 	}
-	t.Run("missing_binaries_wait_for_capacity", func(t *testing.T) {
-		emptyBin := filepath.Join(h.temporaryRoot, "empty-bin")
-		if err := os.Mkdir(emptyBin, 0o700); err != nil {
-			t.Fatal(err)
-		}
-		emptyRuntime := startRuntime("scan-no-binaries", emptyBin)
-		agents, _ := waitForObservedRuntimeAgents(t, ctx, h.server, []*childProcess{emptyRuntime}, h.client, h.baseURL, func(agents []observedRuntimeAgent) bool {
-			return len(agents) == 1 && agents[0].ConfirmedLeaseUntil != nil
+	if capacityWorkflow != "" {
+		t.Run("missing_binaries_wait_for_capacity", func(t *testing.T) {
+			emptyBin := filepath.Join(h.temporaryRoot, "empty-bin")
+			if err := os.Mkdir(emptyBin, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			emptyRuntime := startRuntime("scan-no-binaries", emptyBin)
+			agents, _ := waitForObservedRuntimeAgents(t, ctx, h.server, []*childProcess{emptyRuntime}, h.client, h.baseURL, func(agents []observedRuntimeAgent) bool {
+				return len(agents) == 1 && agents[0].ConfirmedLeaseUntil != nil
+			})
+			if len(runtimeToolset(agents[0], "scan@1").Tools) != 0 {
+				t.Fatal("runtime advertises missing scanner binaries")
+			}
+			runID := h.createRun(t, capacityWorkflow, map[string]string{"target": h.targetURL}, nil)
+			store := runstore.NewPostgresStore(h.pool)
+			waiting := waitForUnallocatedPreparingExecution(t, ctx, store, runID)
+			assertSameUnallocatedPreparingExecution(t, ctx, store, waiting)
+			cancelWorkflowRun(t, h.client, h.baseURL, runID)
+			h.runtime = emptyRuntime
+			h.terminal(t, runID, "cancelled")
+			emptyRuntime.stop(t)
 		})
-		if len(runtimeToolset(agents[0], "scan@1").Tools) != 0 {
-			t.Fatal("runtime advertises missing scanner binaries")
-		}
-		runID := h.createRun(t, capacityWorkflow, map[string]string{"target": h.targetURL}, nil)
-		store := runstore.NewPostgresStore(h.pool)
-		waiting := waitForUnallocatedPreparingExecution(t, ctx, store, runID)
-		assertSameUnallocatedPreparingExecution(t, ctx, store, waiting)
-		cancelWorkflowRun(t, h.client, h.baseURL, runID)
-		h.runtime = emptyRuntime
-		h.terminal(t, runID, "cancelled")
-		emptyRuntime.stop(t)
-	})
+	}
 	h.runtime = startRuntime("scan-real-binaries", os.Getenv("PATH"))
 	waitForObservedRuntimeAgents(t, ctx, h.server, []*childProcess{h.runtime}, h.client, h.baseURL, func(agents []observedRuntimeAgent) bool {
 		for _, agent := range agents {

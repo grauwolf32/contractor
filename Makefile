@@ -544,3 +544,7 @@ test-artifact-blob-backends:
 .PHONY: test-findings-e2e
 test-findings-e2e:
 	python3 scripts/test-findings-e2e.py
+
+.PHONY: test-openapi-audit-scan-e2e
+test-openapi-audit-scan-e2e:
+	python3 scripts/test-openapi-audit-scan-e2e.py

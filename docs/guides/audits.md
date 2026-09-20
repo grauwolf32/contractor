@@ -171,6 +171,87 @@ JSON line per source proposal, check attempt, or direct verification. Deleted
 Runs remain identifiable through their retained exact Workflow closure and
 `runDeleted` provenance; the script does not need database or catalog access.
 
+## Scan a supplied OpenAPI
+
+`openapi-sqlmap-scan@1` and `openapi-nuclei-scan@1` accept exact `openapi`
+and `settings` artifacts. Each selected operation becomes one check and needs
+an **active-check approval** before its Run can start. The Runtime must advertise
+`scan_sqlmap` or `scan_nuclei` from an installed scanner. For Nuclei, install the
+Workflow's pinned `http-missing-security-headers` template in
+`NUCLEI_TEMPLATES_DIR`; an empty or unavailable selection does not expand to all
+templates. These tool Workflows do not require a model.
+
+Use the Project, URL and authorization header from the preceding example. Copy
+[`sqlmap-settings.json`](../../configs/scan/examples/audit-openapi-scan/sqlmap-settings.json)
+or [`nuclei-settings.json`](../../configs/scan/examples/audit-openapi-scan/nuclei-settings.json)
+to `./scan-settings.json` and set `server` to your authorized target. Replace the
+SQLMap example credential and provide the selected operation's concrete path,
+query and body values. Upload the matching OpenAPI to `./openapi.json`. The
+settings `operations` map is an explicit allowlist; other operations are not
+scheduled.
+
+```sh
+scanner=sqlmap # or nuclei, with its matching settings document
+openapi_ref=$(
+  curl -fsS -X PUT -H "$AUTHORIZATION" -H 'If-None-Match: *' \
+    -H 'Content-Type: application/json' --data-binary @./openapi.json \
+    "$CONTRACTOR_URL/v1/projects/$project_id/artifacts/scans/openapi" |
+    jq -c .artifact
+)
+settings_ref=$(
+  curl -fsS -X PUT -H "$AUTHORIZATION" -H 'If-None-Match: *' \
+    -H 'Content-Type: application/json' --data-binary @./scan-settings.json \
+    "$CONTRACTOR_URL/v1/projects/$project_id/artifacts/scans/settings" |
+    jq -c .artifact
+)
+audit=$(
+  jq -nc --arg name "openapi-$scanner-scan" \
+    --argjson openapi "$openapi_ref" --argjson settings "$settings_ref" \
+    '{profile:{name:$name,version:"1"},inputs:{openapi:$openapi,settings:$settings},
+      scope:{objective:"Scan only the explicitly selected authorized operations."}}' |
+  curl -fsS -X POST -H "$AUTHORIZATION" -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: audit-demo-$scanner" --data-binary @- \
+    "$CONTRACTOR_URL/v1/projects/$project_id/audits"
+)
+audit_id=$(printf '%s' "$audit" | jq -r .auditId)
+revision=$(printf '%s' "$audit" | jq -r .revision)
+curl -fsS -X POST -H "$AUTHORIZATION" \
+  -H "Idempotency-Key: audit-demo-$scanner-start" -H "If-Match: \"$revision\"" \
+  "$CONTRACTOR_URL/v1/audits/$audit_id/start" | jq .
+curl -fsS -H "$AUTHORIZATION" \
+  "$CONTRACTOR_URL/v1/audits/$audit_id/reviews?limit=100" |
+  jq '.items[] | {requestId,revision,kind,state}'
+```
+
+Review the selected operation and target in the Audit UI, then approve that item
+there or submit its exact review ID and current revision:
+
+```sh
+request_id=request_... # from the pending active-check-approval review
+review_revision=1     # use the revision returned for this review
+curl -fsS -X POST -H "$AUTHORIZATION" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: approve-$request_id" \
+  -H "If-Match: \"$review_revision\"" \
+  --data '{"action":"approve","rationale":"The selected operation and target are authorized."}' \
+  "$CONTRACTOR_URL/v1/audits/$audit_id/reviews/$request_id/decisions" | jq .
+```
+
+Read `/items`, `/coverage` and `/report` as above. SQLMap coverage is
+`sqlmap-request-scan`: it preserves the prepared method, headers, body and test
+parameter selection. Nuclei coverage is `nuclei-url-template-scan`: it checks the
+fixed URL with the pinned template and retains `url_template_scan_only`, plus
+method, body and authentication limitations where applicable. It does not replay
+the source POST operation. Missing required request data produces explicit gaps
+without dispatching that operation. Successful scanner execution records coverage
+and observations; it does not establish a verified security verdict.
+
+Canonical result packages retain exact source/settings identity, the scan plan,
+durable attempt journal and available scanner reports. They and the Audit report
+remain readable after collected child Runs are deleted. Known failures have
+bounded retries; completed or unknown scans are recovered without automatic
+redispatch, including after cancellation, publication failure or Server restart.
+Source-to-OpenAPI preparation remains unavailable until V62-002–004 are delivered.
+
 ## Audit release verification
 
 The general strict conformance and fault map is
@@ -194,3 +275,17 @@ frontend against the public API. The aggregate `release-verify` target includes
 this complete gate. A failed component is a release failure—coverage rows and a
 terminal Audit alone are not evidence that recovery, retention, isolation, or
 UI contracts passed.
+
+The supplied-OpenAPI scan gate needs installed SQLMap and Nuclei, the Runtime
+virtual environment and disposable PostgreSQL. It creates its own loopback target
+and local Nuclei template; no external target or model is used:
+
+```sh
+make test-openapi-audit-scan-e2e
+```
+
+This gate requires every named process case to execute and pass. Missing scanners,
+skipped cases and an empty Go test selection fail the gate. Its cases cover exact
+requests, truthful coverage, approval, missing input, lost result acknowledgement,
+publication/collection failure with restart, bounded cross-Run retries,
+cancellation and retained evidence after Run deletion.

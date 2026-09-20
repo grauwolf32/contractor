@@ -1,12 +1,13 @@
 # OpenAPI Audit scan adapter
 
-Status: **V62-009 in progress; production-process acceptance remains pending.**
-Implemented: operation-specific preparation, immutable settings and inventory,
-explicit task execution contracts, resolving catalog profiles, trusted dispatch,
-canonical result assembly and journal-based recovery. Package tests exercise
-request/URL preservation, composition and recovery across Stage attempts.
-Cross-Run collection faults and production scanner/process gates still require
-acceptance verification before V62-009 can complete.
+Status: **V62-009 acceptance passed on 2026-09-21.**
+Operation-specific preparation, immutable settings and inventory, explicit task
+execution contracts, catalog profiles, trusted dispatch, canonical results and
+journal-based recovery are implemented. Real SQLMap/Nuclei process tests exercise
+exact requests, approval, truthful coverage, missing input, lost acknowledgement,
+publication/collection faults with Server restart, bounded cross-Run retries,
+cancellation and retained evidence after Run deletion. See the
+[acceptance evidence](../../tasks/evidence/v62-009.json).
 
 ## Delivery order
 
@@ -117,8 +118,8 @@ malformed settings reject the inventory atomically.
 
 The checked-in [local input examples](../../configs/scan/examples/audit-openapi-scan/README.md)
 cover path/query values and an authenticated POST. Library and executor tests
-verify preparation and canonical results without scanner/network calls. Candidate
-profiles are registered, but the production-process acceptance gate is pending.
+verify preparation and canonical results without scanner/network calls. The
+registered profiles also pass the mandatory production-process gate below.
 
 ## Operation preparation
 
@@ -224,8 +225,10 @@ tested at the interruption between scanner completion and package publication.
 
 ## Required release evidence
 
-V62-009 remains in progress until real Server/Scheduler/Runtime/public API tests
-with local controlled SQLMap and Nuclei fixtures prove exact dispatch, accepted
+`make test-openapi-audit-scan-e2e` requires all seven cases of
+`TestOpenAPIAuditScanAcrossProductionProcesses` to execute and pass; missing or
+skipped cases fail. Real Server/Scheduler/Runtime/public API tests with local
+controlled SQLMap and Nuclei fixtures prove exact dispatch, accepted
 Audit packages, distinct scan coverage, bounded retries and recovery without
 implicit redispatch of completed or unknown executions across Run/Stage attempts.
 The matrix includes missing path/body/auth values, excluded SQLMap parameters,
