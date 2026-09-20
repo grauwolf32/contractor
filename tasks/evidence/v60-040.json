@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-040",
+  "verified_at": "2026-09-20T13:10:35.212711+00:00",
+  "task_start_commit": "1de6875bfd98ce0bfbf749c40eed7b8e28f84d81",
+  "implementation_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+  "status": "verified-ready-for-task-completion",
+  "report": "docs/research/2026-09-20-v60-040-project-system-binding-fixture-review.md",
+  "finding": {
+    "priority": "P2",
+    "owner": "tests/e2e/project_workflows_test.go exact physical Run binding expectations",
+    "reproduction": "The required Project Workspaces process passes Worker budget checks then rejects the extra contractor-system/repeat-request physical binding after 56.39s.",
+    "normative_basis": "Artifact spec03 permits this exact hidden physical Run record, while hiding it from public/Runtime Artifact routes. Commitc008980672cdf8ac15a6f9204a9be11382e3c145 added retained repeat requests to public Run creation; internal/runservice/public.go writes it through the purpose-specific Artifact service.",
+    "correction": "Add exactly RunSystemNamespace/RunRepeatRequestName with RunRepeatRequestMediaType to both existing expected binding maps using artifactpolicy constants. The assertion helper and all subsequent process assertions are unchanged."
+  },
+  "checks": [
+    {
+      "phase": "before",
+      "command": [
+        "make",
+        "test-project-workspaces-e2e"
+      ],
+      "execution": "Required target in fail-fast integrated invocation; Go process failed before the following Python workspace-process recipe could execute.",
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "exit_code": 1,
+      "process_test_seconds": 56.39,
+      "go_process_package_seconds": 56.396,
+      "go_pass_events": 0,
+      "go_fail_events": 1,
+      "go_skip_events": 0,
+      "log": ".local/v60-review/v60-039-integrated-repeat-binding-failure.log",
+      "log_sha256": "afa351f598f7738e3ac367138795379287a2b126690c27b78ae1fdf8785ccd08",
+      "source_log": ".local/v60-review/v60-release-integrated.log",
+      "source_line_start": 2907,
+      "source_line_end": 2919,
+      "diagnosis": "The complete physical binding set contains the required contractor-system/repeat-request record; the stale expectation omits it."
+    },
+    {
+      "phase": "full-required-target",
+      "command": [
+        "make",
+        "test-project-workspaces-e2e"
+      ],
+      "execution": "Complete target recipe in the fail-fast integrated invocation, including Go process and subsequent Python workspace-process tests.",
+      "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+      "exit_code": 0,
+      "process_test_seconds": 164.99,
+      "go_process_package_seconds": 164.995,
+      "go_pass_events": 1,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "python_passed": 4,
+      "python_seconds": 0.95,
+      "python_skips": 0,
+      "log": ".local/v60-review/v60-039-040-full-target.log",
+      "log_sha256": "fa758c8c0b838243c3d319894728d86f62b6f07d542acd3ec949f68fee2661a0",
+      "source_log": ".local/v60-review/v60-release-complete.log",
+      "source_line_start": 1,
+      "source_line_end": 13,
+      "completion_observed_by": "Next target test-audits-process started normally in fail-fast make invocation."
+    }
+  ],
+  "source_sha256": {
+    "tests/e2e/project_workflows_test.go": "6456757a5dfcbe805c728c400adbfc45b3d2c2a1cb5a432a5798d087ab046feb"
+  },
+  "prepared_patch": {
+    "path": ".local/v60-review/v60-040-project-bindings.patch",
+    "sha256": "4b9e3aae7a6ca7fd8330d4ae9978c1b187011b2058047dd66b6010236ef40018",
+    "validation": "git apply --check passed; applied and committed by the root; five added lines only, no helper changes."
+  },
+  "acceptance": {
+    "A1": "PASS in the real existing process: both exact expected sets include only the required named repeat request in addition to workflow artifacts. Unchanged helper still rejects missing/additional records and checks every media type, nonempty revision and frozen status; confirmed by diff/source review.",
+    "A2": "PASS: complete make test-project-workspaces-e2e at e49c6523, real process164.99s plus Python4PASS0.95s, zero skips; all original subsequent process assertions passed."
+  },
+  "remaining_path_review": {
+    "result": "No further confirmed stale expectation found in the post-binding Project process path.",
+    "basis": [
+      "Repeat-request uses repository.Write and creates no input_fork/output_bind lineage; existing exact lineage filters and per-analysis revision counts remain valid.",
+      "Project output publication is create-only: existing workspace output names produce already_present with nil target, matching the second Run assertions.",
+      "Both input/output media maps remain unchanged except the exact required repeat request. Existing output revision, source lineage and frozen checks remain intact.",
+      "The Gateway still executes eight scripted stages and three vacuum/five likec4 validations. Two public Runs are created despite idempotent replay.",
+      "The Project scenario checks Runtime/workspace release, Server restart, Project target revisions and credential deletion; it does not delete Runs. Audit Run deletion belongs to its separate process target."
+    ]
+  },
+  "boundaries": [
+    "Five-line test-fixture-only change; no production artifact visibility, persistence, Runtime or public API changes.",
+    "No blanket system-namespace filtering and no arbitrary extra binding allowance.",
+    "The actual unchanged process is the meaningful regression; no new mirror validator or synthetic unit tests were added.",
+    "The complete required target passed with no skips; completion metadata remains separate from implementation, and the overall release is still in progress."
+  ],
+  "verified_source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b"
+}

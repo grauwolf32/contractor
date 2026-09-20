@@ -3,7 +3,7 @@ id: V60-040
 title: Include the retained repeat request in exact Project Run binding assertions
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-039]
 languages: [go, markdown]
 goal: Restore exact physical Run binding assertions while preserving required workflow artifacts and rejecting unrecognized system records.
@@ -37,3 +37,9 @@ verification_requirements:
   - Preserve the actual integrated gate failure and corrected full-process result.
   - Keep source changes limited to the existing test fixture; avoid duplicating its assertions in new validator tests.
   - Keep task-start, implementation and completion metadata commits separate.
+
+implementation_commit: e49c65230b185c0daf575a202a22e4508bb7ed4b
+verification:
+  evidence: tasks/evidence/v60-040.json
+  report: docs/research/2026-09-20-v60-040-project-system-binding-fixture-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
