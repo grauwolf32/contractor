@@ -3,8 +3,8 @@ id: V61-008
 title: Select and create reusable toolset connections from the Run form
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 2f2e6eca42262a810f3af104cacd39301f75214c
 depends_on: [V61-007, V37-008]
 languages: [typescript, css, markdown]
 goal: >-
@@ -71,3 +71,9 @@ tests:
 verification_requirements:
   - Test lost response after each successful mutation separately from a rejected request, including re-render/navigation and stale Run submission completion.
   - V61-009 owns real-browser evidence over the production API; component/API mocks alone are not release evidence.
+
+verification:
+  - Required focused UI command plus Run draft memory regression passed, 94 tests across seven files, zero skips.
+  - make ui-generate-check ui-lint ui-typecheck ui-build passed.
+  - Three separate lost-success-reply cases and three rejected-request cases prove stable per-step identities and exactly three durable effects, with navigation and safe draft progress.
+  - Native workflows, Repeat notices and stale Run generation regressions remained green; real browser/API evidence belongs to V61-009.

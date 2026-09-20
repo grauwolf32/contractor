@@ -3,7 +3,7 @@ id: V61-009
 title: Verify configured toolsets and MCP across Run, Runtime and browser boundaries
 milestone: toolset-runtime-configuration
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V61-006, V61-008]
 languages: [go, python, typescript, yaml, markdown]
