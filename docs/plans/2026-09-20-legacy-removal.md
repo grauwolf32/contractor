@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 implemented, verified and integrated into local `main`;
-D01–D07 remain planned.
+Status: C01–C07 and D01 implemented, verified and integrated into local `main`;
+D02–D07 remain planned.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -252,7 +252,7 @@ Consumers and tests:
 `memory-catalog.json` schema version 2 keeps `retired`, `active` and `active_file`
 as an inventory and retirement record, with no paths to deleted definitions.
 
-## Historical-data readers: planned strict-format cleanup
+## Historical-data readers: strict-format cleanup
 
 These are confirmed compatibility branches. Under the user's fresh-project
 decision, old shapes can become unsupported. Their removal remains separate
@@ -261,7 +261,7 @@ data needs a compatibility window.
 
 | ID | Code and historical shape | Current behavior to preserve when removing it |
 | --- | --- | --- |
-| D01 | [config/persisted.go](../../internal/config/persisted.go): missing Stage `session` means `shared`, whereas newly authored omission becomes explicit `isolated`. | Require the explicit persisted mode; preserve intentional shared/isolated execution and reject missing or invalid persisted modes. |
+| D01 (implemented) | [config/persisted.go](../../internal/config/persisted.go): removed the missing Stage `session` → `shared` compatibility rule. | Both snapshot decoders require an explicit valid mode; authored omission still becomes `isolated` before persistence. |
 | D02 | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): infer old Workflow role kinds and verify `auditProfileLegacyDigest`. | Require current role kinds and digest validation, including embedded closures. Do not re-sign or reinterpret an old snapshot as a current one. |
 | D03 | [evalstore/receipts.go](../../internal/evalstore/receipts.go): convert old `{id, revision, state}` into typed receipts. | Keep typed receipt replay and idempotency identity; reject old overloaded receipts rather than inventing typed fields. |
 | D04 | [auditservice/resume.go](../../internal/auditservice/resume.go): continue terminal `deadline_exhausted` Audits; reopen items and archive report links. | Preserve ordinary paused Resume, review expiration, replay and holds. Remove terminal continuation across backend, reports, UI and public contract together. |
@@ -275,6 +275,30 @@ For D04, the change extends beyond `Resume`: inspect
 `continuation_count`, report naming, UI Continue controls and public OpenAPI.
 Previously continued records may become unsupported; ensure no current path
 still creates or consumes the removed continuation state.
+
+### D01 — explicit persisted Stage session mode (implemented)
+
+Removed `normalizePersistedStageSession` and the extra JSON shape pass used to
+infer a missing field. The Workflow and Stage snapshot decoders now validate
+the already decoded `WorkerSessionMode` directly. Missing, null, empty, unknown
+and non-string values fail decoding without a repaired or partially usable
+snapshot. Existing AuditProfile closure validation applies the same explicit
+mode requirement to its embedded Workflows.
+
+Current writers already resolve authored omission to `isolated` and persist
+`ResolvedStage.Session` without `omitempty`. Explicit `shared` retains its
+intentional allocation-local conversation behavior. No writer, current snapshot
+format or Runtime session lifecycle needed changing.
+
+Updated [specification 00](../spec/00-workflow-and-planner.md). The
+[configuration tests](../../internal/config/worker_session_test.go) cover both
+valid modes through Workflow/Stage round trips, malformed and missing modes,
+and a missing mode inside an AuditProfile. The
+[Scheduler regression](../../internal/scheduler/worker_session_test.go) verifies
+that missing Workflow or Stage session authority fails before allocation or
+Planner/Worker execution, including recovery of preparing/running Stages, and
+that no snapshot is rewritten. Existing retry and escalation tests retain
+explicit `shared` across fresh attempts.
 
 ### Removal rules for persisted formats
 
@@ -312,7 +336,7 @@ shrinking that contract is separate from removing an internal no-op.
 
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
-D01–D07 remain planned.
+D01 is implemented in the seventh increment; D02–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -530,5 +554,34 @@ Verification completed on 2026-09-20:
   domain, authorization, snapshot, review-state and tool-boundary assertions.
 - Local documentation links, formatting and `git diff --check` passed.
 
-Next increment: D01, require an explicit session mode in persisted Stage
-snapshots instead of interpreting a missing mode as `shared`.
+## Seventh increment — D01 results
+
+Implemented in `refactor/persisted-session-legacy-removal`, based on C07 commit
+`97240aa0`, and integrated into local `main`. Unrelated working-tree edits were
+preserved.
+
+Verification completed on 2026-09-20:
+
+- `go test -count=1 -timeout=8m ./...` passed with optional database/live-model
+  environment variables unset: **63 packages with tests**. No unrelated fixtures
+  needed updating to retain the removed historical interpretation.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=8m` passed for `./internal/config/...`,
+  `./internal/scheduler`, `./internal/runservice`, `./internal/app`,
+  `./internal/auditservice`, `./internal/auditcontroller`, `./internal/auditimport`,
+  `./internal/findingintake` and `./internal/httpapi/public`.
+- Focused configuration tests cover explicit shared/isolated round trips,
+  missing/null/empty/unknown/non-string persisted modes, the AuditProfile closure
+  and the current authored default. The Scheduler rejects missing authority in
+  queued and recovering Workflows and preparing/running Stages before reservation,
+  Worker preparation or Planner creation/invocation; original bytes are retained.
+- `TestWorkerSessionModesAcrossProductionProcesses` passed with a disposable
+  PostgreSQL 17 database, real Go/Python processes and a scripted model gateway.
+  It covers Streamline isolated sessions, Router shared sessions in separate
+  logical Worker allocations, later isolated Stages and Runtime reuse.
+- Go formatting, specification/plan link validation and `git diff --check`
+  passed. Searches found no remaining implementation reference to the removed
+  normalizer. No paid model call, browser run or data migration was needed.
+
+Next increment: D02, require current Audit Workflow role kinds and remove the
+legacy role digest and inference path.

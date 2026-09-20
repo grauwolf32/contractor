@@ -50,6 +50,23 @@ func TestWorkflowStageSessionAuthoringIsStrictAndDefaultsToIsolated(t *testing.T
 			if got := resolved.Stages["copy"].Session; got != mode {
 				t.Fatalf("Stage session = %q, want %q", got, mode)
 			}
+			workflowJSON, err := json.Marshal(resolved)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(workflowJSON)
+			if err != nil || !reflect.DeepEqual(decodedWorkflow, resolved) {
+				t.Fatalf("persisted Workflow changed %s session: %v", mode, err)
+			}
+			stage := resolved.Stages["copy"]
+			stageJSON, err := json.Marshal(stage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decodedStage, err := DecodeResolvedStageSnapshot(stageJSON)
+			if err != nil || !reflect.DeepEqual(decodedStage, stage) {
+				t.Fatalf("persisted Stage changed %s session: %v", mode, err)
+			}
 		})
 	}
 }
@@ -80,7 +97,7 @@ func TestWorkflowStageSessionRejectsEveryNonEnumAuthoringForm(t *testing.T) {
 	}
 }
 
-func TestPersistedSessionCompatibilityAppliesOnlyToMissingLegacyField(t *testing.T) {
+func TestPersistedSessionRequiresAnExplicitValidMode(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, filepath.Join("testdata", "valid"), MVPDescriptors())
@@ -92,49 +109,68 @@ func TestPersistedSessionCompatibilityAppliesOnlyToMissingLegacyField(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacyWorkflow := mutateWorkflowStageSession(t, workflowJSON, nil, true)
-	decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(legacyWorkflow)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := decodedWorkflow.Stages["copy"].Session; got != contracts.WorkerSessionShared {
-		t.Fatalf("legacy Workflow session = %q, want shared", got)
-	}
-
 	stageJSON, err := json.Marshal(workflow.Stages["copy"])
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacyStage := mutateStageSession(t, stageJSON, nil, true)
-	decodedStage, err := DecodeResolvedStageSnapshot(legacyStage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if decodedStage.Session != contracts.WorkerSessionShared ||
-		!reflect.DeepEqual(decodedStage, decodedWorkflow.Stages["copy"]) {
-		t.Fatalf("legacy Stage and Workflow normalization differ: %+v / %+v", decodedStage, decodedWorkflow.Stages["copy"])
-	}
-
 	for _, test := range []struct {
-		name  string
-		value any
+		name   string
+		value  any
+		remove bool
 	}{
+		{name: "missing", remove: true},
 		{name: "null", value: nil},
 		{name: "empty", value: ""},
 		{name: "unknown", value: "reset"},
 		{name: "number", value: 17},
+		{name: "boolean", value: true},
+		{name: "mapping", value: map[string]any{}},
+		{name: "sequence", value: []any{}},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			invalidWorkflow := mutateWorkflowStageSession(t, workflowJSON, test.value, false)
-			if _, err := DecodeResolvedWorkflowSnapshot(invalidWorkflow); err == nil {
-				t.Fatal("persisted Workflow accepted explicit invalid session")
+			invalidWorkflow := mutateWorkflowStageSession(t, workflowJSON, test.value, test.remove)
+			decodedWorkflow, err := DecodeResolvedWorkflowSnapshot(invalidWorkflow)
+			if err == nil || !strings.Contains(strings.ToLower(err.Error()), "session") ||
+				!reflect.DeepEqual(decodedWorkflow, ResolvedWorkflow{}) {
+				t.Fatalf("invalid persisted Workflow = (%+v, %v)", decodedWorkflow, err)
 			}
-			invalidStage := mutateStageSession(t, stageJSON, test.value, false)
-			if _, err := DecodeResolvedStageSnapshot(invalidStage); err == nil {
-				t.Fatal("persisted Stage accepted explicit invalid session")
+			invalidStage := mutateStageSession(t, stageJSON, test.value, test.remove)
+			decodedStage, err := DecodeResolvedStageSnapshot(invalidStage)
+			if err == nil || !strings.Contains(strings.ToLower(err.Error()), "session") ||
+				!reflect.DeepEqual(decodedStage, ResolvedStage{}) {
+				t.Fatalf("invalid persisted Stage = (%+v, %v)", decodedStage, err)
 			}
 		})
+	}
+}
+
+func TestPersistedAuditProfileRejectsMissingStageSession(t *testing.T) {
+	t.Parallel()
+	profile, err := mustLoad(t, filepath.Join("..", "..", "testdata", "configs"), MVPDescriptors()).AuditProfile("source-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(encoded, &document); err != nil {
+		t.Fatal(err)
+	}
+	binding := document["workflows"].(map[string]any)["check"].(map[string]any)
+	workflow := binding["workflow"].(map[string]any)
+	for _, raw := range workflow["stages"].(map[string]any) {
+		delete(raw.(map[string]any), "session")
+	}
+	invalid, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeResolvedAuditProfileSnapshot(invalid)
+	if err == nil || !strings.Contains(err.Error(), "workerSessionMode") ||
+		!reflect.DeepEqual(decoded, ResolvedAuditProfile{}) {
+		t.Fatalf("invalid persisted AuditProfile = (%+v, %v)", decoded, err)
 	}
 }
 
