@@ -16,6 +16,7 @@ const CLIENT_ROUTES = new Set([
   "/runs/configuration",
   "/catalog",
   "/catalog/workflows",
+  "/catalog/audit-presets",
   "/catalog/agents",
   "/catalog/skills",
   "/operations",
@@ -25,7 +26,7 @@ const CLIENT_ROUTES = new Set([
 const CLIENT_ROUTE_PATTERNS = [
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}(?:\/(?:overview|comparison|attempts|setup))?$/,
   /^\/evals\/experiments\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/pairs\/[a-f0-9]{64}$/,
-  /^\/catalog\/(?:workflows|agents)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
+  /^\/catalog\/(?:workflows|agents|audit-presets)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,

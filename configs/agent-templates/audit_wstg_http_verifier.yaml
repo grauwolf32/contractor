@@ -1,0 +1,27 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: audit_wstg_http_verifier
+  version: "1"
+
+spec:
+  description: Performs approved WSTG checks against a running HTTP target, retaining observations and unsupported capability gaps
+  runtime: adk@1
+  instructions:
+    ref: instructions/audit-wstg-http-verifier-worker.md
+  modelPolicy: worker@2
+  toolsets:
+    - ref: memory-tools@1
+      tools: [list_memories, read_memory, write_memory, append_memory, search_memory, list_memory_tags]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: http-tools@1
+      tools: [http_request, http_read_body, http_history, http_session_set, http_session_get, http_session_clear]
+    - ref: text-artifacts@1
+      tools: [read_text_artifact, write_text_artifact]
+    - ref: security-findings@2
+      tools: [finding]
+    - ref: audit-results@1
+      tools: [read_audit_task, submit_check_result]
+  sandboxProfile: local-workdir@1

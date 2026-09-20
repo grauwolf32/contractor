@@ -27,6 +27,7 @@ export function CatalogLayoutRoute() {
         aria-label="Catalog navigation"
       >
         <NavLink to="/catalog/workflows">Workflows</NavLink>
+        <NavLink to="/catalog/audit-presets">Audit presets</NavLink>
         <NavLink to="/catalog/agents">Agents</NavLink>
         <NavLink to="/catalog/skills">Skills</NavLink>
       </nav>

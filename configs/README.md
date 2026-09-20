@@ -87,6 +87,19 @@ only `(scheme, version)`. Audit start resolves and retains the exact package
 revision and license provenance; changing content under an existing identity
 is fatal drift, so changed content must use a new version.
 
+`owasp-asvs-5-0-l1-source-review@3` selects all 70 ASVS 5.0.0 Level 1
+requirements from package edition `5.0.0-l1-source.1`, preserving the original
+five-requirement package and profile. `owasp-wstg-4-2-source-review@1` is a
+separate source-review preset with 94 active WSTG 4.2 scenarios. Both use
+`audit-standard-source-review@1`; live-dependent checks retain gaps instead of
+claiming successful active tests. Exact sources, licensing and regeneration
+instructions are in [the standard source guide](../docs/guides/audit-standard-sources.md).
+
+`owasp-wstg-4-2-active-http@1` is the separate live HTTP preset, using edition
+`4.2-http.1` and `audit-wstg-active-http@1`. It requires a context brief, target,
+authorization scope and active-item approval; it does not require source code.
+Each of its 94 items has one attempt, and unavailable capabilities remain gaps.
+
 The document-generation overlay workspace Workflows hydrate the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code
 tools. It exports exact cumulative `workspace_state` plus checkpoint

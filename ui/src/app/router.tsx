@@ -34,6 +34,8 @@ import {
 } from "../routes/catalog/layout";
 import { AgentListRoute } from "../routes/catalog/agents";
 import { AgentDetailRoute } from "../routes/catalog/agent-detail";
+import { AuditPresetListRoute } from "../routes/catalog/audit-presets";
+import { AuditPresetDetailRoute } from "../routes/catalog/audit-preset-detail";
 import { AllocationListRoute } from "../routes/operations/allocations";
 import { CompletedAllocationListRoute } from "../routes/operations/allocations/completed";
 import { CredentialDetailRoute } from "../routes/operations/credentials/detail";
@@ -181,6 +183,11 @@ export function applicationRoutes(): RouteObject[] {
                   element: <WorkflowDetailRoute />,
                 },
                 { path: "agents", element: <AgentListRoute /> },
+                { path: "audit-presets", element: <AuditPresetListRoute /> },
+                {
+                  path: "audit-presets/:name/:version",
+                  element: <AuditPresetDetailRoute />,
+                },
                 {
                   path: "agents/:name/:version",
                   element: <AgentDetailRoute />,

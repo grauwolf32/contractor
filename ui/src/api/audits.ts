@@ -222,10 +222,11 @@ function safePage<T>(
 
 export async function listAuditProfiles(
   api: PublicAPI,
-  request: PageRequest = {},
+  request: PageRequest & { signal?: AbortSignal } = {},
 ): Promise<AuditProfilePage> {
   const result = await api.request((client) =>
     client.GET("/v1/audit-profiles", {
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
       params: {
         query: {
           limit: AUDIT_PAGE_SIZE,
@@ -247,10 +248,12 @@ export async function getAuditProfile(
   api: PublicAPI,
   name: string,
   version: string,
+  signal?: AbortSignal,
 ): Promise<AuditProfile> {
   requireProfileIdentity(name, version);
   const result = await api.request((client) =>
     client.GET("/v1/audit-profiles/{name}/versions/{version}", {
+      ...(signal === undefined ? {} : { signal }),
       params: { path: { name, version } },
     }),
   );

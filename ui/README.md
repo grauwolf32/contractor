@@ -90,6 +90,14 @@ refetches the authoritative aggregate, including when it races a terminal
 transition; the browser never predicts a lifecycle state.
 
 Project workspaces include their Audit history and draft creation directly.
+The Catalog's **Audit presets** section groups published Audit profiles by name,
+with exact version selection and search across every catalog page. Each preset
+shows its inputs, Workflows and check list. Standard-based presets expose the
+selected checks, requirement text and evidence expectations; check search includes
+their full text. Input-driven presets explain where their check list comes from.
+The viewer respects each standard's disclosure policy and preserves search when
+returning from a preset or Workflow. Audit creation links to the selected preset.
+
 Coverage shows every page of the current round, with result filters and search
 across task text, conclusions, gaps and evidence. The API reads the exact retained
 task and accepted result packages, so this works with custom checklists and

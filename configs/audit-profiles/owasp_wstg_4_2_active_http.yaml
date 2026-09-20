@@ -1,0 +1,48 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+
+metadata:
+  name: owasp-wstg-4-2-active-http
+  version: "1"
+
+spec:
+  mode: requirements-verification
+  standards:
+    - scheme: owasp-wstg
+      version: "4.2-http.1"
+  inputs:
+    context:
+      required: true
+      mediaTypes: [text/plain, text/markdown]
+  inventory:
+    implementation: standard-mappings@1
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: audit-wstg-active-http@1
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        context: {source: audit-input, name: context}
+      parameters:
+        target: {source: scope-field, name: target}
+        authorization_scope: {source: scope-field, name: authorizationScope}
+      outputs:
+        result: result
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 94
+    maxItemsTotal: 94
+    maxSubmittedRuns: 94
+    maxItemRunAttempts: 1
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: approval-required
+    findingConfirmation: human-required
+    notApplicable: human-required
+    reportAcceptance: automatic

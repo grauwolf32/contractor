@@ -10,6 +10,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
+import { auditPresetPath } from "../../../api/audit-presets";
 import {
   auditNeedsPolling,
   createAudit,
@@ -310,6 +311,15 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
         <ErrorNotice error={profile.error} />
       ) : exactProfile === undefined ? null : (
         <div className="audit-profile-contract">
+          <ContextLink
+            to={auditPresetPath(
+              exactProfile.ref.name,
+              exactProfile.ref.version,
+            )}
+            returnLabel="Project audits"
+          >
+            Browse preset checks →
+          </ContextLink>
           <div className="audit-profile-summary">
             <div>
               <span>Mode</span>

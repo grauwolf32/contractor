@@ -116,9 +116,9 @@ bounded execution and collection lifecycle settled; it is not a security or
 compliance certification. The same flow starts `openapi-operation-trace@4` by
 uploading an `openapi` input and changing the exact profile selector.
 
-## Curated Top 10 and ASVS programs
+## Curated Top 10, ASVS and WSTG programs
 
-Two additional operator profiles exercise the same ordinary Run path with an
+These operator profiles exercise the same ordinary Run path with an
 exact licensed standard package:
 
 - `owasp-top10-2025-source-risk@2` assesses ten bounded, independently authored
@@ -128,8 +128,20 @@ exact licensed standard package:
   5.0.0 Level 1 pilot. Its selection, version-qualified requirement IDs,
   automated evidence, manual work, and not-applicable decisions remain separate
   in coverage and in the machine report.
+- `owasp-asvs-5-0-l1-source-review@3` expands the source and documentation review
+  to all 70 ASVS 5.0.0 Level 1 requirements using a new immutable package edition.
+- `owasp-wstg-4-2-source-review@1` is a separate source-review Audit covering 94
+  active WSTG 4.2 scenarios. It records source-backed violations and gaps; it
+  does not execute live tests or report their success.
+- `owasp-wstg-4-2-active-http@1` checks a running website/API using HTTP evidence
+  and per-item active-check approval. It has the same 94 WSTG scenarios and
+  explicitly records unsupported browser, network and identity checks as gaps.
 
-Both profiles require the exact `source` ZIP input. The Audit baseline exposes
+Source-review profiles require the exact `source` ZIP input. Active HTTP WSTG
+requires a text/Markdown `context` brief and the target and authorization scope.
+See
+[standard sources and scope](audit-standard-sources.md) for the exact upstream
+revisions, evidence limits and reproducible package generation. The Audit baseline exposes
 the pinned standard source revision, license, retained package digest, selected
 denominator, and exact `trace` Skill source. Removing the current profile,
 Workflow, AgentTemplate, or standard catalog entry does not rewrite a completed

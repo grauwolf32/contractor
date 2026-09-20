@@ -1,0 +1,120 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+
+metadata:
+  name: owasp-asvs-5-0-l1-source-review
+  version: "3"
+
+spec:
+  mode: requirements-verification
+  standards:
+    - scheme: owasp-asvs
+      version: "5.0.0-l1-source.1"
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+  inventory:
+    implementation: standard-mappings@1
+    itemWorkflowRole: check
+    standardSelection:
+      scope: ASVS 5.0 Level 1 source and documentation review (70 requirements)
+      levels: ["1"]
+      entryIds:
+        - v5.0.0-1.2.1
+        - v5.0.0-1.2.2
+        - v5.0.0-1.2.3
+        - v5.0.0-1.2.4
+        - v5.0.0-1.2.5
+        - v5.0.0-1.3.1
+        - v5.0.0-1.3.2
+        - v5.0.0-1.5.1
+        - v5.0.0-10.4.1
+        - v5.0.0-10.4.2
+        - v5.0.0-10.4.3
+        - v5.0.0-10.4.4
+        - v5.0.0-10.4.5
+        - v5.0.0-11.3.1
+        - v5.0.0-11.3.2
+        - v5.0.0-11.4.1
+        - v5.0.0-12.1.1
+        - v5.0.0-12.2.1
+        - v5.0.0-12.2.2
+        - v5.0.0-13.4.1
+        - v5.0.0-14.2.1
+        - v5.0.0-14.3.1
+        - v5.0.0-15.1.1
+        - v5.0.0-15.2.1
+        - v5.0.0-15.3.1
+        - v5.0.0-2.1.1
+        - v5.0.0-2.2.1
+        - v5.0.0-2.2.2
+        - v5.0.0-2.3.1
+        - v5.0.0-3.2.1
+        - v5.0.0-3.2.2
+        - v5.0.0-3.3.1
+        - v5.0.0-3.4.1
+        - v5.0.0-3.4.2
+        - v5.0.0-3.5.1
+        - v5.0.0-3.5.2
+        - v5.0.0-3.5.3
+        - v5.0.0-4.1.1
+        - v5.0.0-4.4.1
+        - v5.0.0-5.2.1
+        - v5.0.0-5.2.2
+        - v5.0.0-5.3.1
+        - v5.0.0-5.3.2
+        - v5.0.0-6.1.1
+        - v5.0.0-6.2.1
+        - v5.0.0-6.2.2
+        - v5.0.0-6.2.3
+        - v5.0.0-6.2.4
+        - v5.0.0-6.2.5
+        - v5.0.0-6.2.6
+        - v5.0.0-6.2.7
+        - v5.0.0-6.2.8
+        - v5.0.0-6.3.1
+        - v5.0.0-6.3.2
+        - v5.0.0-6.4.1
+        - v5.0.0-6.4.2
+        - v5.0.0-7.2.1
+        - v5.0.0-7.2.2
+        - v5.0.0-7.2.3
+        - v5.0.0-7.2.4
+        - v5.0.0-7.4.1
+        - v5.0.0-7.4.2
+        - v5.0.0-8.1.1
+        - v5.0.0-8.2.1
+        - v5.0.0-8.2.2
+        - v5.0.0-8.3.1
+        - v5.0.0-9.1.1
+        - v5.0.0-9.1.2
+        - v5.0.0-9.1.3
+        - v5.0.0-9.2.1
+  workflows:
+    check:
+      kind: check
+      ref: audit-standard-source-review@1
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        source: {source: audit-input, name: source}
+      parameters: {}
+      outputs:
+        result: result
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 70
+    maxItemsTotal: 70
+    maxSubmittedRuns: 210
+    maxItemRunAttempts: 3
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: human-required
+    notApplicable: human-required
+    reportAcceptance: automatic

@@ -469,6 +469,11 @@ func buildInventory(
 	inputs map[string]artifacts.ReadResult,
 	standards []auditstandards.ResolvedPackage,
 ) (auditdomain.Inventory, error) {
+	approval := auditdomain.ApprovalNone
+	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
+		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
+		approval = auditdomain.ApprovalActiveCheck
+	}
 	if profile.Inventory.Implementation == "standard-mappings@1" {
 		if len(standards) != 1 || standards[0].Source.Artifact.ValidateExact() != nil {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: exact standard inventory source is missing", ErrInvalid)
@@ -486,7 +491,7 @@ func buildInventory(
 			auditdomain.InventoryOptions{
 				Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
 				SourceInputName: "standard", SourceRef: standards[0].Source.Artifact,
-				ApprovalRequirement: auditdomain.ApprovalNone, Scope: selection.Scope.Values(),
+				ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 				StandardSelection: standardSelection,
 			},
 		)
@@ -498,11 +503,7 @@ func buildInventory(
 	options := auditdomain.InventoryOptions{
 		Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
 		SourceInputName: profile.Inventory.SourceInput, SourceRef: source.Ref,
-		ApprovalRequirement: auditdomain.ApprovalNone, Scope: selection.Scope.Values(),
-	}
-	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
-		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
-		options.ApprovalRequirement = auditdomain.ApprovalActiveCheck
+		ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 	}
 	switch profile.Inventory.Implementation {
 	case "checklist@1":

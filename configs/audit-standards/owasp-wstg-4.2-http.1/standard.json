@@ -1,0 +1,2864 @@
+{
+  "schema": "contractor.audit-standard.v1",
+  "standard": {
+    "scheme": "owasp-wstg",
+    "version": "4.2-http.1",
+    "title": "OWASP WSTG 4.2 — active HTTP review",
+    "description": "Active HTTP adaptation of 94 WSTG 4.2 scenarios across 12 categories. Each check requires approval and an explicit target and authorization scope. Only directly observed HTTP behavior can be assessed. Browser execution, raw network/TLS probes, external discovery and isolated multi-user identities are not provided; affected objectives remain gaps, not passed tests.",
+    "source": {
+      "name": "OWASP Web Security Testing Guide 4.2",
+      "url": "https://github.com/OWASP/wstg/tree/dd33419e10edb22b78d89325a6c2aad9f184e3a2/document/4-Web_Application_Security_Testing",
+      "revision": "dd33419e10edb22b78d89325a6c2aad9f184e3a2"
+    },
+    "license": {
+      "id": "CC-BY-SA-4.0",
+      "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "OWASP Foundation and WSTG contributors, Web Security Testing Guide 4.2, CC BY-SA 4.0. Scenario titles and objectives are reproduced from the pinned release checklist. Contractor adds version-qualified identifiers, versioned links and review mappings/evidence policies under the same license. Merged aliases and the removed buffer-overflow stub are omitted.",
+      "disclosure": "full"
+    }
+  },
+  "evidenceContracts": [
+    {
+      "id": "wstg-http-evidence",
+      "version": "1",
+      "assessments": [
+        "blocked",
+        "inconclusive",
+        "not-tested",
+        "satisfied",
+        "violated"
+      ],
+      "evidenceKinds": [
+        "observation"
+      ],
+      "minimumEvidence": 1,
+      "maximumEvidence": 8,
+      "humanReview": "never",
+      "rationaleRequired": true
+    }
+  ],
+  "entries": [
+    {
+      "id": "WSTG-v42-APIT-01",
+      "kind": "requirement",
+      "title": "Testing GraphQL",
+      "statement": "Assess that a secure and production-ready configuration is deployed.\nValidate all input fields against generic attacks.\nEnsure that proper access controls are applied.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-01",
+      "kind": "requirement",
+      "title": "Testing for Credentials Transported over an Encrypted Channel",
+      "statement": "Assess whether any use case of the web site or application causes the server or the client to exchange credentials without encryption.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-02",
+      "kind": "requirement",
+      "title": "Testing for Default Credentials",
+      "statement": "Enumerate the applications for default credentials and validate if they still exist.\nReview and assess new user accounts and if they are created with any defaults or identifiable patterns.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-03",
+      "kind": "requirement",
+      "title": "Testing for Weak Lock Out Mechanism",
+      "statement": "Evaluate the account lockout mechanism's ability to mitigate brute force password guessing.\nEvaluate the unlock mechanism's resistance to unauthorized account unlocking.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-04",
+      "kind": "requirement",
+      "title": "Testing for Bypassing Authentication Schema",
+      "statement": "Ensure that authentication is applied across all services that require it.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-05",
+      "kind": "requirement",
+      "title": "Testing for Vulnerable Remember Password",
+      "statement": "Validate that the generated session is managed securely and do not put the user's credentials in danger.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-06",
+      "kind": "requirement",
+      "title": "Testing for Browser Cache Weaknesses",
+      "statement": "Review if the application stores sensitive information on the client-side.\nReview if access can occur without authorization.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-07",
+      "kind": "requirement",
+      "title": "Testing for Weak Password Policy",
+      "statement": "Determine the resistance of the application against brute force password guessing using available password dictionaries by evaluating the length, complexity, reuse, and aging requirements of passwords.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-08",
+      "kind": "requirement",
+      "title": "Testing for Weak Security Question Answer",
+      "statement": "Determine the complexity and how straight-forward the questions are.\nAssess possible user answers and brute force capabilities.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-09",
+      "kind": "requirement",
+      "title": "Testing for Weak Password Change or Reset Functionalities",
+      "statement": "Determine the resistance of the application to subversion of the account change process allowing someone to change the password of an account.\nDetermine the resistance of the passwords reset functionality against guessing or bypassing.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHN-10",
+      "kind": "requirement",
+      "title": "Testing for Weaker Authentication in Alternative Channel",
+      "statement": "Identify alternative authentication channels.\nAssess the security measures used and if any bypasses exists on the alternative channels.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHZ-01",
+      "kind": "requirement",
+      "title": "Testing Directory Traversal File Include",
+      "statement": "Identify injection points that pertain to path traversal.\nAssess bypassing techniques and identify the extent of path traversal.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHZ-02",
+      "kind": "requirement",
+      "title": "Testing for Bypassing Authorization Schema",
+      "statement": "Assess if horizontal or vertical access is possible.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHZ-03",
+      "kind": "requirement",
+      "title": "Testing for Privilege Escalation",
+      "statement": "Identify injection points related to privilege manipulation.\nFuzz or otherwise attempt to bypass security measures.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ATHZ-04",
+      "kind": "requirement",
+      "title": "Testing for Insecure Direct Object References",
+      "statement": "Identify points where object references may occur.\nAssess the access control measures and if they're vulnerable to IDOR.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-01",
+      "kind": "requirement",
+      "title": "Test Business Logic Data Validation",
+      "statement": "Identify data injection points.\nValidate that all checks are occurring on the back end and can't be bypassed.\nAttempt to break the format of the expected data and analyze how the application is handling it.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-02",
+      "kind": "requirement",
+      "title": "Test Ability to Forge Requests",
+      "statement": "Review the project documentation looking for guessable, predictable, or hidden functionality of fields.\nInsert logically valid data in order to bypass normal business logic workflow.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-03",
+      "kind": "requirement",
+      "title": "Test Integrity Checks",
+      "statement": "Review the project documentation for components of the system that move, store, or handle data.\nDetermine what type of data is logically acceptable by the component and what types the system should guard against.\nDetermine who should be allowed to modify or read that data in each component.\nAttempt to insert, update, or delete data values used by each component that should not be allowed per the business logic workflow.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-04",
+      "kind": "requirement",
+      "title": "Test for Process Timing",
+      "statement": "Review the project documentation for system functionality that may be impacted by time.\nDevelop and execute misuse cases.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-05",
+      "kind": "requirement",
+      "title": "Test Number of Times a Function Can Be Used Limits",
+      "statement": "Identify functions that must set limits to the times they can be called.\nAssess if there is a logical limit set on the functions and if it is properly validated.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-06",
+      "kind": "requirement",
+      "title": "Testing for the Circumvention of Work Flows",
+      "statement": "Review the project documentation for methods to skip or go through steps in the application process in a different order from the intended business logic flow.\nDevelop a misuse case and try to circumvent every logic flow identified.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-07",
+      "kind": "requirement",
+      "title": "Test Defenses Against Application Misuse",
+      "statement": "Generate notes from all tests conducted against the system.\nReview which tests had a different functionality based on aggressive input.\nUnderstand the defenses in place and verify if they are enough to protect the system against bypassing techniques.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-08",
+      "kind": "requirement",
+      "title": "Test Upload of Unexpected File Types",
+      "statement": "Review the project documentation for file types that are rejected by the system.\nVerify that the unwelcomed file types are rejected and handled safely.\nVerify that file batch uploads are secure and do not allow any bypass against the set security measures.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-BUSL-09",
+      "kind": "requirement",
+      "title": "Test Upload of Malicious Files",
+      "statement": "Identify the file upload functionality.\nReview the project documentation to identify what file types are considered acceptable, and what types would be considered dangerous or malicious.\nIf documentation is not available then consider what would be appropriate based on the purpose of the application.\nDetermine how the uploaded files are processed.\nObtain or create a set of malicious files for testing.\nTry to upload the malicious files to the application and determine whether it is accepted and processed.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-01",
+      "kind": "requirement",
+      "title": "Testing for DOM-Based Cross Site Scripting",
+      "statement": "Identify DOM sinks.\nBuild payloads that pertain to every sink type.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-02",
+      "kind": "requirement",
+      "title": "Testing for JavaScript Execution",
+      "statement": "Identify sinks and possible JavaScript injection points.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-03",
+      "kind": "requirement",
+      "title": "Testing for HTML Injection",
+      "statement": "Identify HTML injection points and assess the severity of the injected content.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-04",
+      "kind": "requirement",
+      "title": "Testing for Client-side URL Redirect",
+      "statement": "Identify injection points that handle URLs or paths.\nAssess the locations that the system could redirect to.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-05",
+      "kind": "requirement",
+      "title": "Testing for CSS Injection",
+      "statement": "Identify CSS injection points.\nAssess the impact of the injection.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-06",
+      "kind": "requirement",
+      "title": "Testing for Client-side Resource Manipulation",
+      "statement": "Identify sinks with weak input validation.\nAssess the impact of the resource manipulation.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-07",
+      "kind": "requirement",
+      "title": "Testing Cross Origin Resource Sharing",
+      "statement": "Identify endpoints that implement CORS.\nEnsure that the CORS configuration is secure or harmless.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-08",
+      "kind": "requirement",
+      "title": "Testing for Cross Site Flashing",
+      "statement": "Decompile and analyze the application's code.\nAssess sinks inputs and unsafe method usages.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-09",
+      "kind": "requirement",
+      "title": "Testing for Clickjacking",
+      "statement": "Understand security measures in place.\nAssess how strict the security measures are and if they are bypassable.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-10",
+      "kind": "requirement",
+      "title": "Testing WebSockets",
+      "statement": "Identify the usage of WebSockets.\nAssess its implementation by using the same tests on normal HTTP channels.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-11",
+      "kind": "requirement",
+      "title": "Testing Web Messaging",
+      "statement": "Assess the security of the message's origin.\nValidate that it's using safe methods and validating its input.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-12",
+      "kind": "requirement",
+      "title": "Testing Browser Storage",
+      "statement": "Determine whether the website is storing sensitive data in client-side storage.\nThe code handling of the storage objects should be examined for possibilities of injection attacks, such as utilizing unvalidated input or vulnerable libraries.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CLNT-13",
+      "kind": "requirement",
+      "title": "Testing for Cross Site Script Inclusion",
+      "statement": "Locate sensitive data across the system.\nAssess the leakage of sensitive data through various techniques.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-01",
+      "kind": "requirement",
+      "title": "Test Network Infrastructure Configuration",
+      "statement": "Review the applications' configurations set across the network and validate that they are not vulnerable.\nValidate that used frameworks and systems are secure and not susceptible to known vulnerabilities due to unmaintained software or default settings and credentials.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-02",
+      "kind": "requirement",
+      "title": "Test Application Platform Configuration",
+      "statement": "Ensure that defaults and known files have been removed.\nValidate that no debugging code or extensions are left in the production environments.\nReview the logging mechanisms set in place for the application.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-03",
+      "kind": "requirement",
+      "title": "Test File Extensions Handling for Sensitive Information",
+      "statement": "Dirbust sensitive file extensions, or extensions that might contain raw data (*e.g.* scripts, raw data, credentials, etc.).\nValidate that no system framework bypasses exist on the rules set.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-04",
+      "kind": "requirement",
+      "title": "Review Old Backup and Unreferenced Files for Sensitive Information",
+      "statement": "Find and analyse unreferenced files that might contain sensitive information.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-05",
+      "kind": "requirement",
+      "title": "Enumerate Infrastructure and Application Admin Interfaces",
+      "statement": "Identify hidden administrator interfaces and functionality.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-06",
+      "kind": "requirement",
+      "title": "Test HTTP Methods",
+      "statement": "Enumerate supported HTTP methods.\nTest for access control bypass.\nTest XST vulnerabilities.\nTest HTTP method overriding techniques.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-07",
+      "kind": "requirement",
+      "title": "Test HTTP Strict Transport Security",
+      "statement": "Review the HSTS header and its validity.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-08",
+      "kind": "requirement",
+      "title": "Test RIA Cross Domain Policy",
+      "statement": "Review and validate the policy files.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-09",
+      "kind": "requirement",
+      "title": "Test File Permission",
+      "statement": "Review and identify any rogue file permissions.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-10",
+      "kind": "requirement",
+      "title": "Test for Subdomain Takeover",
+      "statement": "Enumerate all possible domains (previous and current).\nIdentify forgotten or misconfigured domains.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CONF-11",
+      "kind": "requirement",
+      "title": "Test Cloud Storage",
+      "statement": "Assess that the access control configuration for the storage services is properly in place.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CRYP-01",
+      "kind": "requirement",
+      "title": "Testing for Weak Transport Layer Security",
+      "statement": "Validate the service configuration.\nReview the digital certificate's cryptographic strength and validity.\nEnsure that the TLS security is not bypassable and is properly implemented across the application.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CRYP-02",
+      "kind": "requirement",
+      "title": "Testing for Padding Oracle",
+      "statement": "Identify encrypted messages that rely on padding.\nAttempt to break the padding of the encrypted messages and analyze the returned error messages for further analysis.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CRYP-03",
+      "kind": "requirement",
+      "title": "Testing for Sensitive Information Sent via Unencrypted Channels",
+      "statement": "Identify sensitive information transmitted through the various channels.\nAssess the privacy and security of the channels used.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-CRYP-04",
+      "kind": "requirement",
+      "title": "Testing for Weak Encryption",
+      "statement": "Provide a guideline for the identification weak encryption or hashing uses and implementations.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-ERRH-01",
+      "kind": "requirement",
+      "title": "Testing for Improper Error Handling",
+      "statement": "Identify existing error output.\nAnalyze the different output returned.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-IDNT-01",
+      "kind": "requirement",
+      "title": "Test Role Definitions",
+      "statement": "Identify and document roles used by the application.\nAttempt to switch, change, or access another role.\nReview the granularity of the roles and the needs behind the permissions given.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-IDNT-02",
+      "kind": "requirement",
+      "title": "Test User Registration Process",
+      "statement": "Verify that the identity requirements for user registration are aligned with business and security requirements.\nValidate the registration process.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-IDNT-03",
+      "kind": "requirement",
+      "title": "Test Account Provisioning Process",
+      "statement": "Verify which accounts may provision other accounts and of what type.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-IDNT-04",
+      "kind": "requirement",
+      "title": "Testing for Account Enumeration and Guessable User Account",
+      "statement": "Review processes that pertain to user identification (*e.g.* registration, login, etc.).\nEnumerate users where possible through response analysis.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-IDNT-05",
+      "kind": "requirement",
+      "title": "Testing for Weak or Unenforced Username Policy",
+      "statement": "Determine whether a consistent account name structure renders the application vulnerable to account enumeration.\nDetermine whether the application's error messages permit account enumeration.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-01",
+      "kind": "requirement",
+      "title": "Conduct Search Engine Discovery Reconnaissance for Information Leakage",
+      "statement": "Identify what sensitive design and configuration information of the application, system, or organization is exposed directly (on the organization's website) or indirectly (via third-party services).",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-02",
+      "kind": "requirement",
+      "title": "Fingerprint Web Server",
+      "statement": "Determine the version and type of a running web server to enable further discovery of any known vulnerabilities.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-03",
+      "kind": "requirement",
+      "title": "Review Webserver Metafiles for Information Leakage",
+      "statement": "Identify hidden or obfuscated paths and functionality through the analysis of metadata files.\nExtract and map other information that could lead to better understanding of the systems at hand.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-04",
+      "kind": "requirement",
+      "title": "Enumerate Applications on Webserver",
+      "statement": "Enumerate the applications within scope that exist on a web server.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-05",
+      "kind": "requirement",
+      "title": "Review Webpage Content for Information Leakage",
+      "statement": "Review webpage comments and metadata to find any information leakage.\nGather JavaScript files and review the JS code to better understand the application and to find any information leakage.\nIdentify if source map files or other front-end debug files exist.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-06",
+      "kind": "requirement",
+      "title": "Identify Application Entry Points",
+      "statement": "Identify possible entry and injection points through request and response analysis.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-07",
+      "kind": "requirement",
+      "title": "Map Execution Paths Through Application",
+      "statement": "Map the target application and understand the principal workflows.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-08",
+      "kind": "requirement",
+      "title": "Fingerprint Web Application Framework",
+      "statement": "Fingerprint the components being used by the web applications.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INFO-10",
+      "kind": "requirement",
+      "title": "Map Application Architecture",
+      "statement": "Generate a map of the application at hand based on the research conducted.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-01",
+      "kind": "requirement",
+      "title": "Testing for Reflected Cross Site Scripting",
+      "statement": "Identify variables that are reflected in responses.\nAssess the input they accept and the encoding that gets applied on return (if any).",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-02",
+      "kind": "requirement",
+      "title": "Testing for Stored Cross Site Scripting",
+      "statement": "Identify stored input that is reflected on the client-side.\nAssess the input they accept and the encoding that gets applied on return (if any).",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-04",
+      "kind": "requirement",
+      "title": "Testing for HTTP Parameter Pollution",
+      "statement": "Identify the backend and the parsing method used.\nAssess injection points and try bypassing input filters using HPP.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-05",
+      "kind": "requirement",
+      "title": "Testing for SQL Injection",
+      "statement": "Identify SQL injection points.\nAssess the severity of the injection and the level of access that can be achieved through it.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-06",
+      "kind": "requirement",
+      "title": "Testing for LDAP Injection",
+      "statement": "Identify LDAP injection points.\nAssess the severity of the injection.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-07",
+      "kind": "requirement",
+      "title": "Testing for XML Injection",
+      "statement": "Identify XML injection points.\nAssess the types of exploits that can be attained and their severities.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-08",
+      "kind": "requirement",
+      "title": "Testing for SSI Injection",
+      "statement": "Identify SSI injection points.\nAssess the severity of the injection.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-09",
+      "kind": "requirement",
+      "title": "Testing for XPath Injection",
+      "statement": "Identify XPATH injection points.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-10",
+      "kind": "requirement",
+      "title": "Testing for IMAP SMTP Injection",
+      "statement": "Identify IMAP/SMTP injection points.\nUnderstand the data flow and deployment structure of the system.\nAssess the injection impacts.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-11",
+      "kind": "requirement",
+      "title": "Testing for Code Injection",
+      "statement": "Identify injection points where you can inject code into the application.\nAssess the injection severity.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-12",
+      "kind": "requirement",
+      "title": "Testing for Command Injection",
+      "statement": "Identify and assess the command injection points.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-13",
+      "kind": "requirement",
+      "title": "Testing for Format String Injection",
+      "statement": "Assess whether injecting format string conversion specifiers into user-controlled fields causes undesired behaviour from the application.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-14",
+      "kind": "requirement",
+      "title": "Testing for Incubated Vulnerability",
+      "statement": "Identify injections that are stored and require a recall step to the stored injection.\nUnderstand how a recall step could occur.\nSet listeners or activate the recall step if possible.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-15",
+      "kind": "requirement",
+      "title": "Testing for HTTP Splitting Smuggling",
+      "statement": "Assess if the application is vulnerable to splitting, identifying what possible attacks are achievable.\nAssess if the chain of communication is vulnerable to smuggling, identifying what possible attacks are achievable.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-16",
+      "kind": "requirement",
+      "title": "Testing for HTTP Incoming Requests",
+      "statement": "Monitor all incoming and outgoing HTTP requests to the Web Server to inspect any suspicious requests.\nMonitor HTTP traffic without changes of end user Browser proxy or client-side application.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-17",
+      "kind": "requirement",
+      "title": "Testing for Host Header Injection",
+      "statement": "Assess if the Host header is being parsed dynamically in the application.\nBypass security controls that rely on the header.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-18",
+      "kind": "requirement",
+      "title": "Testing for Server-side Template Injection",
+      "statement": "Detect template injection vulnerability points.\nIdentify the templating engine.\nBuild the exploit.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-INPV-19",
+      "kind": "requirement",
+      "title": "Testing for Server-Side Request Forgery",
+      "statement": "Identify SSRF injection points.\nTest if the injection points are exploitable.\nAsses the severity of the vulnerability.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-01",
+      "kind": "requirement",
+      "title": "Testing for Session Management Schema",
+      "statement": "Gather session tokens, for the same user and for different users where possible.\nAnalyze and ensure that enough randomness exists to stop session forging attacks.\nModify cookies that are not signed and contain information that can be manipulated.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-02",
+      "kind": "requirement",
+      "title": "Testing for Cookies Attributes",
+      "statement": "Ensure that the proper security configuration is set for cookies.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-03",
+      "kind": "requirement",
+      "title": "Testing for Session Fixation",
+      "statement": "Analyze the authentication mechanism and its flow.\nForce cookies and assess the impact.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-04",
+      "kind": "requirement",
+      "title": "Testing for Exposed Session Variables",
+      "statement": "Ensure that proper encryption is implemented.\nReview the caching configuration.\nAssess the channel and methods' security.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-05",
+      "kind": "requirement",
+      "title": "Testing for Cross Site Request Forgery",
+      "statement": "Determine whether it is possible to initiate requests on a user's behalf that are not initiated by the user.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-06",
+      "kind": "requirement",
+      "title": "Testing for Logout Functionality",
+      "statement": "Assess the logout UI.\nAnalyze the session timeout and if the session is properly killed after logout.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-07",
+      "kind": "requirement",
+      "title": "Testing Session Timeout",
+      "statement": "Validate that a hard session timeout exists.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-08",
+      "kind": "requirement",
+      "title": "Testing for Session Puzzling",
+      "statement": "Identify all session variables.\nBreak the logical flow of session generation.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    },
+    {
+      "id": "WSTG-v42-SESS-09",
+      "kind": "requirement",
+      "title": "Testing for Session Hijacking",
+      "statement": "Identify vulnerable session cookies.\nHijack vulnerable cookies and assess the risk level.",
+      "applicability": {
+        "mode": "always"
+      },
+      "allowedMethods": [
+        "active-test"
+      ],
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "key": "WSTG-v42-APIT-01",
+      "entryIds": [
+        "WSTG-v42-APIT-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing GraphQL",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-APIT-01. WSTG test objectives:\nAssess that a secure and production-ready configuration is deployed.\nValidate all input fields against generic attacks.\nEnsure that proper access controls are applied.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/12-API_Testing/01-Testing_GraphQL.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-01",
+      "entryIds": [
+        "WSTG-v42-ATHN-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Credentials Transported over an Encrypted Channel",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-01. WSTG test objectives:\nAssess whether any use case of the web site or application causes the server or the client to exchange credentials without encryption.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/01-Testing_for_Credentials_Transported_over_an_Encrypted_Channel.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-02",
+      "entryIds": [
+        "WSTG-v42-ATHN-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Default Credentials",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-02. WSTG test objectives:\nEnumerate the applications for default credentials and validate if they still exist.\nReview and assess new user accounts and if they are created with any defaults or identifiable patterns.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/02-Testing_for_Default_Credentials.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-03",
+      "entryIds": [
+        "WSTG-v42-ATHN-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak Lock Out Mechanism",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-03. WSTG test objectives:\nEvaluate the account lockout mechanism's ability to mitigate brute force password guessing.\nEvaluate the unlock mechanism's resistance to unauthorized account unlocking.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/03-Testing_for_Weak_Lock_Out_Mechanism.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-04",
+      "entryIds": [
+        "WSTG-v42-ATHN-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Bypassing Authentication Schema",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-04. WSTG test objectives:\nEnsure that authentication is applied across all services that require it.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/04-Testing_for_Bypassing_Authentication_Schema.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-05",
+      "entryIds": [
+        "WSTG-v42-ATHN-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Vulnerable Remember Password",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-05. WSTG test objectives:\nValidate that the generated session is managed securely and do not put the user's credentials in danger.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/05-Testing_for_Vulnerable_Remember_Password.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-06",
+      "entryIds": [
+        "WSTG-v42-ATHN-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Browser Cache Weaknesses",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-06. WSTG test objectives:\nReview if the application stores sensitive information on the client-side.\nReview if access can occur without authorization.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/06-Testing_for_Browser_Cache_Weaknesses.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-07",
+      "entryIds": [
+        "WSTG-v42-ATHN-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak Password Policy",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-07. WSTG test objectives:\nDetermine the resistance of the application against brute force password guessing using available password dictionaries by evaluating the length, complexity, reuse, and aging requirements of passwords.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/07-Testing_for_Weak_Password_Policy.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-08",
+      "entryIds": [
+        "WSTG-v42-ATHN-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak Security Question Answer",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-08. WSTG test objectives:\nDetermine the complexity and how straight-forward the questions are.\nAssess possible user answers and brute force capabilities.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/08-Testing_for_Weak_Security_Question_Answer.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-09",
+      "entryIds": [
+        "WSTG-v42-ATHN-09"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak Password Change or Reset Functionalities",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-09. WSTG test objectives:\nDetermine the resistance of the application to subversion of the account change process allowing someone to change the password of an account.\nDetermine the resistance of the passwords reset functionality against guessing or bypassing.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/09-Testing_for_Weak_Password_Change_or_Reset_Functionalities.html"
+    },
+    {
+      "key": "WSTG-v42-ATHN-10",
+      "entryIds": [
+        "WSTG-v42-ATHN-10"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weaker Authentication in Alternative Channel",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHN-10. WSTG test objectives:\nIdentify alternative authentication channels.\nAssess the security measures used and if any bypasses exists on the alternative channels.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/04-Authentication_Testing/10-Testing_for_Weaker_Authentication_in_Alternative_Channel.html"
+    },
+    {
+      "key": "WSTG-v42-ATHZ-01",
+      "entryIds": [
+        "WSTG-v42-ATHZ-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing Directory Traversal File Include",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHZ-01. WSTG test objectives:\nIdentify injection points that pertain to path traversal.\nAssess bypassing techniques and identify the extent of path traversal.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/05-Authorization_Testing/01-Testing_Directory_Traversal_File_Include.html"
+    },
+    {
+      "key": "WSTG-v42-ATHZ-02",
+      "entryIds": [
+        "WSTG-v42-ATHZ-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Bypassing Authorization Schema",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHZ-02. WSTG test objectives:\nAssess if horizontal or vertical access is possible.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/05-Authorization_Testing/02-Testing_for_Bypassing_Authorization_Schema.html"
+    },
+    {
+      "key": "WSTG-v42-ATHZ-03",
+      "entryIds": [
+        "WSTG-v42-ATHZ-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Privilege Escalation",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHZ-03. WSTG test objectives:\nIdentify injection points related to privilege manipulation.\nFuzz or otherwise attempt to bypass security measures.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/05-Authorization_Testing/03-Testing_for_Privilege_Escalation.html"
+    },
+    {
+      "key": "WSTG-v42-ATHZ-04",
+      "entryIds": [
+        "WSTG-v42-ATHZ-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Insecure Direct Object References",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ATHZ-04. WSTG test objectives:\nIdentify points where object references may occur.\nAssess the access control measures and if they're vulnerable to IDOR.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/05-Authorization_Testing/04-Testing_for_Insecure_Direct_Object_References.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-01",
+      "entryIds": [
+        "WSTG-v42-BUSL-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Business Logic Data Validation",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-01. WSTG test objectives:\nIdentify data injection points.\nValidate that all checks are occurring on the back end and can't be bypassed.\nAttempt to break the format of the expected data and analyze how the application is handling it.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/01-Test_Business_Logic_Data_Validation.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-02",
+      "entryIds": [
+        "WSTG-v42-BUSL-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Ability to Forge Requests",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-02. WSTG test objectives:\nReview the project documentation looking for guessable, predictable, or hidden functionality of fields.\nInsert logically valid data in order to bypass normal business logic workflow.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/02-Test_Ability_to_Forge_Requests.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-03",
+      "entryIds": [
+        "WSTG-v42-BUSL-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Integrity Checks",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-03. WSTG test objectives:\nReview the project documentation for components of the system that move, store, or handle data.\nDetermine what type of data is logically acceptable by the component and what types the system should guard against.\nDetermine who should be allowed to modify or read that data in each component.\nAttempt to insert, update, or delete data values used by each component that should not be allowed per the business logic workflow.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/03-Test_Integrity_Checks.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-04",
+      "entryIds": [
+        "WSTG-v42-BUSL-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test for Process Timing",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-04. WSTG test objectives:\nReview the project documentation for system functionality that may be impacted by time.\nDevelop and execute misuse cases.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/04-Test_for_Process_Timing.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-05",
+      "entryIds": [
+        "WSTG-v42-BUSL-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Number of Times a Function Can Be Used Limits",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-05. WSTG test objectives:\nIdentify functions that must set limits to the times they can be called.\nAssess if there is a logical limit set on the functions and if it is properly validated.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/05-Test_Number_of_Times_a_Function_Can_Be_Used_Limits.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-06",
+      "entryIds": [
+        "WSTG-v42-BUSL-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for the Circumvention of Work Flows",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-06. WSTG test objectives:\nReview the project documentation for methods to skip or go through steps in the application process in a different order from the intended business logic flow.\nDevelop a misuse case and try to circumvent every logic flow identified.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/06-Testing_for_the_Circumvention_of_Work_Flows.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-07",
+      "entryIds": [
+        "WSTG-v42-BUSL-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Defenses Against Application Misuse",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-07. WSTG test objectives:\nGenerate notes from all tests conducted against the system.\nReview which tests had a different functionality based on aggressive input.\nUnderstand the defenses in place and verify if they are enough to protect the system against bypassing techniques.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/07-Test_Defenses_Against_Application_Misuse.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-08",
+      "entryIds": [
+        "WSTG-v42-BUSL-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Upload of Unexpected File Types",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-08. WSTG test objectives:\nReview the project documentation for file types that are rejected by the system.\nVerify that the unwelcomed file types are rejected and handled safely.\nVerify that file batch uploads are secure and do not allow any bypass against the set security measures.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/08-Test_Upload_of_Unexpected_File_Types.html"
+    },
+    {
+      "key": "WSTG-v42-BUSL-09",
+      "entryIds": [
+        "WSTG-v42-BUSL-09"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Upload of Malicious Files",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-BUSL-09. WSTG test objectives:\nIdentify the file upload functionality.\nReview the project documentation to identify what file types are considered acceptable, and what types would be considered dangerous or malicious.\nIf documentation is not available then consider what would be appropriate based on the purpose of the application.\nDetermine how the uploaded files are processed.\nObtain or create a set of malicious files for testing.\nTry to upload the malicious files to the application and determine whether it is accepted and processed.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/10-Business_Logic_Testing/09-Test_Upload_of_Malicious_Files.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-01",
+      "entryIds": [
+        "WSTG-v42-CLNT-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for DOM-Based Cross Site Scripting",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-01. WSTG test objectives:\nIdentify DOM sinks.\nBuild payloads that pertain to every sink type.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/01-Testing_for_DOM-based_Cross_Site_Scripting.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-02",
+      "entryIds": [
+        "WSTG-v42-CLNT-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for JavaScript Execution",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-02. WSTG test objectives:\nIdentify sinks and possible JavaScript injection points.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/02-Testing_for_JavaScript_Execution.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-03",
+      "entryIds": [
+        "WSTG-v42-CLNT-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for HTML Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-03. WSTG test objectives:\nIdentify HTML injection points and assess the severity of the injected content.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/03-Testing_for_HTML_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-04",
+      "entryIds": [
+        "WSTG-v42-CLNT-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Client-side URL Redirect",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-04. WSTG test objectives:\nIdentify injection points that handle URLs or paths.\nAssess the locations that the system could redirect to.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/04-Testing_for_Client-side_URL_Redirect.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-05",
+      "entryIds": [
+        "WSTG-v42-CLNT-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for CSS Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-05. WSTG test objectives:\nIdentify CSS injection points.\nAssess the impact of the injection.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/05-Testing_for_CSS_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-06",
+      "entryIds": [
+        "WSTG-v42-CLNT-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Client-side Resource Manipulation",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-06. WSTG test objectives:\nIdentify sinks with weak input validation.\nAssess the impact of the resource manipulation.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/06-Testing_for_Client-side_Resource_Manipulation.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-07",
+      "entryIds": [
+        "WSTG-v42-CLNT-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing Cross Origin Resource Sharing",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-07. WSTG test objectives:\nIdentify endpoints that implement CORS.\nEnsure that the CORS configuration is secure or harmless.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/07-Testing_Cross_Origin_Resource_Sharing.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-08",
+      "entryIds": [
+        "WSTG-v42-CLNT-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Cross Site Flashing",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-08. WSTG test objectives:\nDecompile and analyze the application's code.\nAssess sinks inputs and unsafe method usages.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/08-Testing_for_Cross_Site_Flashing.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-09",
+      "entryIds": [
+        "WSTG-v42-CLNT-09"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Clickjacking",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-09. WSTG test objectives:\nUnderstand security measures in place.\nAssess how strict the security measures are and if they are bypassable.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/09-Testing_for_Clickjacking.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-10",
+      "entryIds": [
+        "WSTG-v42-CLNT-10"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing WebSockets",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-10. WSTG test objectives:\nIdentify the usage of WebSockets.\nAssess its implementation by using the same tests on normal HTTP channels.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/10-Testing_WebSockets.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-11",
+      "entryIds": [
+        "WSTG-v42-CLNT-11"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing Web Messaging",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-11. WSTG test objectives:\nAssess the security of the message's origin.\nValidate that it's using safe methods and validating its input.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/11-Testing_Web_Messaging.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-12",
+      "entryIds": [
+        "WSTG-v42-CLNT-12"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing Browser Storage",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-12. WSTG test objectives:\nDetermine whether the website is storing sensitive data in client-side storage.\nThe code handling of the storage objects should be examined for possibilities of injection attacks, such as utilizing unvalidated input or vulnerable libraries.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/12-Testing_Browser_Storage.html"
+    },
+    {
+      "key": "WSTG-v42-CLNT-13",
+      "entryIds": [
+        "WSTG-v42-CLNT-13"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Cross Site Script Inclusion",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CLNT-13. WSTG test objectives:\nLocate sensitive data across the system.\nAssess the leakage of sensitive data through various techniques.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/11-Client-side_Testing/13-Testing_for_Cross_Site_Script_Inclusion.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-01",
+      "entryIds": [
+        "WSTG-v42-CONF-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Network Infrastructure Configuration",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-01. WSTG test objectives:\nReview the applications' configurations set across the network and validate that they are not vulnerable.\nValidate that used frameworks and systems are secure and not susceptible to known vulnerabilities due to unmaintained software or default settings and credentials.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/01-Test_Network_Infrastructure_Configuration.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-02",
+      "entryIds": [
+        "WSTG-v42-CONF-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Application Platform Configuration",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-02. WSTG test objectives:\nEnsure that defaults and known files have been removed.\nValidate that no debugging code or extensions are left in the production environments.\nReview the logging mechanisms set in place for the application.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/02-Test_Application_Platform_Configuration.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-03",
+      "entryIds": [
+        "WSTG-v42-CONF-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test File Extensions Handling for Sensitive Information",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-03. WSTG test objectives:\nDirbust sensitive file extensions, or extensions that might contain raw data (*e.g.* scripts, raw data, credentials, etc.).\nValidate that no system framework bypasses exist on the rules set.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/03-Test_File_Extensions_Handling_for_Sensitive_Information.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-04",
+      "entryIds": [
+        "WSTG-v42-CONF-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Review Old Backup and Unreferenced Files for Sensitive Information",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-04. WSTG test objectives:\nFind and analyse unreferenced files that might contain sensitive information.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/04-Review_Old_Backup_and_Unreferenced_Files_for_Sensitive_Information.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-05",
+      "entryIds": [
+        "WSTG-v42-CONF-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Enumerate Infrastructure and Application Admin Interfaces",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-05. WSTG test objectives:\nIdentify hidden administrator interfaces and functionality.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/05-Enumerate_Infrastructure_and_Application_Admin_Interfaces.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-06",
+      "entryIds": [
+        "WSTG-v42-CONF-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test HTTP Methods",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-06. WSTG test objectives:\nEnumerate supported HTTP methods.\nTest for access control bypass.\nTest XST vulnerabilities.\nTest HTTP method overriding techniques.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/06-Test_HTTP_Methods.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-07",
+      "entryIds": [
+        "WSTG-v42-CONF-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test HTTP Strict Transport Security",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-07. WSTG test objectives:\nReview the HSTS header and its validity.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/07-Test_HTTP_Strict_Transport_Security.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-08",
+      "entryIds": [
+        "WSTG-v42-CONF-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test RIA Cross Domain Policy",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-08. WSTG test objectives:\nReview and validate the policy files.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/08-Test_RIA_Cross_Domain_Policy.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-09",
+      "entryIds": [
+        "WSTG-v42-CONF-09"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test File Permission",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-09. WSTG test objectives:\nReview and identify any rogue file permissions.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/09-Test_File_Permission.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-10",
+      "entryIds": [
+        "WSTG-v42-CONF-10"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test for Subdomain Takeover",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-10. WSTG test objectives:\nEnumerate all possible domains (previous and current).\nIdentify forgotten or misconfigured domains.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/10-Test_for_Subdomain_Takeover.html"
+    },
+    {
+      "key": "WSTG-v42-CONF-11",
+      "entryIds": [
+        "WSTG-v42-CONF-11"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Cloud Storage",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CONF-11. WSTG test objectives:\nAssess that the access control configuration for the storage services is properly in place.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/11-Test_Cloud_Storage.html"
+    },
+    {
+      "key": "WSTG-v42-CRYP-01",
+      "entryIds": [
+        "WSTG-v42-CRYP-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak Transport Layer Security",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CRYP-01. WSTG test objectives:\nValidate the service configuration.\nReview the digital certificate's cryptographic strength and validity.\nEnsure that the TLS security is not bypassable and is properly implemented across the application.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/01-Testing_for_Weak_Transport_Layer_Security.html"
+    },
+    {
+      "key": "WSTG-v42-CRYP-02",
+      "entryIds": [
+        "WSTG-v42-CRYP-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Padding Oracle",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CRYP-02. WSTG test objectives:\nIdentify encrypted messages that rely on padding.\nAttempt to break the padding of the encrypted messages and analyze the returned error messages for further analysis.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/02-Testing_for_Padding_Oracle.html"
+    },
+    {
+      "key": "WSTG-v42-CRYP-03",
+      "entryIds": [
+        "WSTG-v42-CRYP-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Sensitive Information Sent via Unencrypted Channels",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CRYP-03. WSTG test objectives:\nIdentify sensitive information transmitted through the various channels.\nAssess the privacy and security of the channels used.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/03-Testing_for_Sensitive_Information_Sent_via_Unencrypted_Channels.html"
+    },
+    {
+      "key": "WSTG-v42-CRYP-04",
+      "entryIds": [
+        "WSTG-v42-CRYP-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak Encryption",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-CRYP-04. WSTG test objectives:\nProvide a guideline for the identification weak encryption or hashing uses and implementations.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/09-Testing_for_Weak_Cryptography/04-Testing_for_Weak_Encryption.html"
+    },
+    {
+      "key": "WSTG-v42-ERRH-01",
+      "entryIds": [
+        "WSTG-v42-ERRH-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Improper Error Handling",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-ERRH-01. WSTG test objectives:\nIdentify existing error output.\nAnalyze the different output returned.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/08-Testing_for_Error_Handling/01-Testing_For_Improper_Error_Handling.html"
+    },
+    {
+      "key": "WSTG-v42-IDNT-01",
+      "entryIds": [
+        "WSTG-v42-IDNT-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Role Definitions",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-IDNT-01. WSTG test objectives:\nIdentify and document roles used by the application.\nAttempt to switch, change, or access another role.\nReview the granularity of the roles and the needs behind the permissions given.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/03-Identity_Management_Testing/01-Test_Role_Definitions.html"
+    },
+    {
+      "key": "WSTG-v42-IDNT-02",
+      "entryIds": [
+        "WSTG-v42-IDNT-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test User Registration Process",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-IDNT-02. WSTG test objectives:\nVerify that the identity requirements for user registration are aligned with business and security requirements.\nValidate the registration process.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/03-Identity_Management_Testing/02-Test_User_Registration_Process.html"
+    },
+    {
+      "key": "WSTG-v42-IDNT-03",
+      "entryIds": [
+        "WSTG-v42-IDNT-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Test Account Provisioning Process",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-IDNT-03. WSTG test objectives:\nVerify which accounts may provision other accounts and of what type.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/03-Identity_Management_Testing/03-Test_Account_Provisioning_Process.html"
+    },
+    {
+      "key": "WSTG-v42-IDNT-04",
+      "entryIds": [
+        "WSTG-v42-IDNT-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Account Enumeration and Guessable User Account",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-IDNT-04. WSTG test objectives:\nReview processes that pertain to user identification (*e.g.* registration, login, etc.).\nEnumerate users where possible through response analysis.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/03-Identity_Management_Testing/04-Testing_for_Account_Enumeration_and_Guessable_User_Account.html"
+    },
+    {
+      "key": "WSTG-v42-IDNT-05",
+      "entryIds": [
+        "WSTG-v42-IDNT-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Weak or Unenforced Username Policy",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-IDNT-05. WSTG test objectives:\nDetermine whether a consistent account name structure renders the application vulnerable to account enumeration.\nDetermine whether the application's error messages permit account enumeration.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/03-Identity_Management_Testing/05-Testing_for_Weak_or_Unenforced_Username_Policy.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-01",
+      "entryIds": [
+        "WSTG-v42-INFO-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Conduct Search Engine Discovery Reconnaissance for Information Leakage",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-01. WSTG test objectives:\nIdentify what sensitive design and configuration information of the application, system, or organization is exposed directly (on the organization's website) or indirectly (via third-party services).\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/01-Conduct_Search_Engine_Discovery_Reconnaissance_for_Information_Leakage.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-02",
+      "entryIds": [
+        "WSTG-v42-INFO-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Fingerprint Web Server",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-02. WSTG test objectives:\nDetermine the version and type of a running web server to enable further discovery of any known vulnerabilities.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/02-Fingerprint_Web_Server.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-03",
+      "entryIds": [
+        "WSTG-v42-INFO-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Review Webserver Metafiles for Information Leakage",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-03. WSTG test objectives:\nIdentify hidden or obfuscated paths and functionality through the analysis of metadata files.\nExtract and map other information that could lead to better understanding of the systems at hand.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/03-Review_Webserver_Metafiles_for_Information_Leakage.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-04",
+      "entryIds": [
+        "WSTG-v42-INFO-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Enumerate Applications on Webserver",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-04. WSTG test objectives:\nEnumerate the applications within scope that exist on a web server.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/04-Enumerate_Applications_on_Webserver.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-05",
+      "entryIds": [
+        "WSTG-v42-INFO-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Review Webpage Content for Information Leakage",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-05. WSTG test objectives:\nReview webpage comments and metadata to find any information leakage.\nGather JavaScript files and review the JS code to better understand the application and to find any information leakage.\nIdentify if source map files or other front-end debug files exist.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/05-Review_Webpage_Content_for_Information_Leakage.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-06",
+      "entryIds": [
+        "WSTG-v42-INFO-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Identify Application Entry Points",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-06. WSTG test objectives:\nIdentify possible entry and injection points through request and response analysis.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/06-Identify_Application_Entry_Points.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-07",
+      "entryIds": [
+        "WSTG-v42-INFO-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Map Execution Paths Through Application",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-07. WSTG test objectives:\nMap the target application and understand the principal workflows.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/07-Map_Execution_Paths_Through_Application.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-08",
+      "entryIds": [
+        "WSTG-v42-INFO-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Fingerprint Web Application Framework",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-08. WSTG test objectives:\nFingerprint the components being used by the web applications.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/08-Fingerprint_Web_Application_Framework.html"
+    },
+    {
+      "key": "WSTG-v42-INFO-10",
+      "entryIds": [
+        "WSTG-v42-INFO-10"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Map Application Architecture",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INFO-10. WSTG test objectives:\nGenerate a map of the application at hand based on the research conducted.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/01-Information_Gathering/10-Map_Application_Architecture.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-01",
+      "entryIds": [
+        "WSTG-v42-INPV-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Reflected Cross Site Scripting",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-01. WSTG test objectives:\nIdentify variables that are reflected in responses.\nAssess the input they accept and the encoding that gets applied on return (if any).\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/01-Testing_for_Reflected_Cross_Site_Scripting.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-02",
+      "entryIds": [
+        "WSTG-v42-INPV-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Stored Cross Site Scripting",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-02. WSTG test objectives:\nIdentify stored input that is reflected on the client-side.\nAssess the input they accept and the encoding that gets applied on return (if any).\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/02-Testing_for_Stored_Cross_Site_Scripting.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-04",
+      "entryIds": [
+        "WSTG-v42-INPV-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for HTTP Parameter Pollution",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-04. WSTG test objectives:\nIdentify the backend and the parsing method used.\nAssess injection points and try bypassing input filters using HPP.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/04-Testing_for_HTTP_Parameter_Pollution.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-05",
+      "entryIds": [
+        "WSTG-v42-INPV-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for SQL Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-05. WSTG test objectives:\nIdentify SQL injection points.\nAssess the severity of the injection and the level of access that can be achieved through it.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05-Testing_for_SQL_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-06",
+      "entryIds": [
+        "WSTG-v42-INPV-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for LDAP Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-06. WSTG test objectives:\nIdentify LDAP injection points.\nAssess the severity of the injection.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/06-Testing_for_LDAP_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-07",
+      "entryIds": [
+        "WSTG-v42-INPV-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for XML Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-07. WSTG test objectives:\nIdentify XML injection points.\nAssess the types of exploits that can be attained and their severities.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/07-Testing_for_XML_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-08",
+      "entryIds": [
+        "WSTG-v42-INPV-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for SSI Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-08. WSTG test objectives:\nIdentify SSI injection points.\nAssess the severity of the injection.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/08-Testing_for_SSI_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-09",
+      "entryIds": [
+        "WSTG-v42-INPV-09"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for XPath Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-09. WSTG test objectives:\nIdentify XPATH injection points.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/09-Testing_for_XPath_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-10",
+      "entryIds": [
+        "WSTG-v42-INPV-10"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for IMAP SMTP Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-10. WSTG test objectives:\nIdentify IMAP/SMTP injection points.\nUnderstand the data flow and deployment structure of the system.\nAssess the injection impacts.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/10-Testing_for_IMAP_SMTP_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-11",
+      "entryIds": [
+        "WSTG-v42-INPV-11"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Code Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-11. WSTG test objectives:\nIdentify injection points where you can inject code into the application.\nAssess the injection severity.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/11-Testing_for_Code_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-12",
+      "entryIds": [
+        "WSTG-v42-INPV-12"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Command Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-12. WSTG test objectives:\nIdentify and assess the command injection points.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/12-Testing_for_Command_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-13",
+      "entryIds": [
+        "WSTG-v42-INPV-13"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Format String Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-13. WSTG test objectives:\nAssess whether injecting format string conversion specifiers into user-controlled fields causes undesired behaviour from the application.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/13-Testing_for_Format_String_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-14",
+      "entryIds": [
+        "WSTG-v42-INPV-14"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Incubated Vulnerability",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-14. WSTG test objectives:\nIdentify injections that are stored and require a recall step to the stored injection.\nUnderstand how a recall step could occur.\nSet listeners or activate the recall step if possible.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/14-Testing_for_Incubated_Vulnerability.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-15",
+      "entryIds": [
+        "WSTG-v42-INPV-15"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for HTTP Splitting Smuggling",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-15. WSTG test objectives:\nAssess if the application is vulnerable to splitting, identifying what possible attacks are achievable.\nAssess if the chain of communication is vulnerable to smuggling, identifying what possible attacks are achievable.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/15-Testing_for_HTTP_Splitting_Smuggling.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-16",
+      "entryIds": [
+        "WSTG-v42-INPV-16"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for HTTP Incoming Requests",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-16. WSTG test objectives:\nMonitor all incoming and outgoing HTTP requests to the Web Server to inspect any suspicious requests.\nMonitor HTTP traffic without changes of end user Browser proxy or client-side application.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/16-Testing_for_HTTP_Incoming_Requests.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-17",
+      "entryIds": [
+        "WSTG-v42-INPV-17"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Host Header Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-17. WSTG test objectives:\nAssess if the Host header is being parsed dynamically in the application.\nBypass security controls that rely on the header.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/17-Testing_for_Host_Header_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-18",
+      "entryIds": [
+        "WSTG-v42-INPV-18"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Server-side Template Injection",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-18. WSTG test objectives:\nDetect template injection vulnerability points.\nIdentify the templating engine.\nBuild the exploit.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/18-Testing_for_Server-side_Template_Injection.html"
+    },
+    {
+      "key": "WSTG-v42-INPV-19",
+      "entryIds": [
+        "WSTG-v42-INPV-19"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Server-Side Request Forgery",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-INPV-19. WSTG test objectives:\nIdentify SSRF injection points.\nTest if the injection points are exploitable.\nAsses the severity of the vulnerability.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/07-Input_Validation_Testing/19-Testing_for_Server-Side_Request_Forgery.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-01",
+      "entryIds": [
+        "WSTG-v42-SESS-01"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Session Management Schema",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-01. WSTG test objectives:\nGather session tokens, for the same user and for different users where possible.\nAnalyze and ensure that enough randomness exists to stop session forging attacks.\nModify cookies that are not signed and contain information that can be manipulated.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/01-Testing_for_Session_Management_Schema.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-02",
+      "entryIds": [
+        "WSTG-v42-SESS-02"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Cookies Attributes",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-02. WSTG test objectives:\nEnsure that the proper security configuration is set for cookies.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/02-Testing_for_Cookies_Attributes.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-03",
+      "entryIds": [
+        "WSTG-v42-SESS-03"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Session Fixation",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-03. WSTG test objectives:\nAnalyze the authentication mechanism and its flow.\nForce cookies and assess the impact.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/03-Testing_for_Session_Fixation.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-04",
+      "entryIds": [
+        "WSTG-v42-SESS-04"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Exposed Session Variables",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-04. WSTG test objectives:\nEnsure that proper encryption is implemented.\nReview the caching configuration.\nAssess the channel and methods' security.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/04-Testing_for_Exposed_Session_Variables.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-05",
+      "entryIds": [
+        "WSTG-v42-SESS-05"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Cross Site Request Forgery",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-05. WSTG test objectives:\nDetermine whether it is possible to initiate requests on a user's behalf that are not initiated by the user.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/05-Testing_for_Cross_Site_Request_Forgery.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-06",
+      "entryIds": [
+        "WSTG-v42-SESS-06"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Logout Functionality",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-06. WSTG test objectives:\nAssess the logout UI.\nAnalyze the session timeout and if the session is properly killed after logout.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/06-Testing_for_Logout_Functionality.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-07",
+      "entryIds": [
+        "WSTG-v42-SESS-07"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing Session Timeout",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-07. WSTG test objectives:\nValidate that a hard session timeout exists.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/07-Testing_Session_Timeout.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-08",
+      "entryIds": [
+        "WSTG-v42-SESS-08"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Session Puzzling",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-08. WSTG test objectives:\nIdentify all session variables.\nBreak the logical flow of session generation.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/08-Testing_for_Session_Puzzling.html"
+    },
+    {
+      "key": "WSTG-v42-SESS-09",
+      "entryIds": [
+        "WSTG-v42-SESS-09"
+      ],
+      "workflowRole": "check",
+      "method": "active-test",
+      "evidenceContract": {
+        "id": "wstg-http-evidence",
+        "version": "1"
+      },
+      "title": "Testing for Session Hijacking",
+      "objective": "Perform bounded authorized HTTP checks for WSTG-v42-SESS-09. WSTG test objectives:\nIdentify vulnerable session cookies.\nHijack vulnerable cookies and assess the risk level.\n\nUse only the declared target and authorization scope, after the Server's active-check approval. Preserve request/response evidence and control comparisons. Report satisfied only when all applicable objectives are established by live evidence in the declared scope. Unavailable browser, raw-network/TLS, external-discovery or isolated identity capabilities leave explicit gaps. A response code or absence of a demonstrated exploit alone is not a pass. Reference: https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/06-Session_Management_Testing/09-Testing_for_Session_Hijacking.html"
+    }
+  ]
+}
