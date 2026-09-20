@@ -3,7 +3,8 @@ id: V55-007
 title: Prepare deterministic scan requests from OpenAPI
 milestone: scan-tools-followups
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 8e38e25cce5d43cb3f3dad5f00efa2f81bccc371
 depends_on: [V55-006]
 languages: [go, json, yaml, markdown]
 goal: Produce a bounded versioned RequestSet and explicit coverage gaps from an OpenAPI schema.
@@ -79,8 +80,14 @@ progress:
       Required scanplan/contracts tests passed with 546 test/subtest pass events
       (184 scanplan, 362 contracts). The race-enabled gate, go vet, gofmt and diff
       checks pass. A1 and A2 are verified; implementation is ready to commit.
-remaining:
-  - Commit and integrate the verified implementation into main.
+  - date: 2026-09-20
+    step: integrated
+    details: >-
+      Committed implementation as 8e38e25cce5d43cb3f3dad5f00efa2f81bccc371 and
+      fast-forwarded local main. Existing unrelated worktree changes were preserved.
+      A1 and A2 are verified and this task is completed. V55-006 UI integration
+      remains pending; V55-008 can consume the RequestSet preparation contract.
+remaining: []
 verification:
   - >-
     go test -json -count=1 ./internal/scanplan/... ./internal/contracts/... passed.
