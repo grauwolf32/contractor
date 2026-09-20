@@ -148,7 +148,12 @@ export function EvalControls({
               <button
                 key={kind}
                 type="button"
-                className={kind === "start" ? "" : "secondary-button"}
+                className={
+                  !disabled &&
+                  (kind === "prepare" || kind === "start" || kind === "resume")
+                    ? undefined
+                    : "secondary-button"
+                }
                 disabled={busy || disabled}
                 onClick={() =>
                   kind === "start" || kind === "cancel"

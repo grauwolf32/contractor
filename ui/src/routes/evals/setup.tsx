@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
@@ -38,9 +38,11 @@ const STEPS = [
 export function EvalSetupForm({
   experiment,
   onDirtyChange,
+  actions,
 }: {
   experiment?: EvalExperiment;
   onDirtyChange?: (dirty: boolean) => void;
+  actions?: ReactNode;
 }) {
   const api = usePublicAPI(),
     owner = useEvalOwner(),
@@ -135,7 +137,8 @@ export function EvalSetupForm({
             aria-current={step === index ? "step" : undefined}
             onClick={() => setStep(index)}
           >
-            {index + 1}. {label}
+            <span className="eval-step-number">{index + 1}.</span>{" "}
+            <span>{label}</span>
           </button>
         ))}
       </nav>
@@ -148,6 +151,9 @@ export function EvalSetupForm({
           {step === 0 ? (
             <>
               <h2>Variants</h2>
+              <p className="eval-section-description">
+                Choose a baseline and a candidate to compare on the same cases.
+              </p>
               <div className="form-grid">
                 <EvalField label="Experiment name">
                   <input
@@ -157,6 +163,7 @@ export function EvalSetupForm({
                       setName(e.target.value);
                       setDirty(true);
                       onDirtyChange?.(true);
+                      setValidation(null);
                     }}
                   />
                 </EvalField>
@@ -260,22 +267,28 @@ export function EvalSetupForm({
                 </EvalField>
               </div>
               <div className="eval-variants">
-                {draft.variants.map((variant, index) => (
-                  <VariantEditor
-                    key={variant.id}
-                    label={index === 0 ? "A" : "B"}
-                    value={variant}
-                    capabilities={capabilities.data}
-                    onChange={(next) =>
-                      update({
-                        ...draft,
-                        variants: draft.variants.map((v, i) =>
-                          i === index ? next : v,
-                        ),
-                      })
-                    }
-                  />
-                ))}
+                {[draft.comparison.baseline, draft.comparison.candidate]
+                  .map((id) =>
+                    draft.variants.find((variant) => variant.id === id)!,
+                  )
+                  .map((variant) => (
+                    <VariantEditor
+                      key={variant.id}
+                      label={
+                        variant.id === draft.comparison.baseline ? "A" : "B"
+                      }
+                      value={variant}
+                      capabilities={capabilities.data}
+                      onChange={(next) =>
+                        update({
+                          ...draft,
+                          variants: draft.variants.map((v) =>
+                            v.id === variant.id ? next : v,
+                          ),
+                        })
+                      }
+                    />
+                  ))}
               </div>
               <details>
                 <summary>Equality policy</summary>
@@ -464,40 +477,63 @@ export function EvalSetupForm({
               : undefined
           }
         />
-        <div className="eval-actions">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={step === 0}
-            onClick={() => setStep(step - 1)}
-          >
-            Back
-          </button>
-          {step < STEPS.length - 1 ? (
-            <button type="button" onClick={() => setStep(step + 1)}>
-              Next step
-            </button>
-          ) : null}
-          <button
-            type="button"
-            disabled={!projectId || save.isPending}
-            onClick={() => {
-              const problem = draftProblem(name, draft);
-              if (problem) {
-                setValidation(new Error(problem));
-                return;
-              }
-              save.mutate();
-            }}
-          >
-            {save.isPending ? "Saving…" : "Save draft"}
-          </button>
-        </div>
-        <p role="status">
-          {experiment && !dirty
-            ? `Saved on server · revision ${experiment.revision}`
-            : "Save the configured draft to restore it after leaving or reloading. Saving does not start execution."}
-        </p>
+        <footer className="eval-setup-footer">
+          <p className="eval-save-status" role="status">
+            {experiment && !dirty
+              ? `Saved on server · revision ${experiment.revision}`
+              : "Unsaved changes · save this draft before leaving."}
+          </p>
+          <div className="eval-setup-actions">
+            <div className="eval-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={step === 0}
+                onClick={() => setStep(step - 1)}
+              >
+                Back
+              </button>
+              {step < STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  className={experiment ? "secondary-button" : undefined}
+                  onClick={() => setStep(step + 1)}
+                >
+                  Next step
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={
+                  (experiment ? dirty : step === STEPS.length - 1)
+                    ? undefined
+                    : "secondary-button"
+                }
+                disabled={
+                  !projectId || save.isPending || (!!experiment && !dirty)
+                }
+                onClick={() => {
+                  const problem = draftProblem(name, draft);
+                  if (problem) {
+                    setValidation(new Error(problem));
+                    return;
+                  }
+                  save.mutate();
+                }}
+              >
+                {save.isPending ? "Saving…" : "Save draft"}
+              </button>
+            </div>
+            {actions}
+          </div>
+          <p className="eval-section-description">
+            {experiment && dirty
+              ? "Save your changes before preparing this draft. "
+              : ""}
+            Prepare checks compatibility. Start runs the experiment after you
+            confirm.
+          </p>
+        </footer>
       </section>
     </div>
   );
@@ -507,6 +543,7 @@ export function EvalNewRoute() {
   return (
     <EvalFrame
       title="New experiment"
+      description="Compare two versions on a shared dataset. Save, prepare, then start when ready."
       action={<Link to="/evals/datasets">Manage datasets</Link>}
     >
       <EvalSetupForm />

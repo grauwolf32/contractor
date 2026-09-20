@@ -4,7 +4,13 @@
 }
 
 /* Form fields share their appearance inside the page and portal dialogs. */
-:is(.route-page form, .project-dialog, .mobile-section-picker)
+:is(
+    .route-page form,
+    .project-dialog,
+    .mobile-section-picker,
+    .eval-field,
+    .eval-key-value
+  )
   :is(
     input:not(
       [type="checkbox"],
@@ -54,19 +60,20 @@
   min-inline-size: 0;
 }
 
-:is(.route-page form, .project-dialog) :is(input, textarea)::placeholder {
+:is(.route-page form, .project-dialog, .eval-field, .eval-key-value)
+  :is(input, textarea)::placeholder {
   color: var(--muted);
   opacity: 1;
 }
 
-:is(.route-page form, .project-dialog)
+:is(.route-page form, .project-dialog, .eval-field, .eval-key-value)
   :is(input, select, textarea):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-color: var(--focus);
 }
 
-:is(.route-page form, .project-dialog)
+:is(.route-page form, .project-dialog, .eval-field, .eval-key-value)
   :is(input, select, textarea)[aria-invalid="true"] {
   border-color: var(--danger);
 }
@@ -84,6 +91,24 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  background: var(--accent);
+  color: #11170a;
+  padding: 0.55rem 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-link:hover {
+  background: var(--accent-hover);
 }
 
 .project-dialog .inline-actions {

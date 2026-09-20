@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { usePublicAPI } from "../../api/context";
 import {
@@ -227,18 +227,20 @@ function DistributionPlot({
 
 function ProgressPlot({ data }: { data: EvalChart }) {
   const points = data.points ?? [];
-  const width = 600,
-    height = 180,
-    padding = 12;
+  const width = 480,
+    height = 220;
+  const padding = { left: 38, right: 20, top: 16, bottom: 54 };
   const maxTime = Math.max(1, ...points.map((p) => p.elapsedMs));
   const expected = Math.max(
     1,
     ...Object.values(data.experimentSummary.counts).map((c) => c.expected),
   );
   const x = (time: number) =>
-    padding + ((width - 2 * padding) * time) / maxTime;
+    padding.left + ((width - padding.left - padding.right) * time) / maxTime;
   const y = (count: number) =>
-    height - padding - ((height - 2 * padding) * count) / expected;
+    height -
+    padding.bottom -
+    ((height - padding.top - padding.bottom) * count) / expected;
   function steps(arm: "a" | "b") {
     let path = "",
       connected = false;
@@ -268,6 +270,27 @@ function ProgressPlot({ data }: { data: EvalChart }) {
           role="img"
           aria-label="A and B observed execution progress; exact observations follow in the data table"
         >
+          <g className="eval-chart-axis" aria-hidden="true">
+            {[...new Set([0, Math.floor(expected / 2), expected])].map(
+              (count) => (
+                <g key={count}>
+                  <line x1={x(0)} x2={x(maxTime)} y1={y(count)} y2={y(count)} />
+                  <text x={padding.left - 8} y={y(count) + 5} textAnchor="end">
+                    {count}
+                  </text>
+                </g>
+              ),
+            )}
+            <text x={x(0)} y={height - 28}>
+              0 s
+            </text>
+            <text x={x(maxTime)} y={height - 28} textAnchor="end">
+              {format(maxTime / 1000)} s
+            </text>
+            <text x={width / 2} y={height - 4} textAnchor="middle">
+              Elapsed time
+            </text>
+          </g>
           <path d={steps("a")} className="eval-line-a" />
           <path d={steps("b")} className="eval-line-b" />
           {points.map((point, index) => (
@@ -411,6 +434,7 @@ export function EvalChartPanel({
   cursor,
   onNext,
   onBin,
+  onRefresh,
 }: {
   experiment: EvalExperiment;
   chart: EvalChart["chart"];
@@ -419,8 +443,10 @@ export function EvalChartPanel({
   cursor?: string | undefined;
   onNext?: (cursor: string) => void;
   onBin?: (token: string) => void;
+  onRefresh?: () => void;
 }) {
   const api = usePublicAPI();
+  const cache = useQueryClient();
   const query = {
     viewSnapshot: snapshot,
     ...(chart === "pair-deltas"
@@ -434,10 +460,22 @@ export function EvalChartPanel({
   });
   const data = result.data,
     comparison = experiment.setup?.comparison;
+  async function refresh() {
+    if (onRefresh) {
+      onRefresh();
+      return;
+    }
+    await cache.invalidateQueries({
+      queryKey: ["evals", "experiment", experiment.experimentId],
+    });
+    await cache.invalidateQueries({
+      queryKey: ["evals", "chart", experiment.experimentId],
+    });
+  }
   return (
     <section className="panel eval-panel eval-chart">
       <h3>{CHART_TITLES[chart]}</h3>
-      <EvalError error={result.error} />
+      <EvalError error={result.error} reload={() => void refresh()} />
       {result.isPending ? <p role="status">Loading chart…</p> : null}
       {data ? (
         <>

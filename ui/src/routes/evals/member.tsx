@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { usePublicAPI } from "../../api/context";
-import { listEvalExecutions, type EvalMember } from "../../api/evals";
+import {
+  EVAL_POLL_MS,
+  listEvalExecutions,
+  type EvalMember,
+} from "../../api/evals";
 import { ContextLink } from "../../app/context-navigation";
 import { EvalError } from "./common";
 
@@ -70,11 +74,21 @@ export function MemberExecutions({
   const inventory = useQuery({
     queryKey: ["evals", "inventory", id, member.member.memberId, cursor],
     queryFn: () => listEvalExecutions(api, id, member.member.memberId, cursor),
+    refetchInterval: (query) =>
+      !cursor && !query.state.error && !query.state.data?.inventoryComplete
+        ? EVAL_POLL_MS
+        : false,
   });
   return (
     <section>
       <h4>Owned executions</h4>
-      <EvalError error={inventory.error} reload={() => setCursor(undefined)} />
+      <EvalError
+        error={inventory.error}
+        reload={() => {
+          if (cursor) setCursor(undefined);
+          else void inventory.refetch();
+        }}
+      />
       {inventory.data ? (
         <>
           <p>
@@ -137,9 +151,9 @@ export function MemberExecutions({
             ) : null}
           </div>
         </>
-      ) : (
-        <p>Loading execution evidence…</p>
-      )}
+      ) : inventory.isPending ? (
+        <p role="status">Loading execution evidence…</p>
+      ) : null}
     </section>
   );
 }

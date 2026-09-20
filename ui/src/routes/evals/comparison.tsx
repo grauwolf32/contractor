@@ -128,6 +128,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
         chart={plot}
         metric={metric}
         snapshot={snapshot}
+        onRefresh={() => void refresh()}
         cursor={chartCursor ?? undefined}
         onNext={(next) => update({ chartCursor: next })}
         onBin={(token) =>

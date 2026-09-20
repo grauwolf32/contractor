@@ -39,9 +39,13 @@
 .eval-panel h3 {
   margin-top: 0;
 }
-.eval-actions,
-.eval-tabs,
-.eval-steps {
+.eval-page.route-page > h2,
+.eval-page :is(.eval-panel, .eval-readiness) h2 {
+  font-size: 1.25rem;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+.eval-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
@@ -49,17 +53,41 @@
   margin: 1rem 0;
 }
 .eval-tabs {
-  border-bottom: 1px solid var(--line);
+  margin: 1rem 0 1.5rem;
 }
-.eval-tabs a {
-  padding: 0.7rem;
+.eval-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  color: var(--muted-strong);
+  font-size: 0.875rem;
 }
-.eval-tabs [aria-current="page"] {
-  border-bottom: 2px solid var(--accent);
+.eval-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1.25rem 0;
+}
+.eval-steps button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.eval-step-number {
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
 }
 .eval-steps [aria-current="step"] {
   border-color: var(--accent);
+  background: var(--accent-dark);
   color: var(--accent);
+}
+.eval-steps [aria-current="step"] .eval-step-number {
+  color: inherit;
 }
 .eval-matrix {
   padding: 0.8rem 1rem;
@@ -73,25 +101,8 @@
 }
 .eval-field > label {
   color: var(--muted-strong);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-.eval-field :is(input, select, textarea),
-.eval-key-value input {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  background: var(--surface-subtle);
-  color: inherit;
-  padding: 0.65rem 0.75rem;
-}
-.eval-field :is(input, select, textarea):focus,
-.eval-key-value input:focus {
-  border-color: var(--accent);
-}
-.eval-field :is(input, select, textarea)[aria-invalid="true"] {
-  border-color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 .eval-field textarea {
   resize: vertical;
@@ -116,10 +127,134 @@
 .eval-arm-b {
   --eval-arm: var(--eval-b);
 }
-.eval-variant,
-.eval-variants > section {
+.eval-page .eval-variant,
+.eval-variants > :is(section, .eval-panel) {
   border-top: 3px solid var(--eval-arm);
   padding: 1rem;
+}
+.eval-setup-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+.eval-setup-actions {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.eval-setup-actions .eval-actions {
+  margin: 0.5rem 0;
+}
+.eval-save-status {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.eval-section-description {
+  color: var(--muted-strong);
+}
+.eval-setup-footer .eval-section-description {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+.eval-page .eval-filters {
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+}
+.eval-filters summary {
+  font-size: 0.875rem;
+}
+.eval-experiment-card .section-heading {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.eval-page .eval-experiment-card h2 {
+  font-size: 1.1rem;
+}
+.eval-variant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.eval-variant-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.eval-variant-chip > span,
+.eval-list-coverage {
+  color: var(--muted-strong);
+}
+.eval-list-coverage {
+  font-size: 0.85rem;
+}
+.eval-list-coverage p {
+  margin: 0.35rem 0;
+}
+.eval-experiment-card small {
+  margin-top: 1rem;
+}
+.eval-conclusion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  border-left: 3px solid var(--warning);
+  padding: 0.75rem 1rem;
+  background: var(--surface-subtle);
+}
+.eval-conclusion > span {
+  color: var(--muted-strong);
+  font-size: 0.875rem;
+}
+.eval-conclusion[data-conclusion="pass"] {
+  border-color: var(--success);
+}
+.eval-conclusion[data-conclusion="regressions"] {
+  border-color: var(--danger);
+}
+.eval-coverage {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0;
+}
+.eval-coverage dt {
+  font-size: 0.75rem;
+  color: var(--muted-strong);
+}
+.eval-coverage dd {
+  margin: 0.35rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.eval-coverage dd span {
+  font-size: 0.9rem;
+  color: var(--muted-strong);
+  font-weight: 400;
+}
+.eval-diagnostics {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid;
+  border-radius: var(--control-radius);
+}
+.eval-diagnostics p {
+  margin: 0.6rem 0;
+}
+.eval-diagnostics details {
+  border: 0;
+  padding: 0.5rem 0 0;
 }
 .eval-key-value {
   display: grid;
@@ -245,6 +380,14 @@
   width: 100%;
   max-height: 16rem;
 }
+.eval-chart-axis text {
+  fill: var(--muted-strong);
+  font-size: 16px;
+}
+.eval-chart-axis line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
 .eval-line-a,
 .eval-line-b {
   stroke-width: 2;
@@ -292,6 +435,15 @@
   background: var(--eval-b);
 }
 @media (max-width: 700px) {
+  .eval-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .eval-page > .route-header-row > .button-link {
+    width: 100%;
+  }
+  .eval-coverage {
+    gap: 0.5rem;
+  }
   .eval-overview-selector {
     display: block;
   }

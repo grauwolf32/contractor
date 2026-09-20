@@ -12,7 +12,12 @@ import {
   type EvalCapabilities,
   type EvalVariant,
 } from "../../api/evals";
-import { EvalError, EvalField, KeyValueEditor } from "./common";
+import {
+  CommaSeparatedInput,
+  EvalError,
+  EvalField,
+  KeyValueEditor,
+} from "./common";
 import { sortedBindings } from "./setup-model";
 
 function ExecutionOverrides({
@@ -292,15 +297,12 @@ export function VariantEditor({
           label={`${label} runtime labels`}
           hint="Optional labels, separated by commas; availability is checked during preparation."
         >
-          <input
-            value={(value.runtimeLabels ?? []).join(", ")}
-            onChange={(e) =>
+          <CommaSeparatedInput
+            value={value.runtimeLabels ?? []}
+            onChange={(runtimeLabels) =>
               onChange({
                 ...value,
-                runtimeLabels: e.target.value
-                  .split(",")
-                  .map((x) => x.trim())
-                  .filter(Boolean),
+                runtimeLabels,
               })
             }
           />

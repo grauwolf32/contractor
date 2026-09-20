@@ -1,5 +1,5 @@
 import { artifactHref } from "./links";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
@@ -17,6 +17,7 @@ export function EvalPairRoute() {
   const snapshot = params.get("viewSnapshot") ?? undefined;
   const api = usePublicAPI(),
     experiment = useEvalExperiment(experimentId);
+  const cache = useQueryClient();
   const pair = useQuery({
     queryKey: ["evals", "pair", experimentId, pairId, snapshot],
     queryFn: () => getEvalPair(api, experimentId, pairId, snapshot),
@@ -27,6 +28,9 @@ export function EvalPairRoute() {
     setParams({}, { replace: true, state: location.state });
     void experiment.refetch();
     void pair.refetch();
+    void cache.invalidateQueries({
+      queryKey: ["evals", "inventory", experimentId],
+    });
   }
   const canReview =
     experiment.data?.setup?.checks.some(

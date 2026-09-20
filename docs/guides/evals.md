@@ -1,6 +1,6 @@
 # Compare Workflow or Audit variants
 
-Open **Evals** to list experiments. Filter by lifecycle, control mode,
+Open **Evals** to list experiments. Expand **Filter experiments** to filter by lifecycle, control mode,
 evaluation workspace or dataset. **Legacy evaluation workspaces** retains
 the previous Run grouping and its links.
 
@@ -30,6 +30,11 @@ failure, return to the experiment and recover the original command receipt.
 Pause, Resume and Cancel display the confirmed server state. Cancelling can
 remain pending while already accepted executions drain.
 
+The setup footer shows whether changes are saved. Save edits before preparing.
+Preparation diagnostics appear above every experiment section, including when
+preparation returns to Draft. Read the suggested correction or open
+**Diagnostic details** for the error code.
+
 An observed-token threshold is an admission/drain policy, not a precise billing
 cap. Missing counters do not mean free execution. Existing Run/Audit budgets
 still apply.
@@ -37,7 +42,8 @@ still apply.
 ## Compare and review
 
 **Overview** shows progress, coverage and quality against every expected member.
-On a narrow screen, use **Overview chart** to switch between quality and progress;
+On a narrow screen, use **Experiment section** to navigate and **Overview chart**
+to switch between quality and progress;
 wide screens show both charts together.
 **Comparison** pairs the same case/sample across A/B. The initial filter focuses
 on regressions and unresolved pairs; **All pairs** includes the full matrix.
@@ -51,6 +57,8 @@ difference to inspect the corresponding evidence. Audit duration is its parent
 interval; child Runs are evidence, not additional samples.
 
 Open a pair for exact result/assessment revisions and Run/Audit/artifact links.
+**Refresh pair evidence** reloads both selected evidence and owned execution
+availability. **Retry** repeats failed reads even when the filters are unchanged.
 **Review A/B** retrieves the private rubric for that result. Choose an explicit
 decision, explain it and save/select the assessment. Your authenticated identity
 is retained. If another update changes the result or revision, refresh and

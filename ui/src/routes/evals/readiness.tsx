@@ -22,46 +22,51 @@ export function EvalReadiness({
           : ""}
       </p>
       <div className="eval-variants">
-        {setup.variants.map((v) => (
-          <div className="panel eval-panel" key={v.id}>
-            <h3>
-              {v.id === setup.comparison.baseline
-                ? "A · Baseline"
-                : "B · Candidate"}
-            </h3>
-            <p>
-              {v.kind}: {v.selector}
-            </p>
-            <dl>
-              <dt>Runtime labels</dt>
-              <dd>{v.runtimeLabels?.join(", ") || "Default runtime"}</dd>
-              <dt>Parameters</dt>
-              <dd>
-                {Object.entries(v.parameters ?? {})
-                  .map(([k, val]) => `${k}: ${val}`)
-                  .join("; ") || "Case parameters"}
-              </dd>
-              <dt>Input mapping</dt>
-              <dd>
-                {Object.entries(v.inputMapping ?? {})
-                  .map(([k, val]) => `${k} → ${val}`)
-                  .join("; ") || "Same role names"}
-              </dd>
-              <dt>Output mapping</dt>
-              <dd>
-                {Object.entries(v.outputMapping ?? {})
-                  .map(([k, val]) => `${k} → ${val}`)
-                  .join("; ") || "Same role names"}
-              </dd>
-            </dl>
-            {Object.keys(v.executionConfig).length ? (
-              <details>
-                <summary>Exact execution overrides</summary>
-                <pre>{JSON.stringify(v.executionConfig, null, 2)}</pre>
-              </details>
-            ) : null}
-          </div>
-        ))}
+        {[setup.comparison.baseline, setup.comparison.candidate]
+          .map((id) => setup.variants.find((variant) => variant.id === id)!)
+          .map((v) => (
+            <div
+              className={`panel eval-panel eval-arm-${v.id === setup.comparison.baseline ? "a" : "b"}`}
+              key={v.id}
+            >
+              <h3>
+                {v.id === setup.comparison.baseline
+                  ? "A · Baseline"
+                  : "B · Candidate"}
+              </h3>
+              <p>
+                {v.kind}: {v.selector}
+              </p>
+              <dl className="eval-facts">
+                <dt>Runtime labels</dt>
+                <dd>{v.runtimeLabels?.join(", ") || "Default runtime"}</dd>
+                <dt>Parameters</dt>
+                <dd>
+                  {Object.entries(v.parameters ?? {})
+                    .map(([k, val]) => `${k}: ${val}`)
+                    .join("; ") || "Case parameters"}
+                </dd>
+                <dt>Input mapping</dt>
+                <dd>
+                  {Object.entries(v.inputMapping ?? {})
+                    .map(([k, val]) => `${k} → ${val}`)
+                    .join("; ") || "Same role names"}
+                </dd>
+                <dt>Output mapping</dt>
+                <dd>
+                  {Object.entries(v.outputMapping ?? {})
+                    .map(([k, val]) => `${k} → ${val}`)
+                    .join("; ") || "Same role names"}
+                </dd>
+              </dl>
+              {Object.keys(v.executionConfig).length ? (
+                <details>
+                  <summary>Exact execution overrides</summary>
+                  <pre>{JSON.stringify(v.executionConfig, null, 2)}</pre>
+                </details>
+              ) : null}
+            </div>
+          ))}
       </div>
       <dl className="eval-facts">
         <dt>Dataset revision</dt>
@@ -156,12 +161,6 @@ export function EvalReadiness({
           Prepared plan: <code>{experiment.planSha256}</code>
         </p>
       ) : null}
-      {experiment?.diagnostics?.map((diagnostic, index) => (
-        <p role="alert" key={index}>
-          {diagnostic.code}: {diagnostic.field} ·{" "}
-          {diagnostic.recovery.replaceAll("_", " ")}
-        </p>
-      ))}
     </section>
   );
 }

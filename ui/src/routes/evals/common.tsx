@@ -3,6 +3,7 @@ import {
   isValidElement,
   useId,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { Link } from "react-router";
@@ -14,24 +15,60 @@ export function EvalFrame({
   title,
   children,
   action,
+  description,
 }: {
   title: string;
   children: ReactNode;
   action?: ReactNode;
+  description?: string;
 }) {
   return (
-    <section className="workspace-page eval-page">
-      <header className="page-heading">
+    <section className="route-page eval-page">
+      <header className="route-header-row">
         <div>
           <p className="eyebrow">
             <Link to="/evals">Evals</Link>
           </p>
-          <h1>{title}</h1>
+          <h2>{title}</h2>
+          {description ? <p className="lede">{description}</p> : null}
         </div>
         {action}
       </header>
       {children}
     </section>
+  );
+}
+
+export function CommaSeparatedInput({
+  value,
+  onChange,
+  ...props
+}: Omit<ComponentProps<"input">, "value" | "onChange"> & {
+  value: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const normalized = value.join(", ");
+  const [buffer, setBuffer] = useState({
+    source: normalized,
+    text: normalized,
+  });
+  if (buffer.source !== normalized) {
+    setBuffer({ source: normalized, text: normalized });
+  }
+  return (
+    <input
+      {...props}
+      value={buffer.text}
+      onChange={(event) => {
+        const text = event.target.value;
+        const values = text
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        setBuffer({ source: values.join(", "), text });
+        onChange(values);
+      }}
+    />
   );
 }
 

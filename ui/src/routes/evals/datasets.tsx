@@ -8,7 +8,13 @@ import {
   type EvalDatasetInput,
   type EvalCase,
 } from "../../api/evals";
-import { EvalFrame, EvalField, EvalError, KeyValueEditor } from "./common";
+import {
+  CommaSeparatedInput,
+  EvalFrame,
+  EvalField,
+  EvalError,
+  KeyValueEditor,
+} from "./common";
 import { EvalArtifactPicker } from "./artifact-picker";
 import { useEvalDatasets, useEvalOwner, useEvalProjects } from "./queries";
 import { finishMutation, mutationKey } from "./recovery";
@@ -88,15 +94,12 @@ function CaseEditor({
         label="Required capabilities"
         hint="Optional exact capability names, separated by commas."
       >
-        <input
-          value={value.requires.join(", ")}
-          onChange={(e) =>
+        <CommaSeparatedInput
+          value={value.requires}
+          onChange={(requires) =>
             onChange({
               ...value,
-              requires: e.target.value
-                .split(",")
-                .map((x) => x.trim())
-                .filter(Boolean),
+              requires,
             })
           }
         />

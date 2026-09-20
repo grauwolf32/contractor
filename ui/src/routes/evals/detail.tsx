@@ -11,10 +11,13 @@ import { EvalError, EvalField, EvalFrame } from "./common";
 import { EvalComparison } from "./comparison";
 import { EvalControls } from "./controls";
 import { MemberSummary, MemberExecutions } from "./member";
-import { EvalOverviewCharts } from "./overview";
+import { EvalOverviewCharts, EvalOverviewSummary } from "./overview";
 import { useEvalExperiment } from "./queries";
 import { EvalReadiness } from "./readiness";
 import { EvalSetupForm } from "./setup";
+import { EvalDiagnostics } from "./diagnostics";
+import { MobileSectionPicker } from "../../app/mobile-section-picker";
+import { StateBadge } from "../runs/components";
 import { useEvalViewRefresh } from "./view-refresh";
 
 function Attempts({ experiment }: { experiment: EvalExperiment }) {
@@ -125,9 +128,11 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
             </button>
           </div>
         </>
-      ) : (
+      ) : !snapshot ? (
         <p>Attempts are available after preparation.</p>
-      )}
+      ) : members.isPending ? (
+        <p role="status">Loading attempts…</p>
+      ) : null}
     </>
   );
 }
@@ -136,9 +141,11 @@ function DraftSetup({ experiment }: { experiment: EvalExperiment }) {
   const [dirty, setDirty] = useState(false);
   return (
     <>
-      <EvalSetupForm experiment={experiment} onDirtyChange={setDirty} />
-      {dirty ? <p>Save your changes before preparing this draft.</p> : null}
-      <EvalControls experiment={experiment} disabled={dirty} />
+      <EvalSetupForm
+        experiment={experiment}
+        onDirtyChange={setDirty}
+        actions={<EvalControls experiment={experiment} disabled={dirty} />}
+      />
     </>
   );
 }
@@ -155,11 +162,21 @@ export function EvalDetailRoute() {
       />
       {data ? (
         <>
-          <p>
-            {data.state} · {data.executionKind} · {data.controlMode} ·{" "}
-            {data.expectedMembers} expected members
-          </p>
-          <nav className="eval-tabs" aria-label="Experiment sections">
+          <div className="eval-identity">
+            <StateBadge state={data.state} />
+            <span>
+              {data.executionKind === "audit" ? "Audit" : "Workflow"} ·{" "}
+              {data.controlMode === "server"
+                ? "Server controlled"
+                : "External producer"}
+            </span>
+            <span>{data.expectedMembers} expected members</span>
+          </div>
+          <EvalDiagnostics experiment={data} />
+          <nav
+            className="section-navigation eval-tabs"
+            aria-label="Experiment sections"
+          >
             {["overview", "comparison", "attempts", "setup"].map((tab) => (
               <Link
                 key={tab}
@@ -170,6 +187,16 @@ export function EvalDetailRoute() {
               </Link>
             ))}
           </nav>
+          <MobileSectionPicker
+            label="Experiment section"
+            value={`/evals/experiments/${encodeURIComponent(experimentId)}/${section}`}
+            options={["overview", "comparison", "attempts", "setup"].map(
+              (tab) => ({
+                to: `/evals/experiments/${encodeURIComponent(experimentId)}/${tab}`,
+                label: tab[0]!.toUpperCase() + tab.slice(1),
+              }),
+            )}
+          />
           {section === "setup" ? (
             <>
               {data.state === "draft" && data.draft ? (
@@ -179,8 +206,14 @@ export function EvalDetailRoute() {
                 />
               ) : (
                 <>
-                  <EvalReadiness experiment={data} />
                   <EvalControls key={data.experimentId} experiment={data} />
+                  {data.state === "preparing" ? (
+                    <p role="status">
+                      Preparing the experiment. Compatibility checks are
+                      running; this page updates automatically.
+                    </p>
+                  ) : null}
+                  <EvalReadiness experiment={data} />
                 </>
               )}
             </>
@@ -197,26 +230,7 @@ export function EvalDetailRoute() {
                   <p>
                     Execution completion and assessment coverage are separate.
                   </p>
-                  {data.summary ? (
-                    <>
-                      <p>
-                        <strong>Conclusion: {data.summary.conclusion}</strong> ·{" "}
-                        {data.freshness}
-                      </p>
-                      {Object.entries(data.summary.counts).map(
-                        ([arm, counts]) => (
-                          <p key={arm}>
-                            {arm}: {counts.terminal}/{counts.expected} terminal
-                            · {counts.scored}/{counts.expected} scored ·{" "}
-                            {counts.endToEndPassed}/{counts.expected} end-to-end
-                            passed
-                          </p>
-                        ),
-                      )}
-                    </>
-                  ) : (
-                    <p>Comparison is waiting for collected observations.</p>
-                  )}
+                  <EvalOverviewSummary experiment={data} />
                   {data.deadlineAt ? (
                     <p>
                       Original deadline:{" "}
@@ -240,9 +254,9 @@ export function EvalDetailRoute() {
             </>
           )}
         </>
-      ) : (
+      ) : experiment.isPending ? (
         <p role="status">Loading experiment…</p>
-      )}
+      ) : null}
     </EvalFrame>
   );
 }

@@ -8,6 +8,8 @@ import {
 } from "../../api/evals";
 import { EvalError, EvalField, EvalFrame } from "./common";
 import { useEvalProjects } from "./queries";
+import { RecordedTime } from "../../app/recorded-time";
+import { StateBadge } from "../runs/components";
 
 const EVAL_STATES = [
   "draft",
@@ -56,6 +58,7 @@ export function EvalListRoute() {
   return (
     <EvalFrame
       title="Experiments"
+      description="Compare execution quality, cost and coverage across two variants."
       action={
         <Link className="button-link" to="/evals/new">
           New experiment
@@ -66,53 +69,72 @@ export function EvalListRoute() {
         <Link to="/evals/datasets">Datasets</Link>
         <Link to="/evals/legacy">Legacy evaluation workspaces</Link>
       </nav>
-      <div className="form-grid">
-        <EvalField label="Lifecycle">
-          <select
-            value={state ?? ""}
-            onChange={(e) => filter("state", e.target.value)}
+      <details
+        className="eval-filters"
+        open={!!(state || mode || projectId || datasetId)}
+      >
+        <summary>
+          Filter experiments
+          {state || mode || projectId || datasetId ? " · active" : ""}
+        </summary>
+        <div className="form-grid">
+          <EvalField label="Lifecycle">
+            <select
+              value={state ?? ""}
+              onChange={(e) => filter("state", e.target.value)}
+            >
+              <option value="">All states</option>
+              {EVAL_STATES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </EvalField>
+          <EvalField label="Control mode">
+            <select
+              value={mode ?? ""}
+              onChange={(e) => filter("controlMode", e.target.value)}
+            >
+              <option value="">All producers</option>
+              <option value="server">Native server</option>
+              <option value="external">External producer</option>
+            </select>
+          </EvalField>
+          <EvalField label="Evaluation workspace">
+            <select
+              value={projectId ?? ""}
+              onChange={(e) => filter("projectId", e.target.value)}
+            >
+              <option value="">All workspaces</option>
+              {projects.data?.map((p) => (
+                <option key={p.projectId} value={p.projectId}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </EvalField>
+          <EvalField label="Dataset ID">
+            <input
+              value={datasetId ?? ""}
+              onChange={(e) => filter("datasetId", e.target.value)}
+            />
+          </EvalField>
+        </div>
+        {state || mode || projectId || datasetId ? (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setParams({})}
           >
-            <option value="">All states</option>
-            {EVAL_STATES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </EvalField>
-        <EvalField label="Control mode">
-          <select
-            value={mode ?? ""}
-            onChange={(e) => filter("controlMode", e.target.value)}
-          >
-            <option value="">All producers</option>
-            <option value="server">Native server</option>
-            <option value="external">External producer</option>
-          </select>
-        </EvalField>
-        <EvalField label="Evaluation workspace">
-          <select
-            value={projectId ?? ""}
-            onChange={(e) => filter("projectId", e.target.value)}
-          >
-            <option value="">All workspaces</option>
-            {projects.data?.map((p) => (
-              <option key={p.projectId} value={p.projectId}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </EvalField>
-        <EvalField label="Dataset ID">
-          <input
-            value={datasetId ?? ""}
-            onChange={(e) => filter("datasetId", e.target.value)}
-          />
-        </EvalField>
-      </div>
+            Clear filters
+          </button>
+        ) : null}
+      </details>
       <EvalError
         error={list.error ?? projects.error}
         reload={() => {
           filter("cursor", "");
           void list.refetch();
+          void projects.refetch();
         }}
       />
       {list.isPending ? <p role="status">Loading experiments…</p> : null}
@@ -127,7 +149,10 @@ export function EvalListRoute() {
       ) : null}
       <div className="eval-experiment-list">
         {list.data?.items.map((item) => (
-          <article className="panel eval-panel" key={item.experimentId}>
+          <article
+            className="panel eval-panel eval-experiment-card"
+            key={item.experimentId}
+          >
             <div className="section-heading">
               <h2>
                 <Link
@@ -136,38 +161,51 @@ export function EvalListRoute() {
                   {item.name}
                 </Link>
               </h2>
-              <span>
-                {item.state} · {item.controlMode}
-              </span>
+              <StateBadge state={item.state} />
             </div>
             <p>
-              {item.executionKind} · {item.expectedMembers} expected members
+              {item.executionKind === "audit" ? "Audit" : "Workflow"} ·{" "}
+              {item.controlMode === "server"
+                ? "Server controlled"
+                : "External producer"}{" "}
+              · {item.expectedMembers} expected members
               {item.caseCount && item.repetitions
                 ? ` · ${item.caseCount} cases × 2 × ${item.repetitions}`
                 : ""}
             </p>
-            {item.variants?.map((v, i) => (
-              <p key={v.id}>
-                {i === 0 ? "A" : "B"}: {v.selector}
-              </p>
-            ))}
+            <div className="eval-variant-chips">
+              {item.variants?.map((v) => (
+                <span className="eval-variant-chip" key={v.id}>
+                  <span>Variant {v.id}</span> <strong>{v.selector}</strong>
+                </span>
+              ))}
+            </div>
             {item.summary ? (
               <>
-                <p>
-                  Conclusion: {item.summary.conclusion} · {item.freshness}
+                <p className="eval-list-conclusion">
+                  <strong>Conclusion: {item.summary.conclusion}</strong> ·{" "}
+                  {item.freshness}
                 </p>
-                {Object.entries(item.summary.counts).map(([arm, counts]) => (
-                  <p key={arm}>
-                    {arm}: {counts.terminal}/{counts.expected} terminal ·{" "}
-                    {counts.scored}/{counts.expected} scored ·{" "}
-                    {counts.endToEndPassed}/{counts.expected} passed
-                  </p>
-                ))}
+                <div className="eval-list-coverage">
+                  {Object.entries(item.summary.counts).map(([arm, counts]) => (
+                    <p key={arm}>
+                      {arm}: {counts.terminal}/{counts.expected} terminal ·{" "}
+                      {counts.scored}/{counts.expected} scored ·{" "}
+                      {counts.endToEndPassed}/{counts.expected} passed
+                    </p>
+                  ))}
+                </div>
               </>
             ) : (
-              <p>Comparison pending</p>
+              <p className="eval-section-description">
+                {item.state === "draft"
+                  ? "Configure the variants and cases, then prepare the experiment."
+                  : "Comparison pending"}
+              </p>
             )}
-            <small>Updated {new Date(item.updatedAt).toLocaleString()}</small>
+            <small>
+              Updated <RecordedTime value={item.updatedAt} />
+            </small>
           </article>
         ))}
       </div>
