@@ -166,6 +166,13 @@ Missing children, truncated reports or unavailable finalizer/role accounting mak
 the corresponding scope partial/unavailable. Child counts do not change the
 expected member or scored denominator. Cached tokens remain a subset of inputs.
 
+The model-free `passthrough@1` Planner reports explicit zero model calls and token
+counters. For retained reports that omitted those counters, collection derives
+the zeros only from the immutable Stage's exact `passthrough@1` identity. Missing
+Worker or model-backed Planner counters remain incomplete. Recollection creates
+new result revisions; an existing selected result changes only through explicit
+selection, preserving result and assessment history.
+
 `wall_ms` uses the parent execution's `createdAt` to confirmed `finishedAt` for
 both Run and Audit, matching the existing Contractor provider interval. It
 includes queue/hold time but excludes evaluator preparation/scoring/publication.

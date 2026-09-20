@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -14,6 +15,7 @@ type MetricSnapshot struct {
 	StageExecutionID string
 	Document         json.RawMessage
 	ExpectedWorkers  int
+	Planner          config.PlannerRef
 }
 
 const metricSnapshotsQuery = `
@@ -41,6 +43,8 @@ WITH snapshots AS (
                 FROM jsonb_each(metrics.metrics -> 'runtime')
             ), '{}'::jsonb)
         ) END AS document,
+        COALESCE(stage.stage_spec_snapshot #>> '{planner,plannerId}', '') AS planner_id,
+        COALESCE(stage.stage_spec_snapshot #>> '{planner,version}', '') AS planner_version,
         (SELECT count(*) FROM stage_allocations allocation
             WHERE allocation.stage_execution_id = stage.stage_execution_id)::int AS expected_workers
     FROM stage_executions stage
@@ -56,7 +60,7 @@ WITH snapshots AS (
 )
 SELECT run_id, stage_execution_id,
     CASE WHEN total_size <= $4 AND octet_length(document::text) <= $5 THEN document END,
-    expected_workers
+    expected_workers, planner_id, planner_version
 FROM bounded
 ORDER BY run_id, stage_execution_id
 `
@@ -75,7 +79,7 @@ func (s *Store) MetricSnapshots(ctx context.Context, owner string, runs []string
 	snapshots := []MetricSnapshot{}
 	for rows.Next() {
 		var item MetricSnapshot
-		if err = rows.Scan(&item.RunID, &item.StageExecutionID, &item.Document, &item.ExpectedWorkers); err != nil {
+		if err = rows.Scan(&item.RunID, &item.StageExecutionID, &item.Document, &item.ExpectedWorkers, &item.Planner.PlannerID, &item.Planner.Version); err != nil {
 			return nil, err
 		}
 		snapshots = append(snapshots, item)

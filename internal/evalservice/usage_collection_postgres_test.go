@@ -15,6 +15,56 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
+func TestEvalObservedLegacyPlannerCountersUseImmutableStageIdentity(t *testing.T) {
+	pool := serviceTestPool(t)
+	runs := runstore.NewPostgresStore(pool)
+	for _, planner := range []string{"passthrough", "streamline"} {
+		_, err := runs.CreateRun(t.Context(), runstore.CreateRunParams{
+			RunID: planner, OwnerID: "owner", WorkflowName: "fixture", WorkflowVersion: "1",
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"fixture"}`),
+			Parameters: map[string]string{}, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = runs.TransitionRun(t.Context(), planner, runstore.RunInitializing, runstore.RunRunning, runstore.Reason{Code: "fixture"}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = runs.CreateStageExecution(t.Context(), runstore.CreateStageExecutionParams{
+			StageExecutionID: planner, RunID: planner, StageName: "fixture", Attempt: 1,
+			StageSpecSchemaVersion:    contracts.APIVersion,
+			StageSpecSnapshot:         json.RawMessage(`{"planner":{"plannerId":"` + planner + `","version":"1"}}`),
+			StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The same retained report has no model counters. Only the immutable
+		// passthrough identity can establish that its own model work is zero.
+		_, err = pool.Exec(t.Context(), `INSERT INTO stage_metrics(stage_execution_id,metrics_schema_version,metrics,summary)
+VALUES($1,$2,'{"planner":{"complete":true,"metrics":{"tools":{}}},"workers":{},"runtime":{}}','{}')`, planner, contracts.APIVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ref := evaldomain.ExecutionRef{Kind: "run", ID: planner}
+		inventory := evalstore.Inventory{Complete: true, Gaps: []string{}, Entries: []evalstore.InventoryEntry{{Execution: &ref, Available: true}}}
+		start, finish := time.Unix(0, 0).UTC(), time.Unix(1, 0).UTC()
+		usage, err := observedUsage(t.Context(), pool, "owner", evaldomain.Digest([]byte(planner))[7:], ExecutionView{
+			Ref: &ref, State: "succeeded", StartedAt: &start, FinishedAt: &finish,
+		}, inventory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if planner == "passthrough" {
+			if usage.TotalTokens.Value == nil || *usage.TotalTokens.Value != 0 || usage.TotalTokens.Completeness != "complete" {
+				t.Fatalf("legacy passthrough metrics = %+v", usage.TotalTokens)
+			}
+		} else if usage.TotalTokens.Value != nil || usage.TotalTokens.Completeness != "unavailable" {
+			t.Fatalf("missing model usage became zero: %+v", usage.TotalTokens)
+		}
+	}
+}
+
 // The inventory authority/pagination journey is covered at the public boundary.
 // This test exercises real metric SQL and normalization over its all-role fixture.
 func TestEvalObservedAuditUsageCountsStagesOnceAndKeepsParentDuration(t *testing.T) {

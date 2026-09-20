@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -28,7 +29,7 @@ type metricSnapshot struct {
 	} `json:"runtime"`
 }
 
-func attemptMetrics(run, stage string, raw []byte, expectedWorkers int) (evaldomain.AttemptObservation, error) {
+func attemptMetrics(run, stage string, raw []byte, expectedWorkers int, planner config.PlannerRef) (evaldomain.AttemptObservation, error) {
 	out := evaldomain.AttemptObservation{RunID: run, StageExecutionID: stage, SourceSHA256: evaldomain.Digest(raw), Metrics: map[string]int64{}, ReportsComplete: true}
 	var snap metricSnapshot
 	if err := json.Unmarshal(raw, &snap); err != nil {
@@ -36,6 +37,20 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int) (evaldom
 	}
 	participants := []metricReport{}
 	if snap.Planner != nil {
+		// Older passthrough@1 reports omitted counters for model work it never
+		// performs. Only the immutable Stage planner identity permits these zeros;
+		// missing Worker or model-backed Planner counters remain incomplete.
+		if planner.PlannerID == "passthrough" && planner.Version == "1" {
+			for _, counter := range []**int64{
+				&snap.Planner.Metrics.ModelCalls, &snap.Planner.Metrics.InputTokens,
+				&snap.Planner.Metrics.OutputTokens, &snap.Planner.Metrics.TotalTokens,
+			} {
+				if *counter == nil {
+					zero := int64(0)
+					*counter = &zero
+				}
+			}
+		}
 		participants = append(participants, *snap.Planner)
 	}
 	for _, r := range snap.Workers {
@@ -140,7 +155,7 @@ func observedUsage(ctx context.Context, db pg.DBTX, owner, member string, execut
 			observation.Missing = append(observation.Missing, "Stage metrics are unavailable or exceed the payload bound.")
 			continue
 		}
-		attempt, err := attemptMetrics(snapshot.RunID, snapshot.StageExecutionID, snapshot.Document, snapshot.ExpectedWorkers)
+		attempt, err := attemptMetrics(snapshot.RunID, snapshot.StageExecutionID, snapshot.Document, snapshot.ExpectedWorkers, snapshot.Planner)
 		if err != nil {
 			return evaldomain.Usage{}, err
 		}
