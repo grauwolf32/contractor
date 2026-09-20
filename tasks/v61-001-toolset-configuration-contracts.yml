@@ -50,7 +50,7 @@ deliverables:
   - path: api/v1alpha1
     description: Updated closed private schemas and synchronized Go/Python models.
   - path: api/testdata/toolset-runtime-configuration
-    description: New shared canonical and invalid wire fixtures consumed from both languages.
+    description: Shared canonical and invalid fixtures verifying Go/Python/schema agreement on default normalization, accepted boundaries and out-of-range rejection.
   - path: api/openapi/contractor-public-v1.yaml
     description: Public configuration/credential and planned read-projection contracts with regenerated client and strict parsers.
 requirements:
@@ -61,7 +61,7 @@ requirements:
   - id: R3
     text: Freeze connect 10s/default and 1-60s range, RPC 60s/default and 1-600s range, inherited earlier deadlines, per-ref clear semantics and deterministic conflict paths.
   - id: R4
-    text: Document numeric limits and supported schema/content constructs before dependent runtime implementation; unsupported content, remote refs and ambiguous calls have explicit outcomes.
+    text: Specify named implementation constants for new defaults/bounds and reuse existing URL/PEM/document/header limits. Fix supported schema/content constructs before dependent runtime implementation; unsupported content, remote refs and ambiguous calls have explicit outcomes.
 acceptance_criteria:
   - id: A1
     text: Normative examples unambiguously cover native configurable toolsets, MCP, binding selection, mixed profiles, inheritance, clear, conflict and physical-Agent label rejection.
