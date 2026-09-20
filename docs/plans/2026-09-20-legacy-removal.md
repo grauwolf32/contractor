@@ -1,8 +1,8 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01–D07 implemented, verified and integrated into local `main`.
-The original numbered increments are complete. The follow-up Audit workflow
-refresh is recorded below.
+Status: C01–C07 and D01–D08 implemented and verified.
+The original increments, Audit workflow refresh and `audit-results@1` retirement
+are complete. D08 follows with strict direct-assessment replay.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -28,7 +28,7 @@ database reset or deployment is required for the repository changes.
 ## Recommendation
 
 Start with six groups of runtime/API implementation shims, then retire the
-**41 explicitly superseded catalog entries**. Seven further groups support
+**41 explicitly superseded catalog entries**. Eight further groups support
 historical persisted data; replace them with strict current-format handling
 in separate increments.
 
@@ -276,6 +276,7 @@ data needs a compatibility window.
 | D05 (implemented) | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): removed readers for absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
 | D06 (implemented) | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): removed reconstruction of original inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
 | D07 (implemented) | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): removed old `text/plain` report summary handling in stores, projections, approval and UI. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
+| D08 (implemented) | [findingintake/direct_verification.go](../../internal/findingintake/direct_verification.go): removed replay lookup by the old receipt-only assessment ID. | Match only the current destination-Audit-and-receipt ID; retain content conflict checks, independent Audit imports and idempotent evidence retention. |
 
 D04 concerns only the historical terminal-closure path. Current time-limit
 expiry pauses an Audit, and continuing that paused Audit is core functionality.
@@ -459,6 +460,31 @@ current summaries use the safe Markdown preview and exact `.md` download.
 Updated the HTTP/route fixtures and specification 19. General-purpose plain-text
 Artifacts and evidence remain supported outside the Audit report contract.
 
+### D08 — current direct-assessment identity (implemented)
+
+Direct verification already writes IDs derived from the destination Audit and
+proposal receipt. Removed the alternate receipt-only ID from the replay query.
+Current replay still checks the Audit, receipt, semantic assessment, exact result
+and contract digests, and the direct-verification flag. Another Audit owns its
+own assessment and retained artifacts. Historical receipt-only IDs no longer
+satisfy current replay; this change does not migrate or rewrite those records.
+
+PostgreSQL tests cover current replay, content/receipt conflicts, foreign-Audit
+isolation, and old IDs that must not match even when their payload agrees.
+Both current and historical rows remain unchanged during lookup. The full import
+scenario also checks the exact ID written in each of two Audits, independent
+retention, repeated imports without extra evidence bytes/links, and source deletion.
+
+D08 verification:
+
+- All **37 `findingintake` checks** passed with PostgreSQL 17 and race detection,
+  with no skipped cases. The same **37 checks** passed with filesystem artifact
+  storage, including the complete direct-verification import/deletion scenario.
+- Unit tests passed for `findingintake`, `auditimport` and `auditservice`;
+  `go vet -tags=integration ./internal/findingintake` and the Server build passed.
+- `git diff --check` passed. Tests used disposable PostgreSQL; no demo database
+  reset or data migration was needed.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -476,8 +502,7 @@ records or rewriting immutable artifact bytes.
 
 | Apparent legacy surface | Why it is not proven compatibility-only |
 | --- | --- |
-| `audit-results@1` | Removed after the workflow migration: Runtime implementation/factory, Server descriptor and discovery parity entry. Current argument types live in `arguments.py`; tests exercise trusted `audit-results@2` completion. Frozen V40 catalogs retain original bytes and use a test-only descriptor for offline historical comparisons. |
-| [audit_results/packages.py](../../runtime/src/contractor_runtime/toolsets/audit_results/packages.py), despite its “legacy” docstring | Shared package codecs also support current trusted completion through `encoding.py`. Deleting the whole module with v1 would break current behavior. |
+| [audit_results/packages.py](../../runtime/src/contractor_runtime/toolsets/audit_results/packages.py) | Shared package codecs also support current trusted completion through `encoding.py`. Deleting the whole module with v1 would break current behavior. |
 | `/evals/legacy`, old evaluation workspace pages and Project kind `evaluation` | These render/access actual retained work. Current managed Evals setup also creates `evaluation` Projects. Direct/portable evaluation remains an explicit contract in specs 26/30; it is not replaced automatically by a native experiment. |
 | SQLMap's URL input mode in [scan/tools.py](../../runtime/src/contractor_runtime/toolsets/scan/tools.py) | It remains an executable input mode alongside `request_ref` under the same `scan@1` surface. Removing it reduces that tool API; establish consumer/version retirement separately. |
 | Ordinary Worker finalizer | Current completion policy and provider limitations, not a reader for an obsolete format. The existing V57-003 decision is archived; this cleanup does not reopen or silently implement it. |
@@ -497,7 +522,7 @@ C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
 D01 is implemented in the seventh increment, D02 in the eighth, D03 in the
 ninth, D04 in the tenth, D05 in the eleventh, D06 in the twelfth and D07 in the
-thirteenth.
+thirteenth. D08 follows the Audit workflow refresh and Runtime v1 retirement.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -506,7 +531,7 @@ This document uses local IDs and does not mark task-registry entries complete.
 | 2 | C02 and C03, each as its own change | Canonical launchers/routes work, old consumers are accounted for, specification and retirement notes match actual behavior. |
 | 3 | C04, C05, C06, each as its own change | Tests use current interfaces; no parallel old implementation path remains; execution, auth, cancellation and SQL bounds hold. Coordinate overlapping V61 work. |
 | 4 | C07 | All 41 entries are removed from the default catalog after resolving consumers; retained fixtures and historical execution remain valid. |
-| 5 | D01–D07, as individually reviewable changes | Current-format writes, reads and recovery pass; old formats fail explicitly. No historical-data inventory or compatibility transition is required. |
+| 5 | D01–D08, as individually reviewable changes | Current-format writes, reads and recovery pass; old formats are not accepted as current authority. No historical-data inventory or compatibility transition is required. |
 
 Relevant verification for the future implementation:
 

@@ -96,48 +96,83 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	}
 }
 
-func TestPostgresLegacyDirectAssessmentReplayIsAuditScoped(t *testing.T) {
-	f := newDeletionImportFixture(t)
-	if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); err != nil {
-		t.Fatal(err)
-	}
-	legacyID := deterministicID("direct-assessment", f.receiptID)
-	resultDigest, contractDigest := digestBytes([]byte("result")), digestBytes([]byte("contract"))
-	// Install a valid historical row using the pre-upgrade writer identity.
-	// The immutable row and its accepted timestamp must survive replay unchanged.
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_finding_assessments (
+func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T) {
+	for _, historical := range []bool{false, true} {
+		name := "current"
+		if historical {
+			name = "receipt-only"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newDeletionImportFixture(t)
+			if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); err != nil {
+				t.Fatal(err)
+			}
+			input := directVerificationInput{AuditID: f.request.AuditID, ReceiptID: f.receiptID}
+			currentID := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
+			storedID := currentID
+			if historical {
+				storedID = deterministicID("direct-assessment", input.ReceiptID)
+			}
+			resultDigest, contractDigest := digestBytes([]byte("result")), digestBytes([]byte("contract"))
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_finding_assessments (
  assessment_id, finding_id, audit_id, receipt_id, semantic_assessment,
  result_ref, result_digest, direct_verification, contract_ref, contract_digest)
 SELECT $1,finding_id,audit_id,first_receipt_id,'supported',
- '{"namespace":"legacy","name":"result","revision":"r1"}'::jsonb,$4,true,
- '{"namespace":"legacy","name":"contract","revision":"r1"}'::jsonb,$5
-FROM audit_findings WHERE audit_id=$2 AND first_receipt_id=$3`, legacyID, f.request.AuditID, f.receiptID, resultDigest, contractDigest); err != nil {
-		t.Fatal(err)
-	}
-	var before string
-	if err := f.pool.QueryRow(f.ctx, `SELECT row_to_json(a)::text FROM audit_finding_assessments a WHERE assessment_id=$1`, legacyID).Scan(&before); err != nil {
-		t.Fatal(err)
-	}
-	tx, err := f.pool.Begin(f.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback(f.ctx)
-	input := directVerificationInput{AuditID: f.request.AuditID, ReceiptID: f.receiptID}
-	newID := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
-	if replayed, err := directAssessmentReplay(f.ctx, tx, newID, input, "supported", resultDigest, contractDigest); err != nil || !replayed {
-		t.Fatalf("legacy owning Audit replay=%v err=%v", replayed, err)
-	}
-	if _, err := directAssessmentReplay(f.ctx, tx, newID, input, "refuted", resultDigest, contractDigest); !errors.Is(err, ErrConflict) {
-		t.Fatalf("mismatched legacy content: %v", err)
-	}
-	input.AuditID = "other-audit"
-	newID = deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
-	if replayed, err := directAssessmentReplay(f.ctx, tx, newID, input, "supported", resultDigest, contractDigest); err != nil || replayed {
-		t.Fatalf("foreign legacy row blocked independent import: replayed=%v err=%v", replayed, err)
-	}
-	var after string
-	if err := tx.QueryRow(f.ctx, `SELECT row_to_json(a)::text FROM audit_finding_assessments a WHERE assessment_id=$1`, legacyID).Scan(&after); err != nil || after != before {
-		t.Fatalf("legacy history changed: %v", err)
+ '{"namespace":"verification","name":"result","revision":"r1"}'::jsonb,$4,true,
+ '{"namespace":"verification","name":"contract","revision":"r1"}'::jsonb,$5
+FROM audit_findings WHERE audit_id=$2 AND first_receipt_id=$3`, storedID, input.AuditID, input.ReceiptID, resultDigest, contractDigest); err != nil {
+				t.Fatal(err)
+			}
+			var before string
+			if err := f.pool.QueryRow(f.ctx, `SELECT row_to_json(a)::text FROM audit_finding_assessments a WHERE assessment_id=$1`, storedID).Scan(&before); err != nil {
+				t.Fatal(err)
+			}
+			tx, err := f.pool.Begin(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback(f.ctx)
+			if replayed, err := directAssessmentReplay(f.ctx, tx, currentID, input, "supported", resultDigest, contractDigest); err != nil || replayed == historical {
+				t.Fatalf("owning Audit replay=%v err=%v", replayed, err)
+			}
+			for _, mismatch := range []string{"assessment", "result", "contract", "receipt"} {
+				t.Run(mismatch, func(t *testing.T) {
+					changedInput := input
+					semantic, result, contract := "supported", resultDigest, contractDigest
+					switch mismatch {
+					case "assessment":
+						semantic = "refuted"
+					case "result":
+						result = digestBytes([]byte("other-result"))
+					case "contract":
+						contract = digestBytes([]byte("other-contract"))
+					case "receipt":
+						changedInput.ReceiptID = "other-receipt"
+					}
+					replayed, err := directAssessmentReplay(f.ctx, tx, currentID, changedInput, semantic, result, contract)
+					if historical {
+						if err != nil || replayed {
+							t.Fatalf("receipt-only ID was considered for replay: replayed=%v err=%v", replayed, err)
+						}
+					} else if !replayed || !errors.Is(err, ErrConflict) {
+						t.Fatalf("changed current assessment: replayed=%v err=%v", replayed, err)
+					}
+				})
+			}
+			input.AuditID = "other-audit"
+			for _, id := range []string{currentID, deterministicID("direct-assessment", input.AuditID, input.ReceiptID)} {
+				if replayed, err := directAssessmentReplay(f.ctx, tx, id, input, "supported", resultDigest, contractDigest); err != nil || replayed {
+					t.Fatalf("foreign assessment reused: replayed=%v err=%v", replayed, err)
+				}
+			}
+			var after string
+			if err := tx.QueryRow(f.ctx, `SELECT row_to_json(a)::text FROM audit_finding_assessments a WHERE assessment_id=$1`, storedID).Scan(&after); err != nil || after != before {
+				t.Fatalf("assessment history changed: %v", err)
+			}
+			var count int
+			if err := tx.QueryRow(f.ctx, `SELECT count(*) FROM audit_finding_assessments`).Scan(&count); err != nil || count != 1 {
+				t.Fatalf("replay created an assessment: count=%d err=%v", count, err)
+			}
+		})
 	}
 }

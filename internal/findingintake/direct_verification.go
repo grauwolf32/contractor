@@ -268,16 +268,15 @@ func directAssessmentReplay(
 	input directVerificationInput,
 	semantic, resultDigest, contractDigest string,
 ) (bool, error) {
-	// Legacy IDs used only the receipt. Replay them within their owning Audit;
-	// another Audit must retain its own assessment and artifacts.
+	// Replay only the current identity scoped to the destination Audit.
 	var auditID, receiptID, storedSemantic, storedResultDigest, storedContractDigest string
 	var direct bool
 	err := tx.QueryRow(ctx, `
 SELECT audit_id, receipt_id, semantic_assessment, result_digest,
        direct_verification, contract_digest
   FROM audit_finding_assessments
- WHERE audit_id = $2 AND assessment_id IN ($1, $3)`,
-		assessmentID, input.AuditID, deterministicID("direct-assessment", input.ReceiptID),
+ WHERE audit_id = $2 AND assessment_id = $1`,
+		assessmentID, input.AuditID,
 	).Scan(
 		&auditID, &receiptID, &storedSemantic, &storedResultDigest, &direct, &storedContractDigest,
 	)

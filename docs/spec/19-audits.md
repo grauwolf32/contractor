@@ -1304,8 +1304,11 @@ and creates a frozen contract artifact containing the immutable
 the result schema, and the identity/evidence binding rule. Both exact refs and
 digests are stored on the assessment and as Audit artifact links. Their bytes
 count against the Audit evidence budget and survive permitted source Run and
-catalog deletion. Replay validates the deterministic assessment identity and
-does not add links or retained bytes again. An absent, unfrozen, malformed,
+catalog deletion. Replay matches the current deterministic assessment identity
+derived from the destination Audit and proposal receipt, validates its stored
+content and does not add links or retained bytes again. Receipt-only assessment
+IDs are not recognized as repeats of a current assessment. An absent, unfrozen,
+malformed,
 ambiguous, mismatched, or budget-exceeding opt-in output leaves the proposal
 unassessed; it never turns Run success into evidence.
 
@@ -1400,9 +1403,10 @@ The same exact receipt may be imported into multiple compatible Audits owned
 by the same owner. Each destination independently owns its finding, analyst
 review, assessment and exact evidence holds; replay within one Audit reuses
 that Audit's records. Finding and direct-assessment IDs are opaque and scoped
-to the destination Audit. Existing legacy IDs remain unchanged and replay
-only within their owning Audit. Deleting one destination does not release
-another destination's retained evidence or change its finding decisions.
+to the destination Audit. Direct-assessment replay supports only the current
+Audit-and-receipt identity; historical receipt-only IDs are not replay aliases.
+Deleting one destination does not release another destination's retained
+evidence or change its finding decisions.
 
 Run deletion and creation of a destination proposal hold serialize on the source
 Run before taking Audit, receipt/retention and Artifact locks. Deletion locks

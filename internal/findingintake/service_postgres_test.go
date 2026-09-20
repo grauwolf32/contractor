@@ -328,7 +328,8 @@ SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
 	if json.Unmarshal(resultRefJSON, &directResultRef) != nil ||
 		json.Unmarshal(contractRefJSON, &directContractRef) != nil ||
 		directResultRef.ValidateExact() != nil || directContractRef.ValidateExact() != nil ||
-		directAssessmentID == "" || directResultDigest == "" || directContractDigest == "" {
+		directAssessmentID != deterministicID("direct-assessment", auditID, firstReceipt.ReceiptID) ||
+		directResultDigest == "" || directContractDigest == "" {
 		t.Fatalf("direct verification refs = (%s, %+v, %s, %+v, %s)",
 			directAssessmentID, directResultRef, directResultDigest, directContractRef, directContractDigest)
 	}
@@ -397,7 +398,8 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	if err := json.Unmarshal(otherContractJSON, &otherContractRef); err != nil {
 		t.Fatal(err)
 	}
-	if otherAssessmentID == directAssessmentID || sameRef(otherResultRef, directResultRef) || sameRef(otherContractRef, directContractRef) {
+	if otherAssessmentID != deterministicID("direct-assessment", otherAuditID, firstReceipt.ReceiptID) ||
+		otherAssessmentID == directAssessmentID || sameRef(otherResultRef, directResultRef) || sameRef(otherContractRef, directContractRef) {
 		t.Fatal("Audits share direct assessment identity or retention")
 	}
 	var otherRetainedBefore, otherRetainedAfter int64
