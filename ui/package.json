@@ -11,7 +11,7 @@
     "dev": "vite",
     "start": "node server/index.mjs",
     "generate": "openapi-typescript ../api/openapi/contractor-public-v1.yaml -o src/api/generated/public.ts",
-    "generate:check": "openapi-typescript ../api/openapi/contractor-public-v1.yaml -o src/api/generated/public.ts && git diff --exit-code -- src/api/generated/public.ts",
+    "generate:check": "node scripts/check-generated.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . && prettier --check .",
