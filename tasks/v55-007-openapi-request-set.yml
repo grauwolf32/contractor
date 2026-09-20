@@ -3,8 +3,8 @@ id: V55-007
 title: Prepare deterministic scan requests from OpenAPI
 milestone: scan-tools-followups
 priority: P2
-status: in_progress
-implementation_commit: 8e38e25cce5d43cb3f3dad5f00efa2f81bccc371
+status: completed
+implementation_commit: a51c6d938497ce7fb1763931a6126ec664c43f20
 depends_on: [V55-006]
 languages: [go, json, yaml, markdown]
 goal: Produce a bounded versioned RequestSet and explicit coverage gaps from an OpenAPI schema.
@@ -144,8 +144,16 @@ progress:
       pass. Documentation now describes policy 2 and its explicit limits, including
       scalar parameter serialization, JSON/text bodies and one sample per operation.
       No network fetches, credentials inference or new dependencies were introduced.
-remaining:
-  - Review and integrate the follow-up while preserving unrelated workspace changes.
+  - date: 2026-09-20
+    step: best_effort_followup_integrated
+    details: >-
+      Committed the best-effort implementation and fast-forwarded local main to
+      a51c6d938497ce7fb1763931a6126ec664c43f20. Main advanced concurrently with
+      unrelated review task documentation; rebased this isolated follow-up onto
+      that commit without conflicts and verified scanplan/contracts/api code is
+      identical to the tested tree. Unrelated workspace changes were preserved.
+      A1 and A2 remain verified under preparation policy 2; V55-007 is completed.
+remaining: []
 verification:
   - >-
     go test -json -count=1 ./internal/scanplan/... ./internal/contracts/... passed.
