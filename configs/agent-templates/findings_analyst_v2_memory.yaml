@@ -23,7 +23,7 @@ spec:
         - append_memory
         - search_memory
         - list_memory_tags
-    - ref: security-findings@2
+    - ref: security-findings@1
       tools: [list_findings]
     - ref: run-artifacts@1
       tools: [read_artifact]

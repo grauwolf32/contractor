@@ -26,6 +26,8 @@ from contractor_runtime.mtls import verify_control_plane_peer
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
+# findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
+MAX_FINDING_SUBMISSION_BYTES = 8 * 1024 * 1024
 MAX_BINDING_LIST_LIMIT = 256
 MAX_RESPONSE_HEADERS = 64
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -136,7 +138,7 @@ class ArtifactClient:
         body = json.dumps(
             request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
-        if len(body) > MAX_ARTIFACT_JSON_BYTES:
+        if len(body) > MAX_FINDING_SUBMISSION_BYTES:
             raise ValueError("finding proposal request exceeds its size limit")
         response: ArtifactHTTPResponse | None = None
         for attempt in range(2):

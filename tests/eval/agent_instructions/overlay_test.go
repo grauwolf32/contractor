@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
@@ -68,6 +69,9 @@ func TestInstructionVariantsPreserveExecutionContracts(t *testing.T) {
 		t.Run(variant, func(t *testing.T) {
 			directory := t.TempDir()
 			for path, data := range frozen.Files {
+				if strings.HasPrefix(path, "configs/audit-profiles/") {
+					continue
+				}
 				relative, err := filepath.Rel("configs", path)
 				if err != nil {
 					t.Fatal(err)
@@ -80,9 +84,7 @@ func TestInstructionVariantsPreserveExecutionContracts(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := os.CopyFS(directory, os.DirFS("candidate/configs")); err != nil {
-				t.Fatal(err)
-			}
+			copyArchivedExecutionConfigs(t, directory, "candidate/configs")
 			if variant == "baseline" {
 				// Keep the same test catalog identities in A and B; vary only text.
 				for _, pair := range manifest.Instructions {

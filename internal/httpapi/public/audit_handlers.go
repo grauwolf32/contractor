@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -47,11 +48,12 @@ type auditProfileResponse struct {
 }
 
 type auditProfileWorkflowResponse struct {
-	Kind       config.AuditWorkflowRoleKind                    `json:"kind"`
-	Workflow   config.WorkflowRef                              `json:"workflow"`
-	Inputs     map[string]config.AuditWorkflowInputMapping     `json:"inputs"`
-	Parameters map[string]config.AuditWorkflowParameterMapping `json:"parameters"`
-	Outputs    map[string]string                               `json:"outputs"`
+	MaxRunAttempts int                                             `json:"maxRunAttempts,omitempty"`
+	Kind           config.AuditWorkflowRoleKind                    `json:"kind"`
+	Workflow       config.WorkflowRef                              `json:"workflow"`
+	Inputs         map[string]config.AuditWorkflowInputMapping     `json:"inputs"`
+	Parameters     map[string]config.AuditWorkflowParameterMapping `json:"parameters"`
+	Outputs        map[string]string                               `json:"outputs"`
 }
 
 type auditProfilePageResponse struct {
@@ -72,7 +74,7 @@ type auditBaselineResponse struct {
 	Skills            []auditSkillResponse                `json:"skills"`
 	Standards         []auditstandards.PinnedPackage      `json:"standards"`
 	ProjectHTTPTarget *contracts.HTTPOriginTargetRef      `json:"projectHttpTarget,omitempty"`
-	Inventory         auditBaselineInventoryResponse      `json:"inventory"`
+	Inventory         *auditBaselineInventoryResponse     `json:"inventory,omitempty"`
 }
 
 type auditSkillResponse struct {
@@ -102,6 +104,8 @@ type auditStopReasonResponse struct {
 }
 
 type auditResponse struct {
+	Phase                 auditdomain.AuditPhase              `json:"phase"`
+	Preparation           *auditPreparationResponse           `json:"preparation,omitempty"`
 	AuditID               string                              `json:"auditId"`
 	ProjectID             string                              `json:"projectId"`
 	Profile               auditProfileIdentityResponse        `json:"profile"`
@@ -200,7 +204,7 @@ type auditReportResponse struct {
 
 type auditStartResponse struct {
 	Audit auditResponse       `json:"audit"`
-	Round auditRoundResponse  `json:"round"`
+	Round *auditRoundResponse `json:"round,omitempty"`
 	Items []auditItemResponse `json:"items"`
 }
 
@@ -503,8 +507,9 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		items[index] = auditItemReadModel(started.Items[index])
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(audit.Revision, 10)))
+	round := auditRoundReadModel(started.Round)
 	writeJSON(w, http.StatusOK, auditStartResponse{
-		Audit: audit, Round: auditRoundReadModel(started.Round), Items: items,
+		Audit: audit, Round: &round, Items: items,
 	})
 }
 
@@ -801,7 +806,7 @@ func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) a
 		result.Workflows = make(map[string]auditProfileWorkflowResponse, len(profile.Workflows))
 		for role, binding := range profile.Workflows {
 			result.Workflows[role] = auditProfileWorkflowResponse{
-				Kind: binding.Kind, Workflow: binding.Workflow.Ref, Inputs: binding.Inputs,
+				Kind: binding.Kind, MaxRunAttempts: binding.MaxRunAttempts, Workflow: binding.Workflow.Ref, Inputs: binding.Inputs,
 				Parameters: binding.Parameters, Outputs: binding.Outputs,
 			}
 		}
@@ -815,6 +820,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		return auditResponse{}, err
 	}
 	result := auditResponse{
+		Phase:   auditdomain.AuditPhaseNotStarted,
 		AuditID: source.AuditID, ProjectID: source.ProjectID,
 		Profile: auditProfileIdentityResponse{
 			Name: source.Profile.Name, Version: source.Profile.Version, Digest: source.Profile.Digest,
@@ -829,6 +835,9 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt,
 		StartedAt: source.StartedAt, FinishedAt: source.FinishedAt,
 		DeletionRequestedAt: source.DeletionRequestedAt,
+	}
+	if source.CurrentRoundID != nil {
+		result.Phase = auditdomain.AuditPhaseRounds
 	}
 	if source.StopReason != nil {
 		result.StopReason = &auditStopReasonResponse{
@@ -858,7 +867,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			},
 			Skills: skills, Standards: append([]auditstandards.PinnedPackage{}, baseline.Standards...),
 			ProjectHTTPTarget: baseline.ProjectHTTPTarget,
-			Inventory: auditBaselineInventoryResponse{
+			Inventory: &auditBaselineInventoryResponse{
 				SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 				CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
 				StandardSelection:        baseline.Inventory.StandardSelection,

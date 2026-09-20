@@ -10996,10 +10996,35 @@ components:
       additionalProperties: false
       required: [implementation, itemWorkflowRole]
       properties:
-        implementation: {enum: [checklist@1, openapi-operations@1, finding-candidates@1, standard-mappings@1]}
-        sourceInput: {$ref: '#/components/schemas/ArtifactName'}
+        implementation: {enum: [checklist@1, openapi-operations@1, openapi-scans@1, finding-candidates@1, standard-mappings@1]}
+        source: {$ref: '#/components/schemas/AuditInventoryArtifact'}
+        settings: {$ref: '#/components/schemas/AuditInventoryArtifact'}
         itemWorkflowRole: {$ref: '#/components/schemas/ArtifactName'}
         standardSelection: {$ref: '#/components/schemas/AuditStandardSelection'}
+      oneOf:
+        - properties: {implementation: {const: standard-mappings@1}}
+          not:
+            anyOf: [{required: [source]}, {required: [settings]}]
+        - properties: {implementation: {const: openapi-scans@1}}
+          required: [source, settings]
+          not: {required: [standardSelection]}
+        - properties: {implementation: {enum: [checklist@1, openapi-operations@1, finding-candidates@1]}}
+          required: [source]
+          not:
+            anyOf: [{required: [settings]}, {required: [standardSelection]}]
+    AuditInventoryArtifact:
+      type: object
+      additionalProperties: false
+      required: [source, name]
+      properties:
+        source: {enum: [audit-input, prepare-output]}
+        name: {$ref: '#/components/schemas/ArtifactName'}
+        role: {$ref: '#/components/schemas/ArtifactName'}
+      oneOf:
+        - properties: {source: {const: audit-input}}
+          not: {required: [role]}
+        - properties: {source: {const: prepare-output}}
+          required: [role]
     AuditStandardSelection:
       type: object
       additionalProperties: false
@@ -11023,9 +11048,18 @@ components:
       additionalProperties: false
       required: [source]
       properties:
-        source: {enum: [audit-input, item-package, execution-manifest, retained-output]}
+        source: {enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
+      oneOf:
+        - properties: {source: {const: audit-input}}
+          required: [name]
+          not: {required: [role]}
+        - properties: {source: {enum: [item-package, execution-manifest]}}
+          not:
+            anyOf: [{required: [name]}, {required: [role]}]
+        - properties: {source: {enum: [retained-output, prepare-output]}}
+          required: [name, role]
     AuditWorkflowParameterMapping:
       type: object
       additionalProperties: false
@@ -11039,7 +11073,8 @@ components:
       additionalProperties: false
       required: [kind, workflow, inputs, parameters, outputs]
       properties:
-        kind: {enum: [check, discovery, assessment]}
+        kind: {enum: [prepare, check, discovery, assessment]}
+        maxRunAttempts: {type: integer, minimum: 1, maximum: 10}
         workflow: {$ref: '#/components/schemas/WorkflowRef'}
         inputs:
           type: object
@@ -11054,6 +11089,11 @@ components:
           minProperties: 1
           maxProperties: 128
           additionalProperties: {$ref: '#/components/schemas/ArtifactName'}
+      oneOf:
+        - properties: {kind: {const: prepare}}
+          required: [maxRunAttempts]
+        - properties: {kind: {enum: [check, discovery, assessment]}}
+          not: {required: [maxRunAttempts]}
     AuditExecutionPolicy:
       type: object
       additionalProperties: false
@@ -11080,6 +11120,7 @@ components:
         reportAcceptance: {enum: [automatic, human-required]}
     AuditCompatibilityReason:
       enum:
+        - preparation_unsupported
         - discovery_unsupported
         - assessment_unsupported
         - multiple_rounds_unsupported
@@ -11118,7 +11159,7 @@ components:
         requiresInputValidation: {type: boolean}
         compatibilityReasons:
           type: array
-          maxItems: 10
+          maxItems: 11
           uniqueItems: true
           items: {$ref: '#/components/schemas/AuditCompatibilityReason'}
     AuditProfilePage:
@@ -11213,7 +11254,7 @@ components:
     AuditBaseline:
       type: object
       additionalProperties: false
-      required: [inputs, scope, runtimeLabels, runtimeConfig, skills, standards, inventory]
+      required: [inputs, scope, runtimeLabels, runtimeConfig, skills, standards]
       properties:
         inputs:
           type: object
@@ -11236,6 +11277,61 @@ components:
           items: {$ref: '#/components/schemas/AuditPinnedStandard'}
         projectHttpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
         inventory: {$ref: '#/components/schemas/AuditBaselineInventory'}
+    AuditPhase:
+      enum: [not-started, preparing, inventory, rounds]
+    AuditPreparationOutput:
+      type: object
+      additionalProperties: false
+      required: [artifact, executionId, runId, workflowOutput]
+      properties:
+        artifact:
+          allOf:
+            - {$ref: '#/components/schemas/AuditExactArtifact'}
+            - required: [mediaType, sizeBytes]
+        executionId: {$ref: '#/components/schemas/ResourceId'}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        workflowOutput: {$ref: '#/components/schemas/ArtifactName'}
+    AuditPreparationRole:
+      type: object
+      additionalProperties: false
+      required: [status, attempts, maxAttempts, outputs]
+      properties:
+        status: {enum: [pending, running, accepted, failed]}
+        attempts: {type: integer, minimum: 0, maximum: 10}
+        maxAttempts: {type: integer, minimum: 1, maximum: 10}
+        executionId: {$ref: '#/components/schemas/ResourceId'}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        outputs:
+          type: object
+          maxProperties: 128
+          additionalProperties: {$ref: '#/components/schemas/AuditPreparationOutput'}
+      oneOf:
+        - properties:
+            status: {const: pending}
+            attempts: {const: 0}
+            outputs: {maxProperties: 0}
+          not:
+            anyOf: [{required: [executionId]}, {required: [runId]}]
+        - properties:
+            status: {enum: [running, failed]}
+            attempts: {minimum: 1}
+            outputs: {maxProperties: 0}
+          required: [executionId]
+        - properties:
+            status: {const: accepted}
+            attempts: {minimum: 1}
+            outputs: {minProperties: 1}
+          required: [executionId, runId]
+    AuditPreparation:
+      type: object
+      additionalProperties: false
+      required: [roles]
+      properties:
+        roles:
+          type: object
+          minProperties: 1
+          maxProperties: 16
+          additionalProperties: {$ref: '#/components/schemas/AuditPreparationRole'}
     AuditState:
       enum: [draft, active, waiting_review, paused, finalizing, cancelling, completed, cancelled, failed, deleting]
     AuditDispatchState: {enum: [open, closed]}
@@ -11262,7 +11358,7 @@ components:
     Audit:
       type: object
       additionalProperties: false
-      required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
+      required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, phase, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
       properties:
         auditId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
@@ -11279,6 +11375,8 @@ components:
           items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
         baseline: {$ref: '#/components/schemas/AuditBaseline'}
         state: {$ref: '#/components/schemas/AuditState'}
+        phase: {$ref: '#/components/schemas/AuditPhase'}
+        preparation: {$ref: '#/components/schemas/AuditPreparation'}
         revision: {type: integer, minimum: 1}
         currentRoundId: {$ref: '#/components/schemas/ResourceId'}
         dispatchState: {$ref: '#/components/schemas/AuditDispatchState'}
@@ -11297,6 +11395,15 @@ components:
         startedAt: {type: string, format: date-time}
         finishedAt: {type: string, format: date-time}
         deletionRequestedAt: {type: string, format: date-time}
+      oneOf:
+        - properties: {phase: {const: not-started}}
+          not:
+            anyOf: [{required: [currentRoundId]}, {required: [preparation]}]
+        - properties: {phase: {enum: [preparing, inventory]}}
+          required: [preparation, baseline]
+          not: {required: [currentRoundId]}
+        - properties: {phase: {const: rounds}}
+          required: [currentRoundId]
     AuditPage:
       type: object
       additionalProperties: false
@@ -11320,7 +11427,7 @@ components:
         updatedAt: {type: string, format: date-time}
     AuditItemState: {enum: [pending, awaiting_review, ready, submitted, collecting, settled]}
     AuditFinalDisposition: {enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
-    AuditExecutionRole: {enum: [discovery, check, assessment]}
+    AuditExecutionRole: {enum: [prepare, discovery, check, assessment]}
     AuditExecutionItemState: {enum: [submitted, collecting, settled]}
     AuditTerminalOutcome: {enum: [succeeded, failed, cancelled, submission-failed]}
     AuditCollectionDisposition: {enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, collection-contract-invalid]}
@@ -11545,11 +11652,19 @@ components:
     AuditStartResponse:
       type: object
       additionalProperties: false
-      required: [audit, round, items]
+      required: [audit, items]
       properties:
         audit: {$ref: '#/components/schemas/Audit'}
         round: {$ref: '#/components/schemas/AuditRound'}
         items: {type: array, maxItems: 10000, items: {$ref: '#/components/schemas/AuditItem'}}
+      oneOf:
+        - required: [round]
+          properties:
+            audit: {properties: {phase: {const: rounds}}}
+        - not: {required: [round]}
+          properties:
+            audit: {properties: {phase: {enum: [preparing, inventory]}}}
+            items: {maxItems: 0}
     FindingExactArtifact:
       type: object
       additionalProperties: false
@@ -11631,16 +11746,95 @@ components:
         snapshotAt: {type: string, format: date-time}
         entryCount: {type: integer, minimum: 0, maximum: 256}
         replayed: {type: boolean}
+    FindingLineRange:
+      type: object
+      additionalProperties: false
+      required: [start_line, end_line]
+      properties:
+        start_line: {type: integer, minimum: 1, maximum: 9007199254740991}
+        end_line: {type: integer, minimum: 1, maximum: 9007199254740991}
+      description: Inclusive coordinates; end_line must be at least start_line.
+    FindingSourceLocation:
+      type: object
+      additionalProperties: false
+      required: [file]
+      properties:
+        file: {type: string, minLength: 1, maxLength: 4096}
+        line: {type: integer, minimum: 1, maximum: 9007199254740991}
+        range: {$ref: '#/components/schemas/FindingLineRange'}
+      not: {required: [line, range]}
+      description: Exact relative POSIX path; line and range are mutually exclusive.
+    FindingWebLocation:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url: {type: string, minLength: 1, maxLength: 8192}
+        method: {type: string, minLength: 1, maxLength: 64}
+      description: HTTP/HTTPS URL without userinfo; method is an explicit HTTP token.
+    FindingLocation:
+      oneOf:
+        - {$ref: '#/components/schemas/FindingSourceLocation'}
+        - {$ref: '#/components/schemas/FindingWebLocation'}
+    FindingHTTPHeader:
+      type: object
+      additionalProperties: false
+      required: [name, value]
+      properties:
+        name: {type: string}
+        value: {type: string}
+    FindingHTTPAttempt:
+      type: object
+      additionalProperties: false
+      required: [method, url, headers, body_base64]
+      properties:
+        method: {type: string, minLength: 1, maxLength: 64}
+        url: {type: string, minLength: 1, maxLength: 8192}
+        headers:
+          type: array
+          items: {$ref: '#/components/schemas/FindingHTTPHeader'}
+        body_base64: {type: string, description: Canonical base64 of up to 1 MiB of outgoing bytes.}
+        status: {type: integer, minimum: 100, maximum: 599}
+        response_headers:
+          type: array
+          items: {$ref: '#/components/schemas/FindingHTTPHeader'}
+        error: {type: string, enum: [transport_error, cancelled]}
+      oneOf:
+        - required: [status]
+          not: {required: [error]}
+        - required: [error]
+          not: {required: [status]}
+      description: Exactly one of status or error; each header block is at most 64 KiB.
+    FindingHTTPExchange:
+      type: object
+      additionalProperties: false
+      required: [request_id, request_tag, attempts]
+      properties:
+        request_id: {type: integer, minimum: 1, maximum: 9007199254740991}
+        request_tag: {type: string, minLength: 1, maxLength: 160}
+        attempts:
+          type: array
+          minItems: 1
+          maxItems: 13
+          description: Existing HTTP budget of ten redirects plus three attempts.
+          items: {$ref: '#/components/schemas/FindingHTTPAttempt'}
+        response_body_evidence_id:
+          type: string
+          description: Must identify a member of this proposal's evidence_ids.
     FindingProposalDocument:
       type: object
       additionalProperties: false
       required: [schema, client_key, title, description, subject, preconditions, standard_refs, evidence_ids, proposed_checks, severity_suggestion, limitations]
       properties:
-        schema: {type: string, const: contractor.audit.finding-proposal.v1}
+        schema: {type: string, enum: [contractor.audit.finding-proposal.v1]}
         client_key: {type: string, minLength: 1, maxLength: 160}
         title: {type: string, minLength: 1, maxLength: 65536}
         description: {type: string, minLength: 1, maxLength: 65536}
-        subject: {$ref: '#/components/schemas/FindingSubject'}
+        subject:
+          oneOf:
+            - {$ref: '#/components/schemas/FindingSubject'}
+            - {type: 'null'}
+          description: Null means the affected subject is not identified.
         hypothesis: {type: string, maxLength: 65536}
         preconditions: {type: array, maxItems: 512, items: {type: string, maxLength: 65536}}
         standard_refs: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingStandardReference'}}
@@ -11648,6 +11842,12 @@ components:
         proposed_checks: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingProposedCheck'}}
         severity_suggestion: {enum: ['', informational, low, medium, high, critical]}
         limitations: {type: array, maxItems: 512, items: {type: string, maxLength: 65536}}
+        locations:
+          type: array
+          maxItems: 256
+          items: {$ref: '#/components/schemas/FindingLocation'}
+          description: Optional; source and web coordinates are producer claims.
+        http_exchange: {$ref: '#/components/schemas/FindingHTTPExchange'}
     FindingWorkflowOrigin:
       type: object
       additionalProperties: false
@@ -12062,7 +12262,7 @@ components:
         reasons:
           type: array
           minItems: 1
-          maxItems: 10
+          maxItems: 11
           uniqueItems: true
           items: {$ref: '#/components/schemas/AuditCompatibilityReason'}
     RuntimeLabelInUseDetails:

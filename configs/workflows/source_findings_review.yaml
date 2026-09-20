@@ -1,0 +1,46 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: source-findings-review
+  version: "1"
+spec:
+  parameters: {}
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+  outputs:
+    report:
+      required: true
+      primary: true
+      mediaTypes: [text/markdown]
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+  entryStage: review
+  stages:
+    review:
+      objective: Inspect the supplied source and report supported security findings with exact source coordinates
+      instructions:
+        ref: instructions/source-findings-reviewer.md
+      planner: passthrough@1
+      agents:
+        reviewer:
+          template: source_findings_reviewer@1
+          namespace: source-findings
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: source-findings, name: report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

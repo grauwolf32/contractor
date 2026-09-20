@@ -118,6 +118,8 @@ function auditAt(state: Audit["state"], revision: number): Audit {
     scope: { objective: "Review source controls" },
     runtimeLabels: ["debug"],
     state,
+    phase: state === "draft" ? "not-started" : "rounds",
+    ...(state === "draft" ? {} : { currentRoundId: "round_example" }),
     revision,
     dispatchState: state === "active" ? "open" : "closed",
     holdState: state === "draft" ? "pending" : "held",
@@ -803,7 +805,7 @@ describe("Project Audit routes", () => {
   it("shows the exact retained standard identity on the Audit baseline", async () => {
     const current = auditAt("completed", 3);
     current.baseline = top10Baseline(current);
-    current.baseline.inventory.standardSelection = {
+    current.baseline.inventory!.standardSelection = {
       scope: "ASVS 5.0 Level 1 source pilot",
       levels: ["1"],
       entryIds: ["v5.0.0-1.2.4", "v5.0.0-2.1.1"],

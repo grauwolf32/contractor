@@ -83,6 +83,10 @@ func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing
 			t.Fatalf("trusted child Run = (%+v, %v)", run, getErr)
 		}
 	}
+	// The controller queues children; this fixture supplies Scheduler admission.
+	if _, err := harness.runs.TransitionRun(ctx, *executions[0].RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "test_admitted"}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := harness.runs.TransitionRun(
 		ctx, *executions[0].RunID, runstore.RunRunning, runstore.RunSucceeded,
 		runstore.Reason{Code: "test_succeeded"},
@@ -478,9 +482,9 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.State == runstore.RunInitializing {
+	if run.State == runstore.RunPending {
 		if _, err := harness.runs.TransitionRun(
-			ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+			ctx, runID, runstore.RunPending, runstore.RunRunning,
 			runstore.Reason{Code: "test_started"},
 		); err != nil {
 			t.Fatal(err)
@@ -1021,7 +1025,7 @@ spec:
     checklist: {required: true, mediaTypes: [application/json]}
   inventory:
     implementation: checklist@1
-    sourceInput: checklist
+    source: {source: audit-input, name: checklist}
     itemWorkflowRole: check
   workflows:
     check:

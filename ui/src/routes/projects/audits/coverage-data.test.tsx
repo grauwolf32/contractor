@@ -23,6 +23,7 @@ function auditAt(state: Audit["state"], revision: number): Audit {
     scope: {},
     runtimeLabels: [],
     state,
+    phase: "rounds",
     revision,
     currentRoundId: "round_example",
     dispatchState: state === "active" ? "open" : "closed",

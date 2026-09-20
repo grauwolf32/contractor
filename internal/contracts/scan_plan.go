@@ -2,6 +2,11 @@ package contracts
 
 import "regexp"
 
+const (
+	MaxScanTestParameters         = 64
+	MaxScanTestParameterNameBytes = 128
+)
+
 // ScanPlanPolicy bounds selected prepared inputs, jobs and the sum of fixed
 // Worker timeouts. These are not limits on physical scanner HTTP requests.
 type ScanPlanPolicy struct {
@@ -28,20 +33,32 @@ func (p ScanPlanPolicy) Validate() error {
 	}
 	workers := map[string]bool{}
 	for _, tool := range p.Tools {
-		if ValidateArtifactName(tool.Worker) != nil || workers[tool.Worker] || tool.MaxJobs < 1 || tool.MaxJobs > 100 || tool.MaxTotalSeconds < 1 || tool.MaxTotalSeconds > 86400 || len(tool.TestParameters) > 64 {
+		if ValidateArtifactName(tool.Worker) != nil || workers[tool.Worker] || tool.MaxJobs < 1 || tool.MaxJobs > 100 || tool.MaxTotalSeconds < 1 || tool.MaxTotalSeconds > 86400 {
 			return invalidf("invalid scan tool policy or duplicate worker")
 		}
 		workers[tool.Worker] = true
 		if tool.WordlistArtifact != "" && ValidateArtifactName(tool.WordlistArtifact) != nil {
 			return invalidf("invalid scan wordlist artifact slot")
 		}
-		seen := map[string]bool{}
-		for _, name := range tool.TestParameters {
-			if len(name) > 128 || !scanTestParameterPattern.MatchString(name) || seen[name] {
-				return invalidf("invalid or duplicate scan test parameter")
-			}
-			seen[name] = true
+		if err := ValidateScanTestParameters(tool.TestParameters); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// ValidateScanTestParameters is shared by authored policies and retained Audit
+// settings. An empty list is valid here; SQLMap's caller requires a selection.
+func ValidateScanTestParameters(names []string) error {
+	if len(names) > MaxScanTestParameters {
+		return invalidf("too many scan test parameters")
+	}
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		if len(name) > MaxScanTestParameterNameBytes || !scanTestParameterPattern.MatchString(name) || seen[name] {
+			return invalidf("invalid or duplicate scan test parameter")
+		}
+		seen[name] = true
 	}
 	return nil
 }

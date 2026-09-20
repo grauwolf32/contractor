@@ -55,6 +55,7 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 	}
 	workflow := ResolvedWorkflow{
 		Ref:          WorkflowRef{Name: selector.ID, Version: selector.Version},
+		AuditTask:    cloneAuditTask(spec.AuditTask),
 		Presentation: presentation,
 		Parameters:   parameters,
 		Inputs:       inputs,
@@ -302,6 +303,7 @@ func (l *loader) resolveStage(
 		Instructions:    instructions,
 		Planner:         plannerRef,
 		ScanPlan:        cloneScanPlanPolicy(source.ScanPlan),
+		AuditScan:       cloneAuditScan(source.AuditScan),
 		Session:         session,
 		Agents:          agents,
 		Context:         context,
@@ -790,6 +792,9 @@ func (l *loader) resolveEscalationExecutionConfig(
 // It is exported so the Scheduler can distrust and revalidate a durable JSON
 // snapshot without consulting the mutable configuration directory.
 func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
+	if err := ValidateAuditTaskWorkflow(workflow); err != nil {
+		return err
+	}
 	if len(workflow.Stages) == 0 {
 		return fmt.Errorf("Workflow Graph must contain at least one Stage")
 	}

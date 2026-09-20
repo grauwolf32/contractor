@@ -15,6 +15,15 @@ func TestRepositoryAuditCompletionProfilesPinCurrentWorkers(t *testing.T) {
 				t.Fatal("bundled Audit profile must start at version 1")
 			}
 			for role, binding := range profile.Workflows {
+				if binding.Workflow.AuditTask != nil {
+					if err := ValidateAuditTaskProfile(profile); err != nil {
+						t.Fatal(err)
+					}
+					if binding.WorkerCompletion != nil {
+						t.Fatal("scan results must be assembled by the trusted planner")
+					}
+					continue
+				}
 				completion := binding.WorkerCompletion
 				if completion == nil || completion.Kind != contracts.AuditCheckResultsV1 {
 					t.Fatalf("%s lacks explicit completion authority", role)

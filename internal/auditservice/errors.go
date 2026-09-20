@@ -17,6 +17,7 @@ var (
 type CompatibilityReason string
 
 const (
+	ReasonPreparationUnsupported           CompatibilityReason = "preparation_unsupported"
 	ReasonDiscoveryUnsupported             CompatibilityReason = "discovery_unsupported"
 	ReasonAssessmentUnsupported            CompatibilityReason = "assessment_unsupported"
 	ReasonMultipleRoundsUnsupported        CompatibilityReason = "multiple_rounds_unsupported"

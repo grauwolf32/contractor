@@ -419,7 +419,7 @@ func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
 	proposalDocument := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-1",
 		Title: "Candidate", Description: "A bounded candidate finding.",
-		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "subject-1"},
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "subject-1"},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{{
 			Objective: "Verify the candidate", Method: "static-trace",
@@ -478,7 +478,7 @@ func TestImporterBatchAllowsDistinctTaskChecksFromOneProposalReceipt(t *testing.
 	proposalDocument := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-1",
 		Title: "Candidate", Description: "A bounded candidate finding.",
-		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "subject-1"},
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "subject-1"},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{
 			{Objective: "Trace the candidate", Method: "static-trace"},
@@ -601,7 +601,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 	proposalDocument := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-report",
 		Title: "Untrusted redirect target", Description: "A redirect target may cross the intended origin.",
-		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "redirect-handler"},
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "redirect-handler"},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
 		SeveritySuggestion: "medium", Limitations: []string{"Dynamic behavior was not exercised."},
@@ -1567,7 +1567,7 @@ spec:
   mode: custom-checklist
   standards: []
   inputs: {checklist: {required: true, mediaTypes: [application/json]}}
-  inventory: {implementation: checklist@1, sourceInput: checklist, itemWorkflowRole: check}
+  inventory: {implementation: checklist@1, source: {source: audit-input, name: checklist}, itemWorkflowRole: check}
   workflows:
     check:
       kind: check

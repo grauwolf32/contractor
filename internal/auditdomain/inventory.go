@@ -16,6 +16,7 @@ type inventorySubject struct {
 	checklist  *ChecklistTask
 	standard   *StandardMappingTask
 	operation  *OperationTask
+	scan       *OpenAPIScanTask
 	finding    *FindingTask
 	requested  []string
 	gaps       []string
@@ -61,7 +62,7 @@ func finishInventory(
 			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: copyArtifactRef(options.SourceRef),
 			CanonicalInventoryDigest: canonicalDigest,
 			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
-			Standard: subject.standard, Operation: subject.operation, Finding: subject.finding,
+			Standard: subject.standard, Operation: subject.operation, Scan: subject.scan, Finding: subject.finding,
 		}
 		documentBytes, encodeErr := EncodeItemTask(document)
 		if encodeErr != nil {
@@ -92,10 +93,17 @@ func finishInventory(
 			TaskPackageID: packageID, ApprovalRequirement: approval,
 		}
 		worklist.Items = append(worklist.Items, item)
+		inputs := []ExactInput{{Name: options.SourceInputName, Ref: copyArtifactRef(options.SourceRef), Digest: sourceDigest}}
+		if subject.scan != nil {
+			settings := subject.scan.Settings
+			settings.Ref = copyArtifactRef(settings.Ref)
+			inputs = append(inputs, settings)
+			sort.Slice(inputs, func(i, j int) bool { return inputs[i].Name < inputs[j].Name })
+		}
 		execution.Items = append(execution.Items, ExecutionItem{
 			ItemKey: subject.itemKey, Ordinal: ordinal, SubjectKey: subject.subjectKey,
 			TaskPackageID: packageID, TaskPackageDigest: validatedPackage.Digest,
-			Inputs: []ExactInput{{Name: options.SourceInputName, Ref: copyArtifactRef(options.SourceRef), Digest: sourceDigest}},
+			Inputs: inputs,
 		})
 		coverage.Rows = append(coverage.Rows, CoverageRow{
 			ItemKey: subject.itemKey, SubjectKey: subject.subjectKey, Status: "not-tested",
@@ -141,7 +149,7 @@ func ValidateInventory(value Inventory) error {
 	if err != nil || !bytes.Equal(canonical, value.CanonicalInventory) || !equalStringSlices(basis.Gaps, value.Gaps) ||
 		validateSortedStrings(basis.Gaps, MaximumCoverageValues, "inventory.gaps", false) != nil ||
 		basis.Kind != "checklist" && basis.Kind != "standard-mappings" &&
-			basis.Kind != "openapi-operations" && basis.Kind != "finding-candidates" {
+			basis.Kind != "openapi-operations" && basis.Kind != "openapi-scans" && basis.Kind != "finding-candidates" {
 		return invalid(CodeInventoryInvalid, "inventory.canonical")
 	}
 	if basis.Selection != nil {
@@ -186,8 +194,26 @@ func ValidateInventory(value Inventory) error {
 		if err := validateBasisItem(basis, value.CanonicalInventoryDigest, index, workItem, generated.Document, coverage); err != nil {
 			return err
 		}
-		if len(executionItem.Inputs) != 1 || executionItem.Inputs[0].Digest != value.SourceContentDigest ||
-			!sameArtifactRef(executionItem.Inputs[0].Ref, generated.Document.SourceRef) {
+		sourceInputs := executionItem.Inputs
+		if generated.Document.Scan != nil {
+			sourceInputs = nil
+			found := false
+			for _, input := range executionItem.Inputs {
+				if input.Name == generated.Document.Scan.Settings.Name {
+					if !sameCanonicalValue(input, generated.Document.Scan.Settings) {
+						return invalid(CodeInventoryInvalid, "inventory.inputs")
+					}
+					found = true
+				} else {
+					sourceInputs = append(sourceInputs, input)
+				}
+			}
+			if !found {
+				return invalid(CodeInventoryInvalid, "inventory.inputs")
+			}
+		}
+		if len(sourceInputs) != 1 || sourceInputs[0].Digest != value.SourceContentDigest ||
+			!sameArtifactRef(sourceInputs[0].Ref, generated.Document.SourceRef) {
 			return invalid(CodeInventoryInvalid, "inventory.inputs")
 		}
 		validated, err := ValidatePackage(generated.Package)
@@ -230,6 +256,14 @@ func validateBasisItem(
 ) error {
 	subject := basis.Subjects[index]
 	switch basis.Kind {
+	case "openapi-scans":
+		if task.Scan == nil || item.Kind != "openapi-scan" || item.ApprovalRequirement != ApprovalActiveCheck ||
+			item.ItemKey != openAPIScanKey(canonicalDigest, task.Scan.Operation) || item.SubjectKey != item.ItemKey ||
+			!equalStringSlices(coverage.Requested, []string{task.Scan.CoverageRequirement()}) ||
+			!equalStringSlices(coverage.Gaps, task.Scan.Gaps) ||
+			!sameCanonicalValue(subject, map[string]any{"scan": task.Scan}) {
+			return invalid(CodeInventoryInvalid, "inventory.scan")
+		}
 	case "checklist":
 		itemKey, ok := subject["item_key"].(string)
 		if !ok || itemKey != item.ItemKey || item.Kind != "checklist" || task.Checklist == nil ||

@@ -51,6 +51,9 @@ func (i *Importer) collectSucceeded(
 		ctx, *execution.RunID, contracts.ArtifactRef{Namespace: "outputs", Name: outputSlot},
 	)
 	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		if isScanCheck(members) {
+			return i.collectScanRecovery(ctx, claim, snapshot, execution, members, "scan_result_publication_missing")
+		}
 		return i.collectTechnical(ctx, claim, execution, members,
 			auditstore.CollectionMissingOutput, true, "missing-output", auditstore.CoverageInconclusive)
 	}
@@ -58,6 +61,9 @@ func (i *Importer) collectSucceeded(
 		return false, err
 	}
 	if source.MediaType != auditdomain.PackageMediaType || !frozen {
+		if isScanCheck(members) {
+			return i.collectScanRecovery(ctx, claim, snapshot, execution, members, "scan_result_publication_invalid")
+		}
 		return i.collectInvalid(ctx, claim, execution, members, source, "result-output-not-frozen-package")
 	}
 	manifestBytes, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, execution.Manifest)
@@ -70,6 +76,9 @@ func (i *Importer) collectSucceeded(
 	}
 	resultPackage, err := auditdomain.DecodeCheckResultPackage(payload)
 	if err != nil {
+		if isScanCheck(members) {
+			return i.collectScanRecovery(ctx, claim, snapshot, execution, members, "scan_result_package_invalid")
+		}
 		return i.collectInvalid(ctx, claim, execution, members, source, stableValidationCode(err))
 	}
 	if resultPackage.Package.Digest != source.Digest || auditdomain.ValidateResultSet(resultPackage.Results, manifest) != nil ||

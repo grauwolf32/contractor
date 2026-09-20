@@ -1,0 +1,53 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: prepared-openapi-scan, version: "1"}
+spec:
+  mode: risk-assessment
+  standards: []
+  inputs:
+    source: {required: true, mediaTypes: [application/zip]}
+    settings: {required: true, mediaTypes: [application/json]}
+  inventory:
+    implementation: openapi-scans@1
+    source: {source: prepare-output, role: generate-api, name: api}
+    settings: {source: audit-input, name: settings}
+    itemWorkflowRole: scan
+  workflows:
+    generate-api:
+      kind: prepare
+      ref: openapi-from-workspace@7
+      maxRunAttempts: 2
+      inputs:
+        source: {source: audit-input, name: source}
+      parameters: {}
+      outputs:
+        api: openapi
+        validation: openapi_validation_report
+    scan:
+      kind: check
+      ref: audit-openapi-sqlmap-scan@1
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        openapi: {source: prepare-output, role: generate-api, name: api}
+        settings: {source: audit-input, name: settings}
+      parameters: {}
+      outputs: {result: result}
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    # At most 2 prepare Runs plus 16 operations with 3 Runs per item.
+    maxItemsPerRound: 16
+    maxItemsTotal: 16
+    maxSubmittedRuns: 50
+    maxItemRunAttempts: 3
+    deadlineSeconds: 86400
+    # A 64 MiB cumulative evidence budget includes preparation outputs.
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: approval-required
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic

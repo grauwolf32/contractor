@@ -294,7 +294,7 @@ func seedPublicDeletionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpo
 	evidence := findingintake.ExactArtifact{Ref: writtenEvidence.Ref, Digest: auditHandlerDigest(string(payload)), MediaType: writtenEvidence.MediaType, SizeBytes: writtenEvidence.Size}
 	proposal := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: suffix, Title: suffix, Description: "A retained observation.",
-		Subject: auditdomain.FindingSubject{Kind: "function", Key: suffix}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		Subject: &auditdomain.FindingSubject{Kind: "function", Key: suffix}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{"evidence-1"}, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
 	}
 	body, err := auditdomain.EncodeFindingProposal(proposal)

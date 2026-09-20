@@ -1,0 +1,24 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: source_findings_reviewer
+  version: "1"
+spec:
+  description: Reviews supplied source and records findings with explicit source coordinates
+  runtime: adk@1
+  instructions:
+    ref: instructions/source-findings-reviewer.md
+  modelPolicy: worker@2
+  summarizer:
+    instructions:
+      ref: instructions/terminal-summarizer.md
+    modelPolicy: summarizer@1
+    contextWindowRatio: 0.8
+  toolsets:
+    - ref: source-analysis@1
+      tools: [open_source_archive, list_source_files, read_source, search_source]
+    - ref: security-findings-code@1
+      tools: [finding]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

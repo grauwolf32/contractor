@@ -1,0 +1,13 @@
+{
+  "schema": "contractor.audit.openapi-scan-settings.v1",
+  "scanner": "sqlmap",
+  "server": "http://127.0.0.1:8080/api",
+  "authentication": {"bearerAuth": "local-fixture-token"},
+  "testParameters": ["name", "search"],
+  "operations": {
+    "#/paths/~1pets~1{id}/post": {
+      "parameters": {"path:id": 7, "query:search": "Milo"},
+      "body": {"mediaType": "application/json", "value": {"name": "Milo"}}
+    }
+  }
+}

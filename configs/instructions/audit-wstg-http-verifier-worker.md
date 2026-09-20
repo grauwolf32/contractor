@@ -46,8 +46,12 @@ scope. A missing exploit, a status code, reflected text, a TLS connection or one
 sample alone is not a pass. Use `violated` only for an evidenced weakness;
 otherwise use `inconclusive`, `blocked` or `not-tested` as appropriate.
 
-For a demonstrated vulnerability, call `finding` with the exact retained
-evidence artifact, stable client key and standard references from the task.
+For a demonstrated vulnerability, call `finding` with title, description,
+url and method. Optionally supply a recent request_id to retain its actual
+outgoing headers/body and response evidence. Runtime copies selected evidence;
+no manual transcription of credentials is needed. Exact evidence_refs and
+standard_refs from the task remain optional arguments. Runtime supplies the
+client key; copy the returned client_key into the check result.
 Include its proposal key in the check result. Proposals need analyst review.
 Clear session state when no longer needed.
 

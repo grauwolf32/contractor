@@ -269,6 +269,7 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 
 func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
 	result := source
+	result.AuditTask = cloneAuditTask(source.AuditTask)
 	if source.Presentation != nil {
 		presentation := *source.Presentation
 		result.Presentation = &presentation
@@ -302,6 +303,7 @@ func cloneArtifactSlots(source map[string]ArtifactSlot) map[string]ArtifactSlot 
 func cloneStage(source ResolvedStage) ResolvedStage {
 	result := source
 	result.ScanPlan = cloneScanPlanPolicy(source.ScanPlan)
+	result.AuditScan = cloneAuditScan(source.AuditScan)
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
 	for name, binding := range source.Agents {
 		binding.Template = cloneAgentTemplate(binding.Template)

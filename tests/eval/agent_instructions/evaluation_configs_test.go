@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/config"
@@ -35,6 +36,9 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 	}
 	directory := t.TempDir()
 	for path, raw := range frozen.Files {
+		if strings.HasPrefix(path, "configs/audit-profiles/") {
+			continue
+		}
 		rel, err := filepath.Rel("configs", path)
 		if err != nil {
 			t.Fatal(err)
@@ -48,9 +52,7 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 		}
 	}
 	for _, overlay := range []string{"candidate/configs", "evaluation-configs/configs"} {
-		if err := os.CopyFS(directory, os.DirFS(overlay)); err != nil {
-			t.Fatal(err)
-		}
+		copyArchivedExecutionConfigs(t, directory, overlay)
 	}
 	snapshot, err := config.Load(directory, archivedExperimentDescriptors())
 	if err != nil {
@@ -93,25 +95,9 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 				}
 				pair = append(pair, workflow)
 				if id == "a1" {
-					profile, err := snapshot.AuditProfile(entry.Profile)
-					if err != nil {
-						t.Fatal(err)
-					}
-					original, err := snapshot.AuditProfile("source-checklist@1")
-					if err != nil {
-						t.Fatal(err)
-					}
-					if !reflect.DeepEqual(profile.Workflows["check"].Workflow, workflow) {
-						t.Fatal("profile must pin its arm's exact child workflow")
-					}
-					profile.Ref = original.Ref
-					child := profile.Workflows["check"]
-					old := original.Workflows["check"]
-					child.Workflow = old.Workflow
-					profile.Workflows["check"] = child
-					if !reflect.DeepEqual(original, profile) {
-						t.Fatal("audit policy, inventory or evidence mapping changed")
-					}
+					assertArchivedProfileWrapper(t, frozen.Files["configs/audit-profiles/source-checklist.yaml"],
+						filepath.Join("evaluation-configs/configs/audit-profiles", "eval-v40-a1-"+arm+".yaml"),
+						entry.Profile, entry.Workflow)
 				}
 			}
 			before, after := pair[0], pair[1]

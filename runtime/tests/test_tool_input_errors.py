@@ -24,7 +24,8 @@ from contractor_runtime.toolsets.caido.tools import CaidoToolError
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.toolsets.run_artifacts.tools import WriteArtifactTool
-from contractor_runtime.toolsets.security_findings.tools import FindingTool
+from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
+from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 
 
@@ -40,33 +41,20 @@ def assert_repair(error, field, metrics):
 
 @pytest.mark.parametrize(
     "field,value",
-    [
-        ("severity_suggestion", {"level": "high"}),
-        ("severity_suggestion", False),
-        ("severity_suggestion", []),
-        ("hypothesis", []),
-        ("hypothesis", False),
-        ("description", "\ud800"),
-        ("title", "\ud800"),
-        ("client_key", "\ud800"),
-        ("proposed_checks", "[]"),
-        ("evidence_refs", "[]"),
-    ],
+    [("title", "\ud800"), ("description", "\ud800"), ("title", []), ("description", False)],
 )
 def test_finding_rejects_invalid_types_and_unicode_with_repair(field, value):
     async def scenario():
         client, metrics = FakeFindingClient(), MetricsState()
-        tool = FindingTool(client, metrics, ())
-        arguments = {
-            "client_key": "candidate-1",
-            "title": "Candidate",
-            "description": "Description",
-            "subject": {"kind": "code", "key": "handler"},
-            "evidence_refs": [],
-            field: value,
-        }
+        tool = GeneralFindingTool(FindingPublisher(client, metrics, (), WorkerState()))
+        arguments = {"title": "Candidate", "description": "Description", field: value}
         with pytest.raises(ToolInputError) as caught:
-            await tool(tool_context=SimpleNamespace(invocation_id="invocation-1"), **arguments)
+            await tool(
+                tool_context=SimpleNamespace(
+                    invocation_id="invocation-1", function_call_id="call-test"
+                ),
+                **arguments,
+            )
         assert_repair(caught.value, field, metrics)
         assert client.requests == []
 

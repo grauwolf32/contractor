@@ -18,6 +18,7 @@ from typing import Any, Literal
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit
 
 import httpx
+from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
@@ -31,23 +32,26 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
+from contractor_runtime.toolsets.http.limits import (
+    MAX_ATTEMPTS,
+    MAX_COOKIES,
+    MAX_HEADER_BYTES,
+    MAX_HEADER_VALUE_BYTES,
+    MAX_HEADERS,
+    MAX_HISTORY,
+    MAX_PREVIEW_CHARACTERS,
+    MAX_QUERY_BYTES,
+    MAX_QUERY_KEYS,
+    MAX_READ_UNITS,
+    MAX_REDIRECTS,
+    MAX_REQUEST_BODY_BYTES,
+    MAX_RESPONSE_BODY_BYTES,
+    MAX_URL_BYTES,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
-MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024
-MAX_RESPONSE_BODY_BYTES = 16 * 1024 * 1024
-MAX_PREVIEW_CHARACTERS = 8192
-MAX_READ_UNITS = 8192
-MAX_HEADERS = 64
-MAX_QUERY_KEYS = 64
-MAX_HEADER_VALUE_BYTES = 8192
-MAX_HEADER_BYTES = 64 * 1024
-MAX_QUERY_BYTES = 64 * 1024
-MAX_URL_BYTES = 8192
-MAX_HISTORY = 128
-MAX_COOKIES = 128
-MAX_REDIRECTS = 10
-MAX_ATTEMPTS = 3
 BODY_SCHEMA_VERSION = "1.0"
 
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
@@ -181,6 +185,7 @@ class HTTPToolsetFactory:
             target_origin=_target_origin(runtime_settings),
             target_authorization=_target_authorization(runtime_settings),
         )
+        state.http_session = session
         builders: dict[str, Callable[[], _HTTPTool]] = {
             "http_request": lambda: HTTPRequestTool(session, metrics),
             "http_read_body": lambda: HTTPReadBodyTool(session, metrics),
@@ -273,6 +278,7 @@ class _HTTPSession:
         self._lock = asyncio.Lock()
         self._history: deque[_RequestRecord] = deque(maxlen=MAX_HISTORY)
         self._bodies: dict[int, _StoredBody] = {}
+        self._exchanges = HTTPExchangeHistory()
         self._default_headers: dict[str, str] = {}
         self._cookies = httpx.Cookies()
         self._auth_kind: Literal["none", "basic", "bearer"] = "none"
@@ -302,6 +308,7 @@ class _HTTPSession:
         body: Any,
         timeout_seconds: int | float | None,
         follow_redirects: bool,
+        invocation_id: str | None = None,
     ) -> dict[str, Any]:
         async with self._lock:
             self._require_open()
@@ -323,6 +330,7 @@ class _HTTPSession:
             merged_headers = _merge_headers(self._default_headers, selected_headers)
             merged_headers["X-Request-Id"] = f"r{self._nonce}-h{request_id:06d}"
             tag = merged_headers["X-Request-Id"]
+            captured = self._exchanges.begin(request_id, tag, invocation_id)
             # httpx keeps its own cookie jar in addition to the allocation
             # session jar.  Treat that transport jar as scratch space: stale
             # cookies left by a cancelled/failed prior call must never affect
@@ -342,6 +350,7 @@ class _HTTPSession:
                 payload=payload,
                 timeout_seconds=selected_timeout,
                 follow_redirects=follow_redirects,
+                attempts=captured.attempts,
             )
             try:
                 body_bytes = await _read_response_body(response)
@@ -389,6 +398,8 @@ class _HTTPSession:
                     headers_truncated=headers_truncated,
                 )
                 self._history.append(record)
+                captured.complete = True
+                captured.response_body = artifact
                 return record.projection(include_preview=True)
             except HTTPToolError:
                 raise
@@ -406,6 +417,7 @@ class _HTTPSession:
         payload: bytes,
         timeout_seconds: float,
         follow_redirects: bool,
+        attempts: list[CapturedAttempt],
     ) -> tuple[httpx.Response, str, str, int, int, httpx.Cookies]:
         # Commit this prospective jar only after the complete response/artifact succeeds.
         candidate_cookies = httpx.Cookies(self._cookies)
@@ -429,6 +441,7 @@ class _HTTPSession:
                     allow_session_auth=allow_session_auth,
                     allow_session_cookies=allow_session_cookies,
                     request_cookies=candidate_cookies,
+                    capture_attempts=attempts,
                 )
             except asyncio.CancelledError:
                 raise
@@ -505,6 +518,14 @@ class _HTTPSession:
                     await response.aclose()
 
     async def _send_once(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        attempts = kwargs.pop("capture_attempts")
+        attempt: CapturedAttempt | None = None
+
+        def observe(request: httpx.Request) -> None:
+            nonlocal attempt
+            attempt = CapturedAttempt.from_request(request)
+            attempts.append(attempt)
+
         headers = dict(kwargs.pop("headers"))
         allow_session_auth = bool(kwargs.pop("allow_session_auth", True))
         allow_session_cookies = bool(kwargs.pop("allow_session_cookies", True))
@@ -534,20 +555,42 @@ class _HTTPSession:
         kwargs["headers"] = headers
         if allow_session_cookies:
             kwargs["cookies"] = request_cookies
-        if self._proxy is not None:
-            return await self._proxy.stream_request(method, url, **kwargs)
-        client = self._direct_client
-        if client is None:
-            raise HTTPToolError("http_request_failed")
         try:
-            request = client.build_request(method, url, **kwargs)
-            return await client.send(request, stream=True, follow_redirects=False)
+            if self._proxy is not None:
+                response = await self._proxy.stream_request(
+                    method, url, request_observer=observe, **kwargs
+                )
+            else:
+                client = self._direct_client
+                if client is None:
+                    raise HTTPToolError("http_request_failed")
+                request = client.build_request(method, url, **kwargs)
+                observe(request)
+                response = await client.send(request, stream=True, follow_redirects=False)
+            assert attempt is not None
+            attempt.receive(response)
+            return response
         except asyncio.CancelledError:
+            if attempt is not None:
+                attempt.error = "cancelled"
             raise
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ProxyRequestError):
+            if attempt is not None:
+                attempt.error = "transport_error"
             raise
         except Exception:
+            if attempt is not None:
+                attempt.error = "transport_error"
             raise HTTPToolError("http_request_failed") from None
+
+    async def finding_exchange(
+        self, request_id: int, invocation_id: str
+    ) -> tuple[dict[str, Any], ArtifactRef | None]:
+        """Copy selected evidence while locked; never expose the private store to the model."""
+        async with self._lock:
+            self._require_open()
+            exchange = self._exchanges.resolve(request_id, invocation_id)
+            return exchange.snapshot(), exchange.response_body
 
     async def read_body(self, request_id: int, offset: int, limit: int) -> dict[str, Any]:
         if type(request_id) is not int or request_id <= 0:
@@ -603,7 +646,9 @@ class _HTTPSession:
             raise HTTPToolError("http_request_invalid")
         async with self._lock:
             self._require_open()
-            selected = tuple(self._history)[-limit:]
+            selected = [
+                record for record in self._history if self._exchanges.contains(record.request_id)
+            ][-limit:]
             return [record.projection(include_preview=False) for record in selected]
 
     async def set_session(
@@ -713,6 +758,7 @@ class _HTTPSession:
         self._default_headers.clear()
         self._cookies.clear()
         self._history.clear()
+        self._exchanges.clear()
         self._erase_auth()
 
     def _erase_auth(self) -> None:
@@ -805,6 +851,7 @@ class HTTPRequestTool(_HTTPTool):
         body_type: str = "none",
         timeout: int | float | None = None,
         follow_redirects: bool = True,
+        tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
         safe_arguments = {
@@ -831,6 +878,7 @@ class HTTPRequestTool(_HTTPTool):
                 body=body,
                 timeout_seconds=timeout,
                 follow_redirects=follow_redirects,
+                invocation_id=tool_context.invocation_id if tool_context is not None else None,
             )
             self._success(
                 safe_arguments,

@@ -72,7 +72,7 @@ export const dynamicPresetFixture: AuditProfile = {
   inputs: { openapi: { required: true, mediaTypes: ["application/yaml"] } },
   inventory: {
     implementation: "openapi-operations@1",
-    sourceInput: "openapi",
+    source: { source: "audit-input", name: "openapi" },
     itemWorkflowRole: "check",
   },
 };

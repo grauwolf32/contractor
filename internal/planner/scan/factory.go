@@ -34,6 +34,11 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err := workflowconfig.ValidateScanPlanStage(invocation.Stage); err != nil {
 		return nil, err
 	}
+	if invocation.Stage.AuditScan != nil {
+		if _, ok := f.sessions.(planner.AuditScanHistoryReader); !ok {
+			return nil, fmt.Errorf("Audit scan requires durable attempt history")
+		}
+	}
 	if len(invocation.Workers) != len(invocation.Stage.Agents) {
 		return nil, fmt.Errorf("scan Worker set differs from the fixed Stage bindings")
 	}
@@ -82,6 +87,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 type execution struct {
 	factory    *Factory
 	invocation planner.Invocation
+	audit      *auditScanInputs
 }
 
 func scanError(code string, cause error) *planner.Error {

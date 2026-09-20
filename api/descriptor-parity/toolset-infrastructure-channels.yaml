@@ -1,5 +1,8 @@
 schemaVersion: "1.0"
 toolsets:
+  security-findings@1: {}
+  security-findings-code@1: {}
+  security-findings-http@1: {}
   audit-results@2: {}
   caido@1:
     caido_automate_results: [caido-graphql-client]
@@ -31,8 +34,6 @@ toolsets:
     scan_naabu: [runtime-subprocess-launcher]
     scan_nuclei: [runtime-subprocess-launcher]
     scan_sqlmap: [runtime-subprocess-launcher]
-  security-findings@1: {}
-  security-findings@2: {}
   source-analysis@1: {}
   taint-annotations@1: {}
   text-artifacts@1: {}

@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestFindingsToolVersionsAndOperationSelection(t *testing.T) {
+func TestFindingFacadesAndOperationSelection(t *testing.T) {
 	descriptors, err := normalizeDescriptors(MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
@@ -21,11 +21,13 @@ func TestFindingsToolVersionsAndOperationSelection(t *testing.T) {
 		valid bool
 	}{
 		{"security-findings@1", []string{"finding"}, true},
-		{"security-findings@1", []string{"list_findings"}, false},
-		{"security-findings@2", []string{"finding"}, true},
-		{"security-findings@2", []string{"list_findings"}, true},
-		{"security-findings@2", []string{"finding", "list_findings"}, true},
-		{"security-findings@2", []string{"confirm_finding"}, false},
+		{"security-findings@1", []string{"list_findings"}, true},
+		{"security-findings@1", []string{"finding", "list_findings"}, true},
+		{"security-findings-code@1", []string{"finding"}, true},
+		{"security-findings-http@1", []string{"finding"}, true},
+		{"security-findings-code@1", []string{"list_findings"}, false},
+		{"security-findings@2", []string{"finding"}, false},
+		{"security-findings@1", []string{"confirm_finding"}, false},
 	} {
 		t.Run(test.ref+strings.Join(test.tools, "+"), func(t *testing.T) {
 			got, err := current.resolveToolsets(&[]toolsetSelectionSource{{Ref: test.ref, Tools: test.tools}})
@@ -39,7 +41,7 @@ func TestFindingsToolVersionsAndOperationSelection(t *testing.T) {
 	}
 	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{
 		{Ref: "security-findings@1", Tools: []string{"finding"}},
-		{Ref: "security-findings@2", Tools: []string{"finding"}},
+		{Ref: "security-findings-code@1", Tools: []string{"finding"}},
 	}); err == nil || !strings.Contains(err.Error(), "collides") {
 		t.Fatalf("collision error = %v", err)
 	}
@@ -68,7 +70,7 @@ func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *test
 			stage := workflow.Stages[workflow.EntryStage]
 			for name, agent := range stage.Agents {
 				agent.Template.Toolsets = append(agent.Template.Toolsets, contracts.ToolsetSelection{
-					Ref: contracts.ToolsetRef{ToolsetID: "security-findings", Version: "2"}, Tools: test.tools,
+					Ref: contracts.ToolsetRef{ToolsetID: "security-findings", Version: "1"}, Tools: test.tools,
 				})
 				stage.Agents[name] = agent
 				break

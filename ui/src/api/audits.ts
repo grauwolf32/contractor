@@ -1,3 +1,5 @@
+import { validAuditComposition, validInventory } from "./audit-composition";
+import { validFindingCoordinates } from "./finding-locations";
 import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
@@ -127,7 +129,8 @@ function safeProfile(profile: AuditProfile, status: number): AuditProfile {
     !Array.isArray(profile.standards) ||
     !Array.isArray(profile.compatibilityReasons) ||
     typeof profile.serverCompatible !== "boolean" ||
-    typeof profile.requiresInputValidation !== "boolean"
+    typeof profile.requiresInputValidation !== "boolean" ||
+    !validInventory(profile.inventory)
   ) {
     throw invalidAuditResponse(status);
   }
@@ -141,7 +144,7 @@ function safeProfile(profile: AuditProfile, status: number): AuditProfile {
         { ...input, mediaTypes: [...input.mediaTypes] },
       ]),
     ),
-    inventory: { ...profile.inventory },
+    inventory: structuredClone(profile.inventory),
     ...(profile.workflows === undefined
       ? {}
       : {
@@ -189,7 +192,8 @@ function safeAudit(audit: Audit, status: number): Audit {
     audit.inputs === null ||
     typeof audit.inputs !== "object" ||
     typeof audit.createdAt !== "string" ||
-    typeof audit.updatedAt !== "string"
+    typeof audit.updatedAt !== "string" ||
+    !validAuditComposition(audit)
   ) {
     throw invalidAuditResponse(status);
   }
@@ -373,16 +377,17 @@ export async function mutateAudit(
     if (
       audit.auditId !== options.auditId ||
       !Array.isArray(started.items) ||
-      started.round === undefined
+      (audit.phase === "rounds"
+        ? started.round === undefined ||
+          started.round.roundId !== audit.currentRoundId
+        : !["preparing", "inventory"].includes(audit.phase) ||
+          started.round !== undefined ||
+          started.items.length !== 0)
     ) {
       throw invalidAuditResponse(result.response.status);
     }
     requireRevisionETag(result.response, audit.revision);
-    return {
-      audit,
-      round: structuredClone(started.round),
-      items: structuredClone(started.items),
-    };
+    return structuredClone(started);
   }
   if (action === "pause") {
     const result = await api.request((client) =>
@@ -512,6 +517,13 @@ export async function listAuditFindings(
   );
   const value = requireData(result);
   const page = safePage(value, result.response.status);
+  if (
+    page.items.some(
+      (finding) => !validFindingCoordinates(finding.firstProposal.document),
+    )
+  ) {
+    throw invalidAuditResponse(result.response.status);
+  }
   return { ...value, items: structuredClone(page.items), page: page.page };
 }
 
@@ -529,6 +541,9 @@ export async function getAuditFinding(
   );
   const finding = requireData(result);
   if (finding.auditId !== auditId || finding.findingId !== findingId) {
+    throw invalidAuditResponse(result.response.status);
+  }
+  if (!validFindingCoordinates(finding.firstProposal.document)) {
     throw invalidAuditResponse(result.response.status);
   }
   requireRevisionETag(result.response, finding.revision);

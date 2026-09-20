@@ -24,7 +24,7 @@ spec:
       tools: [read_artifact, write_artifact]
     - ref: source-analysis@1
       tools: [open_source_archive, list_source_files, read_source, search_source]
-    - ref: security-findings@1
+    - ref: security-findings-code@1
       tools: [finding]
     - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]

@@ -8,6 +8,13 @@ import (
 
 const MaxScanJobs = 100
 
+// Scan artifact limits are shared by persistence, observation and Audit result
+// recovery so that a retained result can always be read through the same adapter.
+const (
+	MaxScanArtifactBytes = 4 << 20
+	MaxScanReportBytes   = 1 << 20
+)
+
 const (
 	ScanJobPending     = "pending"
 	ScanJobStarted     = "started"
@@ -58,4 +65,33 @@ type ScanSessionService interface {
 	ClaimScanJob(context.Context, ScanSessionIdentity, string) (bool, error)
 	FinishScanJob(context.Context, ScanSessionIdentity, ScanJobRecord) error
 	CompleteScan(context.Context, ScanSessionIdentity, Completion) error
+}
+
+// ScanAttempt is a read-only projection of an existing durable Stage journal.
+// It contains no authority to dispatch a job in another attempt.
+type ScanAttempt struct {
+	StageExecutionID string    `json:"stageExecutionId"`
+	StageName        string    `json:"stageName"`
+	Terminal         bool      `json:"terminal"`
+	State            ScanState `json:"state"`
+}
+
+type AuditScanHistoryReader interface {
+	ReadAuditScanHistory(context.Context, string) ([]ScanAttempt, error)
+}
+
+// ScanAttemptNeedsRecovery distinguishes a completed or possibly executed
+// action from a known failed execution or a failure before invocation.
+func ScanAttemptNeedsRecovery(attempt ScanAttempt) bool {
+	for _, job := range attempt.State.Jobs {
+		switch job.Status {
+		case ScanJobStarted, ScanJobUnknown, ScanJobCompleted:
+			return true
+		case ScanJobIncomplete:
+			if job.Code != "scan_deadline_exceeded" {
+				return true
+			}
+		}
+	}
+	return false
 }

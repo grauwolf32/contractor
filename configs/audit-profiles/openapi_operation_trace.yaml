@@ -17,7 +17,7 @@ spec:
       mediaTypes: [application/json, application/yaml, application/zip]
   inventory:
     implementation: openapi-operations@1
-    sourceInput: openapi
+    source: {source: audit-input, name: openapi}
     itemWorkflowRole: trace
   workflows:
     trace:

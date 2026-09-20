@@ -763,7 +763,7 @@ func postFinding(t *testing.T, handler http.Handler, clientKey string) *httptest
 		Proposal: auditdomain.FindingProposal{
 			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
 			Title: "Candidate", Description: "Candidate description",
-			Subject:       auditdomain.FindingSubject{Kind: "code", Key: "handler"},
+			Subject:       &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
 			Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 			EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
 			Limitations: []string{},

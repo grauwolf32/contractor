@@ -79,7 +79,7 @@ does not export annotations or propose findings. Its separate name distinguishes
 A Runtime must advertise local workspace and graph capabilities to run this profile.
 
 `openapi-operation-trace@1` selects `audit_openapi_operation_tracer@1`, adding
-`security-findings@2.finding` and `text-artifacts@1.write_text_artifact` with
+`security-findings-code@1.finding` and `text-artifacts@1.write_text_artifact` with
 `findingConfirmation: human-required`. It preserves the operation inventory and
 prohibits active checks. Findings do not turn `operation-resolution` into full
 trace coverage. `findings-review@2` independently reads a pinned collection with

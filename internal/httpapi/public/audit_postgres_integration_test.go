@@ -219,7 +219,7 @@ spec:
     checklist: {required: true, mediaTypes: [application/json]}
   inventory:
     implementation: checklist@1
-    sourceInput: checklist
+    source: {source: audit-input, name: checklist}
     itemWorkflowRole: check
   workflows:
     check:

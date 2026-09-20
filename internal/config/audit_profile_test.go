@@ -123,7 +123,7 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 			}
 			binding := profile.Workflows[test.role]
 			if profile.Mode != test.mode || profile.Inventory.Implementation != test.implementation ||
-				profile.Inventory.SourceInput != test.sourceInput || profile.Inventory.ItemWorkflowRole != test.role ||
+				profile.Inventory.Source.Name != test.sourceInput || profile.Inventory.ItemWorkflowRole != test.role ||
 				profile.Execution.MaxRounds != 1 || profile.Execution.BatchSize != test.batchSize ||
 				profile.Interaction.ActiveChecks != AuditActiveChecksProhibited ||
 				profile.Interaction.FindingConfirmation != AuditFindingDisabled ||
@@ -321,7 +321,7 @@ func TestAuditProfileRejectsRetainedOutputCycles(t *testing.T) {
 	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "cycle-review", retainedCycleAuditProfileYAML)
 	_, err := Load(root, MVPDescriptors())
-	if err == nil || !strings.Contains(err.Error(), "retained-output dependencies contain a cycle") {
+	if err == nil || !strings.Contains(err.Error(), "output dependencies contain a cycle") {
 		t.Fatalf("retained-output cycle error = %v", err)
 	}
 }
@@ -349,7 +349,7 @@ func TestAuditProfileRestrictsRetainedOutputsToAvailableRolePhases(t *testing.T)
 			"discover": dependency(AuditWorkflowDiscovery, "assess"),
 			"assess":   {Kind: AuditWorkflowAssessment, Workflow: outputWorkflow, Outputs: map[string]string{"result": "result"}},
 		}
-		err := validateRetainedOutputDependencies(workflows)
+		err := validateAuditWorkflowDependencies(workflows)
 		if err == nil || !strings.Contains(err.Error(), "later execution phase") {
 			t.Fatalf("later-phase retained output error = %v", err)
 		}
@@ -360,7 +360,7 @@ func TestAuditProfileRestrictsRetainedOutputsToAvailableRolePhases(t *testing.T)
 			"check":  {Kind: AuditWorkflowCheck, Workflow: outputWorkflow, Outputs: map[string]string{"result": "result"}},
 			"assess": dependency(AuditWorkflowAssessment, "check"),
 		}
-		err := validateRetainedOutputDependencies(workflows)
+		err := validateAuditWorkflowDependencies(workflows)
 		if err == nil || !strings.Contains(err.Error(), "cannot consume retained output from check role") {
 			t.Fatalf("check retained output error = %v", err)
 		}
@@ -371,7 +371,7 @@ func TestAuditProfileRestrictsRetainedOutputsToAvailableRolePhases(t *testing.T)
 			"discover": {Kind: AuditWorkflowDiscovery, Workflow: outputWorkflow, Outputs: map[string]string{"result": "result"}},
 			"check":    dependency(AuditWorkflowCheck, "discover"),
 		}
-		if err := validateRetainedOutputDependencies(workflows); err != nil {
+		if err := validateAuditWorkflowDependencies(workflows); err != nil {
 			t.Fatalf("valid discovery dependency = %v", err)
 		}
 	})
@@ -429,7 +429,7 @@ spec:
     checklist: {required: true, mediaTypes: [application/yaml, application/json]}
   inventory:
     implementation: checklist@1
-    sourceInput: checklist
+    source: {source: audit-input, name: checklist}
     itemWorkflowRole: check
   workflows:
     check:
@@ -486,7 +486,7 @@ spec:
       parameters: {target: {name: subjectKey, source: item-field}}
       inputs: {source: {name: source, source: audit-input}}
       ref: taint-trace-from-workspace@4
-  inventory: {itemWorkflowRole: check, sourceInput: checklist, implementation: checklist@1}
+  inventory: {itemWorkflowRole: check, source: {source: audit-input, name: checklist}, implementation: checklist@1}
   inputs:
     checklist: {mediaTypes: [application/json, application/yaml], required: true}
     source: {mediaTypes: [application/zip], required: true}
@@ -503,7 +503,7 @@ spec:
   mode: risk-assessment
   inputs:
     checklist: {required: true, mediaTypes: [application/json]}
-  inventory: {implementation: checklist@1, sourceInput: checklist, itemWorkflowRole: a}
+  inventory: {implementation: checklist@1, source: {source: audit-input, name: checklist}, itemWorkflowRole: a}
   workflows:
     a:
       kind: check

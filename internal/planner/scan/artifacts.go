@@ -50,7 +50,7 @@ func (s *ServiceArtifacts) Resolve(ctx context.Context, runID string, target con
 }
 
 func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
-	if ref.ValidateExact() != nil || limit < 1 || limit > 4*1024*1024 {
+	if ref.ValidateExact() != nil || limit < 1 || limit > planner.MaxScanArtifactBytes {
 		return artifacts.Payload{}, fmt.Errorf("invalid exact scan artifact read")
 	}
 	store, err := s.service.Run(runID)
@@ -78,7 +78,7 @@ func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts
 // be recovered by comparing the existing immutable payload, never by overwriting
 // an artifact that another invocation or Worker may have changed.
 func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target contracts.ArtifactRef, payload artifacts.Payload) (contracts.ArtifactRef, error) {
-	if target.Validate() != nil || target.Revision != nil || len(payload.Data) > 4*1024*1024 {
+	if target.Validate() != nil || target.Revision != nil || len(payload.Data) > planner.MaxScanArtifactBytes {
 		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan artifact creation")
 	}
 	store, err := s.service.Run(runID)

@@ -11,10 +11,11 @@ import (
 
 func TestFindingsGateRejectsFalseGreenProcessReports(t *testing.T) {
 	required := []string{
+		"TestFindingLocationsAcrossProcesses",
 		"TestFindingsProducerAndReaderAcrossProcesses",
 		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
 		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/shared-function-preserves-operations",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/ordinary-hypothesis-and-intake-replay",
+		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/ordinary-source-receipt",
 		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/snapshot-survives-source-deletion",
 		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/changed-selection-conflicts",
 		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/pagination-and-exact-evidence",

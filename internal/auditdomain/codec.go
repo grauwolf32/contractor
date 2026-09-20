@@ -204,6 +204,9 @@ func validateItemTask(value ItemTask) error {
 	if value.Finding != nil {
 		shapes++
 	}
+	if value.Scan != nil {
+		shapes++
+	}
 	if shapes != 1 {
 		return invalid(CodeInvalid, "task")
 	}
@@ -228,6 +231,12 @@ func validateItemTask(value ItemTask) error {
 			return invalid(CodeInvalid, "kind")
 		}
 		return validateOperationTask(*value.Operation)
+	}
+	if value.Scan != nil {
+		if value.Kind != "openapi-scan" {
+			return invalid(CodeInvalid, "kind")
+		}
+		return validateOpenAPIScanTask(*value.Scan)
 	}
 	if value.Kind != "finding-verification" {
 		return invalid(CodeInvalid, "kind")
@@ -489,11 +498,21 @@ func validateFindingProposal(proposal FindingProposal) error {
 	if proposal.Schema != FindingProposalSchema {
 		return invalid(CodeSchemaUnsupported, "schema")
 	}
+	if proposal.Preconditions == nil || proposal.StandardRefs == nil || proposal.EvidenceIDs == nil ||
+		proposal.ProposedChecks == nil || proposal.Limitations == nil {
+		return invalid(CodeInvalid, "proposal.arrays")
+	}
 	if validateIdentifier(proposal.ClientKey, "client_key") != nil || validateText(proposal.Title, "title", true) != nil ||
-		validateText(proposal.Description, "description", true) != nil || validateIdentifier(proposal.Subject.Kind, "subject.kind") != nil ||
-		validateIdentifier(proposal.Subject.Key, "subject.key") != nil || validateText(proposal.Hypothesis, "hypothesis", false) != nil ||
+		validateText(proposal.Description, "description", true) != nil || validateText(proposal.Hypothesis, "hypothesis", false) != nil ||
 		!validSeverity(proposal.SeveritySuggestion) {
 		return invalid(CodeInvalid, "proposal")
+	}
+	if proposal.Subject != nil &&
+		(validateIdentifier(proposal.Subject.Kind, "subject.kind") != nil || validateIdentifier(proposal.Subject.Key, "subject.key") != nil) {
+		return invalid(CodeInvalid, "subject")
+	}
+	if err := validateFindingExtensions(proposal); err != nil {
+		return err
 	}
 	if validateStringList(proposal.Preconditions, MaximumCoverageValues, "preconditions") != nil ||
 		validateUniqueStrings(proposal.EvidenceIDs, MaximumEvidencePerItem, "evidence_ids", true) != nil ||

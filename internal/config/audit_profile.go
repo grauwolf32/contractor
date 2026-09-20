@@ -13,6 +13,7 @@ const (
 	MaxAuditProfileStandards  = 16
 	MaxAuditProfileInputs     = 32
 	MaxAuditProfileWorkflows  = 16
+	MaxAuditWorkflowMappings  = 128
 	MaxAuditStandardLevels    = 16
 	MaxAuditStandardEntries   = 4_096
 	MaxAuditRounds            = 32
@@ -20,7 +21,7 @@ const (
 	MaxAuditItemsPerRound     = 10_000
 	MaxAuditItemsTotal        = 100_000
 	MaxAuditSubmittedRuns     = 1_000_000
-	MaxAuditItemRunAttempts   = 10
+	MaxAuditRunAttempts       = 10
 	MaxAuditDeadlineSeconds   = 365 * 24 * 60 * 60
 	MaxAuditEvidenceBytes     = int64(1 << 30)
 	MaxAuditLiteralParamBytes = 4096
@@ -66,10 +67,11 @@ type AuditProfileInput struct {
 }
 
 type AuditInventory struct {
-	Implementation    string                  `json:"implementation"`
-	SourceInput       string                  `json:"sourceInput,omitempty"`
-	ItemWorkflowRole  string                  `json:"itemWorkflowRole"`
-	StandardSelection *AuditStandardSelection `json:"standardSelection,omitempty"`
+	Implementation    string                     `json:"implementation"`
+	Source            *AuditWorkflowInputMapping `json:"source,omitempty"`
+	Settings          *AuditWorkflowInputMapping `json:"settings,omitempty"`
+	ItemWorkflowRole  string                     `json:"itemWorkflowRole"`
+	StandardSelection *AuditStandardSelection    `json:"standardSelection,omitempty"`
 }
 
 // AuditStandardSelection is an exact, profile-authored denominator. EntryIDs
@@ -88,6 +90,7 @@ const (
 	AuditInputFromItemPackage       AuditWorkflowInputSource = "item-package"
 	AuditInputFromExecutionManifest AuditWorkflowInputSource = "execution-manifest"
 	AuditInputFromRetainedOutput    AuditWorkflowInputSource = "retained-output"
+	AuditInputFromPreparation       AuditWorkflowInputSource = "prepare-output"
 )
 
 type AuditWorkflowInputMapping struct {
@@ -113,17 +116,19 @@ type AuditWorkflowParameterMapping struct {
 type AuditWorkflowRoleKind string
 
 const (
+	AuditWorkflowPrepare    AuditWorkflowRoleKind = "prepare"
 	AuditWorkflowCheck      AuditWorkflowRoleKind = "check"
 	AuditWorkflowDiscovery  AuditWorkflowRoleKind = "discovery"
 	AuditWorkflowAssessment AuditWorkflowRoleKind = "assessment"
 )
 
 func (kind AuditWorkflowRoleKind) valid() bool {
-	return kind == AuditWorkflowCheck || kind == AuditWorkflowDiscovery ||
+	return kind == AuditWorkflowPrepare || kind == AuditWorkflowCheck || kind == AuditWorkflowDiscovery ||
 		kind == AuditWorkflowAssessment
 }
 
 type ResolvedAuditWorkflowBinding struct {
+	MaxRunAttempts   int                                      `json:"maxRunAttempts,omitempty"`
 	WorkerCompletion *AuditWorkerCompletion                   `json:"workerCompletion,omitempty"`
 	Kind             AuditWorkflowRoleKind                    `json:"kind"`
 	Workflow         ResolvedWorkflow                         `json:"workflow"`
@@ -224,10 +229,11 @@ type auditProfileInputSource struct {
 }
 
 type auditInventorySource struct {
-	Implementation    string                        `yaml:"implementation"`
-	SourceInput       string                        `yaml:"sourceInput"`
-	ItemWorkflowRole  string                        `yaml:"itemWorkflowRole"`
-	StandardSelection *auditStandardSelectionSource `yaml:"standardSelection,omitempty"`
+	Implementation    string                           `yaml:"implementation"`
+	Source            *auditWorkflowInputMappingSource `yaml:"source,omitempty"`
+	Settings          *auditWorkflowInputMappingSource `yaml:"settings,omitempty"`
+	ItemWorkflowRole  string                           `yaml:"itemWorkflowRole"`
+	StandardSelection *auditStandardSelectionSource    `yaml:"standardSelection,omitempty"`
 }
 
 type auditStandardSelectionSource struct {
@@ -237,6 +243,7 @@ type auditStandardSelectionSource struct {
 }
 
 type auditWorkflowBindingSource struct {
+	MaxRunAttempts   *int                                        `yaml:"maxRunAttempts,omitempty"`
 	WorkerCompletion *AuditWorkerCompletion                      `yaml:"workerCompletion,omitempty"`
 	Kind             string                                      `yaml:"kind"`
 	Ref              string                                      `yaml:"ref"`
@@ -337,9 +344,6 @@ func (l *loader) resolveAuditProfile(
 	if err := validateAuditModeInventory(mode, inventory.Implementation); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	if err := validateRetainedOutputDependencies(workflows); err != nil {
-		return ResolvedAuditProfile{}, err
-	}
 	execution, err := resolveAuditExecutionPolicy(spec.Execution)
 	if err != nil {
 		return ResolvedAuditProfile{}, err
@@ -360,6 +364,12 @@ func (l *loader) resolveAuditProfile(
 		Ref:  AuditProfileRef{Name: selector.ID, Version: selector.Version},
 		Mode: mode, Standards: standards, Inputs: inputs, Inventory: inventory,
 		Workflows: workflows, Execution: execution, Interaction: interaction,
+	}
+	if err := ValidateAuditPreparationProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	if err := ValidateAuditTaskProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
 	}
 	digest, err := auditProfileDigest(selector, profile)
 	if err != nil {
@@ -466,8 +476,15 @@ func (l *loader) resolveAuditWorkflowBindings(
 		if err != nil {
 			return nil, err
 		}
+		maxRunAttempts := 0
+		if candidate.MaxRunAttempts != nil {
+			if kind != AuditWorkflowPrepare {
+				return nil, fmt.Errorf("spec.workflows.%s.maxRunAttempts is only valid for prepare roles", role)
+			}
+			maxRunAttempts = *candidate.MaxRunAttempts
+		}
 		result[role] = ResolvedAuditWorkflowBinding{
-			Kind: kind, Workflow: cloneWorkflow(workflow), Inputs: inputs,
+			Kind: kind, MaxRunAttempts: maxRunAttempts, Workflow: cloneWorkflow(workflow), Inputs: inputs,
 			Parameters: parameters, Outputs: outputs, WorkerCompletion: candidate.WorkerCompletion,
 		}
 		if err := ValidateAuditWorkerCompletion(result[role]); err != nil {
@@ -548,10 +565,10 @@ func resolveAuditWorkflowInputMapping(
 		if !mediaTypesIntersect([]string{"application/json"}, slot.MediaTypes) {
 			return AuditWorkflowInputMapping{}, fmt.Errorf("%s Workflow input does not accept application/json", field)
 		}
-	case AuditInputFromRetainedOutput:
+	case AuditInputFromRetainedOutput, AuditInputFromPreparation:
 		if validateAuditMapKey(field+".role", mapping.Role) != nil ||
 			validateAuditMapKey(field+".name", mapping.Name) != nil {
-			return AuditWorkflowInputMapping{}, fmt.Errorf("%s retained-output requires role and name", field)
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s %s requires role and name", field, mapping.Source)
 		}
 	default:
 		return AuditWorkflowInputMapping{}, fmt.Errorf("%s.source is invalid", field)
@@ -622,8 +639,8 @@ func resolveAuditWorkflowOutputs(
 	role string, source *map[string]string, workflow ResolvedWorkflow,
 ) (map[string]string, error) {
 	field := "spec.workflows." + role + ".outputs"
-	if source == nil || len(*source) == 0 {
-		return nil, fmt.Errorf("%s must be a non-empty mapping", field)
+	if source == nil || len(*source) == 0 || len(*source) > MaxAuditWorkflowMappings {
+		return nil, fmt.Errorf("%s must contain 1..%d entries", field, MaxAuditWorkflowMappings)
 	}
 	result := make(map[string]string, len(*source))
 	seenWorkflowOutputs := make(map[string]struct{}, len(*source))
@@ -660,34 +677,36 @@ func resolveAuditInventory(
 	if source == nil {
 		return AuditInventory{}, fmt.Errorf("spec.inventory is required")
 	}
-	acceptedMediaTypes, exists := auditInventoryMediaTypes[source.Implementation]
+	descriptor, exists := auditInventories[source.Implementation]
 	if !exists {
 		return AuditInventory{}, fmt.Errorf("spec.inventory.implementation is unsupported")
 	}
-	if source.Implementation == "standard-mappings@1" {
-		if source.SourceInput != "" {
-			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput must be omitted for standard-mappings@1")
-		}
-		if len(standards) != 1 {
-			return AuditInventory{}, fmt.Errorf("standard-mappings@1 requires exactly one spec.standards entry")
+	var inventorySource, settingsSource *AuditWorkflowInputMapping
+	if len(descriptor.mediaTypes) == 0 {
+		if source.Source != nil || len(standards) != 1 {
+			return AuditInventory{}, fmt.Errorf("standard-mappings@1 requires exactly one standard and forbids inventory.source")
 		}
 	} else {
 		if source.StandardSelection != nil {
 			return AuditInventory{}, fmt.Errorf("spec.inventory.standardSelection is only valid for standard-mappings@1")
 		}
-		if err := validateAuditMapKey("spec.inventory.sourceInput", source.SourceInput); err != nil {
+		var err error
+		inventorySource, err = resolveAuditInventoryArtifact("spec.inventory.source", source.Source, inputs, workflows, descriptor.mediaTypes)
+		if err != nil {
 			return AuditInventory{}, err
 		}
-		input, exists := inputs[source.SourceInput]
-		if !exists {
-			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput names unknown Audit input %q", source.SourceInput)
+	}
+	if descriptor.requiresSettings {
+		var err error
+		settingsSource, err = resolveAuditInventoryArtifact("spec.inventory.settings", source.Settings, inputs, workflows, []string{"application/json"})
+		if err != nil {
+			return AuditInventory{}, err
 		}
-		if !input.Required {
-			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput must name a required Audit input")
+		if *inventorySource == *settingsSource {
+			return AuditInventory{}, fmt.Errorf("inventory source and settings must be distinct")
 		}
-		if !mediaTypesIntersect(input.MediaTypes, acceptedMediaTypes) {
-			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput media types are incompatible with %s", source.Implementation)
-		}
+	} else if source.Settings != nil {
+		return AuditInventory{}, fmt.Errorf("%s does not accept inventory.settings", source.Implementation)
 	}
 	if err := validateAuditMapKey("spec.inventory.itemWorkflowRole", source.ItemWorkflowRole); err != nil {
 		return AuditInventory{}, err
@@ -722,7 +741,7 @@ func resolveAuditInventory(
 		return AuditInventory{}, err
 	}
 	return AuditInventory{
-		Implementation: source.Implementation, SourceInput: source.SourceInput,
+		Implementation: source.Implementation, Source: inventorySource, Settings: settingsSource,
 		ItemWorkflowRole: source.ItemWorkflowRole, StandardSelection: selection,
 	}, nil
 }
@@ -777,13 +796,6 @@ func normalizeAuditSelectionValues(field string, source []string, maximum int) (
 	return result, nil
 }
 
-var auditInventoryMediaTypes = map[string][]string{
-	"openapi-operations@1": {"application/json", "application/yaml", "application/zip"},
-	"checklist@1":          {"application/json", "application/yaml", "application/zip"},
-	"finding-candidates@1": {"application/json", "application/zip"},
-	"standard-mappings@1":  {},
-}
-
 func validateAuditModeInventory(mode AuditProfileMode, implementation string) error {
 	valid := false
 	switch mode {
@@ -793,84 +805,11 @@ func validateAuditModeInventory(mode AuditProfileMode, implementation string) er
 		valid = implementation == "finding-candidates@1"
 	case AuditModeRiskAssessment, AuditModeRequirementsVerification, AuditModeCustomChecklist:
 		valid = implementation == "checklist@1" ||
-			(mode != AuditModeCustomChecklist && implementation == "standard-mappings@1")
+			(mode != AuditModeCustomChecklist && implementation == "standard-mappings@1") ||
+			(mode == AuditModeRiskAssessment && implementation == AuditInventoryOpenAPIScans)
 	}
 	if !valid {
 		return fmt.Errorf("spec.inventory.implementation %q is incompatible with mode %q", implementation, mode)
-	}
-	return nil
-}
-
-func validateRetainedOutputDependencies(
-	workflows map[string]ResolvedAuditWorkflowBinding,
-) error {
-	dependencies := make(map[string][]string, len(workflows))
-	for _, role := range sortedMapKeys(workflows) {
-		binding := workflows[role]
-		for _, inputName := range sortedMapKeys(binding.Inputs) {
-			mapping := binding.Inputs[inputName]
-			if mapping.Source != AuditInputFromRetainedOutput {
-				continue
-			}
-			source, exists := workflows[mapping.Role]
-			if !exists {
-				return fmt.Errorf("spec.workflows.%s.inputs.%s names unknown retained-output role %q", role, inputName, mapping.Role)
-			}
-			workflowOutput, exists := source.Outputs[mapping.Name]
-			if !exists {
-				return fmt.Errorf("spec.workflows.%s.inputs.%s names unknown logical output %q on role %q", role, inputName, mapping.Name, mapping.Role)
-			}
-			if !mediaTypesIntersect(source.Workflow.Outputs[workflowOutput].MediaTypes, binding.Workflow.Inputs[inputName].MediaTypes) {
-				return fmt.Errorf("spec.workflows.%s.inputs.%s retained output media types are incompatible", role, inputName)
-			}
-			dependencies[role] = append(dependencies[role], mapping.Role)
-		}
-	}
-	state := make(map[string]uint8, len(workflows))
-	var visit func(string) error
-	visit = func(role string) error {
-		switch state[role] {
-		case 1:
-			return fmt.Errorf("spec.workflows retained-output dependencies contain a cycle at role %q", role)
-		case 2:
-			return nil
-		}
-		state[role] = 1
-		sort.Strings(dependencies[role])
-		for _, dependency := range dependencies[role] {
-			if err := visit(dependency); err != nil {
-				return err
-			}
-		}
-		state[role] = 2
-		return nil
-	}
-	for _, role := range sortedMapKeys(workflows) {
-		if err := visit(role); err != nil {
-			return err
-		}
-	}
-	phase := map[AuditWorkflowRoleKind]int{
-		AuditWorkflowDiscovery:  0,
-		AuditWorkflowCheck:      1,
-		AuditWorkflowAssessment: 2,
-	}
-	for _, role := range sortedMapKeys(workflows) {
-		for _, dependency := range dependencies[role] {
-			source, destination := workflows[dependency], workflows[role]
-			if source.Kind == AuditWorkflowCheck {
-				return fmt.Errorf(
-					"spec.workflows.%s cannot consume retained output from check role %q",
-					role, dependency,
-				)
-			}
-			if phase[source.Kind] > phase[destination.Kind] {
-				return fmt.Errorf(
-					"spec.workflows.%s retained-output dependency %q belongs to a later execution phase",
-					role, dependency,
-				)
-			}
-		}
 	}
 	return nil
 }
@@ -901,7 +840,7 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 		{"maxItemsPerRound", "items", result.MaxItemsPerRound, MaxAuditItemsPerRound},
 		{"maxItemsTotal", "items", result.MaxItemsTotal, MaxAuditItemsTotal},
 		{"maxSubmittedRuns", "Runs", result.MaxSubmittedRuns, MaxAuditSubmittedRuns},
-		{"maxItemRunAttempts", "attempts", result.MaxItemRunAttempts, MaxAuditItemRunAttempts},
+		{"maxItemRunAttempts", "attempts", result.MaxItemRunAttempts, MaxAuditRunAttempts},
 		{"deadlineSeconds", "seconds", result.DeadlineSeconds, MaxAuditDeadlineSeconds},
 	} {
 		if bound.value <= 0 || bound.value > bound.maximum {
@@ -986,6 +925,8 @@ func auditProfileDigest(selector Selector, profile ResolvedAuditProfile) (string
 
 func cloneAuditProfile(source ResolvedAuditProfile) ResolvedAuditProfile {
 	result := source
+	result.Inventory.Source = cloneAuditInputMapping(source.Inventory.Source)
+	result.Inventory.Settings = cloneAuditInputMapping(source.Inventory.Settings)
 	if source.Inventory.StandardSelection != nil {
 		selection := *source.Inventory.StandardSelection
 		selection.Levels = append([]string{}, source.Inventory.StandardSelection.Levels...)

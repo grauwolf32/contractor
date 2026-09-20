@@ -3111,11 +3111,33 @@ export interface components {
         };
         AuditInventory: {
             /** @enum {unknown} */
-            implementation: "checklist@1" | "openapi-operations@1" | "finding-candidates@1" | "standard-mappings@1";
-            sourceInput?: components["schemas"]["ArtifactName"];
+            implementation: "checklist@1" | "openapi-operations@1" | "openapi-scans@1" | "finding-candidates@1" | "standard-mappings@1";
+            source?: components["schemas"]["AuditInventoryArtifact"];
+            settings?: components["schemas"]["AuditInventoryArtifact"];
             itemWorkflowRole: components["schemas"]["ArtifactName"];
             standardSelection?: components["schemas"]["AuditStandardSelection"];
-        };
+        } & ({
+            /** @constant */
+            implementation?: "standard-mappings@1";
+        } | {
+            /** @constant */
+            implementation?: "openapi-scans@1";
+        } | {
+            /** @enum {unknown} */
+            implementation?: "checklist@1" | "openapi-operations@1" | "finding-candidates@1";
+        });
+        AuditInventoryArtifact: {
+            /** @enum {unknown} */
+            source: "audit-input" | "prepare-output";
+            name: components["schemas"]["ArtifactName"];
+            role?: components["schemas"]["ArtifactName"];
+        } & ({
+            /** @constant */
+            source?: "audit-input";
+        } | {
+            /** @constant */
+            source?: "prepare-output";
+        });
         AuditStandardSelection: {
             scope: string;
             levels: string[];
@@ -3123,10 +3145,19 @@ export interface components {
         };
         AuditWorkflowInputMapping: {
             /** @enum {unknown} */
-            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output";
+            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output";
             name?: components["schemas"]["ArtifactName"];
             role?: components["schemas"]["ArtifactName"];
-        };
+        } & ({
+            /** @constant */
+            source?: "audit-input";
+        } | {
+            /** @enum {unknown} */
+            source?: "item-package" | "execution-manifest";
+        } | {
+            /** @enum {unknown} */
+            source?: "retained-output" | "prepare-output";
+        });
         AuditWorkflowParameterMapping: {
             /** @enum {unknown} */
             source: "literal" | "item-field" | "scope-field";
@@ -3135,7 +3166,8 @@ export interface components {
         };
         AuditProfileWorkflow: {
             /** @enum {unknown} */
-            kind: "check" | "discovery" | "assessment";
+            kind: "prepare" | "check" | "discovery" | "assessment";
+            maxRunAttempts?: number;
             workflow: components["schemas"]["WorkflowRef"];
             inputs: {
                 [key: string]: components["schemas"]["AuditWorkflowInputMapping"];
@@ -3146,7 +3178,13 @@ export interface components {
             outputs: {
                 [key: string]: components["schemas"]["ArtifactName"];
             };
-        };
+        } & ({
+            /** @constant */
+            kind?: "prepare";
+        } | {
+            /** @enum {unknown} */
+            kind?: "check" | "discovery" | "assessment";
+        });
         AuditExecutionPolicy: {
             /** @constant */
             roundMode: "fixed-barrier";
@@ -3172,7 +3210,7 @@ export interface components {
             reportAcceptance: "automatic" | "human-required";
         };
         /** @enum {unknown} */
-        AuditCompatibilityReason: "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported";
+        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
             mode: components["schemas"]["AuditProfileMode"];
@@ -3251,7 +3289,47 @@ export interface components {
             skills: components["schemas"]["AuditSkill"][];
             standards: components["schemas"]["AuditPinnedStandard"][];
             projectHttpTarget?: components["schemas"]["ProjectHTTPTarget"];
-            inventory: components["schemas"]["AuditBaselineInventory"];
+            inventory?: components["schemas"]["AuditBaselineInventory"];
+        };
+        /** @enum {unknown} */
+        AuditPhase: "not-started" | "preparing" | "inventory" | "rounds";
+        AuditPreparationOutput: {
+            artifact: components["schemas"]["AuditExactArtifact"] & unknown;
+            executionId: components["schemas"]["ResourceId"];
+            runId: components["schemas"]["ResourceId"];
+            workflowOutput: components["schemas"]["ArtifactName"];
+        };
+        AuditPreparationRole: {
+            /** @enum {unknown} */
+            status: "pending" | "running" | "accepted" | "failed";
+            attempts: number;
+            maxAttempts: number;
+            executionId?: components["schemas"]["ResourceId"];
+            runId?: components["schemas"]["ResourceId"];
+            outputs: {
+                [key: string]: components["schemas"]["AuditPreparationOutput"];
+            };
+        } & ({
+            /** @constant */
+            status?: "pending";
+            /** @constant */
+            attempts?: 0;
+            outputs?: unknown;
+        } | {
+            /** @enum {unknown} */
+            status?: "running" | "failed";
+            attempts?: unknown;
+            outputs?: unknown;
+        } | {
+            /** @constant */
+            status?: "accepted";
+            attempts?: unknown;
+            outputs?: unknown;
+        });
+        AuditPreparation: {
+            roles: {
+                [key: string]: components["schemas"]["AuditPreparationRole"];
+            };
         };
         /** @enum {unknown} */
         AuditState: "draft" | "active" | "waiting_review" | "paused" | "finalizing" | "cancelling" | "completed" | "cancelled" | "failed" | "deleting";
@@ -3283,6 +3361,8 @@ export interface components {
             runtimeLabels: components["schemas"]["RuntimeInfrastructureId"][];
             baseline?: components["schemas"]["AuditBaseline"];
             state: components["schemas"]["AuditState"];
+            phase: components["schemas"]["AuditPhase"];
+            preparation?: components["schemas"]["AuditPreparation"];
             revision: number;
             currentRoundId?: components["schemas"]["ResourceId"];
             dispatchState: components["schemas"]["AuditDispatchState"];
@@ -3314,7 +3394,16 @@ export interface components {
             finishedAt?: string;
             /** Format: date-time */
             deletionRequestedAt?: string;
-        };
+        } & ({
+            /** @constant */
+            phase?: "not-started";
+        } | {
+            /** @enum {unknown} */
+            phase?: "preparing" | "inventory";
+        } | {
+            /** @constant */
+            phase?: "rounds";
+        });
         AuditPage: {
             items: components["schemas"]["Audit"][];
             page: components["schemas"]["PageInfo"];
@@ -3338,7 +3427,7 @@ export interface components {
         /** @enum {unknown} */
         AuditFinalDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "excluded" | "not-applicable";
         /** @enum {unknown} */
-        AuditExecutionRole: "discovery" | "check" | "assessment";
+        AuditExecutionRole: "prepare" | "discovery" | "check" | "assessment";
         /** @enum {unknown} */
         AuditExecutionItemState: "submitted" | "collecting" | "settled";
         /** @enum {unknown} */
@@ -3513,9 +3602,20 @@ export interface components {
         };
         AuditStartResponse: {
             audit: components["schemas"]["Audit"];
-            round: components["schemas"]["AuditRound"];
+            round?: components["schemas"]["AuditRound"];
             items: components["schemas"]["AuditItem"][];
-        };
+        } & ({
+            audit?: {
+                /** @constant */
+                phase?: "rounds";
+            };
+        } | {
+            audit?: {
+                /** @enum {unknown} */
+                phase?: "preparing" | "inventory";
+            };
+            items?: unknown;
+        });
         FindingExactArtifact: {
             ref: components["schemas"]["ExactArtifactRef"];
             digest: components["schemas"]["Digest"];
@@ -3560,13 +3660,55 @@ export interface components {
             entryCount: number;
             replayed: boolean;
         };
+        /** @description Inclusive coordinates; end_line must be at least start_line. */
+        FindingLineRange: {
+            start_line: number;
+            end_line: number;
+        };
+        /** @description Exact relative POSIX path; line and range are mutually exclusive. */
+        FindingSourceLocation: {
+            file: string;
+            line?: number;
+            range?: components["schemas"]["FindingLineRange"];
+        };
+        /** @description HTTP/HTTPS URL without userinfo; method is an explicit HTTP token. */
+        FindingWebLocation: {
+            url: string;
+            method?: string;
+        };
+        FindingLocation: components["schemas"]["FindingSourceLocation"] | components["schemas"]["FindingWebLocation"];
+        FindingHTTPHeader: {
+            name: string;
+            value: string;
+        };
+        /** @description Exactly one of status or error; each header block is at most 64 KiB. */
+        FindingHTTPAttempt: {
+            method: string;
+            url: string;
+            headers: components["schemas"]["FindingHTTPHeader"][];
+            /** @description Canonical base64 of up to 1 MiB of outgoing bytes. */
+            body_base64: string;
+            status?: number;
+            response_headers?: components["schemas"]["FindingHTTPHeader"][];
+            /** @enum {string} */
+            error?: "transport_error" | "cancelled";
+        } & (unknown | unknown);
+        FindingHTTPExchange: {
+            request_id: number;
+            request_tag: string;
+            /** @description Existing HTTP budget of ten redirects plus three attempts. */
+            attempts: components["schemas"]["FindingHTTPAttempt"][];
+            /** @description Must identify a member of this proposal's evidence_ids. */
+            response_body_evidence_id?: string;
+        };
         FindingProposalDocument: {
-            /** @constant */
+            /** @enum {string} */
             schema: "contractor.audit.finding-proposal.v1";
             client_key: string;
             title: string;
             description: string;
-            subject: components["schemas"]["FindingSubject"];
+            /** @description Null means the affected subject is not identified. */
+            subject: components["schemas"]["FindingSubject"] | null;
             hypothesis?: string;
             preconditions: string[];
             standard_refs: components["schemas"]["FindingStandardReference"][];
@@ -3575,6 +3717,9 @@ export interface components {
             /** @enum {unknown} */
             severity_suggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
             limitations: string[];
+            /** @description Optional; source and web coordinates are producer claims. */
+            locations?: components["schemas"]["FindingLocation"][];
+            http_exchange?: components["schemas"]["FindingHTTPExchange"];
         };
         FindingWorkflowOrigin: {
             name: components["schemas"]["ConfigId"];

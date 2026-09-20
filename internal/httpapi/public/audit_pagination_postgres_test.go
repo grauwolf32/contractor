@@ -262,7 +262,7 @@ func seedPublicPaginationFinding(t *testing.T, ctx context.Context, pool *pgxpoo
 	document := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-" + suffix,
 		Title: "Candidate " + suffix, Description: "Retained pagination test candidate.",
-		Subject:       auditdomain.FindingSubject{Kind: "component", Key: suffix},
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: suffix},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
 		SeveritySuggestion: "medium", Limitations: []string{},

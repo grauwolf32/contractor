@@ -48,7 +48,7 @@ const profile: AuditProfile = {
   inputs: { sources: { required: true, mediaTypes: ["application/zip"] } },
   inventory: {
     implementation: "checklist@1",
-    sourceInput: "sources",
+    source: { source: "audit-input", name: "sources" },
     itemWorkflowRole: "check",
   },
   execution: {
@@ -82,6 +82,7 @@ const audit: Audit = {
   scope: {},
   runtimeLabels: [],
   state: "draft",
+  phase: "not-started",
   revision: 1,
   dispatchState: "closed",
   holdState: "pending",
@@ -267,7 +268,13 @@ describe("Audit API", () => {
 
   it("creates a draft and mutates with replay and revision headers", async () => {
     const requests: Request[] = [];
-    const active = { ...audit, state: "active" as const, revision: 2 };
+    const active = {
+      ...audit,
+      state: "active" as const,
+      phase: "rounds" as const,
+      currentRoundId: "round_example",
+      revision: 2,
+    };
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {

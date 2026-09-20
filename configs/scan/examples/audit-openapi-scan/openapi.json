@@ -1,0 +1,23 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "Local scan fixture", "version": "1"},
+  "paths": {
+    "/pets/{id}": {
+      "post": {
+        "parameters": [
+          {"in": "path", "name": "id", "required": true, "schema": {"type": "integer"}},
+          {"in": "query", "name": "search", "schema": {"type": "string"}}
+        ],
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object"}}}
+        },
+        "responses": {"200": {"description": "Fixture response"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}
+  }
+}

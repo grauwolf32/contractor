@@ -106,20 +106,22 @@ type reportFindingAssessment struct {
 }
 
 type reportFinding struct {
-	FindingID          string                          `json:"findingId"`
-	State              string                          `json:"state"`
-	Revision           uint64                          `json:"revision"`
-	FirstProposal      auditstore.ExactArtifact        `json:"firstProposal"`
-	Title              string                          `json:"title"`
-	Description        string                          `json:"description"`
-	Subject            auditdomain.FindingSubject      `json:"subject"`
-	Hypothesis         string                          `json:"hypothesis,omitempty"`
-	SeveritySuggestion string                          `json:"severitySuggestion,omitempty"`
-	StandardRefs       []auditdomain.StandardReference `json:"standardRefs"`
-	Limitations        []string                        `json:"limitations"`
-	Assessment         *reportFindingAssessment        `json:"assessment,omitempty"`
-	AnalystDecision    *reportFindingDecision          `json:"analystDecision,omitempty"`
-	DuplicateTargetID  *string                         `json:"duplicateTargetId,omitempty"`
+	FindingID          string                           `json:"findingId"`
+	State              string                           `json:"state"`
+	Revision           uint64                           `json:"revision"`
+	FirstProposal      auditstore.ExactArtifact         `json:"firstProposal"`
+	Title              string                           `json:"title"`
+	Description        string                           `json:"description"`
+	Subject            *auditdomain.FindingSubject      `json:"subject"`
+	Locations          []auditdomain.FindingLocation    `json:"locations,omitempty"`
+	HTTPExchange       *auditdomain.FindingHTTPExchange `json:"httpExchange,omitempty"`
+	Hypothesis         string                           `json:"hypothesis,omitempty"`
+	SeveritySuggestion string                           `json:"severitySuggestion,omitempty"`
+	StandardRefs       []auditdomain.StandardReference  `json:"standardRefs"`
+	Limitations        []string                         `json:"limitations"`
+	Assessment         *reportFindingAssessment         `json:"assessment,omitempty"`
+	AnalystDecision    *reportFindingDecision           `json:"analystDecision,omitempty"`
+	DuplicateTargetID  *string                          `json:"duplicateTargetId,omitempty"`
 }
 
 type reportFindingSections struct {
@@ -362,11 +364,15 @@ func (i *Importer) reportFindings(
 		value := reportFinding{
 			FindingID: row.FindingID, State: row.State, Revision: row.Revision,
 			FirstProposal: row.FirstProposal, Title: document.Title, Description: document.Description,
-			Subject: document.Subject, Hypothesis: document.Hypothesis,
+			Hypothesis: document.Hypothesis,
+			Locations:  document.Locations, HTTPExchange: document.HTTPExchange,
 			SeveritySuggestion: document.SeveritySuggestion,
 			StandardRefs:       append([]auditdomain.StandardReference{}, document.StandardRefs...),
 			Limitations:        append([]string{}, document.Limitations...),
 			DuplicateTargetID:  row.DuplicateTargetID,
+		}
+		if document.Subject != nil {
+			value.Subject = document.Subject
 		}
 		if row.Assessment != nil {
 			value.Assessment = &reportFindingAssessment{

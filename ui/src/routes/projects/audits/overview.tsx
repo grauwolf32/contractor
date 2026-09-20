@@ -184,22 +184,32 @@ export function AuditOverview({ audit }: { audit: Audit }) {
             <div>
               <dt>Source content</dt>
               <dd>
-                <code>{baseline.inventory.sourceContentDigest}</code>
+                <code>
+                  {baseline.inventory?.sourceContentDigest ??
+                    "Pending preparation"}
+                </code>
               </dd>
             </div>
             <div>
               <dt>Canonical inventory</dt>
               <dd>
-                <code>{baseline.inventory.canonicalInventoryDigest}</code>
+                <code>
+                  {baseline.inventory?.canonicalInventoryDigest ??
+                    "Pending inventory"}
+                </code>
               </dd>
             </div>
             <div>
               <dt>Worklist</dt>
               <dd>
-                <ExactArtifactLink
-                  projectId={audit.projectId}
-                  artifact={baseline.inventory.worklist}
-                />
+                {baseline.inventory === undefined ? (
+                  "Not created yet"
+                ) : (
+                  <ExactArtifactLink
+                    projectId={audit.projectId}
+                    artifact={baseline.inventory.worklist}
+                  />
+                )}
               </dd>
             </div>
             <div>
@@ -244,7 +254,7 @@ export function AuditOverview({ audit }: { audit: Audit }) {
               </ul>
             </div>
           )}
-          {baseline.inventory.standardSelection === undefined ? null : (
+          {baseline.inventory?.standardSelection === undefined ? null : (
             <div
               className="audit-gap-block"
               data-testid="audit-baseline-standard-selection"
@@ -261,13 +271,15 @@ export function AuditOverview({ audit }: { audit: Audit }) {
               />
             </div>
           )}
-          <div className="audit-gap-block">
-            <h4>Inventory gaps</h4>
-            <StringList
-              values={baseline.inventory.gaps}
-              empty="No inventory gaps."
-            />
-          </div>
+          {baseline.inventory === undefined ? null : (
+            <div className="audit-gap-block">
+              <h4>Inventory gaps</h4>
+              <StringList
+                values={baseline.inventory.gaps}
+                empty="No inventory gaps."
+              />
+            </div>
+          )}
         </details>
       )}
     </div>

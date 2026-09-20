@@ -28,13 +28,11 @@ from contractor_runtime.toolsets.security_findings.collection import (
     FindingsError,
     decode_collection,
 )
-from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool
-from contractor_runtime.toolsets.security_findings.tools import (
-    FindingTool,
-    FindingV2Tool,
-    SecurityFindingsToolsetFactory,
-    SecurityFindingsV2ToolsetFactory,
+from contractor_runtime.toolsets.security_findings.facades import (
+    GeneralFindingsToolsetFactory,
+    GeneralFindingTool,
 )
+from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -219,13 +217,10 @@ class Transport:
         )
 
 
-async def _tools(transport, selected=("list_findings",), *, version=2):
+async def _tools(transport, selected=("list_findings",)):
     state = WorkerState()
     client = ArtifactClient("consumer-allocation", transport)
-    factory_class = (
-        SecurityFindingsV2ToolsetFactory if version == 2 else SecurityFindingsToolsetFactory
-    )
-    factory = factory_class(lambda _allocation, _settings: client)
+    factory = GeneralFindingsToolsetFactory(lambda _allocation, _settings: client)
     tools = await factory.create_selected(
         selected=selected,
         allocation_id="consumer-allocation",
@@ -283,18 +278,12 @@ def test_shared_go_python_fixture_and_exact_consumer_reads():
 
 
 @pytest.mark.parametrize(
-    ("version", "selected"),
-    [
-        (1, ("finding",)),
-        (2, ("finding",)),
-        (2, ("list_findings",)),
-        (2, ("finding", "list_findings")),
-    ],
+    "selected", [("finding",), ("list_findings",), ("finding", "list_findings")]
 )
-def test_selected_tools_and_adk_descriptions(version, selected, tmp_path):
+def test_selected_tools_and_adk_descriptions(selected, tmp_path):
     async def scenario():
         transport = Transport(_package(*_fixture()))
-        tools, _, _ = await _tools(transport, selected, version=version)
+        tools, _, _ = await _tools(transport, selected)
         assert set(tools) == set(selected)
         if "list_findings" not in selected:
             assert transport.requests == []
@@ -308,15 +297,11 @@ def test_selected_tools_and_adk_descriptions(version, selected, tmp_path):
             assert "tool_context" not in parameters
             if name == "list_findings":
                 assert set(parameters) == {"subject_kind", "subject_key", "limit", "cursor"}
-            elif version == 1:
-                assert (
-                    type(tool) is FindingTool and "security finding" in declaration["description"]
-                )
             else:
-                assert type(tool) is FindingV2Tool and "reproduce" in declaration["description"]
+                assert type(tool) is GeneralFindingTool
         registry = built_in_factories(tmp_path)
-        assert await registry.toolsets[f"security-findings@{version}"].probe() == (
-            frozenset({"finding"}) if version == 1 else frozenset({"finding", "list_findings"})
+        assert await registry.toolsets["security-findings@1"].probe() == frozenset(
+            {"finding", "list_findings"}
         )
 
     asyncio.run(scenario())

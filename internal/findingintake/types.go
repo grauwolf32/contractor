@@ -19,8 +19,10 @@ import (
 )
 
 const (
-	APIVersion        = contracts.APIVersion
-	MaxRequestBytes   = 1 << 20
+	APIVersion = contracts.APIVersion
+	// A proposal can include captured outgoing HTTP bytes. Apply the existing
+	// Audit document ceiling to the complete submission, including its envelope.
+	MaxRequestBytes   = auditdomain.MaximumDocumentBytes
 	MaxEvidenceRefs   = auditdomain.MaximumEvidencePerItem
 	proposalMediaType = "application/json"
 )

@@ -75,6 +75,8 @@ class WorkerStateStore:
     def __init__(self, metrics: MetricsState | None = None) -> None:
         self.metrics = metrics or MetricsState()
         self.execution = WorkerExecutionState()
+        # Private allocation-owned resource, excluded from JSON/model state.
+        self.http_session: Any = None
         self._lock = asyncio.Lock()
         self._state: dict[str, Any] = {
             "schemaVersion": WORKER_STATE_SCHEMA_VERSION,

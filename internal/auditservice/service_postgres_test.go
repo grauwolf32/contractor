@@ -1148,7 +1148,7 @@ func seedAuditFinding(
 	document := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-" + suffix,
 		Title: "Candidate " + suffix, Description: "A retained candidate for review.",
-		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "component-" + suffix},
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "component-" + suffix},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
 		SeveritySuggestion: "medium", Limitations: []string{},
@@ -1422,7 +1422,7 @@ spec:
     checklist: {required: true, mediaTypes: [application/json]}
   inventory:
     implementation: checklist@1
-    sourceInput: checklist
+    source: {source: audit-input, name: checklist}
     itemWorkflowRole: check
   workflows:
     check:

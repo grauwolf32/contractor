@@ -141,6 +141,7 @@ type ItemTask struct {
 	Checklist                *ChecklistTask        `json:"checklist,omitempty"`
 	Standard                 *StandardMappingTask  `json:"standard,omitempty"`
 	Operation                *OperationTask        `json:"operation,omitempty"`
+	Scan                     *OpenAPIScanTask      `json:"scan,omitempty"`
 	Finding                  *FindingTask          `json:"finding,omitempty"`
 }
 
@@ -284,18 +285,20 @@ type ResultCoverage struct {
 }
 
 type FindingProposal struct {
-	Schema             string              `json:"schema"`
-	ClientKey          string              `json:"client_key"`
-	Title              string              `json:"title"`
-	Description        string              `json:"description"`
-	Subject            FindingSubject      `json:"subject"`
-	Hypothesis         string              `json:"hypothesis,omitempty"`
-	Preconditions      []string            `json:"preconditions"`
-	StandardRefs       []StandardReference `json:"standard_refs"`
-	EvidenceIDs        []string            `json:"evidence_ids"`
-	ProposedChecks     []ProposedCheck     `json:"proposed_checks"`
-	SeveritySuggestion string              `json:"severity_suggestion"`
-	Limitations        []string            `json:"limitations"`
+	Schema             string               `json:"schema"`
+	ClientKey          string               `json:"client_key"`
+	Title              string               `json:"title"`
+	Description        string               `json:"description"`
+	Subject            *FindingSubject      `json:"subject"`
+	Hypothesis         string               `json:"hypothesis,omitempty"`
+	Preconditions      []string             `json:"preconditions"`
+	StandardRefs       []StandardReference  `json:"standard_refs"`
+	EvidenceIDs        []string             `json:"evidence_ids"`
+	ProposedChecks     []ProposedCheck      `json:"proposed_checks"`
+	SeveritySuggestion string               `json:"severity_suggestion"`
+	Limitations        []string             `json:"limitations"`
+	Locations          []FindingLocation    `json:"locations,omitempty"`
+	HTTPExchange       *FindingHTTPExchange `json:"http_exchange,omitempty"`
 }
 
 type FindingSubject struct {

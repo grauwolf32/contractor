@@ -45,9 +45,10 @@ from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi.tools import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory
-from contractor_runtime.toolsets.security_findings.tools import (
-    SecurityFindingsToolsetFactory,
-    SecurityFindingsV2ToolsetFactory,
+from contractor_runtime.toolsets.security_findings.facades import (
+    CodeFindingsToolsetFactory,
+    GeneralFindingsToolsetFactory,
+    HTTPFindingsToolsetFactory,
 )
 from contractor_runtime.toolsets.source_analysis.tools import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationsToolsetFactory
@@ -216,8 +217,6 @@ def built_in_factories(
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     audit_results_toolset = AuditResultsToolsetFactory(artifact_client_factory)
-    security_findings_toolset = SecurityFindingsToolsetFactory(artifact_client_factory)
-    security_findings_v2_toolset = SecurityFindingsV2ToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
@@ -263,8 +262,11 @@ def built_in_factories(
             ),
             artifact_toolset.ref: artifact_toolset,
             audit_results_toolset.ref: audit_results_toolset,
-            security_findings_toolset.ref: security_findings_toolset,
-            security_findings_v2_toolset.ref: security_findings_v2_toolset,
+            GeneralFindingsToolsetFactory.ref: GeneralFindingsToolsetFactory(
+                artifact_client_factory
+            ),
+            CodeFindingsToolsetFactory.ref: CodeFindingsToolsetFactory(artifact_client_factory),
+            HTTPFindingsToolsetFactory.ref: HTTPFindingsToolsetFactory(artifact_client_factory),
             caido_toolset.ref: caido_toolset,
             code_analysis_toolset.ref: code_analysis_toolset,
             edit_files_toolset.ref: edit_files_toolset,

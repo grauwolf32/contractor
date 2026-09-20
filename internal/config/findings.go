@@ -13,13 +13,13 @@ func validateFindingsReaderInput(workflow ResolvedWorkflow) error {
 	for stageName, stage := range workflow.Stages {
 		for agentName, agent := range stage.Agents {
 			for _, selected := range agent.Template.Toolsets {
-				if selected.Ref.ToolsetID != "security-findings" || selected.Ref.Version != "2" ||
+				if selected.Ref.ToolsetID != "security-findings" || selected.Ref.Version != "1" ||
 					!slices.Contains(selected.Tools, "list_findings") {
 					continue
 				}
 				input, ok := workflow.Inputs["findings"]
 				if !ok || !input.Required || !slices.Contains(input.MediaTypes, auditdomain.FindingCollectionMediaType) {
-					return fmt.Errorf("Stage %q Agent %q security-findings@2 list_findings requires the required Workflow input findings with media type %s", stageName, agentName, auditdomain.FindingCollectionMediaType)
+					return fmt.Errorf("Stage %q Agent %q security-findings@1 list_findings requires the required Workflow input findings with media type %s", stageName, agentName, auditdomain.FindingCollectionMediaType)
 				}
 			}
 		}

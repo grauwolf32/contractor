@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: audit-nuclei-scan, version: "1"}
+spec:
+  description: Check response security headers at one fixed OpenAPI URL.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_nuclei]
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url: {source: parameter, name: target}
+      # Requires this template in the operator's installed Nuclei template set.
+      # The profile never expands an empty selection to all installed templates.
+      template_ids: {source: literal, value: http-missing-security-headers}
+      rate_limit: {source: literal, value: 10}
+    resultArtifact: report
+    timeoutSeconds: 300

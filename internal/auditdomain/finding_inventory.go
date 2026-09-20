@@ -22,6 +22,14 @@ func BuildFindingInventory(
 	basisSubjects := make([]map[string]any, 0)
 	subjects := make([]inventorySubject, 0)
 	for _, proposal := range document.Proposals {
+		subjectKey := proposal.ReceiptID
+		if proposal.Document.Subject != nil {
+			subjectKey = proposal.Document.Subject.Key
+		} else {
+			// With an unspecified affected subject, verification addresses the
+			// retained finding receipt itself; the proposal remains subject:null.
+			subjectKey = proposal.ReceiptID
+		}
 		limitations := copyStrings(proposal.Document.Limitations)
 		sort.Strings(limitations)
 		for _, ordinal := range proposal.SelectedCheckOrdinals {
@@ -39,12 +47,12 @@ func BuildFindingInventory(
 				"proposed_check_ordinal": ordinal,
 				"objective":              check.Objective,
 				"method":                 check.Method,
-				"subject_key":            proposal.Document.Subject.Key,
+				"subject_key":            subjectKey,
 				"limitations":            limitations,
 			})
 			subjects = append(subjects, inventorySubject{
 				itemKey: itemKey, kind: "finding-verification",
-				subjectKey: proposal.Document.Subject.Key, finding: finding,
+				subjectKey: subjectKey, finding: finding,
 				requested: []string{check.Method}, gaps: copyStrings(limitations),
 			})
 		}

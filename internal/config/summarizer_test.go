@@ -24,6 +24,12 @@ func TestRepositoryOrdinaryWorkersUseTerminalSummarizer(t *testing.T) {
 	}
 	enabled, audit := 0, 0
 	for name, template := range snapshot.templates {
+		if template.Runtime.RuntimeID == "tool" {
+			if template.Summarizer != nil || template.Execution == nil {
+				t.Fatalf("Tool Worker %s must use deterministic execution", name)
+			}
+			continue
+		}
 		if strings.HasPrefix(name, "audit_") {
 			audit++
 			if template.Summarizer != nil {
@@ -39,8 +45,8 @@ func TestRepositoryOrdinaryWorkersUseTerminalSummarizer(t *testing.T) {
 			t.Fatalf("Worker %s summarizer configuration = %+v", name, template.Summarizer)
 		}
 	}
-	if enabled != 15 || audit != 7 {
-		t.Fatalf("summarized/audit Workers = %d/%d, want 15/7", enabled, audit)
+	if enabled != 16 || audit != 7 {
+		t.Fatalf("summarized/audit Workers = %d/%d, want 16/7", enabled, audit)
 	}
 }
 

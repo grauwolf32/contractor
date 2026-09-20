@@ -187,12 +187,20 @@ request-ID order and omits previews and body content.
 
 Session cookies/default headers/auth live only in allocation memory. They are
 available to sequential A2A tasks on the same allocation and are erased on
-release/abort/lease loss. In particular bearer/basic secret values are not
-written to an artifact. `http_session_get` returns only `auth_kind`, redacted
+release/abort/lease loss. Ambient session authentication is not serialized to an artifact. A request
+explicitly selected by a HTTP finding retains its actual target headers/body
+inside that proposal, including Authorization and Cookie; see
+[the finding evidence contract](27-findings-tools-and-collections.md#selected-http-evidence). `http_session_get` returns only `auth_kind`, redacted
 sensitive headers and cookie names/count; cookie values are not model-visible
 after being set.
 
-History contains at most 128 summaries. IDs are monotonic for the allocation.
+History contains at most 128 summaries. An accompanying memory store retains
+the latest 128 outgoing exchanges, including redirects/retries and invocation
+ownership. Only completed, still-retained records appear in `http_history`.
+`finding(request_id=...)` snapshots a selected exchange without replay; an expired
+or foreign-invocation ID fails explicitly. No per-request outgoing artifact is
+created. Existing response body artifacts remain unchanged.
+IDs are monotonic for the allocation.
 Tool calls serialize session mutation and request ID assignment; network waits
 do not permit a second call to reuse state or an ID. Sparse header/cookie/auth
 updates are validated as one prospective state before mutation. Once reserved,

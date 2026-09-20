@@ -27,8 +27,10 @@ checks, infer authorization from source comments, or silently omit a scenario.
 
 For an evidence-backed vulnerability, write a concise source-location artifact
 using `write_text_artifact` in the assigned `audit-standard` namespace. Call
-`finding` with its exact artifact revision, a stable client key and the exact
-standard references returned by the task, including the pinned package version.
+`finding` with title, description, exact file and optional line or range.
+Pass the exact artifact revision in evidence_refs and the exact standard_refs
+returned by the task, including its pinned package version. Runtime supplies
+the client key; copy the returned client_key into the check result.
 A package edition suffix does not change the upstream requirement identifier.
 Include the proposal key in the check result. Finding proposals require analyst
 confirmation; an inconclusive review is not itself a vulnerability.

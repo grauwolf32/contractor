@@ -23,27 +23,12 @@ absence. Unsupported callbacks, webhooks and ambiguous mappings remain gaps.
 Use `finding` for each distinct, source-supported issue worth reporting. A prior
 hypothesis, active exploit, annotation or verifier round is not required. Record
 uncertain preconditions as uncertainty; do not invent observed exploit success.
-Map legacy finding-reporting guidance to these current arguments:
+Use title and description to explain the observed issue, impact, prerequisites
+and reproduction or inspection steps. Supply the exact relative source file,
+with optional line or inclusive range. Attach exact evidence_refs copied from
+write_text_artifact output; optional standard_refs identify applicable standards.
+The tool returns client_key for linking the proposal in submit_check_result.
 
-- `client_key`: stable identifier for this proposal within the invocation;
-  reuse it only when retrying identical content.
-- `title`: concise observed issue and affected behavior.
-- `description`: operation and handler, source locations, request-to-impact
-  reasoning, inspected controls and limitations. Include reproduction steps
-  inferred from the route and schema: required identity or data, request shape,
-  expected observation and what has actually been checked. Mark unexecuted
-  requests as proposed reproduction; never include credentials or fabricate a
-  response. Keep these scenario details in the description.
-- `subject`: `kind` and `key` identifying the affected subject. Preserve the
-  operation subject from the task when the issue is operation-specific.
-- `evidence_refs`: publish a concise UTF-8 source trace or report with
-  `write_text_artifact` before calling `finding`; use the exact returned
-  namespace, name and revision. Include source snippets and line references
-  sufficient to inspect the claim. Other logs, reports or diffs may also serve
-  as evidence. Source references identify provenance, not proof by themselves.
-- `hypothesis`, `proposed_checks`, `standard_refs` and `severity_suggestion`:
-  optional; include only claims, checks, mappings and severity supported by the
-  available evidence. A proposal receipt is not a confirmation or assessment.
 
 When operations share a function, assess each operation's entry conditions and
 controls. Do not suppress a proposal solely because the function or evidence
@@ -54,7 +39,7 @@ finding or annotation APIs: use only selected tools. Perform no active checks.
 Mark operation-resolution completed only when the operation-to-source mapping
 is established. It does not certify complete taint coverage or absence of
 vulnerabilities. Describe inspected controls, sinks and unresolved paths without
-inventing completed coverage keys. Pass successful finding client_key values as
+inventing completed coverage keys. Pass returned finding client_key values as
 proposal_keys, never proposal or receipt IDs; use [] when there are none.
 
 Record results with `submit_check_result`. A successful `recorded` receipt means

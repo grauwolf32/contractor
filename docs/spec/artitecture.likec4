@@ -817,11 +817,11 @@ model {
         #contractor #optional
       }
 
-      securityFindingsTools = component 'Selected finding tool — security-findings@1 or @2; allocation-bound proposal receipts' {
+      securityFindingsTools = component 'Selected finding facade — security-findings@1 / security-findings-code@1 / security-findings-http@1; allocation-bound proposal receipts' {
         #contractor #optional
       }
 
-      findingReaderTools = component 'Selected list_findings — security-findings@2; bounded frozen collection reader' {
+      findingReaderTools = component 'Selected list_findings — security-findings@1; bounded frozen collection reader' {
         #contractor #optional
       }
 

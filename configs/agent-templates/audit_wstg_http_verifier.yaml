@@ -20,7 +20,7 @@ spec:
       tools: [http_request, http_read_body, http_history, http_session_set, http_session_get, http_session_clear]
     - ref: text-artifacts@1
       tools: [read_text_artifact, write_text_artifact]
-    - ref: security-findings@2
+    - ref: security-findings-http@1
       tools: [finding]
     - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]

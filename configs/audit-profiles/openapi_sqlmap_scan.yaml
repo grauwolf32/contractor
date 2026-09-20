@@ -1,0 +1,43 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: openapi-sqlmap-scan, version: "1"}
+spec:
+  mode: risk-assessment
+  standards: []
+  inputs:
+    openapi: {required: true, mediaTypes: [application/json, application/yaml]}
+    settings: {required: true, mediaTypes: [application/json]}
+  inventory:
+    implementation: openapi-scans@1
+    source: {source: audit-input, name: openapi}
+    settings: {source: audit-input, name: settings}
+    itemWorkflowRole: scan
+  workflows:
+    scan:
+      kind: check
+      ref: audit-openapi-sqlmap-scan@1
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        openapi: {source: audit-input, name: openapi}
+        settings: {source: audit-input, name: settings}
+      parameters: {}
+      outputs: {result: result}
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    # First profile: at most 16 explicitly selected operations, 3 Runs per item.
+    maxItemsPerRound: 16
+    maxItemsTotal: 16
+    maxSubmittedRuns: 48
+    maxItemRunAttempts: 3
+    deadlineSeconds: 86400
+    # 16 items can each retain one maximum-sized 4 MiB result package.
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: approval-required
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic

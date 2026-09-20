@@ -8,6 +8,23 @@ remote references, call scanners or dispatch Workflows. `BuildPlan` separately
 turns RequestSet or target-list bytes into bounded deterministic scan jobs.
 Execution belongs to `internal/planner/scan` and its `scan-plan@1` factory.
 
+`PrepareOperation` prepares only one explicitly assigned OpenAPI operation while
+retaining the original full source identity. `PrepareOperationTarget` fixes a
+concrete URL for Nuclei, including operation provenance and explicit URL-only
+limitations; it does not turn a POST/authenticated operation into a GET request.
+Both preserve exact source revision/digest and reject bindings outside their
+interface. The [Audit scan adapter contract](../../docs/spec/openapi-audit-scans.md)
+describes the remaining integration and release requirements.
+
+`DecodeAuditScanSettings` validates the bounded, JSON-only
+`contractor.audit.openapi-scan-settings.v1` input. It requires an explicit
+absolute server and operation allowlist, rejects ambiguous/unknown fields, and
+exposes immutable accessors. Its `PrepareOperation` method checks the scanner's
+input representation too, including availability of selected SQLMap parameters.
+The [input examples](../../configs/scan/examples/audit-openapi-scan/README.md)
+cover a fixed path/query URL and an authenticated POST request. Scan-specific
+Audit inventory and accepted-task reproduction live in `internal/auditdomain`.
+
 Preparation policy 2 accepts OpenAPI 3.0.x and 3.1.x and extracts concrete HTTP
 data on a best-effort basis. Supplied values and examples remain usable even when
 schema types, constraints, formats or dialect metadata disagree. Source syntax,

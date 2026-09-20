@@ -46,14 +46,14 @@ restrictions][github-sarif]. Generic validity does not imply consumer suitabilit
 
 | Existing producer or record | Available data | Permitted use and missing information |
 | --- | --- | --- |
-| FindingProposal v1 | Title, description, subject, standard references, severity suggestion, evidence links | Describes an observation. Subject keys/prose are not file locators or rule identities. |
+| Current FindingProposal | Typed source/web locations, explicit unknown subject and selected outgoing HTTP exchange snapshot | Preserves producer claims and actual request bytes; does not resolve source identity or implement SARIF export. |
 | Audit finding and decision | Finding/review revisions, state, applicable analyst rating, duplicate target | Supplies triage at one revision; does not rewrite proposal claims. |
 | FindingCollection v1 | Exact proposals/evidence, receipts, captured review IDs/state | Reuses retention and explicit selection. It does not contain full decisions or analyst severity. |
 | `source-analysis@1` | An explicitly opened archive, paths and line windows | Resolves against that exact archive. A search hit is not a resolved symbol or data-flow edge. |
 | Shallow `code-analysis@1` | Definition path, name, lines, column, language and parser node type | Describes a declaration in an effective workspace snapshot, not necessarily the vulnerable expression. |
 | Trailmark graph tools | Allocation-local symbol IDs, symbol locations, call relationships and bounded paths | Provides call-graph evidence. Reachability does not establish argument propagation, sanitizer behavior or exploitability. |
 | `taint-annotations@1` | Structured comments and declaration/annotation lines after mutation | Preserves Worker assertions. Comments alone do not establish an ordered source-to-sink path. |
-| `http-tools@1` | Session response metadata and exact response-body artifacts | Retains body bytes; allocation history/request IDs are not durable exchange identities. |
+| `http-tools@1` | Latest 128 outgoing exchanges in memory and existing response-body artifacts | A finding snapshots a selected request; a bare allocation request ID is not durable evidence. |
 | `caido@1` | Request/response projections and retained raw exchange artifacts | Requires an exact artifact and versioned decoder; external request IDs remain provenance. |
 | Git artifact import | Exact source version, repository URL and resolved commit | Attribution follows version lineage; equal content digests do not merge repository identities. |
 

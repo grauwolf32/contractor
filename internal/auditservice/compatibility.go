@@ -7,6 +7,7 @@ import (
 )
 
 var reasonOrder = []CompatibilityReason{
+	ReasonPreparationUnsupported,
 	ReasonDiscoveryUnsupported,
 	ReasonAssessmentUnsupported,
 	ReasonMultipleRoundsUnsupported,
@@ -21,6 +22,9 @@ var reasonOrder = []CompatibilityReason{
 
 func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
+	if profile.HasPreparation() {
+		reasons[ReasonPreparationUnsupported] = struct{}{}
+	}
 	if profile.Inventory.Implementation == "finding-candidates@1" {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}
@@ -42,7 +46,7 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	return Compatibility{
 		ServerCompatible: len(ordered) == 0,
 		RequiresInputValidation: profile.Inventory.Implementation == "checklist@1" ||
-			profile.Inventory.Implementation == "standard-mappings@1",
+			profile.Inventory.Implementation == "standard-mappings@1" || profile.Inventory.Implementation == config.AuditInventoryOpenAPIScans,
 		Reasons: ordered,
 	}
 }

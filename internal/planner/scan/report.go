@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -69,7 +68,7 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		return record
 	}
 	target := p.jobOutput(job)
-	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalIOTimeout)
 	defer cancel()
 	var ref contracts.ArtifactRef
 	if failedReport {
@@ -92,7 +91,7 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		record.Status, record.Code = planner.ScanJobUnknown, "scan_invalid_worker_result"
 		return record
 	}
-	payload, err := p.factory.artifacts.Read(readCtx, p.invocation.RunID, ref, 1024*1024)
+	payload, err := p.factory.artifacts.Read(readCtx, p.invocation.RunID, ref, planner.MaxScanReportBytes)
 	if err != nil || payload.MediaType != "application/json" {
 		record.Status, record.Code = planner.ScanJobIncomplete, "scan_report_unavailable"
 		return record
@@ -174,6 +173,23 @@ func observationStatus(observation map[string]json.RawMessage) (string, string) 
 }
 
 func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIdentity, plan scanplan.ScanPlan, state planner.ScanState) (contracts.StageContentResult, error) {
+	if p.audit != nil {
+		history, err := p.auditHistory(ctx)
+		if err != nil {
+			return contracts.StageContentResult{}, err
+		}
+		found := false
+		for index := range history {
+			if history[index].StageExecutionID == p.invocation.StageExecutionID {
+				history[index].State = state
+				found = true
+			}
+		}
+		if !found {
+			return contracts.StageContentResult{}, scanError("scan_history_invalid", nil)
+		}
+		return p.finishAudit(ctx, identity, history)
+	}
 	empty := contracts.StageContentResult{}
 	coverage := Coverage{Candidates: len(plan.Candidates), Selected: len(plan.Jobs)}
 	for _, candidate := range plan.Candidates {
@@ -211,7 +227,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	}
 	slot := p.invocation.Stage.Result.Artifacts["report"].From
 	target := contracts.ArtifactRef{Namespace: slot.Namespace, Name: slot.Name + "." + stableHash(p.invocation.StageExecutionID)[:16]}
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalIOTimeout)
 	defer cancel()
 	ref, err := p.factory.artifacts.Create(writeCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/json", Data: data})
 	if err != nil {
@@ -232,7 +248,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 }
 
 func strictWorkerReport(data []byte, out *workerReport) bool {
-	if len(data) > 1024*1024 || !utf8.Valid(data) {
+	if len(data) > planner.MaxScanReportBytes || !utf8.Valid(data) {
 		return false
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

@@ -18,6 +18,7 @@ PROCESS_TESTS = (
     "TestFindingsProducerAndReaderAcrossProcesses",
     "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
     "TestFindingsReaderBoundariesAcrossProcesses",
+    "TestFindingLocationsAcrossProcesses",
 )
 REQUIRED_TESTS = frozenset(
     (
@@ -26,7 +27,7 @@ REQUIRED_TESTS = frozenset(
             PROCESS_TESTS[1] + "/" + name
             for name in (
                 "shared-function-preserves-operations",
-                "ordinary-hypothesis-and-intake-replay",
+                "ordinary-source-receipt",
                 "snapshot-survives-source-deletion",
                 "changed-selection-conflicts",
                 "pagination-and-exact-evidence",
@@ -46,11 +47,16 @@ REQUIRED_TESTS = frozenset(
 )
 # Minimum counts also protect parametrized writer/reader modes and malformed inputs.
 PYTHON_CASES = {
-    "test_finding_uses_runtime_identity_and_exact_evidence": 2,
+    "test_locations_match_go_contract": 32,
+    "test_actual_provider_schema": 3,
+    "test_code_call_normalizes_coordinates_and_keeps_retry_identity": 1,
+    "test_http_evidence_captures_actual_request_and_survives_history_eviction": 1,
+    "test_numbered_reads_preserve_windows_newlines_and_byte_limits": 2,
+    "test_finding_uses_runtime_identity_and_exact_evidence": 1,
     "test_finding_rejects_non_exact_and_duplicate_evidence": 1,
     "test_finding_transport_loss_retries_byte_identical_submission": 1,
     "test_shared_go_python_fixture_and_exact_consumer_reads": 1,
-    "test_selected_tools_and_adk_descriptions": 4,
+    "test_selected_tools_and_adk_descriptions": 3,
     "test_reader_filters_cursors_previews_and_defensive_copies": 1,
     "test_empty_collection_is_success": 1,
     "test_replay_loss_interruption_conflict_and_access_errors": 1,
@@ -132,6 +138,8 @@ def run(root: Path) -> None:
                 "pytest",
                 "tests/test_security_findings_toolset.py",
                 "tests/test_findings_reader_toolset.py",
+                "tests/test_finding_facades.py",
+                "tests/test_numbered_file_reads.py",
                 "--junitxml",
                 str(junit),
             ],

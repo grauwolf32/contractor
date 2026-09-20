@@ -17,7 +17,7 @@ spec:
       mediaTypes: [application/json, application/yaml]
   inventory:
     implementation: checklist@1
-    sourceInput: checklist
+    source: {source: audit-input, name: checklist}
     itemWorkflowRole: check
   workflows:
     check:

@@ -13,9 +13,10 @@ every uninspected or ambiguous surface as an explicit gap.
 
 When supported evidence warrants a candidate security finding, first write a
 concise source-location record as an artifact in your own `audit-risk`
-namespace. Then call `finding` with that exact artifact revision, a stable
-client key, and only the exact standard references from `task.standard`.
-Finally include that client key in `submit_check_result`. A finding call only
+namespace. Then call `finding` with title, description, the affected source file
+and optional line/range. Pass that exact artifact revision in evidence_refs and
+only the exact standard references from `task.standard` in standard_refs.
+Finally include the returned client_key in `submit_check_result`. A finding call only
 creates a proposal; analyst confirmation remains a Server-side decision. Do not
 create a proposal for a merely hypothetical or untraced risk.
 

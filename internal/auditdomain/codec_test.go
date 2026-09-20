@@ -206,7 +206,7 @@ func TestAllAuditEnvelopeCodecsAcceptBoundedEmptyCollections(t *testing.T) {
 	}
 	proposal := FindingProposal{
 		Schema: FindingProposalSchema, ClientKey: "candidate-1", Title: "Candidate", Description: "Description",
-		Subject: FindingSubject{Kind: "operation", Key: "op-1"}, Hypothesis: "A hypothesis.",
+		Subject: &FindingSubject{Kind: "operation", Key: "op-1"}, Hypothesis: "A hypothesis.",
 		Preconditions: []string{}, StandardRefs: []StandardReference{}, EvidenceIDs: []string{},
 		ProposedChecks: []ProposedCheck{}, SeveritySuggestion: "", Limitations: []string{},
 	}

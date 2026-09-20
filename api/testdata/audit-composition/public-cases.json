@@ -1,0 +1,370 @@
+[
+  {
+    "name": "prepared inventory",
+    "schema": "AuditInventory",
+    "value": {
+      "implementation": "openapi-scans@1",
+      "itemWorkflowRole": "scan",
+      "source": {
+        "source": "prepare-output",
+        "role": "extract",
+        "name": "api"
+      },
+      "settings": {
+        "source": "audit-input",
+        "name": "settings"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "missing source",
+    "schema": "AuditInventory",
+    "value": {
+      "implementation": "openapi-scans@1",
+      "itemWorkflowRole": "scan",
+      "settings": {
+        "source": "audit-input",
+        "name": "settings"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "obsolete source",
+    "schema": "AuditInventory",
+    "value": {
+      "implementation": "openapi-scans@1",
+      "itemWorkflowRole": "scan",
+      "source": {
+        "source": "prepare-output",
+        "role": "extract",
+        "name": "api"
+      },
+      "settings": {
+        "source": "audit-input",
+        "name": "settings"
+      },
+      "sourceInput": "api"
+    },
+    "valid": false
+  },
+  {
+    "name": "source role missing",
+    "schema": "AuditInventory",
+    "value": {
+      "implementation": "openapi-scans@1",
+      "itemWorkflowRole": "scan",
+      "source": {
+        "source": "prepare-output",
+        "name": "api"
+      },
+      "settings": {
+        "source": "audit-input",
+        "name": "settings"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "settings item scope",
+    "schema": "AuditInventory",
+    "value": {
+      "implementation": "openapi-scans@1",
+      "itemWorkflowRole": "scan",
+      "source": {
+        "source": "prepare-output",
+        "role": "extract",
+        "name": "api"
+      },
+      "settings": {
+        "source": "item-package"
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "direct inventory",
+    "schema": "AuditInventory",
+    "value": {
+      "implementation": "checklist@1",
+      "itemWorkflowRole": "check",
+      "source": {
+        "source": "audit-input",
+        "name": "checklist"
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "pending preparation",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "pending",
+          "attempts": 0,
+          "maxAttempts": 2,
+          "outputs": {}
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "running preparation",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "running",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {},
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "failed preparation",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "failed",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {},
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "accepted preparation",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "accepted",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {
+            "api": {
+              "artifact": {
+                "ref": {
+                  "namespace": "audit-preparation",
+                  "name": "api",
+                  "revision": "exact-revision"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/yaml",
+                "sizeBytes": 128
+              },
+              "executionId": "execution_prepare",
+              "runId": "run_prepare",
+              "workflowOutput": "openapi"
+            }
+          },
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": true
+  },
+  {
+    "name": "unknown status",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "done",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {
+            "api": {
+              "artifact": {
+                "ref": {
+                  "namespace": "audit-preparation",
+                  "name": "api",
+                  "revision": "exact-revision"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/yaml",
+                "sizeBytes": 128
+              },
+              "executionId": "execution_prepare",
+              "runId": "run_prepare",
+              "workflowOutput": "openapi"
+            }
+          },
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "too many attempts",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "accepted",
+          "attempts": 11,
+          "maxAttempts": 2,
+          "outputs": {
+            "api": {
+              "artifact": {
+                "ref": {
+                  "namespace": "audit-preparation",
+                  "name": "api",
+                  "revision": "exact-revision"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/yaml",
+                "sizeBytes": 128
+              },
+              "executionId": "execution_prepare",
+              "runId": "run_prepare",
+              "workflowOutput": "openapi"
+            }
+          },
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "no accepted output",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "accepted",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {},
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown field",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "accepted",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {
+            "api": {
+              "artifact": {
+                "ref": {
+                  "namespace": "audit-preparation",
+                  "name": "api",
+                  "revision": "exact-revision"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/yaml",
+                "sizeBytes": 128
+              },
+              "executionId": "execution_prepare",
+              "runId": "run_prepare",
+              "workflowOutput": "openapi"
+            }
+          },
+          "executionId": "execution_prepare",
+          "runId": "run_prepare",
+          "latest": true
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "versionless output",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "accepted",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {
+            "api": {
+              "artifact": {
+                "ref": {
+                  "namespace": "audit-preparation",
+                  "name": "api"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/yaml",
+                "sizeBytes": 128
+              },
+              "executionId": "execution_prepare",
+              "runId": "run_prepare",
+              "workflowOutput": "openapi"
+            }
+          },
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "missing output size",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {
+        "extract": {
+          "status": "accepted",
+          "attempts": 1,
+          "maxAttempts": 2,
+          "outputs": {
+            "api": {
+              "artifact": {
+                "ref": {
+                  "namespace": "audit-preparation",
+                  "name": "api",
+                  "revision": "exact-revision"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "mediaType": "application/yaml"
+              },
+              "executionId": "execution_prepare",
+              "runId": "run_prepare",
+              "workflowOutput": "openapi"
+            }
+          },
+          "executionId": "execution_prepare",
+          "runId": "run_prepare"
+        }
+      }
+    },
+    "valid": false
+  },
+  {
+    "name": "empty preparation",
+    "schema": "AuditPreparation",
+    "value": {
+      "roles": {}
+    },
+    "valid": false
+  }
+]

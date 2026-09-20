@@ -24,8 +24,8 @@ func TestFindingsCatalogSeparatesProducerAndGenericReader(t *testing.T) {
 		profile.Interaction.ActiveChecks != AuditActiveChecksProhibited {
 		t.Fatalf("producer or policy is not explicitly versioned: %+v", profile)
 	}
-	if !selectedTool(agent.Toolsets, "security-findings@2", "finding") ||
-		selectedTool(agent.Toolsets, "security-findings@2", "list_findings") ||
+	if !selectedTool(agent.Toolsets, "security-findings-code@1", "finding") ||
+		selectedTool(agent.Toolsets, "security-findings@1", "list_findings") ||
 		!selectedTool(agent.Toolsets, "text-artifacts@1", "write_text_artifact") ||
 		!selectedTool(agent.Toolsets, "code-analysis@1", "graph_summary") ||
 		!selectedTool(agent.Toolsets, "audit-results@2", "submit_check_result") {
@@ -53,7 +53,7 @@ func TestFindingsCatalogSeparatesProducerAndGenericReader(t *testing.T) {
 	readerAgent := readerStage.Agents["analyst"].Template
 	want := map[string][]string{
 		"memory-tools@1":      {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
-		"security-findings@2": {"list_findings"}, "run-artifacts@1": {"read_artifact"},
+		"security-findings@1": {"list_findings"}, "run-artifacts@1": {"read_artifact"},
 		"text-artifacts@1": {"write_text_artifact"},
 	}
 	got := map[string][]string{}

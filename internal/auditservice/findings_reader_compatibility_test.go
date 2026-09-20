@@ -18,7 +18,7 @@ func TestFindingsReaderDoesNotRequireEmissionPolicy(t *testing.T) {
 			stage := binding.Workflow.Stages["check"]
 			agent := stage.Agents["worker"]
 			agent.Template.Toolsets = []contracts.ToolsetSelection{{
-				Ref: contracts.ToolsetRef{ToolsetID: "security-findings", Version: "2"}, Tools: selected,
+				Ref: contracts.ToolsetRef{ToolsetID: "security-findings", Version: "1"}, Tools: selected,
 			}}
 			stage.Agents["worker"] = agent
 			binding.Workflow.Stages["check"] = stage

@@ -216,6 +216,7 @@ type ResolvedStage struct {
 	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
 	Planner         PlannerRef                      `json:"planner"`
 	ScanPlan        *contracts.ScanPlanPolicy       `json:"scanPlan,omitempty"`
+	AuditScan       *AuditScanConfig                `json:"auditScan,omitempty"`
 	Session         contracts.WorkerSessionMode     `json:"session"`
 	Agents          map[string]ResolvedAgentBinding `json:"agents"`
 	ExecutionConfig ResolvedStageExecutionConfig    `json:"executionConfig"`
@@ -230,6 +231,7 @@ type ResolvedStage struct {
 // complete value as their execution authority.
 type ResolvedWorkflow struct {
 	Ref          WorkflowRef              `json:"ref"`
+	AuditTask    *AuditTaskExecution      `json:"auditTask,omitempty"`
 	Presentation *WorkflowPresentation    `json:"presentation,omitempty"`
 	Parameters   map[string]ParameterSlot `json:"parameters"`
 	Inputs       map[string]ArtifactSlot  `json:"inputs"`
@@ -353,6 +355,7 @@ type workflowDocument struct {
 }
 
 type workflowSpecSource struct {
+	AuditTask       *AuditTaskExecution             `yaml:"auditTask,omitempty"`
 	Presentation    *workflowPresentationSource     `yaml:"presentation,omitempty"`
 	Parameters      *map[string]parameterSlotSource `yaml:"parameters"`
 	Inputs          *map[string]artifactSlotSource  `yaml:"inputs"`
@@ -405,6 +408,7 @@ type stageSource struct {
 	Instructions    *instructionsRefSource        `yaml:"instructions"`
 	Planner         string                        `yaml:"planner"`
 	ScanPlan        *contracts.ScanPlanPolicy     `yaml:"scanPlan,omitempty"`
+	AuditScan       *AuditScanConfig              `yaml:"auditScan,omitempty"`
 	Session         yaml.Node                     `yaml:"session,omitempty"`
 	Agents          map[string]agentBindingSource `yaml:"agents"`
 	Context         *stageContextSource           `yaml:"context,omitempty"`

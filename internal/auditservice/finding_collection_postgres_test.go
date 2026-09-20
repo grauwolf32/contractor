@@ -83,7 +83,7 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 	}
 	proposal := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: suffix, Title: suffix, Description: "A generic observation.",
-		Subject: auditdomain.FindingSubject{Kind: "function", Key: "shared"}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		Subject: &auditdomain.FindingSubject{Kind: "function", Key: "shared"}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{"evidence-1"}, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
 	}
 	body, err := auditdomain.EncodeFindingProposal(proposal)

@@ -1,0 +1,267 @@
+[
+  {
+    "name": "valid",
+    "valid": true,
+    "replacements": []
+  },
+  {
+    "name": "renamed-role",
+    "valid": true,
+    "replacements": [
+      [
+        "generate-api",
+        "extract-contract"
+      ]
+    ]
+  },
+  {
+    "name": "attempt-boundary",
+    "valid": true,
+    "replacements": [
+      [
+        "maxRunAttempts: 2",
+        "maxRunAttempts: 10"
+      ]
+    ]
+  },
+  {
+    "name": "missing-attempt-limit",
+    "valid": false,
+    "replacements": [
+      [
+        "      maxRunAttempts: 2\n",
+        ""
+      ]
+    ]
+  },
+  {
+    "name": "zero-attempts",
+    "valid": false,
+    "replacements": [
+      [
+        "maxRunAttempts: 2",
+        "maxRunAttempts: 0"
+      ]
+    ]
+  },
+  {
+    "name": "too-many-attempts",
+    "valid": false,
+    "replacements": [
+      [
+        "maxRunAttempts: 2",
+        "maxRunAttempts: 11"
+      ]
+    ]
+  },
+  {
+    "name": "attempts-over-budget",
+    "valid": false,
+    "replacements": [
+      [
+        "maxSubmittedRuns: 50",
+        "maxSubmittedRuns: 1"
+      ]
+    ]
+  },
+  {
+    "name": "obsolete-source",
+    "valid": false,
+    "replacements": [
+      [
+        "source: {source: prepare-output, role: generate-api, name: api}",
+        "sourceInput: source"
+      ]
+    ]
+  },
+  {
+    "name": "obsolete-settings",
+    "valid": false,
+    "replacements": [
+      [
+        "settings: {source: audit-input, name: settings}",
+        "settingsInput: settings"
+      ]
+    ]
+  },
+  {
+    "name": "missing-source",
+    "valid": false,
+    "replacements": [
+      [
+        "    source: {source: prepare-output, role: generate-api, name: api}\n",
+        ""
+      ]
+    ]
+  },
+  {
+    "name": "item-inventory",
+    "valid": false,
+    "replacements": [
+      [
+        "source: {source: prepare-output, role: generate-api, name: api}",
+        "source: {source: item-package}"
+      ]
+    ]
+  },
+  {
+    "name": "round-inventory",
+    "valid": false,
+    "replacements": [
+      [
+        "source: {source: prepare-output, role: generate-api, name: api}",
+        "source: {source: retained-output, role: generate-api, name: api}"
+      ]
+    ]
+  },
+  {
+    "name": "audit-source-with-role",
+    "valid": false,
+    "replacements": [
+      [
+        "{source: audit-input, name: source}",
+        "{source: audit-input, name: source, role: generate-api}"
+      ]
+    ]
+  },
+  {
+    "name": "unknown-producer",
+    "valid": false,
+    "replacements": [
+      [
+        "role: generate-api",
+        "role: missing"
+      ]
+    ]
+  },
+  {
+    "name": "unknown-output",
+    "valid": false,
+    "replacements": [
+      [
+        "role: generate-api, name: api",
+        "role: generate-api, name: unknown"
+      ]
+    ]
+  },
+  {
+    "name": "wrong-media",
+    "valid": false,
+    "replacements": [
+      [
+        "role: generate-api, name: api",
+        "role: generate-api, name: validation"
+      ]
+    ]
+  },
+  {
+    "name": "prepare-item-package",
+    "valid": false,
+    "replacements": [
+      [
+        "{source: audit-input, name: source}",
+        "{source: item-package}"
+      ]
+    ]
+  },
+  {
+    "name": "prepare-item-field",
+    "valid": false,
+    "replacements": [
+      [
+        "      parameters: {}",
+        "      parameters: {objective: {source: item-field, name: subjectKey}}"
+      ]
+    ]
+  },
+  {
+    "name": "prepare-manifest",
+    "valid": false,
+    "replacements": [
+      [
+        "{source: audit-input, name: source}",
+        "{source: execution-manifest}"
+      ]
+    ]
+  },
+  {
+    "name": "prepare-round-output",
+    "valid": false,
+    "replacements": [
+      [
+        "{source: audit-input, name: source}",
+        "{source: retained-output, role: generate-api, name: api}"
+      ]
+    ]
+  },
+  {
+    "name": "prepare-as-retained",
+    "valid": false,
+    "replacements": [
+      [
+        "openapi: {source: prepare-output",
+        "openapi: {source: retained-output"
+      ]
+    ]
+  },
+  {
+    "name": "nonprepare-producer",
+    "valid": false,
+    "replacements": [
+      [
+        "role: generate-api, name: api",
+        "role: scan, name: result"
+      ]
+    ]
+  },
+  {
+    "name": "source-mismatch",
+    "valid": false,
+    "replacements": [
+      [
+        "openapi: {source: prepare-output, role: generate-api, name: api}",
+        "openapi: {source: audit-input, name: settings}"
+      ]
+    ]
+  },
+  {
+    "name": "cycle",
+    "valid": false,
+    "replacements": [
+      [
+        "      parameters: {}",
+        "        existing_openapi: {source: prepare-output, role: generate-api, name: api}\n      parameters: {}"
+      ]
+    ]
+  },
+  {
+    "name": "check-attempt-policy",
+    "valid": false,
+    "replacements": [
+      [
+        "      kind: check",
+        "      kind: check\n      maxRunAttempts: 2"
+      ]
+    ]
+  },
+  {
+    "name": "future-role",
+    "valid": false,
+    "replacements": [
+      [
+        "kind: prepare",
+        "kind: finalize"
+      ]
+    ]
+  },
+  {
+    "name": "unknown-field",
+    "valid": false,
+    "replacements": [
+      [
+        "      maxRunAttempts: 2",
+        "      maxRunAttempts: 2\n      repeatOnResume: true"
+      ]
+    ]
+  }
+]

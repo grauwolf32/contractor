@@ -74,6 +74,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
 | [34](34-audit-check-prioritization.md) | Draft integration target; V64-000 pure verdict/selection core implemented, Audit capability pending |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
+| [OpenAPI Audit scans](openapi-audit-scans.md) | In progress: assigned SQLMap requests and pinned Nuclei URLs; Audit adapter/profiles not released |
 | [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

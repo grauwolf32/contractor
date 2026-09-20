@@ -266,6 +266,9 @@ func (f *completionFixture) createRun(t *testing.T, attempt int) {
 	mustCompletion(t, err)
 	created, err := f.service.CreateAudit(f.ctx, runservice.AuditCreateParams{Claim: f.claim, ExecutionID: id, Workflow: f.profile.Workflows["check"].Workflow, RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(), Parameters: map[string]string{}, Inputs: map[string]auditstore.ExactArtifact{"source": f.source, "task": f.taskSet, "execution_manifest": f.manifest}, ExecutionManifest: f.manifest, RequestDigest: execution.RequestDigest, NewRunID: func() (string, error) { return id, nil }})
 	mustCompletion(t, err)
+	// This fixture drives execution directly, including Scheduler admission.
+	created.Run, err = f.runs.TransitionRun(f.ctx, created.Run.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture-admitted"})
+	mustCompletion(t, err)
 	f.run, f.execution = created.Run, execution
 	if f.run.AuditCompletion == nil {
 		t.Fatal("trusted Run creation omitted completion contract")

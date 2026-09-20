@@ -11,7 +11,7 @@ import (
 
 var variablePattern = regexp.MustCompile(`\{([^{}]+)\}`)
 
-func (p *preparer) operation(path, method string, item, op map[string]any, pointer string) (contracts.PreparedHTTPRequest, string) {
+func (p *preparer) prepareOperation(path, method string, item, op map[string]any, pointer string, urlOnly bool) (contracts.PreparedHTTPRequest, string) {
 	empty := contracts.PreparedHTTPRequest{}
 	server, code := p.server(item, op)
 	if code != "" {
@@ -33,6 +33,10 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 		param := parameters[key]
 		name := param["name"].(string)
 		location := param["in"].(string)
+		if urlOnly && location != "path" && location != "query" {
+			p.gap(pointer, "non_url_parameter_not_applied")
+			continue
+		}
 		if location == "header" && (strings.EqualFold(name, "accept") || strings.EqualFold(name, "content-type") || strings.EqualFold(name, "authorization")) {
 			p.gap(pointer, "ignored_reserved_header_parameter")
 			continue
@@ -86,6 +90,29 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 	if strings.ContainsAny(path, "{}") {
 		return empty, "missing_path_parameter"
 	}
+	if urlOnly {
+		if input.Body != nil || len(p.options.Authentication) != 0 {
+			return empty, "unsupported_url_target_binding"
+		}
+		// Nuclei's URL interface runs its pinned templates, not this operation's
+		// method/body or authenticated request. Never copy credentials into it.
+		if method != "GET" {
+			p.gap(pointer, "http_method_not_replayed")
+		}
+		if _, exists := op["requestBody"]; exists {
+			p.gap(pointer, "request_body_not_replayed")
+		}
+		security, exists := op["security"]
+		if !exists {
+			security = p.root["security"]
+		}
+		if security != nil {
+			if requirements, ok := security.([]any); !ok || len(requirements) != 0 {
+				p.gap(pointer, "authentication_not_applied")
+			}
+		}
+		return preparedRequestURL(server, path, query, "GET", map[string]string{}, "")
+	}
 	body, mediaType, code := p.body(op, input.Body, pointer)
 	if code != "" {
 		return empty, code
@@ -106,6 +133,10 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 		}
 		headers["cookie"] = strings.Join(values, "; ")
 	}
+	return preparedRequestURL(server, path, query, method, headers, body)
+}
+
+func preparedRequestURL(server, path string, query url.Values, method string, headers map[string]string, body string) (contracts.PreparedHTTPRequest, string) {
 	request := contracts.PreparedHTTPRequest{Method: method, URL: strings.TrimSuffix(server, "/") + path, Headers: []contracts.HTTPRequestHeader{}, Body: body}
 	if len(query) > 0 {
 		request.URL += "?" + strings.ReplaceAll(query.Encode(), "+", "%20")
@@ -114,7 +145,7 @@ func (p *preparer) operation(path, method string, item, op map[string]any, point
 		request.Headers = append(request.Headers, contracts.HTTPRequestHeader{Name: name, Value: headers[name]})
 	}
 	if request.Validate() != nil {
-		return empty, "invalid_prepared_request"
+		return contracts.PreparedHTTPRequest{}, "invalid_prepared_request"
 	}
 	return request, ""
 }

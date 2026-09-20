@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -30,7 +31,7 @@ func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
 			Inputs: map[string]config.AuditProfileInput{
 				"checklist": {Required: true, MediaTypes: []string{"application/json"}},
 			},
-			Inventory: config.AuditInventory{Implementation: "checklist@1", SourceInput: "checklist", ItemWorkflowRole: "check"},
+			Inventory: config.AuditInventory{Implementation: "checklist@1", Source: &config.AuditWorkflowInputMapping{Source: config.AuditInputFromAudit, Name: "checklist"}, ItemWorkflowRole: "check"},
 			Workflows: map[string]config.ResolvedAuditWorkflowBinding{},
 			Execution: config.AuditExecutionPolicy{MaxRounds: 1, BatchSize: 1},
 			Interaction: config.AuditInteractionPolicy{
@@ -309,6 +310,13 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 			{RecordID: "assessment:one", Kind: auditservice.ProvenanceCheckAttempt,
 				ReceiptID: "receipt-one", CreatedAt: now.Add(time.Second)},
 		},
+	}
+	for index := range management.findings {
+		management.findings[index].FirstProposal.Document = auditdomain.FindingProposal{
+			Schema: auditdomain.FindingProposalSchema, ClientKey: "fixture", Title: "Finding", Description: "Review fixture",
+			Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{}, EvidenceIDs: []string{},
+			ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
+		}
 	}
 	h := auditTestHandler(management)
 

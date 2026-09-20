@@ -20,7 +20,7 @@ spec:
       tools: [open_source_archive, list_source_files, read_source, search_source]
     - ref: text-artifacts@1
       tools: [write_text_artifact]
-    - ref: security-findings@2
+    - ref: security-findings-code@1
       tools: [finding]
     - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]

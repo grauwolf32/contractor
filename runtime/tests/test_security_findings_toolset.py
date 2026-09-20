@@ -13,25 +13,16 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.security_findings.tools import (
-    SecurityFindingsToolsetFactory,
-    SecurityFindingsV2ToolsetFactory,
-)
+from contractor_runtime.toolsets.security_findings.facades import GeneralFindingsToolsetFactory
+from contractor_runtime.toolsets.security_findings.locations import ExactEvidenceRef
 from contractor_runtime.workspace import AllocationWorkspace
 
 
-@pytest.mark.parametrize(
-    "factory_class",
-    [
-        SecurityFindingsToolsetFactory,
-        SecurityFindingsV2ToolsetFactory,
-    ],
-)
-def test_finding_uses_runtime_identity_and_exact_evidence(factory_class) -> None:
+def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
     async def scenario() -> None:
         client = FakeFindingClient()
         state = WorkerState()
-        factory = factory_class(lambda _allocation, _settings: client)
+        factory = GeneralFindingsToolsetFactory(lambda _allocation, _settings: client)
         tools = await factory.create_selected(
             selected=["finding"],
             allocation_id="allocation-1",
@@ -42,19 +33,16 @@ def test_finding_uses_runtime_identity_and_exact_evidence(factory_class) -> None
             state=state,
         )
         result = await tools["finding"](
-            client_key="candidate-1",
             title="Missing ownership guard",
             description="The selected path reaches storage without a visible ownership check.",
-            subject={"kind": "openapi-operation", "key": "op-1"},
             evidence_refs=[
-                {"namespace": "worker", "name": "trace", "revision": "rev-2"},
-                {"namespace": "worker", "name": "source", "revision": "rev-1"},
+                ExactEvidenceRef(namespace="worker", name="trace", revision="rev-2"),
+                ExactEvidenceRef(namespace="worker", name="source", revision="rev-1"),
             ],
             tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
-            proposed_checks=[{"objective": "Trace the guard", "method": "static-trace"}],
-            severity_suggestion="medium",
         )
-        assert result == {"proposal_id": "proposal-1", "receipt_id": "receipt-1"}
+        assert result["proposal_id"] == "proposal-1" and result["receipt_id"] == "receipt-1"
+        assert result["client_key"].startswith("call-")
         request = client.requests[0]
         assert set(request) == {
             "apiVersion",
@@ -83,7 +71,7 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
     async def scenario() -> None:
         client = FakeFindingClient()
         state = WorkerState()
-        tools = await SecurityFindingsToolsetFactory(
+        tools = await GeneralFindingsToolsetFactory(
             lambda _allocation, _settings: client  # type: ignore[arg-type]
         ).create_selected(
             selected=["finding"],
@@ -94,14 +82,15 @@ def test_finding_rejects_non_exact_and_duplicate_evidence() -> None:
             workspace=_workspace(),
             state=state,
         )
-        with pytest.raises(ValueError, match="exact ArtifactRef"):
+        with pytest.raises(ValueError):
+            ExactEvidenceRef(namespace="worker", name="trace")
+        ref = ExactEvidenceRef(namespace="worker", name="trace", revision="r1")
+        with pytest.raises(ValueError, match="duplicate"):
             await tools["finding"](
-                "candidate-1",
-                "Candidate",
-                "Description",
-                {"kind": "code", "key": "handler"},
-                [{"namespace": "worker", "name": "trace"}],
-                FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+                title="Candidate",
+                description="Description",
+                evidence_refs=[ref, ref],
+                tool_context=FakeToolContext("worker-invocation-1"),
             )
         assert client.requests == []
         assert state.metrics.counters["tool_errors"] == 1
@@ -132,6 +121,7 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
 class FakeToolContext:
     def __init__(self, invocation_id: str) -> None:
         self.invocation_id = invocation_id
+        self.function_call_id = "call-test"
 
 
 class FakeFindingClient:

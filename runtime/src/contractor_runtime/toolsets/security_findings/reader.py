@@ -193,8 +193,8 @@ class ListFindingsTool:
             matching = [
                 item
                 for item in self._items
-                if (subject_kind is None or item["subject"]["kind"] == subject_kind)
-                and (subject_key is None or item["subject"]["key"] == subject_key)
+                if (subject_kind is None or (item["subject"] or {}).get("kind") == subject_kind)
+                and (subject_key is None or (item["subject"] or {}).get("key") == subject_key)
             ]
             start = 0
             if cursor is not None:

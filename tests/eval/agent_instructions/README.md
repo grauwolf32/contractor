@@ -317,16 +317,29 @@ agent family; the candidate need not be accepted or rejected as one bundle.
 
 Publishing selected versions and updating the default catalog/profile bindings is
 a subsequent rollout decision supported by results, not part of the offline gate.
-The archived candidates use removed `audit-results@1`. Evaluate current
-`audit-results@2` completion in a distinct experiment with newly pinned variants. V38 Evals
-UI design may reuse the comparison record, but is not a prerequisite for this CLI
-experiment; avoid building a second experiment service here.
+The frozen candidates retain their original `audit-results@1` baseline.
+That removed toolset cannot run on current Server/Runtime; new live variants
+must select `audit-results@2` with trusted completion in both comparison arms.
+V39 is now implemented; its completion behavior must not be mixed into this
+instruction experiment without an explicit experiment revision. Evaluate a new
+completion contract in a distinct experiment. V38 Evals may reuse the comparison
+record but is not a prerequisite for this CLI experiment; avoid building a
+second experiment service here.
+
+The archived AuditProfile wrappers and their release hashes remain unchanged.
+Offline tests compare their complete authored contracts directly; the current
+Server profile parser is not required to accept their obsolete inventory schema.
+Workflow and AgentTemplate comparisons still validate the frozen execution
+contracts. No runtime compatibility reader or live experiment revision is added.
 
 ## V40-002 preparation and readiness (2026-09-19)
 
-Preparation is retained on `feat/agent-instruction-pilot-plan` in both paired
-repositories. **V40-002 remains in progress; no model executions or release
-publication occurred.** The live strict A/B acceptance criteria cannot yet pass.
+Preparation from `feat/agent-instruction-pilot-plan` is integrated into both
+repositories' main branches (Contractor `9b1613ab`, Playground `d97ddc55`).
+**V40-002 remains in progress; no model executions or release publication
+occurred.** The live strict A/B acceptance criteria cannot yet pass. The
+2026-09-20 worktree review found no newer task-specific edits; this readiness
+state does not establish an actively running evaluation campaign.
 
 `evaluation-configs/manifest.json` pins twelve immutable Workflow wrappers and
 two A1 AuditProfiles generated from the original frozen catalog plus candidate

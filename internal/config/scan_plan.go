@@ -33,13 +33,16 @@ func cloneScanPlanPolicy(source *contracts.ScanPlanPolicy) *contracts.ScanPlanPo
 // this contract has validated every member of the fixed Worker set.
 func ValidateScanPlanStage(stage ResolvedStage) error {
 	if stage.Planner != (PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
-		if stage.ScanPlan != nil {
+		if stage.ScanPlan != nil || stage.AuditScan != nil {
 			return fmt.Errorf("scanPlan is only supported by scan-plan@1")
 		}
 		return nil
 	}
 	if stage.ScanPlan == nil {
 		return fmt.Errorf("scan-plan@1 requires scanPlan")
+	}
+	if err := validateAuditScanStage(stage); err != nil {
+		return err
 	}
 	if err := stage.ScanPlan.Validate(); err != nil {
 		return fmt.Errorf("scanPlan: %w", err)
@@ -94,7 +97,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 			return fmt.Errorf("scanPlan Worker selects an unsupported scanner")
 		}
 		if execution.Tool == "scan_sqlmap" {
-			if len(tool.TestParameters) == 0 {
+			if len(tool.TestParameters) == 0 && stage.AuditScan == nil {
 				return fmt.Errorf("scanPlan SQLMap policy requires testParameters")
 			}
 			if _, exists := execution.Arguments["url"]; exists {
@@ -130,7 +133,11 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 		return fmt.Errorf("scan-plan@1 requires exactly one aggregate report result")
 	}
 	report, exists := stage.Result.Artifacts["report"]
-	if !exists || !report.Required || report.From == nil || len(report.MediaTypes) != 1 || report.MediaTypes[0] != "application/json" {
+	reportMedia := "application/json"
+	if stage.AuditScan != nil {
+		reportMedia = "application/zip"
+	}
+	if !exists || !report.Required || report.From == nil || len(report.MediaTypes) != 1 || report.MediaTypes[0] != reportMedia {
 		return fmt.Errorf("scan-plan@1 requires a bound application/json aggregate report")
 	}
 	if err := validateArtifactComponent("scanPlan report namespace", report.From.Namespace); err != nil {
@@ -192,7 +199,20 @@ func validateScanPlanInputMedia(workflow ResolvedWorkflow, stage ResolvedStage) 
 		}
 		return nil
 	}
-	if err := validate(stage.ScanPlan.InputArtifact, []string{contracts.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}); err != nil {
+	inputMedia := []string{contracts.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}
+	if stage.AuditScan != nil {
+		inputMedia = []string{"application/json", "application/yaml"}
+		for name, media := range map[string][]string{
+			stage.AuditScan.SettingsArtifact: {"application/json"},
+			stage.AuditScan.TaskArtifact:     {"application/zip"},
+			stage.AuditScan.ManifestArtifact: {"application/json"},
+		} {
+			if err := validate(name, media); err != nil {
+				return err
+			}
+		}
+	}
+	if err := validate(stage.ScanPlan.InputArtifact, inputMedia); err != nil {
 		return err
 	}
 	for _, tool := range stage.ScanPlan.Tools {

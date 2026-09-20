@@ -24,6 +24,10 @@ type preparer struct {
 
 // Prepare consumes already-authorized exact artifact bytes. It performs no I/O.
 func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, options Options) (contracts.HTTPRequestSet, error) {
+	return prepare(data, mediaType, source, options, nil)
+}
+
+func prepare(data []byte, mediaType string, source contracts.ArtifactRef, options Options, selection *operationSelection) (contracts.HTTPRequestSet, error) {
 	empty := contracts.HTTPRequestSet{}
 	if source.ValidateExact() != nil {
 		return empty, failure("invalid_source_ref")
@@ -47,7 +51,20 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	if err != nil {
 		return empty, err
 	}
+	if selection != nil {
+		if !selection.valid() {
+			return empty, failure("invalid_operation_selection")
+		}
+		for pointer := range options.Operations {
+			if pointer != selection.pointer {
+				return empty, failure("unassigned_operation_binding")
+			}
+		}
+	}
 	p := &preparer{root: root, options: options, gaps: []contracts.PreparationGap{}, gapKeys: map[contracts.PreparationGap]bool{}}
+	if selection != nil && selection.mode == "url-target" {
+		p.gap(selection.pointer, "url_template_scan_only")
+	}
 	set := contracts.HTTPRequestSet{
 		SchemaVersion: 1,
 		Source:        contracts.RequestSetSource{Artifact: source, ContentDigest: digest(data)},
@@ -63,6 +80,20 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		return empty, failure("invalid_options")
 	}
 	set.PreparationDigest = digest(basis)
+	if selection != nil {
+		// Keep policy-2 bytes unchanged for existing whole-document callers.
+		// A selected request and a URL target have different preparation identity.
+		basis, err = contracts.MarshalPrivateCanonical(struct {
+			PolicyVersion int    `json:"policyVersion"`
+			BaseDigest    string `json:"baseDigest"`
+			Operation     string `json:"operation"`
+			Mode          string `json:"mode"`
+		}{1, set.PreparationDigest, selection.pointer, selection.mode})
+		if err != nil {
+			return empty, failure("invalid_operation_selection")
+		}
+		set.PreparationDigest = digest(basis)
+	}
 	seenBindings := map[string]bool{}
 	byDigest := map[string]int{}
 	outputBytes := 0
@@ -70,16 +101,23 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 		if strings.HasPrefix(path, "x-") {
 			continue
 		}
+		pointer := "#/paths/" + escapePointer(path)
+		if selection != nil && pointer != selection.pathPointer() {
+			continue
+		}
 		if !strings.HasPrefix(path, "/") || len(path) > 8192 {
 			return empty, failure("invalid_document")
 		}
-		pointer := "#/paths/" + escapePointer(path)
 		if len(pointer)+8 > 8192 {
 			return empty, failure("invalid_document")
 		}
 		item, code := p.resolve(paths[path], nil)
 		if code != "" {
 			p.gap(pointer, code)
+			if selection != nil {
+				set.Coverage.Operations = 1
+				seenBindings[selection.pointer] = true
+			}
 			continue
 		}
 		for _, key := range keys(item) {
@@ -88,6 +126,10 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			}
 		}
 		for _, method := range []string{"delete", "get", "head", "options", "patch", "post", "put", "trace"} {
+			opPointer := pointer + "/" + method
+			if selection != nil && opPointer != selection.pointer {
+				continue
+			}
 			raw, exists := item[method]
 			if !exists {
 				continue
@@ -96,7 +138,6 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			if set.Coverage.Operations > MaxOperations {
 				return empty, failure("operation_limit_exceeded")
 			}
-			opPointer := pointer + "/" + method
 			seenBindings[opPointer] = true
 			if method == "trace" {
 				p.gap(opPointer, "unsupported_method")
@@ -123,7 +164,7 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			if _, exists := op["callbacks"]; exists {
 				p.gap(opPointer, "unsupported_callbacks")
 			}
-			request, code := p.operation(path, strings.ToUpper(method), item, op, opPointer)
+			request, code := p.prepareOperation(path, strings.ToUpper(method), item, op, opPointer, selection != nil && selection.mode == "url-target")
 			if code != "" {
 				p.gap(opPointer, code)
 				continue
@@ -159,12 +200,15 @@ func Prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	if p.schemaExhausted {
 		return empty, failure("schema_work_limit_exceeded")
 	}
+	if selection != nil && !seenBindings[selection.pointer] {
+		return empty, failure("unknown_operation_selection")
+	}
 	for pointer := range options.Operations {
 		if !seenBindings[pointer] {
 			return empty, failure("unknown_operation_binding")
 		}
 	}
-	if _, exists := root["webhooks"]; exists {
+	if _, exists := root["webhooks"]; exists && selection == nil {
 		p.gap("#", "unsupported_webhooks")
 	}
 	if p.gapExhausted {

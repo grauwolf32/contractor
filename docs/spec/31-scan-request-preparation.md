@@ -7,6 +7,10 @@ the library validates the ref and records a SHA-256 digest of the supplied bytes
 The caller remains responsible for matching those bytes to the selected revision.
 Workflow dispatch and scanner selection belong to V55-008.
 
+V62 adds opt-in `PrepareOperation` and `PrepareOperationTarget` helpers for an
+assigned operation, described in [OpenAPI Audit scans](openapi-audit-scans.md).
+The whole-document policy and RequestSet v1 below retain their existing behavior.
+
 ## RequestSet v1
 
 The media type is `application/vnd.contractor.http-requests+json`. Its normative

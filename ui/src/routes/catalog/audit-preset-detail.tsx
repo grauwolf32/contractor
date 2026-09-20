@@ -119,9 +119,11 @@ function PresetContents({ profile }: { profile: AuditProfile }) {
           <div className="panel">
             <strong>The check list depends on your audit inputs.</strong>
             <p>
-              Supply <code>{profile.inventory.sourceInput}</code> when creating
-              an audit in a project. The generated checks will be available in
-              that audit’s Coverage tab.
+              {profile.inventory.source?.source === "prepare-output"
+                ? "Preparation generates the inventory from your project inputs."
+                : `Supply ${profile.inventory.source?.name ?? "the required inputs"} when creating an audit in a project.`}{" "}
+              The generated checks will be available in that audit’s Coverage
+              tab.
             </p>
           </div>
         )}

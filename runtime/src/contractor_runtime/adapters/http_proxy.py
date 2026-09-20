@@ -8,7 +8,7 @@ import ssl
 import subprocess
 import tempfile
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 
@@ -141,7 +141,14 @@ class ProxyHTTPClient:
         except Exception:
             raise ProxyRequestError from None
 
-    async def stream_request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
+    async def stream_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        request_observer: Callable[[httpx.Request], None] | None = None,
+        **kwargs: object,
+    ) -> httpx.Response:
         """Send one routed request without buffering its response body."""
 
         parsed = urlsplit(url)
@@ -152,6 +159,8 @@ class ProxyHTTPClient:
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
+            if request_observer is not None:
+                request_observer(request)
             response = await client.send(request, stream=True, follow_redirects=False)
             if response.status_code == 407:
                 await response.aclose()

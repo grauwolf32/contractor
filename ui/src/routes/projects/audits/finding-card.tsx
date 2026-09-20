@@ -21,6 +21,7 @@ import { StateBadge } from "../../runs/components";
 import { exactArtifactLink } from "./artifact-links";
 import { AuditMutationNotice } from "./controls";
 import { FINDING_SEVERITIES } from "./finding-options";
+import { FindingLocations } from "./finding-locations";
 import { auditProfileLabel } from "./labels";
 import { AuditMarkdown, ExactArtifactLink } from "./shared";
 
@@ -440,6 +441,7 @@ export function AuditFindingCard({
       <div className="audit-finding-description">
         <AuditMarkdown source={finding.firstProposal.document.description} />
       </div>
+      <FindingLocations document={finding.firstProposal.document} />
       {sources.length === 0 ? null : (
         <section
           className="audit-finding-sources"
@@ -517,7 +519,9 @@ export function AuditFindingCard({
           </div>
           <div>
             <dt>Subject</dt>
-            <dd>{finding.firstProposal.document.subject.key}</dd>
+            <dd>
+              {finding.firstProposal.document.subject?.key ?? "Not specified"}
+            </dd>
           </div>
           {pendingReview === undefined ? null : (
             <div>

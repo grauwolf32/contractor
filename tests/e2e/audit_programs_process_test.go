@@ -132,6 +132,7 @@ type auditProgramFinding struct {
 	FirstProposal   struct {
 		ClientKey string `json:"clientKey"`
 		Document  struct {
+			Title        string `json:"title"`
 			StandardRefs []struct {
 				Scheme        string `json:"scheme"`
 				Version       string `json:"version"`
@@ -379,7 +380,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 				}
 				return map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100}, nil
 			}),
-			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
+			toolGatewayStep("submit_check_result", findingResultArguments(map[string]any{
 				"assessment": assessment,
 				"summary":    "Deterministic fixture assessment based on source/app.py.",
 				"completed":  completed,
@@ -396,7 +397,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 			toolGatewayStep("read_source", fixedArguments(map[string]any{
 				"path": "app.py", "start_line": 1, "max_lines": 100,
 			})),
-			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
+			toolGatewayStep("submit_check_result", findingResultArguments(map[string]any{
 				"results": []any{
 					map[string]any{
 						"assessment": "satisfied",
@@ -452,7 +453,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 				toolGatewayStep("read_source", fixedArguments(map[string]any{
 					"path": "app.py", "start_line": 1, "max_lines": 100,
 				})),
-				toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
+				toolGatewayStep("submit_check_result", findingResultArguments(map[string]any{
 					"assessment": candidate.assessment,
 					"summary":    "Bounded OWASP Top 10 fixture assessment based on source/app.py.",
 					"completed":  completed,
@@ -502,19 +503,16 @@ func auditProgramGatewayStages() []domainGatewayStage {
 				"path": "app.py", "start_line": 1, "max_lines": 100,
 			})),
 		}
-		proposalKeys := []string(nil)
 		if candidate.finding {
 			steps = append(steps, toolGatewayStep("finding", asvsFindingArguments))
-			proposalKeys = []string{"asvs-database-injection"}
 		}
 		steps = append(steps,
-			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
-				"assessment":    candidate.assessment,
-				"summary":       "Bounded ASVS fixture assessment based on source/app.py.",
-				"completed":     completed,
-				"gaps":          gaps,
-				"evidence":      evidence,
-				"proposal_keys": proposalKeys,
+			toolGatewayStep("submit_check_result", findingResultArguments(map[string]any{
+				"assessment": candidate.assessment,
+				"summary":    "Bounded ASVS fixture assessment based on source/app.py.",
+				"completed":  completed,
+				"gaps":       gaps,
+				"evidence":   evidence,
 			})),
 			finalGatewayStep("All assigned results recorded", nil),
 		)
@@ -531,10 +529,9 @@ func asvsFindingArguments(request map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("exact ASVS source artifact is absent")
 	}
 	return map[string]any{
-		"client_key":    "asvs-database-injection",
+		"file": "app.py", "line": 4,
 		"title":         "Unparameterized database query",
 		"description":   "The fixture constructs a database query from untrusted input without parameterization.",
-		"subject":       map[string]string{"kind": "component", "key": "database-query"},
 		"evidence_refs": []any{source},
 		"standard_refs": []any{
 			map[string]string{
@@ -546,7 +543,6 @@ func asvsFindingArguments(request map[string]any) (map[string]any, error) {
 				"requirement_id": "v5.0.0-1.2.5",
 			},
 		},
-		"severity_suggestion": "high",
 	}, nil
 }
 
@@ -556,10 +552,9 @@ func ordinaryASVSFindingArguments(request map[string]any) (map[string]any, error
 		return nil, fmt.Errorf("exact ordinary-Run ASVS source artifact is absent")
 	}
 	return map[string]any{
-		"client_key":  "ordinary-asvs-mapping",
+		"file": "app.py", "line": 4,
 		"title":       "Ordinary Run finding with an ASVS mapping",
 		"description": "This proposal exercises a non-causal standards mapping imported from an ordinary Run.",
-		"subject":     map[string]string{"kind": "component", "key": "ordinary-database-query"},
 		"evidence_refs": []any{
 			source,
 		},
@@ -569,7 +564,6 @@ func ordinaryASVSFindingArguments(request map[string]any) (map[string]any, error
 				"requirement_id": "v5.0.0-1.2.5",
 			},
 		},
-		"severity_suggestion": "medium",
 	}, nil
 }
 
@@ -703,7 +697,7 @@ func runOrdinaryASVSFindingWorkflow(
 		} `json:"items"`
 	}
 	auditProgramGET(t, client, baseURL+"/v1/runs/"+url.PathEscape(runID)+"/finding-proposals?limit=100", &page)
-	if len(page.Items) != 1 || page.Items[0].ClientKey != "ordinary-asvs-mapping" ||
+	if len(page.Items) != 1 || !strings.HasPrefix(page.Items[0].ClientKey, "call-") ||
 		page.Items[0].Origin.RunID != runID || page.Items[0].Origin.Audit != nil ||
 		page.Items[0].Proposal.Ref.Revision == nil {
 		t.Fatalf("ordinary Run proposal did not retain its non-Audit origin: %+v", page.Items)
@@ -1169,10 +1163,10 @@ func prepareASVSFindingBacktraceAfterRunDeletion(
 	var causalFinding, ordinaryFinding *auditProgramFinding
 	for index := range findingPage.Items {
 		finding := &findingPage.Items[index]
-		switch finding.FirstProposal.ClientKey {
-		case "asvs-database-injection":
+		switch finding.FirstProposal.Document.Title {
+		case "Unparameterized database query":
 			causalFinding = finding
-		case "ordinary-asvs-mapping":
+		case "Ordinary Run finding with an ASVS mapping":
 			ordinaryFinding = finding
 		default:
 			t.Fatalf("unexpected ASVS finding identity: %+v", finding)
@@ -1429,7 +1423,7 @@ func assertASVSFindingBacktrace(
 	auditProgramGET(t, client, baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/findings/"+
 		url.PathEscape(fixture.OrdinaryFindingID), &ordinary)
 	if ordinary.AnalystVerdict != nil || ordinary.AnalystSeverity != nil ||
-		ordinary.FirstProposal.ClientKey != "ordinary-asvs-mapping" ||
+		!strings.HasPrefix(ordinary.FirstProposal.ClientKey, "call-") ||
 		ordinary.FirstProposal.Origin.RunID != fixture.OrdinaryRunID ||
 		!ordinary.FirstProposal.Origin.RunDeleted || ordinary.FirstProposal.Origin.Audit != nil ||
 		len(ordinary.FirstProposal.Document.StandardRefs) != 1 ||
@@ -1638,4 +1632,22 @@ func auditProgramZip(t *testing.T, files map[string][]byte) []byte {
 		t.Fatal(err)
 	}
 	return output.Bytes()
+}
+
+// Finding identities come from Runtime receipts, never from model-authored keys.
+func findingResultArguments(arguments map[string]any) func(map[string]any) (map[string]any, error) {
+	return func(request map[string]any) (map[string]any, error) {
+		keys := []string{}
+		for _, response := range findingsToolResponses(request, "finding") {
+			key, ok := response["client_key"].(string)
+			if !ok || key == "" {
+				return nil, fmt.Errorf("finding response omitted client_key")
+			}
+			keys = append(keys, key)
+		}
+		if len(keys) > 0 {
+			arguments["proposal_keys"] = keys
+		}
+		return arguments, nil
+	}
 }

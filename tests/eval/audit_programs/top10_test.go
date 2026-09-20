@@ -116,7 +116,7 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	compatibility := auditservice.ProfileCompatibility(profile)
 	if !compatibility.ServerCompatible || profile.Mode != config.AuditModeRiskAssessment ||
 		profile.Inventory.Implementation != "standard-mappings@1" ||
-		profile.Inventory.SourceInput != "" || profile.Execution.BatchSize != 1 ||
+		profile.Inventory.Source != nil || profile.Execution.BatchSize != 1 ||
 		profile.Interaction.FindingConfirmation != config.AuditFindingHumanRequired {
 		t.Fatalf("Top 10 profile is not runnable: profile=%+v compatibility=%+v", profile, compatibility)
 	}
@@ -141,7 +141,7 @@ func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
 	for _, required := range []string{
 		"audit-results@2/read_audit_task",
 		"audit-results@2/submit_check_result",
-		"security-findings@1/finding",
+		"security-findings-code@1/finding",
 		"source-analysis@1/open_source_archive",
 	} {
 		if !contains(tools, required) {

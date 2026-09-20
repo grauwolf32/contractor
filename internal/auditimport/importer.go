@@ -94,6 +94,9 @@ func (i *Importer) collect(
 		return false, err
 	}
 
+	if isScanCheck(prepared) && execution.RunID != nil && *execution.TerminalOutcome != auditstore.TerminalSucceeded {
+		return i.collectScanRecovery(ctx, claim, snapshot, execution, prepared, "scan_execution_failed")
+	}
 	switch *execution.TerminalOutcome {
 	case auditstore.TerminalFailed, auditstore.TerminalSubmissionFailed:
 		return i.collectTechnical(ctx, claim, execution, prepared,
@@ -446,6 +449,16 @@ func (i *Importer) collectTechnical(
 	status auditstore.CoverageStatus,
 	optionalSource ...*auditstore.ExactArtifact,
 ) (bool, error) {
+	if retryable && isScanCheck(members) && execution.RunID != nil {
+		_, history, err := i.scanHistory(ctx, execution)
+		if err != nil {
+			return false, err
+		}
+		if scanHistoryNeedsRecovery(history) {
+			retryable = false
+			code = "scan_result_unavailable"
+		}
+	}
 	items := make([]auditstore.CollectionItem, len(members))
 	for index, member := range members {
 		coverage := member.cover
@@ -567,6 +580,9 @@ func semanticCoverage(
 	completed := sortedCopy(result.Coverage.Completed)
 	gaps := mergeSorted(taskGaps(task), result.Coverage.Gaps)
 	coverage := auditstore.Coverage{Requested: requested, Completed: completed, Gaps: gaps}
+	if task.Scan != nil {
+		return scanCoverage(task, result, evidence, coverage)
+	}
 
 	if task.Operation != nil {
 		if result.Assessment == "not-tested" {
@@ -691,6 +707,9 @@ func baselineCoverage(task auditdomain.ItemTask) auditstore.Coverage {
 }
 
 func expectedCoverage(task auditdomain.ItemTask) []string {
+	if task.Scan != nil {
+		return []string{task.Scan.CoverageRequirement()}
+	}
 	if task.Checklist != nil {
 		return sortedCopy(task.Checklist.RequiredEvidence)
 	}
@@ -701,6 +720,9 @@ func expectedCoverage(task auditdomain.ItemTask) []string {
 }
 
 func taskGaps(task auditdomain.ItemTask) []string {
+	if task.Scan != nil {
+		return sortedCopy(task.Scan.Gaps)
+	}
 	if task.Operation != nil {
 		return sortedCopy(task.Operation.Gaps)
 	}
@@ -718,10 +740,11 @@ func encodeTaskOrigin(task auditdomain.ItemTask) (json.RawMessage, error) {
 		EntryKey                 string                           `json:"entryKey"`
 		EntryVersion             string                           `json:"entryVersion,omitempty"`
 		Standard                 *auditdomain.StandardMappingTask `json:"standard,omitempty"`
+		Scan                     *auditdomain.OpenAPIScanTask     `json:"scan,omitempty"`
 	}{
 		SourceRef: task.SourceRef, SourceContentDigest: task.SourceContentDigest,
 		CanonicalInventoryDigest: task.CanonicalInventoryDigest,
-		EntryKey:                 task.ItemKey, Standard: task.Standard,
+		EntryKey:                 task.ItemKey, Standard: task.Standard, Scan: task.Scan,
 	}
 	if task.Checklist != nil {
 		value.EntryVersion = task.Checklist.Version

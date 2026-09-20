@@ -15,7 +15,7 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 		got = append(got, selector)
 	}
 	sort.Strings(got)
-	want := []string{"audit-standard-source-review@1", "audit-wstg-active-http@1"}
+	want := []string{"audit-openapi-nuclei-scan@1", "audit-openapi-sqlmap-scan@1", "audit-standard-source-review@1", "audit-wstg-active-http@1", "source-findings-review@1"}
 	for _, entry := range repositoryMemoryCatalog(t).Workflows {
 		want = append(want, entry.Active)
 	}

@@ -485,6 +485,7 @@ type factoryCall struct {
 }
 
 type factoryInvoker struct {
+	tool        string
 	t           *testing.T
 	artifacts   *factoryArtifacts
 	sessions    *factorySessions
@@ -514,8 +515,12 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 	if w.invokeErr != nil {
 		return contracts.WorkerCompletion{}, w.invokeErr
 	}
+	tool := w.tool
+	if tool == "" {
+		tool = "scan_sqlmap"
+	}
 	data, _ := json.Marshal(map[string]any{
-		"schemaVersion": 1, "tool": "scan_sqlmap", "inputDigest": "sha256:" + strings.Repeat("d", 64),
+		"schemaVersion": 1, "tool": tool, "inputDigest": "sha256:" + strings.Repeat("d", 64),
 		"inputArtifacts": request.Artifacts, "observation": w.observation,
 	})
 	var ref contracts.ArtifactRef
@@ -536,7 +541,7 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 		APIVersion: contracts.APIVersion, InvocationID: "worker-invocation", StateRevision: 1,
 		Result: &contracts.WorkerResult{
 			SubtaskID: request.SubtaskID, Result: "Scanner output persisted", Artifacts: map[string]contracts.ArtifactRef{"report": ref},
-			Observations: contracts.WorkerObservations{Profile: contracts.WorkerObservationProfileLeanV1, Tools: map[string]contracts.ToolObservationCount{"scan_sqlmap": {Calls: 1}}, Truncated: w.truncated},
+			Observations: contracts.WorkerObservations{Profile: contracts.WorkerObservationProfileLeanV1, Tools: map[string]contracts.ToolObservationCount{tool: {Calls: 1}}, Truncated: w.truncated},
 		},
 	}, nil
 }

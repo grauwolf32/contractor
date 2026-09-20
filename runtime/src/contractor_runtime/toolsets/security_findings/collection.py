@@ -16,6 +16,8 @@ from typing import Any
 import jcs
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.security_findings.http_evidence import HTTPExchange
+from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
 COLLECTION_MEDIA_TYPE = "application/vnd.contractor.findings-collection+zip"
 MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
@@ -370,21 +372,35 @@ def _proposal(data: bytes) -> dict[str, Any]:
     value = strict_json(data, canonical_required=False)
     object_fields(
         value,
-        "schema client_key title description subject preconditions evidence_ids limitations",
-        "hypothesis standard_refs proposed_checks severity_suggestion",
+        "schema client_key title description subject preconditions evidence_ids limitations "
+        "standard_refs proposed_checks severity_suggestion",
+        "hypothesis locations http_exchange",
     )
     require(value["schema"] == "contractor.audit.finding-proposal.v1")
+    require(all(part is not None or field == "subject" for field, part in value.items()))
     require(identifier(value["client_key"]))
     for field in ("title", "description"):
         require(isinstance(value[field], str) and value[field].strip())
-    object_fields(value["subject"], "kind key")
-    require(all(identifier(part) for part in value["subject"].values()))
-    # Go's optional string fields accept null as their zero value.
-    require(value.get("hypothesis") is None or isinstance(value["hypothesis"], str))
+    if value["subject"] is not None:
+        object_fields(value["subject"], "kind key")
+        require(all(identifier(part) for part in value["subject"].values()))
+    if "locations" in value:
+        try:
+            normalize_locations(value["locations"])
+        except (ValueError, TypeError):
+            raise FindingsError("findings_collection_invalid") from None
+    if "http_exchange" in value:
+        try:
+            exchange = HTTPExchange.model_validate(value["http_exchange"])
+        except (ValueError, TypeError):
+            raise FindingsError("findings_collection_invalid") from None
+        require(identifier(exchange.request_tag))
+        if exchange.response_body_evidence_id is not None:
+            require(exchange.response_body_evidence_id in value["evidence_ids"])
+    require("hypothesis" not in value or isinstance(value["hypothesis"], str))
     require(
-        value.get("severity_suggestion")
+        value["severity_suggestion"]
         in {
-            None,
             "",
             "informational",
             "low",
@@ -398,13 +414,11 @@ def _proposal(data: bytes) -> dict[str, Any]:
     evidence_ids = array(value["evidence_ids"], 256)
     require(all(identifier(part) for part in evidence_ids))
     require(len(evidence_ids) == len(set(evidence_ids)))
-    references = value.get("standard_refs")
-    for reference in array([] if references is None else references, 512):
+    for reference in array(value["standard_refs"], 512):
         object_fields(reference, "scheme version requirement_id")
         require(identifier(reference["scheme"]) and identifier(reference["requirement_id"]))
         require(isinstance(reference["version"], str) and reference["version"].strip())
-    checks = value.get("proposed_checks")
-    for check in array([] if checks is None else checks, 512):
+    for check in array(value["proposed_checks"], 512):
         object_fields(check, "objective method")
         require(isinstance(check["objective"], str) and check["objective"].strip())
         require(identifier(check["method"]))

@@ -155,7 +155,7 @@ bounded expansion.
 
 `standard-mappings@1` is the deterministic inventory implementation for one
 exact standard package. Such a profile declares exactly one `standards` entry
-and omits `inventory.sourceInput`: the trusted inventory source is the
+and omits `inventory.source`: the trusted inventory source is the
 Audit-retained package revision, not a user-uploaded copy. Each mapping becomes
 one item and task package carrying the exact scheme, version, mapping key,
 entry IDs, and complete evidence-contract snapshot. The first implementation
@@ -203,7 +203,7 @@ spec:
       mediaTypes: [application/zip]
   inventory:
     implementation: openapi-operations@1
-    sourceInput: openapi
+    source: {source: audit-input, name: openapi}
     itemWorkflowRole: trace
   workflows:
     trace:
@@ -239,7 +239,7 @@ Workflow names in this example are proposed definitions, not claims that they
 exist in the current catalog. A repository profile may only reference
 Workflows that actually resolve in the same configuration snapshot.
 
-Every workflow binding has an explicit `kind: check | discovery | assessment`
+Every workflow binding has an explicit `kind: prepare | check | discovery | assessment`
 and pins a complete `ResolvedWorkflow` closure. The map key is only the
 operator-chosen role name; the Server never infers behavior from substrings
 such as `discover` or `assess`. `inventory.itemWorkflowRole` MUST name a
@@ -251,7 +251,7 @@ Workflow:
 - all required child inputs and parameters have exactly one mapping;
 - unknown child slots and unknown logical output names are rejected;
 - `audit-input` names exist and have at least one compatible media type;
-- `standard-mappings@1` has no `sourceInput`, uses exactly one retained package,
+- `standard-mappings@1` has no `source`, uses exactly one retained package,
   and still maps ordinary declared Audit inputs such as `source` into its child
   Workflow;
 - `item-package` is accepted only by an artifact slot compatible with the
@@ -380,6 +380,90 @@ Server lacks discovery, human finding confirmation, human review, report
 acceptance, or multiple-round execution. A successfully started Audit may still
 wait in the ordinary queue for a compatible Runtime Agent.
 
+### 4.4 Preparation contract (V62-001)
+
+This is the current authoring contract. `sourceInput` and `settingsInput` are
+rejected, including in persisted profile snapshots; there is no alternate
+reader or implicit conversion. Repository profiles use the same explicit
+mapping as Workflow inputs. A schema change changes the profile digest.
+Immutable snapshots are never silently rewritten to match a newer catalog.
+
+The executable example is
+[`prepared-openapi-scan.yaml`](../../api/testdata/audit-composition/prepared-openapi-scan.yaml).
+It selects the existing `openapi-from-workspace@7` Workflow as a `prepare` role
+and the existing scan Workflow's `auditTask: openapi-scan@1` execution contract.
+Those resource names are configuration choices; role kind and declared input
+sources determine scheduling and authority. Preparation happens before any
+item exists. Workflow Stages around an item executor cannot replace it.
+
+```yaml
+inventory:
+  implementation: openapi-scans@1
+  source: {source: prepare-output, role: generate-api, name: api}
+  settings: {source: audit-input, name: settings}
+  itemWorkflowRole: scan
+workflows:
+  generate-api:
+    kind: prepare
+    ref: openapi-from-workspace@7
+    maxRunAttempts: 2
+    inputs:
+      source: {source: audit-input, name: source}
+    parameters: {}
+    outputs:
+      api: openapi
+      validation: openapi_validation_report
+```
+
+`inventory.source` is required for document inventories and absent for
+`standard-mappings@1`. `inventory.settings` is required only for
+`openapi-scans@1`, must accept JSON and must differ from `source`. Both use
+`{source: audit-input, name}` or `{source: prepare-output, role, name}`.
+`name` denotes the Audit input or the producer's logical output. An Audit
+input forbids `role`. A prepare output requires a declared prepare producer
+and a required Workflow output with compatible media types. Required consumers
+cannot use optional inputs/outputs. Scanner source/settings mappings must
+exactly equal the inventory references, including the producer role.
+
+| Source | Prepare consumer | Inventory | Round consumer | Scope |
+| --- | --- | --- | --- | --- |
+| `audit-input` | yes | yes | yes | Immutable baseline |
+| `prepare-output` | yes, dependency order | yes | yes, every Round | Accepted output of this Audit |
+| `item-package` | forbidden | forbidden | check item context | Assigned execution |
+| `execution-manifest` | forbidden | forbidden | existing item execution manifest | Assigned execution |
+| `retained-output` | forbidden | forbidden | existing discovery/assessment dependency rules | Same Round |
+
+Prepare parameters may use literals and scope fields, never item fields.
+Prepare roles cannot declare `auditTask` or `workerCompletion`. Their ordinary
+Workflow may have any valid topology. A prepare output cannot be consumed as
+`retained-output`; a check/discovery/assessment output cannot be consumed as
+`prepare-output`. Self-dependencies, cycles, later-phase dependencies, unknown
+roles/outputs and incompatible media types fail configuration validation.
+No `finalize`, `round-results`, proposed-check routing or additional retained
+source kind is introduced here.
+
+Each prepare role must explicitly set `maxRunAttempts` in 1..10, no larger
+than `execution.maxSubmittedRuns`; other role kinds cannot set it. It bounds
+ordinary Run submissions for that role, independently of Stage retries inside
+a Run. The shared Server ceiling is `MaxAuditRunAttempts`. Existing bounds
+remain: 16 total roles, 32 baseline inputs, 128 input/parameter/output mappings
+per Workflow binding, 128 accepted output descriptors per role. Public retained
+output descriptors include exact ref/digest, media type and size (0..64 MiB).
+Their cumulative bytes consume the existing evidence budget, including failed
+attempt evidence, and are also bounded by the artifact layer and chosen parser.
+Attempts reserve the existing cumulative Run budget atomically and do not
+introduce an Audit concurrency setting. Per-Run execution policies and the
+Scheduler retain their existing authority.
+
+Until V62-002–004 provide storage, controller and inventory acceptance, valid
+prepare profiles return `serverCompatible: false` with
+`preparation_unsupported`; start and input preview reject them before building
+inventory or submitting Runs. The example remains a test fixture, not a
+runnable catalog preset. The first preparation release does not authorize
+classified active-check tools before item approval; profiles requiring such
+preparation remain unsupported until an explicit Audit-scoped approval contract
+exists. The existing scan approval and outcome-aware retry rules are unchanged.
+
 ## 5. Baseline and scope
 
 Audit belongs to exactly one `project_id` and owner. At `start`, one transaction
@@ -456,7 +540,7 @@ erDiagram
 | `AuditReportCandidate` | audit_id, request_id, round_id, exact pre-publication Audit revision/digest, frozen machine/summary artifact descriptors, timestamp |
 | `AuditEvent` | audit_id, monotonic sequence, kind, entity id/revision, bounded safe summary |
 
-Execution role kinds are `discovery | check | assessment`; `workflow_role`
+Execution role kinds are `prepare | discovery | check | assessment`; `workflow_role`
 stores the operator-chosen binding name whose pinned kind must match. A check execution has an
 ordered set of `AuditExecutionItem` rows; discovery and assessment belong to
 the Audit or Round and do not create fake items. Each execution has at most one
@@ -871,8 +955,8 @@ that decision's own expiry rather than the Audit admission clock.
 
 Only a `paused` Audit can resume. Terminal `completed`, `failed` and `cancelled`
 Audits remain final, including historical records whose stop reason is
-`deadline_exhausted`. Resume requires an active Project, a current Round and no
-frozen report candidate. Accepted items, receipts, evidence and baseline bytes
+`deadline_exhausted`. Resume requires an active Project, a pinned baseline and either a current Round
+or a persisted preparation/inventory phase, with no frozen report candidate. Accepted items, receipts, evidence and baseline bytes
 never change; report links are not archived or rewritten by Resume.
 Expired task approvals require fresh exact-subject requests; resuming never
 silently extends human authority. Successful resume clears `paused_at` and the
@@ -933,6 +1017,80 @@ retryable and still within policy return to `ready`; none of the batch's
 intermediate artifact writes is a checkpoint. Members are then eligible for
 new grouping, so exhaustion is evaluated per logical item even though one
 failed Run may consume one attempt for several items.
+
+### 10.1 Preparation, inventory and controls before the first Round
+
+`phase` is separate from Audit lifecycle `state`. It is required in public
+projections: `not-started`, `preparing`, `inventory`, or `rounds`.
+`not-started` has no preparation or current Round. A direct-input profile pins
+its baseline and builds inventory at start, then enters `rounds`.
+A prepare profile pins original inputs, profile/Workflow/Skill closures,
+Runtime configuration, credentials and scope before the first Run and enters
+`preparing`. `preparing` and `inventory` have no `currentRoundId`.
+
+Every prepare attempt has unique `(audit_id, workflow_role, role_attempt)`
+identity, `kind: prepare`, no Round and no execution items. It records one
+submission key, at most one Run, exact resolved inputs and parameters in the
+execution snapshot, and the ordinary execution/receipt lifecycle. Retry is a
+new attempt; a process restart reuses the existing submission key. Lost submit
+acknowledgement or uncertain collection never justifies another Run. Accepted
+outputs are reused on resume, restart and all later Rounds. A failed authoritative
+Run or invalid/missing required output may consume another bounded attempt;
+collection I/O uncertainty stays in recovery until resolved.
+
+All profile-mapped outputs of a successful prepare role are retained and
+accepted atomically, including outputs used only as diagnostics. Acceptance
+records exact source Run output revision, retained Project revision, digest,
+media type/size, execution and Run identity, logical name and actual Workflow
+output name. At most one attempt is accepted per role. Dependent roles fork
+these exact retained revisions. They do not read a mutable current binding.
+Accepted preparation artifacts are protected by Audit retention and remain
+readable after permitted source Run deletion; baseline input/scope provenance
+is not replaced by generated outputs.
+
+The public `preparation.roles` map uses the authored role names. Each entry
+has `status`, `attempts`, `maxAttempts`, optional current `executionId`/`runId`,
+and `outputs`. `pending` means zero attempts and no execution or outputs;
+`running` includes submission, recovery, collection and bounded retries;
+`accepted` has the accepted execution/Run and every mapped exact output;
+`failed` has exhausted attempts or a non-retryable failure and no accepted
+outputs. Accepted output descriptors retain producing execution/Run identity
+and the Workflow output name. A failed attempt's diagnostic evidence remains
+in its receipt, not in accepted outputs. `attempts` cannot exceed `maxAttempts`.
+
+After all prepare roles are accepted, `phase: inventory` resolves the explicit
+inventory source/settings and reuses the existing deterministic builders.
+The original baseline has no inventory field for this path: generated
+inventory/worklist provenance is retained separately through its accepted
+Round and preparation descriptors. Validated worklist, tasks and first Round
+are accepted atomically, then `phase: rounds` requires `currentRoundId`.
+There is no partially accepted first Round. Empty or invalid generated
+inventory fails with `empty_inventory` or `invalid_inventory`, respectively,
+after dispatch closes and children drain. It does not create a placeholder
+Round or imply compliance. Direct-input empty/invalid inventory continues to
+reject start before its baseline transaction commits.
+
+| Trigger before first Round | Result and retained authority |
+| --- | --- |
+| Start | Pin baseline and holds; active/preparing; return `audit` and empty `items`, omit `round` |
+| Pause | Close admission, enter paused; preserve phase, exact outputs and holds; existing Runs drain and collect |
+| Deadline | Same paused behavior with `deadline_exhausted`; child deadlines remain independent |
+| Resume | Active Project, pinned baseline and persisted phase required; reopen admission without rerunning accepted roles |
+| Cancel | Enter cancelling, close admission, cancel/drain owned Runs, collect receipts, release holds, then cancelled |
+| Delete | Persist deleting intent, fence admission, drain children, then purge retained artifacts through existing ownership rules |
+| Retryable known failure | New role attempt if both per-role and cumulative budgets allow |
+| Unknown submit/collection outcome | Recover the same intent/Run/receipt; no speculative retry |
+| Exhausted role or non-time budget | Close admission and drain; failed with explicit `preparation_failed` or existing budget reason |
+| Valid nonempty inventory | Accept first Round/worklist atomically; switch to rounds |
+| Empty/invalid inventory | Fail explicitly; no Round, items, coverage success or fabricated report |
+
+Pause/deadline may allow completed outputs to be collected, but first-Round
+acceptance waits for resumed admission. Cancellation/deletion never starts
+inventory or dependent preparation. Terminal Audits do not resume. Before a
+Round exists, item/coverage pages are empty and no aggregate report is ready;
+phase, role status and stop reason explain progress. After Round creation,
+existing controls, review, budgets and round barriers apply. V62-010 may add
+richer provenance views without changing these minimal contracts.
 
 ## 11. Submission, queueing, and fairness
 

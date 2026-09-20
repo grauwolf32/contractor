@@ -52,7 +52,7 @@ func testSubmission(
 		Proposal: auditdomain.FindingProposal{
 			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
 			Title: "Candidate", Description: "Candidate description",
-			Subject:       auditdomain.FindingSubject{Kind: "code", Key: "handler"},
+			Subject:       &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
 			Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 			EvidenceIDs: ids, ProposedChecks: []auditdomain.ProposedCheck{},
 			Limitations: []string{},

@@ -15,6 +15,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
+// Allow journal writes to finish after invocation cancellation, but never wait
+// indefinitely for storage during recovery. This is not a scanner time budget.
+const journalIOTimeout = 5 * time.Second
+
 func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, error) {
 	empty := contracts.StageContentResult{}
 	start, err := p.factory.sessions.BeginScan(ctx, p.invocation.StageExecutionID, p.invocation.SchedulerClaimID)
@@ -26,6 +30,28 @@ func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, erro
 	}
 	if !start.Invoke {
 		return empty, scanError("scan_session_unavailable", nil)
+	}
+	if p.invocation.Stage.AuditScan != nil {
+		if err := p.loadAuditInputs(ctx); err != nil {
+			return empty, err
+		}
+		history, err := p.auditHistory(ctx)
+		if err != nil {
+			return empty, err
+		}
+		recover := false
+		for _, attempt := range history {
+			if attempt.StageExecutionID == p.invocation.StageExecutionID {
+				continue
+			}
+			if !attempt.Terminal {
+				return empty, scanError("scan_prior_attempt_active", nil)
+			}
+			recover = recover || planner.ScanAttemptNeedsRecovery(attempt)
+		}
+		if recover || !p.audit.task.Scan.Runnable {
+			return p.finishAudit(ctx, start.Identity, history)
+		}
 	}
 	plan, state, err := p.prepare(ctx, start)
 	if err != nil {
@@ -67,7 +93,7 @@ func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, erro
 				}
 			}
 		}
-		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), journalIOTimeout)
 		err := p.factory.sessions.FinishScanJob(writeCtx, start.Identity, record)
 		cancel()
 		if err != nil {
@@ -88,6 +114,15 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 	payload, err := p.factory.artifacts.Read(ctx, p.invocation.RunID, *source, scanplan.MaxPlanBytes)
 	if err != nil {
 		return emptyPlan, emptyState, scanError("scan_source_unavailable", err)
+	}
+	if p.audit != nil {
+		prepared, preparedPayload, err := p.auditPlanInput(ctx)
+		if err != nil {
+			return emptyPlan, emptyState, err
+		}
+		source, payload = &prepared, preparedPayload
+		policy.Tools = append([]contracts.ScanToolPolicy{}, policy.Tools...)
+		policy.Tools[0].TestParameters = append([]string{}, p.audit.task.Scan.TestParameters...)
 	}
 	bindings := map[string]scanplan.ToolBinding{}
 	for name, binding := range p.invocation.Stage.Agents {

@@ -3,21 +3,22 @@
 Status: V43-001 specifies the contract and implements the Go codec, package
 validation and deterministic destination mapping. V43-002 implements Server
 publication through `POST /v1/finding-collections`. V43-003 implements Runtime
-preparation and `list_findings` in `security-findings@2`. V43-004 adds explicit
+preparation and `list_findings` in `security-findings@1`. V43-004 adds explicit
 producer and reader configurations with a production-process integration test.
 V43-005 adds `make test-findings-e2e` with required execution checks.
-Existing agent configuration versions keep their selected tools and instructions.
+The development application uses one current finding schema and interface set;
+old development shapes are not maintained as compatibility variants.
 
-## Responsibilities and compatibility
+## Responsibilities
 
-`finding(...)` preserves the existing `security-findings@1` operation and its
+`finding(...)` uses the selected general/code/HTTP interface and its
 allocation-bound intake receipt. The same client key with identical content is
 idempotent; changed content conflicts. A proposal may describe an observation,
 a hypothesis or a finding with evidence. Hypothesis, proposed checks, annotations
 and reproduction instructions remain optional under the generic contract.
 Scenario instructions can require more detail without changing the tool schema.
 
-An explicitly selected `security-findings@2` adds `list_findings`.
+`security-findings@1` also exports independently selectable `list_findings`.
 AgentTemplate selection can expose creation, reading or both. Selecting reading
 does not imply finding emission, Audit confirmation or review authority.
 The existing [Audit review contract](19-audits.md) owns those mutations.
@@ -53,7 +54,7 @@ newline. Collection decoding rejects noncanonical representations, unknown or
 duplicate keys, wrong key case, missing required fields, invalid Unicode and
 unsupported schema versions. Optional members are omitted, never `null` or an
 empty placeholder. Embedded proposal bytes retain their original representation
-and are independently decoded under `contractor.audit.finding-proposal.v1`.
+and are independently decoded under the current `contractor.audit.finding-proposal.v1` contract.
 
 ### Collection metadata
 
@@ -228,7 +229,7 @@ The ZIP is passed as a declared ordinary Workflow input. Public Run creation
 continues to fork declared artifacts through its existing mechanism. It does not
 follow JSON refs or gain collection-specific recursive input handling.
 
-For `security-findings@2`, the declared input slot is `findings`, required and
+For `security-findings@1`, the declared input slot is `findings`, required and
 accepting `application/vnd.contractor.findings-collection+zip`. Workflow validation
 requires this slot only when an agent selects `list_findings`. Preparation resolves
 `inputs/findings` once to an exact revision; later binding changes do not alter
@@ -243,7 +244,7 @@ inputs:
 
 # AgentTemplate spec
 toolsets:
-  - ref: security-findings@2
+  - ref: security-findings@1
     tools: [list_findings] # Add finding when this agent also creates proposals.
   - ref: run-artifacts@1
     tools: [read_artifact]
@@ -358,6 +359,124 @@ with `-tags=integration` and fail when explicitly selected without a test databa
 V43-003 consumes this same
 fixture for Python decoding, real ArtifactClient preparation behavior, previews,
 pagination and independent tool selection. V43-004 selects new immutable config
-versions; old versions remain reproducible. V43-005 proves producer → publication
+configurations; finding interfaces evolve in place during development. V43-005 proves producer → publication
 → ordinary input fork → preparation → reader across Server/Runtime processes.
 Model quality evals remain separate and follow the V41 portable-format gate.
+
+## Finding proposal and selected authoring interfaces
+
+The single current `contractor.audit.finding-proposal.v1` schema carries the
+proposal fields and intake/receipt authority and permits an explicitly unknown
+`subject: null`, and adds optional `locations` and `http_exchange`. A missing
+subject is never synthesized from a URL, title or run ID. Verification inventory
+uses the existing receipt identity when a subject is unknown; this does not
+rewrite the proposal's subject.
+
+Select exactly one creation interface in `AgentTemplate.toolsets`:
+
+| Toolset | Required model arguments | Optional location arguments |
+| --- | --- | --- |
+| `security-findings@1` | `title`, `description` | typed `locations` |
+| `security-findings-code@1` | `title`, `description`, `file` | `line` or `range` |
+| `security-findings-http@1` | `title`, `description`, `url`, `method` | `request_id` |
+
+Each exports the single visible name `finding`. Selection is fixed before the
+worker starts; duplicate visible tool names are rejected. Each also accepts
+optional `cwe`, exact `evidence_refs` and typed `standard_refs`. The publisher
+shares normalization, intake and receipt handling. Reading via
+`security-findings@1` can be selected independently of a creation facade.
+There is no parallel old authoring implementation or alternate proposal schema.
+
+The hidden `client_key` is `call-` plus the full SHA-256 of the nonempty ADK
+function-call ID. The existing invocation namespace and submission identity
+remain unchanged. A transport retry of the same event reuses exact submission
+bytes; different tool calls remain different proposals. Missing call identity
+fails before submission. Results return `proposal_id`, `receipt_id`, `client_key`;
+Audit workers copy the returned key into `submit_check_result(proposal_keys=...)`.
+No content-based deduplication or guessed subject is introduced.
+
+Optional `cwe` maps to `standard_refs` with scheme `CWE`, version `4.20` and the
+explicit `CWE-NNN` weakness ID. The bundled catalog records MITRE's versioned XML
+archive URL, archive/XML SHA-256 and its weakness IDs. Unknown IDs fail locally;
+no live taxonomy lookup occurs. Updating the catalog/version requires reviewing
+the mapping and the external benchmark binding together.
+
+### Typed locations
+
+A location is exactly one closed object:
+
+- Source: required `file`, optional `line` or `range: {start_line, end_line}`.
+- Web: required `url`, optional `method`.
+
+Source coordinates are one-based and inclusive; range end cannot precede start.
+File paths are case-sensitive relative POSIX paths. Reject backslashes, colons,
+empty/dot/parent components and control characters. URLs must be absolute
+HTTP/HTTPS URLs with a host, valid nonzero port if present and no userinfo,
+backslash, whitespace, control characters or malformed percent escapes. Methods
+are nonempty ASCII HTTP tokens. Preserve authored spelling, query order,
+escaping and fragments; do not fetch, normalize, infer GET or remap paths.
+
+| Bound | Value and basis |
+| --- | --- |
+| Locations | 256, matching existing per-finding evidence capacity |
+| File | 4096 UTF-8 bytes, the V63 retained path bound |
+| URL | 8192 UTF-8 bytes, matching the HTTP tool URL bound |
+| Method | 64 ASCII bytes, the V63 bounded method field |
+| Line/range endpoints | 1–9007199254740991, JSON/JavaScript exact integers |
+
+Absent or empty locations encode by omission. Explicit null, unknown fields,
+file+URL, line+range and malformed coordinates fail. Locations are producer
+claims, not proof of source identity, reachability or exploitation. The benchmark
+must separately verify exact source bytes. Array order is retained.
+
+### Selected HTTP evidence
+
+The HTTP session keeps the latest 128 outgoing request records in memory, under
+its existing history capacity. Each contains actual HTTPX request method/URL,
+ordered headers (including duplicate fields), complete outgoing body bytes,
+response status/headers or a transport outcome, and the redirect/retry attempts.
+The store is allocation-owned; resolution additionally requires the same
+invocation. Failed/incomplete exchanges cannot be attached as successful evidence.
+Clearing or closing the session erases the store; IDs are never reused.
+
+The HTTP facade requires URL and method even without an ID. A missing ID permits
+a finding without captured evidence. A supplied expired, incomplete or foreign ID
+returns a repairable error; callers may choose a current ID or omit it. Creating
+a finding never sends or replays traffic. Authored location and observed request
+remain separate facts; neither silently replaces the other.
+
+`http_exchange` embeds a copied snapshot in the selected proposal:
+`request_id`, `request_tag`, nonempty `attempts`, and optional
+`response_body_evidence_id`. Each attempt has `method`, `url`, `headers`
+(`{name,value}` rows), canonical `body_base64`, exactly one of `status` or `error`,
+and optional `response_headers`. Errors are `transport_error` or `cancelled`.
+An existing final response-body artifact is pinned through normal exact evidence
+references. There is no new artifact for every outgoing request. Selected target
+Authorization/Cookie headers and request bodies are retained in full in the
+proposal; they are not added to history summaries, metrics or serialized worker
+state. Private transport credentials remain outside the target request capture.
+
+Limits mirror existing HTTP bounds: 1 MiB outgoing body per attempt, 64 KiB per
+header block and at most ten redirects plus three attempts (13 total records).
+The existing 8 MiB proposal/submission limit still applies to the encoded
+snapshot. An oversized finding fails explicitly; evidence is not silently
+truncated. Original response artifact size/truncation semantics are unchanged.
+
+### Development contract and verification
+
+Server, Runtime, configurations, clients and benchmark binding use this current
+contract together. Old development shapes are not supported through adapters or
+migrations. Collections retain exact proposal bytes that satisfy this contract.
+API and machine reports expose typed coordinates and selected exchange evidence.
+The UI displays authored coordinates without inferred links or web previews.
+SARIF export remains a separate draft.
+
+The ordinary source-findings-review@1 workflow uses the code facade. Existing
+source verifier/tracer templates now select the code facade; the HTTP verifier
+selects the HTTP facade. No duplicate template/workflow versions were introduced
+for compatibility. crAPI consumes the ordinary workflow's retained public receipts.
+
+The shared location fixture exercises Go, Python and UI validation. The findings
+process gate includes a real facade→intake→API→collection→reader round trip after
+producer deletion. Runtime tests cover actual provider declarations, hidden call
+identity, full HTTP capture, invocation isolation, eviction and immutable snapshots.

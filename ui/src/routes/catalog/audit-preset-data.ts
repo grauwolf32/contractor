@@ -25,6 +25,8 @@ export function presetScope(profile: AuditProfile): string {
       return "Checks defined by the referenced standard.";
     case "checklist@1":
       return "Checks from your uploaded checklist.";
+    case "openapi-scans@1":
+      return "Scanner checks for explicitly selected OpenAPI operations.";
     case "openapi-operations@1":
       return "One check per operation in your OpenAPI document.";
     case "finding-candidates@1":

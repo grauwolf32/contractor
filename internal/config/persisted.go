@@ -16,6 +16,9 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 	if err := decodeStrictSnapshot(data, &workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
+	if err := ValidateAuditTaskWorkflow(workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
 	for name, stage := range workflow.Stages {
 		if err := stage.Session.Validate(); err != nil {
 			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
@@ -89,6 +92,12 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 		if _, err := WorkflowSkillRefs(binding.Workflow); err != nil {
 			return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile workflow %q: %w", role, err)
 		}
+	}
+	if err := ValidateAuditPreparationProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	if err := ValidateAuditTaskProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
 	}
 	expected, err := auditProfileDigest(selector, profile)
 	if err != nil || expected != profile.Ref.Digest {

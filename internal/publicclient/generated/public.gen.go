@@ -1467,6 +1467,24 @@ func (e FindingCollectionSourceSelectionKind) Valid() bool {
 	}
 }
 
+// Defines values for FindingHTTPAttemptError.
+const (
+	Cancelled      FindingHTTPAttemptError = "cancelled"
+	TransportError FindingHTTPAttemptError = "transport_error"
+)
+
+// Valid indicates whether the value is a known member of the FindingHTTPAttemptError enum.
+func (e FindingHTTPAttemptError) Valid() bool {
+	switch e {
+	case Cancelled:
+		return true
+	case TransportError:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingProposalDocumentSchema.
 const (
 	ContractorAuditFindingProposalV1 FindingProposalDocumentSchema = "contractor.audit.finding-proposal.v1"
@@ -2667,6 +2685,8 @@ type Audit struct {
 
 	// PausedAt Time when the remaining Audit allowance was frozen.
 	PausedAt              *time.Time                `json:"pausedAt,omitempty"`
+	Phase                 AuditPhase                `json:"phase"`
+	Preparation           *AuditPreparation         `json:"preparation,omitempty"`
 	Profile               AuditProfileIdentity      `json:"profile"`
 	ProjectId             ResourceId                `json:"projectId"`
 	ReservedRunCount      int                       `json:"reservedRunCount"`
@@ -2679,6 +2699,22 @@ type Audit struct {
 	StopReason            *AuditStopReason          `json:"stopReason,omitempty"`
 	SubmittedRunCount     int                       `json:"submittedRunCount"`
 	UpdatedAt             time.Time                 `json:"updatedAt"`
+	union                 json.RawMessage
+}
+
+// Audit0 defines model for Audit.0.
+type Audit0 struct {
+	Phase interface{} `json:"phase,omitempty"`
+}
+
+// Audit1 defines model for Audit.1.
+type Audit1 struct {
+	Phase interface{} `json:"phase,omitempty"`
+}
+
+// Audit2 defines model for Audit.2.
+type Audit2 struct {
+	Phase interface{} `json:"phase,omitempty"`
 }
 
 // AuditActionDecisionResult defines model for AuditActionDecisionResult.
@@ -2697,7 +2733,7 @@ type AuditAnalystVerdict = interface{}
 // AuditBaseline defines model for AuditBaseline.
 type AuditBaseline struct {
 	Inputs            map[string]AuditExactArtifact `json:"inputs"`
-	Inventory         AuditBaselineInventory        `json:"inventory"`
+	Inventory         *AuditBaselineInventory       `json:"inventory,omitempty"`
 	ProjectHttpTarget *ProjectHTTPTarget            `json:"projectHttpTarget,omitempty"`
 	RuntimeConfig     AuditRuntimeSnapshot          `json:"runtimeConfig"`
 	RuntimeLabels     []RuntimeInfrastructureId     `json:"runtimeLabels"`
@@ -2918,8 +2954,43 @@ type AuditInteractionPolicy struct {
 type AuditInventory struct {
 	Implementation    interface{}             `json:"implementation"`
 	ItemWorkflowRole  ArtifactName            `json:"itemWorkflowRole"`
-	SourceInput       *ArtifactName           `json:"sourceInput,omitempty"`
+	Settings          *AuditInventoryArtifact `json:"settings,omitempty"`
+	Source            *AuditInventoryArtifact `json:"source,omitempty"`
 	StandardSelection *AuditStandardSelection `json:"standardSelection,omitempty"`
+	union             json.RawMessage
+}
+
+// AuditInventory0 defines model for AuditInventory.0.
+type AuditInventory0 struct {
+	Implementation interface{} `json:"implementation,omitempty"`
+}
+
+// AuditInventory1 defines model for AuditInventory.1.
+type AuditInventory1 struct {
+	Implementation interface{} `json:"implementation,omitempty"`
+}
+
+// AuditInventory2 defines model for AuditInventory.2.
+type AuditInventory2 struct {
+	Implementation interface{} `json:"implementation,omitempty"`
+}
+
+// AuditInventoryArtifact defines model for AuditInventoryArtifact.
+type AuditInventoryArtifact struct {
+	Name   ArtifactName  `json:"name"`
+	Role   *ArtifactName `json:"role,omitempty"`
+	Source interface{}   `json:"source"`
+	union  json.RawMessage
+}
+
+// AuditInventoryArtifact0 defines model for AuditInventoryArtifact.0.
+type AuditInventoryArtifact0 struct {
+	Source interface{} `json:"source,omitempty"`
+}
+
+// AuditInventoryArtifact1 defines model for AuditInventoryArtifact.1.
+type AuditInventoryArtifact1 struct {
+	Source interface{} `json:"source,omitempty"`
 }
 
 // AuditItem defines model for AuditItem.
@@ -3006,6 +3077,9 @@ type AuditPage struct {
 	Page  PageInfo `json:"page"`
 }
 
+// AuditPhase defines model for AuditPhase.
+type AuditPhase = interface{}
+
 // AuditPinnedRuntimeLabel defines model for AuditPinnedRuntimeLabel.
 type AuditPinnedRuntimeLabel struct {
 	BindingRevision int                     `json:"bindingRevision"`
@@ -3022,6 +3096,56 @@ type AuditPinnedStandard struct {
 	Retained  AuditStandardExactPackage `json:"retained"`
 	Source    AuditStandardSource       `json:"source"`
 	Title     string                    `json:"title"`
+}
+
+// AuditPreparation defines model for AuditPreparation.
+type AuditPreparation struct {
+	Roles map[string]AuditPreparationRole `json:"roles"`
+}
+
+// AuditPreparationOutput defines model for AuditPreparationOutput.
+type AuditPreparationOutput struct {
+	Artifact struct {
+		Digest    Digest           `json:"digest"`
+		MediaType MediaType        `json:"mediaType"`
+		Ref       ExactArtifactRef `json:"ref"`
+		SizeBytes int              `json:"sizeBytes"`
+	} `json:"artifact"`
+	ExecutionId    ResourceId   `json:"executionId"`
+	RunId          ResourceId   `json:"runId"`
+	WorkflowOutput ArtifactName `json:"workflowOutput"`
+}
+
+// AuditPreparationRole defines model for AuditPreparationRole.
+type AuditPreparationRole struct {
+	Attempts    int                               `json:"attempts"`
+	ExecutionId *ResourceId                       `json:"executionId,omitempty"`
+	MaxAttempts int                               `json:"maxAttempts"`
+	Outputs     map[string]AuditPreparationOutput `json:"outputs"`
+	RunId       *ResourceId                       `json:"runId,omitempty"`
+	Status      interface{}                       `json:"status"`
+	union       json.RawMessage
+}
+
+// AuditPreparationRole0 defines model for AuditPreparationRole.0.
+type AuditPreparationRole0 struct {
+	Attempts interface{} `json:"attempts,omitempty"`
+	Outputs  interface{} `json:"outputs,omitempty"`
+	Status   interface{} `json:"status,omitempty"`
+}
+
+// AuditPreparationRole1 defines model for AuditPreparationRole.1.
+type AuditPreparationRole1 struct {
+	Attempts interface{} `json:"attempts,omitempty"`
+	Outputs  interface{} `json:"outputs,omitempty"`
+	Status   interface{} `json:"status,omitempty"`
+}
+
+// AuditPreparationRole2 defines model for AuditPreparationRole.2.
+type AuditPreparationRole2 struct {
+	Attempts interface{} `json:"attempts,omitempty"`
+	Outputs  interface{} `json:"outputs,omitempty"`
+	Status   interface{} `json:"status,omitempty"`
 }
 
 // AuditProfile defines model for AuditProfile.
@@ -3085,11 +3209,23 @@ type AuditProfileUnsupportedDetailsKind string
 
 // AuditProfileWorkflow defines model for AuditProfileWorkflow.
 type AuditProfileWorkflow struct {
-	Inputs     map[string]AuditWorkflowInputMapping     `json:"inputs"`
-	Kind       interface{}                              `json:"kind"`
-	Outputs    map[string]ArtifactName                  `json:"outputs"`
-	Parameters map[string]AuditWorkflowParameterMapping `json:"parameters"`
-	Workflow   WorkflowRef                              `json:"workflow"`
+	Inputs         map[string]AuditWorkflowInputMapping     `json:"inputs"`
+	Kind           interface{}                              `json:"kind"`
+	MaxRunAttempts *int                                     `json:"maxRunAttempts,omitempty"`
+	Outputs        map[string]ArtifactName                  `json:"outputs"`
+	Parameters     map[string]AuditWorkflowParameterMapping `json:"parameters"`
+	Workflow       WorkflowRef                              `json:"workflow"`
+	union          json.RawMessage
+}
+
+// AuditProfileWorkflow0 defines model for AuditProfileWorkflow.0.
+type AuditProfileWorkflow0 struct {
+	Kind interface{} `json:"kind,omitempty"`
+}
+
+// AuditProfileWorkflow1 defines model for AuditProfileWorkflow.1.
+type AuditProfileWorkflow1 struct {
+	Kind interface{} `json:"kind,omitempty"`
 }
 
 // AuditReport defines model for AuditReport.
@@ -3363,7 +3499,23 @@ type AuditStandardSource struct {
 type AuditStartResponse struct {
 	Audit Audit       `json:"audit"`
 	Items []AuditItem `json:"items"`
-	Round AuditRound  `json:"round"`
+	Round *AuditRound `json:"round,omitempty"`
+	union json.RawMessage
+}
+
+// AuditStartResponse0 defines model for AuditStartResponse.0.
+type AuditStartResponse0 struct {
+	Audit *struct {
+		Phase interface{} `json:"phase,omitempty"`
+	} `json:"audit,omitempty"`
+}
+
+// AuditStartResponse1 defines model for AuditStartResponse.1.
+type AuditStartResponse1 struct {
+	Audit *struct {
+		Phase interface{} `json:"phase,omitempty"`
+	} `json:"audit,omitempty"`
+	Items interface{} `json:"items,omitempty"`
 }
 
 // AuditState defines model for AuditState.
@@ -3389,6 +3541,22 @@ type AuditWorkflowInputMapping struct {
 	Name   *ArtifactName `json:"name,omitempty"`
 	Role   *ArtifactName `json:"role,omitempty"`
 	Source interface{}   `json:"source"`
+	union  json.RawMessage
+}
+
+// AuditWorkflowInputMapping0 defines model for AuditWorkflowInputMapping.0.
+type AuditWorkflowInputMapping0 struct {
+	Source interface{} `json:"source,omitempty"`
+}
+
+// AuditWorkflowInputMapping1 defines model for AuditWorkflowInputMapping.1.
+type AuditWorkflowInputMapping1 struct {
+	Source interface{} `json:"source,omitempty"`
+}
+
+// AuditWorkflowInputMapping2 defines model for AuditWorkflowInputMapping.2.
+type AuditWorkflowInputMapping2 struct {
+	Source interface{} `json:"source,omitempty"`
 }
 
 // AuditWorkflowParameterMapping defines model for AuditWorkflowParameterMapping.
@@ -4829,6 +4997,56 @@ type FindingExactArtifact struct {
 	SizeBytes int              `json:"sizeBytes"`
 }
 
+// FindingHTTPAttempt Exactly one of status or error; each header block is at most 64 KiB.
+type FindingHTTPAttempt struct {
+	// BodyBase64 Canonical base64 of up to 1 MiB of outgoing bytes.
+	BodyBase64      string                   `json:"body_base64"`
+	Error           *FindingHTTPAttemptError `json:"error,omitempty"`
+	Headers         []FindingHTTPHeader      `json:"headers"`
+	Method          string                   `json:"method"`
+	ResponseHeaders *[]FindingHTTPHeader     `json:"response_headers,omitempty"`
+	Status          *int                     `json:"status,omitempty"`
+	Url             string                   `json:"url"`
+	union           json.RawMessage
+}
+
+// FindingHTTPAttemptError defines model for FindingHTTPAttempt.Error.
+type FindingHTTPAttemptError string
+
+// FindingHTTPAttempt0 defines model for FindingHTTPAttempt.0.
+type FindingHTTPAttempt0 = interface{}
+
+// FindingHTTPAttempt1 defines model for FindingHTTPAttempt.1.
+type FindingHTTPAttempt1 = interface{}
+
+// FindingHTTPExchange defines model for FindingHTTPExchange.
+type FindingHTTPExchange struct {
+	// Attempts Existing HTTP budget of ten redirects plus three attempts.
+	Attempts   []FindingHTTPAttempt `json:"attempts"`
+	RequestId  int                  `json:"request_id"`
+	RequestTag string               `json:"request_tag"`
+
+	// ResponseBodyEvidenceId Must identify a member of this proposal's evidence_ids.
+	ResponseBodyEvidenceId *string `json:"response_body_evidence_id,omitempty"`
+}
+
+// FindingHTTPHeader defines model for FindingHTTPHeader.
+type FindingHTTPHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// FindingLineRange Inclusive coordinates; end_line must be at least start_line.
+type FindingLineRange struct {
+	EndLine   int `json:"end_line"`
+	StartLine int `json:"start_line"`
+}
+
+// FindingLocation defines model for FindingLocation.
+type FindingLocation struct {
+	union json.RawMessage
+}
+
 // FindingOrigin defines model for FindingOrigin.
 type FindingOrigin struct {
 	AllocationId     ResourceId            `json:"allocationId"`
@@ -4843,18 +5061,24 @@ type FindingOrigin struct {
 
 // FindingProposalDocument defines model for FindingProposalDocument.
 type FindingProposalDocument struct {
-	ClientKey          string                        `json:"client_key"`
-	Description        string                        `json:"description"`
-	EvidenceIds        []string                      `json:"evidence_ids"`
-	Hypothesis         *string                       `json:"hypothesis,omitempty"`
-	Limitations        []string                      `json:"limitations"`
+	ClientKey    string               `json:"client_key"`
+	Description  string               `json:"description"`
+	EvidenceIds  []string             `json:"evidence_ids"`
+	HttpExchange *FindingHTTPExchange `json:"http_exchange,omitempty"`
+	Hypothesis   *string              `json:"hypothesis,omitempty"`
+	Limitations  []string             `json:"limitations"`
+
+	// Locations Optional; source and web coordinates are producer claims.
+	Locations          *[]FindingLocation            `json:"locations,omitempty"`
 	Preconditions      []string                      `json:"preconditions"`
 	ProposedChecks     []FindingProposedCheck        `json:"proposed_checks"`
 	Schema             FindingProposalDocumentSchema `json:"schema"`
 	SeveritySuggestion interface{}                   `json:"severity_suggestion"`
 	StandardRefs       []FindingStandardReference    `json:"standard_refs"`
-	Subject            FindingSubject                `json:"subject"`
-	Title              string                        `json:"title"`
+
+	// Subject Null means the affected subject is not identified.
+	Subject nullable.Nullable[FindingSubject] `json:"subject"`
+	Title   string                            `json:"title"`
 }
 
 // FindingProposalDocumentSchema defines model for FindingProposalDocument.Schema.
@@ -4887,6 +5111,15 @@ type FindingProposedCheck struct {
 	Objective string `json:"objective"`
 }
 
+// FindingSourceLocation Exact relative POSIX path; line and range are mutually exclusive.
+type FindingSourceLocation struct {
+	File string `json:"file"`
+	Line *int   `json:"line,omitempty"`
+
+	// Range Inclusive coordinates; end_line must be at least start_line.
+	Range *FindingLineRange `json:"range,omitempty"`
+}
+
 // FindingStandardReference defines model for FindingStandardReference.
 type FindingStandardReference struct {
 	RequirementId string `json:"requirement_id"`
@@ -4898,6 +5131,12 @@ type FindingStandardReference struct {
 type FindingSubject struct {
 	Key  string `json:"key"`
 	Kind string `json:"kind"`
+}
+
+// FindingWebLocation HTTP/HTTPS URL without userinfo; method is an explicit HTTP token.
+type FindingWebLocation struct {
+	Method *string `json:"method,omitempty"`
+	Url    string  `json:"url"`
 }
 
 // FindingWorkflowOrigin defines model for FindingWorkflowOrigin.
@@ -7766,6 +8005,1118 @@ type RetryRunGatewayJSONRequestBody = RetryRunGatewayJSONBody
 // ReplaceGitKeyJSONRequestBody defines body for ReplaceGitKey for application/json ContentType.
 type ReplaceGitKeyJSONRequestBody ReplaceGitKeyJSONBody
 
+// AsAudit0 returns the union data inside the Audit as a Audit0
+func (t Audit) AsAudit0() (Audit0, error) {
+	var body Audit0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAudit0 overwrites any union data inside the Audit as the provided Audit0
+func (t *Audit) FromAudit0(v Audit0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAudit0 performs a merge with any union data inside the Audit, using the provided Audit0
+func (t *Audit) MergeAudit0(v Audit0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAudit1 returns the union data inside the Audit as a Audit1
+func (t Audit) AsAudit1() (Audit1, error) {
+	var body Audit1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAudit1 overwrites any union data inside the Audit as the provided Audit1
+func (t *Audit) FromAudit1(v Audit1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAudit1 performs a merge with any union data inside the Audit, using the provided Audit1
+func (t *Audit) MergeAudit1(v Audit1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAudit2 returns the union data inside the Audit as a Audit2
+func (t Audit) AsAudit2() (Audit2, error) {
+	var body Audit2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAudit2 overwrites any union data inside the Audit as the provided Audit2
+func (t *Audit) FromAudit2(v Audit2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAudit2 performs a merge with any union data inside the Audit, using the provided Audit2
+func (t *Audit) MergeAudit2(v Audit2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Audit) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["auditId"], err = json.Marshal(t.AuditId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'auditId': %w", err)
+	}
+
+	if t.Baseline != nil {
+		object["baseline"], err = json.Marshal(t.Baseline)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'baseline': %w", err)
+		}
+	}
+
+	object["createdAt"], err = json.Marshal(t.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'createdAt': %w", err)
+	}
+
+	if t.CurrentRoundId != nil {
+		object["currentRoundId"], err = json.Marshal(t.CurrentRoundId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'currentRoundId': %w", err)
+		}
+	}
+
+	if t.DeadlineAt != nil {
+		object["deadlineAt"], err = json.Marshal(t.DeadlineAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'deadlineAt': %w", err)
+		}
+	}
+
+	if t.DeletionRequestedAt != nil {
+		object["deletionRequestedAt"], err = json.Marshal(t.DeletionRequestedAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'deletionRequestedAt': %w", err)
+		}
+	}
+
+	object["dispatchState"], err = json.Marshal(t.DispatchState)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'dispatchState': %w", err)
+	}
+
+	object["eventSequence"], err = json.Marshal(t.EventSequence)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'eventSequence': %w", err)
+	}
+
+	if t.FinishedAt != nil {
+		object["finishedAt"], err = json.Marshal(t.FinishedAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'finishedAt': %w", err)
+		}
+	}
+
+	object["holdState"], err = json.Marshal(t.HoldState)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'holdState': %w", err)
+	}
+
+	if t.Inputs != nil {
+		object["inputs"], err = json.Marshal(t.Inputs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'inputs': %w", err)
+		}
+	}
+
+	object["limits"], err = json.Marshal(t.Limits)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'limits': %w", err)
+	}
+
+	object["outstandingRunCount"], err = json.Marshal(t.OutstandingRunCount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'outstandingRunCount': %w", err)
+	}
+
+	if t.PausedAt != nil {
+		object["pausedAt"], err = json.Marshal(t.PausedAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'pausedAt': %w", err)
+		}
+	}
+
+	object["phase"], err = json.Marshal(t.Phase)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'phase': %w", err)
+	}
+
+	if t.Preparation != nil {
+		object["preparation"], err = json.Marshal(t.Preparation)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'preparation': %w", err)
+		}
+	}
+
+	object["profile"], err = json.Marshal(t.Profile)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'profile': %w", err)
+	}
+
+	object["projectId"], err = json.Marshal(t.ProjectId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'projectId': %w", err)
+	}
+
+	object["reservedRunCount"], err = json.Marshal(t.ReservedRunCount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'reservedRunCount': %w", err)
+	}
+
+	object["retainedEvidenceBytes"], err = json.Marshal(t.RetainedEvidenceBytes)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'retainedEvidenceBytes': %w", err)
+	}
+
+	object["revision"], err = json.Marshal(t.Revision)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'revision': %w", err)
+	}
+
+	if t.RuntimeLabels != nil {
+		object["runtimeLabels"], err = json.Marshal(t.RuntimeLabels)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'runtimeLabels': %w", err)
+		}
+	}
+
+	object["scope"], err = json.Marshal(t.Scope)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'scope': %w", err)
+	}
+
+	if t.StartedAt != nil {
+		object["startedAt"], err = json.Marshal(t.StartedAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'startedAt': %w", err)
+		}
+	}
+
+	object["state"], err = json.Marshal(t.State)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'state': %w", err)
+	}
+
+	if t.StopReason != nil {
+		object["stopReason"], err = json.Marshal(t.StopReason)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'stopReason': %w", err)
+		}
+	}
+
+	object["submittedRunCount"], err = json.Marshal(t.SubmittedRunCount)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'submittedRunCount': %w", err)
+	}
+
+	object["updatedAt"], err = json.Marshal(t.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'updatedAt': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *Audit) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["auditId"]; found {
+		err = json.Unmarshal(raw, &t.AuditId)
+		if err != nil {
+			return fmt.Errorf("error reading 'auditId': %w", err)
+		}
+	}
+
+	if raw, found := object["baseline"]; found {
+		err = json.Unmarshal(raw, &t.Baseline)
+		if err != nil {
+			return fmt.Errorf("error reading 'baseline': %w", err)
+		}
+	}
+
+	if raw, found := object["createdAt"]; found {
+		err = json.Unmarshal(raw, &t.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'createdAt': %w", err)
+		}
+	}
+
+	if raw, found := object["currentRoundId"]; found {
+		err = json.Unmarshal(raw, &t.CurrentRoundId)
+		if err != nil {
+			return fmt.Errorf("error reading 'currentRoundId': %w", err)
+		}
+	}
+
+	if raw, found := object["deadlineAt"]; found {
+		err = json.Unmarshal(raw, &t.DeadlineAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'deadlineAt': %w", err)
+		}
+	}
+
+	if raw, found := object["deletionRequestedAt"]; found {
+		err = json.Unmarshal(raw, &t.DeletionRequestedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'deletionRequestedAt': %w", err)
+		}
+	}
+
+	if raw, found := object["dispatchState"]; found {
+		err = json.Unmarshal(raw, &t.DispatchState)
+		if err != nil {
+			return fmt.Errorf("error reading 'dispatchState': %w", err)
+		}
+	}
+
+	if raw, found := object["eventSequence"]; found {
+		err = json.Unmarshal(raw, &t.EventSequence)
+		if err != nil {
+			return fmt.Errorf("error reading 'eventSequence': %w", err)
+		}
+	}
+
+	if raw, found := object["finishedAt"]; found {
+		err = json.Unmarshal(raw, &t.FinishedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'finishedAt': %w", err)
+		}
+	}
+
+	if raw, found := object["holdState"]; found {
+		err = json.Unmarshal(raw, &t.HoldState)
+		if err != nil {
+			return fmt.Errorf("error reading 'holdState': %w", err)
+		}
+	}
+
+	if raw, found := object["inputs"]; found {
+		err = json.Unmarshal(raw, &t.Inputs)
+		if err != nil {
+			return fmt.Errorf("error reading 'inputs': %w", err)
+		}
+	}
+
+	if raw, found := object["limits"]; found {
+		err = json.Unmarshal(raw, &t.Limits)
+		if err != nil {
+			return fmt.Errorf("error reading 'limits': %w", err)
+		}
+	}
+
+	if raw, found := object["outstandingRunCount"]; found {
+		err = json.Unmarshal(raw, &t.OutstandingRunCount)
+		if err != nil {
+			return fmt.Errorf("error reading 'outstandingRunCount': %w", err)
+		}
+	}
+
+	if raw, found := object["pausedAt"]; found {
+		err = json.Unmarshal(raw, &t.PausedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'pausedAt': %w", err)
+		}
+	}
+
+	if raw, found := object["phase"]; found {
+		err = json.Unmarshal(raw, &t.Phase)
+		if err != nil {
+			return fmt.Errorf("error reading 'phase': %w", err)
+		}
+	}
+
+	if raw, found := object["preparation"]; found {
+		err = json.Unmarshal(raw, &t.Preparation)
+		if err != nil {
+			return fmt.Errorf("error reading 'preparation': %w", err)
+		}
+	}
+
+	if raw, found := object["profile"]; found {
+		err = json.Unmarshal(raw, &t.Profile)
+		if err != nil {
+			return fmt.Errorf("error reading 'profile': %w", err)
+		}
+	}
+
+	if raw, found := object["projectId"]; found {
+		err = json.Unmarshal(raw, &t.ProjectId)
+		if err != nil {
+			return fmt.Errorf("error reading 'projectId': %w", err)
+		}
+	}
+
+	if raw, found := object["reservedRunCount"]; found {
+		err = json.Unmarshal(raw, &t.ReservedRunCount)
+		if err != nil {
+			return fmt.Errorf("error reading 'reservedRunCount': %w", err)
+		}
+	}
+
+	if raw, found := object["retainedEvidenceBytes"]; found {
+		err = json.Unmarshal(raw, &t.RetainedEvidenceBytes)
+		if err != nil {
+			return fmt.Errorf("error reading 'retainedEvidenceBytes': %w", err)
+		}
+	}
+
+	if raw, found := object["revision"]; found {
+		err = json.Unmarshal(raw, &t.Revision)
+		if err != nil {
+			return fmt.Errorf("error reading 'revision': %w", err)
+		}
+	}
+
+	if raw, found := object["runtimeLabels"]; found {
+		err = json.Unmarshal(raw, &t.RuntimeLabels)
+		if err != nil {
+			return fmt.Errorf("error reading 'runtimeLabels': %w", err)
+		}
+	}
+
+	if raw, found := object["scope"]; found {
+		err = json.Unmarshal(raw, &t.Scope)
+		if err != nil {
+			return fmt.Errorf("error reading 'scope': %w", err)
+		}
+	}
+
+	if raw, found := object["startedAt"]; found {
+		err = json.Unmarshal(raw, &t.StartedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'startedAt': %w", err)
+		}
+	}
+
+	if raw, found := object["state"]; found {
+		err = json.Unmarshal(raw, &t.State)
+		if err != nil {
+			return fmt.Errorf("error reading 'state': %w", err)
+		}
+	}
+
+	if raw, found := object["stopReason"]; found {
+		err = json.Unmarshal(raw, &t.StopReason)
+		if err != nil {
+			return fmt.Errorf("error reading 'stopReason': %w", err)
+		}
+	}
+
+	if raw, found := object["submittedRunCount"]; found {
+		err = json.Unmarshal(raw, &t.SubmittedRunCount)
+		if err != nil {
+			return fmt.Errorf("error reading 'submittedRunCount': %w", err)
+		}
+	}
+
+	if raw, found := object["updatedAt"]; found {
+		err = json.Unmarshal(raw, &t.UpdatedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'updatedAt': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditInventory0 returns the union data inside the AuditInventory as a AuditInventory0
+func (t AuditInventory) AsAuditInventory0() (AuditInventory0, error) {
+	var body AuditInventory0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditInventory0 overwrites any union data inside the AuditInventory as the provided AuditInventory0
+func (t *AuditInventory) FromAuditInventory0(v AuditInventory0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditInventory0 performs a merge with any union data inside the AuditInventory, using the provided AuditInventory0
+func (t *AuditInventory) MergeAuditInventory0(v AuditInventory0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditInventory1 returns the union data inside the AuditInventory as a AuditInventory1
+func (t AuditInventory) AsAuditInventory1() (AuditInventory1, error) {
+	var body AuditInventory1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditInventory1 overwrites any union data inside the AuditInventory as the provided AuditInventory1
+func (t *AuditInventory) FromAuditInventory1(v AuditInventory1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditInventory1 performs a merge with any union data inside the AuditInventory, using the provided AuditInventory1
+func (t *AuditInventory) MergeAuditInventory1(v AuditInventory1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditInventory2 returns the union data inside the AuditInventory as a AuditInventory2
+func (t AuditInventory) AsAuditInventory2() (AuditInventory2, error) {
+	var body AuditInventory2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditInventory2 overwrites any union data inside the AuditInventory as the provided AuditInventory2
+func (t *AuditInventory) FromAuditInventory2(v AuditInventory2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditInventory2 performs a merge with any union data inside the AuditInventory, using the provided AuditInventory2
+func (t *AuditInventory) MergeAuditInventory2(v AuditInventory2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditInventory) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["implementation"], err = json.Marshal(t.Implementation)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'implementation': %w", err)
+	}
+
+	object["itemWorkflowRole"], err = json.Marshal(t.ItemWorkflowRole)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'itemWorkflowRole': %w", err)
+	}
+
+	if t.Settings != nil {
+		object["settings"], err = json.Marshal(t.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'settings': %w", err)
+		}
+	}
+
+	if t.Source != nil {
+		object["source"], err = json.Marshal(t.Source)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'source': %w", err)
+		}
+	}
+
+	if t.StandardSelection != nil {
+		object["standardSelection"], err = json.Marshal(t.StandardSelection)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'standardSelection': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditInventory) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["implementation"]; found {
+		err = json.Unmarshal(raw, &t.Implementation)
+		if err != nil {
+			return fmt.Errorf("error reading 'implementation': %w", err)
+		}
+	}
+
+	if raw, found := object["itemWorkflowRole"]; found {
+		err = json.Unmarshal(raw, &t.ItemWorkflowRole)
+		if err != nil {
+			return fmt.Errorf("error reading 'itemWorkflowRole': %w", err)
+		}
+	}
+
+	if raw, found := object["settings"]; found {
+		err = json.Unmarshal(raw, &t.Settings)
+		if err != nil {
+			return fmt.Errorf("error reading 'settings': %w", err)
+		}
+	}
+
+	if raw, found := object["source"]; found {
+		err = json.Unmarshal(raw, &t.Source)
+		if err != nil {
+			return fmt.Errorf("error reading 'source': %w", err)
+		}
+	}
+
+	if raw, found := object["standardSelection"]; found {
+		err = json.Unmarshal(raw, &t.StandardSelection)
+		if err != nil {
+			return fmt.Errorf("error reading 'standardSelection': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditInventoryArtifact0 returns the union data inside the AuditInventoryArtifact as a AuditInventoryArtifact0
+func (t AuditInventoryArtifact) AsAuditInventoryArtifact0() (AuditInventoryArtifact0, error) {
+	var body AuditInventoryArtifact0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditInventoryArtifact0 overwrites any union data inside the AuditInventoryArtifact as the provided AuditInventoryArtifact0
+func (t *AuditInventoryArtifact) FromAuditInventoryArtifact0(v AuditInventoryArtifact0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditInventoryArtifact0 performs a merge with any union data inside the AuditInventoryArtifact, using the provided AuditInventoryArtifact0
+func (t *AuditInventoryArtifact) MergeAuditInventoryArtifact0(v AuditInventoryArtifact0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditInventoryArtifact1 returns the union data inside the AuditInventoryArtifact as a AuditInventoryArtifact1
+func (t AuditInventoryArtifact) AsAuditInventoryArtifact1() (AuditInventoryArtifact1, error) {
+	var body AuditInventoryArtifact1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditInventoryArtifact1 overwrites any union data inside the AuditInventoryArtifact as the provided AuditInventoryArtifact1
+func (t *AuditInventoryArtifact) FromAuditInventoryArtifact1(v AuditInventoryArtifact1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditInventoryArtifact1 performs a merge with any union data inside the AuditInventoryArtifact, using the provided AuditInventoryArtifact1
+func (t *AuditInventoryArtifact) MergeAuditInventoryArtifact1(v AuditInventoryArtifact1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditInventoryArtifact) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["name"], err = json.Marshal(t.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if t.Role != nil {
+		object["role"], err = json.Marshal(t.Role)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'role': %w", err)
+		}
+	}
+
+	object["source"], err = json.Marshal(t.Source)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'source': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditInventoryArtifact) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["role"]; found {
+		err = json.Unmarshal(raw, &t.Role)
+		if err != nil {
+			return fmt.Errorf("error reading 'role': %w", err)
+		}
+	}
+
+	if raw, found := object["source"]; found {
+		err = json.Unmarshal(raw, &t.Source)
+		if err != nil {
+			return fmt.Errorf("error reading 'source': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditPreparationRole0 returns the union data inside the AuditPreparationRole as a AuditPreparationRole0
+func (t AuditPreparationRole) AsAuditPreparationRole0() (AuditPreparationRole0, error) {
+	var body AuditPreparationRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditPreparationRole0 overwrites any union data inside the AuditPreparationRole as the provided AuditPreparationRole0
+func (t *AuditPreparationRole) FromAuditPreparationRole0(v AuditPreparationRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditPreparationRole0 performs a merge with any union data inside the AuditPreparationRole, using the provided AuditPreparationRole0
+func (t *AuditPreparationRole) MergeAuditPreparationRole0(v AuditPreparationRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditPreparationRole1 returns the union data inside the AuditPreparationRole as a AuditPreparationRole1
+func (t AuditPreparationRole) AsAuditPreparationRole1() (AuditPreparationRole1, error) {
+	var body AuditPreparationRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditPreparationRole1 overwrites any union data inside the AuditPreparationRole as the provided AuditPreparationRole1
+func (t *AuditPreparationRole) FromAuditPreparationRole1(v AuditPreparationRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditPreparationRole1 performs a merge with any union data inside the AuditPreparationRole, using the provided AuditPreparationRole1
+func (t *AuditPreparationRole) MergeAuditPreparationRole1(v AuditPreparationRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditPreparationRole2 returns the union data inside the AuditPreparationRole as a AuditPreparationRole2
+func (t AuditPreparationRole) AsAuditPreparationRole2() (AuditPreparationRole2, error) {
+	var body AuditPreparationRole2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditPreparationRole2 overwrites any union data inside the AuditPreparationRole as the provided AuditPreparationRole2
+func (t *AuditPreparationRole) FromAuditPreparationRole2(v AuditPreparationRole2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditPreparationRole2 performs a merge with any union data inside the AuditPreparationRole, using the provided AuditPreparationRole2
+func (t *AuditPreparationRole) MergeAuditPreparationRole2(v AuditPreparationRole2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditPreparationRole) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["attempts"], err = json.Marshal(t.Attempts)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'attempts': %w", err)
+	}
+
+	if t.ExecutionId != nil {
+		object["executionId"], err = json.Marshal(t.ExecutionId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'executionId': %w", err)
+		}
+	}
+
+	object["maxAttempts"], err = json.Marshal(t.MaxAttempts)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'maxAttempts': %w", err)
+	}
+
+	if t.Outputs != nil {
+		object["outputs"], err = json.Marshal(t.Outputs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'outputs': %w", err)
+		}
+	}
+
+	if t.RunId != nil {
+		object["runId"], err = json.Marshal(t.RunId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'runId': %w", err)
+		}
+	}
+
+	object["status"], err = json.Marshal(t.Status)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'status': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditPreparationRole) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["attempts"]; found {
+		err = json.Unmarshal(raw, &t.Attempts)
+		if err != nil {
+			return fmt.Errorf("error reading 'attempts': %w", err)
+		}
+	}
+
+	if raw, found := object["executionId"]; found {
+		err = json.Unmarshal(raw, &t.ExecutionId)
+		if err != nil {
+			return fmt.Errorf("error reading 'executionId': %w", err)
+		}
+	}
+
+	if raw, found := object["maxAttempts"]; found {
+		err = json.Unmarshal(raw, &t.MaxAttempts)
+		if err != nil {
+			return fmt.Errorf("error reading 'maxAttempts': %w", err)
+		}
+	}
+
+	if raw, found := object["outputs"]; found {
+		err = json.Unmarshal(raw, &t.Outputs)
+		if err != nil {
+			return fmt.Errorf("error reading 'outputs': %w", err)
+		}
+	}
+
+	if raw, found := object["runId"]; found {
+		err = json.Unmarshal(raw, &t.RunId)
+		if err != nil {
+			return fmt.Errorf("error reading 'runId': %w", err)
+		}
+	}
+
+	if raw, found := object["status"]; found {
+		err = json.Unmarshal(raw, &t.Status)
+		if err != nil {
+			return fmt.Errorf("error reading 'status': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditProfileWorkflow0 returns the union data inside the AuditProfileWorkflow as a AuditProfileWorkflow0
+func (t AuditProfileWorkflow) AsAuditProfileWorkflow0() (AuditProfileWorkflow0, error) {
+	var body AuditProfileWorkflow0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditProfileWorkflow0 overwrites any union data inside the AuditProfileWorkflow as the provided AuditProfileWorkflow0
+func (t *AuditProfileWorkflow) FromAuditProfileWorkflow0(v AuditProfileWorkflow0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditProfileWorkflow0 performs a merge with any union data inside the AuditProfileWorkflow, using the provided AuditProfileWorkflow0
+func (t *AuditProfileWorkflow) MergeAuditProfileWorkflow0(v AuditProfileWorkflow0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditProfileWorkflow1 returns the union data inside the AuditProfileWorkflow as a AuditProfileWorkflow1
+func (t AuditProfileWorkflow) AsAuditProfileWorkflow1() (AuditProfileWorkflow1, error) {
+	var body AuditProfileWorkflow1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditProfileWorkflow1 overwrites any union data inside the AuditProfileWorkflow as the provided AuditProfileWorkflow1
+func (t *AuditProfileWorkflow) FromAuditProfileWorkflow1(v AuditProfileWorkflow1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditProfileWorkflow1 performs a merge with any union data inside the AuditProfileWorkflow, using the provided AuditProfileWorkflow1
+func (t *AuditProfileWorkflow) MergeAuditProfileWorkflow1(v AuditProfileWorkflow1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditProfileWorkflow) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Inputs != nil {
+		object["inputs"], err = json.Marshal(t.Inputs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'inputs': %w", err)
+		}
+	}
+
+	object["kind"], err = json.Marshal(t.Kind)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'kind': %w", err)
+	}
+
+	if t.MaxRunAttempts != nil {
+		object["maxRunAttempts"], err = json.Marshal(t.MaxRunAttempts)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'maxRunAttempts': %w", err)
+		}
+	}
+
+	if t.Outputs != nil {
+		object["outputs"], err = json.Marshal(t.Outputs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'outputs': %w", err)
+		}
+	}
+
+	if t.Parameters != nil {
+		object["parameters"], err = json.Marshal(t.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'parameters': %w", err)
+		}
+	}
+
+	object["workflow"], err = json.Marshal(t.Workflow)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'workflow': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditProfileWorkflow) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["inputs"]; found {
+		err = json.Unmarshal(raw, &t.Inputs)
+		if err != nil {
+			return fmt.Errorf("error reading 'inputs': %w", err)
+		}
+	}
+
+	if raw, found := object["kind"]; found {
+		err = json.Unmarshal(raw, &t.Kind)
+		if err != nil {
+			return fmt.Errorf("error reading 'kind': %w", err)
+		}
+	}
+
+	if raw, found := object["maxRunAttempts"]; found {
+		err = json.Unmarshal(raw, &t.MaxRunAttempts)
+		if err != nil {
+			return fmt.Errorf("error reading 'maxRunAttempts': %w", err)
+		}
+	}
+
+	if raw, found := object["outputs"]; found {
+		err = json.Unmarshal(raw, &t.Outputs)
+		if err != nil {
+			return fmt.Errorf("error reading 'outputs': %w", err)
+		}
+	}
+
+	if raw, found := object["parameters"]; found {
+		err = json.Unmarshal(raw, &t.Parameters)
+		if err != nil {
+			return fmt.Errorf("error reading 'parameters': %w", err)
+		}
+	}
+
+	if raw, found := object["workflow"]; found {
+		err = json.Unmarshal(raw, &t.Workflow)
+		if err != nil {
+			return fmt.Errorf("error reading 'workflow': %w", err)
+		}
+	}
+
+	return err
+}
+
 // AsAuditFindingDecisionResult returns the union data inside the AuditReviewDecisionResult as a AuditFindingDecisionResult
 func (t AuditReviewDecisionResult) AsAuditFindingDecisionResult() (AuditFindingDecisionResult, error) {
 	var body AuditFindingDecisionResult
@@ -7825,6 +9176,277 @@ func (t AuditReviewDecisionResult) MarshalJSON() ([]byte, error) {
 
 func (t *AuditReviewDecisionResult) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAuditStartResponse0 returns the union data inside the AuditStartResponse as a AuditStartResponse0
+func (t AuditStartResponse) AsAuditStartResponse0() (AuditStartResponse0, error) {
+	var body AuditStartResponse0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditStartResponse0 overwrites any union data inside the AuditStartResponse as the provided AuditStartResponse0
+func (t *AuditStartResponse) FromAuditStartResponse0(v AuditStartResponse0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditStartResponse0 performs a merge with any union data inside the AuditStartResponse, using the provided AuditStartResponse0
+func (t *AuditStartResponse) MergeAuditStartResponse0(v AuditStartResponse0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditStartResponse1 returns the union data inside the AuditStartResponse as a AuditStartResponse1
+func (t AuditStartResponse) AsAuditStartResponse1() (AuditStartResponse1, error) {
+	var body AuditStartResponse1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditStartResponse1 overwrites any union data inside the AuditStartResponse as the provided AuditStartResponse1
+func (t *AuditStartResponse) FromAuditStartResponse1(v AuditStartResponse1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditStartResponse1 performs a merge with any union data inside the AuditStartResponse, using the provided AuditStartResponse1
+func (t *AuditStartResponse) MergeAuditStartResponse1(v AuditStartResponse1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditStartResponse) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["audit"], err = json.Marshal(t.Audit)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'audit': %w", err)
+	}
+
+	if t.Items != nil {
+		object["items"], err = json.Marshal(t.Items)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'items': %w", err)
+		}
+	}
+
+	if t.Round != nil {
+		object["round"], err = json.Marshal(t.Round)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'round': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditStartResponse) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["audit"]; found {
+		err = json.Unmarshal(raw, &t.Audit)
+		if err != nil {
+			return fmt.Errorf("error reading 'audit': %w", err)
+		}
+	}
+
+	if raw, found := object["items"]; found {
+		err = json.Unmarshal(raw, &t.Items)
+		if err != nil {
+			return fmt.Errorf("error reading 'items': %w", err)
+		}
+	}
+
+	if raw, found := object["round"]; found {
+		err = json.Unmarshal(raw, &t.Round)
+		if err != nil {
+			return fmt.Errorf("error reading 'round': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditWorkflowInputMapping0 returns the union data inside the AuditWorkflowInputMapping as a AuditWorkflowInputMapping0
+func (t AuditWorkflowInputMapping) AsAuditWorkflowInputMapping0() (AuditWorkflowInputMapping0, error) {
+	var body AuditWorkflowInputMapping0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditWorkflowInputMapping0 overwrites any union data inside the AuditWorkflowInputMapping as the provided AuditWorkflowInputMapping0
+func (t *AuditWorkflowInputMapping) FromAuditWorkflowInputMapping0(v AuditWorkflowInputMapping0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditWorkflowInputMapping0 performs a merge with any union data inside the AuditWorkflowInputMapping, using the provided AuditWorkflowInputMapping0
+func (t *AuditWorkflowInputMapping) MergeAuditWorkflowInputMapping0(v AuditWorkflowInputMapping0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditWorkflowInputMapping1 returns the union data inside the AuditWorkflowInputMapping as a AuditWorkflowInputMapping1
+func (t AuditWorkflowInputMapping) AsAuditWorkflowInputMapping1() (AuditWorkflowInputMapping1, error) {
+	var body AuditWorkflowInputMapping1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditWorkflowInputMapping1 overwrites any union data inside the AuditWorkflowInputMapping as the provided AuditWorkflowInputMapping1
+func (t *AuditWorkflowInputMapping) FromAuditWorkflowInputMapping1(v AuditWorkflowInputMapping1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditWorkflowInputMapping1 performs a merge with any union data inside the AuditWorkflowInputMapping, using the provided AuditWorkflowInputMapping1
+func (t *AuditWorkflowInputMapping) MergeAuditWorkflowInputMapping1(v AuditWorkflowInputMapping1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditWorkflowInputMapping2 returns the union data inside the AuditWorkflowInputMapping as a AuditWorkflowInputMapping2
+func (t AuditWorkflowInputMapping) AsAuditWorkflowInputMapping2() (AuditWorkflowInputMapping2, error) {
+	var body AuditWorkflowInputMapping2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditWorkflowInputMapping2 overwrites any union data inside the AuditWorkflowInputMapping as the provided AuditWorkflowInputMapping2
+func (t *AuditWorkflowInputMapping) FromAuditWorkflowInputMapping2(v AuditWorkflowInputMapping2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditWorkflowInputMapping2 performs a merge with any union data inside the AuditWorkflowInputMapping, using the provided AuditWorkflowInputMapping2
+func (t *AuditWorkflowInputMapping) MergeAuditWorkflowInputMapping2(v AuditWorkflowInputMapping2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditWorkflowInputMapping) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Name != nil {
+		object["name"], err = json.Marshal(t.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
+	}
+
+	if t.Role != nil {
+		object["role"], err = json.Marshal(t.Role)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'role': %w", err)
+		}
+	}
+
+	object["source"], err = json.Marshal(t.Source)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'source': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditWorkflowInputMapping) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["role"]; found {
+		err = json.Unmarshal(raw, &t.Role)
+		if err != nil {
+			return fmt.Errorf("error reading 'role': %w", err)
+		}
+	}
+
+	if raw, found := object["source"]; found {
+		err = json.Unmarshal(raw, &t.Source)
+		if err != nil {
+			return fmt.Errorf("error reading 'source': %w", err)
+		}
+	}
+
 	return err
 }
 
@@ -9048,6 +10670,243 @@ func (t *EvalCreateExperiment) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	return err
+}
+
+// AsFindingHTTPAttempt0 returns the union data inside the FindingHTTPAttempt as a FindingHTTPAttempt0
+func (t FindingHTTPAttempt) AsFindingHTTPAttempt0() (FindingHTTPAttempt0, error) {
+	var body FindingHTTPAttempt0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingHTTPAttempt0 overwrites any union data inside the FindingHTTPAttempt as the provided FindingHTTPAttempt0
+func (t *FindingHTTPAttempt) FromFindingHTTPAttempt0(v FindingHTTPAttempt0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingHTTPAttempt0 performs a merge with any union data inside the FindingHTTPAttempt, using the provided FindingHTTPAttempt0
+func (t *FindingHTTPAttempt) MergeFindingHTTPAttempt0(v FindingHTTPAttempt0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingHTTPAttempt1 returns the union data inside the FindingHTTPAttempt as a FindingHTTPAttempt1
+func (t FindingHTTPAttempt) AsFindingHTTPAttempt1() (FindingHTTPAttempt1, error) {
+	var body FindingHTTPAttempt1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingHTTPAttempt1 overwrites any union data inside the FindingHTTPAttempt as the provided FindingHTTPAttempt1
+func (t *FindingHTTPAttempt) FromFindingHTTPAttempt1(v FindingHTTPAttempt1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingHTTPAttempt1 performs a merge with any union data inside the FindingHTTPAttempt, using the provided FindingHTTPAttempt1
+func (t *FindingHTTPAttempt) MergeFindingHTTPAttempt1(v FindingHTTPAttempt1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingHTTPAttempt) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["body_base64"], err = json.Marshal(t.BodyBase64)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'body_base64': %w", err)
+	}
+
+	if t.Error != nil {
+		object["error"], err = json.Marshal(t.Error)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'error': %w", err)
+		}
+	}
+
+	if t.Headers != nil {
+		object["headers"], err = json.Marshal(t.Headers)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'headers': %w", err)
+		}
+	}
+
+	object["method"], err = json.Marshal(t.Method)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'method': %w", err)
+	}
+
+	if t.ResponseHeaders != nil {
+		object["response_headers"], err = json.Marshal(t.ResponseHeaders)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'response_headers': %w", err)
+		}
+	}
+
+	if t.Status != nil {
+		object["status"], err = json.Marshal(t.Status)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'status': %w", err)
+		}
+	}
+
+	object["url"], err = json.Marshal(t.Url)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'url': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *FindingHTTPAttempt) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["body_base64"]; found {
+		err = json.Unmarshal(raw, &t.BodyBase64)
+		if err != nil {
+			return fmt.Errorf("error reading 'body_base64': %w", err)
+		}
+	}
+
+	if raw, found := object["error"]; found {
+		err = json.Unmarshal(raw, &t.Error)
+		if err != nil {
+			return fmt.Errorf("error reading 'error': %w", err)
+		}
+	}
+
+	if raw, found := object["headers"]; found {
+		err = json.Unmarshal(raw, &t.Headers)
+		if err != nil {
+			return fmt.Errorf("error reading 'headers': %w", err)
+		}
+	}
+
+	if raw, found := object["method"]; found {
+		err = json.Unmarshal(raw, &t.Method)
+		if err != nil {
+			return fmt.Errorf("error reading 'method': %w", err)
+		}
+	}
+
+	if raw, found := object["response_headers"]; found {
+		err = json.Unmarshal(raw, &t.ResponseHeaders)
+		if err != nil {
+			return fmt.Errorf("error reading 'response_headers': %w", err)
+		}
+	}
+
+	if raw, found := object["status"]; found {
+		err = json.Unmarshal(raw, &t.Status)
+		if err != nil {
+			return fmt.Errorf("error reading 'status': %w", err)
+		}
+	}
+
+	if raw, found := object["url"]; found {
+		err = json.Unmarshal(raw, &t.Url)
+		if err != nil {
+			return fmt.Errorf("error reading 'url': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsFindingSourceLocation returns the union data inside the FindingLocation as a FindingSourceLocation
+func (t FindingLocation) AsFindingSourceLocation() (FindingSourceLocation, error) {
+	var body FindingSourceLocation
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingSourceLocation overwrites any union data inside the FindingLocation as the provided FindingSourceLocation
+func (t *FindingLocation) FromFindingSourceLocation(v FindingSourceLocation) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingSourceLocation performs a merge with any union data inside the FindingLocation, using the provided FindingSourceLocation
+func (t *FindingLocation) MergeFindingSourceLocation(v FindingSourceLocation) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFindingWebLocation returns the union data inside the FindingLocation as a FindingWebLocation
+func (t FindingLocation) AsFindingWebLocation() (FindingWebLocation, error) {
+	var body FindingWebLocation
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFindingWebLocation overwrites any union data inside the FindingLocation as the provided FindingWebLocation
+func (t *FindingLocation) FromFindingWebLocation(v FindingWebLocation) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFindingWebLocation performs a merge with any union data inside the FindingLocation, using the provided FindingWebLocation
+func (t *FindingLocation) MergeFindingWebLocation(v FindingWebLocation) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t FindingLocation) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *FindingLocation) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
 	return err
 }
 

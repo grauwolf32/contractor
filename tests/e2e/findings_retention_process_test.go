@@ -15,15 +15,8 @@ import (
 )
 
 func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
-	ordinaryStage := ordinaryFindingsProducerStage("ordinary-with-hypothesis")
-	original := ordinaryStage.steps[3].arguments
-	ordinaryStage.steps[3].arguments = func(request map[string]any) (map[string]any, error) {
-		value, err := original(request)
-		value["hypothesis"] = "Database parsing may change when the route parameter contains quotes."
-		return value, err
-	}
-	// Repeat the same tool call within the same invocation through the real intake.
-	ordinaryStage.steps = append(ordinaryStage.steps[:4:4], append([]domainGatewayStep{ordinaryStage.steps[3]}, ordinaryStage.steps[4:]...)...)
+	ordinaryStage := ordinaryFindingsProducerStage("ordinary-source")
+
 	h := startFindingsHarness(t, []domainGatewayStage{findingsProducerStage("operation-a"),
 		findingsProducerStage("operation-b"), ordinaryStage, findingsReaderStage(3, 1)})
 	project := createProjectResource(t, h.client, h.baseURL)
@@ -46,14 +39,14 @@ func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
 	}
 	t.Run("shared-function-preserves-operations", func(t *testing.T) {
 		if len(items.Items) != 2 || len(auditReceipts) != 2 || auditReceipts[0].ReceiptID == auditReceipts[1].ReceiptID ||
-			auditReceipts[0].Document.Subject != auditReceipts[1].Document.Subject || auditReceipts[0].Evidence[0].Digest != auditReceipts[1].Evidence[0].Digest {
+			!reflect.DeepEqual(auditReceipts[0].Document.Locations, auditReceipts[1].Document.Locations) || auditReceipts[0].Evidence[0].Digest != auditReceipts[1].Evidence[0].Digest {
 			t.Fatalf("shared function lost operation receipts: %+v", auditReceipts)
 		}
 	})
 	ordinaryRun := runOrdinaryFindingProducer(t, h, project.ProjectID, source, sourcePayload, openAPI, []byte(schema))
 	ordinary := findingsReceipts(t, h, ordinaryRun)
-	t.Run("ordinary-hypothesis-and-intake-replay", func(t *testing.T) {
-		if len(ordinary) != 1 || ordinary[0].Origin.Audit != nil || ordinary[0].Document.Hypothesis == "" {
+	t.Run("ordinary-source-receipt", func(t *testing.T) {
+		if len(ordinary) != 1 || ordinary[0].Origin.Audit != nil || len(ordinary[0].Document.Locations) == 0 {
 			t.Fatalf("ordinary receipt = %+v", ordinary)
 		}
 		report, _ := download(t, h.client, h.baseURL+"/v1/runs/"+ordinaryRun+"/outputs/result")

@@ -107,7 +107,7 @@ export function ProjectFindingsRoute({
           [
             document.title,
             document.description,
-            document.subject.key,
+            document.subject?.key ?? "",
             finding.findingId,
             auditProfileLabel(audit),
           ]

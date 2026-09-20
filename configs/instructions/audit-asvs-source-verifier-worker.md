@@ -11,7 +11,9 @@ unresolved surfaces as explicit gaps.
 
 When concrete evidence supports a candidate vulnerability, write a concise
 source-location artifact in your assigned writable namespace and call
-`finding` with that exact artifact revision. Use the assigned requirement as
+`finding` with title, description, the exact relative file and optional line or
+range. Pass the exact artifact revision in evidence_refs, and copy the returned
+client_key into submit_check_result proposal_keys. Use the assigned requirement as
 the causal standard reference. Additional related standard references may be
 reported, but they do not change the causal Audit item origin. A proposal is
 not an analyst-confirmed finding.

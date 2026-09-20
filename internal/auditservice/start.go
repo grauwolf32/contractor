@@ -208,6 +208,9 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
+	if err := validateInventoryTaskExecution(profile, inventory); err != nil {
+		return StartedAudit{}, err
+	}
 	if len(inventory.Worklist.Items) > audit.Limits.MaxItemsPerRound ||
 		len(inventory.Worklist.Items) > audit.Limits.MaxItemsTotal {
 		return StartedAudit{}, fmt.Errorf("%w: Audit inventory exceeds profile limits", ErrInvalid)
@@ -493,16 +496,23 @@ func buildInventory(
 			},
 		)
 	}
-	source, exists := inputs[profile.Inventory.SourceInput]
+	source, exists := inputs[profile.Inventory.Source.Name]
 	if !exists {
 		return auditdomain.Inventory{}, fmt.Errorf("%w: inventory source input is missing", ErrInvalid)
 	}
 	options := auditdomain.InventoryOptions{
 		Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
-		SourceInputName: profile.Inventory.SourceInput, SourceRef: source.Ref,
+		SourceInputName: profile.Inventory.Source.Name, SourceRef: source.Ref,
 		ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 	}
 	switch profile.Inventory.Implementation {
+	case config.AuditInventoryOpenAPIScans:
+		settings, exists := inputs[profile.Inventory.Settings.Name]
+		if !exists || settings.Payload.MediaType != "application/json" {
+			return auditdomain.Inventory{}, fmt.Errorf("%w: scan settings input is missing or invalid", ErrInvalid)
+		}
+		return auditdomain.BuildOpenAPIScanInventory(source.Payload.Data, source.Payload.MediaType, settings.Payload.Data,
+			auditdomain.ExactInput{Name: profile.Inventory.Settings.Name, Ref: settings.Ref, Digest: digestBytes(settings.Payload.Data)}, options)
 	case "checklist@1":
 		if source.Payload.MediaType == auditdomain.PackageMediaType {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: checklist packages are not supported by this Server", ErrInvalid)

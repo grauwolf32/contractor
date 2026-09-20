@@ -200,7 +200,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	}
 	receipt := receipts[0]
 	if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != audit.AuditID ||
-		receipt.Document.Hypothesis != "" || receipt.Document.Subject.Kind != "function" || len(receipt.Evidence) != 1 {
+		receipt.Document.Hypothesis != "" || receipt.Document.Subject != nil || len(receipt.Evidence) != 1 {
 		t.Fatalf("generic direct finding origin/content = %+v", receipt)
 	}
 	assertFindingsResultReceipt(t, h, runID, receipt)
@@ -220,7 +220,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	report, mediaType := download(t, h.client, h.baseURL+"/v1/runs/"+readerRun+"/outputs/report")
 	if mediaType != "text/markdown" || !strings.Contains(string(report), receipt.ReceiptID) ||
 		!strings.Contains(string(report), "source-inferred and unexecuted") ||
-		!strings.Contains(string(report), "function/lookup") {
+		!strings.Contains(string(report), "app.py") {
 		t.Fatalf("reader report = %s (%s)", report, mediaType)
 	}
 	if len(findingsReceipts(t, h, readerRun)) != 0 {
@@ -269,10 +269,10 @@ func findingsProducerStage(name string) domainGatewayStage {
 				return nil, fmt.Errorf("finding called without a prior exact evidence receipt")
 			}
 			return map[string]any{
-				"client_key": "query-concatenation", "title": "Query concatenation in lookup",
-				"description":   "GET /items/{item_id} passes its input to lookup (app.py:4-10). The query uses concatenation. Reproduce by supplying a quote in item_id and checking query parsing; source-inferred and unexecuted, database availability and surrounding controls remain unverified.",
-				"subject":       map[string]string{"kind": "function", "key": "lookup"},
-				"evidence_refs": []any{evidence}, "severity_suggestion": "high",
+				"title":       "Query concatenation in lookup",
+				"description": "GET /items/{item_id} passes its input to lookup (app.py:4-10). The query uses concatenation. Reproduce by supplying a quote in item_id and checking query parsing; source-inferred and unexecuted, database availability and surrounding controls remain unverified.",
+				"file":        "app.py", "range": map[string]int{"start_line": 4, "end_line": 6},
+				"evidence_refs": []any{evidence},
 			}, nil
 		}),
 		toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {
@@ -288,7 +288,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 			return map[string]any{"assessment": "supported", "summary": "Operation mapped to lookup; query concatenation proposal recorded.",
 				"completed": []string{"operation-resolution"}, "gaps": []string{},
 				"evidence":      []map[string]string{{"kind": "source", "summary": findingsEvidence}},
-				"proposal_keys": []string{"query-concatenation"}}, nil
+				"proposal_keys": []string{fmt.Sprint(responses[0]["client_key"])}}, nil
 		}),
 		finalGatewayStep("All assigned results recorded", nil),
 	}}
@@ -338,14 +338,14 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 				return nil, err
 			}
 			proposal, err := auditdomain.DecodeFindingProposal(proposalData)
-			if err != nil || proposal.Subject.Kind != "function" || item["has_hypothesis"] != (proposal.Hypothesis != "") {
+			if err != nil || proposal.Subject != nil || item["has_hypothesis"] != (proposal.Hypothesis != "") {
 				return nil, fmt.Errorf("reader did not read generic proposal: %v", err)
 			}
 			evidence, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i+1]["dataBase64"]))
 			if err != nil || string(evidence) != findingsEvidence {
 				return nil, fmt.Errorf("reader evidence bytes differ")
 			}
-			report += fmt.Sprintf("\nReceipt %s, proposal %s, Run %s, %s/%s.\n", item["receipt_id"], item["proposal_id"], item["run_id"], proposal.Subject.Kind, proposal.Subject.Key)
+			report += fmt.Sprintf("\nReceipt %s, proposal %s, Run %s, %s/%s.\n", item["receipt_id"], item["proposal_id"], item["run_id"], "source", proposal.Locations[0].File)
 			proposalRef, _ := json.Marshal(item["proposal"])
 			report += fmt.Sprintf("Exact proposal and provenance: %s\n%s\n", proposalRef, evidence)
 		}

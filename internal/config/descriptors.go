@@ -75,11 +75,15 @@ func MVPDescriptors() Descriptors {
 				Tools: []string{"read_audit_task", "submit_check_result"},
 			},
 			"security-findings@1": {
+				Tools:                []string{"finding", "list_findings"},
+				FindingProposalTools: []string{"finding"},
+			},
+			"security-findings-code@1": {
 				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},
 			},
-			"security-findings@2": {
-				Tools:                []string{"finding", "list_findings"},
+			"security-findings-http@1": {
+				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},
 			},
 			"caido@1": {
