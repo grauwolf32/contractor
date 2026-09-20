@@ -282,13 +282,20 @@ test("shows only available GPU metrics on desktop and mobile", async ({
     return fulfillJSON(route, { code: "not_found" }, 404);
   });
   await page.goto("/operations/performance");
-  const card = page.getByRole("article", {
-    name: "GPU NVIDIA GeForce RTX 5090 · aa",
-  });
+  const cardName = "GPU NVIDIA GeForce RTX 5090 · aa";
+  const card = page.getByRole("article", { name: cardName });
   await expect(card).toBeVisible();
   await expect(card.getByText("0 %", { exact: true })).toBeVisible();
-  await expect(card.getByText("44 °C", { exact: true })).toBeVisible();
-  await expect(card.getByText("Power draw")).toHaveCount(0);
+  const details = page.locator("details").filter({
+    has: page.getByText("Detailed counters and collection diagnostics", {
+      exact: true,
+    }),
+  });
+  await details.locator("summary").click();
+  const detailedCard = details.getByRole("article", { name: cardName });
+  await expect(detailedCard.getByText("44 °C", { exact: true })).toBeVisible();
+  await expect(detailedCard.getByText("Power draw")).toHaveCount(0);
+  await details.locator("summary").click();
   const chart = page.getByRole("img", { name: "GPU utilization" });
   await expect(chart).toBeVisible();
   await expect(chart.locator(".performance-chart-line")).toHaveCount(2);

@@ -326,12 +326,18 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     .click();
   await expect(page.getByText("revision 2")).toBeVisible();
   await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.getByText("Inconclusive")).toBeVisible();
-  await expect(page.getByText("test evidence missing")).toBeVisible();
+  await expect(page.getByText("Inconclusive", { exact: true })).toBeVisible();
+  const taskAndResult = page.locator("details").filter({
+    has: page.getByText("Read task and result", { exact: true }),
+  });
+  await taskAndResult.locator("summary").click();
+  await expect(taskAndResult.getByText("test evidence missing")).toBeVisible();
   await expect(
-    page.getByText(/Verify that a user can only read/u),
+    taskAndResult.getByText(/Verify that a user can only read/u),
   ).toBeVisible();
-  await expect(page.getByText(/The service checks ownership/u)).toBeVisible();
+  await expect(
+    taskAndResult.getByText(/The service checks ownership/u),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("audit-coverage-desktop.png"),
     fullPage: true,
