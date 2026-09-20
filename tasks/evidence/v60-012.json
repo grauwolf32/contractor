@@ -142,5 +142,13 @@
     "internal/runstore/delete_store.go": "f5ee8c22925621df9faccf0d83e4d4f804e7b8ebe892e6be96b4afb021133493",
     "internal/findingintake/postgres.go": "f6ad499ac3b3b4b9b50ba846d43edf6b69dc0295d102e1bb5ab2983671edfcff"
   },
-  "implementation_commit": "dca420ba8e4333707ef1ae3f4ca70a4cb458f2ef"
+  "implementation_commit": "dca420ba8e4333707ef1ae3f4ca70a4cb458f2ef",
+  "integration": {
+    "main_merge_commit": "6ea86e5643446e7b98db5a3109e3f65c3d570ff0",
+    "reviewed_branch_commit": "fb04893b",
+    "code_comparison": "PASS: git diff --exit-code fix/v60-012-run-deletion -- api internal runtime ui scripts tests Makefile go.mod go.sum after merge",
+    "preserved_local_work": "All seven pre-existing dirty/untracked files preserved; docs/research/README.md combined by a clean three-way merge. Root staged index was empty. Main V61 planning commit retained.",
+    "preservation_backup": ".local/v60-012-main-integration-gajro358",
+    "verification_boundary": "No executable changes introduced by integration; code tree matches the verified branch. Broad tests were not needlessly repeated after this documentation-only merge."
+  }
 }
