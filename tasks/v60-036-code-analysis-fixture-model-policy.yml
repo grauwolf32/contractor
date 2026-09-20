@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V60-036
+title: Align generated Code Analysis process templates with the current Worker policy
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-009]
+languages: [go, markdown]
+goal: Restore the Code Analysis process gate after retirement of its generated templates' ModelPolicy reference.
+context:
+  authority: User requested completion of the remaining V60 reviews; the required release gate reproduced this fixture startup failure.
+  design: docs/plans/2026-09-20-project-review.md
+  specification: docs/spec/12-code-analysis-tools.md
+  reproduction: >-
+    TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses fails before Server readiness
+    because generated code_analysis_graph_e2e and code_analysis_shallow_e2e templates
+    select domain_worker@1, removed from the production catalog by 394018a0.
+    The corresponding production graph template selects worker@2.
+scope:
+  in:
+    - Select the current worker@2 policy in both generated Code Analysis templates.
+    - Add a focused configuration-loading regression covering the exact generated workflows, scripted Gateway model, tools and required call budgets.
+    - Run the affected Code Analysis process gate with its original structural-analysis, placement, overlay and cleanup assertions intact.
+  out:
+    - Change production policy definitions, Runtime behavior, timeouts or weaken process assertions.
+    - Reintroduce the retired domain_worker alias or change unrelated Taint fixtures.
+acceptance_criteria:
+  - id: A1
+    text: Both generated templates resolve against the current catalog and retain the complete scripted tool surface with sufficient policy budgets.
+  - id: A2
+    text: The full Code Analysis process gate passes without required skips, preserving heterogeneous placement, overlay invalidation and lifecycle assertions.
+tests:
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestCodeAnalysisE2EConfigurationLoads$'
+    covers: [A1]
+  - command: make test-code-analysis-e2e
+    covers: [A1, A2]
+verification_requirements:
+  - Preserve the actual required-release failure and focused before/after configuration evidence.
+  - Do not change tracked source while the current required release gate is running.
+  - Keep task-start, implementation and completion metadata commits separate.

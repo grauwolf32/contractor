@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V60-037
+title: Make the Agent Skills retry fixture emit a retryable Gateway failure
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-009]
+languages: [go, markdown]
+goal: Restore the process proof that a retried Stage preserves its exact Skill package while respecting Gateway error classification.
+context:
+  authority: User requested completion of the remaining V60 reviews; the complete release gate reproduced this failure.
+  design: docs/plans/2026-09-20-project-review.md
+  specification:
+    - docs/spec/04-execution-lifecycle-and-metrics.md
+    - docs/spec/09-agent-skills.md
+  reproduction: >-
+    TestAgentSkillsMVPProcesses deliberately fails the first Skill-bearing
+    builder request after disclosure, but its scripted modelFail response is
+    HTTP 400. The accepted Gateway classification makes that failure
+    non-retryable, so the Run terminates instead of creating the expected
+    second StageExecution. The Gateway records no fixture-validation failures.
+scope:
+  in:
+    - Preserve the original process failure and verify its scripted HTTP response and accepted retryability contract.
+    - Emit a retryable scripted Gateway failure while suppressing transport retries of that physical response.
+    - Assert the HTTP fixture contract and rerun the full Agent Skills process gate with the exact package, retry and redaction assertions intact.
+  out:
+    - Change production Gateway classification, Scheduler retry semantics, Skill pinning or weaken the process assertions.
+acceptance_criteria:
+  - id: A1
+    text: The scripted failure is retryable at the Stage boundary, advances the fixture exactly once and does not pollute fixture-validation failures.
+  - id: A2
+    text: Full Agent Skills MVP processes pass, including the failed/succeeded builder attempts, exact A/B package selection, slot reuse and redaction checks.
+tests:
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure$'
+    covers: [A1]
+  - command: make test-agent-skills-mvp
+    covers: [A1, A2]
+verification_requirements:
+  - Preserve the original release failure and record exact source commits, commands, log hashes and counts.
+  - Keep the production source frozen until the existing release invocation finishes.
+  - Keep task-start, implementation and completion metadata commits separate.

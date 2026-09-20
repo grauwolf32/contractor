@@ -2832,6 +2832,8 @@ tasks:
   - {id: V60-033, file: v60-033-production-memory-instruction-staging.yml}
   - {id: V60-034, file: v60-034-audit-catalog-shared-instructions.yml}
   - {id: V60-035, file: v60-035-findings-read-snapshot-comparison.yml}
+  - {id: V60-036, file: v60-036-code-analysis-fixture-model-policy.yml}
+  - {id: V60-037, file: v60-037-agent-skills-retryable-gateway-fixture.yml}
   - {id: V61-001, file: v61-001-toolset-configuration-contracts.yml}
   - {id: V61-002, file: v61-002-toolset-runtime-config-store.yml}
   - {id: V61-003, file: v61-003-run-toolset-pinning-allocation.yml}
