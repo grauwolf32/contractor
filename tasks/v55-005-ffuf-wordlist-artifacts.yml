@@ -3,7 +3,8 @@ id: V55-005
 title: Add ffuf with validated artifact-backed wordlists
 milestone: scan-tools-first-slice
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: d3f80ff7eb79d9cb6e8336a0f03fcb1bae08770f
 depends_on: [V55-003]
 languages: [python, go, yaml, markdown]
 goal: Execute bounded ffuf scans using an exact uploaded wordlist revision without accepting host filesystem paths.
@@ -95,8 +96,14 @@ progress:
       Go configuration tests and go vet pass; Ruff, formatting of 11 Python files,
       gofmt and diff checks pass. Independent implementation and documentation
       reviews are complete; clarified transport errors versus HTTP status filters.
-remaining:
-  - Commit and integrate the verified implementation into main.
+  - date: 2026-09-20
+    step: integrated
+    details: >-
+      Committed the implementation as d3f80ff7eb79d9cb6e8336a0f03fcb1bae08770f
+      and fast-forwarded main to that commit. A1, A2 and A3 are verified; task
+      completed. The existing unrelated main worktree changes were preserved.
+      The ffuf Workflow, scan UI and combined release remain V55-006.
+remaining: []
 verification:
   - >-
     Expanded Python gate passed 590 tests in 19.59 seconds with warnings treated
