@@ -146,7 +146,7 @@ export function EvalControls({
               <button
                 key={kind}
                 type="button"
-                className={kind === "start" ? "" : "secondary"}
+                className={kind === "start" ? "" : "secondary-button"}
                 disabled={busy || disabled}
                 onClick={() =>
                   kind === "start" || kind === "cancel"
@@ -210,7 +210,7 @@ export function EvalControls({
             <button
               ref={dismiss}
               type="button"
-              className="secondary"
+              className="secondary-button"
               onClick={() => setConfirm(null)}
             >
               Keep current state

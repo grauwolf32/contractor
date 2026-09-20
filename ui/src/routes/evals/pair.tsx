@@ -53,7 +53,7 @@ export function EvalPairRoute() {
             {pair.data.freshness} snapshot
             {pair.data.pair.regression ? " · Known quality regression" : ""}
           </p>
-          <button type="button" className="secondary" onClick={refresh}>
+          <button type="button" className="secondary-button" onClick={refresh}>
             Refresh pair evidence
           </button>
           <div className="eval-variants">
@@ -75,7 +75,7 @@ export function EvalPairRoute() {
                 {canReview && member.resultSha256 ? (
                   <button
                     type="button"
-                    className="secondary"
+                    className="secondary-button"
                     onClick={() => setReview(member)}
                   >
                     Review {label}

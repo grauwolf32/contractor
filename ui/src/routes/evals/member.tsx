@@ -118,7 +118,7 @@ export function MemberExecutions({
           <div className="eval-actions">
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               disabled={!cursor}
               onClick={() => setCursor(undefined)}
             >
@@ -127,7 +127,7 @@ export function MemberExecutions({
             {inventory.data.page.hasMore ? (
               <button
                 type="button"
-                className="secondary"
+                className="secondary-button"
                 onClick={() =>
                   setCursor(inventory.data?.page.nextCursor ?? undefined)
                 }

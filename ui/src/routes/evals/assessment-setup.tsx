@@ -169,7 +169,7 @@ export function AssessmentSetup({
           )}
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             onClick={() =>
               onChange({
                 ...draft,
@@ -183,7 +183,7 @@ export function AssessmentSetup({
       ))}
       <button
         type="button"
-        className="secondary"
+        className="secondary-button"
         onClick={() => {
           const evaluator =
             capabilities?.checks.find(

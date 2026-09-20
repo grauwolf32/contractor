@@ -174,7 +174,7 @@ export function EvalListRoute() {
       <nav className="eval-actions" aria-label="Experiment pages">
         <button
           type="button"
-          className="secondary"
+          className="secondary-button"
           disabled={!cursor}
           onClick={() => filter("cursor", "")}
         >
@@ -182,7 +182,7 @@ export function EvalListRoute() {
         </button>
         <button
           type="button"
-          className="secondary"
+          className="secondary-button"
           disabled={!list.data?.page.hasMore}
           onClick={() => {
             if (list.data?.page.nextCursor) {

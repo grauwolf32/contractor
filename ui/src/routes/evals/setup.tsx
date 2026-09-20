@@ -131,7 +131,7 @@ export function EvalSetupForm({
           <button
             type="button"
             key={label}
-            className="secondary"
+            className="secondary-button"
             aria-current={step === index ? "step" : undefined}
             onClick={() => setStep(index)}
           >
@@ -198,7 +198,7 @@ export function EvalSetupForm({
                   </EvalField>
                   <button
                     type="button"
-                    className="secondary"
+                    className="secondary-button"
                     disabled={
                       !workspaceName.trim() || createWorkspace.isPending
                     }
@@ -354,7 +354,7 @@ export function EvalSetupForm({
                   </EvalField>
                   <button
                     type="button"
-                    className="secondary"
+                    className="secondary-button"
                     onClick={() => setAuthor(!author)}
                   >
                     Create or import dataset
@@ -383,7 +383,7 @@ export function EvalSetupForm({
                       <div className="eval-actions">
                         <button
                           type="button"
-                          className="secondary"
+                          className="secondary-button"
                           onClick={() =>
                             update({
                               ...draft,
@@ -395,7 +395,7 @@ export function EvalSetupForm({
                         </button>
                         <button
                           type="button"
-                          className="secondary"
+                          className="secondary-button"
                           onClick={() => update({ ...draft, caseIds: [] })}
                         >
                           Clear selection
@@ -467,7 +467,7 @@ export function EvalSetupForm({
         <div className="eval-actions">
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             disabled={step === 0}
             onClick={() => setStep(step - 1)}
           >

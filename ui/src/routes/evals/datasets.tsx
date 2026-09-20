@@ -107,7 +107,7 @@ function CaseEditor({
           {role}: {ref.namespace}/{ref.name} · {ref.revision}{" "}
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             onClick={() =>
               onChange({
                 ...value,
@@ -132,7 +132,7 @@ function CaseEditor({
         </EvalField>
         <button
           type="button"
-          className="secondary"
+          className="secondary-button"
           disabled={!inputRole.trim()}
           onClick={() => setPick(!pick)}
         >
@@ -174,7 +174,7 @@ function CaseEditor({
           </label>
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             onClick={() =>
               onChange({
                 ...value,
@@ -206,7 +206,7 @@ function CaseEditor({
       </div>
       <button
         type="button"
-        className="secondary"
+        className="secondary-button"
         disabled={!outputRole.trim() || !mediaType.trim()}
         onClick={() => {
           onChange({
@@ -332,7 +332,7 @@ export function DatasetAuthor({
           </p>
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             onClick={() => setImported(null)}
           >
             Author cases instead
@@ -380,7 +380,7 @@ export function DatasetAuthor({
               {data.cases.length > 1 ? (
                 <button
                   type="button"
-                  className="secondary"
+                  className="secondary-button"
                   onClick={() =>
                     setData({
                       ...data,
@@ -395,7 +395,7 @@ export function DatasetAuthor({
           ))}
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             disabled={data.cases.length >= MAX_EVAL_CASES}
             onClick={() =>
               setData({ ...data, cases: [...data.cases, newCase()] })
@@ -470,7 +470,7 @@ export function DatasetAuthor({
                 />
                 <button
                   type="button"
-                  className="secondary"
+                  className="secondary-button"
                   onClick={() =>
                     setData({
                       ...data,
@@ -486,7 +486,7 @@ export function DatasetAuthor({
             ))}
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               onClick={() =>
                 setData({
                   ...data,

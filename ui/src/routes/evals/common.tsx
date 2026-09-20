@@ -59,7 +59,7 @@ export function EvalError({
         </p>
       ) : null}
       {reload ? (
-        <button type="button" className="secondary" onClick={reload}>
+        <button type="button" className="secondary-button" onClick={reload}>
           {changed ? "Reload current revision" : "Retry"}
         </button>
       ) : null}
@@ -102,7 +102,7 @@ export function EvalPages({
     <nav className="eval-actions" aria-label="Pagination">
       <button
         type="button"
-        className="secondary"
+        className="secondary-button"
         disabled={!previous}
         onClick={previous}
       >
@@ -110,7 +110,7 @@ export function EvalPages({
       </button>
       <button
         type="button"
-        className="secondary"
+        className="secondary-button"
         disabled={!next}
         onClick={next}
       >
@@ -161,7 +161,7 @@ export function KeyValueEditor({
           />
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             aria-label={`Remove ${label} ${index + 1}`}
             onClick={() =>
               onChange(
@@ -175,7 +175,7 @@ export function KeyValueEditor({
       ))}
       <button
         type="button"
-        className="secondary"
+        className="secondary-button"
         onClick={() =>
           onChange({
             ...value,

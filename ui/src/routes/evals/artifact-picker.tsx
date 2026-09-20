@@ -97,7 +97,7 @@ export function EvalArtifactPicker({
             </span>
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               disabled={select.isPending}
               onClick={() => select.mutate(item)}
             >
@@ -120,7 +120,7 @@ export function EvalArtifactPicker({
         <>
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             onClick={() => setUpload(!upload)}
           >
             Upload an input

@@ -73,7 +73,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
       <div className="eval-actions">
         <button
           type="button"
-          className="secondary"
+          className="secondary-button"
           onClick={() =>
             update({
               viewSnapshot: experiment.viewSnapshot,
@@ -87,7 +87,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
         </button>
         <button
           type="button"
-          className="secondary"
+          className="secondary-button"
           disabled={report.isPending}
           onClick={() => report.mutate()}
         >
@@ -142,7 +142,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
       {chartCursor ? (
         <button
           type="button"
-          className="secondary"
+          className="secondary-button"
           onClick={() => update({ chartCursor: null })}
         >
           First differences
@@ -164,7 +164,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
           Filtered to the selected distribution bin.{" "}
           <button
             type="button"
-            className="secondary"
+            className="secondary-button"
             onClick={() => update({ binFilter: null, cursor: null })}
           >
             Clear bin filter
@@ -227,7 +227,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
           <div className="eval-actions">
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               disabled={!cursor}
               onClick={() => update({ cursor: null })}
             >
@@ -235,7 +235,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
             </button>
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               disabled={!pairs.data.page.hasMore}
               onClick={() => update({ cursor: pairs.data!.page.nextCursor })}
             >

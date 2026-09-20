@@ -209,7 +209,7 @@ function DistributionPlot({
                   {onBin ? (
                     <button
                       type="button"
-                      className="secondary"
+                      className="secondary-button"
                       onClick={() => onBin(bin.filterToken)}
                     >
                       Open matching pairs
@@ -473,7 +473,7 @@ export function EvalChartPanel({
           {data.page?.hasMore && data.page.nextCursor && onNext ? (
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               onClick={() => onNext(data.page!.nextCursor!)}
             >
               Next differences

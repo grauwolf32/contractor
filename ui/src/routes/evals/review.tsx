@@ -243,7 +243,7 @@ export function EvalHumanReview({
         </>
       ) : null}
       <div className="eval-actions">
-        <button type="button" className="secondary" onClick={onClose}>
+        <button type="button" className="secondary-button" onClick={onClose}>
           Close review
         </button>
         <button

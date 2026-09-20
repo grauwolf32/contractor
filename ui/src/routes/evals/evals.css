@@ -71,9 +71,30 @@
   gap: 0.4rem;
   margin: 0.75rem 0;
 }
-.eval-field :is(input, select, textarea) {
+.eval-field > label {
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.eval-field :is(input, select, textarea),
+.eval-key-value input {
   width: 100%;
   min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface-subtle);
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+.eval-field :is(input, select, textarea):focus,
+.eval-key-value input:focus {
+  border-color: var(--accent);
+}
+.eval-field :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.eval-field textarea {
+  resize: vertical;
 }
 .eval-page small {
   display: block;

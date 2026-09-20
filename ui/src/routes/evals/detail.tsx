@@ -84,7 +84,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
                 <MemberSummary member={member} />
                 <button
                   type="button"
-                  className="secondary"
+                  className="secondary-button"
                   onClick={() =>
                     setExpanded(
                       expanded === member.member.memberId
@@ -107,7 +107,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
           <div className="eval-actions">
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               disabled={!cursor}
               onClick={() => update({})}
             >
@@ -115,7 +115,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
             </button>
             <button
               type="button"
-              className="secondary"
+              className="secondary-button"
               disabled={!members.data.page.hasMore}
               onClick={() => update({ cursor: members.data!.page.nextCursor! })}
             >
