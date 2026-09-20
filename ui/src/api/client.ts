@@ -28,6 +28,11 @@ export type DirectRequestInit = Omit<RequestInit, "credentials">;
 
 export class CSRFMemoryStore {
   #value: string | undefined;
+  #generation = 0;
+
+  get generation(): number {
+    return this.#generation;
+  }
 
   get(): string | undefined {
     return this.#value;
@@ -35,10 +40,12 @@ export class CSRFMemoryStore {
 
   replace(value: string): void {
     this.#value = value;
+    this.#generation += 1;
   }
 
   clear(): void {
     this.#value = undefined;
+    this.#generation += 1;
   }
 }
 
@@ -287,15 +294,22 @@ export class PublicAPI {
   }
 
   async getSession(): Promise<AuthSession | null> {
+    const generation = this.csrf.generation;
     const result = await this.request((client) =>
       client.GET("/v1/auth/session"),
     );
+    // Cancelling a query does not cancel side effects of its pending request.
+    // A late lookup must not change a newer login, logout or session expiry.
     if (result.data !== undefined) {
-      this.csrf.replace(result.data.csrfToken);
+      if (generation === this.csrf.generation) {
+        this.csrf.replace(result.data.csrfToken);
+      }
       return result.data;
     }
     if (result.response.status === 401) {
-      this.csrf.clear();
+      if (generation === this.csrf.generation) {
+        this.csrf.clear();
+      }
       return null;
     }
     throw publicAPIError(result.response.status, result.error);

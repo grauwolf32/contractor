@@ -304,4 +304,57 @@ describe("authoritative domain authentication failures", () => {
     expect(api.csrf.get()).toBe(freshSession.csrfToken);
     expect(listener).not.toHaveBeenCalled();
   });
+
+  it.each([200, 401])(
+    "does not apply a late session response (%s) after a new login",
+    async (status) => {
+      let resolveResponse!: (response: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      });
+      const freshSession = { ...session, csrfToken: "b".repeat(43) };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) =>
+          (input as Request).url.endsWith("/v1/auth/login")
+            ? apiResponse(freshSession)
+            : pending,
+        ),
+      );
+      api.csrf.replace(session.csrfToken);
+      const lookup = api.getSession();
+      await api.login({ username: "owner", password: "password" });
+      resolveResponse(
+        apiResponse(
+          status === 200 ? session : { code: "unauthorized" },
+          status,
+        ),
+      );
+      await lookup;
+      expect(api.mutationHeaders().get("X-CSRF-Token")).toBe(
+        freshSession.csrfToken,
+      );
+    },
+  );
+
+  it("does not restore a session response after logout", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) =>
+        (input as Request).url.endsWith("/v1/auth/logout")
+          ? apiResponse(undefined, 204)
+          : pending,
+      ),
+    );
+    api.csrf.replace(session.csrfToken);
+    const lookup = api.getSession();
+    await api.logout();
+    resolveResponse(apiResponse(session));
+    await lookup;
+    expect(api.csrf.get()).toBeUndefined();
+  });
 });
