@@ -1390,6 +1390,14 @@ provenance; an imported proposal is protected by the destination Audit's own
 exact holds. Run deletion therefore cannot leak abandoned proposal pins or
 silently remove evidence already retained by an Audit.
 
+The same exact receipt may be imported into multiple compatible Audits owned
+by the same owner. Each destination independently owns its finding, analyst
+review, assessment and exact evidence holds; replay within one Audit reuses
+that Audit's records. Finding and direct-assessment IDs are opaque and scoped
+to the destination Audit. Existing legacy IDs remain unchanged and replay
+only within their owning Audit. Deleting one destination does not release
+another destination's retained evidence or change its finding decisions.
+
 Run deletion and creation of a destination proposal hold serialize on the source
 Run before taking Audit, receipt/retention and Artifact locks. Deletion locks
 all affected Audits in Audit-ID order, then commits their revision invalidation

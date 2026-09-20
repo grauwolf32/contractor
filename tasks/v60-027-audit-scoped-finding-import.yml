@@ -1,0 +1,41 @@
+schema_version: "1.0"
+id: V60-027
+title: Preserve independent findings when importing one receipt into multiple Audits
+milestone: project-review-v60
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V60-012]
+languages: [go, sql, markdown]
+goal: Allow the same exact receipt in compatible Audits without colliding finding or direct-assessment identities.
+context:
+  authority: User requested completion of open V60 reviews; V60-008 owns the documented multi-Audit import ambiguity.
+  specification: docs/spec/19-audits.md
+  design: docs/plans/2026-09-20-project-review.md
+  decision: >-
+    One owner may import the same exact receipt into multiple compatible Audits.
+    Each Audit independently owns its finding, review, assessment and evidence
+    holds. Existing immutable IDs and same-Audit replay remain unchanged.
+scope:
+  in:
+    - Reproduce the second-Audit primary-key collision using real PostgreSQL.
+    - Add a forward migration giving future findings an Audit-scoped opaque identity without rewriting existing rows.
+    - Scope new direct-assessment identities by Audit and retain exact replay of legacy identities within their owning Audit.
+    - Verify same-Audit replay, independent review and retention, and upgrade preservation; remove test assumptions about opaque finding IDs.
+  out:
+    - Rewrite historical migrations or published finding/assessment IDs; bypass ownership, compatibility or frozen-report admission.
+acceptance_criteria:
+  - id: A1
+    text: The same exact receipt imports once into each compatible Audit, with separate findings, decisions and holds; replays do not create another record.
+  - id: A2
+    text: Direct assessments are independent per Audit and replay existing pre-migration rows without changing their IDs, counts or bytes.
+  - id: A3
+    text: Real PostgreSQL upgrade, retention, deletion and public finding regressions pass; the required Audit hardening gate executes without mandatory skips.
+tests:
+  - command: go test -tags=integration -race -count=1 ./internal/findingintake ./internal/auditstore ./internal/auditservice ./internal/httpapi/public ./internal/persistence/postgres
+    covers: [A1, A2, A3]
+  - command: make test-audits-hardening
+    covers: [A1, A2, A3]
+verification_requirements:
+  - Retain original collision evidence, migration compatibility assertions and the full gate results in V60-027/V60-008 evidence.
+  - Use only the isolated review database and exact local fixture artifacts; no live models or existing user Audits.

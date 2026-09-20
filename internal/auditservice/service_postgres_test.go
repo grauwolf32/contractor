@@ -1180,7 +1180,12 @@ INSERT INTO finding_proposal_audit_holds (
 		receiptID, auditID, projectID, proposalJSON); err != nil {
 		t.Fatal(err)
 	}
-	return "finding-" + receiptID
+	var findingID string
+	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings
+WHERE audit_id = $1 AND first_receipt_id = $2`, auditID, receiptID).Scan(&findingID); err != nil {
+		t.Fatal(err)
+	}
+	return findingID
 }
 
 func decideFindingForTest(

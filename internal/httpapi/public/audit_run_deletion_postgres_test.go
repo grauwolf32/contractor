@@ -156,8 +156,12 @@ func TestPublicAuditSourceRunDeletionInvalidatesReadContexts(t *testing.T) {
 	}
 	// Use the existing contributing-receipt relation to get a genuine signed
 	// continuation for one finding, retaining both actually imported holds.
-	const findingID = "finding-receipt-source-a"
-	if _, err := pool.Exec(ctx, `DELETE FROM audit_findings WHERE finding_id='finding-receipt-source-extra'`); err != nil {
+	var findingID string
+	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings
+WHERE audit_id = 'audit-a' AND first_receipt_id = 'receipt-source-a'`).Scan(&findingID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM audit_findings WHERE audit_id='audit-a' AND first_receipt_id='receipt-source-extra'`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO audit_finding_contributions(finding_id,audit_id,receipt_id,relation,proposal_ref)

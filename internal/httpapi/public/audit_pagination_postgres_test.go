@@ -68,9 +68,11 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 			dependencies.Audits = interleaving
 		},
 	)
+	findingIDs := make(map[string]string, 201)
 	for index := range 201 {
 		suffix := fmt.Sprintf("page-%03d", index)
 		findingID := seedPublicPaginationFinding(t, ctx, pool, owner, projectID, auditID, suffix)
+		findingIDs["receipt-"+suffix] = findingID
 		_, err := service.CreateFindingReview(ctx, auditservice.CreateFindingReviewParams{
 			OwnerID: owner, AuditID: auditID, FindingID: findingID, ExpectedRevision: 1,
 			RequestID: "review-" + suffix, IdempotencyKey: "review-" + suffix,
@@ -80,7 +82,7 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const firstFinding = "finding-receipt-page-000"
+	firstFinding := findingIDs["receipt-page-000"]
 	// One source proposal plus 200 retained direct assessments exercises the
 	// provenance cursor over heterogeneous records without running any Workers.
 	_, err = pool.Exec(ctx, `
@@ -156,7 +158,7 @@ FROM generate_series(1, 200) AS index`, firstFinding, auditID, auditHandlerDiges
 									t.Fatal(err)
 								}
 								receipt := finding.FirstProposal
-								if finding.FindingID != "finding-"+receipt.ReceiptID ||
+								if finding.FindingID != findingIDs[receipt.ReceiptID] ||
 									receipt.Document.ClientKey != receipt.ClientKey ||
 									receipt.Proposal.Ref.Name != receipt.ClientKey || len(receipt.AuditHolds) != 1 ||
 									receipt.AuditHolds[0].AuditID != auditID {
@@ -307,5 +309,10 @@ VALUES ($1, 'audit-held', clock_timestamp())`, receiptID); err != nil {
 VALUES ($1, $2, $3, $4::jsonb, '[]'::jsonb)`, receiptID, auditID, projectID, proposalJSON); err != nil {
 		t.Fatal(err)
 	}
-	return "finding-" + receiptID
+	var findingID string
+	if err := pool.QueryRow(ctx, `SELECT finding_id FROM audit_findings
+WHERE audit_id = $1 AND first_receipt_id = $2`, auditID, receiptID).Scan(&findingID); err != nil {
+		t.Fatal(err)
+	}
+	return findingID
 }

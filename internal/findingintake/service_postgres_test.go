@@ -365,12 +365,67 @@ SELECT count(*) FROM audit_artifact_links
 		t.Fatalf("direct replay retention = (before=%d after=%d links=%d)",
 			retainedBefore, retainedAfter, directLinks)
 	}
+	// Import the same exact successful source into another compatible Audit.
+	// Its assessment and retained bytes must be independent of the first Audit.
+	const otherAuditID = "finding-audit-other"
+	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: otherAuditID, OwnerID: ownerID, ProjectID: projectID,
+		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: digestBytes([]byte("profile"))},
+		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
+		IdempotencyKey: otherAuditID, RequestDigest: digestBytes([]byte(otherAuditID)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	otherRequest := ImportRequest{OwnerID: ownerID, AuditID: otherAuditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref}
+	otherHold, replayed, err := service.ImportIntoAudit(ctx, otherRequest)
+	if err != nil || replayed {
+		t.Fatalf("second Audit direct import: replayed=%v err=%v", replayed, err)
+	}
+	var otherAssessmentID string
+	var otherResultJSON, otherContractJSON []byte
+	if err := pool.QueryRow(ctx, `SELECT assessment_id,result_ref,contract_ref FROM audit_finding_assessments
+WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firstReceipt.ReceiptID).Scan(&otherAssessmentID, &otherResultJSON, &otherContractJSON); err != nil {
+		t.Fatal(err)
+	}
+	var otherResultRef, otherContractRef contracts.ArtifactRef
+	if err := json.Unmarshal(otherResultJSON, &otherResultRef); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(otherContractJSON, &otherContractRef); err != nil {
+		t.Fatal(err)
+	}
+	if otherAssessmentID == directAssessmentID || sameRef(otherResultRef, directResultRef) || sameRef(otherContractRef, directContractRef) {
+		t.Fatal("Audits share direct assessment identity or retention")
+	}
+	var otherRetainedBefore, otherRetainedAfter int64
+	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedBefore); err != nil {
+		t.Fatal(err)
+	}
+	if _, replayed, err := service.ImportIntoAudit(ctx, otherRequest); err != nil || !replayed {
+		t.Fatalf("second Audit direct replay: replayed=%v err=%v", replayed, err)
+	}
+	var assessmentCount, otherLinks int
+	if err := pool.QueryRow(ctx, `SELECT retained_evidence_bytes FROM audits WHERE audit_id=$1`, otherAuditID).Scan(&otherRetainedAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_finding_assessments WHERE receipt_id=$1`, firstReceipt.ReceiptID).Scan(&assessmentCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_artifact_links WHERE audit_id=$1 AND logical_key LIKE 'finding/%/direct-%'`, otherAuditID).Scan(&otherLinks); err != nil {
+		t.Fatal(err)
+	}
+	if otherRetainedBefore != otherRetainedAfter || assessmentCount != 2 || otherLinks != 2 {
+		t.Fatalf("independent replay retention: bytes=%d/%d assessments=%d links=%d", otherRetainedBefore, otherRetainedAfter, assessmentCount, otherLinks)
+	}
 	if err := runs.DeleteReleasedTerminalRun(ctx, ownerID, runID); err != nil {
 		t.Fatal(err)
 	}
 	listed, err := service.ListAuditInbox(ctx, ownerID, auditID, ListQuery{Limit: 10})
 	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionAuditHeld ||
-		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 ||
+		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 2 ||
 		listed[1].Retention != RetentionAuditHeld || !listed[1].Origin.RunDeleted {
 		t.Fatalf("Audit inbox after Run deletion = (%+v, %v)", listed, err)
 	}
@@ -386,6 +441,7 @@ SELECT count(*) FROM audit_artifact_links
 	}
 	for name, ref := range map[string]contracts.ArtifactRef{
 		"direct result": directResultRef, "direct contract": directContractRef,
+		"other proposal": otherHold.Proposal.Ref, "other direct result": otherResultRef, "other contract": otherContractRef,
 	} {
 		if _, err := projectArtifacts.Read(ctx, ref); err != nil {
 			t.Fatalf("retained %s after Run deletion: %v", name, err)
