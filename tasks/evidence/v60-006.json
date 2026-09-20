@@ -3,7 +3,7 @@
   "task_id": "V60-006",
   "verified_on": "2026-09-20",
   "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
-  "implementation_commit": null,
+  "implementation_commit": "800e9db33cee293050ea6b4e4d10b3e3a2533d85",
   "report": "docs/research/2026-09-20-v60-006-runtime-review.md",
   "environment": {
     "go": "go1.25.6 linux/amd64, race where specified, GOMAXPROCS=2, GOFLAGS=-p=2 -v",

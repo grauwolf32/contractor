@@ -3,7 +3,7 @@ id: V60-006
 title: Review Runtime authority, completion, cross-language contracts and tools
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -90,3 +90,5 @@ verification:
     and 58 Podman cases executed; shared Audit completion gate passed 173 Go
     and 331 Runtime cases with no selected skips. Result-size parity defect fixed and completed
     as V60-026; accepted finalizer and transport policies retained.
+
+implementation_commit: 800e9db33cee293050ea6b4e4d10b3e3a2533d85
