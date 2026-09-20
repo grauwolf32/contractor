@@ -1,0 +1,234 @@
+{
+  "task": "V55-010",
+  "action": "demo deployment",
+  "status": "verified",
+  "codeRevision": "1d66119636bd13578be24799d1ea70a7fb8eda97",
+  "release": ".local/demo/releases/main-1d661196-20260920T123837Z",
+  "completedAt": "2026-09-20T12:58:03.300629+00:00",
+  "uiVersion": "0.4.0",
+  "migration": {
+    "from": 61,
+    "to": 61
+  },
+  "services": {
+    "server": {
+      "ActiveState": "active",
+      "MainPID": "1178384",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-1d661196-20260920T123837Z/source"
+    },
+    "ui": {
+      "ActiveState": "active",
+      "MainPID": "1178872",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-1d661196-20260920T123837Z/source/ui"
+    },
+    "runtime-a": {
+      "ActiveState": "active",
+      "MainPID": "1178419",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-1d661196-20260920T123837Z/source/runtime"
+    },
+    "runtime-b": {
+      "ActiveState": "active",
+      "MainPID": "1178420",
+      "NRestarts": "0",
+      "WorkingDirectory": "/home/ruslan/src/contractor/.local/demo/releases/main-1d661196-20260920T123837Z/source/runtime"
+    }
+  },
+  "scannerVersions": {
+    "nuclei": "3.6.2",
+    "naabu": "2.6.1",
+    "ffuf": "2.3.0",
+    "sqlmap": "1.10.9.18#dev",
+    "katana": "1.7.0"
+  },
+  "runtimeAgents": [
+    {
+      "instanceId": "runtime-0dee1c45-4e12-46b0-8bee-02a61077b28e",
+      "observedState": "idle",
+      "slotState": "idle",
+      "currentAllocationId": null,
+      "authoritativeAllocationId": null,
+      "confirmedLeaseUntil": "2026-09-20T15:58:58.523032138+03:00",
+      "scanTools": [
+        "scan_ffuf",
+        "scan_katana",
+        "scan_naabu",
+        "scan_nuclei",
+        "scan_sqlmap"
+      ]
+    },
+    {
+      "instanceId": "runtime-4aa63e30-efcc-4919-90bc-c7002bee2ab0",
+      "observedState": "idle",
+      "slotState": "idle",
+      "currentAllocationId": null,
+      "authoritativeAllocationId": null,
+      "confirmedLeaseUntil": "2026-09-20T15:58:58.520417461+03:00",
+      "scanTools": [
+        "scan_ffuf",
+        "scan_katana",
+        "scan_naabu",
+        "scan_nuclei",
+        "scan_sqlmap"
+      ]
+    }
+  ],
+  "allPreviousCapabilitiesRetained": true,
+  "drainingRun": {
+    "runId": "run_927d048ef0fbfd7862f6c0f69e9d2950",
+    "state": "failed",
+    "finishedBeforeServiceRestart": true,
+    "cancelledByDeployment": false
+  },
+  "scanSmoke": {
+    "runId": "run_7d338556c85815d45a5363408920a9bb",
+    "passed": true,
+    "targets": 4,
+    "modelCalls": 0,
+    "outOfScopeRequests": 0,
+    "uiUrl": "http://192.168.1.217:4173/runs/run_7d338556c85815d45a5363408920a9bb",
+    "outputs": {
+      "report": {
+        "namespace": "outputs",
+        "name": "report",
+        "revision": "rev_7671c9c8a61a3ad767b9f1e667010204"
+      },
+      "targets": {
+        "namespace": "outputs",
+        "name": "targets",
+        "revision": "rev_f96e68873d644f5048894fbd8dcf2f24"
+      }
+    },
+    "sourceTargets": {
+      "namespace": "scanner",
+      "name": "targets",
+      "revision": "rev_f8b21de050c0487a68e1a2f3b9a0a5b8"
+    },
+    "targetsDigest": "sha256:fe29fbe09c6898c05dcb3b13a1d394eca60d2cad403aadfd2082ce1b0926497b",
+    "discoveryComplete": false
+  },
+  "browserSmoke": {
+    "passed": true,
+    "checks": 10,
+    "authenticatedBrowserUI": false,
+    "limitation": "Authenticated browser pages were not exercised because no browser login password was available. Real bearer API checks and desktop/mobile login rendering passed."
+  },
+  "uiBuild": {
+    "checks": {
+      "install": {
+        "status": "passed",
+        "command": "pnpm install --frozen-lockfile"
+      },
+      "typecheck": {
+        "status": "passed",
+        "command": "pnpm typecheck"
+      },
+      "unitTests": {
+        "status": "passed_after_targeted_recheck",
+        "command": "pnpm test --run",
+        "initial": {
+          "passed": 495,
+          "failed": 5,
+          "testFiles": 71,
+          "total": 500
+        },
+        "recheck": {
+          "command": "pnpm test --run --maxWorkers=1 src/routes/evals-comparison.test.tsx src/routes/evals-status.test.tsx src/routes/artifacts/archive-preview.test.tsx src/routes/workflows/workflows.test.tsx",
+          "passed": 33,
+          "failed": 0,
+          "testFiles": 4
+        },
+        "note": "All initially failing tests passed with one worker; no source changes made between attempts. Initial test run competed with concurrent UI typecheck/build and other host workload."
+      },
+      "serverTests": {
+        "status": "passed",
+        "command": "pnpm test:server",
+        "passed": 11,
+        "failed": 0
+      },
+      "build": {
+        "status": "passed",
+        "command": "pnpm build",
+        "warning": "Existing large chunk advisory; build successful."
+      }
+    },
+    "deployedOverlayFiles": 18,
+    "distIndexSha256": "57a928f4691d75d108fe333478e579abe23ffdb4b20bc5478df77e14c77836d4"
+  },
+  "queueBefore": {
+    "paused": false,
+    "revision": "32",
+    "updatedAt": "2026-09-20T10:34:46.247572Z"
+  },
+  "queueAfter": {
+    "paused": false,
+    "revision": "34",
+    "updatedAt": "2026-09-20T12:52:49.336647Z"
+  },
+  "previousRunsPreserved": 185,
+  "runsNow": 188,
+  "previousAuditsPreserved": 11,
+  "auditsNow": 11,
+  "backupRestorePreflight": "passed with schema-local validator search_path during restore, then reset; live validators unchanged",
+  "backupHandling": "Database dumps, configuration, secrets and prior effective service overrides retained privately in the release backups directory; backup contents are not committed.",
+  "evidence": [
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/release.json",
+      "sha256": "83168d034d36fa856e7f66c97e259198f4df7fc980f786845c7312ce9163689e"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/verification.json",
+      "sha256": "e3ce98f069562e2cff3868baebe935084fb8a73dc0408ae77ce711bb9ea79568"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/verify.py",
+      "sha256": "6447b421273bfc9401b4abad18881d0b5716beb534651135d62576ab86fa9f92"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/preflight.json",
+      "sha256": "df2fb4e9532cecd8dd74338da4e6c04d96a86bd30177e2a9bcabf3612515f4c2"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/scanner-provisioning.json",
+      "sha256": "901e6bd8f18684668dc03557246849014e5c0aeeae3aa14b8f12eefdbbd01b50"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/ui-build.json",
+      "sha256": "5b809d185256e15dc75c8fc4164549601d5caae81fc0647abaa26a929bde2d79"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/ui-deployed-overlay.json",
+      "sha256": "0e3c0db8e03cd949fa6a784879e0ae7be8147e422f324b2b0ff1c6e7d75403df"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/browser-smoke.json",
+      "sha256": "5fbb7d49bf2da77e908b0b3c9020b8671ea4a6e3e7ed31fb6675a1fdaf29b554"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/browser-smoke-review.json",
+      "sha256": "e42fb668a37aa7f012800e06d91bb530f35992d6e2f1079d76811b562aeb98e6"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/login-1440.png",
+      "sha256": "8b06383c24aad7f1dbd3e91604956c793767c67d05613d768eb4a39fd5108fc0"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/login-390.png",
+      "sha256": "26ab2acf753be00c5bec2e1db397e0fc8bfb7ba49966fe3c4c596e0b44a30548"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/katana-smoke.json",
+      "sha256": "05fedf2ec1c3f9fb110a23cc701f35fc363dde1189a7152acae043c71c4e73c7"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/katana-report.json",
+      "sha256": "3cebc14fca3c879f61e0bfa448d697964efd76f607fafaad3ecc9eafa6c5c45d"
+    },
+    {
+      "path": ".local/demo/releases/main-1d661196-20260920T123837Z/evidence/katana-targets.txt",
+      "sha256": "fe29fbe09c6898c05dcb3b13a1d394eca60d2cad403aadfd2082ce1b0926497b"
+    }
+  ]
+}
