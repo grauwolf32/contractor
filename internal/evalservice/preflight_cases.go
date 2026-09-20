@@ -102,7 +102,9 @@ func caseEligibility(c evaldomain.Case, v evaldomain.Variant, s BindingSnapshot,
 		for name, slot := range s.Audit.Inputs {
 			slots[name] = config.ArtifactSlot{Required: slot.Required, MediaTypes: slot.MediaTypes}
 		}
-		outputs["report"] = config.ArtifactSlot{MediaTypes: []string{"application/json", "text/markdown"}}
+		for name, output := range auditOutputContracts {
+			outputs[name] = config.ArtifactSlot{MediaTypes: []string{output.mediaType}}
+		}
 		for name := range MapParameters(c, v) {
 			if name != "objective" && name != "target" && name != "authorizationScope" {
 				return unavailable("The Audit scope has an unsupported parameter.")

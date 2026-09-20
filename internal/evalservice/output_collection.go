@@ -19,6 +19,19 @@ type OutputObservation struct {
 	Collection evaldomain.Collection
 }
 
+// Preparation and collection must agree on the exact Audit artifact behind
+// each output. Coverage/findings retain the machine report with a JSON pointer;
+// the Markdown report is selected explicitly through the summary output.
+var auditOutputContracts = map[string]struct {
+	logicalKey string
+	mediaType  string
+}{
+	"report":   {auditstore.ReportMachineLogicalKey, "application/json"},
+	"coverage": {auditstore.ReportMachineLogicalKey, "application/json"},
+	"findings": {auditstore.ReportMachineLogicalKey, "application/json"},
+	"summary":  {auditstore.ReportSummaryLogicalKey, "text/markdown"},
+}
+
 func collectOutputs(
 	ctx context.Context,
 	db pg.DBTX,
@@ -104,14 +117,9 @@ func resolveOutput(
 		return store.RunOutput(ctx, owner, execution.ID, slot)
 	}
 
-	var logicalKey string
-	switch slot {
-	case "report", "coverage", "findings":
-		logicalKey = auditstore.ReportMachineLogicalKey
-	case "summary":
-		logicalKey = auditstore.ReportSummaryLogicalKey
-	default:
+	output, ok := auditOutputContracts[slot]
+	if !ok {
 		return evaldomain.Artifact{}, evaldomain.Failure("eval_not_found")
 	}
-	return store.AuditOutput(ctx, owner, execution.ID, logicalKey)
+	return store.AuditOutput(ctx, owner, execution.ID, output.logicalKey)
 }
