@@ -93,6 +93,14 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		*report.Metrics.Tools["a2a.invoke"].Calls != 1 {
 		t.Fatalf("Planner execution report = (%+v, %t)", report, ok)
 	}
+	for name, counter := range map[string]*int64{
+		"model calls": report.Metrics.ModelCalls, "input tokens": report.Metrics.InputTokens,
+		"output tokens": report.Metrics.OutputTokens, "total tokens": report.Metrics.TotalTokens,
+	} {
+		if counter == nil || *counter != 0 {
+			t.Fatalf("Passthrough %s must explicitly report zero, got %v", name, counter)
+		}
+	}
 	if export := telemetryAdapter.Flush(t.Context()); !export.Succeeded {
 		t.Fatalf("Passthrough telemetry export = %+v", export)
 	}
