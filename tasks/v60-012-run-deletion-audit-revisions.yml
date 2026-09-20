@@ -28,6 +28,10 @@ context:
   contract_interaction: Report importer writes fixed immutable report artifacts before CommitReport/ProposeReport
     CAS; report bytes include Audit.UpdatedAt. A naive concurrent revision bump can strand a different immutable
     payload on retry, so deletion/report coordination must be tested before changing revision writes.
+  contract_decision: Run deletion always advances affected Audit revisions, including terminal Audits. While an
+    affected Audit is finalizing, this external-retention mutation preserves updated_at so a report retry retains
+    its generatedFrom timestamp and exact immutable bytes. Other states advance updated_at normally. Finding
+    and frozen review-subject revisions do not change when only source Run availability changes.
 scope:
   in:
   - Identify every affected Audit through managed execution association and retained imported receipt holds, including
@@ -57,7 +61,7 @@ acceptance_criteria:
   text: Actual HTTP old revision/cursor/cache context is invalidated after deletion; refreshed provenance retains
     exact refs and correct source/attempt identities.
 tests:
-- command: go test -tags=integration -race -count=1 ./internal/runstore ./internal/auditservice ./internal/auditimport
+- command: go test -tags=integration -race -count=1 ./internal/runstore ./internal/findingintake ./internal/auditservice ./internal/auditimport
     ./internal/httpapi/public
   covers:
   - A1

@@ -366,12 +366,37 @@ func (s *Service) ImportIntoAudit(
 	var result AuditHold
 	var replayed bool
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		// Serialize destination discovery with Run deletion without blocking
+		// ordinary Run progress or other imports. Audit authority comes next,
+		// before receipt/retention locks, matching deletion and Audit purge.
+		var sourceProjectID string
+		err := tx.QueryRow(ctx, `
+SELECT project_id FROM workflow_runs
+ WHERE run_id = $1 AND owner_id = $2 AND project_id IS NOT NULL
+ FOR KEY SHARE`, request.RunID, request.OwnerID).Scan(&sourceProjectID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("lock source Run for Audit finding import: %w", err)
+		}
+		var lockedAuditID string
+		err = tx.QueryRow(ctx, `
+SELECT audit_id FROM audits
+ WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
+ FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("lock destination Audit for finding import: %w", err)
+		}
 		var receiptID, projectID, invocationID, clientKey, workflowClosureDigest string
 		var proposalDigest, proposalMediaType string
 		var proposalSizeBytes int64
 		var proposalRefJSON, evidenceJSON []byte
 		requestedProposal, _ := json.Marshal(request.Proposal)
-		err := tx.QueryRow(ctx, `
+		err = tx.QueryRow(ctx, `
 SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence,
        receipt.invocation_id, receipt.client_key, receipt.workflow_closure_digest,
        receipt.proposal_digest, receipt.proposal_media_type, receipt.proposal_size_bytes
