@@ -121,3 +121,39 @@ The final Runtime optional count adds five absent-Katana-binary cases to the
 34 skips classified in V60-006. Earlier separate Podman/Artifact-bridge results
 retain their original source attribution. No optional live-model or missing
 scanner-binary case is represented as an executed success.
+
+## Integration follow-up
+
+The integration source `43cea5b89ac8c9bf9d43101f399079c31aabd439` includes
+committed main through `bacb2817`: explicit Planner model access, required
+batch readers, the current Memory catalog, strict persisted session/Audit role
+validation and typed Evals receipts. Five overlapping process fixtures and
+three catalog-dependent regressions were reconciled. They retain exact pinned
+budgets, repeat bindings, Memory tools, validated snapshot time, instruction
+staging and HTTP retry classification. A real Server restart checks preserved
+Project pins and history after removing the current Audit catalog entries.
+
+The first integration invocation passed six focused regression groups, catalog
+validation, affected PostgreSQL race tests, Streamline/Gateway recovery,
+build/package compilation, and the Memory, Project, Audit and Agent Skills
+process targets. It then failed in the Findings boundary fixture because its
+expected tool set omitted six newly configured Memory tools. UI execution was
+not reached. V60-041 corrects that single expected list with the existing helper;
+the failed invocation and its earlier passing stages retain source attribution.
+Compile-only commands are not represented as process execution.
+
+At `c25b4b28ed0e865dd54fb0bd74b917a1306e99f0`, the complete Findings and UI stack
+invocation passed in 1,285.97 s, exit zero: 13 required Findings process cases,
+48 Runtime cases, all 20 Chromium cases in seven required files, native Evals
+(510.85 s) and external Evals (481.27 s). The browser selection had zero skipped,
+unexpected or flaky cases. Its 19 route-fixture journeys and one actual
+Operations process case are distinguished from the separate actual Evals
+journeys. Optional screenshot OCR was unavailable. The stopped database
+monitor recorded 1,286 samples with no collection errors. Evidence retains
+commands, source commits and SHA-256 hashes for both integration invocations.
+The complete release result above remains attributed to `e49c6523`; later
+integration used the affected checks listed here.
+
+All 41 V60 tasks are completed. Original failed runs and the unexplained
+historical Evals deadline remain in the evidence; successful follow-up results
+do not rewrite them.

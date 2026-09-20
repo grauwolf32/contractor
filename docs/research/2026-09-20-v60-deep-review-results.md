@@ -4,7 +4,8 @@ Review date: 2026-09-20. Work was isolated on `review/v60-deep-review` from
 `8edeabf21194f5bba8dd258d53a072af713c630e`; unrelated working-tree changes were
 preserved. Each task records its original implementation commit separately
 from completion metadata. Committed main through `bc32a76b` was merged before
-the final invocation, currently at `e49c6523`. Per-task evidence distinguishes actual PostgreSQL,
+the frozen full-release invocation at `e49c6523`. Later integration is recorded
+separately below. Per-task evidence distinguishes actual PostgreSQL,
 process, container, browser-fixture and unit-test observations.
 
 ## Review records
@@ -37,6 +38,7 @@ process, container, browser-fixture and unit-test observations.
 | V60-038 | A scripted Summarizer timeout triggered a transport retry that the one-request fixture rejected. The HTTP 504 response now suppresses physical retries while retaining its retryable Stage classification. |
 | V60-039 | Project workflow tests hardcoded obsolete Worker budget limits. Expectations use the immutable execution configuration while retaining exact limits and observed usage checks. |
 | V60-040 | Exact Project Run binding checks omitted the required retained repeat request. Both expected sets now name that one system record through existing constants; all exact-count, media, revision and frozen-state checks remain unchanged. |
+| V60-041 | After the later catalog merge, the Findings boundary fixture still expected the pre-Memory tool set. It now uses the existing exact Memory-tool list; all missing/empty/interrupted/conflicting/invalid preparation and retention checks remain enforced. |
 
 The review also clarifies the established Queue Pause release exception and
 updates stale V37/V38 delivery statements. It does not introduce new lifecycle
@@ -78,6 +80,36 @@ summaries and hashes are committed in task evidence.
 
 ## Integration with concurrent work
 
-Later committed main changes retire superseded catalog entries and tighten
-persisted configuration readers. Their integration and focused verification
-are recorded separately from the frozen full-release result above.
+The integration source `43cea5b89ac8c9bf9d43101f399079c31aabd439` includes
+committed main through `bacb2817`: explicit Planner model access, required
+batch readers, the current Memory catalog, strict persisted session/Audit role
+validation and typed Evals receipts. Five overlapping process fixtures and
+three catalog-dependent regressions were reconciled. They retain exact pinned
+budgets, repeat bindings, Memory tools, validated snapshot time, instruction
+staging and HTTP retry classification. A real Server restart checks preserved
+Project pins and history after removing the current Audit catalog entries.
+
+The first integration invocation passed six focused regression groups, catalog
+validation, affected PostgreSQL race tests, Streamline/Gateway recovery,
+build/package compilation, and the Memory, Project, Audit and Agent Skills
+process targets. It then failed in the Findings boundary fixture because its
+expected tool set omitted six newly configured Memory tools. UI execution was
+not reached. V60-041 corrects that single expected list with the existing helper;
+the failed invocation and its earlier passing stages retain source attribution.
+Compile-only commands are not represented as process execution.
+
+At `c25b4b28ed0e865dd54fb0bd74b917a1306e99f0`, the complete Findings and UI stack
+invocation passed in 1,285.97 s, exit zero: 13 required Findings process cases,
+48 Runtime cases, all 20 Chromium cases in seven required files, native Evals
+(510.85 s) and external Evals (481.27 s). The browser selection had zero skipped,
+unexpected or flaky cases. Its 19 route-fixture journeys and one actual
+Operations process case are distinguished from the separate actual Evals
+journeys. Optional screenshot OCR was unavailable. The stopped database
+monitor recorded 1,286 samples with no collection errors. Evidence retains
+commands, source commits and SHA-256 hashes for both integration invocations.
+The complete release result above remains attributed to `e49c6523`; later
+integration used the affected checks listed here.
+
+All 41 V60 tasks are completed. Original failed runs and the unexplained
+historical Evals deadline remain in the evidence; successful follow-up results
+do not rewrite them.

@@ -477,6 +477,64 @@
         "Makefile:546: update target 'test-findings-e2e' due to: target is .PHONY"
       ],
       "disposition": "PASS: one complete fail-fast invocation covers the full release graph and explicit public API, Audit hardening, Findings and browser aliases. Shared Make prerequisites run once except explicit recursive invocations."
+    },
+    {
+      "command": [
+        "bash",
+        ".local/v60-review/run-main-integration.sh"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 1229.67,
+      "log": ".local/v60-review/v60-main-integration.log",
+      "go_passing_events": 1471,
+      "go_skips": [],
+      "summaries": [
+        "4 passed in 0.89s",
+        "48 passed in 0.60s"
+      ],
+      "source_commit": "43cea5b89ac8c9bf9d43101f399079c31aabd439",
+      "log_sha256": "9d141415570550744a2396d500ea5cc23e14ed66072fe7544db43b6dc993694f",
+      "command_file": ".local/v60-review/run-main-integration.sh",
+      "command_file_sha256": "f4c83c6a48a2e6bdc05ca0c304a6e8b26ad3229c458844390b541bc5e6887e9a",
+      "failed_test_events": [
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/empty-is-explicit-success (10.66s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/interrupted-preparation-reuses-exact-ref (0.00s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/conflicting-document-fails (0.00s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses/invalid-zip-fails (0.00s)",
+        "--- FAIL: TestFindingsReaderBoundariesAcrossProcesses (15.77s)"
+      ],
+      "disposition": "Post-merge invocation failed in Findings: boundary fixture omitted the six configured Memory tools (V60-041). Earlier focused regressions, catalog validation, DB race, Streamline recovery, build/compile and Memory/Project/Audit/Skills targets passed. UI stack was not reached. Only the boundary expected-tool list changes in c25b4b28; unaffected earlier results retain their source attribution."
+    },
+    {
+      "command": [
+        "make",
+        "--trace",
+        "test-findings-e2e",
+        "test-ui-stack"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1285.97,
+      "log": ".local/v60-review/v60-main-remainder.log",
+      "go_passing_events": 37,
+      "go_skips": [],
+      "summaries": [
+        "48 passed in 0.65s",
+        "Findings gate passed: 13 required process cases and Runtime contracts.",
+        "    stack_test.go:356: Playwright execution verified: 20 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/scheduler-settings.spec.ts e2e/performance.spec.ts]; report SHA-256=665181aa9834d7a2115d5aed00766cab0b247636afabd9ce135bc17ebfad94de"
+      ],
+      "source_commit": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+      "log_sha256": "d73edce00c53ace9614d111780bc9f38a4bf517438aeac329cd2464f0cb07de5",
+      "result_json": ".local/v60-review/v60-main-remainder.json",
+      "result_json_sha256": "cead7e8f164793d2c578d80cbf810d9bbb0fee37b43bb6c41afe04d8ef49b9be",
+      "disposition": "PASS: full Findings and complete UI stack after the one-line V60-041 expected-tool correction. Earlier integration checks remain attributed to 43cea5b8; the complete release remains attributed to e49c6523. No timeout or retry changes.",
+      "process_results": {
+        "findings_go_seconds": 177.265,
+        "findings_required_process_cases": 13,
+        "findings_runtime_cases": 48,
+        "browser_operations_seconds": 110.26,
+        "native_evals_seconds": 510.85,
+        "external_evals_seconds": 481.27
+      }
     }
   ],
   "benchmark": {
@@ -874,11 +932,12 @@
     "log": ".local/v60-review/db-monitor-complete.jsonl",
     "log_sha256": "21ff8ed4014e28ba5e5303de88fe15791187f1655cd8f789dabb0e7eec031095",
     "summary": ".local/v60-review/db-monitor-complete-summary.json",
-    "summary_sha256": "fcb02cc959175a02b7ebe33bb4d2258042eae34bff61aeac7b471dd286ffcb37",
+    "summary_sha256": "111c7943faddb2245c1d9dcd2cb60b35c435cc5878be686ce1226278fb2a2ad2",
     "samples": 5073,
     "errors": 0,
     "stopped": true,
-    "observed": "Diagnostic query maximum 27.063 ms; active query age maximum 3.048876 s; owned PostgreSQL OOM-kill delta zero. Host/container pressure and transient blockers are recorded in the summary. Query age is not wait duration; these observations do not establish the cause of the earlier failed Evals run."
+    "observed": "Diagnostic query maximum 27.063 ms; active query age maximum 3.048876 s; owned PostgreSQL OOM-kill delta zero. Host/container pressure and transient blockers are recorded in the summary. Query age is not wait duration; these observations do not establish the cause of the earlier failed Evals run.",
+    "summary_note": "Regenerated summary from the same immutable stopped monitor input; observation timestamp changed, recorded sample counts and metrics unchanged."
   },
   "final_audit_completion": {
     "report": ".local/audit-completion-gate/run-vmgvfjvs/executed.json",
@@ -887,5 +946,42 @@
     "python_cases": 331,
     "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
     "required_skips": []
+  },
+  "main_integration_monitor": {
+    "log": ".local/v60-review/db-monitor-main-integration.jsonl",
+    "log_sha256": "1d391844ebb9f2bebed1db8fdbdbf6ba8e700cd7bd838e8bdeabaa78b6e47676",
+    "summary": ".local/v60-review/db-monitor-main-integration-summary.json",
+    "summary_sha256": "25316991c59fbff2293fad7aa996e7d9dd44aa446040fd2f88dada05edb125bb",
+    "samples": 1230,
+    "errors": 0,
+    "stopped": true
+  },
+  "integration_sources": {
+    "merged_main": "bacb2817f69510fef2a5bc51d6a6f682aee03f96",
+    "merged_review": "43cea5b89ac8c9bf9d43101f399079c31aabd439",
+    "findings_fixture_correction": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+    "full_release_attribution": "The complete release remains attributed to e49c6523; later integration results are recorded separately.",
+    "remainder_status": "PASS: full Findings (13 required process and 48 Runtime cases), all 20 Chromium cases in seven files, native Evals (510.85 s) and external Evals (481.27 s) at c25b4b28. Exit 0 in 1285.97 s."
+  },
+  "main_remainder_monitor": {
+    "raw": ".local/v60-review/db-monitor-main-remainder.jsonl",
+    "raw_sha256": "8e4a9c93e1376a8683ef8565e7ce347aa5b100130c892363fe31b181bcde053c",
+    "summary": ".local/v60-review/db-monitor-main-remainder-summary.json",
+    "summary_sha256": "96108b48526b434feb8f45eb949f60e93e194031c46583557daffd9618d646e2",
+    "samples": 1286,
+    "collection_errors": 0,
+    "stopped": true,
+    "interpretation": "Observational diagnostics only. Query age is not lock-wait duration; no causal conclusion about the earlier deadline incident."
+  },
+  "main_remainder_browser": {
+    "source_commit": "c25b4b28ed0e865dd54fb0bd74b917a1306e99f0",
+    "report": ".local/v60-review/v60-main-remainder-browser/run-3680022933/browser-report.json",
+    "report_sha256": "665181aa9834d7a2115d5aed00766cab0b247636afabd9ce135bc17ebfad94de",
+    "required_cases": 20,
+    "required_files": 7,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0,
+    "scope": "19 route-fixture journeys plus one actual Operations process case; native and external Evals are separate actual process tests. Optional screenshot OCR was unavailable."
   }
 }
