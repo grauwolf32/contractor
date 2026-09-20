@@ -2,6 +2,7 @@ package evaldomain
 
 import (
 	"reflect"
+	"slices"
 	"sort"
 	"time"
 )
@@ -10,12 +11,13 @@ import (
 // It deliberately has no Audit parent aggregate counter: only leaf Run stage
 // executions contribute tokens/calls. Service code verifies associations first.
 type AttemptObservation struct {
-	RunID            string           `json:"runId"`
-	StageExecutionID string           `json:"stageExecutionId"`
-	Metrics          map[string]int64 `json:"metrics"`
-	ReportsComplete  bool             `json:"reportsComplete"`
-	Truncated        bool             `json:"truncated"`
-	SourceSHA256     string           `json:"sourceSha256"`
+	RunID             string           `json:"runId"`
+	StageExecutionID  string           `json:"stageExecutionId"`
+	Metrics           map[string]int64 `json:"metrics"`
+	ReportsComplete   bool             `json:"reportsComplete"`
+	Truncated         bool             `json:"truncated"`
+	SourceSHA256      string           `json:"sourceSha256"`
+	IncompleteMetrics []string         `json:"incompleteMetrics,omitempty"`
 }
 
 type UsageObservation struct {
@@ -34,7 +36,7 @@ type UsageObservation struct {
 // NormalizeUsage is a pure format reducer. It performs no polling, state writes,
 // discovery or scheduling; callers pass a single verified inventory observation.
 func NormalizeUsage(in UsageObservation) (Usage, error) {
-	if !memberPattern.MatchString(in.MemberID) || len(in.Executions) > 1024 || len(in.Attempts) > MaxMembers {
+	if !memberPattern.MatchString(in.MemberID) || len(in.Executions) > MaxInventoryExecutions || len(in.Attempts) > MaxMetricSnapshots {
 		return Usage{}, Failure("eval_invalid")
 	}
 	kind := "workflow"
@@ -123,6 +125,9 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 		var total int64
 		count := 0
 		for _, attempt := range seen {
+			if slices.Contains(attempt.IncompleteMetrics, name) {
+				gaps = append(gaps, "counter incompletely reported")
+			}
 			value, ok := attempt.Metrics[name]
 			if !ok {
 				gaps = append(gaps, "counter unavailable")
@@ -139,7 +144,7 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 				gaps = append(gaps, "incomplete or truncated execution reports")
 			}
 		}
-		gaps = uniqueStrings(gaps)
+		gaps = BoundedGaps(gaps)
 		sources = uniqueStrings(sources)
 		m := Measure{
 			Unit:         unit,
@@ -207,4 +212,14 @@ func uniqueStrings(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// BoundedGaps retains missing-evidence diagnostics without preventing an
+// incomplete observation from being published when its sources exceed a bound.
+func BoundedGaps(values []string) []string {
+	values = uniqueStrings(values)
+	if len(values) > MaxEvidenceGaps {
+		values = append(values[:MaxEvidenceGaps-1], "Additional evidence gaps omitted.")
+	}
+	return values
 }

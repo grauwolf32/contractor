@@ -25,8 +25,9 @@ Preparation resolves exact Workflow/AuditProfile, Runtime, Skills, standards and
 artifact selections without creating an execution, artifact or target. It saves
 the portable plan and its private resource closure atomically. Required equality
 pins must be observed, present and equal; unavailable provider model revisions
-are not inferred from model names. Human review is the initial fixed check;
-V38-006 extends the bounded validator registry. No uploaded evaluator is executed.
+are not inferred from model names. The fixed registry supports pinned human review,
+required artifacts, media types and bounded allowlisted JSON schemas. No uploaded
+evaluator is executed.
 Binding selection and dependency pinning, case eligibility, artifact checks and
 comparison pins have separate implementations; `Resolve` owns their transaction.
 
@@ -56,8 +57,9 @@ response. An Audit deleted before Start remains explicitly never-started.
 Pause drains accepted work, resume retains the original clock and cumulative
 known usage, and explicit optional token limits do not change global defaults.
 Budget accounting is a bounded per-member high-water lower bound over unique
-stage metrics across all owned Audit roles. Full nullable usage and coverage
-belong to V38-006. Terminal members are never resampled. Duplicate copies native
+stage metrics across all owned Audit roles. Nullable per-dimension usage preserves
+missing reports, exact source digests and parent wall duration. Terminal members
+are never resampled. Duplicate copies native
 authoring intent into a fresh draft; external producers create new invocations.
 
 Native ticks never admit external members. A failed member observation rotates
@@ -85,5 +87,26 @@ Public authoring/control and bounded observation routes are provided through the
 ordinary authenticated HTTP adapter (V38-005). Mutation responses are retained
 receipts; GET returns current state. Collection lists expose safe summaries,
 while owner detail may include visible draft inputs. Exact capabilities are
-paginated from the existing catalogs. Result collection/comparison follows in
-V38-006; no assessment is inferred from execution success.
+paginated from the existing catalogs. V38-006 adds exact result/assessment revisions,
+owner review, explicit CAS selection, pair pages, charts, reports and full member
+execution inventories. No assessment is inferred from execution success.
+
+Collection separates authoritative observations, native record construction and
+selected-record validation. The first native result/check pair is selected by an
+audited system CAS; later, human and external records require explicit selection.
+Record receipt replay precedes evidence revalidation. Human review persists if a
+subsequent selection races. External result ingestion cannot overwrite execution
+state, timestamps or measured usage; producer activity advances only on new
+accepted operations, not receipt replay.
+
+Read methods use one repeatable-read snapshot. Safe reports omit private rubrics
+and free-text review reasons; only the dedicated owner review endpoint returns
+pinned private criteria. Charts and filtered pages retain the same unfiltered
+summary. Signed bin tokens bind owner, experiment, snapshot, suite and scope.
+
+V38-006 verification adds native structural failures, deleted evidence, retained
+reviews, external assessment revisions, all-role Audit inventories, chart/bin
+consistency and bounded observation gaps. The 10,000-member persistence fixture
+measures selected-page query counts and response sizes; it does not claim an
+end-to-end 10,000-member portable authoring journey. Browser setup/comparison,
+Playground integration and full release acceptance remain V38-007–010.

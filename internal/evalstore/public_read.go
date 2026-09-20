@@ -14,7 +14,7 @@ import (
 func (s *Store) ScopeForMutation(ctx context.Context, owner, id, operation, key string) (Scope, error) {
 	var project string
 	lookupID := id
-	if operation == "submission" {
+	if operation == "submission" || operation == "result" || operation == "assessment" || operation == "checks" {
 		separator := strings.LastIndex(id, ":")
 		if separator < 1 || evaldomain.Validate("MemberID", bytesOf(id[separator+1:])) != nil {
 			return Scope{}, evaldomain.Failure("eval_invalid")

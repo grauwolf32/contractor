@@ -131,9 +131,10 @@ rather than treating RunScope refs as UserScope or ProjectScope inputs.
 
 Performance UI and Git Settings/import are implemented and release-verified
 under V32 and V35. V38-001 selects full browser Evals setup, launch and comparison
-in the [experience design](../evals-experience-design.md). The planned native
-experiment API/coordinator and independent producer boundary are owned by
-[29](29-managed-evals.md); implementation is pending V38-002 through V38-010.
+in the [experience design](../evals-experience-design.md). The native experiment API/coordinator,
+independent producer boundary and selected comparison APIs in
+[29](29-managed-evals.md) are implemented through V38-006. Browser UI, Playground
+client and release acceptance remain V38-007 through V38-010.
 The delivered portable evaluator in [26](26-portable-evaluation-format.md) does
 not imply that UI is delivered. Existing evaluation Projects and generic
 Run-label behavior remain valid; Contractor will not require Playground to run

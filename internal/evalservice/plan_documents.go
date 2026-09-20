@@ -137,18 +137,24 @@ type portablePlan struct {
 }
 
 type bindingSettings struct {
-	Variant  evaldomain.Variant `json:"variant"`
-	Snapshot json.RawMessage    `json:"snapshot"`
+	ObservedPins map[string]Pin     `json:"observedPins"`
+	Variant      evaldomain.Variant `json:"variant"`
+	Snapshot     json.RawMessage    `json:"snapshot"`
 }
 
 type portableBinding struct {
-	SchemaVersion string            `json:"schema_version"`
-	ID            string            `json:"id"`
-	Provider      string            `json:"provider"`
-	Capabilities  []string          `json:"capabilities"`
-	Connection    string            `json:"connection"`
-	Settings      bindingSettings   `json:"settings"`
-	InputMapping  map[string]string `json:"input_mapping"`
-	OutputMapping map[string]string `json:"output_mapping"`
-	Normalizers   []documentRef     `json:"normalizers"`
+	SchemaVersion string                `json:"schema_version"`
+	ID            string                `json:"id"`
+	Provider      string                `json:"provider"`
+	Capabilities  []string              `json:"capabilities"`
+	Connection    string                `json:"connection"`
+	Settings      bindingSettings       `json:"settings"`
+	InputMapping  map[string]string     `json:"input_mapping"`
+	OutputMapping map[string]string     `json:"output_mapping"`
+	Normalizers   []normalizerReference `json:"normalizers"`
+}
+
+type normalizerReference struct {
+	ID                   string `json:"id"`
+	ImplementationSHA256 string `json:"implementation_sha256"`
 }

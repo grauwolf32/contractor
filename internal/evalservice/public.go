@@ -13,6 +13,7 @@ import (
 )
 
 type ExperimentView struct {
+	Freshness              string                   `json:"freshness,omitempty"`
 	ID                     string                   `json:"experimentId"`
 	PortableID             string                   `json:"portableExperimentId"`
 	ProjectID              string                   `json:"projectId"`
@@ -104,6 +105,21 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 					return err
 				}
 				out.ExecutionKind = setup.Variants[0].Kind
+			}
+		}
+		if out.PlanSHA256 != nil {
+			out.Freshness = "pending"
+			view, err := st.LatestView(ctx, owner, id)
+			if err != nil {
+				return err
+			}
+			if view != nil {
+				out.Freshness = view.Freshness
+				out.ViewSnapshot = &view.Snapshot
+				out.Summary, err = json.Marshal(view.Summary)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		out.AllowedCommands = e.Lifecycle().AllowedCommands()

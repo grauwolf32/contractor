@@ -1466,6 +1466,39 @@ paths:
           }
         },
         {
+          "name": "suiteId",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "measurementScope",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "audit"
+            ],
+            "x-enum-varnames": [
+              "EvalListevalmembersMeasurementscopeWorkflow",
+              "EvalListevalmembersMeasurementscopeAudit"
+            ]
+          }
+        },
+        {
+          "name": "binFilter",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        },
+        {
           "name": "filter",
           "in": "query",
           "schema": {
@@ -1697,6 +1730,1226 @@ paths:
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/EvalSubmission"
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/members/{memberId}/results: {
+    "post": {
+      "operationId": "ingestEvalResult",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "ingestEvalResult",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "memberId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalMemberID"
+          }
+        },
+        {
+          "$ref": "#/components/parameters/IdempotencyKey"
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRecordReceipt"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/EvalResultInput"
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/members/{memberId}/assessments: {
+    "post": {
+      "operationId": "assessEvalMember",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "assessEvalMember",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "memberId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalMemberID"
+          }
+        },
+        {
+          "$ref": "#/components/parameters/IdempotencyKey"
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRecordReceipt"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/EvalAssessmentSubmission"
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/members/{memberId}/review: {
+    "get": {
+      "operationId": "reviewEvalMember",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "reviewEvalMember",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "memberId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalMemberID"
+          }
+        },
+        {
+          "name": "resultSha256",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            },
+            "ETag": {
+              "$ref": "#/components/headers/ETag"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalReview"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/members/{memberId}/executions: {
+    "get": {
+      "operationId": "listEvalMemberExecutions",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "listEvalMemberExecutions",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "memberId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalMemberID"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalExecutionPage"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/selections: {
+    "post": {
+      "operationId": "selectEvalRecords",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "selectEvalRecords",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "$ref": "#/components/parameters/IdempotencyKey"
+        },
+        {
+          "$ref": "#/components/parameters/RequiredIfMatch"
+        }
+      ],
+      "responses": {
+        "201": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            },
+            "ETag": {
+              "$ref": "#/components/headers/ETag"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalSelectionReceipt"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/EvalSelectionInput"
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/pairs: {
+    "get": {
+      "operationId": "listEvalPairs",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "listEvalPairs",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        },
+        {
+          "name": "viewSnapshot",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "suiteId",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "measurementScope",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "audit"
+            ],
+            "x-enum-varnames": [
+              "EvalListevalpairsMeasurementscopeWorkflow",
+              "EvalListevalpairsMeasurementscopeAudit"
+            ]
+          }
+        },
+        {
+          "name": "binFilter",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        },
+        {
+          "name": "filter",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "all",
+              "unresolved",
+              "regressions"
+            ],
+            "x-enum-varnames": [
+              "EvalListevalpairsFilterAll",
+              "EvalListevalpairsFilterUnresolved",
+              "EvalListevalpairsFilterRegressions"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalPairPage"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/pairs/{pairId}: {
+    "get": {
+      "operationId": "getEvalPair",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "getEvalPair",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "pairId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalMemberID"
+          }
+        },
+        {
+          "name": "viewSnapshot",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalPairDetail"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/charts/{chart}: {
+    "get": {
+      "operationId": "getEvalChart",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "getEvalChart",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "chart",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        },
+        {
+          "name": "viewSnapshot",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "suiteId",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "measurementScope",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "audit"
+            ],
+            "x-enum-varnames": [
+              "EvalGetevalchartMeasurementscopeWorkflow",
+              "EvalGetevalchartMeasurementscopeAudit"
+            ]
+          }
+        },
+        {
+          "name": "metric",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "tokens",
+              "duration"
+            ],
+            "x-enum-varnames": [
+              "EvalGetevalchartMetricTokens",
+              "EvalGetevalchartMetricDuration"
+            ]
+          }
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "frozen",
+              "absolute"
+            ],
+            "x-enum-varnames": [
+              "EvalGetevalchartSortFrozen",
+              "EvalGetevalchartSortAbsolute"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalChart"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /v1/eval-experiments/{id}/report: {
+    "get": {
+      "operationId": "getEvalReport",
+      "tags": [
+        "Evals"
+      ],
+      "summary": "getEvalReport",
+      "x-contractor-implementation": "implemented",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/EvalOpaque"
+          }
+        },
+        {
+          "name": "viewSnapshot",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        {
+          "name": "format",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "json",
+              "markdown"
+            ],
+            "x-enum-varnames": [
+              "EvalGetevalreportFormatJson",
+              "EvalGetevalreportFormatMarkdown"
+            ]
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Owner-scoped evaluation response",
+          "headers": {
+            "X-Contractor-API-Version": {
+              "$ref": "#/components/headers/ContractorAPIVersion"
+            },
+            "X-Request-ID": {
+              "$ref": "#/components/headers/RequestId"
+            },
+            "Cache-Control": {
+              "$ref": "#/components/headers/NoStore"
+            },
+            "Idempotency-Replayed": {
+              "$ref": "#/components/headers/IdempotencyReplayed"
+            }
+          },
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalReport"
+              }
+            },
+            "text/markdown": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "400": {
+          "$ref": "#/components/responses/Error400"
+        },
+        "401": {
+          "$ref": "#/components/responses/Error401"
+        },
+        "403": {
+          "$ref": "#/components/responses/Error403"
+        },
+        "404": {
+          "$ref": "#/components/responses/Error404"
+        },
+        "409": {
+          "$ref": "#/components/responses/Error409"
+        },
+        "412": {
+          "$ref": "#/components/responses/Error412"
+        },
+        "422": {
+          "$ref": "#/components/responses/Error422"
+        },
+        "500": {
+          "$ref": "#/components/responses/Error500"
+        },
+        "405": {
+          "description": "Method is not allowed",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "428": {
+          "description": "Evaluation revision precondition is required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
+            }
+          }
+        },
+        "503": {
+          "description": "Evaluation service is unavailable",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Error"
+              }
             }
           }
         }
@@ -7516,6 +8769,19 @@ components:
         "observedTokens": {
           "type": "integer",
           "minimum": 0
+        },
+        "freshness": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "current",
+            "stale"
+          ],
+          "x-enum-varnames": [
+            "EvalExperimentPropertiesFreshnessPending",
+            "EvalExperimentPropertiesFreshnessCurrent",
+            "EvalExperimentPropertiesFreshnessStale"
+          ]
         }
       },
       "required": [
@@ -7764,7 +9030,14 @@ components:
       "type": "object",
       "properties": {
         "execution": {
-          "$ref": "#/components/schemas/EvalExecutionRef"
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/EvalExecutionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "parent": {
           "anyOf": [
@@ -7820,6 +9093,9 @@ components:
         },
         "available": {
           "type": "boolean"
+        },
+        "intentId": {
+          "$ref": "#/components/schemas/EvalOpaque"
         }
       },
       "required": [
@@ -8113,6 +9389,21 @@ components:
           },
           "minItems": 0,
           "maxItems": 1024
+        },
+        "result": {
+          "$ref": "#/components/schemas/EvalResultInput"
+        },
+        "policy": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/EvalCheck"
+          },
+          "minItems": 0,
+          "maxItems": 128
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
@@ -8159,7 +9450,14 @@ components:
           "minimum": 1
         },
         "viewSnapshot": {
-          "$ref": "#/components/schemas/EvalOpaque"
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/EvalOpaque"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -8573,6 +9871,16 @@ components:
         "bucketMs": {
           "type": "integer",
           "minimum": 1
+        },
+        "assessmentCoverage": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/components/schemas/EvalId"
+          },
+          "additionalProperties": {
+            "$ref": "#/components/schemas/EvalRatio"
+          },
+          "maxProperties": 2
         }
       },
       "required": [
@@ -8951,6 +10259,115 @@ components:
         "selector",
         "available",
         "reason"
+      ],
+      "additionalProperties": false
+    }
+    EvalAssessmentSubmission: {
+      "oneOf": [
+        {
+          "$ref": "#/components/schemas/EvalAssessmentInput"
+        },
+        {
+          "$ref": "#/components/schemas/EvalCheckRequest"
+        }
+      ]
+    }
+    EvalAttributedRecord: {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "$ref": "#/components/schemas/EvalMemberID"
+        },
+        "kind": {
+          "enum": [
+            "result",
+            "assessment"
+          ],
+          "type": "string",
+          "x-enum-varnames": [
+            "EvalAttributedRecordPropertiesKindResult",
+            "EvalAttributedRecordPropertiesKindAssessment"
+          ]
+        },
+        "recordSha256": {
+          "$ref": "#/components/schemas/EvalDigest"
+        },
+        "actorId": {
+          "$ref": "#/components/schemas/EvalOpaque"
+        },
+        "previousRecordSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/EvalDigest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "$ref": "#/components/schemas/EvalTimestamp"
+        },
+        "document": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/EvalResultInput"
+            },
+            {
+              "$ref": "#/components/schemas/EvalAssessmentInput"
+            }
+          ]
+        }
+      },
+      "required": [
+        "memberId",
+        "kind",
+        "recordSha256",
+        "actorId",
+        "previousRecordSha256",
+        "createdAt",
+        "document"
+      ],
+      "additionalProperties": false
+    }
+    EvalPairDetail: {
+      "type": "object",
+      "properties": {
+        "viewSnapshot": {
+          "$ref": "#/components/schemas/EvalOpaque"
+        },
+        "freshness": {
+          "enum": [
+            "current",
+            "stale"
+          ],
+          "type": "string",
+          "x-enum-varnames": [
+            "EvalPairDetailPropertiesFreshnessCurrent",
+            "EvalPairDetailPropertiesFreshnessStale"
+          ]
+        },
+        "experimentSummary": {
+          "$ref": "#/components/schemas/EvalSummary"
+        },
+        "pair": {
+          "$ref": "#/components/schemas/EvalPair"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/EvalAttributedRecord"
+          },
+          "minItems": 0,
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "viewSnapshot",
+        "freshness",
+        "experimentSummary",
+        "pair",
+        "records"
       ],
       "additionalProperties": false
     }

@@ -35,29 +35,34 @@ func (b *planBuilder) buildChecks() ([]portableCheck, map[string]blobRef, error)
 	}
 	for i := range b.draft.Checks {
 		check := &b.draft.Checks[i]
-		// A caller-supplied hash never selects an arbitrary implementation.
-		if check.Evaluator != "human-review@1" {
-			return nil, nil, evaldomain.Failure("eval_not_ready")
+		var groundTruth *string
+		if check.Evaluator == "human-review@1" {
+			rubric, ok := private[check.ID+"@"+check.RubricRevision]
+			if !ok {
+				return nil, nil, evaldomain.Failure("eval_not_ready")
+			}
+			if check.ImplementationSHA256 != "" && check.ImplementationSHA256 != HumanPolicySHA256() {
+				return nil, nil, evaldomain.Failure("eval_pin_mismatch")
+			}
+			check.ImplementationSHA256 = HumanPolicySHA256()
+			raw, err := jsonBytes(rubric)
+			if err != nil {
+				return nil, nil, err
+			}
+			doc, err := evaldomain.Freeze("PrivateCheck", raw)
+			if err != nil {
+				return nil, nil, err
+			}
+			path := "private/" + check.ID + ".json"
+			b.bundle.Private[path] = doc
+			truth[check.ID] = blobRef{Resource: path, SHA256: doc.Digest(), MediaType: "application/json", SizeBytes: int64(len(raw))}
+			groundTruth = &check.ID
+		} else {
+			if err := validateNativeCheck(*check); err != nil {
+				return nil, nil, err
+			}
+			check.ImplementationSHA256 = NativePolicySHA256()
 		}
-		rubric, ok := private[check.ID+"@"+check.RubricRevision]
-		if !ok {
-			return nil, nil, evaldomain.Failure("eval_not_ready")
-		}
-		if check.ImplementationSHA256 != "" && check.ImplementationSHA256 != HumanPolicySHA256() {
-			return nil, nil, evaldomain.Failure("eval_pin_mismatch")
-		}
-		check.ImplementationSHA256 = HumanPolicySHA256()
-		raw, err := jsonBytes(rubric)
-		if err != nil {
-			return nil, nil, err
-		}
-		doc, err := evaldomain.Freeze("PrivateCheck", raw)
-		if err != nil {
-			return nil, nil, err
-		}
-		path := "private/" + check.ID + ".json"
-		b.bundle.Private[path] = doc
-		truth[check.ID] = blobRef{Resource: path, SHA256: doc.Digest(), MediaType: "application/json", SizeBytes: int64(len(raw))}
 		params := check.Parameters
 		if params == nil {
 			params = map[string]string{}
@@ -67,7 +72,7 @@ func (b *planBuilder) buildChecks() ([]portableCheck, map[string]blobRef, error)
 			Scorer:               check.Evaluator,
 			ImplementationSHA256: check.ImplementationSHA256,
 			Parameters:           params,
-			GroundTruthRole:      &check.ID,
+			GroundTruthRole:      groundTruth,
 			Required:             check.Required,
 			AllowNotApplicable:   check.AllowNotApplicable,
 		})

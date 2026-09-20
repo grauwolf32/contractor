@@ -21,6 +21,14 @@ type EvalManagement interface {
 	Delete(context.Context, evalstore.Scope, string, evaldomain.MutationIdentity) (evalstore.Receipt, error)
 	GetCommand(context.Context, string, string, string) (evalstore.CommandRecord, *string, error)
 	Members(context.Context, evalservice.MemberPageParams) (evalservice.MemberPage, error)
+	PutRecord(context.Context, evalstore.Scope, string, string, evaldomain.Frozen, evaldomain.MutationIdentity) (evalstore.Receipt, error)
+	Select(context.Context, evalstore.Scope, string, evaldomain.SelectionInput, evaldomain.MutationIdentity) (evalstore.Receipt, error)
+	Review(context.Context, string, string, string, string) (evalservice.ReviewContext, error)
+	Pairs(context.Context, evalservice.PairPageParams) (evalservice.PairPage, error)
+	Pair(context.Context, evalservice.MemberPageParams, string) (evalservice.PairDetail, error)
+	Chart(context.Context, evalservice.ChartParams) (evalservice.ChartView, error)
+	Report(context.Context, evalservice.MemberPageParams) (evalservice.Report, error)
+	Executions(context.Context, string, string, string, string, int, *int64) (evalstore.InventoryPage, error)
 }
 
 type evalPageInfo struct {

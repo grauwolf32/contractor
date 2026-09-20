@@ -1,6 +1,6 @@
 # 29 — Independent managed Evals and external producers
 
-Status: **Design selected in V38-001; V38-002 data contracts and V38-003 persistence implemented. Runtime and UI pending V38-004–V38-010.**
+Status: **V38-001 design and V38-002–006 contracts, persistence, coordination, public APIs and selected comparisons implemented. Browser UI, Playground client and release acceptance remain V38-007–010.**
 
 The [embedded data catalog](../../api/evals/v1/README.md) and
 [conformance fixtures](../../api/testdata/evals/README.md) define the closed DTOs
@@ -287,9 +287,9 @@ protocol controls and UI retains normal individual Run/Audit actions.
 
 ## Public API contract
 
-The V38-005 authoring, command and member-observation paths are implemented.
-Evidence, assessment, selected comparisons/charts and report paths below remain
-planned for V38-006. Endpoints use the same
+The V38-005 authoring/control and V38-006 evidence, assessment, selected
+comparison/chart, report and execution-inventory paths below are implemented.
+Endpoints use the same
 public authentication, cookie CSRF, origin, request-ID, error-envelope and method/
 HEAD rejection conventions as existing handlers. No browser-to-Playground calls.
 JSON uses camelCase DTO fields; retained portable documents keep their own schema.

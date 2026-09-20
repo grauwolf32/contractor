@@ -104,12 +104,7 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 	h.evalJSON(w, http.StatusOK, "Capabilities", map[string]any{
 		"controlModes":   []string{"server", "external"},
 		"executionKinds": []string{"workflow", "audit"},
-		"checks": []any{map[string]any{
-			"evaluator":            "human-review@1",
-			"implementationSha256": evalservice.HumanPolicySHA256(),
-			"available":            true,
-			"reason":               nil,
-		}},
+		"checks":         evalCheckCapabilities(),
 		"importVersions": []string{"dataset@1", "contractor.eval-registration@1"},
 		"bindings":       items,
 		"page":           page,
@@ -455,33 +450,12 @@ func (h *handler) submitEvalMember(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (h *handler) listEvalMembers(w http.ResponseWriter, r *http.Request) {
-	q, limit, err := evalQuery(r, "viewSnapshot", "filter", "variantId")
+	p, q, err := h.evalSelectedPageRequest(r)
 	if err != nil {
 		h.evalError(w, err)
 		return
 	}
-	cursor, err := h.readEvalCursor(r, q, 1)
-	if err != nil {
-		h.evalError(w, err)
-		return
-	}
-	p := evalservice.MemberPageParams{
-		OwnerID:      principalUserID(r.Context()),
-		ExperimentID: r.PathValue("id"),
-		Snapshot:     q.Get("viewSnapshot"),
-		Filter:       q.Get("filter"),
-		VariantID:    q.Get("variantId"),
-		AfterOrdinal: -1,
-		Limit:        limit,
-	}
-	if len(cursor.Position) > 0 {
-		p.AfterOrdinal, err = strconv.Atoi(cursor.Position[0])
-		if err != nil || p.Snapshot != "" && p.Snapshot != cursor.Snapshot {
-			h.evalError(w, evaldomain.Failure("eval_invalid"))
-			return
-		}
-		p.Snapshot = cursor.Snapshot
-	}
+
 	data, err := h.dependencies.Evals.Members(r.Context(), p)
 	if err != nil {
 		h.evalError(w, err)
@@ -494,10 +468,22 @@ func (h *handler) listEvalMembers(w http.ResponseWriter, r *http.Request) {
 	}
 	h.evalJSON(w, http.StatusOK, "MemberPage", map[string]any{
 		"viewSnapshot":      data.Snapshot,
-		"freshness":         "current",
+		"freshness":         data.Freshness,
 		"experimentSummary": data.Summary,
 		"filteredCount":     data.FilteredCount,
 		"items":             data.Items,
 		"page":              page,
 	})
+}
+
+func evalCheckCapabilities() []map[string]any {
+	checks := make([]map[string]any, 0, len(evalservice.RegisteredChecks()))
+	for _, evaluator := range evalservice.RegisteredChecks() {
+		digest := evalservice.NativePolicySHA256()
+		if evaluator == "human-review@1" {
+			digest = evalservice.HumanPolicySHA256()
+		}
+		checks = append(checks, map[string]any{"evaluator": evaluator, "implementationSha256": digest, "available": true, "reason": nil})
+	}
+	return checks
 }

@@ -177,6 +177,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/eval-experiments/{id}/members/{memberId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ingestEvalResult */
+        post: operations["ingestEvalResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/members/{memberId}/assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** assessEvalMember */
+        post: operations["assessEvalMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/members/{memberId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** reviewEvalMember */
+        get: operations["reviewEvalMember"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/members/{memberId}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** listEvalMemberExecutions */
+        get: operations["listEvalMemberExecutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/selections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** selectEvalRecords */
+        post: operations["selectEvalRecords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** listEvalPairs */
+        get: operations["listEvalPairs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/pairs/{pairId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getEvalPair */
+        get: operations["getEvalPair"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/charts/{chart}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getEvalChart */
+        get: operations["getEvalChart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getEvalReport */
+        get: operations["getEvalReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/finding-collections": {
         parameters: {
             query?: never;
@@ -2413,6 +2566,8 @@ export interface components {
             deletionRequestedAt?: components["schemas"]["EvalTimestamp"] | null;
             diagnostics?: components["schemas"]["EvalDiagnostic"][];
             observedTokens?: number;
+            /** @enum {string} */
+            freshness?: "pending" | "current" | "stale";
         } & unknown;
         EvalCapabilities: {
             controlModes: ("server" | "external")[];
@@ -2438,13 +2593,14 @@ export interface components {
             usage: components["schemas"]["EvalUsage"] | null;
         };
         EvalInventoryEntry: {
-            execution: components["schemas"]["EvalExecutionRef"];
+            execution: components["schemas"]["EvalExecutionRef"] | null;
             parent: components["schemas"]["EvalExecutionRef"] | null;
             role: components["schemas"]["EvalId"] | null;
             round: number | null;
             /** @enum {string} */
             state: "not_submitted" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "unknown";
             available: boolean;
+            intentId?: components["schemas"]["EvalOpaque"];
         };
         EvalExecutionPage: {
             inventoryRevision: number;
@@ -2499,6 +2655,9 @@ export interface components {
             checks: components["schemas"]["EvalPrivateCheck"][];
             evidence: components["schemas"]["EvalEvidence"][];
             gaps: string[];
+            result?: components["schemas"]["EvalResultInput"];
+            policy?: components["schemas"]["EvalCheck"][];
+            revision?: number;
         };
         EvalRecordReceipt: {
             memberId: components["schemas"]["EvalMemberID"];
@@ -2507,7 +2666,7 @@ export interface components {
         };
         EvalSelectionReceipt: {
             revision: number;
-            viewSnapshot: components["schemas"]["EvalOpaque"];
+            viewSnapshot: components["schemas"]["EvalOpaque"] | null;
         };
         EvalReport: {
             /** @constant */
@@ -2584,6 +2743,9 @@ export interface components {
             page?: components["schemas"]["EvalPage"];
             points?: components["schemas"]["EvalProgressPoint"][];
             bucketMs?: number;
+            assessmentCoverage?: {
+                [key: string]: components["schemas"]["EvalRatio"];
+            };
         } & ({
             /** @constant */
             chart?: "quality";
@@ -2644,6 +2806,25 @@ export interface components {
             selector: components["schemas"]["EvalSelector"];
             available: boolean;
             reason: string | null;
+        };
+        EvalAssessmentSubmission: components["schemas"]["EvalAssessmentInput"] | components["schemas"]["EvalCheckRequest"];
+        EvalAttributedRecord: {
+            memberId: components["schemas"]["EvalMemberID"];
+            /** @enum {string} */
+            kind: "result" | "assessment";
+            recordSha256: components["schemas"]["EvalDigest"];
+            actorId: components["schemas"]["EvalOpaque"];
+            previousRecordSha256: components["schemas"]["EvalDigest"] | null;
+            createdAt: components["schemas"]["EvalTimestamp"];
+            document: components["schemas"]["EvalResultInput"] | components["schemas"]["EvalAssessmentInput"];
+        };
+        EvalPairDetail: {
+            viewSnapshot: components["schemas"]["EvalOpaque"];
+            /** @enum {string} */
+            freshness: "current" | "stale";
+            experimentSummary: components["schemas"]["EvalSummary"];
+            pair: components["schemas"]["EvalPair"];
+            records: components["schemas"]["EvalAttributedRecord"][];
         };
         EvalErrorDetails: {
             /** @constant */
@@ -6337,6 +6518,9 @@ export interface operations {
                 limit?: number;
                 cursor?: string;
                 viewSnapshot?: string;
+                suiteId?: string;
+                measurementScope?: "workflow" | "audit";
+                binFilter?: string;
                 filter?: "all" | "unresolved" | "failed" | "unscored" | "unsupported" | "blocked" | "conflicting";
                 variantId?: string;
             };
@@ -6427,6 +6611,609 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvalSubmissionReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    ingestEvalResult: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                memberId: components["schemas"]["EvalMemberID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalResultInput"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            201: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRecordReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    assessEvalMember: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                memberId: components["schemas"]["EvalMemberID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalAssessmentSubmission"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            201: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRecordReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    reviewEvalMember: {
+        parameters: {
+            query?: {
+                resultSha256?: string;
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                memberId: components["schemas"]["EvalMemberID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReview"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listEvalMemberExecutions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                memberId: components["schemas"]["EvalMemberID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExecutionPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    selectEvalRecords: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalSelectionInput"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            201: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalSelectionReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listEvalPairs: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                viewSnapshot?: string;
+                suiteId?: string;
+                measurementScope?: "workflow" | "audit";
+                binFilter?: string;
+                filter?: "all" | "unresolved" | "regressions";
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalPairPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getEvalPair: {
+        parameters: {
+            query?: {
+                viewSnapshot?: string;
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                pairId: components["schemas"]["EvalMemberID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalPairDetail"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getEvalChart: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                viewSnapshot?: string;
+                suiteId?: string;
+                measurementScope?: "workflow" | "audit";
+                metric?: "tokens" | "duration";
+                sort?: "frozen" | "absolute";
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                chart: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalChart"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getEvalReport: {
+        parameters: {
+            query?: {
+                viewSnapshot?: string;
+                format?: "json" | "markdown";
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReport"];
+                    "text/markdown": string;
                 };
             };
             400: components["responses"]["Error400"];

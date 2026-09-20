@@ -1,6 +1,16 @@
 package evaldomain
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
+
+// IsCode tests a domain error without classifying unrelated infrastructure
+// failures as a recoverable evaluation condition.
+func IsCode(err error, code string) bool {
+	var domainError *Error
+	return errors.As(err, &domainError) && domainError.Code == code
+}
 
 // Error is safe to expose. Neither decoder messages nor submitted values are
 // copied into errors, including credentials, private expected data and refs.

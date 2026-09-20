@@ -276,44 +276,49 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 	}
 }
 
+func (h *evalAPIHarness) registerExternal(t *testing.T, kind string) (evalservice.ExperimentView, evaldomain.PublicPlan, []evaldomain.Check) {
+	t.Helper()
+	draft, data := h.dataset(t, kind)
+	pre := map[string]evalservice.Preflight{}
+	for _, v := range draft.Variants {
+		p, err := h.resolver.Resolve(t.Context(), "user-1", v, data.Cases)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pre[v.ID] = p
+	}
+	bundle, err := evalservice.BuildPlan("external-api", time.Now(), draft, data, pre)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := evaldomain.PublicPlanProjection(bundle.Plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var setup struct {
+		Checks []evaldomain.Check `json:"checks"`
+	}
+	if err = json.Unmarshal(bundle.Setup, &setup); err != nil {
+		t.Fatal(err)
+	}
+	recipes := []evaldomain.MemberRecipe{}
+	for _, m := range manifest.Members {
+		recipes = append(recipes, evaldomain.MemberRecipe{MemberID: m.MemberID, Case: bundle.Cases[m.MemberID]})
+	}
+	create := evaldomain.CreateExperiment{Name: "Independent producer", ControlMode: "external", Registration: &evaldomain.ExternalRegistration{SchemaVersion: "contractor.eval-registration/v1", SourcePlanSHA256: bundle.Plan.Digest(), Manifest: manifest, Source: evaldomain.Source{System: "fixture", ID: "independent-client"}, Variants: draft.Variants, Recipes: recipes, Checks: setup.Checks, Comparison: draft.Comparison, Budgets: draft.Budgets}}
+	receipt := h.request(t, "POST", "/v1/projects/evaluation/eval-experiments", create, "create", "", 201)
+	ref := apiDecode[struct {
+		ID string `json:"experimentId"`
+	}](t, receipt)
+	h.tick(t)
+	return h.get(t, ref.ID), manifest, setup.Checks
+}
+
 func TestEvalPostgresExternalWorkflowAndAuditSubmission(t *testing.T) {
 	for _, kind := range []string{"workflow", "audit"} {
 		t.Run(kind, func(t *testing.T) {
 			h := newEvalAPIHarness(t)
-			draft, data := h.dataset(t, kind)
-			pre := map[string]evalservice.Preflight{}
-			for _, v := range draft.Variants {
-				p, err := h.resolver.Resolve(t.Context(), "user-1", v, data.Cases)
-				if err != nil {
-					t.Fatal(err)
-				}
-				pre[v.ID] = p
-			}
-			bundle, err := evalservice.BuildPlan("external-api", time.Now(), draft, data, pre)
-			if err != nil {
-				t.Fatal(err)
-			}
-			manifest, err := evaldomain.PublicPlanProjection(bundle.Plan)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var setup struct {
-				Checks []evaldomain.Check `json:"checks"`
-			}
-			if err = json.Unmarshal(bundle.Setup, &setup); err != nil {
-				t.Fatal(err)
-			}
-			recipes := []evaldomain.MemberRecipe{}
-			for _, m := range manifest.Members {
-				recipes = append(recipes, evaldomain.MemberRecipe{MemberID: m.MemberID, Case: bundle.Cases[m.MemberID]})
-			}
-			create := evaldomain.CreateExperiment{Name: "Independent producer", ControlMode: "external", Registration: &evaldomain.ExternalRegistration{SchemaVersion: "contractor.eval-registration/v1", SourcePlanSHA256: bundle.Plan.Digest(), Manifest: manifest, Source: evaldomain.Source{System: "fixture", ID: "independent-client"}, Variants: draft.Variants, Recipes: recipes, Checks: setup.Checks, Comparison: draft.Comparison, Budgets: draft.Budgets}}
-			receipt := h.request(t, "POST", "/v1/projects/evaluation/eval-experiments", create, "create", "", 201)
-			ref := apiDecode[struct {
-				ID string `json:"experimentId"`
-			}](t, receipt)
-			h.tick(t)
-			e := h.get(t, ref.ID)
+			e, manifest, _ := h.registerExternal(t, kind)
 			if e.State != "ready" || e.StartedAt != nil {
 				t.Fatal("native coordinator dispatched external plan")
 			}
@@ -370,6 +375,16 @@ func TestEvalPostgresAuthorizationCSRFStrictBodiesAndCAS(t *testing.T) {
 		{"POST", "/v1/projects/evaluation/eval-experiments"}, {"GET", "/v1/eval-experiments"}, {"GET", "/v1/eval-experiments/" + ref.ID}, {"PATCH", "/v1/eval-experiments/" + ref.ID}, {"DELETE", "/v1/eval-experiments/" + ref.ID},
 		{"POST", "/v1/eval-experiments/" + ref.ID + "/commands"}, {"GET", "/v1/eval-experiments/" + ref.ID + "/commands/missing"}, {"GET", "/v1/eval-experiments/" + ref.ID + "/members"}, {"POST", "/v1/eval-experiments/" + ref.ID + "/members/" + strings.Repeat("a", 64) + "/submissions"},
 	}
+	base := "/v1/eval-experiments/" + ref.ID
+	memberBase := base + "/members/" + strings.Repeat("a", 64)
+	paths = append(paths, []struct{ method, path string }{
+		{"POST", memberBase + "/results"}, {"POST", memberBase + "/assessments"},
+		{"GET", memberBase + "/review"}, {"GET", memberBase + "/executions"},
+		{"POST", base + "/selections"}, {"GET", base + "/pairs"},
+		{"GET", base + "/pairs/" + strings.Repeat("b", 64)},
+		{"GET", base + "/charts/quality"}, {"GET", base + "/report"},
+	}...)
+
 	for _, route := range paths {
 		for _, token := range []string{"", "Bearer private-worker-credential"} {
 			r := newPublicContractRequest(route.method, route.path, []byte(`{}`))

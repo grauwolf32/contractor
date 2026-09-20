@@ -2,6 +2,7 @@ package evaldomain
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,6 +43,19 @@ func TestEvalAuditAccountingFixture(t *testing.T) {
 	}
 	if out.TotalTokens.Completeness != "partial" || *out.TotalTokens.Value != 60 || out.WallMS.Completeness != "complete" || *out.WallMS.Value != 2000 {
 		t.Fatal("missing role scope was hidden")
+	}
+	// Inventory and output diagnostics can jointly exceed the wire bound.
+	overflowing := fixture.Observation
+	overflowing.Missing = make([]string, MaxEvidenceGaps+128)
+	for i := range overflowing.Missing {
+		overflowing.Missing[i] = fmt.Sprintf("missing child %04d", i)
+	}
+	out, err = NormalizeUsage(overflowing)
+	if err != nil || out.TotalTokens.Completeness != "partial" || len(out.TotalTokens.Scope.Missing) != MaxEvidenceGaps {
+		t.Fatal("overflowing diagnostics blocked incomplete observation", err)
+	}
+	if err = validateUsage(out, overflowing.MemberID); err != nil {
+		t.Fatal("bounded observation violates the public contract", err)
 	}
 	conflict := fixture.Observation
 	conflict.Attempts = append([]AttemptObservation{}, conflict.Attempts...)

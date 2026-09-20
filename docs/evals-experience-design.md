@@ -1,6 +1,6 @@
 # Evals: experiment setup, execution and comparison
 
-Status: **V38-001 design and V38-002–005 contracts, persistence, coordination and public authoring/control APIs implemented. Result comparison and browser implementation follow in V38-006–010.**
+Status: **V38-001 design and V38-002–006 contracts, persistence, coordination, public APIs and selected comparisons implemented. Browser UI, Playground client and release acceptance remain V38-007–010.**
 The user selected the complete browser journey and explicitly required Contractor
 to remain independent of Playground. The managed Playground service proposed in
 the earlier draft is superseded.

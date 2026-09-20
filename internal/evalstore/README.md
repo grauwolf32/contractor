@@ -43,9 +43,26 @@ Mutation receipts survive an experiment purge until its Project is purged, so a
 retry cannot resurrect the experiment. New receipts have distinct dataset,
 experiment, command and submission types. Legacy immutable receipt bytes are
 converted only when read; no dataset revision is stored in a new state field.
-Referenced dataset revisions are protected
-by foreign keys. Tables for immutable evidence, selection, view generations and
-progress are reserved for the V38-006 reducer.
+Referenced dataset revisions are protected by foreign keys.
+
+V38-006 separates immutable records, selection history, mutable dirty-member
+projections and immutable published generations. Run/Audit, child inventory,
+metric and exact artifact-deletion triggers invalidate affected members. A bulk
+matrix insert invalidates the experiment queue once per statement. Observation
+revisions do not consume the user's authority CAS revision.
+
+Collection revalidates selected evidence and publishes every expected member,
+pair, suite summary and chart aggregate atomically. Failure leaves the last
+complete generation visible as stale. A source revision belongs to the snapshot
+identity, so recovered evidence cannot revive an older progress timestamp.
+Selected-page reads use keyset pagination over retained generations and never
+scan historical executions/artifacts. Histograms retain exact cohort percentiles;
+progress reads choose real observations in at most 200 buckets.
+
+Execution inventories join authoritative Audit associations across roles, rounds
+and retries. Public inventories paginate the full set; bounded native collection
+retains an explicit gap if its per-member limit is exceeded. Deleting an execution
+or artifact keeps prior record attribution and invalidates current completeness.
 
 Run against a disposable database (no live campaigns):
 

@@ -2183,6 +2183,14 @@
         "observedTokens": {
           "type": "integer",
           "minimum": 0
+        },
+        "freshness": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "current",
+            "stale"
+          ]
         }
       },
       "required": [
@@ -2408,7 +2416,14 @@
       "type": "object",
       "properties": {
         "execution": {
-          "$ref": "#/$defs/ExecutionRef"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "parent": {
           "anyOf": [
@@ -2454,6 +2469,9 @@
         },
         "available": {
           "type": "boolean"
+        },
+        "intentId": {
+          "$ref": "#/$defs/Opaque"
         }
       },
       "required": [
@@ -2737,6 +2755,21 @@
           },
           "minItems": 0,
           "maxItems": 1024
+        },
+        "result": {
+          "$ref": "#/$defs/ResultInput"
+        },
+        "policy": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "minItems": 0,
+          "maxItems": 128
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
@@ -2783,7 +2816,14 @@
           "minimum": 1
         },
         "viewSnapshot": {
-          "$ref": "#/$defs/Opaque"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opaque"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -3177,6 +3217,16 @@
         "bucketMs": {
           "type": "integer",
           "minimum": 1
+        },
+        "assessmentCoverage": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/Id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Ratio"
+          },
+          "maxProperties": 2
         }
       },
       "required": [
@@ -3479,6 +3529,105 @@
         "selector",
         "available",
         "reason"
+      ],
+      "additionalProperties": false
+    },
+    "AssessmentSubmission": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AssessmentInput"
+        },
+        {
+          "$ref": "#/$defs/CheckRequest"
+        }
+      ]
+    },
+    "AttributedRecord": {
+      "type": "object",
+      "properties": {
+        "memberId": {
+          "$ref": "#/$defs/MemberID"
+        },
+        "kind": {
+          "enum": [
+            "result",
+            "assessment"
+          ]
+        },
+        "recordSha256": {
+          "$ref": "#/$defs/Digest"
+        },
+        "actorId": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "previousRecordSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "document": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ResultInput"
+            },
+            {
+              "$ref": "#/$defs/AssessmentInput"
+            }
+          ]
+        }
+      },
+      "required": [
+        "memberId",
+        "kind",
+        "recordSha256",
+        "actorId",
+        "previousRecordSha256",
+        "createdAt",
+        "document"
+      ],
+      "additionalProperties": false
+    },
+    "PairDetail": {
+      "type": "object",
+      "properties": {
+        "viewSnapshot": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "freshness": {
+          "enum": [
+            "current",
+            "stale"
+          ]
+        },
+        "experimentSummary": {
+          "$ref": "#/$defs/Summary"
+        },
+        "pair": {
+          "$ref": "#/$defs/Pair"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttributedRecord"
+          },
+          "minItems": 0,
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "viewSnapshot",
+        "freshness",
+        "experimentSummary",
+        "pair",
+        "records"
       ],
       "additionalProperties": false
     }

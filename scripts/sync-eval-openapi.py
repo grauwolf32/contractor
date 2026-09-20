@@ -177,6 +177,87 @@ routes = [
         202,
         False,
     ),
+    (
+        "post",
+        "/v1/eval-experiments/{id}/members/{memberId}/results",
+        "ingestEvalResult",
+        "ResultInput",
+        "RecordReceipt",
+        201,
+        False,
+    ),
+    (
+        "post",
+        "/v1/eval-experiments/{id}/members/{memberId}/assessments",
+        "assessEvalMember",
+        "AssessmentSubmission",
+        "RecordReceipt",
+        201,
+        False,
+    ),
+    (
+        "get",
+        "/v1/eval-experiments/{id}/members/{memberId}/review",
+        "reviewEvalMember",
+        None,
+        "Review",
+        200,
+        False,
+    ),
+    (
+        "get",
+        "/v1/eval-experiments/{id}/members/{memberId}/executions",
+        "listEvalMemberExecutions",
+        None,
+        "ExecutionPage",
+        200,
+        False,
+    ),
+    (
+        "post",
+        "/v1/eval-experiments/{id}/selections",
+        "selectEvalRecords",
+        "SelectionInput",
+        "SelectionReceipt",
+        201,
+        True,
+    ),
+    (
+        "get",
+        "/v1/eval-experiments/{id}/pairs",
+        "listEvalPairs",
+        None,
+        "PairPage",
+        200,
+        False,
+    ),
+    (
+        "get",
+        "/v1/eval-experiments/{id}/pairs/{pairId}",
+        "getEvalPair",
+        None,
+        "PairDetail",
+        200,
+        False,
+    ),
+    (
+        "get",
+        "/v1/eval-experiments/{id}/charts/{chart}",
+        "getEvalChart",
+        None,
+        "Chart",
+        200,
+        False,
+    ),
+    (
+        "get",
+        "/v1/eval-experiments/{id}/report",
+        "getEvalReport",
+        None,
+        "Report",
+        200,
+        False,
+    ),
 ]
 
 
@@ -210,7 +291,7 @@ for method, path, operation, body, result, status, cas in routes:
     for name in re.findall(r"\{([^}]+)\}", path):
         kind = (
             "MemberID"
-            if name == "memberId"
+            if name in ("memberId", "pairId")
             else "Id"
             if name == "datasetId"
             else "Opaque"
@@ -223,7 +304,10 @@ for method, path, operation, body, result, status, cas in routes:
                 "schema": {"$ref": "#/components/schemas/Eval" + kind},
             }
         )
-    if operation.startswith("list") or operation == "getEvalCapabilities":
+    if operation.startswith("list") or operation in (
+        "getEvalCapabilities",
+        "getEvalChart",
+    ):
         parameters += [
             {
                 "name": "limit",
@@ -232,7 +316,7 @@ for method, path, operation, body, result, status, cas in routes:
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 100,
-                    "default": 25,
+                    **({"default": 25} if operation != "getEvalChart" else {}),
                 },
             },
             {
@@ -241,30 +325,59 @@ for method, path, operation, body, result, status, cas in routes:
                 "schema": {"type": "string", "minLength": 1, "maxLength": 8192},
             },
         ]
-    filters = ["kind"] if operation == "getEvalCapabilities" else []
-    if operation == "listEvalExperiments":
-        filters = ["projectId", "state", "datasetId", "controlMode"]
-    if operation == "listEvalMembers":
-        filters = ["viewSnapshot", "filter", "variantId"]
+    common_filters = [
+        "viewSnapshot",
+        "suiteId",
+        "measurementScope",
+        "binFilter",
+        "filter",
+    ]
+    filters = {
+        "getEvalCapabilities": ["kind"],
+        "listEvalExperiments": ["projectId", "state", "datasetId", "controlMode"],
+        "listEvalMembers": common_filters + ["variantId"],
+        "listEvalPairs": common_filters,
+        "getEvalPair": ["viewSnapshot"],
+        "getEvalChart": [
+            "viewSnapshot",
+            "suiteId",
+            "measurementScope",
+            "metric",
+            "sort",
+        ],
+        "getEvalReport": ["viewSnapshot", "format"],
+        "reviewEvalMember": ["resultSha256"],
+    }.get(operation, [])
+    enum_filters = {
+        "kind": ["workflow", "audit"],
+        "measurementScope": ["workflow", "audit"],
+        "metric": ["tokens", "duration"],
+        "sort": ["frozen", "absolute"],
+        "format": ["json", "markdown"],
+        "filter": ["all", "unresolved", "regressions"]
+        if operation == "listEvalPairs"
+        else [
+            "all",
+            "unresolved",
+            "failed",
+            "unscored",
+            "unsupported",
+            "blocked",
+            "conflicting",
+        ],
+    }
     for name in filters:
-        schema = {"type": "string", "minLength": 1, "maxLength": 256}
+        schema = {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192 if name == "binFilter" else 256,
+        }
         if name in ("state", "controlMode"):
             schema = source["Experiment"]["properties"][name]
-        if name == "kind":
-            schema = {"type": "string", "enum": ["workflow", "audit"]}
-        if name == "filter":
-            schema = {
-                "type": "string",
-                "enum": [
-                    "all",
-                    "unresolved",
-                    "failed",
-                    "unscored",
-                    "unsupported",
-                    "blocked",
-                    "conflicting",
-                ],
-            }
+        if name in enum_filters:
+            schema = {"type": "string", "enum": enum_filters[name]}
+        if name == "resultSha256":
+            schema = source["Digest"]
         parameters.append(
             {
                 "name": name,
@@ -275,7 +388,14 @@ for method, path, operation, body, result, status, cas in routes:
     responses = {
         str(status): response(
             result,
-            result in ("Experiment", "Dataset", "ExperimentReceipt")
+            result
+            in (
+                "Experiment",
+                "Dataset",
+                "ExperimentReceipt",
+                "Review",
+                "SelectionReceipt",
+            )
             or operation == "commandEvalExperiment",
         )
     }
@@ -294,6 +414,8 @@ for method, path, operation, body, result, status, cas in routes:
         }
     if operation == "commandEvalExperiment":
         responses["201"] = response("ExperimentReceipt", True)
+    if operation == "getEvalReport":
+        responses["200"]["content"]["text/markdown"] = {"schema": {"type": "string"}}
     op = {
         "operationId": operation,
         "tags": ["Evals"],

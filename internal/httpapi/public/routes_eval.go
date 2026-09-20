@@ -20,6 +20,15 @@ func (h *handler) registerEvalRoutes(mux *http.ServeMux) {
 		{"GET", "/v1/eval-experiments/{id}/commands/{commandId}", h.getEvalCommand},
 		{"GET", "/v1/eval-experiments/{id}/members", h.listEvalMembers},
 		{"POST", "/v1/eval-experiments/{id}/members/{memberId}/submissions", h.submitEvalMember},
+		{"POST", "/v1/eval-experiments/{id}/members/{memberId}/results", h.ingestEvalResult},
+		{"POST", "/v1/eval-experiments/{id}/members/{memberId}/assessments", h.assessEvalMember},
+		{"GET", "/v1/eval-experiments/{id}/members/{memberId}/review", h.reviewEvalMember},
+		{"GET", "/v1/eval-experiments/{id}/members/{memberId}/executions", h.evalMemberExecutions},
+		{"POST", "/v1/eval-experiments/{id}/selections", h.selectEvalRecords},
+		{"GET", "/v1/eval-experiments/{id}/pairs", h.listEvalPairs},
+		{"GET", "/v1/eval-experiments/{id}/pairs/{pairId}", h.getEvalPair},
+		{"GET", "/v1/eval-experiments/{id}/charts/{chart}", h.getEvalChart},
+		{"GET", "/v1/eval-experiments/{id}/report", h.getEvalReport},
 	}
 	paths := map[string]bool{}
 	for _, route := range routes {

@@ -21,11 +21,27 @@ func (s *Store) Claim(ctx context.Context, holder string, lease time.Duration, l
 	}
 	rows, err := s.db.Query(ctx, `
 WITH candidates AS (
-    SELECT c.experiment_id FROM eval_controller_claims c JOIN eval_experiments e USING(experiment_id)
-    WHERE (e.state IN ('preparing','running','settling','pausing','paused','cancelling','interrupted') OR EXISTS (SELECT 1 FROM eval_commands cmd WHERE cmd.experiment_id=e.experiment_id AND cmd.state IN ('accepted','running'))) AND (c.holder_id IS NULL OR c.expires_at<=clock_timestamp())
-    ORDER BY c.epoch,e.updated_at,e.experiment_id FOR UPDATE OF c SKIP LOCKED LIMIT $3
-) UPDATE eval_controller_claims c SET epoch=epoch+1,holder_id=$1,expires_at=clock_timestamp()+$2::bigint*interval '1 millisecond'
-FROM candidates x WHERE c.experiment_id=x.experiment_id RETURNING c.experiment_id,c.holder_id,c.epoch,c.expires_at
+    SELECT c.experiment_id
+    FROM eval_controller_claims c
+    JOIN eval_experiments e USING (experiment_id)
+    WHERE (
+        e.state IN ('preparing', 'running', 'settling', 'pausing', 'paused', 'cancelling', 'interrupted')
+        OR EXISTS (SELECT 1 FROM eval_commands cmd
+            WHERE cmd.experiment_id = e.experiment_id AND cmd.state IN ('accepted', 'running'))
+        OR EXISTS (SELECT 1 FROM eval_projection_queue q
+            WHERE q.experiment_id = e.experiment_id AND q.revision <> q.published_revision)
+    )
+        AND (c.holder_id IS NULL OR c.expires_at <= clock_timestamp())
+    ORDER BY c.epoch, e.updated_at, e.experiment_id
+    FOR UPDATE OF c SKIP LOCKED
+    LIMIT $3
+)
+UPDATE eval_controller_claims c
+SET epoch = epoch + 1, holder_id = $1,
+    expires_at = clock_timestamp() + $2::bigint * interval '1 millisecond'
+FROM candidates x
+WHERE c.experiment_id = x.experiment_id
+RETURNING c.experiment_id, c.holder_id, c.epoch, c.expires_at
 `, holder, lease.Milliseconds(), limit)
 	if err != nil {
 		return nil, err
@@ -51,12 +67,8 @@ func (s *Store) checkClaim(ctx context.Context, id string, c Claim) error {
 	}
 	var ok bool
 	err := s.db.QueryRow(ctx, `
-SELECT true
-FROM eval_controller_claims
-WHERE experiment_id=$1
-    AND holder_id=$2
-    AND epoch=$3
-    AND expires_at>clock_timestamp()
+SELECT TRUE FROM eval_controller_claims
+WHERE experiment_id = $1 AND holder_id = $2 AND epoch = $3 AND expires_at > clock_timestamp()
 FOR UPDATE
 `, id, c.HolderID, c.Epoch).Scan(&ok)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -71,12 +83,11 @@ func (s *Store) RenewClaim(ctx context.Context, c Claim, lease time.Duration) (C
 	}
 	err := s.db.QueryRow(ctx, `
 UPDATE eval_controller_claims
-SET expires_at=clock_timestamp()+$4::bigint*interval '1 millisecond'
-WHERE experiment_id=$1
-    AND holder_id=$2
-    AND epoch=$3
-    AND expires_at>clock_timestamp()
-RETURNING expires_at
+SET expires_at = clock_timestamp() + $4::bigint * interval '1 millisecond'
+WHERE experiment_id = $1
+    AND holder_id = $2
+    AND epoch = $3
+    AND expires_at > clock_timestamp() RETURNING expires_at
 `, c.ExperimentID, c.HolderID, c.Epoch, lease.Milliseconds()).Scan(&c.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = ErrClaimLost
@@ -85,9 +96,22 @@ RETURNING expires_at
 }
 
 func (s *Store) ReleaseClaim(ctx context.Context, c Claim) error {
-	tag, err := s.db.Exec(ctx, `UPDATE eval_controller_claims SET holder_id=NULL,expires_at=NULL WHERE experiment_id=$1 AND holder_id=$2 AND epoch=$3`, c.ExperimentID, c.HolderID, c.Epoch)
+	tag, err := s.db.Exec(ctx, `
+UPDATE eval_controller_claims
+SET holder_id = NULL,expires_at = NULL
+WHERE experiment_id = $1
+    AND holder_id = $2
+    AND epoch = $3
+`, c.ExperimentID, c.HolderID, c.Epoch)
 	if err == nil && tag.RowsAffected() != 1 {
 		return ErrClaimLost
 	}
 	return err
+}
+
+// ClaimTargetExists distinguishes a stale lease from successful experiment purge.
+func (s *Store) ClaimTargetExists(ctx context.Context, claim Claim) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM eval_experiments WHERE experiment_id=$1)`, claim.ExperimentID).Scan(&exists)
+	return exists, err
 }

@@ -37,6 +37,10 @@ func (h *handler) evalError(w http.ResponseWriter, err error) {
 }
 func (h *handler) evalJSON(w http.ResponseWriter, status int, kind string, v any) {
 	raw, err := json.Marshal(v)
+	if err == nil && len(raw) > evaldomain.MaxDocumentBytes {
+		h.evalError(w, evaldomain.Failure("eval_limit_exceeded"))
+		return
+	}
 	if err == nil {
 		err = evaldomain.Validate(kind, raw)
 	}

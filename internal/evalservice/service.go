@@ -131,6 +131,30 @@ func (s *Service) prepare(ctx context.Context, e evalstore.Experiment, claim eva
 // Tick performs a bounded amount of reconciliation. External mode never enters
 // the member selection/admission path: it only recovers already accepted work.
 func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error) {
+	progressed, err := s.tickExecution(ctx, claim)
+	if err != nil {
+		return progressed, err
+	}
+	e, err := evalstore.NewPostgresStore(s.pool).GetClaimed(ctx, claim)
+	if errors.Is(err, evalstore.ErrClaimLost) {
+		exists, checkErr := evalstore.NewPostgresStore(s.pool).ClaimTargetExists(ctx, claim)
+		if checkErr != nil {
+			return progressed, checkErr
+		}
+		if !exists {
+			return progressed, nil
+		}
+	}
+	if notFound(err) {
+		return progressed, nil
+	}
+	if err != nil {
+		return progressed, err
+	}
+	return progressed, s.CollectView(ctx, e, claim)
+}
+
+func (s *Service) tickExecution(ctx context.Context, claim evalstore.Claim) (bool, error) {
 	store := evalstore.NewPostgresStore(s.pool)
 	e, err := store.GetClaimed(ctx, claim)
 	if err != nil {
