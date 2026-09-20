@@ -3,7 +3,7 @@ id: V55-007
 title: Prepare deterministic scan requests from OpenAPI
 milestone: scan-tools-followups
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V55-006]
 languages: [go, json, yaml, markdown]
 goal: Produce a bounded versioned RequestSet and explicit coverage gaps from an OpenAPI schema.
@@ -26,4 +26,71 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/scanplan/... ./internal/contracts/...
     covers: [A1, A2]
+  - command: go test -race -count=1 ./internal/scanplan/... ./internal/contracts/...
+    covers: [A1, A2]
+  - command: go vet ./internal/scanplan/... ./internal/contracts/...
+    covers: [A1, A2]
 implementation_note: Define the RequestSet normative schema and fixtures before implementing its parser.
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      User explicitly selected V55-007 ahead of V55-006. Beginning the independent
+      RequestSet contract and deterministic preparation package from main ea1bab91
+      in feat/v55-007-openapi-request-set. V55-006 remains pending for the scan UI
+      journey; this task does not start scanners or depend on that UI to prepare
+      artifacts. Reviewing existing request, canonical JSON and exact-ref contracts
+      before defining the normative schema and fixtures.
+  - date: 2026-09-20
+    step: contract_defined
+    details: >-
+      Defined api/scan/v1/http-request-set.schema.json and a canonical valid fixture
+      before implementing the parser. Added strict Go DTOs/codec, content digests,
+      stable IDs, exact source provenance, retained origins and coverage accounting.
+      Specification 31 pins OpenAPI 3.0.0 through 3.0.4 and the bounded one-sample
+      policy. RequestSet contains neutral HTTP inputs; later scanner-specific
+      selection must construct and validate the single-request SQLMap artifact.
+  - date: 2026-09-20
+    step: preparation_implemented
+    details: >-
+      Implemented pure scanplan.Prepare with strict bounded JSON/YAML, local-only
+      references, deterministic server/parameter/body example precedence, explicit
+      apiKey/bearer bindings, AND/OR security, content deduplication and provenance.
+      Missing inputs, unsupported serialization, cycles and request limits produce
+      fixed coverage diagnostics. Added document and schema-expansion work bounds;
+      there is no network, model, scanner or scheduler dependency.
+  - date: 2026-09-20
+    step: review_corrections
+    details: >-
+      Contract and preparation tests pass after correcting supplementary-Unicode
+      parsing and case-insensitive header bindings. Independent review added URL
+      port/query checks, unknown method/field gaps and a guard against recursively
+      substituting server variables. Completing pre-marshal UTF-8 option checks
+      and authentication-alternative regressions before the final gate.
+  - date: 2026-09-20
+    step: final_checks_passed
+    details: >-
+      Completed strict option-value validation before JSON marshaling, including
+      malformed UTF-8, cycles, custom marshalers and implicit binary conversion.
+      Verified auth alternatives do not retain partial credentials, HTTP scheme
+      names are case-insensitive, and unsupported method/body combinations produce
+      gaps. Added a runnable public API example and concurrent preparation checks
+      proving shared inputs and retained source revisions remain unchanged.
+      Required scanplan/contracts tests passed with 546 test/subtest pass events
+      (184 scanplan, 362 contracts). The race-enabled gate, go vet, gofmt and diff
+      checks pass. A1 and A2 are verified; implementation is ready to commit.
+remaining:
+  - Commit and integrate the verified implementation into main.
+verification:
+  - >-
+    go test -json -count=1 ./internal/scanplan/... ./internal/contracts/... passed.
+    Log: /tmp/v55-007-tests.jsonl; 546 passing test/subtest events across both packages.
+  - >-
+    go test -race -count=1 ./internal/scanplan/... ./internal/contracts/... passed,
+    including concurrent calls using shared inputs. Log: /tmp/v55-007-race.log.
+  - go vet ./internal/scanplan/... ./internal/contracts/... passed.
+  - gofmt and git diff --check passed; schema fixtures and semantic codec checks passed.
+  - >-
+    Preparation and tests perform no external HTTP requests or scanner execution.
+    API availability is the internal preparation package; Workflow dispatch remains
+    V55-008. V55-006 remains pending, as explicitly bypassed by the user for this task.

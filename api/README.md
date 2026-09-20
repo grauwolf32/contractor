@@ -55,3 +55,8 @@ contract that can drift from the YAML source of truth.
 The [managed Eval data catalog](evals/v1/README.md) is a closed, embedded codec
 contract introduced by V38-002. It has no HTTP routes yet; V38-005/006 add the
 public OpenAPI operations alongside their handlers.
+
+The [scan RequestSet artifact contract](scan/v1/README.md) defines neutral
+prepared HTTP inputs, content identities, exact source provenance and coverage
+gaps. It is an Artifact format consumed by preparation/planning code, not a new
+public HTTP endpoint.

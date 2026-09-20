@@ -420,6 +420,15 @@ Timeout, process failure and output overflow retain their own error codes.
 Result truncation is independent of whether the scan completed. An empty result
 list never establishes that a target is free of vulnerabilities.
 
+## Prepared scan RequestSet artifacts
+
+`application/vnd.contractor.http-requests+json` carries a bounded, versioned
+RequestSet with exact source provenance, deterministic request IDs and explicit
+preparation gaps. The normative schema, OpenAPI subset and selection rules are
+defined in [31](31-scan-request-preparation.md). Preparation consumes authorized
+artifact bytes without fetching references or dispatching scans. These neutral
+HTTP inputs require later scanner-specific parameter selection and validation.
+
 ## Workflow inputs and scope fork
 
 A Workflow definition declares named input and output slots. Concrete input and
