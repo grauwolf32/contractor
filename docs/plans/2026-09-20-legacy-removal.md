@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01–D02 implemented, verified and integrated into local `main`;
-D03–D07 remain planned.
+Status: C01–C07 and D01–D03 implemented, verified and integrated into local `main`;
+D04–D07 remain planned.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -263,7 +263,7 @@ data needs a compatibility window.
 | --- | --- | --- |
 | D01 (implemented) | [config/persisted.go](../../internal/config/persisted.go): removed the missing Stage `session` → `shared` compatibility rule. | Both snapshot decoders require an explicit valid mode; authored omission still becomes `isolated` before persistence. |
 | D02 (implemented) | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): removed old Workflow role inference and the legacy digest algorithm. | Require explicit current role kinds and the current digest, including embedded closures and optional Worker completion. Old snapshots fail without reinterpretation or rewriting. |
-| D03 | [evalstore/receipts.go](../../internal/evalstore/receipts.go): convert old `{id, revision, state}` into typed receipts. | Keep typed receipt replay and idempotency identity; reject old overloaded receipts rather than inventing typed fields. |
+| D03 (implemented) | [evalstore/receipts.go](../../internal/evalstore/receipts.go): removed conversion from old `{id, revision, state}` to typed receipts. | Require the current operation-specific shape, reject legacy/mixed receipts and preserve typed replay identity without new effects or byte rewriting. |
 | D04 | [auditservice/resume.go](../../internal/auditservice/resume.go): continue terminal `deadline_exhausted` Audits; reopen items and archive report links. | Preserve ordinary paused Resume, review expiration, replay and holds. Remove terminal continuation across backend, reports, UI and public contract together. |
 | D05 | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
 | D06 | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): reconstruct inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
@@ -320,6 +320,27 @@ removing an explicit completion contract without changing its digest. The
 dispatch for the retired shape in accepted and assessing rounds before any
 child Run or execution intent, preserving the stored snapshot and round/items.
 
+### D03 — typed Eval mutation receipts (implemented)
+
+Removed `legacyReceipt` and its four conversion callbacks. Dataset, experiment,
+command and submission readers now decode their own current fields directly,
+rejecting unknown fields and trailing JSON as well as missing/invalid identity
+and revision. A rejected read returns no partially usable typed receipt.
+Current writers already marshal these four types; no writer, stored current
+format, public response schema or database migration needed changing.
+
+Updated the [persistence contract](../../internal/evalstore/README.md). The
+[receipt tests](../../internal/evalstore/receipts_test.go) cover current reads and
+replays, cross-type rejection, legacy/mixed bodies and malformed/missing typed
+fields without changing response bytes. The
+[PostgreSQL HTTP regression](../../internal/httpapi/public/eval_receipts_postgres_test.go)
+seeds historical receipt bytes for all four operations and verifies that
+repeated requests fail at the response boundary without changing receipts,
+datasets, experiment revisions/clocks, commands or submission intents. Current
+receipts still replay their exact original response after those rejected reads.
+Transaction ordering, owner checks and request-digest conflict handling remain
+unchanged; an unsupported stored response never triggers a replacement mutation.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -356,8 +377,8 @@ shrinking that contract is separate from removing an internal no-op.
 
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
-D01 is implemented in the seventh increment and D02 in the eighth;
-D03–D07 remain planned.
+D01 is implemented in the seventh increment, D02 in the eighth and D03 in the
+ninth; D04–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -633,5 +654,32 @@ Verification completed on 2026-09-20:
   this Go-only increment. No public wire schema, UI or Runtime code changed,
   and no obsolete-data migration was introduced.
 
-Next increment: D03, require typed Eval receipts and remove conversion from the
-old overloaded `{id, revision, state}` shape.
+## Ninth increment — D03 results
+
+Implemented in `refactor/eval-receipt-legacy-removal`, based on D02 commit
+`3e29ed16`, and integrated into local `main`. Unrelated working-tree edits were
+preserved.
+
+Verification completed on 2026-09-20:
+
+- `go test -count=1 -timeout=8m ./...` passed with optional database/live-model
+  environment variables unset: **63 packages with tests**.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=8m` passed for `./internal/evaldomain`,
+  `./internal/evalstore`, `./internal/evalservice`, `./internal/evalcoordinator`,
+  `./internal/persistence/postgres` and `./internal/httpapi/public`. Existing
+  owner/CAS/digest-conflict, response-loss recovery and replay-after-purge
+  coverage passed with the current receipt format.
+- `TestEvalPostgresRejectsLegacyReceiptReplayWithoutNewEffects` passed for
+  dataset, experiment, command and submission receipts, including both legacy
+  and mixed shapes. Each rejected request is retried; exact database snapshots
+  prove retained receipt bytes, revisions, clocks and mutation effects stay
+  unchanged. Current receipts then replay their original HTTP responses.
+- `go vet ./...`, changed-file Go formatting, documentation links and
+  `git diff --check` passed. Searches found no remaining legacy receipt type or
+  conversion implementation.
+- Full `make verify`, browser/process journeys and paid-model tests were not run
+  in this Go-only increment. Public schemas and clients did not need regeneration.
+
+Next increment: D04, remove terminal deadline-exhausted Audit continuation across
+backend, reports, UI and public contract while preserving ordinary paused Resume.
