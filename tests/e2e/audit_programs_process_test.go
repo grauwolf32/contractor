@@ -1304,10 +1304,13 @@ DELETE FROM artifact_bindings
 func removeAuditProgramAuthoringEntries(t *testing.T, configRoot string) {
 	t.Helper()
 	// The retained Memory successors share the old planner instruction files.
-	// Removing the original authoring entries must leave their catalog loadable.
+	// Remove every profile depending on the removed current standards; the
+	// retained Workflows still need their shared instructions to remain loadable.
 	for _, relative := range []string{
 		"audit-profiles/owasp-asvs-5.0-l1-source-review.yaml",
 		"audit-profiles/owasp-top10-2025-source-risk.yaml",
+		"audit-profiles/owasp_asvs_5_0_l1_source_review_v2_memory.yaml",
+		"audit-profiles/owasp_top10_2025_source_risk_v2_memory.yaml",
 		"audit-standards/owasp-asvs-5.0.0",
 		"audit-standards/owasp-web-top10-2025",
 		"agent-templates/audit_asvs_source_verifier.yaml",
@@ -1335,6 +1338,8 @@ func assertAuditProgramCatalogUnavailable(t *testing.T, client *http.Client, bas
 	removedProfiles := map[string]bool{
 		"owasp-asvs-5-0-l1-source-review@1": true,
 		"owasp-top10-2025-source-risk@1":    true,
+		"owasp-asvs-5-0-l1-source-review@2": true,
+		"owasp-top10-2025-source-risk@2":    true,
 	}
 	for _, profile := range page.Items {
 		identity := profile.Ref.Name + "@" + profile.Ref.Version

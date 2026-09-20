@@ -55,8 +55,8 @@ func TestAuditProgramCatalogReplacementPreservesSharedInstructions(t *testing.T)
 			if err != nil || !reflect.DeepEqual(original, retained) {
 				t.Fatalf("surviving Workflow changed during catalog replacement: %v", err)
 			}
-			if _, err := after.AuditProfile(program.profile + "@2"); err != nil {
-				t.Fatalf("surviving AuditProfile unavailable: %v", err)
+			if _, err := after.AuditProfile(program.profile + "@2"); err == nil {
+				t.Fatal("successor AuditProfile still requires the removed standard")
 			}
 			instructionRef := "instructions/" + program.instruction
 			want, err := before.Instructions(instructionRef)
