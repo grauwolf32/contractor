@@ -3,8 +3,8 @@ id: V61-009
 title: Verify configured toolsets and MCP across Run, Runtime and browser boundaries
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: caaca07543d3ef15db679a44ad250069f2815acf
 depends_on: [V61-006, V61-008]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
@@ -89,3 +89,26 @@ test_prerequisites:
 verification_requirements:
   - Record executed mandatory case counts and zero mandatory skips, real component boundaries, browser evidence, exact SDK version and cleanup/secret assertions.
   - Keep status pending/in_progress until all criteria and commands pass; do not fill implementation_commit or verification evidence with planning-only work.
+
+verification_evidence:
+  - >-
+    make test-toolset-runtime-configuration-release passed on 2026-09-20 with
+    PostgreSQL isolation, MCP SDK 1.30.0, ADK 2.8.0, Node 24.20.0 and Chromium 151.
+    Mandatory reports contain 115 Runtime cases, 104 Go cases including subtests,
+    10 process case/group records, 16 focused UI cases and four real browser cases;
+    zero mandatory skips, failures or browser retries.
+  - >-
+    The same target executed make verify-wire-contracts test-wire-cross-language
+    verify-public-api test-config and make ui-generate-check ui-lint ui-typecheck
+    ui-test ui-build. The complete UI suite passed 473 tests in 63 files.
+  - >-
+    Production Server/PostgreSQL/Scheduler/private mTLS/Runtime/ADK runs proved
+    per-allocation sessions and selected tools, native projection, late-stage
+    pinning, restart replay and a replacement allocation retaining the original
+    configuration after rebind. Browser mutations used real APIs; lost replies
+    were discarded after successful server commits and replayed idempotently.
+  - >-
+    Fault metrics, credential/report/log/model redaction, confirmed cleanup and
+    zero remaining MCP sockets passed. The release gate rejects missing case
+    identities, skipped cases, absent prerequisites and source changes during
+    verification. Durable evidence is tasks/evidence/v61-009.json.
