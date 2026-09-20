@@ -1276,22 +1276,7 @@ func replaceAuditProgramCatalog(
 	t *testing.T, ctx context.Context, databaseURL, ownerID, configRoot string,
 ) {
 	t.Helper()
-	for _, relative := range []string{
-		"audit-profiles/owasp-asvs-5.0-l1-source-review.yaml",
-		"audit-profiles/owasp-top10-2025-source-risk.yaml",
-		"audit-standards/owasp-asvs-5.0.0",
-		"audit-standards/owasp-web-top10-2025",
-		"agent-templates/audit_asvs_source_verifier.yaml",
-		"agent-templates/audit_risk_source_checker.yaml",
-		"instructions/audit-asvs-source-verifier-worker.md",
-		"instructions/audit-risk-source-checker-worker.md",
-		"workflows/audit_asvs_source_verification.yaml",
-		"workflows/audit_top10_source_risk.yaml",
-	} {
-		if err := os.RemoveAll(filepath.Join(configRoot, filepath.FromSlash(relative))); err != nil {
-			t.Fatalf("remove staged Audit program catalog entry %s: %v", relative, err)
-		}
-	}
+	removeAuditProgramAuthoringEntries(t, configRoot)
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		t.Fatal(err)
@@ -1313,6 +1298,26 @@ DELETE FROM artifact_bindings
 		if result.RowsAffected() != 1 {
 			t.Fatalf("replaced %s@%s catalog bindings = %d, want 1",
 				reference.Scheme, reference.Version, result.RowsAffected())
+		}
+	}
+}
+
+func removeAuditProgramAuthoringEntries(t *testing.T, configRoot string) {
+	t.Helper()
+	// The retained Memory successors share the old planner instruction files.
+	// Removing the original authoring entries must leave their catalog loadable.
+	for _, relative := range []string{
+		"audit-profiles/owasp-asvs-5.0-l1-source-review.yaml",
+		"audit-profiles/owasp-top10-2025-source-risk.yaml",
+		"audit-standards/owasp-asvs-5.0.0",
+		"audit-standards/owasp-web-top10-2025",
+		"agent-templates/audit_asvs_source_verifier.yaml",
+		"agent-templates/audit_risk_source_checker.yaml",
+		"workflows/audit_asvs_source_verification.yaml",
+		"workflows/audit_top10_source_risk.yaml",
+	} {
+		if err := os.RemoveAll(filepath.Join(configRoot, filepath.FromSlash(relative))); err != nil {
+			t.Fatalf("remove staged Audit program catalog entry %s: %v", relative, err)
 		}
 	}
 }
