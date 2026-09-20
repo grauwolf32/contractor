@@ -280,10 +280,16 @@ func interspersedFlags(flags *flag.FlagSet, args []string) []string {
 		if boolean, ok := definition.Value.(interface{ IsBoolFlag() bool }); ok && boolean.IsBoolFlag() {
 			continue
 		}
-		if index+1 < len(args) {
-			index++
-			options = append(options, args[index])
+		if index+1 == len(args) {
+			// Leave a missing value missing; neither an earlier positional nor
+			// the separator below may become this option's argument.
+			return options
 		}
+		index++
+		options = append(options, args[index])
+	}
+	if len(positionals) != 0 {
+		options = append(options, "--")
 	}
 	return append(options, positionals...)
 }

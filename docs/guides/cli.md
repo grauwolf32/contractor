@@ -29,7 +29,9 @@ CONTRACTOR_API_TOKEN="$TOKEN" \
 ```
 
 Global flags must precede the command. Resource-specific flags may appear
-before or after positional arguments. The output modes are `table` (default),
+before or after positional arguments. Use `--` before positional arguments
+starting with a hyphen, for example `source push -- -source`.
+The output modes are `table` (default),
 `json`, and `name`:
 
 ```shell
