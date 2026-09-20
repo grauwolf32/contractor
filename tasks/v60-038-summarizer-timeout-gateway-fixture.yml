@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V60-038
+title: Preserve the scripted summarizer timeout through Gateway transport classification
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-006]
+languages: [go, markdown]
+goal: Restore the existing process proof of a retryable summarizer provider failure after one scripted request.
+context:
+  authority: User requested completion of V60 reviews and bounded corrections for reproduced release failures.
+  design: docs/plans/2026-09-20-project-review.md
+  specification:
+    - docs/spec/02-runtime-and-a2a.md
+    - docs/spec/15-worker-summarization.md
+  reproduction: >-
+    TestWorkerSummarizerProductionBoundaries fails the provider-timeout scenario:
+    its scripted HTTP 504 triggers an allowed Gateway transport retry, which the
+    one-request fixture rejects with HTTP 400. The final error consequently has
+    retryable=false. A real Go fixture to Python Gateway client probe reproduces
+    BadRequestError, two physical requests and the duplicate-call fixture failure.
+scope:
+  in:
+    - Preserve the original release failure and actual cross-language transport reproduction.
+    - Suppress transport retries of the single scripted HTTP 504 using the accepted Gateway response override.
+    - Preserve HTTP 504 failure classification, exact summarizer call counts and existing process assertions.
+    - Execute the full summarizer process gate with real local processes and an offline Gateway.
+  out:
+    - Change production Gateway retry classification, retry budgets, deadlines or summarizer semantics.
+    - Weaken call counts, result assertions or other mandatory checks.
+acceptance_criteria:
+  - id: A1
+    text: The actual Gateway client receives a retryable InternalServerError after exactly one physical scripted summarizer request and no fixture-validation failure.
+  - id: A2
+    text: The complete summarizer process gate passes without skips, including provider timeout, cancellation, exact logical call accounting and allocation reuse.
+tests:
+  - command: make test-worker-summarizer-e2e
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2]
+verification_requirements:
+  - Record original failure, before and after transport probes, exact commands, timings, counts and log hashes.
+  - Keep tracked implementation frozen until the current release invocation finishes; use an ignored Go overlay for preliminary verification.
+  - Keep task start, implementation and completion metadata commits separate.
