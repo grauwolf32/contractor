@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-028",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": null,
+  "finding": {
+    "priority": "P2",
+    "before": "Full make test-audits-hardening fails because source Run deletion increments the Audit revision, making the saved Delete revision stale.",
+    "contract": "V60-012/spec19 preserve visible Audit revision changes and reject stale If-Match.",
+    "fix": "Assert ErrPrecondition for stale deletion, reload exactly next revision with unchanged state, retry deletion and preserve purge assertions."
+  },
+  "checks": [
+    {
+      "command": [
+        "make",
+        "test-audits-hardening"
+      ],
+      "exit_code": 2,
+      "elapsed_seconds": 121.7,
+      "log": ".local/v60-review/v60-008-audits.log",
+      "go_passing_events": 328,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "35208e5f0f0e843acaf01acb214bb63807fd02d0022cebc02df1ae123779e5db"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./internal/auditcontroller",
+        "-run",
+        "^TestPostgresControllerCollectsAndPublishesExactAuditReport$"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.49,
+      "log": ".local/v60-review/v60-028-focused.log",
+      "go_passing_events": 1,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "fb7c1d13e9dde3999f9181296207d5c939e47ff95ba62df8bab0dd4b5032689f"
+    }
+  ],
+  "final_gate": "pending frozen-source Audit hardening gate"
+}

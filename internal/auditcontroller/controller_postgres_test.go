@@ -611,10 +611,19 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err != nil || report.Status != auditservice.ReportReady {
 		t.Fatalf("Audit report after source Run deletion = (%+v, %v)", report, err)
 	}
-	deletion, err := auditService.Delete(ctx, auditservice.MutationParams{
+	deleteParams := auditservice.MutationParams{
 		OwnerID: completed.OwnerID, AuditID: completed.AuditID, ExpectedRevision: completed.Revision,
 		IdempotencyKey: "delete-completed-audit", RequestDigest: postgresDigest("delete-completed-audit"),
-	})
+	}
+	if _, err := auditService.Delete(ctx, deleteParams); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("delete Audit with pre-Run-deletion revision = %v", err)
+	}
+	refreshed, err := harness.audits.Get(ctx, completed.OwnerID, completed.AuditID)
+	if err != nil || refreshed.State != completed.State || refreshed.Revision != completed.Revision+1 {
+		t.Fatalf("Audit revision after source Run deletion = (%+v, %v)", refreshed, err)
+	}
+	deleteParams.ExpectedRevision = refreshed.Revision
+	deletion, err := auditService.Delete(ctx, deleteParams)
 	if err != nil || deletion.Audit.State != auditstore.AuditDeleting || deletion.Audit.DeletionRequestedAt == nil {
 		t.Fatalf("begin completed Audit deletion = (%+v, %v)", deletion, err)
 	}

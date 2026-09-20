@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V60-028
+title: Refresh Audit revision after source Run deletion in the controller gate
+milestone: project-review-v60
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V60-012]
+languages: [go, markdown]
+goal: Restore the full Audit controller regression while explicitly checking stale revision rejection.
+context:
+  authority: User requested completion of V60-005 through V60-010; V60-008 reproduced this mandatory gate failure.
+  specification: docs/spec/19-audits.md
+  reproduction: TestPostgresControllerCollectsAndPublishesExactAuditReport deletes the source Run, then reuses the pre-deletion Audit revision; V60-012 correctly advances that revision and the test fails.
+scope:
+  in:
+  - Assert that deletion with the stale Audit revision conflicts without changing state.
+  - Refresh the Audit and retry deletion with its current revision, preserving retained report and purge checks.
+  out:
+  - Change production revision, deletion or idempotency behavior; weaken the mandatory gate.
+acceptance_criteria:
+- id: A1
+  text: The real PostgreSQL test checks the revision advance, rejects the stale deletion and completes refreshed deletion and purge.
+- id: A2
+  text: The Audit hardening gate passes with actual database cases and no mandatory skips.
+tests:
+- command: go test -tags=integration -race -count=1 ./internal/auditcontroller -run '^TestPostgresControllerCollectsAndPublishesExactAuditReport$'
+  covers: [A1]
+- command: make test-audits-hardening
+  covers: [A1, A2]
