@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V64-008
+title: Expose complete priority inventory, pass history and truthful Audit coverage
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-007]
+languages: [go, openapi, typescript]
+goal: >-
+  Make every checklist candidate and priority decision reviewable through public
+  APIs while retaining the full inventory as the Audit coverage denominator.
+context:
+  authority: User wants both selected and deferred checklist checks with their priorities and reasons visible.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  contract: Selection, approval readiness, execution completion, verification outcomes and finding severity are independent projections.
+scope:
+  in:
+    - Add owner-authenticated inventory, ranking-cycle and verdict reads with exact candidate/context/policy/revision references, rank, rationale and selected/deferred/blocked disposition.
+    - Expose profile topN/maxTopN and optional Draft/Start prioritization.topN with strict profile-ceiling validation, immutable effective value and changed-request idempotency conflict semantics.
+    - Expose bounded cycle progress and explicit incomplete/unknown/budget-blocked reasons before any currentRound exists, with no fabricated Round or score.
+    - Define revision-bound pagination/filtering across the full inventory and cycle history; stale cursors conflict rather than combine decisions from different snapshots.
+    - Separate Audit unique-candidate counts for inventory, ever-evaluated, ever-selected, remaining, ever-started, settled and accepted results from cycle frozen-pool outcome/selected/deferred counts; retries and repeated verdicts never double count, and approval rejection may settle an item without execution start.
+    - Add candidate-to-selection-to-Round-item-to-Run/result backtrace with exact source/prompt/policy digests and retained provenance after permitted source Run deletion.
+    - Include full inventory and explicit deferred/incomplete gaps in accepted reports; selected-only counts cannot imply complete Audit coverage and priority never rewrites analyst severity.
+    - Update public OpenAPI, generated Go/TypeScript clients, strict parsers and capability projections while retaining old profile/API semantics.
+  out:
+    - Public raw secret-bearing prompts, model-call replay controls, analytics dashboards or exposing protected artifacts through generic Project routes.
+deliverables:
+  - path: api/openapi/contractor-public-v1.yaml
+    description: Complete priority inventory/cycle/progress/coverage/backtrace contracts and precise nullable no-Round projections.
+  - path: internal/httpapi/public
+    description: Owner-bound list/detail/history endpoints with strict filters and exact-revision pagination.
+  - path: internal/auditservice
+    description: Truthful whole-inventory coverage and retained candidate/selection/execution provenance reads.
+  - path: internal/auditimport
+    description: Immutable report acceptance incorporating deferred and incomplete inventory gaps.
+  - path: ui/src/api
+    description: Regenerated and strictly parsed priority, cycle and coverage response contracts.
+acceptance_criteria:
+  - id: A1
+    text: Twenty-five inventory candidates after two ten-item passes report Audit ever-selected 20 and remaining five, while cycle two reports evaluated 15, selected ten and deferred five; approval rejection is settled without started and retries never double count.
+  - id: A2
+    text: Every selected or deferred candidate has exact cycle/rank/reason provenance, while unscored or unknown outcomes have no fabricated priority and no-Round failures remain readable.
+  - id: A3
+    text: Stale pagination cursors and cross-owner references cannot mix revisions or disclose data; retained history survives allowed source Run deletion and later analyst edits.
+  - id: A4
+    text: Reports and clients preserve independent priority/confidence/disposition/approval/execution/severity; Draft/Start topN obeys profile ceilings and immutable replay rules, with legacy API regressions passing.
+tests:
+  - command: go test ./internal/auditservice ./internal/auditimport ./internal/httpapi/public
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditstore ./internal/auditimport ./internal/httpapi/public
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api ui-generate-check ui-typecheck
+    covers: [A2, A4]
+test_prerequisites:
+  - Required pagination, source-deletion, report snapshot and ownership cases use disposable PostgreSQL.
+verification_requirements:
+  - Retrieve every inventory/provenance page through public APIs for a multiround fixture and reconcile counts to exact persisted candidate/selection identities.
+  - Verify report revisions stay immutable after reprioritization and analyst edits; current projections may advance without rewriting accepted history.

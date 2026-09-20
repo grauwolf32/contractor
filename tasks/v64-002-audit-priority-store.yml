@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V64-002
+title: Persist Audit candidate inventory, ranking cycles and atomic admissions
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-001, V62-002]
+languages: [go, sql]
+goal: >-
+  Preserve the full Audit inventory and every ranking decision independently of
+  selected Round items, with durable claims, budgets and exact provenance.
+context:
+  authority: User-requested Audit checklist prioritization task series.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  foundations: V62-002 supplies Audit-scoped execution identity and no-Round persistence; V64 adds ranking state instead of inventing a second lifecycle.
+scope:
+  in:
+    - Add an immutable Audit-wide inventory with stable canonical candidate IDs and lineage; unadmitted candidates consume retention capacity but no execution item budget, and selected Round items cannot replace the coverage denominator.
+    - Persist ranking cycle identity, exact remaining pool, context/prompt/policy digests, revisions, per-candidate intents/verdicts and explicit incomplete or blocked reasons.
+    - Add claim-bound compare-and-swap transitions and unique constraints for one model-call intent and at most one accepted verdict per candidate/cycle.
+    - Persist pre-ranking cycle-owned reservations for one ranking Run, target initial check Run count and target item slots; ranking submission consumes its reserved slot, selection atomically converts counts to exact item identities and neither step double charges.
+    - Keep unknown model usage reserved, prevent retries from stealing selected initial-attempt reservations, release batch excess after settlement and release unused cycle capacity on failure/cancel under existing claim fences.
+    - Implement atomic selection admission accepting complete pool/context revisions, exact selected IDs and accepted frozen-output receipt, converting the whole selected-set reservation and creating the immutable Round together.
+    - Retain successful verdicts on incomplete cycles, all candidate dispositions and cycle history through permitted source Run deletion and Audit pause/recovery.
+    - Extend owned artifact/credential holds, reference fences and deletion cleanup to frozen context, accepted results and ranking-only Audits.
+    - Add a forward migration with old Audit rows and snapshots unchanged; coordinate the next migration number at implementation time.
+  out:
+    - Model calls, context summarization, ranking policy decisions, Controller dispatch or a new scheduler.
+deliverables:
+  - path: internal/persistence/migrations
+    description: Additive inventory, cycle, intent, verdict, reservation and admission constraints preserving existing Audit state.
+  - path: internal/auditstore
+    description: Transactional inventory/cycle reads, claims, CAS, exact result acceptance and all-or-nothing Round admission.
+  - path: internal/artifacts
+    description: Protected immutable priority-context and result retention with exact ownership and reference holds.
+acceptance_criteria:
+  - id: A1
+    text: PostgreSQL rejects duplicate identities, foreign candidates, stale pool/context/claim revisions and conflicting accepted verdict replay, including concurrent requests.
+  - id: A2
+    text: Eleven submission slots admit one ranking Run plus ten initial check Runs with no double charge during submission/admission replay; whole-set acceptance atomically converts reserved counts into exact identities, and failure cannot partially admit or steal reservations.
+  - id: A3
+    text: Crashes at intent, result acceptance and admission boundaries recover without duplicate calls or admitted items; unknown intents remain distinguishable from calls never started.
+  - id: A4
+    text: Source deletion, Audit deletion and reference-release races preserve required provenance without cross-owner reads, leaked holds or changes to legacy snapshots.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/auditstore ./internal/artifacts ./internal/runstore ./internal/persistence/...
+    covers: [A1, A2, A3, A4]
+  - command: git diff --check
+    covers: [A4]
+test_prerequisites:
+  - Disposable PostgreSQL via CONTRACTOR_TEST_DATABASE_URL; all mandatory migration, race and transaction cases must execute.
+verification_requirements:
+  - Record exact transaction case counts and assert durable row identities, pool membership, reservations and hold counts, not only terminal state.
+  - Validate upgrades with historical Audit/profile fixtures and do not rename an already applied migration from another series.

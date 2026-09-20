@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V64-005
+title: Produce durable independent model verdicts for every remaining candidate
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-003, V64-004]
+languages: [go, json, yaml]
+goal: >-
+  Implement audit-priority@1 as one bounded independent model request per
+  remaining checklist candidate, with durable outcomes and complete coverage.
+context:
+  authority: User proposed independent contextual priority verdicts instead of a growing Planner conversation.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  contract: Ranking succeeds only when every candidate in the frozen remaining pool has a valid accepted verdict; incomplete ranking cannot admit a check Round.
+scope:
+  in:
+    - Implement sequential requests in canonical candidate-ID order through existing direct Planner gateway/ModelPolicy facilities with no Worker, tools, shared conversation or model-authored commands.
+    - Claim and persist each candidate/cycle call intent before external dispatch; validate ownership and Run/Stage/cycle deadlines before launching new calls, while Audit admission pause/deadline permits an already admitted ranking Stage to drain.
+    - Require the exact response schema with echoed item key, low/medium/high/critical priority, separate confidence, bounded rationale/evidence/missing-context fields and no duplicate JSON keys or unknown fields.
+    - Enforce a shared anchored rubric including applicability, potential impact, available signals and value of additional checking; missing optional context expresses uncertainty rather than automatic low priority.
+    - Accept each valid verdict exactly once with prompt/context/policy provenance and actual or explicitly unknown model usage; retain successful verdicts even when another candidate fails.
+    - Disable automatic provider/client retries and whole-ranking-Run retries; one external request intent per candidate/cycle is the maximum, not an exactly-once external-delivery claim.
+    - Recover accepted verdicts without calls and classify interrupted unknown outcomes explicitly without resending; the first invalid/failed/unknown outcome stops new calls, marks remaining entries not_attempted and leaves ranking_incomplete.
+    - Before the first gateway call preflight every remaining candidate's complete encoded request against byte/context-window bounds and reserve the sum of utf8-bytes-v1 request-byte plus output-token estimates; any known impossible request/budget causes zero calls.
+    - Transfer each call's allowance from the whole-pool reservation without double charging, enforce cycle-wide model-call/token/time limits and retain unknown reservations; record provider usage separately from the local admission estimate.
+    - Enforce per-call time 1 through 120 seconds, output-token allowance 128 through 2048, response 8 KiB and stored-result 16 MiB limits, respecting tighter pinned policy and remaining deadlines.
+    - Consume exact context/candidates RunScope inputs and publish priorities with application/vnd.contractor.audit-priorities+json media type and contractor.audit.priorities.v1 schema through ordinary StageResult and Scheduler-frozen Run output; the bare journal cannot authorize selection.
+  out:
+    - Parallel evaluation, partial-pool selection, deterministic substitute scores, provider quality benchmarking, interactive retry controls or evidence-driven additions to the candidate pool.
+deliverables:
+  - path: internal/planner/auditpriority
+    description: Independent bounded gateway calls, strict response parsing, durable intent/acceptance handling and complete-pool output.
+  - path: internal/auditpriority
+    description: Common rubric, prompt construction and evidence-bound verdict validation.
+  - path: internal/runstore
+    description: Existing Planner persistence integration for exact model-call identities, accepted output and usage provenance.
+  - path: internal/scheduler
+    description: Ordinary frozen priorities output publication with exact Run/stage/version/digest metadata and retained partial journal on failure.
+  - path: api/testdata/audit-priority
+    description: Scripted positive, malformed, unknown-reference, timeout, cancellation and crash-boundary response fixtures.
+acceptance_criteria:
+  - id: A1
+    text: A successful N-candidate cycle produces exactly N sequential independent requests in canonical candidate-ID order with no tools, Workers or leaked prior verdicts, and exactly one valid verdict per candidate.
+  - id: A2
+    text: The first invalid, failed or unknown response produces an incomplete result with accepted verdicts retained and remaining entries not_attempted; no further calls or partial ranking can authorize check admission.
+  - id: A3
+    text: Crash before dispatch, after possible delivery, after reply and after acceptance yields the specified durable outcomes with no automatic repeated request or ranking Run.
+  - id: A4
+    text: Whole-pool request/window/token preflight fails with zero calls even when only the final candidate cannot fit; per-call reservation transfer never double charges, cancellation/Run-Stage-cycle deadline/claim loss stop new calls, and Audit admission pause lets the admitted Stage drain.
+  - id: A5
+    text: Unsupported priorities, altered candidate IDs, invented evidence or workflow/command fields are rejected; foreign-cycle or tampered priorities output cannot substitute for the exact accepted journal and frozen Run output identity.
+tests:
+  - command: go test -race ./internal/planner/auditpriority ./internal/auditpriority ./internal/scheduler
+    covers: [A1, A2, A3, A4, A5]
+  - command: go test -tags=integration -count=1 ./internal/auditstore ./internal/runstore ./internal/scheduler
+    covers: [A2, A3, A4]
+test_prerequisites:
+  - The planner/context packages are deliverables of V64-003 and V64-004; use a controlled scripted local gateway and disposable PostgreSQL.
+verification_requirements:
+  - Fault tests assert durable intent/receipt counts and observed gateway request counts at every crash boundary, including lost replies and expired claims.
+  - No external provider or paid model is required; scripted fixture success demonstrates protocol correctness rather than real-model prioritization quality.

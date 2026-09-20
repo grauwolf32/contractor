@@ -10,6 +10,13 @@ goal: Improve scan priority selection without giving a model authority to constr
 context:
   authority: User suggested optional LLM filtering of the highest-priority prepared scans.
   design: docs/plans/2026-09-19-scan-tools.md
+related_work:
+  - >-
+    User refined the immediate priority-selection goal to Audit checklist items
+    with optional service/finding context and at least ten checks per pass.
+    V64 specifies that separate Audit feature in
+    docs/spec/34-audit-check-prioritization.md. This narrower scanner-candidate
+    ranking task remains pending and is not a prerequisite for V64.
 scope:
   in:
     - Optional separately budgeted ranker consuming bounded candidate summaries and returning IDs with reasons.

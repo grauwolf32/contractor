@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V64-010
+title: Publish a runnable prioritized custom-checklist Audit profile and guide
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-008]
+languages: [yaml, json, markdown, go]
+goal: >-
+  Provide a standalone prioritized custom-checklist Audit using the existing
+  check Worker contract, without requiring generated OpenAPI or pentest features.
+context:
+  authority: User requested checklist-wide contextual prioritization as the next practical Audit capability.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  boundary: Publish a new explicitly versioned profile and supporting configuration; existing profile versions retain their behavior and digests.
+scope:
+  in:
+    - Add a complete opt-in custom-checklist AuditProfile with audit-priority@1 role, optional description/findings context, topN ten and finite maxTopN; default to one Round and require an explicit larger maxRounds for multiple passes.
+    - Supply exact Workflow, Planner, ModelPolicy and prompt/instruction assets with independent verdict rubric, sequential model calls, no tools/Workers for ranking, no discovery/assessment roles and sufficient conservative budgets for the documented fixture.
+    - Route selected checks through the existing compatible check Worker and audit-check-results completion contract with exact checklist/input provenance.
+    - Provide a separately named/versioned maxRounds-three example with safe local source/checklist fixtures containing 25 candidates and optional accepted findings so ten/ten/five passes are reviewable without changing the default maxRounds-one profile.
+    - Demonstrate priority versus severity/confidence/disposition, stable ties, high-priority deferral, missing context and explicit insufficient-budget behavior.
+    - Validate catalog capability/dependency gating so the new profile becomes runnable only when complete Server/Planner/Controller/check and full-inventory coverage/API support from V64-008 is available.
+    - Document required gateway/Runtime capabilities, finite pool/topN/model/round budgets, review behavior, unknown/incomplete outcomes and unchanged baseline mode.
+  out:
+    - Deploy or restart a demo, invoke external targets or paid models, replace existing profiles, generate OpenAPI or claim autonomous pentest support.
+deliverables:
+  - path: configs/audit-profiles
+    description: New versioned standalone prioritized custom-checklist profile with exact existing check completion wiring.
+  - path: configs/workflows
+    description: New explicit zero-Worker priority Workflow and compatible selected-check configuration references.
+  - path: configs
+    description: Supporting pinned Planner/ModelPolicy/prompt assets for bounded independent priority verdicts.
+  - path: api/testdata/audit-priority
+    description: Safe complete catalog fixtures and more-than-twenty-candidate checklist examples with optional context.
+  - path: docs/guides/audits.md
+    description: Validated creation, context, selection, deferred work, limits, review and troubleshooting examples.
+  - path: Makefile
+    description: New test-audit-priority-profile target driving the complete local catalog through actual service boundaries.
+  - path: scripts/test-audit-priority-profile.py
+    description: New fail-on-missing real Server/PostgreSQL/scripted-gateway/Runtime example driver with exact selected membership assertions.
+acceptance_criteria:
+  - id: A1
+    text: The documented profile validates as a complete catalog and its local fixture runs ranking followed by selected checks without any generated OpenAPI or pentest-only prerequisite.
+  - id: A2
+    text: The profile defaults to one Round; an explicit three-Round example with 25 candidates yields ten, ten and five checks when budgets allow, while maxRounds two leaves five not-tested, even with findingConfirmation disabled.
+  - id: A3
+    text: Missing planner, controller, policy or check capability makes the profile truthfully non-runnable; existing catalog profile bytes and execution paths remain unchanged.
+  - id: A4
+    text: Every documented limit and failure example agrees with strict contracts, including full-pool scoring, optional absent context, no partial fallback and no silent topN reduction.
+tests:
+  - command: go test ./internal/config ./internal/auditservice ./internal/auditcontroller
+    covers: [A1, A2, A3, A4]
+  - command: make test-config
+    covers: [A1, A3, A4]
+  - command: make test-audit-priority-profile
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Add test-audit-priority-profile and its real Server/PostgreSQL/scripted-gateway/Runtime fixture driver as deliverables of this task; no completed result is implied by this plan.
+  - Use only disposable local infrastructure and fixture inputs; locked Runtime dependencies and existing compatible check tools must be present.
+verification_requirements:
+  - Record exact catalog references and candidate/selection/result identities for the documented example, including every deferred and final-pass candidate.
+  - Keep live-model quality and production/demo deployment outside the runnable fixture claim.

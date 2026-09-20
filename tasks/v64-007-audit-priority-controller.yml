@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V64-007
+title: Run prioritization before each Audit pass and advance deferred checklist work
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-005, V64-006, V62-003]
+languages: [go]
+goal: >-
+  Integrate complete priority cycles and exact selected check Rounds into the
+  existing Audit Controller, with bounded later passes over remaining inventory.
+context:
+  authority: User wants the highest-priority checklist checks executed in this Audit pass and remaining checks retained with reasons for later passes.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  foundations: Reuse V62-003 pre-Round execution/control hooks; no dependency on generated inventory, OpenAPI preparation or autonomous pentest behavior.
+scope:
+  in:
+    - Initialize the stable checklist inventory and freeze remaining candidates/context before each enabled pass using ordinary Audit-scoped prioritization role execution.
+    - Submit one ordinary audit-priority@1 Run through trusted Run Service and Scheduler with exact context/candidates RunScope inputs, policy pins and durable recovery association.
+    - Before ranking reserve cycle-owned counts for one ranking Run, target initial check Runs and target item slots; consume the ranking slot on submission and convert counts to exact selected identities at acceptance without double charging.
+    - Collect application/vnd.contractor.audit-priorities+json output from the exact associated terminal Run/version with an accepted receipt and verify contractor.audit.priorities.v1 membership/digests against the durable journal before selection; the journal alone cannot authorize work.
+    - Prevent ordinary retries from consuming another selected initial attempt's reservation, release unused batching capacity after settlement and release unused cycle reservations on failure/cancel.
+    - Preserve zero-Round projections and shared pause/resume, cancellation, admission deadline, deletion and failure controls; Audit pause or admission deadline blocks new child Runs/Round acceptance while admitted ranking drains under its own Run/Stage/cycle deadlines.
+    - Recover accepted verdicts and selection without automatic per-item or whole-ranking-Run retries, and prevent stale Controller claims from starting calls or admitting Rounds.
+    - After the fixed selected Round settles, build the next pass from never-admitted baseline inventory with updated frozen findings and settled results, bounded by maxRounds and existing budgets; failed admitted checks cannot silently re-enter ranking.
+    - Advance deferred baseline checklist work independently of findingConfirmation; never silently include proposedChecks, alter the current Round barrier or reselect completed candidates.
+    - Preserve approval requirements and immutable selected membership; failed/rejected checks have truthful outcomes and cannot be replaced by lower-ranked checks within the pass.
+    - Map empty original inventory, invalid context, incomplete ranking and selection_blocked_budget to explicit failure after drain; map maxRounds exhaustion to normal bounded report closure with untested gaps, cancellation to cancelled and Audit admission deadline to resumable pause.
+    - Keep existing non-prioritized profiles and scan-plan@1 behavior unchanged and report exhaustion/incomplete reasons without mislabeling untested candidates as low priority.
+    - Pin the effective profile-bounded topN at Draft/Start acceptance and preserve it across pause/resume and cycles; changed-topN idempotency replay conflicts instead of changing an active selection policy.
+  out:
+    - A second scheduler, automatic worklist growth, V62 generated inventory pipelines, automatic incomplete-cycle retry or model-generated workflow routing.
+deliverables:
+  - path: internal/auditcontroller
+    description: Prioritization dispatch/collection, exact selection admission, deferred-inventory progression and shared no-Round recovery/control handling.
+  - path: internal/auditservice
+    description: Opt-in start/resume and pass eligibility with cumulative ranking/check budgets and fixed profile pins.
+  - path: internal/runservice
+    description: Trusted prioritization Run associations and input pins through ordinary Scheduler admission.
+  - path: internal/auditimport
+    description: Exact priority-result collection with no Worker completion impersonation or finding severity mutation.
+acceptance_criteria:
+  - id: A1
+    text: An opt-in checklist Audit ranks all remaining candidates, admits exactly top-N and executes only that fixed selected set; an existing profile follows its unchanged path without a ranking model service.
+  - id: A2
+    text: Deferred baseline candidates receive the next pass even with findingConfirmation disabled, while new findings update context and proposedChecks are not implicitly added to inventory.
+  - id: A3
+    text: Incomplete ranking and insufficient whole-set budgets fail explicitly; maxRounds closes with retained untested coverage, and Audit admission deadline pauses for extension/disable/resume without partial Rounds, substitutions or repeated ranking calls.
+  - id: A4
+    text: Pause/admission-deadline during ranking lets the admitted Stage drain, blocks Round acceptance and resumes accepted verdicts without repeated calls; cancellation, deletion, lost replies, claim loss and restart preserve identities and holds before and after a Round exists.
+  - id: A5
+    text: Eleven submission slots admit one ranking plus ten initial check Runs without double charging during replay; batching/retries respect reservations, changed-topN replay conflicts, and approval cannot backfill or corrupt coverage.
+tests:
+  - command: go test -race ./internal/auditcontroller ./internal/auditservice ./internal/auditimport ./internal/runservice ./internal/scheduler
+    covers: [A1, A2, A3, A4, A5]
+  - command: go test -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditstore ./internal/auditimport ./internal/runservice
+    covers: [A1, A2, A3, A4, A5]
+test_prerequisites:
+  - Disposable PostgreSQL, a controlled scripted local model gateway and bounded fake check completions for unit/integration lifecycle cases.
+  - V62-003 is a pending shared foundation; the later V64-011 process gate verifies actual selected-check Runtime execution.
+verification_requirements:
+  - Assert pool revisions, model-call counts, Run/selection identities, submitted check membership, budgets and holds at fault boundaries, not only final Audit status.
+  - Include a multiround fixture with more than twenty baseline candidates and findingConfirmation disabled to prove later passes are not tied to finding proposals.
+  - Reject foreign-cycle/tampered frozen output and exercise source deletion during receipt/selection acceptance; journal rows alone must never authorize a Round.

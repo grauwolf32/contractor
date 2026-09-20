@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V64-003
+title: Support ordinary zero-Worker Runs for the audit-priority planner
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-001]
+languages: [go, yaml]
+goal: >-
+  Execute the explicitly declared audit-priority@1 planner through ordinary Run
+  scheduling and model credentials without allocating or requiring a Runtime.
+context:
+  authority: Independent Audit verdicts need direct bounded Planner model calls with no Worker or tools.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  compatibility: The new execution shape is explicitly identified; existing Worker-backed, scan and model-free planner shapes retain their constraints.
+scope:
+  in:
+    - Introduce explicit audit-priority@1 planner registration and a narrow zero-Worker execution capability declared by validated configuration.
+    - Permit maxWorkerCalls zero only for this new planner/policy shape with finite nonzero model-call/token/time budgets and no Toolset or Worker dispatch authority.
+    - Extend Run preparation and Scheduler reservation/stage/finalization paths to model-only execution without acquiring Runtime allocation or relying on Runtime registration.
+    - Preserve owner/global queue admission, concurrency limits, Run claims, pause/cancel/deadline, recovery and ordinary terminal metrics; queue pause blocks new admissions while an already admitted ranking Stage may drain.
+    - Bind the pinned ModelPolicy and gateway credential scope through existing model access facilities; account for Planner usage with no fabricated Worker events or allocation metrics.
+    - Expose truthful capability and execution projections without advertising the complete Audit feature before its Controller and profile exist.
+  out:
+    - Implement independent candidate scoring, introduce a second queue or scheduler, relax all planner policy validation or change Worker-backed scheduling.
+deliverables:
+  - path: internal/planner/auditpriority
+    description: New explicit planner registration and bounded execution interface for the later verdict implementation.
+  - path: internal/config
+    description: Narrow zero-Worker planner/policy validation and unchanged legacy rejection fixtures.
+  - path: internal/scheduler
+    description: Model-only preparation, reservation, claim recovery, cancellation and stage finalization without Runtime allocation.
+  - path: internal/runstore
+    description: Durable ordinary Run state and metrics for explicit planner-only execution.
+  - path: internal/telemetry
+    description: Correct Planner model and terminal telemetry without synthetic Runtime or Worker activity.
+acceptance_criteria:
+  - id: A1
+    text: A scripted zero-Worker planner Run completes through real Scheduler paths with zero registered Runtime agents and zero allocations or Worker calls.
+  - id: A2
+    text: Queue pause blocks new admissions and permits the existing admitted Stage to drain; owner/global concurrency limits, cancellation, deadline, claim loss and restart cannot duplicate accepted Planner work.
+  - id: A3
+    text: Missing model credentials or invalid policy fails explicitly; the new shape cannot request tools or Workers and unrelated planners still reject zero maxWorkerCalls.
+  - id: A4
+    text: Existing planner, scan, Worker allocation and stage-finalization regressions pass, with truthful usage/terminal metrics and no compatibility digest changes.
+tests:
+  - command: go test -race ./internal/config ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/telemetry
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./internal/scheduler ./internal/runstore
+    covers: [A1, A2, A4]
+test_prerequisites:
+  - Disposable PostgreSQL and a controlled local scripted gateway; the no-Runtime cases deliberately register no Runtime agent.
+  - The new internal/planner/auditpriority package is a deliverable of this task, not existing executable support.
+verification_requirements:
+  - Assert persisted allocation count zero and real queue/reservation/claim transitions; a mocked successful Planner return alone is insufficient.
+  - Use no external provider credentials, paid models or production service restarts.

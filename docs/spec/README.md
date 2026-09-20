@@ -72,6 +72,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [31](31-scan-request-preparation.md) | Implemented: bounded deterministic OpenAPI request preparation, RequestSet identities and coverage gaps |
 | [32](32-scan-planning.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
 | [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
+| [34](34-audit-check-prioritization.md) | Draft; not implemented: independent context-aware checklist priorities, minimum-ten selection, durable Audit passes and full-inventory coverage |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
 | [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 

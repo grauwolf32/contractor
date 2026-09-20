@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V64-006
+title: Select exact top-N candidates and reject incomplete or undersized admission
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-002]
+languages: [go]
+goal: >-
+  Select at least ten highest-priority remaining checklist checks when ten exist,
+  with explicit deferral reasons and no silent budget-based downsizing.
+context:
+  authority: User explicitly required filtering no fewer than ten candidates with the highest priority.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  contract: The deterministic selector consumes complete already accepted verdicts and delegates atomic admission to the V64-002 store interface.
+scope:
+  in:
+    - Implement a pure selector over the exact frozen remaining pool and complete validated verdict set using critical/high/medium/low descending and canonical candidate ID ascending for ties.
+    - Select exact min(topN, remaining) using the immutable effective topN pinned from profile/default or valid Draft/Start override within maxTopN; select all candidates when fewer remain.
+    - Reject missing, extra, duplicate, stale-cycle or mixed-context verdicts before selection; confidence and finding severity are never implicit sorting keys.
+    - Preserve actual priority and rationale for all candidates and distinguish selected, deferred and blocked from approval readiness and execution status.
+    - Record rank, cutoff, cycle/context revisions and explicit deferred explanations; a high-priority candidate below the cutoff remains high priority.
+    - Check whole selected-set reservation/admission preconditions after ranking overhead, without lowering topN, substituting lower-ranked candidates or creating a partial Round.
+    - Count selected checks awaiting approval within the immutable selected set; rejection, expiry, failure or cancellation does not backfill a different candidate into the Round.
+    - Distinguish failed empty_inventory for an empty original checklist from normal no_remaining_candidates closure after accepted Rounds; selection_blocked_budget fails after drain without any undersized Round.
+    - Keep never-admitted inventory members as the only remaining candidates; selected failed/inconclusive checks stay owned by their original Round and cannot be implicitly reranked.
+  out:
+    - Model calls, confidence-weighted sorting, arbitrary fallback scores, implicit applicability filtering or insertion of model-proposed checks.
+deliverables:
+  - path: internal/auditpriority
+    description: Pure complete-pool ranking/selection implementation and exact admission request construction.
+  - path: internal/auditstore
+    description: Integration of selection revision and full-set reservations with the atomic admission contract from V64-002.
+acceptance_criteria:
+  - id: A1
+    text: Fixtures with 0, 1, 3, 9, 10, 11, 100 and 1000 remaining candidates and topN ten/twelve produce exact declared closure or min(topN, remaining); topN below 10 or above 1000 and oversized inventory are rejected.
+  - id: A2
+    text: Permuting accepted verdict rows leaves selection unchanged; tied priorities use canonical ID and never confidence, severity or response order.
+  - id: A3
+    text: Missing or malformed verdicts block admission, and budgets sufficient for only three or nine of ten checks create no smaller Round or partial reservation.
+  - id: A4
+    text: Selected awaiting-approval items stay selected, and later rejected/failed items never cause backfill; deferred high-priority entries retain their score and a truthful cutoff reason.
+  - id: A5
+    text: Concurrent admission or changed revision/control state creates at most one exact selected Round and cannot evade total item, Run, model or time limits.
+tests:
+  - command: go test -race ./internal/auditpriority ./internal/auditservice
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./internal/auditstore
+    covers: [A3, A4, A5]
+test_prerequisites:
+  - Create internal/auditpriority if V64-004 has not landed; this shared package is an explicit new deliverable, not an external dependency.
+  - Required admission/race cases use disposable PostgreSQL and no model service.
+verification_requirements:
+  - Test the user-facing minimum-ten rule as exact selected membership and persisted Round size; an assertion on a configurable limit alone is insufficient.
+  - Include adversarial priority/confidence/severity combinations and insufficient budgets after already consumed ranking overhead.

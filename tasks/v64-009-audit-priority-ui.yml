@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V64-009
+title: Show Audit ranking progress, top-N selection and deferred checklist reasons
+milestone: audit-check-prioritization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V64-008]
+languages: [typescript]
+goal: >-
+  Let users configure an eligible prioritized Audit and inspect every check's
+  actual priority, selection reason and execution outcome across passes.
+context:
+  authority: User requested contextual independent checklist priorities and retention of lower-ranked checks with reasons.
+  design: docs/plans/2026-09-20-audit-check-prioritization.md
+  specification: [docs/spec/34-audit-check-prioritization.md, docs/spec/19-audits.md]
+  contract: The UI reflects public API facts and cannot turn model text or a display action into check execution authority.
+scope:
+  in:
+    - Add supported-profile opt-in/input controls for optional service description, authorized finding context and Draft/Start topN with default 10 and validation from 10 through the profile maxTopN; show the effective pinned value as immutable after start.
+    - Show the 1000-candidate inventory limit and declared whole-pass budget requirements at setup; reject impossible selections explicitly instead of displaying a reduced top-N.
+    - Display full inventory, current-cycle scoring progress, independent priority/confidence and selected/deferred/blocked filters with reasons and stable rank.
+    - Keep approval readiness and check execution states distinct from selection, and display high-priority deferred items without relabeling them low priority or changing finding severity.
+    - Render incomplete ranking, unknown outcomes, budget/limit blocks and cancellation before a Round exists; preserve admission-deadline pause, extension/disable and resume controls without presenting a paused Audit as failed.
+    - Show cycle/context version history and exact check/result provenance, refresh the next pass after the fixed Round settles and handle stale pagination by restarting the traversal.
+    - Keep service/finding input optional and represent missing context as uncertainty; never imply that unavailable context alone proves low applicability.
+    - Preserve existing non-prioritized creation, review, findings, report and coverage UI flows with responsive and accessible controls.
+  out:
+    - Manual score editing, client-side ranking authority, new retry endpoints, finding severity changes or generated OpenAPI-specific setup.
+deliverables:
+  - path: ui/src/routes/projects/audits
+    description: Prioritized creation, inventory filters, cycle progress/history, deferred reasons and no-Round status views using public contracts.
+  - path: ui/src/api
+    description: Exact-revision inventory traversal and cycle refresh integration with generated API clients.
+  - path: ui/e2e
+    description: Browser cases for ten-check admission, deferred high priority, later passes, approval, incomplete ranking and budget blocks.
+  - path: Makefile
+    description: New test-audit-priority-browser target with explicit prerequisites and mandatory case selection.
+acceptance_criteria:
+  - id: A1
+    text: A user can create an eligible prioritized Audit with optional context absent, topN defaults to ten, and values below ten or above the profile maxTopN cannot be submitted or altered after start/resume.
+  - id: A2
+    text: The UI shows the full inventory and correct denominator, all selected/deferred reasons, high-priority deferred entries and approval/execution distinctions without severity mutation.
+  - id: A3
+    text: Incomplete/blocked/no-Round states, admission-deadline extension/resume and later-pass refresh remain usable; stale traversals restart and old accepted cycle details do not silently change.
+  - id: A4
+    text: Responsive keyboard-accessible browser paths and existing non-prioritized Audit, finding, review and report regressions pass against production API contracts.
+tests:
+  - command: make ui-generate-check ui-typecheck ui-test ui-build
+    covers: [A1, A2, A3, A4]
+  - command: make test-audit-priority-browser
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Add test-audit-priority-browser and its fail-on-missing browser selection as deliverables of this task; it is not an existing command or already completed evidence.
+  - Use built UI, real local Server/PostgreSQL, scripted gateway and controlled check fixtures with authenticated browser sessions; no paid models or production accounts.
+verification_requirements:
+  - Include retained browser evidence for full inventory, high-priority deferral, no-Round failure and next-pass transition, not only mocked component snapshots.
+  - Assert user-visible state and actual API membership/counts together; the priority chip alone does not prove correct selection.
