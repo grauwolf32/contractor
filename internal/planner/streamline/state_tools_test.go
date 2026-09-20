@@ -147,9 +147,9 @@ func TestStreamlineStateToolsProjectNewestCompletionWithoutDurablePaths(t *testi
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
 	}}
-	factory, err := NewFactory(
-		sessions, sessions, workers, inspector, reader, modelValue,
-		Limits{MaxModelCalls: 12},
+	factory, err := NewConfiguredFactory(
+		sessions, sessions, workers, inspector, reader, testModelFactory(modelValue),
+		Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -220,12 +220,12 @@ func TestStateProjectionFailureDoesNotRewriteCompletedSubtask(t *testing.T) {
 		}),
 	}}
 	sessions := newFakeSessions()
-	factory, err := NewFactory(
+	factory, err := NewConfiguredFactory(
 		sessions, sessions, workers,
 		&fakeInspector{mediaTypes: map[string]string{
 			refKey(exactRef("builder", "report", revision)): "application/json",
 		}},
-		reader, modelValue, Limits{},
+		reader, testModelFactory(modelValue), Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -403,7 +403,7 @@ func newStateTestPlanner(
 	sessions := newFakeSessions()
 	factory, err := newFactory(
 		profile, sessions, sessions, workers, &fakeInspector{}, reader,
-		nil, llm, nil, Limits{MaxModelCalls: 12},
+		nil, testModelFactory(llm), Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -417,6 +417,7 @@ func newStateTestPlanner(
 
 func stateToolInvocation(plannerID string, bindings ...string) planner.Invocation {
 	invocation := testInvocation(bindings...)
+	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 12
 	invocation.Stage.Planner = workflowconfig.PlannerRef{PlannerID: plannerID, Version: "1"}
 	invocation.Stage.Context.Workspace = &workflowconfig.WorkspaceContext{
 		Mode:    contracts.WorkspaceModeDirect,

@@ -53,43 +53,11 @@ type Factory struct {
 	inspector    planner.ArtifactInspector
 	stateReader  planner.WorkerStateReader
 	memoryStore  plannermemory.Store
-	model        model.LLM
 	modelFactory InvocationModelFactory
 	limits       Limits
 }
 
 type InvocationModelFactory func(planner.ModelAccess) (model.LLM, error)
-
-func NewFactory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	llm model.LLM,
-	limits Limits,
-) (*Factory, error) {
-	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		nil, llm, nil, limits,
-	)
-}
-
-func NewFactoryWithMemory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	memoryStore plannermemory.Store,
-	llm model.LLM,
-	limits Limits,
-) (*Factory, error) {
-	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, llm, nil, limits,
-	)
-}
 
 func NewConfiguredFactory(
 	sessions planner.PlanSessionService,
@@ -102,7 +70,7 @@ func NewConfiguredFactory(
 ) (*Factory, error) {
 	return newFactory(
 		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		nil, nil, modelFactory, limits,
+		nil, modelFactory, limits,
 	)
 }
 
@@ -118,44 +86,11 @@ func NewConfiguredFactoryWithMemory(
 ) (*Factory, error) {
 	return newFactory(
 		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, nil, modelFactory, limits,
+		memoryStore, modelFactory, limits,
 	)
 }
 
-// NewRouterDelegate creates the shared model-backed engine configured for
-// router@1. The public Router factory wraps this delegate so Scheduler still
-// registers distinct framework-neutral PlannerFactory implementations.
-func NewRouterDelegate(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	llm model.LLM,
-	limits Limits,
-) (*Factory, error) {
-	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		nil, llm, nil, limits,
-	)
-}
-
-func NewRouterDelegateWithMemory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	memoryStore plannermemory.Store,
-	llm model.LLM,
-	limits Limits,
-) (*Factory, error) {
-	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, llm, nil, limits,
-	)
-}
-
+// NewConfiguredRouterDelegate creates the shared engine for router@1.
 func NewConfiguredRouterDelegate(
 	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
@@ -167,7 +102,7 @@ func NewConfiguredRouterDelegate(
 ) (*Factory, error) {
 	return newFactory(
 		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		nil, nil, modelFactory, limits,
+		nil, modelFactory, limits,
 	)
 }
 
@@ -183,7 +118,7 @@ func NewConfiguredRouterDelegateWithMemory(
 ) (*Factory, error) {
 	return newFactory(
 		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, nil, modelFactory, limits,
+		memoryStore, modelFactory, limits,
 	)
 }
 
@@ -195,12 +130,11 @@ func newFactory(
 	inspector planner.ArtifactInspector,
 	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
-	llm model.LLM,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil || stateReader == nil ||
-		(llm == nil) == (modelFactory == nil) {
+		modelFactory == nil {
 		return nil, fmt.Errorf("model-backed Planner dependencies are incomplete")
 	}
 	normalized, err := normalizeLimits(limits)
@@ -210,7 +144,7 @@ func newFactory(
 	return &Factory{
 		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker,
 		inspector: inspector, stateReader: stateReader, memoryStore: memoryStore,
-		model: llm, modelFactory: modelFactory, limits: normalized,
+		modelFactory: modelFactory, limits: normalized,
 	}, nil
 }
 
@@ -274,23 +208,19 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	// Resolve the complete immutable model-visible surface before constructing
 	// a provider client. An invalid or unavailable Memory binding must fail
 	// Planner construction without even local model-factory side effects.
-	selectedModel := f.model
-	selectedLimits := f.limits
-	if f.modelFactory != nil {
-		if invocation.ModelAccess == nil {
-			return nil, fmt.Errorf("%s requires resolved Planner model access", f.profile.ref)
-		}
-		if err := validateModelAccess(*invocation.ModelAccess); err != nil {
-			return nil, err
-		}
-		selectedModel, err = f.modelFactory(*invocation.ModelAccess)
-		if err != nil {
-			return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
-		}
-		selectedLimits, err = limitsFromPolicy(invocation.ModelAccess.ModelPolicy, f.limits.MaxWallTime)
-		if err != nil {
-			return nil, err
-		}
+	if invocation.ModelAccess == nil {
+		return nil, fmt.Errorf("%s requires resolved Planner model access", f.profile.ref)
+	}
+	if err := validateModelAccess(*invocation.ModelAccess); err != nil {
+		return nil, err
+	}
+	selectedModel, err := f.modelFactory(*invocation.ModelAccess)
+	if err != nil {
+		return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
+	}
+	selectedLimits, err := limitsFromPolicy(invocation.ModelAccess.ModelPolicy, f.limits.MaxWallTime)
+	if err != nil {
+		return nil, err
 	}
 	stateViews, err := stateview.New(f.stateReader, stateBindings, stateview.Options{})
 	if err != nil {

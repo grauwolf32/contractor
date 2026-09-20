@@ -5,21 +5,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/planner"
 	"google.golang.org/adk/model"
 )
 
 func TestPlannerRequestHonorsPolicyTemperature(t *testing.T) {
 	for _, profile := range []plannerProfile{streamlineProfile, routerProfile} {
 		for _, test := range []struct {
-			name       string
-			configured bool
-			value      *float64
+			name  string
+			value *float64
 		}{
-			{"legacy", false, nil}, {"omitted", true, nil},
-			{"zero", true, tempPointer(0)}, {"fraction", true, tempPointer(0.1)},
-			{"thinking", true, tempPointer(1)},
+			{"omitted", nil}, {"zero", tempPointer(0)},
+			{"fraction", tempPointer(0.1)}, {"thinking", tempPointer(1)},
 		} {
 			t.Run(profile.agentName+"/"+test.name, func(t *testing.T) {
 				observed := false
@@ -34,15 +30,12 @@ func TestPlannerRequestHonorsPolicyTemperature(t *testing.T) {
 						t.Fatal(err)
 					}
 					value, present := payload["temperature"]
-					if test.configured && test.value == nil {
+					if test.value == nil {
 						if present {
 							t.Fatalf("omitted temperature sent as %v", value)
 						}
 					} else {
-						want := 0.0
-						if test.value != nil {
-							want = *test.value
-						}
+						want := *test.value
 						if !present || value != want {
 							t.Fatalf("temperature = %v (present %v), want %v", value, present, want)
 						}
@@ -54,14 +47,12 @@ func TestPlannerRequestHonorsPolicyTemperature(t *testing.T) {
 				factory.profile = profile
 				invocation := testInvocation("builder")
 				invocation.Stage.Planner.PlannerID = strings.TrimSuffix(profile.ref, "@1")
+				invocation.ModelAccess.ModelPolicy.Temperature = test.value
 				created, err := factory.Create(invocation)
 				if err != nil {
 					t.Fatal(err)
 				}
 				instance := created.(*streamlinePlanner)
-				if test.configured {
-					instance.invocation.ModelAccess = &planner.ModelAccess{ModelPolicy: contracts.ResolvedModelPolicy{Model: "test-model", Temperature: test.value}}
-				}
 				_, _ = instance.Run(t.Context())
 				if !observed {
 					t.Fatal("Planner made no model request")

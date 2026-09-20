@@ -129,9 +129,9 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 		},
 	}}
 	sessions := newFakeSessions()
-	factory, err := NewFactoryWithMemory(
+	factory, err := NewConfiguredFactoryWithMemory(
 		sessions, sessions, worker, &fakeInspector{}, unavailableWorkerStateReader{},
-		store, model, Limits{},
+		store, testModelFactory(model), Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -276,7 +276,6 @@ func TestPlannerMemoryDependencyFailsBeforeModelFactory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invocation.ModelAccess = &planner.ModelAccess{}
 	if _, err := factory.Create(invocation); err == nil || !strings.Contains(err.Error(), "Memory store") {
 		t.Fatalf("Create error = %v, want missing Memory store", err)
 	}
@@ -300,12 +299,15 @@ func TestPlannerMemoryCallConsumesTheOrdinaryModelTurnBudget(t *testing.T) {
 	factory, err := newFactory(
 		streamlineProfile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
 		unavailableWorkerStateReader{}, store,
-		model, nil,
-		Limits{MaxModelCalls: 1, MaxTokens: 1_000, MaxWorkerCalls: 4, MaxWallTime: time.Minute},
+		testModelFactory(model),
+		Limits{MaxWallTime: time.Minute},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	invocation.ModelAccess.ModelPolicy.MaxModelCalls = 1
+	invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 1_000
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 4
 	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal(err)
@@ -377,7 +379,7 @@ func newMemoryPlanner(
 	factory, err := newFactory(
 		profile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
 		unavailableWorkerStateReader{}, store,
-		llm, nil, Limits{},
+		testModelFactory(llm), Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)

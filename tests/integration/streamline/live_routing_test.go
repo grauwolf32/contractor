@@ -18,6 +18,7 @@ import (
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 )
 
@@ -34,25 +35,26 @@ func TestLiveRouterWorkflow(t *testing.T) {
 	if token == "" {
 		token = "unused"
 	}
-	llm, err := streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-		URL: gatewayURL, Token: contracts.NewSecretString(token), Model: modelName,
-	})
-	if err != nil {
-		t.Fatal("live routing Gateway settings are invalid")
+	modelFactory := func(access planner.ModelAccess) (model.LLM, error) {
+		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
+			URL: access.LLMGateway.URL, Token: access.Token,
+			Model: access.ModelPolicy.Model, MaxOutputTokens: access.ModelPolicy.MaxOutputTokens,
+		})
 	}
 	sessions := newLiveRouterSessions()
 	worker := &liveRouterWorker{}
-	factory, err := router.NewFactory(
-		sessions, sessions, worker, liveRouterInspector{}, unavailableWorkerStateReader{}, llm,
-		router.Limits{
-			MaxModelCalls: 8, MaxTokens: 32_768, MaxWorkerCalls: 2,
-			MaxWallTime: 90 * time.Second,
-		},
+	factory, err := router.NewConfiguredFactory(
+		sessions, sessions, worker, liveRouterInspector{}, unavailableWorkerStateReader{}, modelFactory,
+		router.Limits{MaxWallTime: 90 * time.Second},
 	)
 	if err != nil {
 		t.Fatal("construct live Router")
 	}
-	instance, err := factory.Create(liveRouterInvocation())
+	invocation := liveRouterInvocation()
+	invocation.ModelAccess = integrationModelAccess(modelName, gatewayURL, token)
+	invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 32_768
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 2
+	instance, err := factory.Create(invocation)
 	if err != nil {
 		t.Fatal("construct live Router invocation")
 	}

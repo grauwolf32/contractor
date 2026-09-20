@@ -1,8 +1,8 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C04 implemented, verified and integrated into local `main`.
-C01–C03 were integrated as `1d661196`; C04 followed on
-`refactor/scheduler-legacy-removal`. C05–C07 and D01–D07 remain planned.
+Status: C01–C05 implemented, verified and integrated into local `main`.
+C01–C03 were integrated as `1d661196`, C04 as `bc32a76b`; C05 followed on
+`refactor/planner-legacy-removal`. C06–C07 and D01–D07 remain planned.
 Reviewed working tree on 2026-09-20, HEAD
 `e1ea6209713d1c8d637d1106ce92a4960a4a2c58`, including existing uncommitted
 documentation. The user requested finding code retained only for backward
@@ -159,22 +159,29 @@ resolver with explicit fixture inputs. Model-free `tool@1` Workers remain valid
 with no LLM route. Updated specification 05. V61 toolset pinning is separate
 work on overlapping allocation/configuration paths and is not merged here.
 
-### C05 — model-backed Planner constructors
+### C05 — model-backed Planner constructors (implemented)
 
-[streamline/factory.go](../../internal/planner/streamline/factory.go) retains
-both `model` and `modelFactory`, direct-LLM `NewFactory`/`NewFactoryWithMemory`
-constructors and corresponding Router delegates.
-[router/factory.go](../../internal/planner/router/factory.go) exposes both forms.
-[streamline/planner.go](../../internal/planner/streamline/planner.go)'s
-`newRootAgent` explicitly uses a legacy zero temperature without ModelAccess.
+Removed the direct-LLM `NewFactory`/`NewFactoryWithMemory` constructors from
+[Streamline](../../internal/planner/streamline/factory.go) and
+[Router](../../internal/planner/router/factory.go), their unconfigured Router
+delegates and `Factory.model`. The configured factories are now the only
+model-backed construction path. Each invocation requires valid ModelAccess
+before constructing its model client; execution budgets come from ModelPolicy.
 
-[composition_execution.go](../../internal/app/composition_execution.go) uses
-configured factories. No ordinary application caller of the direct-LLM
-Streamline/Router constructors was found; their remaining callers are tests.
-Update those tests with valid ModelAccess and a fake InvocationModelFactory,
-then remove the unused constructors, `Factory.model` and the missing-access
-branches. Preserve the distinction between omitted temperature and explicit
-zero. Do not impose ModelAccess on `passthrough@1` or `scan-plan@1`.
+Removed the missing-access branches in
+[streamline/planner.go](../../internal/planner/streamline/planner.go), including
+the implicit zero temperature and placeholder telemetry model alias. An omitted
+policy temperature stays omitted; an explicit zero remains explicit.
+
+Unit fixtures now supply valid ModelAccess and inject scripted models through
+InvocationModelFactory. Budget tests set the invocation's ModelPolicy;
+configuration rejection and per-invocation model selection cover both profiles.
+The PostgreSQL/Gateway recovery test and opt-in live Router harness construct
+clients from the supplied ModelAccess. Their deterministic zero temperature is
+an explicit fixture setting.
+
+[composition_execution.go](../../internal/app/composition_execution.go) already
+used configured factories. `passthrough@1` and `scan-plan@1` remain model-free.
 
 ### C06 — HTTP batch reader fallbacks
 
@@ -293,8 +300,8 @@ shrinking that contract is separate from removing an internal no-op.
 
 ## Execution order and acceptance
 
-C01/C02 are implemented in the first increment, C03 in the second and C04 in
-the third; later items remain planned.
+C01/C02 are implemented in the first increment, C03 in the second, C04 in
+the third and C05 in the fourth; later items remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -421,4 +428,30 @@ Verification completed on 2026-09-20:
   one manual-Resume fixture family without creation times; it was updated and
   the complete database-backed race run passed afterward.
 
-Next increment: C05, obsolete model-backed Planner constructors.
+## Fourth increment — C05 results
+
+Removed the direct-LLM constructors and missing-ModelAccess branches from
+Streamline/Router. Updated unit and integration fixtures to use the configured
+factories with explicit per-invocation policies. Implemented in the isolated
+`refactor/planner-legacy-removal` worktree based on `bc32a76b` and integrated
+into local `main`, preserving unrelated working-tree changes.
+
+Verification completed on 2026-09-20:
+
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to a disposable PostgreSQL 17
+  container, `go test -race -count=1 -timeout=8m ./internal/planner/... ./internal/scheduler ./internal/controlplane ./tests/integration/streamline`
+  passed. Database tests were enabled, including Gateway/Worker recovery
+  without semantic replay.
+- Both Planner profiles reject missing or invalid ModelAccess before model,
+  session or Worker side effects. Existing per-invocation model selection,
+  model/token/Worker budgets and omitted-versus-explicit-zero temperature
+  checks pass through the current factory path.
+- `go test -run '^$' ./...` and
+  `go test -tags=e2e -run '^$' ./tests/e2e ./tests/ui-stack ./tests/eval/project_workflows`
+  passed as compile checks. Full process/browser and opt-in live-model suites
+  were not run for this increment.
+- Go formatting, local plan-link validation and `git diff --check` passed.
+  Searches found no remaining retired constructors or missing-access
+  compatibility branches in the affected implementation and tests.
+
+Next increment: C06, per-stage HTTP read fallbacks for older interfaces.
