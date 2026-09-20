@@ -3,7 +3,7 @@ id: V60-006
 title: Review Runtime authority, completion, cross-language contracts and tools
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-001
 languages:
@@ -34,7 +34,7 @@ scope:
   - Verify Go/Python parser parity, pin/clear/default distinctions and capability-specific path/process/output bounds.
   - Read V21-001 and V57 history before reconsidering finalizer, transport or result limits.
   out:
-  - Take over active V38 managed Evals, V40-002, V55-004 or V56 toolsets; change intentionally deferred semantics without a contract decision.
+  - Take over active V38 managed Evals, V40-002, V55-004 or V61 toolsets; change intentionally deferred semantics without a contract decision.
   - Live model runs, production data mutation or deployment.
   - Claim whole-project correctness from one review slice.
 acceptance_criteria:
