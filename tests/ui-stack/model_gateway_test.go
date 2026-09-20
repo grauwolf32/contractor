@@ -46,8 +46,9 @@ The service exposes an authenticated HTTP route and calls the inventory service.
 )
 
 type modelGateway struct {
-	server *httptest.Server
-	token  string
+	server       *httptest.Server
+	token        string
+	managedEvals bool
 
 	mu              sync.Mutex
 	domainStages    []gatewayStage
@@ -140,6 +141,10 @@ func (g *modelGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	encoded, _ := json.Marshal(request)
+	if g.managedEvals && strings.Contains(string(encoded), "PRIVATE_MANAGED_EVAL_RELEASE_TRUTH") {
+		g.writeFailure(w, http.StatusBadRequest, "private evaluator material reached the model")
+		return
+	}
 	var message map[string]any
 	var finishReason, model string
 	var err error
@@ -149,13 +154,16 @@ func (g *modelGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isFinalizer {
-		if !requestHasNoModelTools(request) || !expectedResultFinalizerCandidate(finalizerInput.ResultText) {
+		if !requestHasNoModelTools(request) || !(expectedResultFinalizerCandidate(finalizerInput.ResultText) ||
+			g.managedEvals && finalizerInput.ResultText == managedEvalWorkerSummary) {
 			g.writeFailure(w, http.StatusBadRequest, "invalid Worker result-finalizer request")
 			return
 		}
 		message, err = resultFinalizerMessage(finalizerInput)
 		finishReason = "stop"
 		model, _ = request["model"].(string)
+	} else if g.managedEvals {
+		message, finishReason, model, err = managedEvalGatewayMessage(request)
 	} else if strings.Contains(string(encoded), streamlineGlobalMarker) ||
 		strings.Contains(string(encoded), streamlineWorkerMarker) {
 		message, finishReason, model, err = g.nextStreamline(r.Context(), request, string(encoded))

@@ -987,6 +987,27 @@ func (e EvalExperimentSummaryExecutionKind) Valid() bool {
 	}
 }
 
+// Defines values for EvalExperimentSummaryFreshness.
+const (
+	EvalExperimentSummaryPropertiesFreshnessCurrent EvalExperimentSummaryFreshness = "current"
+	EvalExperimentSummaryPropertiesFreshnessPending EvalExperimentSummaryFreshness = "pending"
+	EvalExperimentSummaryPropertiesFreshnessStale   EvalExperimentSummaryFreshness = "stale"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentSummaryFreshness enum.
+func (e EvalExperimentSummaryFreshness) Valid() bool {
+	switch e {
+	case EvalExperimentSummaryPropertiesFreshnessCurrent:
+		return true
+	case EvalExperimentSummaryPropertiesFreshnessPending:
+		return true
+	case EvalExperimentSummaryPropertiesFreshnessStale:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EvalExperimentSummaryState.
 const (
 	EvalExperimentSummaryPropertiesStateCancelled   EvalExperimentSummaryState = "cancelled"
@@ -1260,6 +1281,69 @@ func (e EvalPublicPlanMembersEligibility) Valid() bool {
 	case EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityEligible:
 		return true
 	case EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalReadinessPinBaselineOrigin.
+const (
+	EvalReadinessPinPropertiesBaselineoriginObserved         EvalReadinessPinBaselineOrigin = "observed"
+	EvalReadinessPinPropertiesBaselineoriginProducerSupplied EvalReadinessPinBaselineOrigin = "producer-supplied"
+	EvalReadinessPinPropertiesBaselineoriginUnavailable      EvalReadinessPinBaselineOrigin = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the EvalReadinessPinBaselineOrigin enum.
+func (e EvalReadinessPinBaselineOrigin) Valid() bool {
+	switch e {
+	case EvalReadinessPinPropertiesBaselineoriginObserved:
+		return true
+	case EvalReadinessPinPropertiesBaselineoriginProducerSupplied:
+		return true
+	case EvalReadinessPinPropertiesBaselineoriginUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalReadinessPinCandidateOrigin.
+const (
+	EvalReadinessPinPropertiesCandidateoriginObserved         EvalReadinessPinCandidateOrigin = "observed"
+	EvalReadinessPinPropertiesCandidateoriginProducerSupplied EvalReadinessPinCandidateOrigin = "producer-supplied"
+	EvalReadinessPinPropertiesCandidateoriginUnavailable      EvalReadinessPinCandidateOrigin = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the EvalReadinessPinCandidateOrigin enum.
+func (e EvalReadinessPinCandidateOrigin) Valid() bool {
+	switch e {
+	case EvalReadinessPinPropertiesCandidateoriginObserved:
+		return true
+	case EvalReadinessPinPropertiesCandidateoriginProducerSupplied:
+		return true
+	case EvalReadinessPinPropertiesCandidateoriginUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalReadinessPinStatus.
+const (
+	EvalReadinessPinPropertiesStatusDifferent   EvalReadinessPinStatus = "different"
+	EvalReadinessPinPropertiesStatusEqual       EvalReadinessPinStatus = "equal"
+	EvalReadinessPinPropertiesStatusUnavailable EvalReadinessPinStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the EvalReadinessPinStatus enum.
+func (e EvalReadinessPinStatus) Valid() bool {
+	switch e {
+	case EvalReadinessPinPropertiesStatusDifferent:
+		return true
+	case EvalReadinessPinPropertiesStatusEqual:
+		return true
+	case EvalReadinessPinPropertiesStatusUnavailable:
 		return true
 	default:
 		return false
@@ -3756,6 +3840,7 @@ type EvalCapabilities struct {
 	ExecutionKinds []EvalCapabilitiesExecutionKinds `json:"executionKinds"`
 	ImportVersions []EvalSelector                   `json:"importVersions"`
 	Page           *EvalPage                        `json:"page,omitempty"`
+	Schemas        *[]string                        `json:"schemas,omitempty"`
 }
 
 // EvalCapabilitiesControlModes defines model for EvalCapabilities.ControlModes.
@@ -4118,6 +4203,7 @@ type EvalExperiment struct {
 	PlanSha256             nullable.Nullable[EvalDigest]    `json:"planSha256"`
 	PortableExperimentId   EvalId                           `json:"portableExperimentId"`
 	ProjectId              EvalOpaque                       `json:"projectId"`
+	Readiness              *EvalReadiness                   `json:"readiness,omitempty"`
 	Revision               int                              `json:"revision"`
 	Setup                  *EvalExperimentSetup             `json:"setup,omitempty"`
 	StartedAt              nullable.Nullable[EvalTimestamp] `json:"startedAt,omitempty"`
@@ -4172,15 +4258,24 @@ type EvalExperimentSetup struct {
 
 // EvalExperimentSummary defines model for EvalExperimentSummary.
 type EvalExperimentSummary struct {
+	CaseCount       *int                               `json:"caseCount,omitempty"`
 	ControlMode     EvalExperimentSummaryControlMode   `json:"controlMode"`
+	DatasetId       *EvalId                            `json:"datasetId,omitempty"`
 	ExecutionKind   EvalExperimentSummaryExecutionKind `json:"executionKind"`
 	ExpectedMembers int                                `json:"expectedMembers"`
 	ExperimentId    EvalOpaque                         `json:"experimentId"`
+	Freshness       *EvalExperimentSummaryFreshness    `json:"freshness,omitempty"`
 	Name            string                             `json:"name"`
 	ProjectId       EvalOpaque                         `json:"projectId"`
+	Repetitions     *int                               `json:"repetitions,omitempty"`
 	Revision        int                                `json:"revision"`
 	State           EvalExperimentSummaryState         `json:"state"`
+	Summary         nullable.Nullable[EvalSummary]     `json:"summary,omitempty"`
 	UpdatedAt       EvalTimestamp                      `json:"updatedAt"`
+	Variants        *[]struct {
+		Id       EvalId       `json:"id"`
+		Selector EvalSelector `json:"selector"`
+	} `json:"variants,omitempty"`
 }
 
 // EvalExperimentSummaryControlMode defines model for EvalExperimentSummary.ControlMode.
@@ -4188,6 +4283,9 @@ type EvalExperimentSummaryControlMode string
 
 // EvalExperimentSummaryExecutionKind defines model for EvalExperimentSummary.ExecutionKind.
 type EvalExperimentSummaryExecutionKind string
+
+// EvalExperimentSummaryFreshness defines model for EvalExperimentSummary.Freshness.
+type EvalExperimentSummaryFreshness string
 
 // EvalExperimentSummaryState defines model for EvalExperimentSummary.State.
 type EvalExperimentSummaryState string
@@ -4221,6 +4319,7 @@ type EvalInventoryEntry struct {
 	Execution nullable.Nullable[EvalExecutionRef] `json:"execution"`
 	IntentId  *EvalOpaque                         `json:"intentId,omitempty"`
 	Parent    nullable.Nullable[EvalExecutionRef] `json:"parent"`
+	ProjectId *EvalOpaque                         `json:"projectId,omitempty"`
 	Role      nullable.Nullable[EvalId]           `json:"role"`
 	Round     nullable.Nullable[int]              `json:"round"`
 	State     EvalInventoryEntryState             `json:"state"`
@@ -4428,6 +4527,39 @@ type EvalRatio struct {
 	Numerator   int                        `json:"numerator"`
 	Value       nullable.Nullable[float32] `json:"value"`
 }
+
+// EvalReadiness defines model for EvalReadiness.
+type EvalReadiness struct {
+	Arms []EvalReadinessArm `json:"arms"`
+	Pins []EvalReadinessPin `json:"pins"`
+}
+
+// EvalReadinessArm defines model for EvalReadinessArm.
+type EvalReadinessArm struct {
+	Blocked     int    `json:"blocked"`
+	Eligible    int    `json:"eligible"`
+	Expected    int    `json:"expected"`
+	Unsupported int    `json:"unsupported"`
+	VariantId   EvalId `json:"variantId"`
+}
+
+// EvalReadinessPin defines model for EvalReadinessPin.
+type EvalReadinessPin struct {
+	BaselineOrigin  EvalReadinessPinBaselineOrigin  `json:"baselineOrigin"`
+	CandidateOrigin EvalReadinessPinCandidateOrigin `json:"candidateOrigin"`
+	Dimension       EvalId                          `json:"dimension"`
+	RequiredEqual   bool                            `json:"requiredEqual"`
+	Status          EvalReadinessPinStatus          `json:"status"`
+}
+
+// EvalReadinessPinBaselineOrigin defines model for EvalReadinessPin.BaselineOrigin.
+type EvalReadinessPinBaselineOrigin string
+
+// EvalReadinessPinCandidateOrigin defines model for EvalReadinessPin.CandidateOrigin.
+type EvalReadinessPinCandidateOrigin string
+
+// EvalReadinessPinStatus defines model for EvalReadinessPin.Status.
+type EvalReadinessPinStatus string
 
 // EvalRecordReceipt defines model for EvalRecordReceipt.
 type EvalRecordReceipt struct {

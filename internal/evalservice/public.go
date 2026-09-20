@@ -29,6 +29,7 @@ type ExperimentView struct {
 	LastProducerActivityAt *time.Time               `json:"lastProducerActivityAt"`
 	Draft                  json.RawMessage          `json:"draft,omitempty"`
 	Setup                  json.RawMessage          `json:"setup,omitempty"`
+	Readiness              *Readiness               `json:"readiness,omitempty"`
 	Expected               int                      `json:"expectedMembers"`
 	AllowedCommands        []evaldomain.CommandKind `json:"allowedCommands"`
 	Diagnostics            []json.RawMessage        `json:"diagnostics"`
@@ -97,6 +98,10 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 					return err
 				}
 				out.Setup = plan.Setup
+				out.Readiness, err = nativeReadiness(plan)
+				if err != nil {
+					return err
+				}
 				out.PlanSHA256 = &plan.SHA256
 				var setup struct {
 					Variants []evaldomain.Variant `json:"variants"`

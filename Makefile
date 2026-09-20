@@ -462,7 +462,11 @@ test-live-routing:
 test-ui-stack: ui-install ui-browser-install
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
-	go test -tags=e2e -count=1 -timeout=6m ./tests/ui-stack
+	go test -tags=e2e -count=1 -timeout=26m ./tests/ui-stack
+
+.PHONY: test-evals
+test-evals:
+	python3 scripts/test-managed-evals.py
 
 ui-install:
 	cd ui && corepack pnpm install --frozen-lockfile

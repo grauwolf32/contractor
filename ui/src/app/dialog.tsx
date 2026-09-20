@@ -231,6 +231,11 @@ export function Dialog({
   });
   const panel = useRef<HTMLElement>(null);
   const closeCallback = useRef(onRequestClose);
+  const [returnFocus] = useState(() =>
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
 
   useLayoutEffect(() => {
     closeCallback.current = onRequestClose;
@@ -243,16 +248,15 @@ export function Dialog({
       container.remove();
       throw new Error("Dialog panel was not mounted");
     }
-    const active = document.activeElement;
     const unregister = registerLayer({
       container,
       panel: currentPanel,
       initialFocus: () => initialFocusRef?.current ?? null,
       requestClose: () => closeCallback.current(),
-      returnFocus: active instanceof HTMLElement ? active : null,
+      returnFocus,
     });
     return unregister;
-  }, [container, initialFocusRef]);
+  }, [container, initialFocusRef, returnFocus]);
 
   return createPortal(
     <div

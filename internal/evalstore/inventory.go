@@ -14,6 +14,7 @@ type InventoryEntry struct {
 	State     string                   `json:"state"`
 	Available bool                     `json:"available"`
 	IntentID  string                   `json:"intentId,omitempty"`
+	ProjectID *string                  `json:"projectId,omitempty"`
 }
 type Inventory struct {
 	Revision int64
@@ -44,12 +45,12 @@ func ordinaryState(state string) string {
 func (s *Store) Inventory(ctx context.Context, owner, id, member string) (Inventory, error) {
 	out := Inventory{Entries: []InventoryEntry{}, Gaps: []string{}}
 	var kind string
-	var ref, state *string
+	var ref, state, projectID *string
 	var available, closed bool
 	err := s.db.QueryRow(ctx, `
 SELECT p.revision, m.execution_kind, sub.execution_id, COALESCE(r.state, a.state),
     r.run_id IS NOT NULL OR a.audit_id IS NOT NULL,
-    COALESCE(a.dispatch_state = 'closed', TRUE)
+    COALESCE(a.dispatch_state = 'closed', TRUE), COALESCE(r.project_id, a.project_id)
 FROM eval_members m
 JOIN eval_experiments e USING (experiment_id)
 JOIN eval_member_projections p USING (experiment_id, member_id)
@@ -59,7 +60,7 @@ LEFT JOIN workflow_runs r ON m.execution_kind = 'run'
 LEFT JOIN audits a ON m.execution_kind = 'audit'
     AND a.audit_id = sub.execution_id AND a.owner_id = e.owner_id
 WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
-`, owner, id, member).Scan(&out.Revision, &kind, &ref, &state, &available, &closed)
+`, owner, id, member).Scan(&out.Revision, &kind, &ref, &state, &available, &closed, &projectID)
 	if err != nil {
 		return out, normalize(err)
 	}
@@ -68,7 +69,7 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 		return out, nil
 	}
 	parent := evaldomain.ExecutionRef{Kind: kind, ID: *ref}
-	entry := InventoryEntry{Execution: &parent, Available: available, State: "unknown"}
+	entry := InventoryEntry{Execution: &parent, Available: available, State: "unknown", ProjectID: projectID}
 	if state != nil {
 		entry.State = ordinaryState(*state)
 	}
@@ -83,7 +84,7 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 		return out, nil
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT x.execution_id,x.run_id,x.role,round.ordinal,x.state,x.terminal_outcome,r.state,r.run_id IS NOT NULL
+SELECT x.execution_id,x.run_id,x.role,round.ordinal,x.state,x.terminal_outcome,r.state,r.run_id IS NOT NULL,r.project_id
 FROM audit_executions x
 JOIN audits a USING(audit_id)
 LEFT JOIN audit_rounds round ON round.audit_id = x.audit_id
@@ -103,7 +104,7 @@ LIMIT $3
 		var child InventoryEntry
 		var runID, terminal, runState *string
 		var phase string
-		if err = rows.Scan(&child.IntentID, &runID, &child.Role, &child.Round, &phase, &terminal, &runState, &child.Available); err != nil {
+		if err = rows.Scan(&child.IntentID, &runID, &child.Role, &child.Round, &phase, &terminal, &runState, &child.Available, &child.ProjectID); err != nil {
 			return out, err
 		}
 		child.Parent = &parent

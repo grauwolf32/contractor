@@ -92,8 +92,19 @@ type SummaryPageParams struct {
 
 type PublicSummary struct {
 	ExperimentSummary
-	ExecutionKind string    `json:"executionKind"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ExecutionKind string              `json:"executionKind"`
+	UpdatedAt     time.Time           `json:"updatedAt"`
+	Variants      []PublicVariant     `json:"variants"`
+	DatasetID     string              `json:"datasetId,omitempty"`
+	CaseCount     *int                `json:"caseCount,omitempty"`
+	Repetitions   *int                `json:"repetitions,omitempty"`
+	Summary       *evaldomain.Summary `json:"summary"`
+	Freshness     string              `json:"freshness"`
+}
+
+type PublicVariant struct {
+	ID       string `json:"id"`
+	Selector string `json:"selector"`
 }
 
 type SummaryPage struct {
@@ -114,9 +125,41 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 	var result SummaryPage
 	var raw []byte
 	err := s.db.QueryRow(ctx, `
-SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id=$1 AND project_id=$2),0),COALESCE((
-        SELECT jsonb_agg(jsonb_build_object('experimentId',experiment_id,'projectId',project_id,'name',name,'controlMode',control_mode,'state',state,'revision',revision,'expectedMembers',CASE WHEN expected_count>0 THEN expected_count ELSE jsonb_array_length(convert_from(draft,'UTF8')::jsonb->'caseIds')*(convert_from(draft,'UTF8')::jsonb->>'repetitions')::int*2 END,'executionKind',CASE WHEN draft IS NOT NULL THEN convert_from(draft,'UTF8')::jsonb->'variants'->0->>'kind' ELSE (SELECT convert_from(setup,'UTF8')::jsonb->'variants'->0->>'kind' FROM eval_frozen_plans p WHERE p.experiment_id=page.experiment_id) END,'updatedAt',updated_at) ORDER BY updated_at DESC,experiment_id DESC)
-        FROM (SELECT experiment_id,project_id,name,control_mode,state,revision,expected_count,draft,updated_at FROM eval_experiments WHERE owner_id=$1 AND ($2='' OR project_id=$2) AND ($3='' OR state=$3) AND ($4='' OR dataset_id=$4) AND ($5='' OR control_mode=$5) AND ($6::timestamptz IS NULL OR (updated_at,experiment_id)<($6,$7)) ORDER BY updated_at DESC,experiment_id DESC LIMIT $8) page),'[]'::jsonb)
+WITH page AS MATERIALIZED (
+    SELECT experiment_id, project_id, name, control_mode, state, revision,
+        expected_count, draft, updated_at, dataset_id
+    FROM eval_experiments
+    WHERE owner_id = $1
+        AND ($2 = '' OR project_id = $2)
+        AND ($3 = '' OR state = $3)
+        AND ($4 = '' OR dataset_id = $4)
+        AND ($5 = '' OR control_mode = $5)
+        AND ($6::timestamptz IS NULL OR (updated_at, experiment_id) < ($6, $7))
+    ORDER BY updated_at DESC, experiment_id DESC LIMIT $8
+), details AS (
+    SELECT page.*, convert_from(COALESCE(p.setup, page.draft), 'UTF8')::jsonb AS setup,
+        convert_from(v.summary, 'UTF8')::jsonb AS summary,
+        CASE WHEN v.snapshot_id IS NULL THEN 'pending'
+             WHEN q.revision = q.published_revision THEN 'current' ELSE 'stale' END AS freshness
+    FROM page
+    LEFT JOIN eval_frozen_plans p USING (experiment_id)
+    LEFT JOIN eval_projection_queue q USING (experiment_id)
+    LEFT JOIN eval_view_generations v ON v.experiment_id = page.experiment_id
+        AND v.snapshot_id = q.snapshot_id
+)
+SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id = $1 AND project_id = $2), 0),
+    COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'experimentId', experiment_id, 'projectId', project_id, 'name', name,
+        'controlMode', control_mode, 'state', state, 'revision', revision,
+        'expectedMembers', CASE WHEN expected_count > 0 THEN expected_count
+            ELSE jsonb_array_length(setup->'caseIds') * (setup->>'repetitions')::int * 2 END,
+        'executionKind', setup->'variants'->0->>'kind', 'updatedAt', updated_at,
+        'variants', (SELECT jsonb_agg(jsonb_build_object('id', arm->>'id', 'selector', arm->>'selector')
+                ORDER BY CASE WHEN arm->>'id' = setup->'comparison'->>'baseline' THEN 0 ELSE 1 END)
+            FROM jsonb_array_elements(setup->'variants') arm),
+        'datasetId', NULLIF(dataset_id, ''), 'caseCount', jsonb_array_length(setup->'caseIds'),
+        'repetitions', (setup->>'repetitions')::int, 'summary', summary, 'freshness', freshness
+    ) ORDER BY updated_at DESC, experiment_id DESC) FROM details), '[]'::jsonb)
 `, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterTime, p.AfterID, p.Limit+1).Scan(&result.Revision, &raw)
 	if err != nil {
 		return result, err

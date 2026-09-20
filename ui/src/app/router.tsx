@@ -14,6 +14,11 @@ import {
   ProjectDetailRoute,
 } from "../routes/projects/detail";
 import { EvaluationListRoute, ProjectListRoute } from "../routes/projects/list";
+import { EvalListRoute } from "../routes/evals/list";
+import { EvalNewRoute } from "../routes/evals/setup";
+import { EvalDatasetsRoute } from "../routes/evals/datasets";
+import { EvalDetailRoute } from "../routes/evals/detail";
+import { EvalPairRoute } from "../routes/evals/pair";
 import { ProjectAuditDetailRoute } from "../routes/projects/audits/detail";
 import { ProjectSectionRoute } from "../routes/projects/sections";
 import { ProjectFindingsRoute } from "../routes/projects/audits/findings";
@@ -123,7 +128,22 @@ export function applicationRoutes(): RouteObject[] {
               path: "/projects/:projectId/audits/:auditId/:section",
               element: <ProjectAuditDetailRoute />,
             },
-            { path: "/evals", element: <EvaluationListRoute /> },
+            { path: "/evals", element: <EvalListRoute /> },
+            { path: "/evals/legacy", element: <EvaluationListRoute /> },
+            { path: "/evals/new", element: <EvalNewRoute /> },
+            { path: "/evals/datasets", element: <EvalDatasetsRoute /> },
+            {
+              path: "/evals/experiments/:experimentId",
+              element: <EvalDetailRoute />,
+            },
+            {
+              path: "/evals/experiments/:experimentId/:section",
+              element: <EvalDetailRoute />,
+            },
+            {
+              path: "/evals/experiments/:experimentId/pairs/:pairId",
+              element: <EvalPairRoute />,
+            },
             {
               path: "/evals/:projectId",
               element: <EvaluationDetailRoute />,
