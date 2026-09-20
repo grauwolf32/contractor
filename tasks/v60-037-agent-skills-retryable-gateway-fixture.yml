@@ -3,7 +3,7 @@ id: V60-037
 title: Make the Agent Skills retry fixture emit a retryable Gateway failure
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-009]
 languages: [go, markdown]
 goal: Restore the process proof that a retried Stage preserves its exact Skill package while respecting Gateway error classification.
@@ -40,3 +40,15 @@ verification_requirements:
   - Preserve the original release failure and record exact source commits, commands, log hashes and counts.
   - Keep the production source frozen until the existing release invocation finishes.
   - Keep task-start, implementation and completion metadata commits separate.
+
+review_evidence:
+  report: docs/research/2026-09-20-v60-037-agent-skills-gateway-review.md
+  evidence: tasks/evidence/v60-037.json
+  source_commit: 747839c255fc3eef800281d837b1c57ab87f892d
+  result: Focused HTTP contract and actual full Agent Skills process gate passed without skips; original pinning, retry, reuse and redaction assertions retained.
+
+implementation_commit: ab5aca11503267d028ddc208ca5ee5c54eeb3e9c
+verification:
+  evidence: tasks/evidence/v60-037.json
+  report: docs/research/2026-09-20-v60-037-agent-skills-gateway-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
