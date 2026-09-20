@@ -1,0 +1,50 @@
+{
+  "inventoryRevision": 2,
+  "inventoryComplete": true,
+  "items": [
+    {
+      "execution": {
+        "kind": "audit",
+        "id": "audit-1"
+      },
+      "parent": null,
+      "role": null,
+      "round": null,
+      "state": "succeeded",
+      "available": true
+    },
+    {
+      "execution": {
+        "kind": "run",
+        "id": "child-discovery"
+      },
+      "parent": {
+        "kind": "audit",
+        "id": "audit-1"
+      },
+      "role": "discovery",
+      "round": 1,
+      "state": "succeeded",
+      "available": true
+    },
+    {
+      "execution": {
+        "kind": "run",
+        "id": "child-check"
+      },
+      "parent": {
+        "kind": "audit",
+        "id": "audit-1"
+      },
+      "role": "check",
+      "round": 1,
+      "state": "succeeded",
+      "available": true
+    }
+  ],
+  "gaps": [],
+  "page": {
+    "hasMore": false,
+    "nextCursor": null
+  }
+}

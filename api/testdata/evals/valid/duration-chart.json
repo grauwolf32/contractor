@@ -1,0 +1,127 @@
+{
+  "viewSnapshot": "view-7",
+  "freshness": "current",
+  "suiteId": null,
+  "measurementScope": "complete-parent-execution",
+  "coverage": {
+    "expectedPairs": 4,
+    "includedPairs": 2,
+    "excludedPairs": 2,
+    "reasons": {
+      "missing_usage": 1,
+      "not_submitted": 1
+    }
+  },
+  "experimentSummary": {
+    "counts": {
+      "a": {
+        "expected": 4,
+        "eligible": 4,
+        "unsupported": 0,
+        "blocked": 0,
+        "submitted": 4,
+        "terminal": 4,
+        "missing": 0,
+        "conflicting": 0,
+        "collectionComplete": 3,
+        "scored": 3,
+        "qualityPassed": 3,
+        "executionSucceeded": 3,
+        "endToEndPassed": 3
+      },
+      "b": {
+        "expected": 4,
+        "eligible": 4,
+        "unsupported": 0,
+        "blocked": 0,
+        "submitted": 3,
+        "terminal": 3,
+        "missing": 1,
+        "conflicting": 0,
+        "collectionComplete": 3,
+        "scored": 3,
+        "qualityPassed": 2,
+        "executionSucceeded": 3,
+        "endToEndPassed": 2
+      }
+    },
+    "quality": {
+      "a": {
+        "executionSuccess": {
+          "numerator": 3,
+          "denominator": 4,
+          "value": 0.75
+        },
+        "endToEndPass": {
+          "numerator": 3,
+          "denominator": 4,
+          "value": 0.75
+        },
+        "conditionalQuality": {
+          "numerator": 3,
+          "denominator": 3,
+          "value": 1.0
+        }
+      },
+      "b": {
+        "executionSuccess": {
+          "numerator": 3,
+          "denominator": 4,
+          "value": 0.75
+        },
+        "endToEndPass": {
+          "numerator": 2,
+          "denominator": 4,
+          "value": 0.5
+        },
+        "conditionalQuality": {
+          "numerator": 2,
+          "denominator": 3,
+          "value": 0.6666666666666666
+        }
+      }
+    },
+    "terminalPairs": 3,
+    "completeQualityPairs": 2,
+    "completeTokenPairs": 2,
+    "conclusion": "inconclusive"
+  },
+  "chart": "duration",
+  "unit": "milliseconds",
+  "bins": [
+    {
+      "lower": 45,
+      "upper": 62.5,
+      "upperInclusive": false,
+      "counts": {
+        "a": 1,
+        "b": 1
+      },
+      "filterToken": "bin-1"
+    },
+    {
+      "lower": 62.5,
+      "upper": 80,
+      "upperInclusive": true,
+      "counts": {
+        "a": 1,
+        "b": 1
+      },
+      "filterToken": "bin-2"
+    }
+  ],
+  "distributions": {
+    "a": {
+      "total": 125,
+      "p50": 45,
+      "p90": 80,
+      "count": 2
+    },
+    "b": {
+      "total": 130,
+      "p50": 60,
+      "p90": 70,
+      "count": 2
+    }
+  }
+}

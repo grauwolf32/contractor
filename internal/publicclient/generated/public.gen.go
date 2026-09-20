@@ -336,6 +336,756 @@ func (e DecideAuditFindingTruePositiveRequestVerdict) Valid() bool {
 	}
 }
 
+// Defines values for EvalArtifactScope.
+const (
+	EvalArtifactPropertiesScopeProject EvalArtifactScope = "project"
+	EvalArtifactPropertiesScopeRun     EvalArtifactScope = "run"
+	EvalArtifactPropertiesScopeUser    EvalArtifactScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the EvalArtifactScope enum.
+func (e EvalArtifactScope) Valid() bool {
+	switch e {
+	case EvalArtifactPropertiesScopeProject:
+		return true
+	case EvalArtifactPropertiesScopeRun:
+		return true
+	case EvalArtifactPropertiesScopeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalBindingCapabilityKind.
+const (
+	EvalBindingCapabilityPropertiesKindAudit    EvalBindingCapabilityKind = "audit"
+	EvalBindingCapabilityPropertiesKindWorkflow EvalBindingCapabilityKind = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the EvalBindingCapabilityKind enum.
+func (e EvalBindingCapabilityKind) Valid() bool {
+	switch e {
+	case EvalBindingCapabilityPropertiesKindAudit:
+		return true
+	case EvalBindingCapabilityPropertiesKindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCapabilitiesControlModes.
+const (
+	EvalCapabilitiesPropertiesControlmodesItemsExternal EvalCapabilitiesControlModes = "external"
+	EvalCapabilitiesPropertiesControlmodesItemsServer   EvalCapabilitiesControlModes = "server"
+)
+
+// Valid indicates whether the value is a known member of the EvalCapabilitiesControlModes enum.
+func (e EvalCapabilitiesControlModes) Valid() bool {
+	switch e {
+	case EvalCapabilitiesPropertiesControlmodesItemsExternal:
+		return true
+	case EvalCapabilitiesPropertiesControlmodesItemsServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCapabilitiesExecutionKinds.
+const (
+	EvalCapabilitiesPropertiesExecutionkindsItemsAudit    EvalCapabilitiesExecutionKinds = "audit"
+	EvalCapabilitiesPropertiesExecutionkindsItemsWorkflow EvalCapabilitiesExecutionKinds = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the EvalCapabilitiesExecutionKinds enum.
+func (e EvalCapabilitiesExecutionKinds) Valid() bool {
+	switch e {
+	case EvalCapabilitiesPropertiesExecutionkindsItemsAudit:
+		return true
+	case EvalCapabilitiesPropertiesExecutionkindsItemsWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCommandKind.
+const (
+	EvalCommandPropertiesKindCancel    EvalCommandKind = "cancel"
+	EvalCommandPropertiesKindDuplicate EvalCommandKind = "duplicate"
+	EvalCommandPropertiesKindFinalize  EvalCommandKind = "finalize"
+	EvalCommandPropertiesKindPause     EvalCommandKind = "pause"
+	EvalCommandPropertiesKindPrepare   EvalCommandKind = "prepare"
+	EvalCommandPropertiesKindResume    EvalCommandKind = "resume"
+	EvalCommandPropertiesKindStart     EvalCommandKind = "start"
+)
+
+// Valid indicates whether the value is a known member of the EvalCommandKind enum.
+func (e EvalCommandKind) Valid() bool {
+	switch e {
+	case EvalCommandPropertiesKindCancel:
+		return true
+	case EvalCommandPropertiesKindDuplicate:
+		return true
+	case EvalCommandPropertiesKindFinalize:
+		return true
+	case EvalCommandPropertiesKindPause:
+		return true
+	case EvalCommandPropertiesKindPrepare:
+		return true
+	case EvalCommandPropertiesKindResume:
+		return true
+	case EvalCommandPropertiesKindStart:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCommandReceiptKind.
+const (
+	EvalCommandReceiptPropertiesKindCancel    EvalCommandReceiptKind = "cancel"
+	EvalCommandReceiptPropertiesKindDuplicate EvalCommandReceiptKind = "duplicate"
+	EvalCommandReceiptPropertiesKindFinalize  EvalCommandReceiptKind = "finalize"
+	EvalCommandReceiptPropertiesKindPause     EvalCommandReceiptKind = "pause"
+	EvalCommandReceiptPropertiesKindPrepare   EvalCommandReceiptKind = "prepare"
+	EvalCommandReceiptPropertiesKindResume    EvalCommandReceiptKind = "resume"
+	EvalCommandReceiptPropertiesKindStart     EvalCommandReceiptKind = "start"
+)
+
+// Valid indicates whether the value is a known member of the EvalCommandReceiptKind enum.
+func (e EvalCommandReceiptKind) Valid() bool {
+	switch e {
+	case EvalCommandReceiptPropertiesKindCancel:
+		return true
+	case EvalCommandReceiptPropertiesKindDuplicate:
+		return true
+	case EvalCommandReceiptPropertiesKindFinalize:
+		return true
+	case EvalCommandReceiptPropertiesKindPause:
+		return true
+	case EvalCommandReceiptPropertiesKindPrepare:
+		return true
+	case EvalCommandReceiptPropertiesKindResume:
+		return true
+	case EvalCommandReceiptPropertiesKindStart:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCommandReceiptState.
+const (
+	EvalCommandReceiptPropertiesStateAccepted  EvalCommandReceiptState = "accepted"
+	EvalCommandReceiptPropertiesStateCompleted EvalCommandReceiptState = "completed"
+	EvalCommandReceiptPropertiesStateFailed    EvalCommandReceiptState = "failed"
+	EvalCommandReceiptPropertiesStateRunning   EvalCommandReceiptState = "running"
+)
+
+// Valid indicates whether the value is a known member of the EvalCommandReceiptState enum.
+func (e EvalCommandReceiptState) Valid() bool {
+	switch e {
+	case EvalCommandReceiptPropertiesStateAccepted:
+		return true
+	case EvalCommandReceiptPropertiesStateCompleted:
+		return true
+	case EvalCommandReceiptPropertiesStateFailed:
+		return true
+	case EvalCommandReceiptPropertiesStateRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalCreateExperimentControlMode.
+const (
+	EvalCreateExperimentPropertiesControlmodeExternal EvalCreateExperimentControlMode = "external"
+	EvalCreateExperimentPropertiesControlmodeServer   EvalCreateExperimentControlMode = "server"
+)
+
+// Valid indicates whether the value is a known member of the EvalCreateExperimentControlMode enum.
+func (e EvalCreateExperimentControlMode) Valid() bool {
+	switch e {
+	case EvalCreateExperimentPropertiesControlmodeExternal:
+		return true
+	case EvalCreateExperimentPropertiesControlmodeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalDiagnosticRecovery.
+const (
+	EvalDiagnosticPropertiesRecoveryDuplicate        EvalDiagnosticRecovery = "duplicate"
+	EvalDiagnosticPropertiesRecoveryEditDraft        EvalDiagnosticRecovery = "edit_draft"
+	EvalDiagnosticPropertiesRecoveryInspectExecution EvalDiagnosticRecovery = "inspect_execution"
+	EvalDiagnosticPropertiesRecoveryNone             EvalDiagnosticRecovery = "none"
+	EvalDiagnosticPropertiesRecoveryReload           EvalDiagnosticRecovery = "reload"
+	EvalDiagnosticPropertiesRecoveryRetrySameRequest EvalDiagnosticRecovery = "retry_same_request"
+	EvalDiagnosticPropertiesRecoveryWait             EvalDiagnosticRecovery = "wait"
+)
+
+// Valid indicates whether the value is a known member of the EvalDiagnosticRecovery enum.
+func (e EvalDiagnosticRecovery) Valid() bool {
+	switch e {
+	case EvalDiagnosticPropertiesRecoveryDuplicate:
+		return true
+	case EvalDiagnosticPropertiesRecoveryEditDraft:
+		return true
+	case EvalDiagnosticPropertiesRecoveryInspectExecution:
+		return true
+	case EvalDiagnosticPropertiesRecoveryNone:
+		return true
+	case EvalDiagnosticPropertiesRecoveryReload:
+		return true
+	case EvalDiagnosticPropertiesRecoveryRetrySameRequest:
+		return true
+	case EvalDiagnosticPropertiesRecoveryWait:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalErrorDetailsKind.
+const (
+	Eval EvalErrorDetailsKind = "eval"
+)
+
+// Valid indicates whether the value is a known member of the EvalErrorDetailsKind enum.
+func (e EvalErrorDetailsKind) Valid() bool {
+	switch e {
+	case Eval:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExecutionState.
+const (
+	EvalExecutionPropertiesStateAccepted     EvalExecutionState = "accepted"
+	EvalExecutionPropertiesStateCancelled    EvalExecutionState = "cancelled"
+	EvalExecutionPropertiesStateFailed       EvalExecutionState = "failed"
+	EvalExecutionPropertiesStateNotSubmitted EvalExecutionState = "not_submitted"
+	EvalExecutionPropertiesStateRunning      EvalExecutionState = "running"
+	EvalExecutionPropertiesStateSucceeded    EvalExecutionState = "succeeded"
+	EvalExecutionPropertiesStateUnknown      EvalExecutionState = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the EvalExecutionState enum.
+func (e EvalExecutionState) Valid() bool {
+	switch e {
+	case EvalExecutionPropertiesStateAccepted:
+		return true
+	case EvalExecutionPropertiesStateCancelled:
+		return true
+	case EvalExecutionPropertiesStateFailed:
+		return true
+	case EvalExecutionPropertiesStateNotSubmitted:
+		return true
+	case EvalExecutionPropertiesStateRunning:
+		return true
+	case EvalExecutionPropertiesStateSucceeded:
+		return true
+	case EvalExecutionPropertiesStateUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExecutionRefKind.
+const (
+	EvalExecutionRefPropertiesKindAudit EvalExecutionRefKind = "audit"
+	EvalExecutionRefPropertiesKindRun   EvalExecutionRefKind = "run"
+)
+
+// Valid indicates whether the value is a known member of the EvalExecutionRefKind enum.
+func (e EvalExecutionRefKind) Valid() bool {
+	switch e {
+	case EvalExecutionRefPropertiesKindAudit:
+		return true
+	case EvalExecutionRefPropertiesKindRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentAllowedCommands.
+const (
+	EvalExperimentPropertiesAllowedcommandsItemsCancel    EvalExperimentAllowedCommands = "cancel"
+	EvalExperimentPropertiesAllowedcommandsItemsDuplicate EvalExperimentAllowedCommands = "duplicate"
+	EvalExperimentPropertiesAllowedcommandsItemsFinalize  EvalExperimentAllowedCommands = "finalize"
+	EvalExperimentPropertiesAllowedcommandsItemsPause     EvalExperimentAllowedCommands = "pause"
+	EvalExperimentPropertiesAllowedcommandsItemsPrepare   EvalExperimentAllowedCommands = "prepare"
+	EvalExperimentPropertiesAllowedcommandsItemsResume    EvalExperimentAllowedCommands = "resume"
+	EvalExperimentPropertiesAllowedcommandsItemsStart     EvalExperimentAllowedCommands = "start"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentAllowedCommands enum.
+func (e EvalExperimentAllowedCommands) Valid() bool {
+	switch e {
+	case EvalExperimentPropertiesAllowedcommandsItemsCancel:
+		return true
+	case EvalExperimentPropertiesAllowedcommandsItemsDuplicate:
+		return true
+	case EvalExperimentPropertiesAllowedcommandsItemsFinalize:
+		return true
+	case EvalExperimentPropertiesAllowedcommandsItemsPause:
+		return true
+	case EvalExperimentPropertiesAllowedcommandsItemsPrepare:
+		return true
+	case EvalExperimentPropertiesAllowedcommandsItemsResume:
+		return true
+	case EvalExperimentPropertiesAllowedcommandsItemsStart:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentControlMode.
+const (
+	EvalExperimentPropertiesControlmodeExternal EvalExperimentControlMode = "external"
+	EvalExperimentPropertiesControlmodeServer   EvalExperimentControlMode = "server"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentControlMode enum.
+func (e EvalExperimentControlMode) Valid() bool {
+	switch e {
+	case EvalExperimentPropertiesControlmodeExternal:
+		return true
+	case EvalExperimentPropertiesControlmodeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentExecutionKind.
+const (
+	EvalExperimentPropertiesExecutionkindAudit    EvalExperimentExecutionKind = "audit"
+	EvalExperimentPropertiesExecutionkindWorkflow EvalExperimentExecutionKind = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentExecutionKind enum.
+func (e EvalExperimentExecutionKind) Valid() bool {
+	switch e {
+	case EvalExperimentPropertiesExecutionkindAudit:
+		return true
+	case EvalExperimentPropertiesExecutionkindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentState.
+const (
+	EvalExperimentPropertiesStateCancelled   EvalExperimentState = "cancelled"
+	EvalExperimentPropertiesStateCancelling  EvalExperimentState = "cancelling"
+	EvalExperimentPropertiesStateDraft       EvalExperimentState = "draft"
+	EvalExperimentPropertiesStateFinished    EvalExperimentState = "finished"
+	EvalExperimentPropertiesStateInterrupted EvalExperimentState = "interrupted"
+	EvalExperimentPropertiesStatePaused      EvalExperimentState = "paused"
+	EvalExperimentPropertiesStatePausing     EvalExperimentState = "pausing"
+	EvalExperimentPropertiesStatePreparing   EvalExperimentState = "preparing"
+	EvalExperimentPropertiesStateReady       EvalExperimentState = "ready"
+	EvalExperimentPropertiesStateRunning     EvalExperimentState = "running"
+	EvalExperimentPropertiesStateSettling    EvalExperimentState = "settling"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentState enum.
+func (e EvalExperimentState) Valid() bool {
+	switch e {
+	case EvalExperimentPropertiesStateCancelled:
+		return true
+	case EvalExperimentPropertiesStateCancelling:
+		return true
+	case EvalExperimentPropertiesStateDraft:
+		return true
+	case EvalExperimentPropertiesStateFinished:
+		return true
+	case EvalExperimentPropertiesStateInterrupted:
+		return true
+	case EvalExperimentPropertiesStatePaused:
+		return true
+	case EvalExperimentPropertiesStatePausing:
+		return true
+	case EvalExperimentPropertiesStatePreparing:
+		return true
+	case EvalExperimentPropertiesStateReady:
+		return true
+	case EvalExperimentPropertiesStateRunning:
+		return true
+	case EvalExperimentPropertiesStateSettling:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentReceiptState.
+const (
+	EvalExperimentReceiptPropertiesStateCancelled   EvalExperimentReceiptState = "cancelled"
+	EvalExperimentReceiptPropertiesStateCancelling  EvalExperimentReceiptState = "cancelling"
+	EvalExperimentReceiptPropertiesStateDraft       EvalExperimentReceiptState = "draft"
+	EvalExperimentReceiptPropertiesStateFinished    EvalExperimentReceiptState = "finished"
+	EvalExperimentReceiptPropertiesStateInterrupted EvalExperimentReceiptState = "interrupted"
+	EvalExperimentReceiptPropertiesStatePaused      EvalExperimentReceiptState = "paused"
+	EvalExperimentReceiptPropertiesStatePausing     EvalExperimentReceiptState = "pausing"
+	EvalExperimentReceiptPropertiesStatePreparing   EvalExperimentReceiptState = "preparing"
+	EvalExperimentReceiptPropertiesStateReady       EvalExperimentReceiptState = "ready"
+	EvalExperimentReceiptPropertiesStateRunning     EvalExperimentReceiptState = "running"
+	EvalExperimentReceiptPropertiesStateSettling    EvalExperimentReceiptState = "settling"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentReceiptState enum.
+func (e EvalExperimentReceiptState) Valid() bool {
+	switch e {
+	case EvalExperimentReceiptPropertiesStateCancelled:
+		return true
+	case EvalExperimentReceiptPropertiesStateCancelling:
+		return true
+	case EvalExperimentReceiptPropertiesStateDraft:
+		return true
+	case EvalExperimentReceiptPropertiesStateFinished:
+		return true
+	case EvalExperimentReceiptPropertiesStateInterrupted:
+		return true
+	case EvalExperimentReceiptPropertiesStatePaused:
+		return true
+	case EvalExperimentReceiptPropertiesStatePausing:
+		return true
+	case EvalExperimentReceiptPropertiesStatePreparing:
+		return true
+	case EvalExperimentReceiptPropertiesStateReady:
+		return true
+	case EvalExperimentReceiptPropertiesStateRunning:
+		return true
+	case EvalExperimentReceiptPropertiesStateSettling:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentSummaryControlMode.
+const (
+	EvalExperimentSummaryPropertiesControlmodeExternal EvalExperimentSummaryControlMode = "external"
+	EvalExperimentSummaryPropertiesControlmodeServer   EvalExperimentSummaryControlMode = "server"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentSummaryControlMode enum.
+func (e EvalExperimentSummaryControlMode) Valid() bool {
+	switch e {
+	case EvalExperimentSummaryPropertiesControlmodeExternal:
+		return true
+	case EvalExperimentSummaryPropertiesControlmodeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentSummaryExecutionKind.
+const (
+	EvalExperimentSummaryPropertiesExecutionkindAudit    EvalExperimentSummaryExecutionKind = "audit"
+	EvalExperimentSummaryPropertiesExecutionkindWorkflow EvalExperimentSummaryExecutionKind = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentSummaryExecutionKind enum.
+func (e EvalExperimentSummaryExecutionKind) Valid() bool {
+	switch e {
+	case EvalExperimentSummaryPropertiesExecutionkindAudit:
+		return true
+	case EvalExperimentSummaryPropertiesExecutionkindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalExperimentSummaryState.
+const (
+	EvalExperimentSummaryPropertiesStateCancelled   EvalExperimentSummaryState = "cancelled"
+	EvalExperimentSummaryPropertiesStateCancelling  EvalExperimentSummaryState = "cancelling"
+	EvalExperimentSummaryPropertiesStateDraft       EvalExperimentSummaryState = "draft"
+	EvalExperimentSummaryPropertiesStateFinished    EvalExperimentSummaryState = "finished"
+	EvalExperimentSummaryPropertiesStateInterrupted EvalExperimentSummaryState = "interrupted"
+	EvalExperimentSummaryPropertiesStatePaused      EvalExperimentSummaryState = "paused"
+	EvalExperimentSummaryPropertiesStatePausing     EvalExperimentSummaryState = "pausing"
+	EvalExperimentSummaryPropertiesStatePreparing   EvalExperimentSummaryState = "preparing"
+	EvalExperimentSummaryPropertiesStateReady       EvalExperimentSummaryState = "ready"
+	EvalExperimentSummaryPropertiesStateRunning     EvalExperimentSummaryState = "running"
+	EvalExperimentSummaryPropertiesStateSettling    EvalExperimentSummaryState = "settling"
+)
+
+// Valid indicates whether the value is a known member of the EvalExperimentSummaryState enum.
+func (e EvalExperimentSummaryState) Valid() bool {
+	switch e {
+	case EvalExperimentSummaryPropertiesStateCancelled:
+		return true
+	case EvalExperimentSummaryPropertiesStateCancelling:
+		return true
+	case EvalExperimentSummaryPropertiesStateDraft:
+		return true
+	case EvalExperimentSummaryPropertiesStateFinished:
+		return true
+	case EvalExperimentSummaryPropertiesStateInterrupted:
+		return true
+	case EvalExperimentSummaryPropertiesStatePaused:
+		return true
+	case EvalExperimentSummaryPropertiesStatePausing:
+		return true
+	case EvalExperimentSummaryPropertiesStatePreparing:
+		return true
+	case EvalExperimentSummaryPropertiesStateReady:
+		return true
+	case EvalExperimentSummaryPropertiesStateRunning:
+		return true
+	case EvalExperimentSummaryPropertiesStateSettling:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMeasureCompleteness.
+const (
+	EvalMeasurePropertiesCompletenessComplete    EvalMeasureCompleteness = "complete"
+	EvalMeasurePropertiesCompletenessPartial     EvalMeasureCompleteness = "partial"
+	EvalMeasurePropertiesCompletenessUnavailable EvalMeasureCompleteness = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the EvalMeasureCompleteness enum.
+func (e EvalMeasureCompleteness) Valid() bool {
+	switch e {
+	case EvalMeasurePropertiesCompletenessComplete:
+		return true
+	case EvalMeasurePropertiesCompletenessPartial:
+		return true
+	case EvalMeasurePropertiesCompletenessUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMeasureUnit.
+const (
+	EvalMeasurePropertiesUnitCalls        EvalMeasureUnit = "calls"
+	EvalMeasurePropertiesUnitMilliseconds EvalMeasureUnit = "milliseconds"
+	EvalMeasurePropertiesUnitTokens       EvalMeasureUnit = "tokens"
+)
+
+// Valid indicates whether the value is a known member of the EvalMeasureUnit enum.
+func (e EvalMeasureUnit) Valid() bool {
+	switch e {
+	case EvalMeasurePropertiesUnitCalls:
+		return true
+	case EvalMeasurePropertiesUnitMilliseconds:
+		return true
+	case EvalMeasurePropertiesUnitTokens:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMeasureScopeKind.
+const (
+	EvalMeasureScopePropertiesKindAudit    EvalMeasureScopeKind = "audit"
+	EvalMeasureScopePropertiesKindWorkflow EvalMeasureScopeKind = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the EvalMeasureScopeKind enum.
+func (e EvalMeasureScopeKind) Valid() bool {
+	switch e {
+	case EvalMeasureScopePropertiesKindAudit:
+		return true
+	case EvalMeasureScopePropertiesKindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMemberEligibility.
+const (
+	EvalMemberPropertiesEligibilityBlocked     EvalMemberEligibility = "blocked"
+	EvalMemberPropertiesEligibilityEligible    EvalMemberEligibility = "eligible"
+	EvalMemberPropertiesEligibilityUnsupported EvalMemberEligibility = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the EvalMemberEligibility enum.
+func (e EvalMemberEligibility) Valid() bool {
+	switch e {
+	case EvalMemberPropertiesEligibilityBlocked:
+		return true
+	case EvalMemberPropertiesEligibilityEligible:
+		return true
+	case EvalMemberPropertiesEligibilityUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMemberPageFreshness.
+const (
+	EvalMemberPagePropertiesFreshnessCurrent EvalMemberPageFreshness = "current"
+	EvalMemberPagePropertiesFreshnessStale   EvalMemberPageFreshness = "stale"
+)
+
+// Valid indicates whether the value is a known member of the EvalMemberPageFreshness enum.
+func (e EvalMemberPageFreshness) Valid() bool {
+	switch e {
+	case EvalMemberPagePropertiesFreshnessCurrent:
+		return true
+	case EvalMemberPagePropertiesFreshnessStale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalMemberViewAssessment.
+const (
+	EvalMemberViewPropertiesAssessmentError      EvalMemberViewAssessment = "error"
+	EvalMemberViewPropertiesAssessmentFail       EvalMemberViewAssessment = "fail"
+	EvalMemberViewPropertiesAssessmentIncomplete EvalMemberViewAssessment = "incomplete"
+	EvalMemberViewPropertiesAssessmentPass       EvalMemberViewAssessment = "pass"
+	EvalMemberViewPropertiesAssessmentUnscored   EvalMemberViewAssessment = "unscored"
+)
+
+// Valid indicates whether the value is a known member of the EvalMemberViewAssessment enum.
+func (e EvalMemberViewAssessment) Valid() bool {
+	switch e {
+	case EvalMemberViewPropertiesAssessmentError:
+		return true
+	case EvalMemberViewPropertiesAssessmentFail:
+		return true
+	case EvalMemberViewPropertiesAssessmentIncomplete:
+		return true
+	case EvalMemberViewPropertiesAssessmentPass:
+		return true
+	case EvalMemberViewPropertiesAssessmentUnscored:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalOrderKind.
+const (
+	EvalOrderPropertiesKindAlternating   EvalOrderKind = "alternating"
+	EvalOrderPropertiesKindSeededShuffle EvalOrderKind = "seeded_shuffle"
+)
+
+// Valid indicates whether the value is a known member of the EvalOrderKind enum.
+func (e EvalOrderKind) Valid() bool {
+	switch e {
+	case EvalOrderPropertiesKindAlternating:
+		return true
+	case EvalOrderPropertiesKindSeededShuffle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalPublicPlanMembersEligibility.
+const (
+	EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityBlocked     EvalPublicPlanMembersEligibility = "blocked"
+	EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityEligible    EvalPublicPlanMembersEligibility = "eligible"
+	EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityUnsupported EvalPublicPlanMembersEligibility = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the EvalPublicPlanMembersEligibility enum.
+func (e EvalPublicPlanMembersEligibility) Valid() bool {
+	switch e {
+	case EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityBlocked:
+		return true
+	case EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityEligible:
+		return true
+	case EvalPublicPlanPropertiesMembersItemsPropertiesEligibilityUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalSubmissionReceiptState.
+const (
+	EvalSubmissionReceiptPropertiesStateAccepted  EvalSubmissionReceiptState = "accepted"
+	EvalSubmissionReceiptPropertiesStateCompleted EvalSubmissionReceiptState = "completed"
+	EvalSubmissionReceiptPropertiesStateRejected  EvalSubmissionReceiptState = "rejected"
+	EvalSubmissionReceiptPropertiesStateUncertain EvalSubmissionReceiptState = "uncertain"
+)
+
+// Valid indicates whether the value is a known member of the EvalSubmissionReceiptState enum.
+func (e EvalSubmissionReceiptState) Valid() bool {
+	switch e {
+	case EvalSubmissionReceiptPropertiesStateAccepted:
+		return true
+	case EvalSubmissionReceiptPropertiesStateCompleted:
+		return true
+	case EvalSubmissionReceiptPropertiesStateRejected:
+		return true
+	case EvalSubmissionReceiptPropertiesStateUncertain:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalSummaryConclusion.
+const (
+	EvalSummaryPropertiesConclusionInconclusive EvalSummaryConclusion = "inconclusive"
+	EvalSummaryPropertiesConclusionPass         EvalSummaryConclusion = "pass"
+	EvalSummaryPropertiesConclusionRegressions  EvalSummaryConclusion = "regressions"
+)
+
+// Valid indicates whether the value is a known member of the EvalSummaryConclusion enum.
+func (e EvalSummaryConclusion) Valid() bool {
+	switch e {
+	case EvalSummaryPropertiesConclusionInconclusive:
+		return true
+	case EvalSummaryPropertiesConclusionPass:
+		return true
+	case EvalSummaryPropertiesConclusionRegressions:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalVariantKind.
+const (
+	EvalVariantPropertiesKindAudit    EvalVariantKind = "audit"
+	EvalVariantPropertiesKindWorkflow EvalVariantKind = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the EvalVariantKind enum.
+func (e EvalVariantKind) Valid() bool {
+	switch e {
+	case EvalVariantPropertiesKindAudit:
+		return true
+	case EvalVariantPropertiesKindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingCollectionSourceSelectionKind.
 const (
 	FindingCollectionSourceSelectionKindAudit FindingCollectionSourceSelectionKind = "audit"
@@ -1014,6 +1764,120 @@ const (
 func (e ImportGitArtifactParamsIfNoneMatch) Valid() bool {
 	switch e {
 	case ImportGitArtifactParamsIfNoneMatchAsterisk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetEvalCapabilitiesParamsKind.
+const (
+	EvalGetevalcapabilitiesKindAudit    GetEvalCapabilitiesParamsKind = "audit"
+	EvalGetevalcapabilitiesKindWorkflow GetEvalCapabilitiesParamsKind = "workflow"
+)
+
+// Valid indicates whether the value is a known member of the GetEvalCapabilitiesParamsKind enum.
+func (e GetEvalCapabilitiesParamsKind) Valid() bool {
+	switch e {
+	case EvalGetevalcapabilitiesKindAudit:
+		return true
+	case EvalGetevalcapabilitiesKindWorkflow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEvalExperimentsParamsState.
+const (
+	EvalListevalexperimentsStateCancelled   ListEvalExperimentsParamsState = "cancelled"
+	EvalListevalexperimentsStateCancelling  ListEvalExperimentsParamsState = "cancelling"
+	EvalListevalexperimentsStateDraft       ListEvalExperimentsParamsState = "draft"
+	EvalListevalexperimentsStateFinished    ListEvalExperimentsParamsState = "finished"
+	EvalListevalexperimentsStateInterrupted ListEvalExperimentsParamsState = "interrupted"
+	EvalListevalexperimentsStatePaused      ListEvalExperimentsParamsState = "paused"
+	EvalListevalexperimentsStatePausing     ListEvalExperimentsParamsState = "pausing"
+	EvalListevalexperimentsStatePreparing   ListEvalExperimentsParamsState = "preparing"
+	EvalListevalexperimentsStateReady       ListEvalExperimentsParamsState = "ready"
+	EvalListevalexperimentsStateRunning     ListEvalExperimentsParamsState = "running"
+	EvalListevalexperimentsStateSettling    ListEvalExperimentsParamsState = "settling"
+)
+
+// Valid indicates whether the value is a known member of the ListEvalExperimentsParamsState enum.
+func (e ListEvalExperimentsParamsState) Valid() bool {
+	switch e {
+	case EvalListevalexperimentsStateCancelled:
+		return true
+	case EvalListevalexperimentsStateCancelling:
+		return true
+	case EvalListevalexperimentsStateDraft:
+		return true
+	case EvalListevalexperimentsStateFinished:
+		return true
+	case EvalListevalexperimentsStateInterrupted:
+		return true
+	case EvalListevalexperimentsStatePaused:
+		return true
+	case EvalListevalexperimentsStatePausing:
+		return true
+	case EvalListevalexperimentsStatePreparing:
+		return true
+	case EvalListevalexperimentsStateReady:
+		return true
+	case EvalListevalexperimentsStateRunning:
+		return true
+	case EvalListevalexperimentsStateSettling:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEvalExperimentsParamsControlMode.
+const (
+	EvalListevalexperimentsControlmodeExternal ListEvalExperimentsParamsControlMode = "external"
+	EvalListevalexperimentsControlmodeServer   ListEvalExperimentsParamsControlMode = "server"
+)
+
+// Valid indicates whether the value is a known member of the ListEvalExperimentsParamsControlMode enum.
+func (e ListEvalExperimentsParamsControlMode) Valid() bool {
+	switch e {
+	case EvalListevalexperimentsControlmodeExternal:
+		return true
+	case EvalListevalexperimentsControlmodeServer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEvalMembersParamsFilter.
+const (
+	EvalListevalmembersFilterAll         ListEvalMembersParamsFilter = "all"
+	EvalListevalmembersFilterBlocked     ListEvalMembersParamsFilter = "blocked"
+	EvalListevalmembersFilterConflicting ListEvalMembersParamsFilter = "conflicting"
+	EvalListevalmembersFilterFailed      ListEvalMembersParamsFilter = "failed"
+	EvalListevalmembersFilterUnresolved  ListEvalMembersParamsFilter = "unresolved"
+	EvalListevalmembersFilterUnscored    ListEvalMembersParamsFilter = "unscored"
+	EvalListevalmembersFilterUnsupported ListEvalMembersParamsFilter = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the ListEvalMembersParamsFilter enum.
+func (e ListEvalMembersParamsFilter) Valid() bool {
+	switch e {
+	case EvalListevalmembersFilterAll:
+		return true
+	case EvalListevalmembersFilterBlocked:
+		return true
+	case EvalListevalmembersFilterConflicting:
+		return true
+	case EvalListevalmembersFilterFailed:
+		return true
+	case EvalListevalmembersFilterUnresolved:
+		return true
+	case EvalListevalmembersFilterUnscored:
+		return true
+	case EvalListevalmembersFilterUnsupported:
 		return true
 	default:
 		return false
@@ -2393,6 +3257,623 @@ type Error struct {
 type Error_Details struct {
 	union json.RawMessage
 }
+
+// EvalArtifact defines model for EvalArtifact.
+type EvalArtifact struct {
+	MediaType EvalMedia         `json:"mediaType"`
+	Name      EvalArtifactName  `json:"name"`
+	Namespace EvalArtifactName  `json:"namespace"`
+	Revision  EvalOpaque        `json:"revision"`
+	Scope     EvalArtifactScope `json:"scope"`
+	ScopeId   EvalOpaque        `json:"scopeId"`
+	Sha256    EvalDigest        `json:"sha256"`
+	SizeBytes int               `json:"sizeBytes"`
+}
+
+// EvalArtifactScope defines model for EvalArtifact.Scope.
+type EvalArtifactScope string
+
+// EvalArtifactName defines model for EvalArtifactName.
+type EvalArtifactName = string
+
+// EvalBindingCapability defines model for EvalBindingCapability.
+type EvalBindingCapability struct {
+	Available bool                      `json:"available"`
+	Kind      EvalBindingCapabilityKind `json:"kind"`
+	Reason    nullable.Nullable[string] `json:"reason"`
+	Selector  EvalSelector              `json:"selector"`
+}
+
+// EvalBindingCapabilityKind defines model for EvalBindingCapability.Kind.
+type EvalBindingCapabilityKind string
+
+// EvalBudgets defines model for EvalBudgets.
+type EvalBudgets struct {
+	MaxInFlight            int                    `json:"maxInFlight"`
+	MaxMembers             int                    `json:"maxMembers"`
+	MaxObservedTotalTokens nullable.Nullable[int] `json:"maxObservedTotalTokens"`
+	WallMs                 int                    `json:"wallMs"`
+}
+
+// EvalCapabilities defines model for EvalCapabilities.
+type EvalCapabilities struct {
+	Bindings *[]EvalBindingCapability `json:"bindings,omitempty"`
+	Checks   []struct {
+		Available            bool                      `json:"available"`
+		Evaluator            EvalSelector              `json:"evaluator"`
+		ImplementationSha256 EvalDigest                `json:"implementationSha256"`
+		Reason               nullable.Nullable[string] `json:"reason"`
+	} `json:"checks"`
+	ControlModes   []EvalCapabilitiesControlModes   `json:"controlModes"`
+	ExecutionKinds []EvalCapabilitiesExecutionKinds `json:"executionKinds"`
+	ImportVersions []EvalSelector                   `json:"importVersions"`
+	Page           *EvalPage                        `json:"page,omitempty"`
+}
+
+// EvalCapabilitiesControlModes defines model for EvalCapabilities.ControlModes.
+type EvalCapabilitiesControlModes string
+
+// EvalCapabilitiesExecutionKinds defines model for EvalCapabilities.ExecutionKinds.
+type EvalCapabilitiesExecutionKinds string
+
+// EvalCase defines model for EvalCase.
+type EvalCase struct {
+	Id       EvalId                  `json:"id"`
+	Inputs   map[string]EvalArtifact `json:"inputs"`
+	Outputs  map[string]EvalOutput   `json:"outputs"`
+	Requires []EvalSelector          `json:"requires"`
+	Source   *EvalSource             `json:"source,omitempty"`
+	Task     EvalTask                `json:"task"`
+}
+
+// EvalCasePage defines model for EvalCasePage.
+type EvalCasePage struct {
+	Items []EvalCase `json:"items"`
+	Page  EvalPage   `json:"page"`
+}
+
+// EvalCheck defines model for EvalCheck.
+type EvalCheck struct {
+	AllowNotApplicable   *bool              `json:"allowNotApplicable,omitempty"`
+	Evaluator            EvalSelector       `json:"evaluator"`
+	Id                   EvalId             `json:"id"`
+	ImplementationSha256 *EvalDigest        `json:"implementationSha256,omitempty"`
+	Parameters           *map[string]string `json:"parameters,omitempty"`
+	Required             bool               `json:"required"`
+	RubricRevision       *EvalOpaque        `json:"rubricRevision,omitempty"`
+}
+
+// EvalCommand defines model for EvalCommand.
+type EvalCommand struct {
+	Kind       EvalCommandKind `json:"kind"`
+	PlanSha256 *EvalDigest     `json:"planSha256,omitempty"`
+}
+
+// EvalCommandKind defines model for EvalCommand.Kind.
+type EvalCommandKind string
+
+// EvalCommandReceipt defines model for EvalCommandReceipt.
+type EvalCommandReceipt struct {
+	CommandId          EvalOpaque                    `json:"commandId"`
+	Diagnostics        []EvalDiagnostic              `json:"diagnostics"`
+	ExperimentId       EvalOpaque                    `json:"experimentId"`
+	ExperimentRevision int                           `json:"experimentRevision"`
+	Kind               EvalCommandReceiptKind        `json:"kind"`
+	PlanSha256         nullable.Nullable[EvalDigest] `json:"planSha256"`
+	State              EvalCommandReceiptState       `json:"state"`
+}
+
+// EvalCommandReceiptKind defines model for EvalCommandReceipt.Kind.
+type EvalCommandReceiptKind string
+
+// EvalCommandReceiptState defines model for EvalCommandReceipt.State.
+type EvalCommandReceiptState string
+
+// EvalComparison defines model for EvalComparison.
+type EvalComparison struct {
+	AllowedDifferences []EvalId  `json:"allowedDifferences"`
+	Baseline           EvalId    `json:"baseline"`
+	Candidate          EvalId    `json:"candidate"`
+	Gates              EvalGates `json:"gates"`
+	RequiredEqual      []EvalId  `json:"requiredEqual"`
+}
+
+// EvalCounts defines model for EvalCounts.
+type EvalCounts struct {
+	Blocked            int `json:"blocked"`
+	CollectionComplete int `json:"collectionComplete"`
+	Conflicting        int `json:"conflicting"`
+	Eligible           int `json:"eligible"`
+	EndToEndPassed     int `json:"endToEndPassed"`
+	ExecutionSucceeded int `json:"executionSucceeded"`
+	Expected           int `json:"expected"`
+	Missing            int `json:"missing"`
+	QualityPassed      int `json:"qualityPassed"`
+	Scored             int `json:"scored"`
+	Submitted          int `json:"submitted"`
+	Terminal           int `json:"terminal"`
+	Unsupported        int `json:"unsupported"`
+}
+
+// EvalCreateExperiment defines model for EvalCreateExperiment.
+type EvalCreateExperiment struct {
+	ControlMode  EvalCreateExperimentControlMode `json:"controlMode"`
+	Draft        *EvalDraft                      `json:"draft,omitempty"`
+	Name         string                          `json:"name"`
+	Registration *EvalExternalRegistration       `json:"registration,omitempty"`
+	union        json.RawMessage
+}
+
+// EvalCreateExperimentControlMode defines model for EvalCreateExperiment.ControlMode.
+type EvalCreateExperimentControlMode string
+
+// EvalCreateExperiment0 defines model for EvalCreateExperiment.0.
+type EvalCreateExperiment0 struct {
+	ControlMode interface{} `json:"controlMode,omitempty"`
+}
+
+// EvalCreateExperiment1 defines model for EvalCreateExperiment.1.
+type EvalCreateExperiment1 struct {
+	ControlMode interface{} `json:"controlMode,omitempty"`
+}
+
+// EvalDataset defines model for EvalDataset.
+type EvalDataset struct {
+	CaseCount     int         `json:"caseCount"`
+	DatasetId     EvalId      `json:"datasetId"`
+	Name          string      `json:"name"`
+	ProjectId     EvalOpaque  `json:"projectId"`
+	Revision      EvalOpaque  `json:"revision"`
+	Source        *EvalSource `json:"source,omitempty"`
+	VisibleSha256 EvalDigest  `json:"visibleSha256"`
+}
+
+// EvalDatasetInput defines model for EvalDatasetInput.
+type EvalDatasetInput struct {
+	Cases         []EvalCase         `json:"cases"`
+	DatasetId     EvalId             `json:"datasetId"`
+	Name          string             `json:"name"`
+	PrivateChecks []EvalPrivateCheck `json:"privateChecks"`
+	Source        *EvalSource        `json:"source,omitempty"`
+}
+
+// EvalDatasetPage defines model for EvalDatasetPage.
+type EvalDatasetPage struct {
+	Items []EvalDataset `json:"items"`
+	Page  EvalPage      `json:"page"`
+}
+
+// EvalDatasetRef defines model for EvalDatasetRef.
+type EvalDatasetRef struct {
+	Id       EvalId     `json:"id"`
+	Revision EvalOpaque `json:"revision"`
+}
+
+// EvalDelete defines model for EvalDelete.
+type EvalDelete = map[string]interface{}
+
+// EvalDiagnostic defines model for EvalDiagnostic.
+type EvalDiagnostic struct {
+	Code     EvalId                 `json:"code"`
+	Field    string                 `json:"field"`
+	Recovery EvalDiagnosticRecovery `json:"recovery"`
+}
+
+// EvalDiagnosticRecovery defines model for EvalDiagnostic.Recovery.
+type EvalDiagnosticRecovery string
+
+// EvalDigest defines model for EvalDigest.
+type EvalDigest = string
+
+// EvalDraft defines model for EvalDraft.
+type EvalDraft struct {
+	Budgets     EvalBudgets    `json:"budgets"`
+	CaseIds     []EvalId       `json:"caseIds"`
+	Checks      []EvalCheck    `json:"checks"`
+	Comparison  EvalComparison `json:"comparison"`
+	Dataset     EvalDatasetRef `json:"dataset"`
+	Order       EvalOrder      `json:"order"`
+	Repetitions int            `json:"repetitions"`
+	Variants    []EvalVariant  `json:"variants"`
+}
+
+// EvalDraftUpdate defines model for EvalDraftUpdate.
+type EvalDraftUpdate struct {
+	Draft EvalDraft `json:"draft"`
+	Name  string    `json:"name"`
+}
+
+// EvalErrorDetails defines model for EvalErrorDetails.
+type EvalErrorDetails struct {
+	Kind     EvalErrorDetailsKind `json:"kind"`
+	Recovery interface{}          `json:"recovery"`
+}
+
+// EvalErrorDetailsKind defines model for EvalErrorDetails.Kind.
+type EvalErrorDetailsKind string
+
+// EvalExecution defines model for EvalExecution.
+type EvalExecution struct {
+	FinishedAt nullable.Nullable[EvalTimestamp]    `json:"finishedAt"`
+	Reason     nullable.Nullable[string]           `json:"reason"`
+	Ref        nullable.Nullable[EvalExecutionRef] `json:"ref"`
+	StartedAt  nullable.Nullable[EvalTimestamp]    `json:"startedAt"`
+	State      EvalExecutionState                  `json:"state"`
+}
+
+// EvalExecutionState defines model for EvalExecution.State.
+type EvalExecutionState string
+
+// EvalExecutionConfig defines model for EvalExecutionConfig.
+type EvalExecutionConfig struct {
+	Planner *EvalExecutionSelection       `json:"planner,omitempty"`
+	Stages  *map[string]EvalStageOverride `json:"stages,omitempty"`
+	Workers *EvalExecutionSelection       `json:"workers,omitempty"`
+}
+
+// EvalExecutionRef defines model for EvalExecutionRef.
+type EvalExecutionRef struct {
+	Id   EvalOpaque           `json:"id"`
+	Kind EvalExecutionRefKind `json:"kind"`
+}
+
+// EvalExecutionRefKind defines model for EvalExecutionRef.Kind.
+type EvalExecutionRefKind string
+
+// EvalExecutionSelection defines model for EvalExecutionSelection.
+type EvalExecutionSelection struct {
+	Credential  nullable.Nullable[EvalOpaque] `json:"credential,omitempty"`
+	LlmGateway  *EvalSelector                 `json:"llmGateway,omitempty"`
+	ModelPolicy *EvalSelector                 `json:"modelPolicy,omitempty"`
+}
+
+// EvalExperiment defines model for EvalExperiment.
+type EvalExperiment struct {
+	AllowedCommands        []EvalExperimentAllowedCommands  `json:"allowedCommands"`
+	ControlMode            EvalExperimentControlMode        `json:"controlMode"`
+	DeadlineAt             nullable.Nullable[EvalTimestamp] `json:"deadlineAt,omitempty"`
+	DeletionRequestedAt    nullable.Nullable[EvalTimestamp] `json:"deletionRequestedAt,omitempty"`
+	Diagnostics            *[]EvalDiagnostic                `json:"diagnostics,omitempty"`
+	Draft                  *EvalDraft                       `json:"draft,omitempty"`
+	ExecutionKind          EvalExperimentExecutionKind      `json:"executionKind"`
+	ExpectedMembers        int                              `json:"expectedMembers"`
+	ExperimentId           EvalOpaque                       `json:"experimentId"`
+	LastProducerActivityAt nullable.Nullable[EvalTimestamp] `json:"lastProducerActivityAt"`
+	Name                   string                           `json:"name"`
+	ObservedTokens         *int                             `json:"observedTokens,omitempty"`
+	PlanSha256             nullable.Nullable[EvalDigest]    `json:"planSha256"`
+	PortableExperimentId   EvalId                           `json:"portableExperimentId"`
+	ProjectId              EvalOpaque                       `json:"projectId"`
+	Revision               int                              `json:"revision"`
+	Setup                  *EvalExperimentSetup             `json:"setup,omitempty"`
+	StartedAt              nullable.Nullable[EvalTimestamp] `json:"startedAt,omitempty"`
+	State                  EvalExperimentState              `json:"state"`
+	Summary                nullable.Nullable[EvalSummary]   `json:"summary"`
+	UpdatedAt              EvalTimestamp                    `json:"updatedAt"`
+	ViewSnapshot           nullable.Nullable[EvalOpaque]    `json:"viewSnapshot"`
+}
+
+// EvalExperimentAllowedCommands defines model for EvalExperiment.AllowedCommands.
+type EvalExperimentAllowedCommands string
+
+// EvalExperimentControlMode defines model for EvalExperiment.ControlMode.
+type EvalExperimentControlMode string
+
+// EvalExperimentExecutionKind defines model for EvalExperiment.ExecutionKind.
+type EvalExperimentExecutionKind string
+
+// EvalExperimentState defines model for EvalExperiment.State.
+type EvalExperimentState string
+
+// EvalExperimentPage defines model for EvalExperimentPage.
+type EvalExperimentPage struct {
+	Items []EvalExperimentSummary `json:"items"`
+	Page  EvalPage                `json:"page"`
+}
+
+// EvalExperimentReceipt defines model for EvalExperimentReceipt.
+type EvalExperimentReceipt struct {
+	ExperimentId EvalOpaque                 `json:"experimentId"`
+	Revision     int                        `json:"revision"`
+	State        EvalExperimentReceiptState `json:"state"`
+}
+
+// EvalExperimentReceiptState defines model for EvalExperimentReceipt.State.
+type EvalExperimentReceiptState string
+
+// EvalExperimentSetup defines model for EvalExperimentSetup.
+type EvalExperimentSetup struct {
+	Budgets     EvalBudgets     `json:"budgets"`
+	CaseIds     *[]EvalId       `json:"caseIds,omitempty"`
+	Checks      []EvalCheck     `json:"checks"`
+	Comparison  EvalComparison  `json:"comparison"`
+	Dataset     *EvalDatasetRef `json:"dataset,omitempty"`
+	Repetitions *int            `json:"repetitions,omitempty"`
+	Source      *EvalSource     `json:"source,omitempty"`
+	Variants    []EvalVariant   `json:"variants"`
+}
+
+// EvalExperimentSummary defines model for EvalExperimentSummary.
+type EvalExperimentSummary struct {
+	ControlMode     EvalExperimentSummaryControlMode   `json:"controlMode"`
+	ExecutionKind   EvalExperimentSummaryExecutionKind `json:"executionKind"`
+	ExpectedMembers int                                `json:"expectedMembers"`
+	ExperimentId    EvalOpaque                         `json:"experimentId"`
+	Name            string                             `json:"name"`
+	ProjectId       EvalOpaque                         `json:"projectId"`
+	Revision        int                                `json:"revision"`
+	State           EvalExperimentSummaryState         `json:"state"`
+	UpdatedAt       EvalTimestamp                      `json:"updatedAt"`
+}
+
+// EvalExperimentSummaryControlMode defines model for EvalExperimentSummary.ControlMode.
+type EvalExperimentSummaryControlMode string
+
+// EvalExperimentSummaryExecutionKind defines model for EvalExperimentSummary.ExecutionKind.
+type EvalExperimentSummaryExecutionKind string
+
+// EvalExperimentSummaryState defines model for EvalExperimentSummary.State.
+type EvalExperimentSummaryState string
+
+// EvalExternalRegistration defines model for EvalExternalRegistration.
+type EvalExternalRegistration struct {
+	Budgets          EvalBudgets        `json:"budgets"`
+	Checks           []EvalCheck        `json:"checks"`
+	Comparison       EvalComparison     `json:"comparison"`
+	Manifest         EvalPublicPlan     `json:"manifest"`
+	Recipes          []EvalMemberRecipe `json:"recipes"`
+	SchemaVersion    interface{}        `json:"schemaVersion"`
+	Source           EvalSource         `json:"source"`
+	SourcePlanSha256 EvalDigest         `json:"sourcePlanSha256"`
+	Variants         []EvalVariant      `json:"variants"`
+}
+
+// EvalGates defines model for EvalGates.
+type EvalGates struct {
+	MaxQualityDrop           float32  `json:"maxQualityDrop"`
+	MaxTotalTokensRatio      *float32 `json:"maxTotalTokensRatio,omitempty"`
+	MinCandidateEndToEndPass float32  `json:"minCandidateEndToEndPass"`
+}
+
+// EvalId defines model for EvalId.
+type EvalId = string
+
+// EvalMeasure defines model for EvalMeasure.
+type EvalMeasure struct {
+	Completeness EvalMeasureCompleteness    `json:"completeness"`
+	Scope        EvalMeasureScope           `json:"scope"`
+	SourceRefs   []EvalDigest               `json:"sourceRefs"`
+	Unit         EvalMeasureUnit            `json:"unit"`
+	Value        nullable.Nullable[float32] `json:"value"`
+}
+
+// EvalMeasureCompleteness defines model for EvalMeasure.Completeness.
+type EvalMeasureCompleteness string
+
+// EvalMeasureUnit defines model for EvalMeasure.Unit.
+type EvalMeasureUnit string
+
+// EvalMeasureScope defines model for EvalMeasureScope.
+type EvalMeasureScope struct {
+	Executions []EvalExecutionRef `json:"executions"`
+	Interval   nullable.Nullable[struct {
+		End   EvalTimestamp `json:"end"`
+		Start EvalTimestamp `json:"start"`
+	}] `json:"interval"`
+	Kind     EvalMeasureScopeKind `json:"kind"`
+	MemberId EvalMemberID         `json:"memberId"`
+	Missing  []string             `json:"missing"`
+}
+
+// EvalMeasureScopeKind defines model for EvalMeasureScope.Kind.
+type EvalMeasureScopeKind string
+
+// EvalMedia defines model for EvalMedia.
+type EvalMedia = string
+
+// EvalMember defines model for EvalMember.
+type EvalMember struct {
+	BindingSha256 EvalDigest                `json:"bindingSha256"`
+	CaseId        EvalId                    `json:"caseId"`
+	CaseSha256    EvalDigest                `json:"caseSha256"`
+	Eligibility   EvalMemberEligibility     `json:"eligibility"`
+	MemberId      EvalMemberID              `json:"memberId"`
+	Reason        nullable.Nullable[string] `json:"reason"`
+	Sample        int                       `json:"sample"`
+	SuiteId       EvalId                    `json:"suiteId"`
+	VariantId     EvalId                    `json:"variantId"`
+}
+
+// EvalMemberEligibility defines model for EvalMember.Eligibility.
+type EvalMemberEligibility string
+
+// EvalMemberID defines model for EvalMemberID.
+type EvalMemberID = string
+
+// EvalMemberPage defines model for EvalMemberPage.
+type EvalMemberPage struct {
+	ExperimentSummary EvalSummary             `json:"experimentSummary"`
+	FilteredCount     int                     `json:"filteredCount"`
+	Freshness         EvalMemberPageFreshness `json:"freshness"`
+	Items             []EvalMemberView        `json:"items"`
+	Page              EvalPage                `json:"page"`
+	ViewSnapshot      EvalOpaque              `json:"viewSnapshot"`
+}
+
+// EvalMemberPageFreshness defines model for EvalMemberPage.Freshness.
+type EvalMemberPageFreshness string
+
+// EvalMemberRecipe defines model for EvalMemberRecipe.
+type EvalMemberRecipe struct {
+	Case     EvalCase     `json:"case"`
+	MemberId EvalMemberID `json:"memberId"`
+}
+
+// EvalMemberView defines model for EvalMemberView.
+type EvalMemberView struct {
+	Assessment       EvalMemberViewAssessment         `json:"assessment"`
+	AssessmentSha256 nullable.Nullable[EvalDigest]    `json:"assessmentSha256"`
+	Conflicting      bool                             `json:"conflicting"`
+	Execution        nullable.Nullable[EvalExecution] `json:"execution"`
+	Member           EvalMember                       `json:"member"`
+	ResultSha256     nullable.Nullable[EvalDigest]    `json:"resultSha256"`
+	Usage            nullable.Nullable[EvalUsage]     `json:"usage"`
+}
+
+// EvalMemberViewAssessment defines model for EvalMemberView.Assessment.
+type EvalMemberViewAssessment string
+
+// EvalOpaque defines model for EvalOpaque.
+type EvalOpaque = string
+
+// EvalOrder defines model for EvalOrder.
+type EvalOrder struct {
+	Kind EvalOrderKind `json:"kind"`
+	Seed *int          `json:"seed,omitempty"`
+}
+
+// EvalOrderKind defines model for EvalOrder.Kind.
+type EvalOrderKind string
+
+// EvalOutput defines model for EvalOutput.
+type EvalOutput struct {
+	MediaTypes []EvalMedia `json:"mediaTypes"`
+	Required   bool        `json:"required"`
+}
+
+// EvalPage defines model for EvalPage.
+type EvalPage struct {
+	HasMore    bool                      `json:"hasMore"`
+	NextCursor nullable.Nullable[string] `json:"nextCursor"`
+}
+
+// EvalPrivateCheck defines model for EvalPrivateCheck.
+type EvalPrivateCheck struct {
+	Expected map[string]string `json:"expected"`
+	Id       EvalId            `json:"id"`
+	Revision EvalOpaque        `json:"revision"`
+	Rubric   string            `json:"rubric"`
+	Schema   *string           `json:"schema,omitempty"`
+}
+
+// EvalPublicPlan defines model for EvalPublicPlan.
+type EvalPublicPlan struct {
+	CreatedAt    EvalTimestamp `json:"created_at"`
+	ExperimentId EvalId        `json:"experiment_id"`
+	Members      []struct {
+		BindingSha256 EvalDigest                       `json:"binding_sha256"`
+		CaseId        EvalId                           `json:"case_id"`
+		CaseSha256    EvalDigest                       `json:"case_sha256"`
+		Eligibility   EvalPublicPlanMembersEligibility `json:"eligibility"`
+		MemberId      EvalMemberID                     `json:"member_id"`
+		Sample        int                              `json:"sample"`
+		SuiteId       EvalId                           `json:"suite_id"`
+		VariantId     EvalId                           `json:"variant_id"`
+	} `json:"members"`
+	SchemaVersion       interface{} `json:"schema_version"`
+	SourceRecordSha256  EvalDigest  `json:"source_record_sha256"`
+	SourceSchemaVersion interface{} `json:"source_schema_version"`
+}
+
+// EvalPublicPlanMembersEligibility defines model for EvalPublicPlan.Members.Eligibility.
+type EvalPublicPlanMembersEligibility string
+
+// EvalQuality defines model for EvalQuality.
+type EvalQuality struct {
+	ConditionalQuality EvalRatio `json:"conditionalQuality"`
+	EndToEndPass       EvalRatio `json:"endToEndPass"`
+	ExecutionSuccess   EvalRatio `json:"executionSuccess"`
+}
+
+// EvalRatio defines model for EvalRatio.
+type EvalRatio struct {
+	Denominator int                        `json:"denominator"`
+	Numerator   int                        `json:"numerator"`
+	Value       nullable.Nullable[float32] `json:"value"`
+}
+
+// EvalSelector defines model for EvalSelector.
+type EvalSelector = string
+
+// EvalSource defines model for EvalSource.
+type EvalSource struct {
+	Id           EvalId                        `json:"id"`
+	Revision     nullable.Nullable[EvalOpaque] `json:"revision"`
+	SourceSha256 nullable.Nullable[EvalDigest] `json:"sourceSha256"`
+	System       EvalId                        `json:"system"`
+}
+
+// EvalStageOverride defines model for EvalStageOverride.
+type EvalStageOverride struct {
+	Agents  *map[string]EvalExecutionSelection `json:"agents,omitempty"`
+	Planner *EvalExecutionSelection            `json:"planner,omitempty"`
+}
+
+// EvalSubmission defines model for EvalSubmission.
+type EvalSubmission struct {
+	PlanSha256 EvalDigest `json:"planSha256"`
+}
+
+// EvalSubmissionReceipt defines model for EvalSubmissionReceipt.
+type EvalSubmissionReceipt struct {
+	Execution  nullable.Nullable[EvalExecutionRef] `json:"execution"`
+	MemberId   EvalMemberID                        `json:"memberId"`
+	PlanSha256 EvalDigest                          `json:"planSha256"`
+	State      EvalSubmissionReceiptState          `json:"state"`
+}
+
+// EvalSubmissionReceiptState defines model for EvalSubmissionReceipt.State.
+type EvalSubmissionReceiptState string
+
+// EvalSummary defines model for EvalSummary.
+type EvalSummary struct {
+	CompleteQualityPairs int                    `json:"completeQualityPairs"`
+	CompleteTokenPairs   int                    `json:"completeTokenPairs"`
+	Conclusion           EvalSummaryConclusion  `json:"conclusion"`
+	Counts               map[string]EvalCounts  `json:"counts"`
+	Quality              map[string]EvalQuality `json:"quality"`
+	TerminalPairs        int                    `json:"terminalPairs"`
+}
+
+// EvalSummaryConclusion defines model for EvalSummary.Conclusion.
+type EvalSummaryConclusion string
+
+// EvalTask defines model for EvalTask.
+type EvalTask struct {
+	Kind       EvalId            `json:"kind"`
+	Objective  string            `json:"objective"`
+	Parameters map[string]string `json:"parameters"`
+}
+
+// EvalTimestamp defines model for EvalTimestamp.
+type EvalTimestamp = time.Time
+
+// EvalUsage defines model for EvalUsage.
+type EvalUsage struct {
+	CachedInputTokens EvalMeasure `json:"cachedInputTokens"`
+	InputTokens       EvalMeasure `json:"inputTokens"`
+	ModelCalls        EvalMeasure `json:"modelCalls"`
+	OutputTokens      EvalMeasure `json:"outputTokens"`
+	ToolCalls         EvalMeasure `json:"toolCalls"`
+	ToolFailures      EvalMeasure `json:"toolFailures"`
+	TotalTokens       EvalMeasure `json:"totalTokens"`
+	WallMs            EvalMeasure `json:"wallMs"`
+}
+
+// EvalVariant defines model for EvalVariant.
+type EvalVariant struct {
+	ExecutionConfig EvalExecutionConfig `json:"executionConfig"`
+	Id              EvalId              `json:"id"`
+	InputMapping    *map[string]EvalId  `json:"inputMapping,omitempty"`
+	Kind            EvalVariantKind     `json:"kind"`
+	OutputMapping   *map[string]EvalId  `json:"outputMapping,omitempty"`
+	Parameters      *map[string]string  `json:"parameters,omitempty"`
+	RuntimeLabels   *[]EvalId           `json:"runtimeLabels,omitempty"`
+	Selector        EvalSelector        `json:"selector"`
+}
+
+// EvalVariantKind defines model for EvalVariant.Kind.
+type EvalVariantKind string
 
 // EventCursor defines model for EventCursor.
 type EventCursor struct {
@@ -4628,6 +6109,67 @@ type PublishConfigurationParams struct {
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// GetEvalCapabilitiesParams defines parameters for GetEvalCapabilities.
+type GetEvalCapabilitiesParams struct {
+	Limit  *int                           `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string                        `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Kind   *GetEvalCapabilitiesParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
+// GetEvalCapabilitiesParamsKind defines parameters for GetEvalCapabilities.
+type GetEvalCapabilitiesParamsKind string
+
+// ListEvalExperimentsParams defines parameters for ListEvalExperiments.
+type ListEvalExperimentsParams struct {
+	Limit       *int                                  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor      *string                               `form:"cursor,omitempty" json:"cursor,omitempty"`
+	ProjectId   *string                               `form:"projectId,omitempty" json:"projectId,omitempty"`
+	State       *ListEvalExperimentsParamsState       `form:"state,omitempty" json:"state,omitempty"`
+	DatasetId   *string                               `form:"datasetId,omitempty" json:"datasetId,omitempty"`
+	ControlMode *ListEvalExperimentsParamsControlMode `form:"controlMode,omitempty" json:"controlMode,omitempty"`
+}
+
+// ListEvalExperimentsParamsState defines parameters for ListEvalExperiments.
+type ListEvalExperimentsParamsState string
+
+// ListEvalExperimentsParamsControlMode defines parameters for ListEvalExperiments.
+type ListEvalExperimentsParamsControlMode string
+
+// DeleteEvalExperimentParams defines parameters for DeleteEvalExperiment.
+type DeleteEvalExperimentParams struct {
+	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
+	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
+// UpdateEvalDraftParams defines parameters for UpdateEvalDraft.
+type UpdateEvalDraftParams struct {
+	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
+	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
+// CommandEvalExperimentParams defines parameters for CommandEvalExperiment.
+type CommandEvalExperimentParams struct {
+	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
+	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
+// ListEvalMembersParams defines parameters for ListEvalMembers.
+type ListEvalMembersParams struct {
+	Limit        *int                         `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *string                      `form:"cursor,omitempty" json:"cursor,omitempty"`
+	ViewSnapshot *string                      `form:"viewSnapshot,omitempty" json:"viewSnapshot,omitempty"`
+	Filter       *ListEvalMembersParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
+	VariantId    *string                      `form:"variantId,omitempty" json:"variantId,omitempty"`
+}
+
+// ListEvalMembersParamsFilter defines parameters for ListEvalMembers.
+type ListEvalMembersParamsFilter string
+
+// SubmitEvalMemberParams defines parameters for SubmitEvalMember.
+type SubmitEvalMemberParams struct {
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // ConnectEventsWebSocketParams defines parameters for ConnectEventsWebSocket.
 type ConnectEventsWebSocketParams struct {
 	Origin               Origin                                           `json:"Origin"`
@@ -4950,6 +6492,28 @@ type CreateAuditParams struct {
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// ListEvalDatasetsParams defines parameters for ListEvalDatasets.
+type ListEvalDatasetsParams struct {
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ImportEvalDatasetParams defines parameters for ImportEvalDataset.
+type ImportEvalDatasetParams struct {
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListEvalCasesParams defines parameters for ListEvalCases.
+type ListEvalCasesParams struct {
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// CreateEvalExperimentParams defines parameters for CreateEvalExperiment.
+type CreateEvalExperimentParams struct {
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // ListProjectRunsParams defines parameters for ListProjectRuns.
 type ListProjectRunsParams struct {
 	Limit  *Limit            `form:"limit,omitempty" json:"limit,omitempty"`
@@ -5153,6 +6717,18 @@ type LoginJSONRequestBody = LoginRequest
 // PublishConfigurationJSONRequestBody defines body for PublishConfiguration for application/json ContentType.
 type PublishConfigurationJSONRequestBody = PublishConfigurationRequest
 
+// DeleteEvalExperimentJSONRequestBody defines body for DeleteEvalExperiment for application/json ContentType.
+type DeleteEvalExperimentJSONRequestBody = EvalDelete
+
+// UpdateEvalDraftJSONRequestBody defines body for UpdateEvalDraft for application/json ContentType.
+type UpdateEvalDraftJSONRequestBody = EvalDraftUpdate
+
+// CommandEvalExperimentJSONRequestBody defines body for CommandEvalExperiment for application/json ContentType.
+type CommandEvalExperimentJSONRequestBody = EvalCommand
+
+// SubmitEvalMemberJSONRequestBody defines body for SubmitEvalMember for application/json ContentType.
+type SubmitEvalMemberJSONRequestBody = EvalSubmission
+
 // PublishFindingCollectionJSONRequestBody defines body for PublishFindingCollection for application/json ContentType.
 type PublishFindingCollectionJSONRequestBody = PublishFindingCollectionRequest
 
@@ -5185,6 +6761,12 @@ type ImportProjectGitArtifactJSONRequestBody = GitImportRequest
 
 // CreateAuditJSONRequestBody defines body for CreateAudit for application/json ContentType.
 type CreateAuditJSONRequestBody = CreateAuditRequest
+
+// ImportEvalDatasetJSONRequestBody defines body for ImportEvalDataset for application/json ContentType.
+type ImportEvalDatasetJSONRequestBody = EvalDatasetInput
+
+// CreateEvalExperimentJSONRequestBody defines body for CreateEvalExperiment for application/json ContentType.
+type CreateEvalExperimentJSONRequestBody = EvalCreateExperiment
 
 // CreateProjectRunJSONRequestBody defines body for CreateProjectRun for application/json ContentType.
 type CreateProjectRunJSONRequestBody = CreateRunRequest
@@ -5852,6 +7434,32 @@ func (t *Error_Details) MergeAuditProfileUnsupportedDetails(v AuditProfileUnsupp
 	return err
 }
 
+// AsEvalErrorDetails returns the union data inside the Error_Details as a EvalErrorDetails
+func (t Error_Details) AsEvalErrorDetails() (EvalErrorDetails, error) {
+	var body EvalErrorDetails
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEvalErrorDetails overwrites any union data inside the Error_Details as the provided EvalErrorDetails
+func (t *Error_Details) FromEvalErrorDetails(v EvalErrorDetails) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEvalErrorDetails performs a merge with any union data inside the Error_Details, using the provided EvalErrorDetails
+func (t *Error_Details) MergeEvalErrorDetails(v EvalErrorDetails) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t Error_Details) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
@@ -5859,6 +7467,140 @@ func (t Error_Details) MarshalJSON() ([]byte, error) {
 
 func (t *Error_Details) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsEvalCreateExperiment0 returns the union data inside the EvalCreateExperiment as a EvalCreateExperiment0
+func (t EvalCreateExperiment) AsEvalCreateExperiment0() (EvalCreateExperiment0, error) {
+	var body EvalCreateExperiment0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEvalCreateExperiment0 overwrites any union data inside the EvalCreateExperiment as the provided EvalCreateExperiment0
+func (t *EvalCreateExperiment) FromEvalCreateExperiment0(v EvalCreateExperiment0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEvalCreateExperiment0 performs a merge with any union data inside the EvalCreateExperiment, using the provided EvalCreateExperiment0
+func (t *EvalCreateExperiment) MergeEvalCreateExperiment0(v EvalCreateExperiment0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEvalCreateExperiment1 returns the union data inside the EvalCreateExperiment as a EvalCreateExperiment1
+func (t EvalCreateExperiment) AsEvalCreateExperiment1() (EvalCreateExperiment1, error) {
+	var body EvalCreateExperiment1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEvalCreateExperiment1 overwrites any union data inside the EvalCreateExperiment as the provided EvalCreateExperiment1
+func (t *EvalCreateExperiment) FromEvalCreateExperiment1(v EvalCreateExperiment1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEvalCreateExperiment1 performs a merge with any union data inside the EvalCreateExperiment, using the provided EvalCreateExperiment1
+func (t *EvalCreateExperiment) MergeEvalCreateExperiment1(v EvalCreateExperiment1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EvalCreateExperiment) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["controlMode"], err = json.Marshal(t.ControlMode)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'controlMode': %w", err)
+	}
+
+	if t.Draft != nil {
+		object["draft"], err = json.Marshal(t.Draft)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'draft': %w", err)
+		}
+	}
+
+	object["name"], err = json.Marshal(t.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if t.Registration != nil {
+		object["registration"], err = json.Marshal(t.Registration)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'registration': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *EvalCreateExperiment) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["controlMode"]; found {
+		err = json.Unmarshal(raw, &t.ControlMode)
+		if err != nil {
+			return fmt.Errorf("error reading 'controlMode': %w", err)
+		}
+	}
+
+	if raw, found := object["draft"]; found {
+		err = json.Unmarshal(raw, &t.Draft)
+		if err != nil {
+			return fmt.Errorf("error reading 'draft': %w", err)
+		}
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["registration"]; found {
+		err = json.Unmarshal(raw, &t.Registration)
+		if err != nil {
+			return fmt.Errorf("error reading 'registration': %w", err)
+		}
+	}
+
 	return err
 }
 
@@ -7235,6 +8977,87 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/configurations/{kind}/{name}/versions/{version} (the `GetConfiguration` operationId).
 	GetConfiguration(ctx context.Context, kind ConfigurationKindParameter, name ConfigName, version ConfigVersionParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetEvalCapabilities getEvalCapabilities
+	//
+	// Corresponds with GET /v1/eval-capabilities (the `GetEvalCapabilities` operationId).
+	GetEvalCapabilities(ctx context.Context, params *GetEvalCapabilitiesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEvalExperiments listEvalExperiments
+	//
+	// Corresponds with GET /v1/eval-experiments (the `ListEvalExperiments` operationId).
+	ListEvalExperiments(ctx context.Context, params *ListEvalExperimentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteEvalExperimentWithBody deleteEvalExperiment
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+	DeleteEvalExperimentWithBody(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteEvalExperiment deleteEvalExperiment
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+	DeleteEvalExperiment(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, body DeleteEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEvalExperiment getEvalExperiment
+	//
+	// Corresponds with GET /v1/eval-experiments/{id} (the `GetEvalExperiment` operationId).
+	GetEvalExperiment(ctx context.Context, id EvalOpaque, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateEvalDraftWithBody updateEvalDraft
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+	UpdateEvalDraftWithBody(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateEvalDraft updateEvalDraft
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+	UpdateEvalDraft(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, body UpdateEvalDraftJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CommandEvalExperimentWithBody commandEvalExperiment
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+	CommandEvalExperimentWithBody(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CommandEvalExperiment commandEvalExperiment
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+	CommandEvalExperiment(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, body CommandEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEvalCommand getEvalCommand
+	//
+	// Corresponds with GET /v1/eval-experiments/{id}/commands/{commandId} (the `GetEvalCommand` operationId).
+	GetEvalCommand(ctx context.Context, id EvalOpaque, commandId EvalOpaque, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEvalMembers listEvalMembers
+	//
+	// Corresponds with GET /v1/eval-experiments/{id}/members (the `ListEvalMembers` operationId).
+	ListEvalMembers(ctx context.Context, id EvalOpaque, params *ListEvalMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SubmitEvalMemberWithBody submitEvalMember
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+	SubmitEvalMemberWithBody(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SubmitEvalMember submitEvalMember
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+	SubmitEvalMember(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, body SubmitEvalMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ConnectEventsWebSocket Upgrade to the read-only contractor.events.v1 WebSocket
 	//
 	// Requires an authenticated browser session, an exact allowed Origin,
@@ -7622,6 +9445,44 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /v1/projects/{projectId}/audits (the `CreateAudit` operationId).
 	CreateAudit(ctx context.Context, projectId ProjectId, params *CreateAuditParams, body CreateAuditJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEvalDatasets listEvalDatasets
+	//
+	// Corresponds with GET /v1/projects/{projectId}/eval-datasets (the `ListEvalDatasets` operationId).
+	ListEvalDatasets(ctx context.Context, projectId EvalOpaque, params *ListEvalDatasetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ImportEvalDatasetWithBody importEvalDataset
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+	ImportEvalDatasetWithBody(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ImportEvalDataset importEvalDataset
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+	ImportEvalDataset(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, body ImportEvalDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListEvalCases listEvalCases
+	//
+	// Corresponds with GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases (the `ListEvalCases` operationId).
+	ListEvalCases(ctx context.Context, projectId EvalOpaque, datasetId EvalId, revision EvalOpaque, params *ListEvalCasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateEvalExperimentWithBody createEvalExperiment
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+	CreateEvalExperimentWithBody(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateEvalExperiment createEvalExperiment
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+	CreateEvalExperiment(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListProjectRuns List Runs that were launched from one owned Project
 	//
@@ -8609,6 +10470,217 @@ func (c *Client) GetConfiguration(ctx context.Context, kind ConfigurationKindPar
 	return c.Client.Do(req)
 }
 
+// GetEvalCapabilities getEvalCapabilities
+//
+// Corresponds with GET /v1/eval-capabilities (the `GetEvalCapabilities` operationId).
+func (c *Client) GetEvalCapabilities(ctx context.Context, params *GetEvalCapabilitiesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEvalCapabilitiesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListEvalExperiments listEvalExperiments
+//
+// Corresponds with GET /v1/eval-experiments (the `ListEvalExperiments` operationId).
+func (c *Client) ListEvalExperiments(ctx context.Context, params *ListEvalExperimentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEvalExperimentsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteEvalExperimentWithBody deleteEvalExperiment
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+func (c *Client) DeleteEvalExperimentWithBody(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEvalExperimentRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteEvalExperiment deleteEvalExperiment
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+func (c *Client) DeleteEvalExperiment(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, body DeleteEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteEvalExperimentRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetEvalExperiment getEvalExperiment
+//
+// Corresponds with GET /v1/eval-experiments/{id} (the `GetEvalExperiment` operationId).
+func (c *Client) GetEvalExperiment(ctx context.Context, id EvalOpaque, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEvalExperimentRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateEvalDraftWithBody updateEvalDraft
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+func (c *Client) UpdateEvalDraftWithBody(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEvalDraftRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateEvalDraft updateEvalDraft
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+func (c *Client) UpdateEvalDraft(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, body UpdateEvalDraftJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateEvalDraftRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CommandEvalExperimentWithBody commandEvalExperiment
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+func (c *Client) CommandEvalExperimentWithBody(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommandEvalExperimentRequestWithBody(c.Server, id, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CommandEvalExperiment commandEvalExperiment
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+func (c *Client) CommandEvalExperiment(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, body CommandEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommandEvalExperimentRequest(c.Server, id, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetEvalCommand getEvalCommand
+//
+// Corresponds with GET /v1/eval-experiments/{id}/commands/{commandId} (the `GetEvalCommand` operationId).
+func (c *Client) GetEvalCommand(ctx context.Context, id EvalOpaque, commandId EvalOpaque, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEvalCommandRequest(c.Server, id, commandId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListEvalMembers listEvalMembers
+//
+// Corresponds with GET /v1/eval-experiments/{id}/members (the `ListEvalMembers` operationId).
+func (c *Client) ListEvalMembers(ctx context.Context, id EvalOpaque, params *ListEvalMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEvalMembersRequest(c.Server, id, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SubmitEvalMemberWithBody submitEvalMember
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+func (c *Client) SubmitEvalMemberWithBody(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitEvalMemberRequestWithBody(c.Server, id, memberId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SubmitEvalMember submitEvalMember
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+func (c *Client) SubmitEvalMember(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, body SubmitEvalMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitEvalMemberRequest(c.Server, id, memberId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ConnectEventsWebSocket Upgrade to the read-only contractor.events.v1 WebSocket
 //
 // Requires an authenticated browser session, an exact allowed Origin,
@@ -9547,6 +11619,104 @@ func (c *Client) CreateAuditWithBody(ctx context.Context, projectId ProjectId, p
 // Corresponds with POST /v1/projects/{projectId}/audits (the `CreateAudit` operationId).
 func (c *Client) CreateAudit(ctx context.Context, projectId ProjectId, params *CreateAuditParams, body CreateAuditJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAuditRequest(c.Server, projectId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListEvalDatasets listEvalDatasets
+//
+// Corresponds with GET /v1/projects/{projectId}/eval-datasets (the `ListEvalDatasets` operationId).
+func (c *Client) ListEvalDatasets(ctx context.Context, projectId EvalOpaque, params *ListEvalDatasetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEvalDatasetsRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ImportEvalDatasetWithBody importEvalDataset
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+func (c *Client) ImportEvalDatasetWithBody(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportEvalDatasetRequestWithBody(c.Server, projectId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ImportEvalDataset importEvalDataset
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+func (c *Client) ImportEvalDataset(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, body ImportEvalDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewImportEvalDatasetRequest(c.Server, projectId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListEvalCases listEvalCases
+//
+// Corresponds with GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases (the `ListEvalCases` operationId).
+func (c *Client) ListEvalCases(ctx context.Context, projectId EvalOpaque, datasetId EvalId, revision EvalOpaque, params *ListEvalCasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListEvalCasesRequest(c.Server, projectId, datasetId, revision, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateEvalExperimentWithBody createEvalExperiment
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+func (c *Client) CreateEvalExperimentWithBody(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateEvalExperimentRequestWithBody(c.Server, projectId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateEvalExperiment createEvalExperiment
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+func (c *Client) CreateEvalExperiment(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateEvalExperimentRequest(c.Server, projectId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -12928,6 +15098,656 @@ func NewGetConfigurationRequest(server string, kind ConfigurationKindParameter, 
 	return req, nil
 }
 
+// NewGetEvalCapabilitiesRequest constructs an http.Request for the GetEvalCapabilities method
+func NewGetEvalCapabilitiesRequest(server string, params *GetEvalCapabilitiesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-capabilities")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListEvalExperimentsRequest constructs an http.Request for the ListEvalExperiments method
+func NewListEvalExperimentsRequest(server string, params *ListEvalExperimentsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ProjectId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "projectId", *params.ProjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.DatasetId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "datasetId", *params.DatasetId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ControlMode != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "controlMode", *params.ControlMode, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteEvalExperimentRequest calls the generic DeleteEvalExperiment builder with application/json body
+func NewDeleteEvalExperimentRequest(server string, id EvalOpaque, params *DeleteEvalExperimentParams, body DeleteEvalExperimentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeleteEvalExperimentRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewDeleteEvalExperimentRequestWithBody constructs an http.Request for the DeleteEvalExperiment method, with any body, and a specified content type
+func NewDeleteEvalExperimentRequestWithBody(server string, id EvalOpaque, params *DeleteEvalExperimentParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewGetEvalExperimentRequest constructs an http.Request for the GetEvalExperiment method
+func NewGetEvalExperimentRequest(server string, id EvalOpaque) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateEvalDraftRequest calls the generic UpdateEvalDraft builder with application/json body
+func NewUpdateEvalDraftRequest(server string, id EvalOpaque, params *UpdateEvalDraftParams, body UpdateEvalDraftJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateEvalDraftRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewUpdateEvalDraftRequestWithBody constructs an http.Request for the UpdateEvalDraft method, with any body, and a specified content type
+func NewUpdateEvalDraftRequestWithBody(server string, id EvalOpaque, params *UpdateEvalDraftParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewCommandEvalExperimentRequest calls the generic CommandEvalExperiment builder with application/json body
+func NewCommandEvalExperimentRequest(server string, id EvalOpaque, params *CommandEvalExperimentParams, body CommandEvalExperimentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCommandEvalExperimentRequestWithBody(server, id, params, "application/json", bodyReader)
+}
+
+// NewCommandEvalExperimentRequestWithBody constructs an http.Request for the CommandEvalExperiment method, with any body, and a specified content type
+func NewCommandEvalExperimentRequestWithBody(server string, id EvalOpaque, params *CommandEvalExperimentParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s/commands", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewGetEvalCommandRequest constructs an http.Request for the GetEvalCommand method
+func NewGetEvalCommandRequest(server string, id EvalOpaque, commandId EvalOpaque) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "commandId", commandId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s/commands/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListEvalMembersRequest constructs an http.Request for the ListEvalMembers method
+func NewListEvalMembersRequest(server string, id EvalOpaque, params *ListEvalMembersParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s/members", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ViewSnapshot != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "viewSnapshot", *params.ViewSnapshot, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Filter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filter", *params.Filter, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.VariantId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "variantId", *params.VariantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSubmitEvalMemberRequest calls the generic SubmitEvalMember builder with application/json body
+func NewSubmitEvalMemberRequest(server string, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, body SubmitEvalMemberJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSubmitEvalMemberRequestWithBody(server, id, memberId, params, "application/json", bodyReader)
+}
+
+// NewSubmitEvalMemberRequestWithBody constructs an http.Request for the SubmitEvalMember method, with any body, and a specified content type
+func NewSubmitEvalMemberRequestWithBody(server string, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "memberId", memberId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/eval-experiments/%s/members/%s/submissions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
 // NewConnectEventsWebSocketRequest constructs an http.Request for the ConnectEventsWebSocket method
 func NewConnectEventsWebSocketRequest(server string, params *ConnectEventsWebSocketParams) (*http.Request, error) {
 	var err error
@@ -15991,6 +18811,286 @@ func NewCreateAuditRequestWithBody(server string, projectId ProjectId, params *C
 	return req, nil
 }
 
+// NewListEvalDatasetsRequest constructs an http.Request for the ListEvalDatasets method
+func NewListEvalDatasetsRequest(server string, projectId EvalOpaque, params *ListEvalDatasetsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/eval-datasets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewImportEvalDatasetRequest calls the generic ImportEvalDataset builder with application/json body
+func NewImportEvalDatasetRequest(server string, projectId EvalOpaque, params *ImportEvalDatasetParams, body ImportEvalDatasetJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewImportEvalDatasetRequestWithBody(server, projectId, params, "application/json", bodyReader)
+}
+
+// NewImportEvalDatasetRequestWithBody constructs an http.Request for the ImportEvalDataset method, with any body, and a specified content type
+func NewImportEvalDatasetRequestWithBody(server string, projectId EvalOpaque, params *ImportEvalDatasetParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/eval-datasets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewListEvalCasesRequest constructs an http.Request for the ListEvalCases method
+func NewListEvalCasesRequest(server string, projectId EvalOpaque, datasetId EvalId, revision EvalOpaque, params *ListEvalCasesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "datasetId", datasetId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "revision", revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/eval-datasets/%s/revisions/%s/cases", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateEvalExperimentRequest calls the generic CreateEvalExperiment builder with application/json body
+func NewCreateEvalExperimentRequest(server string, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateEvalExperimentRequestWithBody(server, projectId, params, "application/json", bodyReader)
+}
+
+// NewCreateEvalExperimentRequestWithBody constructs an http.Request for the CreateEvalExperiment method, with any body, and a specified content type
+func NewCreateEvalExperimentRequestWithBody(server string, projectId EvalOpaque, params *CreateEvalExperimentParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/eval-experiments", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
 // NewListProjectRunsRequest constructs an http.Request for the ListProjectRuns method
 func NewListProjectRunsRequest(server string, projectId ProjectId, params *ListProjectRunsParams) (*http.Request, error) {
 	var err error
@@ -18194,6 +21294,97 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/configurations/{kind}/{name}/versions/{version} (the `GetConfiguration` operationId).
 	GetConfigurationWithResponse(ctx context.Context, kind ConfigurationKindParameter, name ConfigName, version ConfigVersionParameter, reqEditors ...RequestEditorFn) (*GetConfigurationResponse, error)
 
+	// GetEvalCapabilitiesWithResponse getEvalCapabilities
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/eval-capabilities (the `GetEvalCapabilities` operationId).
+	GetEvalCapabilitiesWithResponse(ctx context.Context, params *GetEvalCapabilitiesParams, reqEditors ...RequestEditorFn) (*GetEvalCapabilitiesResponse, error)
+
+	// ListEvalExperimentsWithResponse listEvalExperiments
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/eval-experiments (the `ListEvalExperiments` operationId).
+	ListEvalExperimentsWithResponse(ctx context.Context, params *ListEvalExperimentsParams, reqEditors ...RequestEditorFn) (*ListEvalExperimentsResponse, error)
+
+	// DeleteEvalExperimentWithBodyWithResponse deleteEvalExperiment
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+	DeleteEvalExperimentWithBodyWithResponse(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteEvalExperimentResponse, error)
+
+	// DeleteEvalExperimentWithResponse deleteEvalExperiment
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+	DeleteEvalExperimentWithResponse(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, body DeleteEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteEvalExperimentResponse, error)
+
+	// GetEvalExperimentWithResponse getEvalExperiment
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/eval-experiments/{id} (the `GetEvalExperiment` operationId).
+	GetEvalExperimentWithResponse(ctx context.Context, id EvalOpaque, reqEditors ...RequestEditorFn) (*GetEvalExperimentResponse, error)
+
+	// UpdateEvalDraftWithBodyWithResponse updateEvalDraft
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+	UpdateEvalDraftWithBodyWithResponse(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEvalDraftResponse, error)
+
+	// UpdateEvalDraftWithResponse updateEvalDraft
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+	UpdateEvalDraftWithResponse(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, body UpdateEvalDraftJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEvalDraftResponse, error)
+
+	// CommandEvalExperimentWithBodyWithResponse commandEvalExperiment
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+	CommandEvalExperimentWithBodyWithResponse(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommandEvalExperimentResponse, error)
+
+	// CommandEvalExperimentWithResponse commandEvalExperiment
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+	CommandEvalExperimentWithResponse(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, body CommandEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*CommandEvalExperimentResponse, error)
+
+	// GetEvalCommandWithResponse getEvalCommand
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/eval-experiments/{id}/commands/{commandId} (the `GetEvalCommand` operationId).
+	GetEvalCommandWithResponse(ctx context.Context, id EvalOpaque, commandId EvalOpaque, reqEditors ...RequestEditorFn) (*GetEvalCommandResponse, error)
+
+	// ListEvalMembersWithResponse listEvalMembers
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/eval-experiments/{id}/members (the `ListEvalMembers` operationId).
+	ListEvalMembersWithResponse(ctx context.Context, id EvalOpaque, params *ListEvalMembersParams, reqEditors ...RequestEditorFn) (*ListEvalMembersResponse, error)
+
+	// SubmitEvalMemberWithBodyWithResponse submitEvalMember
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+	SubmitEvalMemberWithBodyWithResponse(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitEvalMemberResponse, error)
+
+	// SubmitEvalMemberWithResponse submitEvalMember
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+	SubmitEvalMemberWithResponse(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, body SubmitEvalMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitEvalMemberResponse, error)
+
 	// ConnectEventsWebSocketWithResponse Upgrade to the read-only contractor.events.v1 WebSocket
 	//
 	// Requires an authenticated browser session, an exact allowed Origin,
@@ -18647,6 +21838,48 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/projects/{projectId}/audits (the `CreateAudit` operationId).
 	CreateAuditWithResponse(ctx context.Context, projectId ProjectId, params *CreateAuditParams, body CreateAuditJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAuditResponse, error)
+
+	// ListEvalDatasetsWithResponse listEvalDatasets
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/eval-datasets (the `ListEvalDatasets` operationId).
+	ListEvalDatasetsWithResponse(ctx context.Context, projectId EvalOpaque, params *ListEvalDatasetsParams, reqEditors ...RequestEditorFn) (*ListEvalDatasetsResponse, error)
+
+	// ImportEvalDatasetWithBodyWithResponse importEvalDataset
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+	ImportEvalDatasetWithBodyWithResponse(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportEvalDatasetResponse, error)
+
+	// ImportEvalDatasetWithResponse importEvalDataset
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+	ImportEvalDatasetWithResponse(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, body ImportEvalDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*ImportEvalDatasetResponse, error)
+
+	// ListEvalCasesWithResponse listEvalCases
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases (the `ListEvalCases` operationId).
+	ListEvalCasesWithResponse(ctx context.Context, projectId EvalOpaque, datasetId EvalId, revision EvalOpaque, params *ListEvalCasesParams, reqEditors ...RequestEditorFn) (*ListEvalCasesResponse, error)
+
+	// CreateEvalExperimentWithBodyWithResponse createEvalExperiment
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+	CreateEvalExperimentWithBodyWithResponse(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEvalExperimentResponse, error)
+
+	// CreateEvalExperimentWithResponse createEvalExperiment
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+	CreateEvalExperimentWithResponse(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEvalExperimentResponse, error)
 
 	// ListProjectRunsWithResponse List Runs that were launched from one owned Project
 	//
@@ -23831,6 +27064,1702 @@ func (r GetConfigurationResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetConfigurationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetEvalCapabilitiesResponse200Headers the declared response headers of an HTTP 200 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse200Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetEvalCapabilitiesResponse400Headers the declared response headers of an HTTP 400 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCapabilitiesResponse401Headers the declared response headers of an HTTP 401 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetEvalCapabilitiesResponse403Headers the declared response headers of an HTTP 403 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCapabilitiesResponse404Headers the declared response headers of an HTTP 404 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCapabilitiesResponse409Headers the declared response headers of an HTTP 409 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCapabilitiesResponse412Headers the declared response headers of an HTTP 412 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCapabilitiesResponse422Headers the declared response headers of an HTTP 422 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCapabilitiesResponse500Headers the declared response headers of an HTTP 500 response for GetEvalCapabilities
+type GetEvalCapabilitiesResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type GetEvalCapabilitiesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalCapabilities
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetEvalCapabilitiesResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetEvalCapabilitiesResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetEvalCapabilitiesResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *GetEvalCapabilitiesResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetEvalCapabilitiesResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetEvalCapabilitiesResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *GetEvalCapabilitiesResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetEvalCapabilitiesResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetEvalCapabilitiesResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON200() *EvalCapabilities {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetEvalCapabilitiesResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetEvalCapabilitiesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEvalCapabilitiesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEvalCapabilitiesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEvalCapabilitiesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListEvalExperimentsResponse200Headers the declared response headers of an HTTP 200 response for ListEvalExperiments
+type ListEvalExperimentsResponse200Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalExperimentsResponse400Headers the declared response headers of an HTTP 400 response for ListEvalExperiments
+type ListEvalExperimentsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalExperimentsResponse401Headers the declared response headers of an HTTP 401 response for ListEvalExperiments
+type ListEvalExperimentsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalExperimentsResponse403Headers the declared response headers of an HTTP 403 response for ListEvalExperiments
+type ListEvalExperimentsResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalExperimentsResponse404Headers the declared response headers of an HTTP 404 response for ListEvalExperiments
+type ListEvalExperimentsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalExperimentsResponse409Headers the declared response headers of an HTTP 409 response for ListEvalExperiments
+type ListEvalExperimentsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalExperimentsResponse412Headers the declared response headers of an HTTP 412 response for ListEvalExperiments
+type ListEvalExperimentsResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalExperimentsResponse422Headers the declared response headers of an HTTP 422 response for ListEvalExperiments
+type ListEvalExperimentsResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalExperimentsResponse500Headers the declared response headers of an HTTP 500 response for ListEvalExperiments
+type ListEvalExperimentsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type ListEvalExperimentsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalExperimentPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListEvalExperimentsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListEvalExperimentsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListEvalExperimentsResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *ListEvalExperimentsResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListEvalExperimentsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListEvalExperimentsResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *ListEvalExperimentsResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListEvalExperimentsResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListEvalExperimentsResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON200() *EvalExperimentPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListEvalExperimentsResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListEvalExperimentsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEvalExperimentsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEvalExperimentsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListEvalExperimentsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// DeleteEvalExperimentResponse202Headers the declared response headers of an HTTP 202 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse202Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// DeleteEvalExperimentResponse400Headers the declared response headers of an HTTP 400 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// DeleteEvalExperimentResponse401Headers the declared response headers of an HTTP 401 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// DeleteEvalExperimentResponse403Headers the declared response headers of an HTTP 403 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// DeleteEvalExperimentResponse404Headers the declared response headers of an HTTP 404 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// DeleteEvalExperimentResponse409Headers the declared response headers of an HTTP 409 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// DeleteEvalExperimentResponse412Headers the declared response headers of an HTTP 412 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// DeleteEvalExperimentResponse422Headers the declared response headers of an HTTP 422 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// DeleteEvalExperimentResponse500Headers the declared response headers of an HTTP 500 response for DeleteEvalExperiment
+type DeleteEvalExperimentResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type DeleteEvalExperimentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *EvalExperimentReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers202 the parsed response headers for an HTTP 202 response
+	Headers202 *DeleteEvalExperimentResponse202Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *DeleteEvalExperimentResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *DeleteEvalExperimentResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *DeleteEvalExperimentResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *DeleteEvalExperimentResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *DeleteEvalExperimentResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *DeleteEvalExperimentResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *DeleteEvalExperimentResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *DeleteEvalExperimentResponse500Headers
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON202() *EvalExperimentReceipt {
+	return r.JSON202
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteEvalExperimentResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteEvalExperimentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteEvalExperimentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteEvalExperimentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteEvalExperimentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetEvalExperimentResponse200Headers the declared response headers of an HTTP 200 response for GetEvalExperiment
+type GetEvalExperimentResponse200Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetEvalExperimentResponse400Headers the declared response headers of an HTTP 400 response for GetEvalExperiment
+type GetEvalExperimentResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalExperimentResponse401Headers the declared response headers of an HTTP 401 response for GetEvalExperiment
+type GetEvalExperimentResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetEvalExperimentResponse403Headers the declared response headers of an HTTP 403 response for GetEvalExperiment
+type GetEvalExperimentResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalExperimentResponse404Headers the declared response headers of an HTTP 404 response for GetEvalExperiment
+type GetEvalExperimentResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalExperimentResponse409Headers the declared response headers of an HTTP 409 response for GetEvalExperiment
+type GetEvalExperimentResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalExperimentResponse412Headers the declared response headers of an HTTP 412 response for GetEvalExperiment
+type GetEvalExperimentResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalExperimentResponse422Headers the declared response headers of an HTTP 422 response for GetEvalExperiment
+type GetEvalExperimentResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalExperimentResponse500Headers the declared response headers of an HTTP 500 response for GetEvalExperiment
+type GetEvalExperimentResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type GetEvalExperimentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalExperiment
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetEvalExperimentResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetEvalExperimentResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetEvalExperimentResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *GetEvalExperimentResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetEvalExperimentResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetEvalExperimentResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *GetEvalExperimentResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetEvalExperimentResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetEvalExperimentResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON200() *EvalExperiment {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetEvalExperimentResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetEvalExperimentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEvalExperimentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEvalExperimentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEvalExperimentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// UpdateEvalDraftResponse200Headers the declared response headers of an HTTP 200 response for UpdateEvalDraft
+type UpdateEvalDraftResponse200Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// UpdateEvalDraftResponse400Headers the declared response headers of an HTTP 400 response for UpdateEvalDraft
+type UpdateEvalDraftResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// UpdateEvalDraftResponse401Headers the declared response headers of an HTTP 401 response for UpdateEvalDraft
+type UpdateEvalDraftResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// UpdateEvalDraftResponse403Headers the declared response headers of an HTTP 403 response for UpdateEvalDraft
+type UpdateEvalDraftResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// UpdateEvalDraftResponse404Headers the declared response headers of an HTTP 404 response for UpdateEvalDraft
+type UpdateEvalDraftResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// UpdateEvalDraftResponse409Headers the declared response headers of an HTTP 409 response for UpdateEvalDraft
+type UpdateEvalDraftResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// UpdateEvalDraftResponse412Headers the declared response headers of an HTTP 412 response for UpdateEvalDraft
+type UpdateEvalDraftResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// UpdateEvalDraftResponse422Headers the declared response headers of an HTTP 422 response for UpdateEvalDraft
+type UpdateEvalDraftResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// UpdateEvalDraftResponse500Headers the declared response headers of an HTTP 500 response for UpdateEvalDraft
+type UpdateEvalDraftResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type UpdateEvalDraftResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalExperimentReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *UpdateEvalDraftResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *UpdateEvalDraftResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *UpdateEvalDraftResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *UpdateEvalDraftResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *UpdateEvalDraftResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *UpdateEvalDraftResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *UpdateEvalDraftResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *UpdateEvalDraftResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *UpdateEvalDraftResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON200() *EvalExperimentReceipt {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r UpdateEvalDraftResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateEvalDraftResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateEvalDraftResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateEvalDraftResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateEvalDraftResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// CommandEvalExperimentResponse201Headers the declared response headers of an HTTP 201 response for CommandEvalExperiment
+type CommandEvalExperimentResponse201Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// CommandEvalExperimentResponse202Headers the declared response headers of an HTTP 202 response for CommandEvalExperiment
+type CommandEvalExperimentResponse202Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// CommandEvalExperimentResponse400Headers the declared response headers of an HTTP 400 response for CommandEvalExperiment
+type CommandEvalExperimentResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// CommandEvalExperimentResponse401Headers the declared response headers of an HTTP 401 response for CommandEvalExperiment
+type CommandEvalExperimentResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// CommandEvalExperimentResponse403Headers the declared response headers of an HTTP 403 response for CommandEvalExperiment
+type CommandEvalExperimentResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// CommandEvalExperimentResponse404Headers the declared response headers of an HTTP 404 response for CommandEvalExperiment
+type CommandEvalExperimentResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// CommandEvalExperimentResponse409Headers the declared response headers of an HTTP 409 response for CommandEvalExperiment
+type CommandEvalExperimentResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// CommandEvalExperimentResponse412Headers the declared response headers of an HTTP 412 response for CommandEvalExperiment
+type CommandEvalExperimentResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// CommandEvalExperimentResponse422Headers the declared response headers of an HTTP 422 response for CommandEvalExperiment
+type CommandEvalExperimentResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// CommandEvalExperimentResponse500Headers the declared response headers of an HTTP 500 response for CommandEvalExperiment
+type CommandEvalExperimentResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type CommandEvalExperimentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *EvalExperimentReceipt
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *EvalCommandReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *CommandEvalExperimentResponse201Headers
+	// Headers202 the parsed response headers for an HTTP 202 response
+	Headers202 *CommandEvalExperimentResponse202Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *CommandEvalExperimentResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *CommandEvalExperimentResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *CommandEvalExperimentResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *CommandEvalExperimentResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *CommandEvalExperimentResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *CommandEvalExperimentResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *CommandEvalExperimentResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *CommandEvalExperimentResponse500Headers
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON201() *EvalExperimentReceipt {
+	return r.JSON201
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON202() *EvalCommandReceipt {
+	return r.JSON202
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CommandEvalExperimentResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r CommandEvalExperimentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CommandEvalExperimentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CommandEvalExperimentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CommandEvalExperimentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetEvalCommandResponse200Headers the declared response headers of an HTTP 200 response for GetEvalCommand
+type GetEvalCommandResponse200Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetEvalCommandResponse400Headers the declared response headers of an HTTP 400 response for GetEvalCommand
+type GetEvalCommandResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCommandResponse401Headers the declared response headers of an HTTP 401 response for GetEvalCommand
+type GetEvalCommandResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetEvalCommandResponse403Headers the declared response headers of an HTTP 403 response for GetEvalCommand
+type GetEvalCommandResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCommandResponse404Headers the declared response headers of an HTTP 404 response for GetEvalCommand
+type GetEvalCommandResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCommandResponse409Headers the declared response headers of an HTTP 409 response for GetEvalCommand
+type GetEvalCommandResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCommandResponse412Headers the declared response headers of an HTTP 412 response for GetEvalCommand
+type GetEvalCommandResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCommandResponse422Headers the declared response headers of an HTTP 422 response for GetEvalCommand
+type GetEvalCommandResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// GetEvalCommandResponse500Headers the declared response headers of an HTTP 500 response for GetEvalCommand
+type GetEvalCommandResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type GetEvalCommandResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalCommandReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetEvalCommandResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetEvalCommandResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetEvalCommandResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *GetEvalCommandResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetEvalCommandResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetEvalCommandResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *GetEvalCommandResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *GetEvalCommandResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetEvalCommandResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetEvalCommandResponse) GetJSON200() *EvalCommandReceipt {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetEvalCommandResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetEvalCommandResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetEvalCommandResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetEvalCommandResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r GetEvalCommandResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetEvalCommandResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r GetEvalCommandResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r GetEvalCommandResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r GetEvalCommandResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetEvalCommandResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetEvalCommandResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetEvalCommandResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEvalCommandResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEvalCommandResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEvalCommandResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListEvalMembersResponse200Headers the declared response headers of an HTTP 200 response for ListEvalMembers
+type ListEvalMembersResponse200Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalMembersResponse400Headers the declared response headers of an HTTP 400 response for ListEvalMembers
+type ListEvalMembersResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalMembersResponse401Headers the declared response headers of an HTTP 401 response for ListEvalMembers
+type ListEvalMembersResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalMembersResponse403Headers the declared response headers of an HTTP 403 response for ListEvalMembers
+type ListEvalMembersResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalMembersResponse404Headers the declared response headers of an HTTP 404 response for ListEvalMembers
+type ListEvalMembersResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalMembersResponse409Headers the declared response headers of an HTTP 409 response for ListEvalMembers
+type ListEvalMembersResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalMembersResponse412Headers the declared response headers of an HTTP 412 response for ListEvalMembers
+type ListEvalMembersResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalMembersResponse422Headers the declared response headers of an HTTP 422 response for ListEvalMembers
+type ListEvalMembersResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalMembersResponse500Headers the declared response headers of an HTTP 500 response for ListEvalMembers
+type ListEvalMembersResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type ListEvalMembersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalMemberPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListEvalMembersResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListEvalMembersResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListEvalMembersResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *ListEvalMembersResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListEvalMembersResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListEvalMembersResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *ListEvalMembersResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListEvalMembersResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListEvalMembersResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListEvalMembersResponse) GetJSON200() *EvalMemberPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListEvalMembersResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListEvalMembersResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListEvalMembersResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListEvalMembersResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r ListEvalMembersResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListEvalMembersResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ListEvalMembersResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListEvalMembersResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ListEvalMembersResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListEvalMembersResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListEvalMembersResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListEvalMembersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEvalMembersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEvalMembersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListEvalMembersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// SubmitEvalMemberResponse202Headers the declared response headers of an HTTP 202 response for SubmitEvalMember
+type SubmitEvalMemberResponse202Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// SubmitEvalMemberResponse400Headers the declared response headers of an HTTP 400 response for SubmitEvalMember
+type SubmitEvalMemberResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// SubmitEvalMemberResponse401Headers the declared response headers of an HTTP 401 response for SubmitEvalMember
+type SubmitEvalMemberResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// SubmitEvalMemberResponse403Headers the declared response headers of an HTTP 403 response for SubmitEvalMember
+type SubmitEvalMemberResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// SubmitEvalMemberResponse404Headers the declared response headers of an HTTP 404 response for SubmitEvalMember
+type SubmitEvalMemberResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// SubmitEvalMemberResponse409Headers the declared response headers of an HTTP 409 response for SubmitEvalMember
+type SubmitEvalMemberResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// SubmitEvalMemberResponse412Headers the declared response headers of an HTTP 412 response for SubmitEvalMember
+type SubmitEvalMemberResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// SubmitEvalMemberResponse422Headers the declared response headers of an HTTP 422 response for SubmitEvalMember
+type SubmitEvalMemberResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// SubmitEvalMemberResponse500Headers the declared response headers of an HTTP 500 response for SubmitEvalMember
+type SubmitEvalMemberResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type SubmitEvalMemberResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *EvalSubmissionReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers202 the parsed response headers for an HTTP 202 response
+	Headers202 *SubmitEvalMemberResponse202Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *SubmitEvalMemberResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *SubmitEvalMemberResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *SubmitEvalMemberResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *SubmitEvalMemberResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *SubmitEvalMemberResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *SubmitEvalMemberResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *SubmitEvalMemberResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *SubmitEvalMemberResponse500Headers
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON202() *EvalSubmissionReceipt {
+	return r.JSON202
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r SubmitEvalMemberResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r SubmitEvalMemberResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SubmitEvalMemberResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SubmitEvalMemberResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SubmitEvalMemberResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29378,6 +34307,752 @@ func (r CreateAuditResponse) ContentType() string {
 	return ""
 }
 
+// ListEvalDatasetsResponse200Headers the declared response headers of an HTTP 200 response for ListEvalDatasets
+type ListEvalDatasetsResponse200Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalDatasetsResponse400Headers the declared response headers of an HTTP 400 response for ListEvalDatasets
+type ListEvalDatasetsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalDatasetsResponse401Headers the declared response headers of an HTTP 401 response for ListEvalDatasets
+type ListEvalDatasetsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalDatasetsResponse403Headers the declared response headers of an HTTP 403 response for ListEvalDatasets
+type ListEvalDatasetsResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalDatasetsResponse404Headers the declared response headers of an HTTP 404 response for ListEvalDatasets
+type ListEvalDatasetsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalDatasetsResponse409Headers the declared response headers of an HTTP 409 response for ListEvalDatasets
+type ListEvalDatasetsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalDatasetsResponse412Headers the declared response headers of an HTTP 412 response for ListEvalDatasets
+type ListEvalDatasetsResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalDatasetsResponse422Headers the declared response headers of an HTTP 422 response for ListEvalDatasets
+type ListEvalDatasetsResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalDatasetsResponse500Headers the declared response headers of an HTTP 500 response for ListEvalDatasets
+type ListEvalDatasetsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type ListEvalDatasetsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalDatasetPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListEvalDatasetsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListEvalDatasetsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListEvalDatasetsResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *ListEvalDatasetsResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListEvalDatasetsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListEvalDatasetsResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *ListEvalDatasetsResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListEvalDatasetsResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListEvalDatasetsResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON200() *EvalDatasetPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListEvalDatasetsResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListEvalDatasetsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEvalDatasetsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEvalDatasetsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListEvalDatasetsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ImportEvalDatasetResponse201Headers the declared response headers of an HTTP 201 response for ImportEvalDataset
+type ImportEvalDatasetResponse201Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ImportEvalDatasetResponse400Headers the declared response headers of an HTTP 400 response for ImportEvalDataset
+type ImportEvalDatasetResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ImportEvalDatasetResponse401Headers the declared response headers of an HTTP 401 response for ImportEvalDataset
+type ImportEvalDatasetResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ImportEvalDatasetResponse403Headers the declared response headers of an HTTP 403 response for ImportEvalDataset
+type ImportEvalDatasetResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// ImportEvalDatasetResponse404Headers the declared response headers of an HTTP 404 response for ImportEvalDataset
+type ImportEvalDatasetResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ImportEvalDatasetResponse409Headers the declared response headers of an HTTP 409 response for ImportEvalDataset
+type ImportEvalDatasetResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ImportEvalDatasetResponse412Headers the declared response headers of an HTTP 412 response for ImportEvalDataset
+type ImportEvalDatasetResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// ImportEvalDatasetResponse422Headers the declared response headers of an HTTP 422 response for ImportEvalDataset
+type ImportEvalDatasetResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ImportEvalDatasetResponse500Headers the declared response headers of an HTTP 500 response for ImportEvalDataset
+type ImportEvalDatasetResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type ImportEvalDatasetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *EvalDataset
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *ImportEvalDatasetResponse201Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ImportEvalDatasetResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ImportEvalDatasetResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *ImportEvalDatasetResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ImportEvalDatasetResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ImportEvalDatasetResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *ImportEvalDatasetResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ImportEvalDatasetResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ImportEvalDatasetResponse500Headers
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON201() *EvalDataset {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ImportEvalDatasetResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ImportEvalDatasetResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ImportEvalDatasetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ImportEvalDatasetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ImportEvalDatasetResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListEvalCasesResponse200Headers the declared response headers of an HTTP 200 response for ListEvalCases
+type ListEvalCasesResponse200Headers struct {
+	CacheControl          string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalCasesResponse400Headers the declared response headers of an HTTP 400 response for ListEvalCases
+type ListEvalCasesResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalCasesResponse401Headers the declared response headers of an HTTP 401 response for ListEvalCases
+type ListEvalCasesResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListEvalCasesResponse403Headers the declared response headers of an HTTP 403 response for ListEvalCases
+type ListEvalCasesResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalCasesResponse404Headers the declared response headers of an HTTP 404 response for ListEvalCases
+type ListEvalCasesResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalCasesResponse409Headers the declared response headers of an HTTP 409 response for ListEvalCases
+type ListEvalCasesResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalCasesResponse412Headers the declared response headers of an HTTP 412 response for ListEvalCases
+type ListEvalCasesResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalCasesResponse422Headers the declared response headers of an HTTP 422 response for ListEvalCases
+type ListEvalCasesResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// ListEvalCasesResponse500Headers the declared response headers of an HTTP 500 response for ListEvalCases
+type ListEvalCasesResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type ListEvalCasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *EvalCasePage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListEvalCasesResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListEvalCasesResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListEvalCasesResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *ListEvalCasesResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListEvalCasesResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListEvalCasesResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *ListEvalCasesResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *ListEvalCasesResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListEvalCasesResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListEvalCasesResponse) GetJSON200() *EvalCasePage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListEvalCasesResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListEvalCasesResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListEvalCasesResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListEvalCasesResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r ListEvalCasesResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListEvalCasesResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ListEvalCasesResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r ListEvalCasesResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ListEvalCasesResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListEvalCasesResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListEvalCasesResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListEvalCasesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListEvalCasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListEvalCasesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListEvalCasesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// CreateEvalExperimentResponse201Headers the declared response headers of an HTTP 201 response for CreateEvalExperiment
+type CreateEvalExperimentResponse201Headers struct {
+	CacheControl          string
+	ETag                  string
+	IdempotencyReplayed   *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// CreateEvalExperimentResponse400Headers the declared response headers of an HTTP 400 response for CreateEvalExperiment
+type CreateEvalExperimentResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// CreateEvalExperimentResponse401Headers the declared response headers of an HTTP 401 response for CreateEvalExperiment
+type CreateEvalExperimentResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// CreateEvalExperimentResponse403Headers the declared response headers of an HTTP 403 response for CreateEvalExperiment
+type CreateEvalExperimentResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// CreateEvalExperimentResponse404Headers the declared response headers of an HTTP 404 response for CreateEvalExperiment
+type CreateEvalExperimentResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// CreateEvalExperimentResponse409Headers the declared response headers of an HTTP 409 response for CreateEvalExperiment
+type CreateEvalExperimentResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// CreateEvalExperimentResponse412Headers the declared response headers of an HTTP 412 response for CreateEvalExperiment
+type CreateEvalExperimentResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// CreateEvalExperimentResponse422Headers the declared response headers of an HTTP 422 response for CreateEvalExperiment
+type CreateEvalExperimentResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// CreateEvalExperimentResponse500Headers the declared response headers of an HTTP 500 response for CreateEvalExperiment
+type CreateEvalExperimentResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type CreateEvalExperimentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *EvalExperimentReceipt
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error400
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error401
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error403
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error404
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error409
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *Error412
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *Error422
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *Error
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *Error500
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *CreateEvalExperimentResponse201Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *CreateEvalExperimentResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *CreateEvalExperimentResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *CreateEvalExperimentResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *CreateEvalExperimentResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *CreateEvalExperimentResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *CreateEvalExperimentResponse412Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *CreateEvalExperimentResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *CreateEvalExperimentResponse500Headers
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON201() *EvalExperimentReceipt {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON400() *Error400 {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON401() *Error401 {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON403() *Error403 {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON404() *Error404 {
+	return r.JSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON405() *Error {
+	return r.JSON405
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON409() *Error409 {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON412() *Error412 {
+	return r.JSON412
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON422() *Error422 {
+	return r.JSON422
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON428() *Error {
+	return r.JSON428
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON500() *Error500 {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateEvalExperimentResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateEvalExperimentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateEvalExperimentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateEvalExperimentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateEvalExperimentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListProjectRunsResponse200Headers the declared response headers of an HTTP 200 response for ListProjectRuns
 type ListProjectRunsResponse200Headers struct {
 	XRequestID RequestId
@@ -33068,6 +38743,175 @@ func (c *ClientWithResponses) GetConfigurationWithResponse(ctx context.Context, 
 	return ParseGetConfigurationResponse(rsp)
 }
 
+// GetEvalCapabilitiesWithResponse getEvalCapabilities
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/eval-capabilities (the `GetEvalCapabilities` operationId).
+func (c *ClientWithResponses) GetEvalCapabilitiesWithResponse(ctx context.Context, params *GetEvalCapabilitiesParams, reqEditors ...RequestEditorFn) (*GetEvalCapabilitiesResponse, error) {
+	rsp, err := c.GetEvalCapabilities(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEvalCapabilitiesResponse(rsp)
+}
+
+// ListEvalExperimentsWithResponse listEvalExperiments
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/eval-experiments (the `ListEvalExperiments` operationId).
+func (c *ClientWithResponses) ListEvalExperimentsWithResponse(ctx context.Context, params *ListEvalExperimentsParams, reqEditors ...RequestEditorFn) (*ListEvalExperimentsResponse, error) {
+	rsp, err := c.ListEvalExperiments(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEvalExperimentsResponse(rsp)
+}
+
+// DeleteEvalExperimentWithBodyWithResponse deleteEvalExperiment
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+func (c *ClientWithResponses) DeleteEvalExperimentWithBodyWithResponse(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteEvalExperimentResponse, error) {
+	rsp, err := c.DeleteEvalExperimentWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteEvalExperimentResponse(rsp)
+}
+
+// DeleteEvalExperimentWithResponse deleteEvalExperiment
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /v1/eval-experiments/{id} (the `DeleteEvalExperiment` operationId).
+func (c *ClientWithResponses) DeleteEvalExperimentWithResponse(ctx context.Context, id EvalOpaque, params *DeleteEvalExperimentParams, body DeleteEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*DeleteEvalExperimentResponse, error) {
+	rsp, err := c.DeleteEvalExperiment(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteEvalExperimentResponse(rsp)
+}
+
+// GetEvalExperimentWithResponse getEvalExperiment
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/eval-experiments/{id} (the `GetEvalExperiment` operationId).
+func (c *ClientWithResponses) GetEvalExperimentWithResponse(ctx context.Context, id EvalOpaque, reqEditors ...RequestEditorFn) (*GetEvalExperimentResponse, error) {
+	rsp, err := c.GetEvalExperiment(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEvalExperimentResponse(rsp)
+}
+
+// UpdateEvalDraftWithBodyWithResponse updateEvalDraft
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+func (c *ClientWithResponses) UpdateEvalDraftWithBodyWithResponse(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateEvalDraftResponse, error) {
+	rsp, err := c.UpdateEvalDraftWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateEvalDraftResponse(rsp)
+}
+
+// UpdateEvalDraftWithResponse updateEvalDraft
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /v1/eval-experiments/{id} (the `UpdateEvalDraft` operationId).
+func (c *ClientWithResponses) UpdateEvalDraftWithResponse(ctx context.Context, id EvalOpaque, params *UpdateEvalDraftParams, body UpdateEvalDraftJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateEvalDraftResponse, error) {
+	rsp, err := c.UpdateEvalDraft(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateEvalDraftResponse(rsp)
+}
+
+// CommandEvalExperimentWithBodyWithResponse commandEvalExperiment
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+func (c *ClientWithResponses) CommandEvalExperimentWithBodyWithResponse(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommandEvalExperimentResponse, error) {
+	rsp, err := c.CommandEvalExperimentWithBody(ctx, id, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCommandEvalExperimentResponse(rsp)
+}
+
+// CommandEvalExperimentWithResponse commandEvalExperiment
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/eval-experiments/{id}/commands (the `CommandEvalExperiment` operationId).
+func (c *ClientWithResponses) CommandEvalExperimentWithResponse(ctx context.Context, id EvalOpaque, params *CommandEvalExperimentParams, body CommandEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*CommandEvalExperimentResponse, error) {
+	rsp, err := c.CommandEvalExperiment(ctx, id, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCommandEvalExperimentResponse(rsp)
+}
+
+// GetEvalCommandWithResponse getEvalCommand
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/eval-experiments/{id}/commands/{commandId} (the `GetEvalCommand` operationId).
+func (c *ClientWithResponses) GetEvalCommandWithResponse(ctx context.Context, id EvalOpaque, commandId EvalOpaque, reqEditors ...RequestEditorFn) (*GetEvalCommandResponse, error) {
+	rsp, err := c.GetEvalCommand(ctx, id, commandId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEvalCommandResponse(rsp)
+}
+
+// ListEvalMembersWithResponse listEvalMembers
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/eval-experiments/{id}/members (the `ListEvalMembers` operationId).
+func (c *ClientWithResponses) ListEvalMembersWithResponse(ctx context.Context, id EvalOpaque, params *ListEvalMembersParams, reqEditors ...RequestEditorFn) (*ListEvalMembersResponse, error) {
+	rsp, err := c.ListEvalMembers(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEvalMembersResponse(rsp)
+}
+
+// SubmitEvalMemberWithBodyWithResponse submitEvalMember
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+func (c *ClientWithResponses) SubmitEvalMemberWithBodyWithResponse(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitEvalMemberResponse, error) {
+	rsp, err := c.SubmitEvalMemberWithBody(ctx, id, memberId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitEvalMemberResponse(rsp)
+}
+
+// SubmitEvalMemberWithResponse submitEvalMember
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/eval-experiments/{id}/members/{memberId}/submissions (the `SubmitEvalMember` operationId).
+func (c *ClientWithResponses) SubmitEvalMemberWithResponse(ctx context.Context, id EvalOpaque, memberId EvalMemberID, params *SubmitEvalMemberParams, body SubmitEvalMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitEvalMemberResponse, error) {
+	rsp, err := c.SubmitEvalMember(ctx, id, memberId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitEvalMemberResponse(rsp)
+}
+
 // ConnectEventsWebSocketWithResponse Upgrade to the read-only contractor.events.v1 WebSocket
 //
 // Requires an authenticated browser session, an exact allowed Origin,
@@ -33856,6 +39700,84 @@ func (c *ClientWithResponses) CreateAuditWithResponse(ctx context.Context, proje
 		return nil, err
 	}
 	return ParseCreateAuditResponse(rsp)
+}
+
+// ListEvalDatasetsWithResponse listEvalDatasets
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/eval-datasets (the `ListEvalDatasets` operationId).
+func (c *ClientWithResponses) ListEvalDatasetsWithResponse(ctx context.Context, projectId EvalOpaque, params *ListEvalDatasetsParams, reqEditors ...RequestEditorFn) (*ListEvalDatasetsResponse, error) {
+	rsp, err := c.ListEvalDatasets(ctx, projectId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEvalDatasetsResponse(rsp)
+}
+
+// ImportEvalDatasetWithBodyWithResponse importEvalDataset
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+func (c *ClientWithResponses) ImportEvalDatasetWithBodyWithResponse(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportEvalDatasetResponse, error) {
+	rsp, err := c.ImportEvalDatasetWithBody(ctx, projectId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseImportEvalDatasetResponse(rsp)
+}
+
+// ImportEvalDatasetWithResponse importEvalDataset
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-datasets (the `ImportEvalDataset` operationId).
+func (c *ClientWithResponses) ImportEvalDatasetWithResponse(ctx context.Context, projectId EvalOpaque, params *ImportEvalDatasetParams, body ImportEvalDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*ImportEvalDatasetResponse, error) {
+	rsp, err := c.ImportEvalDataset(ctx, projectId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseImportEvalDatasetResponse(rsp)
+}
+
+// ListEvalCasesWithResponse listEvalCases
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases (the `ListEvalCases` operationId).
+func (c *ClientWithResponses) ListEvalCasesWithResponse(ctx context.Context, projectId EvalOpaque, datasetId EvalId, revision EvalOpaque, params *ListEvalCasesParams, reqEditors ...RequestEditorFn) (*ListEvalCasesResponse, error) {
+	rsp, err := c.ListEvalCases(ctx, projectId, datasetId, revision, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListEvalCasesResponse(rsp)
+}
+
+// CreateEvalExperimentWithBodyWithResponse createEvalExperiment
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+func (c *ClientWithResponses) CreateEvalExperimentWithBodyWithResponse(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateEvalExperimentResponse, error) {
+	rsp, err := c.CreateEvalExperimentWithBody(ctx, projectId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateEvalExperimentResponse(rsp)
+}
+
+// CreateEvalExperimentWithResponse createEvalExperiment
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/eval-experiments (the `CreateEvalExperiment` operationId).
+func (c *ClientWithResponses) CreateEvalExperimentWithResponse(ctx context.Context, projectId EvalOpaque, params *CreateEvalExperimentParams, body CreateEvalExperimentJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateEvalExperimentResponse, error) {
+	rsp, err := c.CreateEvalExperiment(ctx, projectId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateEvalExperimentResponse(rsp)
 }
 
 // ListProjectRunsWithResponse List Runs that were launched from one owned Project
@@ -40326,6 +46248,2158 @@ func ParseGetConfigurationResponse(rsp *http.Response) (*GetConfigurationRespons
 		response.Headers404 = &headers
 	case rsp.StatusCode == 500:
 		var headers GetConfigurationResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetEvalCapabilitiesResponse parses an HTTP response from a GetEvalCapabilitiesWithResponse call
+func ParseGetEvalCapabilitiesResponse(rsp *http.Response) (*GetEvalCapabilitiesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEvalCapabilitiesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalCapabilities
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetEvalCapabilitiesResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetEvalCapabilitiesResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetEvalCapabilitiesResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers GetEvalCapabilitiesResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetEvalCapabilitiesResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetEvalCapabilitiesResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers GetEvalCapabilitiesResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetEvalCapabilitiesResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetEvalCapabilitiesResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListEvalExperimentsResponse parses an HTTP response from a ListEvalExperimentsWithResponse call
+func ParseListEvalExperimentsResponse(rsp *http.Response) (*ListEvalExperimentsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEvalExperimentsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalExperimentPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListEvalExperimentsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListEvalExperimentsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListEvalExperimentsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers ListEvalExperimentsResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListEvalExperimentsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListEvalExperimentsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers ListEvalExperimentsResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListEvalExperimentsResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListEvalExperimentsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseDeleteEvalExperimentResponse parses an HTTP response from a DeleteEvalExperimentWithResponse call
+func ParseDeleteEvalExperimentResponse(rsp *http.Response) (*DeleteEvalExperimentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteEvalExperimentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest EvalExperimentReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 202:
+		var headers DeleteEvalExperimentResponse202Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers202 = &headers
+	case rsp.StatusCode == 400:
+		var headers DeleteEvalExperimentResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers DeleteEvalExperimentResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers DeleteEvalExperimentResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers DeleteEvalExperimentResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers DeleteEvalExperimentResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers DeleteEvalExperimentResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers DeleteEvalExperimentResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers DeleteEvalExperimentResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetEvalExperimentResponse parses an HTTP response from a GetEvalExperimentWithResponse call
+func ParseGetEvalExperimentResponse(rsp *http.Response) (*GetEvalExperimentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEvalExperimentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalExperiment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetEvalExperimentResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetEvalExperimentResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetEvalExperimentResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers GetEvalExperimentResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetEvalExperimentResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetEvalExperimentResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers GetEvalExperimentResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetEvalExperimentResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetEvalExperimentResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseUpdateEvalDraftResponse parses an HTTP response from a UpdateEvalDraftWithResponse call
+func ParseUpdateEvalDraftResponse(rsp *http.Response) (*UpdateEvalDraftResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateEvalDraftResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalExperimentReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers UpdateEvalDraftResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers UpdateEvalDraftResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers UpdateEvalDraftResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers UpdateEvalDraftResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers UpdateEvalDraftResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers UpdateEvalDraftResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers UpdateEvalDraftResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers UpdateEvalDraftResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers UpdateEvalDraftResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseCommandEvalExperimentResponse parses an HTTP response from a CommandEvalExperimentWithResponse call
+func ParseCommandEvalExperimentResponse(rsp *http.Response) (*CommandEvalExperimentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CommandEvalExperimentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EvalExperimentReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest EvalCommandReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 201:
+		var headers CommandEvalExperimentResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers201 = &headers
+	case rsp.StatusCode == 202:
+		var headers CommandEvalExperimentResponse202Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers202 = &headers
+	case rsp.StatusCode == 400:
+		var headers CommandEvalExperimentResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers CommandEvalExperimentResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers CommandEvalExperimentResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers CommandEvalExperimentResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers CommandEvalExperimentResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers CommandEvalExperimentResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers CommandEvalExperimentResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers CommandEvalExperimentResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetEvalCommandResponse parses an HTTP response from a GetEvalCommandWithResponse call
+func ParseGetEvalCommandResponse(rsp *http.Response) (*GetEvalCommandResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEvalCommandResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalCommandReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetEvalCommandResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetEvalCommandResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetEvalCommandResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers GetEvalCommandResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetEvalCommandResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetEvalCommandResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers GetEvalCommandResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers GetEvalCommandResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetEvalCommandResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListEvalMembersResponse parses an HTTP response from a ListEvalMembersWithResponse call
+func ParseListEvalMembersResponse(rsp *http.Response) (*ListEvalMembersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEvalMembersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalMemberPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListEvalMembersResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListEvalMembersResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListEvalMembersResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers ListEvalMembersResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListEvalMembersResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListEvalMembersResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers ListEvalMembersResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListEvalMembersResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListEvalMembersResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseSubmitEvalMemberResponse parses an HTTP response from a SubmitEvalMemberWithResponse call
+func ParseSubmitEvalMemberResponse(rsp *http.Response) (*SubmitEvalMemberResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SubmitEvalMemberResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest EvalSubmissionReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 202:
+		var headers SubmitEvalMemberResponse202Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers202 = &headers
+	case rsp.StatusCode == 400:
+		var headers SubmitEvalMemberResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers SubmitEvalMemberResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers SubmitEvalMemberResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers SubmitEvalMemberResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers SubmitEvalMemberResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers SubmitEvalMemberResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers SubmitEvalMemberResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers SubmitEvalMemberResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -47058,6 +55132,944 @@ func ParseCreateAuditResponse(rsp *http.Response) (*CreateAuditResponse, error) 
 		response.Headers409 = &headers
 	case rsp.StatusCode == 500:
 		var headers CreateAuditResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListEvalDatasetsResponse parses an HTTP response from a ListEvalDatasetsWithResponse call
+func ParseListEvalDatasetsResponse(rsp *http.Response) (*ListEvalDatasetsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEvalDatasetsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalDatasetPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListEvalDatasetsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListEvalDatasetsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListEvalDatasetsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers ListEvalDatasetsResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListEvalDatasetsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListEvalDatasetsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers ListEvalDatasetsResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListEvalDatasetsResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListEvalDatasetsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseImportEvalDatasetResponse parses an HTTP response from a ImportEvalDatasetWithResponse call
+func ParseImportEvalDatasetResponse(rsp *http.Response) (*ImportEvalDatasetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ImportEvalDatasetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EvalDataset
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 201:
+		var headers ImportEvalDatasetResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers201 = &headers
+	case rsp.StatusCode == 400:
+		var headers ImportEvalDatasetResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ImportEvalDatasetResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers ImportEvalDatasetResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers ImportEvalDatasetResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ImportEvalDatasetResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers ImportEvalDatasetResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers ImportEvalDatasetResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ImportEvalDatasetResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListEvalCasesResponse parses an HTTP response from a ListEvalCasesWithResponse call
+func ParseListEvalCasesResponse(rsp *http.Response) (*ListEvalCasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListEvalCasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EvalCasePage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListEvalCasesResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListEvalCasesResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListEvalCasesResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers ListEvalCasesResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListEvalCasesResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListEvalCasesResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers ListEvalCasesResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers ListEvalCasesResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListEvalCasesResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseCreateEvalExperimentResponse parses an HTTP response from a CreateEvalExperimentWithResponse call
+func ParseCreateEvalExperimentResponse(rsp *http.Response) (*CreateEvalExperimentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateEvalExperimentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest EvalExperimentReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error400
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error401
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error403
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error404
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error409
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error412
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error422
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error500
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 201:
+		var headers CreateEvalExperimentResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers201 = &headers
+	case rsp.StatusCode == 400:
+		var headers CreateEvalExperimentResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers CreateEvalExperimentResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers CreateEvalExperimentResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers CreateEvalExperimentResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers CreateEvalExperimentResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers CreateEvalExperimentResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 422:
+		var headers CreateEvalExperimentResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers CreateEvalExperimentResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

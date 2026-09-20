@@ -20,5 +20,8 @@ Accepted contracts belong in the specification; implementation status belongs in
 [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
 current readiness.
 
+[Evals experience design](evals-experience-design.md) records the selected full
+browser journey and independent producer boundary; V38 implementation is planned.
+
 [Architecture review — 2026-09-15](reviews/architecture-review-2026-09-15.md)
 records the per-view scenario checks, fixes and verification limits.

@@ -4,6 +4,179 @@
  */
 
 export interface paths {
+    "/v1/eval-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getEvalCapabilities */
+        get: operations["getEvalCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/eval-datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** listEvalDatasets */
+        get: operations["listEvalDatasets"];
+        put?: never;
+        /** importEvalDataset */
+        post: operations["importEvalDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** listEvalCases */
+        get: operations["listEvalCases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/eval-experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** createEvalExperiment */
+        post: operations["createEvalExperiment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** listEvalExperiments */
+        get: operations["listEvalExperiments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getEvalExperiment */
+        get: operations["getEvalExperiment"];
+        put?: never;
+        post?: never;
+        /** deleteEvalExperiment */
+        delete: operations["deleteEvalExperiment"];
+        options?: never;
+        head?: never;
+        /** updateEvalDraft */
+        patch: operations["updateEvalDraft"];
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** commandEvalExperiment */
+        post: operations["commandEvalExperiment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/commands/{commandId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** getEvalCommand */
+        get: operations["getEvalCommand"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** listEvalMembers */
+        get: operations["listEvalMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/eval-experiments/{id}/members/{memberId}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** submitEvalMember */
+        post: operations["submitEvalMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/finding-collections": {
         parameters: {
             query?: never;
@@ -1808,6 +1981,676 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        EvalId: string;
+        EvalOpaque: string;
+        EvalSelector: string;
+        EvalDigest: string;
+        EvalMemberID: string;
+        /** Format: date-time */
+        EvalTimestamp: string;
+        EvalMedia: string;
+        EvalArtifactName: string;
+        EvalArtifact: {
+            /** @enum {string} */
+            scope: "user" | "project" | "run";
+            scopeId: components["schemas"]["EvalOpaque"];
+            namespace: components["schemas"]["EvalArtifactName"];
+            name: components["schemas"]["EvalArtifactName"];
+            revision: components["schemas"]["EvalOpaque"];
+            sha256: components["schemas"]["EvalDigest"];
+            mediaType: components["schemas"]["EvalMedia"];
+            sizeBytes: number;
+        };
+        EvalSource: {
+            system: components["schemas"]["EvalId"];
+            id: components["schemas"]["EvalId"];
+            revision: components["schemas"]["EvalOpaque"] | null;
+            sourceSha256: components["schemas"]["EvalDigest"] | null;
+        };
+        EvalTask: {
+            kind: components["schemas"]["EvalId"];
+            objective: string;
+            parameters: {
+                [key: string]: string;
+            };
+        };
+        EvalOutput: {
+            mediaTypes: components["schemas"]["EvalMedia"][];
+            required: boolean;
+        };
+        EvalCase: {
+            id: components["schemas"]["EvalId"];
+            task: components["schemas"]["EvalTask"];
+            inputs: {
+                [key: string]: components["schemas"]["EvalArtifact"];
+            };
+            requires: components["schemas"]["EvalSelector"][];
+            outputs: {
+                [key: string]: components["schemas"]["EvalOutput"];
+            };
+            source?: components["schemas"]["EvalSource"];
+        };
+        EvalPrivateCheck: {
+            id: components["schemas"]["EvalId"];
+            revision: components["schemas"]["EvalOpaque"];
+            rubric: string;
+            expected: {
+                [key: string]: string;
+            };
+            schema?: string;
+        };
+        EvalDatasetInput: {
+            datasetId: components["schemas"]["EvalId"];
+            name: string;
+            source?: components["schemas"]["EvalSource"];
+            cases: components["schemas"]["EvalCase"][];
+            privateChecks: components["schemas"]["EvalPrivateCheck"][];
+        };
+        EvalDataset: {
+            datasetId: components["schemas"]["EvalId"];
+            name: string;
+            projectId: components["schemas"]["EvalOpaque"];
+            revision: components["schemas"]["EvalOpaque"];
+            visibleSha256: components["schemas"]["EvalDigest"];
+            caseCount: number;
+            source?: components["schemas"]["EvalSource"];
+        };
+        EvalDatasetRef: {
+            id: components["schemas"]["EvalId"];
+            revision: components["schemas"]["EvalOpaque"];
+        };
+        EvalExecutionSelection: {
+            modelPolicy?: components["schemas"]["EvalSelector"];
+            llmGateway?: components["schemas"]["EvalSelector"];
+            credential?: components["schemas"]["EvalOpaque"] | null;
+        };
+        EvalStageOverride: {
+            planner?: components["schemas"]["EvalExecutionSelection"];
+            agents?: {
+                [key: string]: components["schemas"]["EvalExecutionSelection"];
+            };
+        };
+        EvalExecutionConfig: {
+            planner?: components["schemas"]["EvalExecutionSelection"];
+            workers?: components["schemas"]["EvalExecutionSelection"];
+            stages?: {
+                [key: string]: components["schemas"]["EvalStageOverride"];
+            };
+        };
+        EvalVariant: {
+            id: components["schemas"]["EvalId"];
+            /** @enum {string} */
+            kind: "workflow" | "audit";
+            selector: components["schemas"]["EvalSelector"];
+            executionConfig: components["schemas"]["EvalExecutionConfig"];
+            runtimeLabels?: components["schemas"]["EvalId"][];
+            inputMapping?: {
+                [key: string]: components["schemas"]["EvalId"];
+            };
+            outputMapping?: {
+                [key: string]: components["schemas"]["EvalId"];
+            };
+            parameters?: {
+                [key: string]: string;
+            };
+        };
+        EvalCheck: {
+            id: components["schemas"]["EvalId"];
+            evaluator: components["schemas"]["EvalSelector"];
+            required: boolean;
+            rubricRevision?: components["schemas"]["EvalOpaque"];
+            implementationSha256?: components["schemas"]["EvalDigest"];
+            parameters?: {
+                [key: string]: string;
+            };
+            allowNotApplicable?: boolean;
+        };
+        EvalBudgets: {
+            maxMembers: number;
+            maxInFlight: number;
+            wallMs: number;
+            maxObservedTotalTokens: number | null;
+        };
+        EvalOrder: {
+            /** @enum {string} */
+            kind: "alternating" | "seeded_shuffle";
+            seed?: number;
+        } & unknown;
+        EvalGates: {
+            minCandidateEndToEndPass: number;
+            maxQualityDrop: number;
+            maxTotalTokensRatio?: number;
+        };
+        EvalComparison: {
+            baseline: components["schemas"]["EvalId"];
+            candidate: components["schemas"]["EvalId"];
+            gates: components["schemas"]["EvalGates"];
+            requiredEqual: components["schemas"]["EvalId"][];
+            allowedDifferences: components["schemas"]["EvalId"][];
+        };
+        EvalDraft: {
+            dataset: components["schemas"]["EvalDatasetRef"];
+            caseIds: components["schemas"]["EvalId"][];
+            variants: components["schemas"]["EvalVariant"][];
+            repetitions: number;
+            order: components["schemas"]["EvalOrder"];
+            checks: components["schemas"]["EvalCheck"][];
+            comparison: components["schemas"]["EvalComparison"];
+            budgets: components["schemas"]["EvalBudgets"];
+        };
+        EvalMember: {
+            memberId: components["schemas"]["EvalMemberID"];
+            suiteId: components["schemas"]["EvalId"];
+            caseId: components["schemas"]["EvalId"];
+            sample: number;
+            variantId: components["schemas"]["EvalId"];
+            caseSha256: components["schemas"]["EvalDigest"];
+            bindingSha256: components["schemas"]["EvalDigest"];
+            /** @enum {string} */
+            eligibility: "eligible" | "unsupported" | "blocked";
+            reason: string | null;
+        };
+        EvalPublicPlan: {
+            /** @constant */
+            schema_version: "playground.public-projection/v1";
+            /** @constant */
+            source_schema_version: "playground.plan/v1";
+            source_record_sha256: components["schemas"]["EvalDigest"];
+            experiment_id: components["schemas"]["EvalId"];
+            created_at: components["schemas"]["EvalTimestamp"];
+            members: {
+                member_id: components["schemas"]["EvalMemberID"];
+                suite_id: components["schemas"]["EvalId"];
+                case_id: components["schemas"]["EvalId"];
+                variant_id: components["schemas"]["EvalId"];
+                case_sha256: components["schemas"]["EvalDigest"];
+                binding_sha256: components["schemas"]["EvalDigest"];
+                sample: number;
+                /** @enum {string} */
+                eligibility: "eligible" | "unsupported" | "blocked";
+            }[];
+        };
+        EvalMemberRecipe: {
+            memberId: components["schemas"]["EvalMemberID"];
+            case: components["schemas"]["EvalCase"];
+        };
+        EvalExternalRegistration: {
+            /** @constant */
+            schemaVersion: "contractor.eval-registration/v1";
+            sourcePlanSha256: components["schemas"]["EvalDigest"];
+            manifest: components["schemas"]["EvalPublicPlan"];
+            source: components["schemas"]["EvalSource"];
+            variants: components["schemas"]["EvalVariant"][];
+            recipes: components["schemas"]["EvalMemberRecipe"][];
+            checks: components["schemas"]["EvalCheck"][];
+            comparison: components["schemas"]["EvalComparison"];
+            budgets: components["schemas"]["EvalBudgets"];
+        };
+        EvalCreateExperiment: {
+            name: string;
+            /** @enum {string} */
+            controlMode: "server" | "external";
+            draft?: components["schemas"]["EvalDraft"];
+            registration?: components["schemas"]["EvalExternalRegistration"];
+        } & ({
+            /** @constant */
+            controlMode?: "server";
+        } | {
+            /** @constant */
+            controlMode?: "external";
+        });
+        EvalDraftUpdate: {
+            name: string;
+            draft: components["schemas"]["EvalDraft"];
+        };
+        EvalCommand: {
+            /** @enum {string} */
+            kind: "prepare" | "start" | "pause" | "resume" | "cancel" | "finalize" | "duplicate";
+            planSha256?: components["schemas"]["EvalDigest"];
+        } & unknown;
+        EvalSubmission: {
+            planSha256: components["schemas"]["EvalDigest"];
+        };
+        EvalDelete: Record<string, never>;
+        EvalExecutionRef: {
+            /** @enum {string} */
+            kind: "run" | "audit";
+            id: components["schemas"]["EvalOpaque"];
+        };
+        EvalExecution: {
+            ref: components["schemas"]["EvalExecutionRef"] | null;
+            /** @enum {string} */
+            state: "not_submitted" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "unknown";
+            startedAt: components["schemas"]["EvalTimestamp"] | null;
+            finishedAt: components["schemas"]["EvalTimestamp"] | null;
+            reason: string | null;
+        };
+        EvalMeasureScope: {
+            memberId: components["schemas"]["EvalMemberID"];
+            /** @enum {string} */
+            kind: "workflow" | "audit";
+            executions: components["schemas"]["EvalExecutionRef"][];
+            missing: string[];
+            interval: {
+                start: components["schemas"]["EvalTimestamp"];
+                end: components["schemas"]["EvalTimestamp"];
+            } | null;
+        };
+        EvalMeasure: {
+            value: number | null;
+            /** @enum {string} */
+            unit: "tokens" | "calls" | "milliseconds";
+            /** @enum {string} */
+            completeness: "complete" | "partial" | "unavailable";
+            sourceRefs: components["schemas"]["EvalDigest"][];
+            scope: components["schemas"]["EvalMeasureScope"];
+        };
+        EvalUsage: {
+            inputTokens: components["schemas"]["EvalMeasure"];
+            outputTokens: components["schemas"]["EvalMeasure"];
+            totalTokens: components["schemas"]["EvalMeasure"];
+            cachedInputTokens: components["schemas"]["EvalMeasure"];
+            modelCalls: components["schemas"]["EvalMeasure"];
+            toolCalls: components["schemas"]["EvalMeasure"];
+            toolFailures: components["schemas"]["EvalMeasure"];
+            wallMs: components["schemas"]["EvalMeasure"];
+        };
+        EvalEvidence: {
+            id: components["schemas"]["EvalId"];
+            artifact: components["schemas"]["EvalArtifact"];
+            location?: string;
+        };
+        EvalResultInput: {
+            /** @constant */
+            schemaVersion: "contractor.eval-result-input/v1";
+            planSha256: components["schemas"]["EvalDigest"];
+            memberId: components["schemas"]["EvalMemberID"];
+            source: components["schemas"]["EvalSource"];
+            execution: components["schemas"]["EvalExecution"];
+            collection: {
+                /** @enum {string} */
+                status: "complete" | "partial" | "unavailable";
+                gaps: string[];
+            };
+            outputs: {
+                [key: string]: components["schemas"]["EvalArtifact"];
+            };
+            evidence: components["schemas"]["EvalEvidence"][];
+            usage: components["schemas"]["EvalUsage"];
+            previousResultSha256: components["schemas"]["EvalDigest"] | null;
+        };
+        EvalCheckResult: {
+            id: components["schemas"]["EvalId"];
+            evaluator: components["schemas"]["EvalSelector"];
+            implementationSha256: components["schemas"]["EvalDigest"];
+            /** @enum {string} */
+            status: "pass" | "fail" | "error" | "incomplete" | "not_applicable";
+            reason: string;
+            evidenceRefs: components["schemas"]["EvalId"][];
+        };
+        EvalAssessmentSource: {
+            /** @enum {string} */
+            kind: "external" | "human" | "native";
+            producerId?: components["schemas"]["EvalId"];
+            recordSha256?: components["schemas"]["EvalDigest"];
+        } & unknown;
+        EvalAssessmentInput: {
+            /** @constant */
+            schemaVersion: "contractor.eval-assessment-input/v1";
+            source: components["schemas"]["EvalAssessmentSource"];
+            resultSha256: components["schemas"]["EvalDigest"];
+            checks: components["schemas"]["EvalCheckResult"][];
+            previousAssessmentSha256: components["schemas"]["EvalDigest"] | null;
+        };
+        EvalCheckRequest: {
+            /** @constant */
+            schemaVersion: "contractor.eval-check-request/v1";
+            source: {
+                /** @constant */
+                kind: "native";
+            };
+            resultSha256: components["schemas"]["EvalDigest"];
+            checkIds: components["schemas"]["EvalId"][];
+        };
+        EvalSelectionEntry: {
+            memberId: components["schemas"]["EvalMemberID"];
+            resultSha256: components["schemas"]["EvalDigest"];
+            assessmentSha256: components["schemas"]["EvalDigest"] | null;
+        };
+        EvalSelectionInput: {
+            planSha256: components["schemas"]["EvalDigest"];
+            selections: components["schemas"]["EvalSelectionEntry"][];
+        };
+        EvalPage: {
+            hasMore: boolean;
+            nextCursor: string | null;
+        };
+        EvalDiagnostic: {
+            code: components["schemas"]["EvalId"];
+            field: string;
+            /** @enum {string} */
+            recovery: "edit_draft" | "reload" | "retry_same_request" | "inspect_execution" | "wait" | "duplicate" | "none";
+        };
+        EvalCommandReceipt: {
+            commandId: components["schemas"]["EvalOpaque"];
+            experimentId: components["schemas"]["EvalOpaque"];
+            /** @enum {string} */
+            kind: "prepare" | "start" | "pause" | "resume" | "cancel" | "finalize" | "duplicate";
+            /** @enum {string} */
+            state: "accepted" | "running" | "completed" | "failed";
+            experimentRevision: number;
+            planSha256: components["schemas"]["EvalDigest"] | null;
+            diagnostics: components["schemas"]["EvalDiagnostic"][];
+        };
+        EvalSubmissionReceipt: {
+            memberId: components["schemas"]["EvalMemberID"];
+            planSha256: components["schemas"]["EvalDigest"];
+            /** @enum {string} */
+            state: "accepted" | "uncertain" | "completed" | "rejected";
+            execution: components["schemas"]["EvalExecutionRef"] | null;
+        };
+        EvalCounts: {
+            expected: number;
+            eligible: number;
+            unsupported: number;
+            blocked: number;
+            submitted: number;
+            terminal: number;
+            missing: number;
+            conflicting: number;
+            collectionComplete: number;
+            scored: number;
+            qualityPassed: number;
+            executionSucceeded: number;
+            endToEndPassed: number;
+        };
+        EvalRatio: {
+            numerator: number;
+            denominator: number;
+            value: number | null;
+        };
+        EvalQuality: {
+            executionSuccess: components["schemas"]["EvalRatio"];
+            endToEndPass: components["schemas"]["EvalRatio"];
+            conditionalQuality: components["schemas"]["EvalRatio"];
+        };
+        EvalSummary: {
+            counts: {
+                [key: string]: components["schemas"]["EvalCounts"];
+            };
+            quality: {
+                [key: string]: components["schemas"]["EvalQuality"];
+            };
+            terminalPairs: number;
+            completeQualityPairs: number;
+            completeTokenPairs: number;
+            /** @enum {string} */
+            conclusion: "pass" | "regressions" | "inconclusive";
+        };
+        EvalExperiment: {
+            experimentId: components["schemas"]["EvalOpaque"];
+            portableExperimentId: components["schemas"]["EvalId"];
+            projectId: components["schemas"]["EvalOpaque"];
+            name: string;
+            /** @enum {string} */
+            controlMode: "server" | "external";
+            /** @enum {string} */
+            executionKind: "workflow" | "audit";
+            /** @enum {string} */
+            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+            revision: number;
+            planSha256: components["schemas"]["EvalDigest"] | null;
+            viewSnapshot: components["schemas"]["EvalOpaque"] | null;
+            summary: components["schemas"]["EvalSummary"] | null;
+            updatedAt: components["schemas"]["EvalTimestamp"];
+            lastProducerActivityAt: components["schemas"]["EvalTimestamp"] | null;
+            draft?: components["schemas"]["EvalDraft"];
+            setup?: components["schemas"]["EvalExperimentSetup"];
+            expectedMembers: number;
+            allowedCommands: ("prepare" | "start" | "pause" | "resume" | "cancel" | "finalize" | "duplicate")[];
+            startedAt?: components["schemas"]["EvalTimestamp"] | null;
+            deadlineAt?: components["schemas"]["EvalTimestamp"] | null;
+            deletionRequestedAt?: components["schemas"]["EvalTimestamp"] | null;
+            diagnostics?: components["schemas"]["EvalDiagnostic"][];
+            observedTokens?: number;
+        } & unknown;
+        EvalCapabilities: {
+            controlModes: ("server" | "external")[];
+            executionKinds: ("workflow" | "audit")[];
+            checks: {
+                evaluator: components["schemas"]["EvalSelector"];
+                implementationSha256: components["schemas"]["EvalDigest"];
+                available: boolean;
+                reason: string | null;
+            }[];
+            importVersions: components["schemas"]["EvalSelector"][];
+            bindings?: components["schemas"]["EvalBindingCapability"][];
+            page?: components["schemas"]["EvalPage"];
+        };
+        EvalMemberView: {
+            member: components["schemas"]["EvalMember"];
+            execution: components["schemas"]["EvalExecution"] | null;
+            resultSha256: components["schemas"]["EvalDigest"] | null;
+            assessmentSha256: components["schemas"]["EvalDigest"] | null;
+            conflicting: boolean;
+            /** @enum {string} */
+            assessment: "pass" | "fail" | "error" | "incomplete" | "unscored";
+            usage: components["schemas"]["EvalUsage"] | null;
+        };
+        EvalInventoryEntry: {
+            execution: components["schemas"]["EvalExecutionRef"];
+            parent: components["schemas"]["EvalExecutionRef"] | null;
+            role: components["schemas"]["EvalId"] | null;
+            round: number | null;
+            /** @enum {string} */
+            state: "not_submitted" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "unknown";
+            available: boolean;
+        };
+        EvalExecutionPage: {
+            inventoryRevision: number;
+            inventoryComplete: boolean;
+            items: components["schemas"]["EvalInventoryEntry"][];
+            gaps: string[];
+            page: components["schemas"]["EvalPage"];
+        };
+        EvalPair: {
+            pairId: components["schemas"]["EvalMemberID"];
+            suiteId: components["schemas"]["EvalId"];
+            caseId: components["schemas"]["EvalId"];
+            sample: number;
+            a: components["schemas"]["EvalMemberView"];
+            b: components["schemas"]["EvalMemberView"];
+            exclusions: string[];
+            regression: boolean;
+        };
+        EvalDatasetPage: {
+            items: components["schemas"]["EvalDataset"][];
+            page: components["schemas"]["EvalPage"];
+        };
+        EvalCasePage: {
+            items: components["schemas"]["EvalCase"][];
+            page: components["schemas"]["EvalPage"];
+        };
+        EvalExperimentPage: {
+            items: components["schemas"]["EvalExperimentSummary"][];
+            page: components["schemas"]["EvalPage"];
+        };
+        EvalMemberPage: {
+            viewSnapshot: components["schemas"]["EvalOpaque"];
+            /** @enum {string} */
+            freshness: "current" | "stale";
+            experimentSummary: components["schemas"]["EvalSummary"];
+            filteredCount: number;
+            items: components["schemas"]["EvalMemberView"][];
+            page: components["schemas"]["EvalPage"];
+        };
+        EvalPairPage: {
+            viewSnapshot: components["schemas"]["EvalOpaque"];
+            /** @enum {string} */
+            freshness: "current" | "stale";
+            experimentSummary: components["schemas"]["EvalSummary"];
+            filteredCount: number;
+            items: components["schemas"]["EvalPair"][];
+            page: components["schemas"]["EvalPage"];
+        };
+        EvalReview: {
+            memberId: components["schemas"]["EvalMemberID"];
+            resultSha256: components["schemas"]["EvalDigest"];
+            checks: components["schemas"]["EvalPrivateCheck"][];
+            evidence: components["schemas"]["EvalEvidence"][];
+            gaps: string[];
+        };
+        EvalRecordReceipt: {
+            memberId: components["schemas"]["EvalMemberID"];
+            recordSha256: components["schemas"]["EvalDigest"];
+            previousRecordSha256: components["schemas"]["EvalDigest"] | null;
+        };
+        EvalSelectionReceipt: {
+            revision: number;
+            viewSnapshot: components["schemas"]["EvalOpaque"];
+        };
+        EvalReport: {
+            /** @constant */
+            schemaVersion: "contractor.eval-report/v1";
+            experimentId: components["schemas"]["EvalOpaque"];
+            planSha256: components["schemas"]["EvalDigest"];
+            viewSnapshot: components["schemas"]["EvalOpaque"];
+            summary: components["schemas"]["EvalSummary"];
+            sources: components["schemas"]["EvalSource"][];
+            pairCount: number;
+        };
+        EvalCoverage: {
+            expectedPairs: number;
+            includedPairs: number;
+            excludedPairs: number;
+            reasons: {
+                [key: string]: number;
+            };
+        };
+        EvalBin: {
+            lower: number;
+            upper: number;
+            upperInclusive: boolean;
+            counts: {
+                a: number;
+                b: number;
+            };
+            filterToken: string;
+        };
+        EvalDistribution: {
+            total: number | null;
+            p50: number | null;
+            p90: number | null;
+            count: number;
+        };
+        EvalDelta: {
+            pairId: components["schemas"]["EvalMemberID"];
+            suiteId: components["schemas"]["EvalId"];
+            caseId: components["schemas"]["EvalId"];
+            sample: number;
+            a: number;
+            b: number;
+            difference: number;
+            regression: boolean;
+        };
+        EvalProgressPoint: {
+            elapsedMs: number;
+            observedAt: components["schemas"]["EvalTimestamp"];
+            a: number | null;
+            b: number | null;
+            gapBefore: boolean;
+        };
+        EvalChart: {
+            /** @enum {string} */
+            chart: "quality" | "tokens" | "duration" | "pair-deltas" | "progress";
+            viewSnapshot: components["schemas"]["EvalOpaque"];
+            /** @enum {string} */
+            freshness: "current" | "stale";
+            suiteId: components["schemas"]["EvalId"] | null;
+            measurementScope: string | null;
+            /** @enum {string} */
+            unit: "fraction" | "tokens" | "milliseconds" | "members";
+            coverage: components["schemas"]["EvalCoverage"];
+            experimentSummary: components["schemas"]["EvalSummary"];
+            quality?: {
+                [key: string]: components["schemas"]["EvalQuality"];
+            };
+            bins?: components["schemas"]["EvalBin"][];
+            distributions?: {
+                a: components["schemas"]["EvalDistribution"];
+                b: components["schemas"]["EvalDistribution"];
+            };
+            differences?: components["schemas"]["EvalDelta"][];
+            page?: components["schemas"]["EvalPage"];
+            points?: components["schemas"]["EvalProgressPoint"][];
+            bucketMs?: number;
+        } & ({
+            /** @constant */
+            chart?: "quality";
+            /** @constant */
+            unit?: "fraction";
+        } | {
+            /** @enum {string} */
+            chart?: "tokens" | "duration";
+        } | {
+            /** @constant */
+            chart?: "pair-deltas";
+        } | {
+            /** @constant */
+            chart?: "progress";
+            /** @constant */
+            unit?: "members";
+        });
+        EvalAPIError: {
+            /** @enum {string} */
+            code: "eval_invalid" | "eval_limit_exceeded" | "eval_not_found" | "eval_not_ready" | "eval_preparation_unavailable" | "eval_pin_mismatch" | "eval_external_control" | "eval_view_changed" | "eval_member_conflict" | "eval_evidence_unavailable" | "eval_producer_stale" | "eval_budget_exhausted" | "eval_project_deleting" | "eval_precondition_required" | "eval_revision_mismatch" | "eval_idempotency_conflict";
+            message: string;
+            /** @enum {string} */
+            recovery: "edit_draft" | "reload" | "retry_same_request" | "inspect_execution" | "wait" | "duplicate" | "none";
+        };
+        EvalExperimentSetup: {
+            comparison: components["schemas"]["EvalComparison"];
+            budgets: components["schemas"]["EvalBudgets"];
+            variants: components["schemas"]["EvalVariant"][];
+            checks: components["schemas"]["EvalCheck"][];
+            dataset?: components["schemas"]["EvalDatasetRef"];
+            caseIds?: components["schemas"]["EvalId"][];
+            repetitions?: number;
+            source?: components["schemas"]["EvalSource"];
+        };
+        EvalExperimentSummary: {
+            experimentId: components["schemas"]["EvalOpaque"];
+            projectId: components["schemas"]["EvalOpaque"];
+            name: string;
+            /** @enum {string} */
+            controlMode: "server" | "external";
+            /** @enum {string} */
+            executionKind: "workflow" | "audit";
+            /** @enum {string} */
+            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+            revision: number;
+            expectedMembers: number;
+            updatedAt: components["schemas"]["EvalTimestamp"];
+        };
+        EvalExperimentReceipt: {
+            experimentId: components["schemas"]["EvalOpaque"];
+            revision: number;
+            /** @enum {string} */
+            state: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+        };
+        EvalBindingCapability: {
+            /** @enum {string} */
+            kind: "workflow" | "audit";
+            selector: components["schemas"]["EvalSelector"];
+            available: boolean;
+            reason: string | null;
+        };
+        EvalErrorDetails: {
+            /** @constant */
+            kind: "eval";
+            /** @enum {unknown} */
+            recovery: "edit_draft" | "reload" | "retry_same_request" | "inspect_execution" | "wait" | "duplicate" | "none";
+        };
         GitKeyState: {
             configured: boolean;
             fingerprint?: string;
@@ -2745,7 +3588,7 @@ export interface components {
             message: string;
             retryable: boolean;
             requestId: components["schemas"]["RequestId"];
-            details?: components["schemas"]["CredentialInUseDetails"] | components["schemas"]["RuntimeCredentialInUseDetails"] | components["schemas"]["RuntimeLabelInUseDetails"] | components["schemas"]["RunNotDeletableDetails"] | components["schemas"]["AuditProfileUnsupportedDetails"];
+            details?: components["schemas"]["CredentialInUseDetails"] | components["schemas"]["RuntimeCredentialInUseDetails"] | components["schemas"]["RuntimeLabelInUseDetails"] | components["schemas"]["RunNotDeletableDetails"] | components["schemas"]["AuditProfileUnsupportedDetails"] | components["schemas"]["EvalErrorDetails"];
         };
         CredentialInUseDetails: {
             /** @constant */
@@ -4748,6 +5591,881 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getEvalCapabilities: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                kind?: "workflow" | "audit";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalCapabilities"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listEvalDatasets: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalDatasetPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    importEvalDataset: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                projectId: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalDatasetInput"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            201: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalDataset"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listEvalCases: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                projectId: components["schemas"]["EvalOpaque"];
+                datasetId: components["schemas"]["EvalId"];
+                revision: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalCasePage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createEvalExperiment: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                projectId: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalCreateExperiment"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            201: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExperimentReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listEvalExperiments: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                projectId?: string;
+                state?: "draft" | "preparing" | "ready" | "running" | "settling" | "finished" | "pausing" | "paused" | "cancelling" | "cancelled" | "interrupted";
+                datasetId?: string;
+                controlMode?: "server" | "external";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExperimentPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getEvalExperiment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExperiment"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deleteEvalExperiment: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalDelete"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            202: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExperimentReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateEvalDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalDraftUpdate"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExperimentReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    commandEvalExperiment: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalCommand"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            201: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalExperimentReceipt"];
+                };
+            };
+            /** @description Owner-scoped evaluation response */
+            202: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalCommandReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getEvalCommand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                commandId: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalCommandReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listEvalMembers: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+                viewSnapshot?: string;
+                filter?: "all" | "unresolved" | "failed" | "unscored" | "unsupported" | "blocked" | "conflicting";
+                variantId?: string;
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            200: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalMemberPage"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    submitEvalMember: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: components["schemas"]["EvalOpaque"];
+                memberId: components["schemas"]["EvalMemberID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalSubmission"];
+            };
+        };
+        responses: {
+            /** @description Owner-scoped evaluation response */
+            202: {
+                headers: {
+                    "X-Contractor-API-Version": components["headers"]["ContractorAPIVersion"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalSubmissionReceipt"];
+                };
+            };
+            400: components["responses"]["Error400"];
+            401: components["responses"]["Error401"];
+            403: components["responses"]["Error403"];
+            404: components["responses"]["Error404"];
+            /** @description Method is not allowed */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            409: components["responses"]["Error409"];
+            412: components["responses"]["Error412"];
+            422: components["responses"]["Error422"];
+            /** @description Evaluation revision precondition is required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            500: components["responses"]["Error500"];
+            /** @description Evaluation service is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     publishFindingCollection: {
         parameters: {
             query?: never;

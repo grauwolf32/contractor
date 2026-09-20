@@ -401,7 +401,7 @@ func scanRuntimeCredentialRecord(row rowScanner) (RuntimeCredentialRecord, error
 		return RuntimeCredentialRecord{}, ErrRuntimeCredentialNotFound
 	}
 	if err != nil {
-		return RuntimeCredentialRecord{}, errors.New("read Runtime credential record")
+		return RuntimeCredentialRecord{}, persistencepostgres.WrapError("read Runtime credential record", err)
 	}
 	if err := validateRuntimeCredentialRecord(result); err != nil {
 		return RuntimeCredentialRecord{}, errors.New("stored Runtime credential failed integrity validation")

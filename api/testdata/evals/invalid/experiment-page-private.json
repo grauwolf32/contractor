@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "experimentId": "experiment-1",
+      "projectId": "evaluation-1",
+      "name": "Trace instructions",
+      "controlMode": "server",
+      "executionKind": "workflow",
+      "state": "interrupted",
+      "revision": 7,
+      "expectedMembers": 8,
+      "updatedAt": "2026-09-19T10:00:02Z",
+      "draft": {
+        "private": "must not be listed"
+      }
+    }
+  ],
+  "page": {
+    "hasMore": false,
+    "nextCursor": null
+  }
+}

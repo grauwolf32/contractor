@@ -1,0 +1,133 @@
+schema_version: "1.0"
+id: "V38-008"
+title: "Show complete experiment comparisons, evidence and review in Evals"
+milestone: "managed-evals-ui"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+implementation_repository: "contractor"
+depends_on: ["V38-007"]
+languages: ["typescript"]
+goal: >-
+  Make experiment progress, paired quality/cost evidence and human review discoverable without a
+  single long page or misleading partial totals.
+context:
+  specification: >-
+    docs/spec/29-managed-evals.md
+  design: >-
+    docs/evals-experience-design.md
+  format: >-
+    docs/spec/26-portable-evaluation-format.md
+  user_story: >-
+    US-10 in docs/spec/ui-user-stories.md
+  boundary: >-
+    Contractor builds and runs native Evals without Playground. Server and external control
+    modes are immutable and mutually exclusive for dispatch. Both submit ordinary Runs/Audits
+    through existing services; no new Worker Scheduler or label-based membership authority. The
+    delivered portable CLI format and private recovery journals remain compatible.
+  verification: >-
+    Create the named focused test files/packages as part of implementation. PostgreSQL commands
+    require a disposable database and must not pass by skipping integration cases. Use
+    deterministic fixtures; these tasks do not authorize paid models, live targets, tighter
+    global token defaults or shared-demo mutations.
+  locations: >-
+    Contractor UI: ui/src/routes/evals, new ui/src/routes/evals-comparison.test.tsx and
+    ui/e2e/evals-comparison.spec.ts. Preserve existing /evals/{projectId} legacy workspace and
+    its Run/artifact navigation.
+scope:
+  in:
+    - >-
+      Replace the top-level eval workspace list with paginated experiment summaries and
+      lifecycle/dataset/project/control-mode filters. Retain explicit legacy workspace
+      navigation without inferring experiment membership from labels.
+    - >-
+      Complete Overview, Comparison, Attempts and Setup tabs; pair detail keeps exact A/B
+      case/sample evidence and Run/Audit links. Render unknown, unsupported, unsubmitted, failed
+      execution, failed check, awaiting review and external provenance distinctly.
+    - >-
+      Add owner human review against the pinned rubric/exact result, CAS selection, safe report
+      export, per-dimension pair counts and incomplete-data explanations. Retain filters and
+      pagination context on diagnostic/evidence round trips.
+    - >-
+      Add compact quality and progress charts to Overview, and token/duration distributions
+      plus paginated case/sample differences in Comparison. Use the chart API and metric
+      selector rather than loading all Runs or expanding a long dashboard. Provide bin-to-list
+      and point-to-pair navigation, exact coverage and equivalent accessible data tables.
+  out:
+    - >-
+      Client-side scans of all Runs, first-page totals, implicit quality inference, external
+      producer control and displaying private expected answers in ordinary model-visible
+      artifacts.
+requirements:
+  - id: "R1"
+    text: >-
+      Whole experiment denominators come from the selected server snapshot; filtered counts are
+      separate. A new view invalidates the cursor explicitly and preserves user filters.
+      Native/external provenance remains visible alongside judgment.
+  - id: "R2"
+    text: >-
+      Default comparison emphasizes regressions and unresolved pairs, with All pairs available.
+      A known regression stays visible when overall evidence is inconclusive. Failed attempts
+      retain their known cost/time; unavailable values display as unavailable.
+  - id: "R3"
+    text: >-
+      Use paired cards at 390px and side-by-side rows/evidence at 1280px with keyboard access
+      and meaningful labels. Review is an explicit attributable action; stale result/rubric/CAS
+      prompts a fresh review instead of applying to changed evidence.
+  - id: "R4"
+    text: >-
+      Keep A blue/B orange with labels and non-colour alternatives; reuse Operations chart
+      conventions. Show p50/p90 as observed variation, never confidence intervals. Missing
+      metrics hide their plot but retain a coverage explanation; unmatched scopes are not
+      overlaid. Support touch/keyboard detail, filter-preserving drill-down and one chart at a
+      time on narrow screens. Cross-experiment history trends remain outside this slice.
+acceptance_criteria:
+  - id: "A1"
+    given: >-
+      The trace-small 8-member comparison and a paginated larger experiment.
+    when: >-
+      Users filter, paginate, export and open paired evidence.
+    then: >-
+      All counts and dimension coverage match the API, unknown usage is never zero and no
+      partial page or external claim becomes a false quality/cost conclusion.
+  - id: "A2"
+    given: >-
+      A human reviewer with exact result and pinned rubric.
+    when: >-
+      They submit, lose a response, encounter new evidence and revisit history.
+    then: >-
+      The immutable assessment receipt is recovered without duplicate review; stale selection
+      cannot overwrite newer evidence and predecessor/source attribution remains visible.
+  - id: "A3"
+    given: >-
+      Native, external and legacy fixtures at both viewports.
+    when: >-
+      Users navigate tabs, Run/Audit/artifacts and back with keyboard interactions.
+    then: >-
+      Context is retained, old links resolve, external controls are truthful and mobile layout
+      keeps A/B identity and primary actions legible.
+  - id: "A4"
+    given: >-
+      Workflow and Audit fixtures with full, partial, empty, single-sample and large chart
+      cohorts plus observation gaps; Audits have multiple children/rounds/retries.
+    when: >-
+      Users change metric/filter, inspect bins/points, open data tables and return from pairs
+      at 390px and 1280px using mouse, touch or keyboard.
+    then: >-
+      Charts retain exact cohort coverage, units and A/B colours, never turn missing values
+      into zero or join gaps, and agree with tables across pages; focus and navigation context
+      survive drill-down without requiring colour or hover to understand a result. Audit
+      charts count the parent once and open its report/coverage, with child Runs available
+      as bounded evidence rather than extra samples.
+tests:
+  - name: "ui"
+    command: >-
+      cd ui && corepack pnpm exec vitest run src/routes/evals-comparison.test.tsx
+      src/routes/evals-skills.test.tsx && corepack pnpm typecheck && corepack pnpm lint &&
+      corepack pnpm build
+    covers: ["A1", "A2", "A3", "A4"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/evals-comparison.spec.ts
+      e2e/evals-skills.spec.ts
+    covers: ["A1", "A2", "A3", "A4"]

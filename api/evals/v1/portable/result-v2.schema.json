@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:playground:portable:result/v2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "playground.result/v2"
+    },
+    "experiment_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "member_id": {
+      "$ref": "urn:playground:portable:common#/$defs/MemberId"
+    },
+    "plan_sha256": {
+      "$ref": "urn:playground:portable:common#/$defs/Digest"
+    },
+    "observed_at": {
+      "$ref": "urn:playground:portable:common#/$defs/Timestamp"
+    },
+    "previous_result": {
+      "anyOf": [
+        {
+          "$ref": "urn:playground:portable:common#/$defs/DocumentRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "execution": {
+      "$ref": "urn:playground:portable:common#/$defs/Execution"
+    },
+    "collection": {
+      "$ref": "urn:playground:portable:common#/$defs/Collection"
+    },
+    "outputs": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "$ref": "urn:playground:portable:common#/$defs/BlobRef"
+      },
+      "maxProperties": 128
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/Evidence"
+      },
+      "maxItems": 1024,
+      "minItems": 0
+    },
+    "usage": {
+      "$ref": "urn:playground:portable:common#/$defs/Usage"
+    },
+    "provenance": {
+      "$ref": "urn:playground:portable:common#/$defs/Provenance"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/Diagnostic"
+      },
+      "maxItems": 1024,
+      "minItems": 0
+    },
+    "extensions": {
+      "$ref": "urn:playground:portable:common#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "member_id",
+    "plan_sha256",
+    "observed_at",
+    "previous_result",
+    "execution",
+    "collection",
+    "outputs",
+    "evidence",
+    "usage",
+    "provenance",
+    "diagnostics"
+  ],
+  "additionalProperties": false
+}

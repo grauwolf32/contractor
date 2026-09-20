@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/evalstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -334,6 +335,9 @@ func (c *Controller) waitForDrain(
 	ctx context.Context,
 	claim deletionClaim,
 ) (bool, bool, error) {
+	if blocked, err := evalstore.NewPostgresStore(c.pool).ProjectBlocked(ctx, claim.OwnerID, claim.ProjectID); err != nil || blocked {
+		return false, false, err
+	}
 	var blocked bool
 	err := c.pool.QueryRow(ctx, `
 SELECT EXISTS (
@@ -473,6 +477,9 @@ SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE project_id = $1),
 		}
 		if auditsRemain {
 			return errors.New("Project still has Audits during final purge")
+		}
+		if err := evalstore.NewTxStore(tx).PurgeProject(ctx, evalstore.Scope{OwnerID: claim.OwnerID, ProjectID: claim.ProjectID}); err != nil {
+			return err
 		}
 		purger, err := artifacts.NewPostgresPurger(tx)
 		if err != nil {

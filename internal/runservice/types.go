@@ -94,17 +94,21 @@ type Service struct {
 }
 
 type PublicCreateParams struct {
-	OwnerID         string
-	ProjectID       *string
-	Workflow        string
-	ExecutionConfig config.ExecutionConfigPatch
-	RuntimeLabels   []string
-	MetadataLabels  runstore.RunMetadataLabels
-	Parameters      map[string]string
-	Inputs          map[string]contracts.ArtifactRef
-	IdempotencyKey  string
-	RequestDigest   string
-	NewRunID        func() (string, error)
+	// Trusted preparation expectations are not public request fields.
+	ExpectedWorkflowSHA256 string
+	ExpectedRuntimeSHA256  string
+	ExpectedSkillsSHA256   string
+	OwnerID                string
+	ProjectID              *string
+	Workflow               string
+	ExecutionConfig        config.ExecutionConfigPatch
+	RuntimeLabels          []string
+	MetadataLabels         runstore.RunMetadataLabels
+	Parameters             map[string]string
+	Inputs                 map[string]contracts.ArtifactRef
+	IdempotencyKey         string
+	RequestDigest          string
+	NewRunID               func() (string, error)
 }
 
 // AuditCreateParams contains only already-pinned server-side values. It has no

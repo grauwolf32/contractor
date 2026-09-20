@@ -81,24 +81,28 @@ type ProfileProjection struct {
 }
 
 type CreateDraftParams struct {
-	AuditID        string
-	OwnerID        string
-	ProjectID      string
-	Profile        ProfileSelector
-	Inputs         map[string]contracts.ArtifactRef
-	RuntimeLabels  []string
-	Scope          Scope
-	IdempotencyKey string
-	RequestDigest  string
+	ExpectedProfileSHA256 string
+	AuditID               string
+	OwnerID               string
+	ProjectID             string
+	Profile               ProfileSelector
+	Inputs                map[string]contracts.ArtifactRef
+	RuntimeLabels         []string
+	Scope                 Scope
+	IdempotencyKey        string
+	RequestDigest         string
 }
 
 type StartParams struct {
-	OwnerID          string
-	AuditID          string
-	ExpectedRevision uint64
-	IdempotencyKey   string
-	RequestDigest    string
-	DeadlineSeconds  *int
+	ExpectedRuntimeSHA256   string
+	ExpectedSkillsSHA256    string
+	ExpectedStandardsSHA256 string
+	OwnerID                 string
+	AuditID                 string
+	ExpectedRevision        uint64
+	IdempotencyKey          string
+	RequestDigest           string
+	DeadlineSeconds         *int
 }
 
 type MutationParams struct {

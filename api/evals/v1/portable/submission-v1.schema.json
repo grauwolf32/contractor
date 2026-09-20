@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:playground:portable:submission/v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "playground.submission/v1"
+    },
+    "member_id": {
+      "$ref": "urn:playground:portable:common#/$defs/MemberId"
+    },
+    "plan_sha256": {
+      "$ref": "urn:playground:portable:common#/$defs/Digest"
+    },
+    "operation": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 1
+    },
+    "request_sha256": {
+      "$ref": "urn:playground:portable:common#/$defs/Digest"
+    },
+    "request": {
+      "$ref": "urn:playground:portable:common#/$defs/DocumentRef"
+    },
+    "provider": {
+      "$ref": "urn:playground:portable:common#/$defs/VersionedId"
+    },
+    "connection_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "maxLength": 128
+    },
+    "created_at": {
+      "$ref": "urn:playground:portable:common#/$defs/Timestamp"
+    },
+    "status": {
+      "enum": [
+        "prepared",
+        "uncertain",
+        "accepted",
+        "rejected",
+        "unknown"
+      ]
+    },
+    "receipts": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/Receipt"
+      },
+      "maxItems": 1024,
+      "minItems": 0
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:playground:portable:common#/$defs/Diagnostic"
+      },
+      "maxItems": 1024,
+      "minItems": 0
+    },
+    "extensions": {
+      "$ref": "urn:playground:portable:common#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "schema_version",
+    "member_id",
+    "plan_sha256",
+    "operation",
+    "idempotency_key",
+    "request_sha256",
+    "request",
+    "provider",
+    "connection_id",
+    "created_at",
+    "status",
+    "receipts",
+    "diagnostics"
+  ],
+  "additionalProperties": false
+}

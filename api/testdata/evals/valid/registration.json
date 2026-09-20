@@ -1,0 +1,417 @@
+{
+  "schemaVersion": "contractor.eval-registration/v1",
+  "sourcePlanSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+  "manifest": {
+    "schema_version": "playground.public-projection/v1",
+    "source_schema_version": "playground.plan/v1",
+    "source_record_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+    "experiment_id": "trace-1",
+    "created_at": "2026-09-19T10:00:00Z",
+    "members": [
+      {
+        "member_id": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+        "suite_id": "trace-small",
+        "case_id": "unsafe-query",
+        "variant_id": "a",
+        "sample": 1,
+        "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+        "suite_id": "trace-small",
+        "case_id": "unsafe-query",
+        "variant_id": "b",
+        "sample": 1,
+        "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+        "suite_id": "trace-small",
+        "case_id": "unsafe-query",
+        "variant_id": "a",
+        "sample": 2,
+        "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+        "suite_id": "trace-small",
+        "case_id": "unsafe-query",
+        "variant_id": "b",
+        "sample": 2,
+        "case_sha256": "sha256:e68c5353c24025db25c1ef73f738b8f5cd4967cb5f8a168cff3f1d8f18dab6f2",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+        "suite_id": "trace-small",
+        "case_id": "safe-query",
+        "variant_id": "a",
+        "sample": 1,
+        "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+        "suite_id": "trace-small",
+        "case_id": "safe-query",
+        "variant_id": "b",
+        "sample": 1,
+        "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+        "suite_id": "trace-small",
+        "case_id": "safe-query",
+        "variant_id": "a",
+        "sample": 2,
+        "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      },
+      {
+        "member_id": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+        "suite_id": "trace-small",
+        "case_id": "safe-query",
+        "variant_id": "b",
+        "sample": 2,
+        "case_sha256": "sha256:8596ebe3f8610ef90d11b197524ea3afbe619649540dcd4a6b9667ad77555f0d",
+        "binding_sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+        "eligibility": "eligible"
+      }
+    ]
+  },
+  "source": {
+    "system": "independent-evaluator",
+    "id": "trace-small",
+    "revision": "r1",
+    "sourceSha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5"
+  },
+  "variants": [
+    {
+      "id": "a",
+      "kind": "workflow",
+      "selector": "trace-a@1",
+      "executionConfig": {}
+    },
+    {
+      "id": "b",
+      "kind": "workflow",
+      "selector": "trace-b@1",
+      "executionConfig": {}
+    }
+  ],
+  "recipes": [
+    {
+      "memberId": "1ead5992257853d68fe9e8606dc2c7567cc21cf8d5badce918a7cfeda98f5acf",
+      "case": {
+        "id": "unsafe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "d2281c43da1b6078c742c698ef15d89f2b88a5e2e47584e5d12e20ff91629a12",
+      "case": {
+        "id": "unsafe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "85a43c9e1d2c3d7f2f9abc4c535989a02dd01fd2a641e6655a0c189bae28d0d0",
+      "case": {
+        "id": "unsafe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "bcc7756da7e873c73ae8d2611d024880679804a2b44bb032cbe71729ca021c1b",
+      "case": {
+        "id": "unsafe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "73b5a51a627474279f0cc01a5b735e09bb12fea5f69c04d94c31d5ca26ee9019",
+      "case": {
+        "id": "safe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "339c4ff5715f252a80e27844db273183a92bed8b76428cef1317e1df4295f691",
+      "case": {
+        "id": "safe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "61eacc0165daca08de79e0db6e8c01fde5c0ea0fde5c6243ef890513b731f2e3",
+      "case": {
+        "id": "safe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    },
+    {
+      "memberId": "e9978e0586220d487006381c37d5e5c0d1664abb3397ed38c6131463524a5d55",
+      "case": {
+        "id": "safe-query",
+        "task": {
+          "kind": "trace",
+          "objective": "Inspect this exact source",
+          "parameters": {}
+        },
+        "inputs": {
+          "source": {
+            "scope": "project",
+            "scopeId": "evaluation-1",
+            "namespace": "sources",
+            "name": "trace-source",
+            "revision": "rev-1",
+            "sha256": "sha256:87a9b8fb3eef84e7cbf7ed8cb25c09f0798044bdd36cfb98f48e2ee577dd0dc5",
+            "mediaType": "application/zip",
+            "sizeBytes": 5
+          }
+        },
+        "requires": [
+          "source.archive@1"
+        ],
+        "outputs": {
+          "report": {
+            "mediaTypes": [
+              "application/json"
+            ],
+            "required": true
+          }
+        }
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "evidence-review",
+      "evaluator": "human-review@1",
+      "rubricRevision": "r1",
+      "required": true
+    }
+  ],
+  "comparison": {
+    "baseline": "a",
+    "candidate": "b",
+    "gates": {
+      "minCandidateEndToEndPass": 1,
+      "maxQualityDrop": 0
+    },
+    "requiredEqual": [
+      "source",
+      "tasks",
+      "scorers"
+    ],
+    "allowedDifferences": [
+      "instructions"
+    ]
+  },
+  "budgets": {
+    "maxMembers": 8,
+    "maxInFlight": 1,
+    "wallMs": 5400000,
+    "maxObservedTotalTokens": null
+  }
+}

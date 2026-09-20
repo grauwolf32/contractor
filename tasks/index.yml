@@ -676,6 +676,13 @@ milestones:
       and API contract with implementation tasks; this milestone delivers the
       design and decomposition, not the Evals implementation.
 
+  - id: managed-evals-ui
+    exit_task: V38-010
+    outcome: >-
+      Native browser setup, launch, review and paired comparison work without
+      Playground. Independent producers use the same public dataset, submission
+      and assessment API with explicit dispatch ownership and attributed results.
+
   - id: audit-worker-completion
     exit_task: V39-007
     outcome: >-
@@ -818,10 +825,36 @@ active_delivery_order:
     - {rank: 4, tasks: [V40-001, V40-002, V40-003], outcome: "Grounded instruction evaluation with separately frozen pilot/confirmation; explicit live prerequisites apply."}
     - {rank: 5, tasks: [V37-001, V37-002, V37-003, V37-004, V37-005, V37-006, V37-007, V37-008, V37-009, V37-010, V37-011, V37-012], outcome: "Connected UI journeys over stable public contracts."}
     - {rank: 6, tasks: [V38-001], outcome: "Evals UI design over the established portable format."}
+    - {rank: 7, tasks: [V38-002, V38-003, V38-004, V38-005, V38-006, V38-007, V38-008, V38-009, V38-010], outcome: "Independent native Evals UI and optional external producer clients."}
   blocked_queue_rule: >-
     An unavailable live evaluation environment does not block independent
     contract/UI work in later queues. Do not run paid model evaluations merely
     because the queue lists them; their task-specific frozen plan and limits apply.
+
+managed_evals_planning:
+  planned_on: "2026-09-19"
+  status: planned
+  specification: docs/spec/29-managed-evals.md
+  design: docs/evals-experience-design.md
+  design_task: V38-001
+  tasks: [V38-002, V38-003, V38-004, V38-005, V38-006, V38-007, V38-008, V38-009, V38-010]
+  delivery_order:
+    - {wave: 1, tasks: [V38-002], outcome: Managed DTOs and portable conformance examples.}
+    - {wave: 2, tasks: [V38-003], outcome: Durable owner-scoped plans and commands.}
+    - {wave: 3, tasks: [V38-004], outcome: Native coordinator and common member submissions.}
+    - {wave: 4, tasks: [V38-005], outcome: Public setup and execution control APIs.}
+    - {wave: 5, tasks: [V38-006], outcome: Attributed assessment and bounded complete comparisons with chart projections.}
+    - {wave: 6, tasks: [V38-007, V38-009], outcome: Native browser setup and optional Playground client.}
+    - {wave: 7, tasks: [V38-008], outcome: Experiment discovery and accessible comparison charts for Workflow and Audit.}
+    - {wave: 8, tasks: [V38-010], outcome: Independent native and external process/browser release gates.}
+  boundaries:
+    - Full browser setup/start/compare is the selected product direction; implementation remains pending.
+    - Both Workflow and Audit are required in server and external modes; Audit children never become separate eval samples.
+    - Chart projections and tables share exact cohorts, scope and completeness; unavailable metrics are not zero.
+    - Contractor has no Playground runtime dependency or callback; Playground is an optional public API client.
+    - Immutable server/external control mode prevents simultaneous dispatch; existing Run/Audit services and Scheduler own execution.
+    - Spec 29 is an explicit later managed-mode extension; existing spec 26 portable bundles and private CLI journals remain valid.
+    - V40 live prerequisites, quality campaigns and multi-program dispatch remain separate; no default token limit tightening.
 
 portable_eval_format_planning:
   planned_on: "2026-09-06"
@@ -897,7 +930,7 @@ ui_usability_planning:
     - Follow each task dependency list; waves express sequencing preference, not additional prerequisites.
     - V35-004 already owns Git Settings/import; V37 reuses its dialogs and exact refs.
     - V32-006 owns Performance UI and is not duplicated or required by the Operations layout task.
-    - V38-001 defines Evals comparison before its implementation is decomposed.
+    - V38-001 owns the selected Evals design; V38-002 through V38-010 implement it as a separate milestone.
     - New Catalog, repeat-draft or Audit projections remain bounded and Server-authoritative.
 
 performance_metrics_planning:
@@ -2656,6 +2689,15 @@ tasks:
   - {id: V37-011, file: v37-011-operations-progressive-forms.yml}
   - {id: V37-012, file: v37-012-ui-journey-verification.yml}
   - {id: V38-001, file: v38-001-evals-experience-contract.yml}
+  - {id: V38-002, file: v38-002-eval-contract-fixtures.yml}
+  - {id: V38-003, file: v38-003-eval-store.yml}
+  - {id: V38-004, file: v38-004-eval-coordinator.yml}
+  - {id: V38-005, file: v38-005-eval-public-api.yml}
+  - {id: V38-006, file: v38-006-eval-assessment-comparison.yml}
+  - {id: V38-007, file: v38-007-eval-setup-ui.yml}
+  - {id: V38-008, file: v38-008-eval-comparison-ui.yml}
+  - {id: V38-009, file: v38-009-playground-eval-client.yml}
+  - {id: V38-010, file: v38-010-eval-release-gate.yml}
   - {id: V39-001, file: v39-001-audit-completion-contracts.yml}
   - {id: V39-002, file: v39-002-audit-completion-pinning-placement.yml}
   - {id: V39-003, file: v39-003-audit-result-collector.yml}

@@ -3,8 +3,8 @@ id: "V38-001"
 title: "Define the Evals experiment and comparison experience before implementation"
 milestone: "evals-experience-design"
 priority: "P2"
-status: "pending"
-implementation_commit: null
+status: "completed"
+implementation_commit: "3a73e8fe993c5dc3134ae47230f878d115dbda7f"
 depends_on: ["V23-009", "V20-006"]
 languages: ["markdown", "yaml"]
 goal: >-
@@ -111,3 +111,24 @@ tests:
       if(done.has(id)) return; active.add(id); for(const dep of tasks.get(id).depends_on??[]) visit(dep);
       active.delete(id); done.add(id); } for(const id of tasks.keys()) visit(id);'
     covers: ["A2"]
+
+design_progress:
+  date: "2026-09-19"
+  branch: docs/v38-evals-experience
+  state: "Product and ownership decisions resolved; design and planning verification passed."
+  document: docs/evals-experience-design.md
+  specification: docs/spec/29-managed-evals.md
+  decision: >-
+    Full browser setup, launch and comparison use Contractor's native experiment
+    service over ordinary Run/Audit execution. Playground is an optional independent
+    public API client/data and assessment producer; no server dependency or callback.
+    Immutable server/external control mode identifies the single dispatch owner.
+  implementation_tasks: [V38-002, V38-003, V38-004, V38-005, V38-006, V38-007, V38-008, V38-009, V38-010]
+  open_decisions: []
+  verification_result: >-
+    Worked example and 17 fault cases reviewed; arithmetic agrees with spec 26.
+    Both required test commands passed. All 336 indexed tasks form an acyclic
+    dependency graph; nine new tasks are pending with acceptance/test coverage.
+    New documentation links and API JSON examples validate. Spec 26 is unchanged.
+    Evidence is recorded in docs/evals-experience-design.md.
+  remaining: "No design work remains; implementation is pending in V38-002 through V38-010."
