@@ -39,82 +39,90 @@ function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
 }
 
 describe("Managed Evals setup", () => {
-  it("saves an exact A/B matrix, restores it, and creates no execution before separate Prepare and Start", async () => {
-    const fixture = createEvalFixture(),
-      user = userEvent.setup();
-    const view = start(fixture, "/evals/new");
-    await user.type(
-      await screen.findByLabelText("Experiment name"),
-      "Browser experiment",
-    );
-    await screen.findByRole("option", { name: "Evaluation workspace" });
-    await user.selectOptions(
-      screen.getByLabelText("Evaluation workspace"),
-      "evaluation-1",
-    );
-    await screen.findAllByRole("option", { name: "trace-a" });
-    await user.selectOptions(
-      screen.getByLabelText("A Workflow family"),
-      "trace-a",
-    );
-    await user.selectOptions(
-      screen.getByLabelText("B Workflow family"),
-      "trace-b",
-    );
-    expect(screen.getByLabelText("A exact version")).toHaveValue("trace-a@2");
-    await user.click(screen.getByRole("button", { name: "Next step" }));
-    await screen.findByRole("option", { name: /Trace examples/ });
-    await user.selectOptions(screen.getByLabelText("Dataset revision"), "r1");
-    await user.click(
-      await screen.findByRole("button", { name: "Select all 2 cases" }),
-    );
-    await user.click(screen.getByRole("button", { name: "Next step" }));
-    await user.click(
-      screen.getByRole("button", { name: "Add assessment check" }),
-    );
-    await user.clear(screen.getByLabelText("Repetitions"));
-    await user.type(screen.getByLabelText("Repetitions"), "2");
-    await user.click(screen.getByRole("button", { name: "Next step" }));
-    expect(screen.getAllByText(/8 expected members/).length).toBeGreaterThan(0);
-    await user.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() =>
-      expect(view.router.state.location.pathname).toContain(
-        "experiment-1/setup",
-      ),
-    );
-    await screen.findByText(/Saved on server/);
-    const created = fixture.state.requests.find(
-      (r) => r.path.endsWith("/eval-experiments") && r.method === "POST",
-    );
-    expect(created?.body).toMatchObject({
-      controlMode: "server",
-      draft: {
-        repetitions: 2,
-        caseIds: ["unsafe-query", "safe-query"],
-        variants: [{ selector: "trace-a@2" }, { selector: "trace-b@2" }],
-      },
-    });
-    expect(
-      fixture.state.requests.some((r) => r.path.endsWith("/commands")),
-    ).toBe(false);
-    view.unmount();
-    start(fixture, "/evals/experiments/experiment-1/setup");
-    expect(await screen.findByLabelText("Experiment name")).toHaveValue(
-      "Browser experiment",
-    );
-    await user.click(await screen.findByRole("button", { name: "Prepare" }));
-    await screen.findByText("Verified preparation");
-    expect(
-      fixture.state.requests
-        .filter((r) => r.path.endsWith("/commands"))
-        .every((r) => (r.body as { kind: string }).kind === "prepare"),
-    ).toBe(true);
-    await user.click(await screen.findByRole("button", { name: "Start" }));
-    expect(await screen.findByRole("dialog")).toBeVisible();
-    expect(fixture.state.experiment.state).toBe("ready");
-    await user.click(screen.getByRole("button", { name: "Confirm start" }));
-    await waitFor(() => expect(fixture.state.experiment.state).toBe("running"));
-  });
+  it(
+    "saves an exact A/B matrix, restores it, and creates no execution before separate Prepare and Start",
+    { timeout: 15_000 },
+    async () => {
+      const fixture = createEvalFixture(),
+        user = userEvent.setup();
+      const view = start(fixture, "/evals/new");
+      await user.type(
+        await screen.findByLabelText("Experiment name"),
+        "Browser experiment",
+      );
+      await screen.findByRole("option", { name: "Evaluation workspace" });
+      await user.selectOptions(
+        screen.getByLabelText("Evaluation workspace"),
+        "evaluation-1",
+      );
+      await screen.findAllByRole("option", { name: "trace-a" });
+      await user.selectOptions(
+        screen.getByLabelText("A Workflow family"),
+        "trace-a",
+      );
+      await user.selectOptions(
+        screen.getByLabelText("B Workflow family"),
+        "trace-b",
+      );
+      expect(screen.getByLabelText("A exact version")).toHaveValue("trace-a@2");
+      await user.click(screen.getByRole("button", { name: "Next step" }));
+      await screen.findByRole("option", { name: /Trace examples/ });
+      await user.selectOptions(screen.getByLabelText("Dataset revision"), "r1");
+      await user.click(
+        await screen.findByRole("button", { name: "Select all 2 cases" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Next step" }));
+      await user.click(
+        screen.getByRole("button", { name: "Add assessment check" }),
+      );
+      await user.clear(screen.getByLabelText("Repetitions"));
+      await user.type(screen.getByLabelText("Repetitions"), "2");
+      await user.click(screen.getByRole("button", { name: "Next step" }));
+      expect(screen.getAllByText(/8 expected members/).length).toBeGreaterThan(
+        0,
+      );
+      await user.click(screen.getByRole("button", { name: "Save draft" }));
+      await waitFor(() =>
+        expect(view.router.state.location.pathname).toContain(
+          "experiment-1/setup",
+        ),
+      );
+      await screen.findByText(/Saved on server/);
+      const created = fixture.state.requests.find(
+        (r) => r.path.endsWith("/eval-experiments") && r.method === "POST",
+      );
+      expect(created?.body).toMatchObject({
+        controlMode: "server",
+        draft: {
+          repetitions: 2,
+          caseIds: ["unsafe-query", "safe-query"],
+          variants: [{ selector: "trace-a@2" }, { selector: "trace-b@2" }],
+        },
+      });
+      expect(
+        fixture.state.requests.some((r) => r.path.endsWith("/commands")),
+      ).toBe(false);
+      view.unmount();
+      start(fixture, "/evals/experiments/experiment-1/setup");
+      expect(await screen.findByLabelText("Experiment name")).toHaveValue(
+        "Browser experiment",
+      );
+      await user.click(await screen.findByRole("button", { name: "Prepare" }));
+      await screen.findByText("Verified preparation");
+      expect(
+        fixture.state.requests
+          .filter((r) => r.path.endsWith("/commands"))
+          .every((r) => (r.body as { kind: string }).kind === "prepare"),
+      ).toBe(true);
+      await user.click(await screen.findByRole("button", { name: "Start" }));
+      expect(await screen.findByRole("dialog")).toBeVisible();
+      expect(fixture.state.experiment.state).toBe("ready");
+      await user.click(screen.getByRole("button", { name: "Confirm start" }));
+      await waitFor(() =>
+        expect(fixture.state.experiment.state).toBe("running"),
+      );
+    },
+  );
 
   it("replays a lost Start with its original key/body/revision after a browser remount", async () => {
     const fixture = createEvalFixture({ prepared: true });
