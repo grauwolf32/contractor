@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -1251,13 +1253,9 @@ func assertProjectRunDurable(
 			t.Fatalf("Worker tool calls for %s = %d, want %d; metrics=%+v",
 				execution.StageName, workerToolCalls, modelCalls[index]-2, metrics.Tools)
 		}
-		budget := metrics.WorkerBudget
-		if budget == nil || budget.MaxModelCalls != 24 || budget.MaxToolCalls != 96 ||
-			budget.MaxTotalTokens != 500000 || budget.ObservedModelCalls != modelCalls[index] ||
-			budget.ObservedToolCalls != workerToolCalls ||
-			budget.ObservedTotalTokens != modelCalls[index]*16 ||
-			budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {
-			t.Fatalf("Worker budget for %s = %+v", execution.StageName, budget)
+		if err := validateProjectWorkerBudget(execution.StageSpecSnapshot, allocation.LogicalAgentName,
+			metrics.WorkerBudget, modelCalls[index], workerToolCalls); err != nil {
+			t.Fatalf("Worker budget for %s: %v", execution.StageName, err)
 		}
 	}
 	decisions, err := store.ListStageTransitionDecisions(ctx, runID)
@@ -1470,4 +1468,30 @@ func assertValidatorInvocations(t *testing.T, path string, vacuum, likeC4 int) {
 	if counts["vacuum"] != vacuum || counts["likec4"] != likeC4 || len(counts) != 2 {
 		t.Fatalf("validator invocations = %v, want vacuum=%d likec4=%d", counts, vacuum, likeC4)
 	}
+}
+
+// Reports retain the limits pinned for the allocated logical Worker, independently
+// of later edits to the authoring catalog. Observed counters remain script-owned.
+func validateProjectWorkerBudget(stageSnapshot json.RawMessage, logicalAgent string,
+	budget *contracts.WorkerBudgetMetrics, modelCalls, toolCalls int64) error {
+	stage, err := config.DecodeResolvedStageSnapshot(stageSnapshot)
+	if err != nil {
+		return fmt.Errorf("decode pinned Stage: %w", err)
+	}
+	selection, ok := stage.ExecutionConfig.Agents[logicalAgent]
+	if !ok {
+		return fmt.Errorf("pinned Stage omits allocated logical Agent %q", logicalAgent)
+	}
+	policy := selection.ModelPolicy
+	if budget == nil || budget.MaxModelCalls != int64(policy.MaxModelCalls) ||
+		budget.MaxToolCalls != int64(policy.MaxToolCalls) ||
+		budget.MaxTotalTokens != int64(policy.MaxTotalTokens) ||
+		budget.ObservedModelCalls != modelCalls || budget.ObservedToolCalls != toolCalls ||
+		budget.ObservedTotalTokens != modelCalls*16 ||
+		budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {
+		return fmt.Errorf("reported %+v, want pinned limits %d/%d/%d and script counters %d/%d/%d",
+			budget, policy.MaxModelCalls, policy.MaxToolCalls, policy.MaxTotalTokens,
+			modelCalls, toolCalls, modelCalls*16)
+	}
+	return nil
 }
