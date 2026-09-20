@@ -39,7 +39,7 @@ acceptance_criteria:
   text: Record cross-task review, source revision, actual skipped suites and update finding statuses without claiming
     unperformed release gates.
 tests:
-- command: go test ./...
+- command: go test -json -count=1 -p 2 ./...
   covers:
   - A1
   - A2
@@ -47,7 +47,7 @@ tests:
   covers:
   - A1
   - A2
-- command: cd ui && corepack pnpm test --run
+- command: cd ui && corepack pnpm test --run --maxWorkers=2
   covers:
   - A1
   - A2
