@@ -3,8 +3,8 @@ id: V61-007
 title: Project workflow toolset requirements and safe runtime-label coverage
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1f931dfdcdecdaf6284191892fce5a1bfcf20ebc
 depends_on: [V61-003]
 languages: [go, typescript, yaml, markdown]
 goal: >-
@@ -66,3 +66,9 @@ test_prerequisites:
   - Isolated CONTRACTOR_TEST_DATABASE_URL for coverage snapshot/query-count cases; selected persistence cases must execute.
 verification_requirements:
   - Assert constant/batched query behavior and same-value digests across distinct RuntimeConfig metadata; do not equate the enclosing document digest with configuration-value equality.
+verification_evidence:
+  - All required Go, OpenAPI, generated-client, TypeScript and focused UI commands passed on 2026-09-20; 53 UI tests passed, plus ESLint and git diff checks.
+  - PostgreSQL tests used the isolated contractor-v61-tests instance. A 61-row page executed exactly one query; a retained label read executed one query. Forty concurrent CAS rebindings preserved matching config/ref/revision/coverage snapshots, and deletion returned not-found.
+  - Canonical value digests matched across differently named documents and explicit versus normalized default timeouts; clear and inheritance remained distinct, with all six mixed-profile sections projected and no connection fields disclosed.
+  - Public Workflow and label responses validated against OpenAPI. Shared and late-stage requirements matched Run admission traversal; mutation replay retained the original coverage after a later rebind.
+  - Strict parsers rejected unknown/private fields, malformed or duplicate coverage/requirements, invalid digests, bounds/order violations and mismatched changed sections. Existing native Run and Operations tests passed.
