@@ -3,7 +3,7 @@ id: V60-030
 title: Restore release lint for the WorkerHandle regression test
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-009]
 languages: [go, markdown]
 goal: Remove the reproduced gofmt failure without changing test behavior.
@@ -31,3 +31,9 @@ tests:
 verification_requirements:
   - Record the original formatting mismatch and delegate the full release rerun to V60-009.
   - Keep implementation and completion metadata commits separate.
+
+implementation_commit: 9cfd09ccfc5517518b3c7491b55bc4c14b56b950
+verification:
+  evidence: tasks/evidence/v60-030.json
+  report: docs/research/2026-09-20-v60-030-formatting-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
