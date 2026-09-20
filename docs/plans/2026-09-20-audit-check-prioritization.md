@@ -1,6 +1,6 @@
 # Contextual Audit checklist prioritization
 
-Date: 2026-09-20. Series: **V64**. Status: **implementation started; opt-in Audit integration pending**.
+Date: 2026-09-20. Series: **V64**. Status: **V64-000 completed; opt-in Audit integration pending**.
 
 The user requested optional service/finding context, independent checklist-item
 priority verdicts and selection of at least ten highest-priority checks for each

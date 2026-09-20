@@ -3,8 +3,8 @@ id: V64-000
 title: Implement independent priority verdict contracts and deterministic selection core
 milestone: audit-check-prioritization
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3fedf3c1648ef75592a6d47f254584a168364a02
 depends_on: [V25-002, V25-011]
 languages: [go, json, yaml, markdown]
 goal: >-
@@ -93,3 +93,12 @@ progress:
       at .local/evidence/v64/core-verification.json and core-task-validation.json.
       No database, live model, scanner, demo restart or runnable capability was
       needed or exercised for this pure-core task.
+  - date: 2026-09-20
+    step: completed
+    details: >-
+      A1-A4 passed. Implementation committed as
+      3fedf3c1648ef75592a6d47f254584a168364a02 after rebasing onto current main;
+      that rebase changed no core or tested dependency code. V64-001 and V64-006
+      remain pending for public/profile/lifecycle and trusted atomic admission
+      integration respectively. The overall prioritization capability is not
+      runnable yet.
