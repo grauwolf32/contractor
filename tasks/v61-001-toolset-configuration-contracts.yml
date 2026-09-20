@@ -3,8 +3,8 @@ id: V61-001
 title: Specify Run-scoped toolset configuration and allocation discovery contracts
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 323b54eb2768dbbe1486e907ee50fe8fdafc05a8
 depends_on: [V8-016, V50-001, V55-003]
 languages: [go, python, typescript, json, yaml, markdown]
 goal: >-
@@ -83,3 +83,11 @@ tests:
 verification_requirements:
   - Review every normative example, ownership transition and failure row against A1/A3; record the exact fixed numeric limits and supported content/schema subset.
   - Shared fixtures are new deliverables; contract commands must select them rather than passing only historical cases.
+verification_evidence:
+  - All required make targets and Go package tests passed on 2026-09-20; old golden bytes and digests are unchanged.
+  - Strict Python contract/allocation/capability suite passed with 207 tests; wire/performance suite passed with 215 tests.
+  - UI typecheck and 18 focused strict-parser tests passed; generated client check passed.
+  - Shared positive/negative settings, credentials, origins and discovery fixtures are selected by standard cross-language targets.
+  - Reviewed merge/source/failure matrices and ownership transitions against A1/A3; MCP factory remains unadvertised.
+  - Fixed limits are 2 MiB message, 8 MiB discovery, 16 pages, 1024 advertised/64 selected tools, 64 KiB schema/arguments, 256 KiB declarations/results, schema depth 16 and 2048 nodes, 64 result blocks.
+  - First-release content is text plus structured JSON with isError retained; schema keywords form a closed Draft 2020-12 subset without refs/regex/format/conditional keywords; ambiguous calls are never automatically replayed.
