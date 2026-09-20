@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -20,7 +21,9 @@ import type {
   AuditReviewRequest,
 } from "../../../api/audits";
 import { Application } from "../../../app/application";
+import * as queryClientFactory from "../../../app/query-client";
 import { applicationRoutes } from "../../../app/router";
+import { queryKeys } from "../../../api/query-keys";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -336,6 +339,87 @@ async function openAuditCreateForm({
 }
 
 describe("Project Audit routes", () => {
+  it.each(["checks", "report"] as const)(
+    "refreshes the final %s projection when the parent stops polling",
+    async (section) => {
+      let current = auditAt("active", 2);
+      const queryClient = queryClientFactory.createApplicationQueryClient();
+      vi.spyOn(
+        queryClientFactory,
+        "createApplicationQueryClient",
+      ).mockReturnValue(queryClient);
+      const item: AuditItem = {
+        itemId: "item_final",
+        roundId: "round_example",
+        itemKey: "check_final",
+        ordinal: 0,
+        kind: "check",
+        subjectKey: "Final retained check",
+        task: current.inputs.source!,
+        origin: {
+          schema: "contractor.audit.item-origin.v1",
+          entryKey: "check_final",
+        },
+        workflowRole: "check",
+        state: "settled",
+        approvalKind: "none",
+        attempts: [],
+        createdAt: current.createdAt,
+        updatedAt: current.updatedAt,
+      };
+      const reads = vi.fn();
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const path = new URL((input as Request).url).pathname;
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (path === "/v1/audits/audit_example")
+            return jsonResponse(current, {
+              headers: { ETag: `"${current.revision}"` },
+            });
+          if (path.endsWith("/items")) {
+            reads();
+            return jsonResponse({
+              items: current.state === "active" ? [] : [item],
+              page: { hasMore: false },
+            });
+          }
+          if (path.endsWith("/report")) {
+            reads();
+            return jsonResponse(
+              current.state === "active"
+                ? { status: "pending" }
+                : { status: "ready", summary: "Final retained report" },
+            );
+          }
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }),
+      );
+      renderApplication(
+        api,
+        `/projects/project_example/audits/audit_example/${section}`,
+      );
+      await screen.findByText(
+        section === "checks"
+          ? "No checks materialized"
+          : /The Audit has not reached report generation/,
+      );
+      current = auditAt("completed", 3);
+      act(() =>
+        queryClient.setQueryData(
+          queryKeys.audits.detail(current.auditId),
+          current,
+        ),
+      );
+      await screen.findByText(
+        section === "checks" ? "Final retained check" : "Final retained report",
+      );
+      expect(reads).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it.each(["text/markdown", "text/plain"])(
     "previews and downloads an exact %s report",
     async (mediaType) => {

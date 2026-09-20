@@ -1,5 +1,6 @@
 import { MobileSectionPicker } from "../../../app/mobile-section-picker";
 import { useAuditCoverage } from "./coverage-data";
+import { useAuditProjectionRefresh } from "./projection-refresh";
 import { auditCheckTitle } from "./check-title";
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
@@ -401,8 +402,9 @@ function useAuditItems(
   api: ReturnType<typeof usePublicAPI>,
   enabled: boolean,
 ) {
-  return useQuery({
-    queryKey: queryKeys.audits.allItems(audit.auditId),
+  const queryKey = queryKeys.audits.allItems(audit.auditId);
+  const query = useQuery({
+    queryKey,
     queryFn: () =>
       collectAuditPages((cursor) =>
         listAuditItems(
@@ -415,6 +417,8 @@ function useAuditItems(
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
     refetchOnReconnect: true,
   });
+  useAuditProjectionRefresh(audit, queryKey, enabled);
+  return query;
 }
 
 function AuditChecks({
@@ -1801,12 +1805,14 @@ function AuditReportView({
 }) {
   const [params] = useSearchParams();
   const requestedReview = params.get("review");
+  const queryKey = queryKeys.audits.report(audit.auditId);
   const report = useQuery({
-    queryKey: queryKeys.audits.report(audit.auditId),
+    queryKey,
     queryFn: () => getAuditReport(api, audit.auditId),
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
     refetchOnReconnect: true,
   });
+  useAuditProjectionRefresh(audit, queryKey);
   if (report.isPending) return <p className="loading-copy">Loading report…</p>;
   if (report.error !== null)
     return (

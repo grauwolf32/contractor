@@ -11,17 +11,19 @@ import { queryKeys } from "../../../api/query-keys";
 
 import { useSearchParams } from "react-router";
 import { PublicAPIError } from "../../../api/error";
+import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export function useAuditCoverage(audit: Audit) {
   const api = usePublicAPI();
   const [params] = useSearchParams();
   const expected = params.get("auditRevision");
-  return useQuery({
-    queryKey: [
-      ...queryKeys.audits.allCoverage(audit.auditId),
-      audit.currentRoundId ?? null,
-      expected,
-    ],
+  const queryKey = [
+    ...queryKeys.audits.allCoverage(audit.auditId),
+    audit.currentRoundId ?? null,
+    expected,
+  ];
+  const query = useQuery({
+    queryKey,
     queryFn: async () => {
       const before = await getAudit(api, audit.auditId);
       const conflict = () =>
@@ -47,4 +49,6 @@ export function useAuditCoverage(audit: Audit) {
     refetchInterval: auditNeedsPolling(audit.state) ? 5_000 : false,
     refetchOnReconnect: true,
   });
+  useAuditProjectionRefresh(audit, queryKey);
+  return query;
 }
