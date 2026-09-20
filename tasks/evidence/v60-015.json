@@ -1,0 +1,18 @@
+{
+  "task_id": "V60-015",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "6cebf5a0273439158eb4eba01d5b719347c44522",
+  "reproduction": "Six permanent minimal/saturated-pool cases failed before the fix.",
+  "commands": [
+    "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 -p 2 ./internal/controlplane ./internal/runtimeconfig ./internal/credentials ./internal/app"
+  ],
+  "results": [
+    "All four packages passed with race detector and disposable PostgreSQL: controlplane,runtimeconfig,credentials,app.",
+    "Six pre-fix cases failed with one available pool connection; corrected tests cover managed/runtime placement, Rebind, management create/rebind/replay, pins and retained credential lifecycle barriers."
+  ],
+  "logs": [
+    ".local/review-fixes/v60-015-before.log",
+    ".local/review-fixes/v60-015-runtime-before.log",
+    ".local/review-fixes/v60-015-after.log"
+  ]
+}
