@@ -18,6 +18,11 @@ The code checks semantic invariants after schema validation. Ownership, resource
 resolution, evaluator registration and observed execution provenance still require
 the service layer; passing a schema never grants authority.
 
+Check parameter names retain evaluator-defined spelling, including `mediaType`
+for `media-type@1`. They use a bounded case-sensitive key grammar; resource and
+check identifiers retain the lowercase `Id` grammar. Native evaluator validation
+still rejects unknown parameter names.
+
 The `portable` directory is a byte-for-byte schema snapshot from the implementation
 of spec 26, pinned by commit and exact file hashes in `portable/provenance.json`.
 The historical `playground.*` schema IDs name a format, not a required producer.

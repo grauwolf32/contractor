@@ -2135,6 +2135,8 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         EvalId: string;
+        /** @description Evaluator-defined parameter key, including camelCase names such as mediaType. */
+        EvalCheckParameterName: string;
         EvalOpaque: string;
         EvalSelector: string;
         EvalDigest: string;

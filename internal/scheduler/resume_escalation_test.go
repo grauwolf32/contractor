@@ -37,7 +37,7 @@ func TestSchedulerManualEscalationResumeKeepsPolicyAndExhaustedBudgetAfterRestar
 				ExecutionConfigVariant:  source.ExecutionConfigVariant, EscalationOrdinal: source.EscalationOrdinal,
 				StageSpecSchemaVersion: source.StageSpecSchemaVersion, StageSpecSnapshot: source.StageSpecSnapshot,
 				StageContextSchemaVersion: source.StageContextSchemaVersion, StageContext: source.StageContext,
-				State: runstore.StagePreparing,
+				State: runstore.StagePreparing, CreatedAt: h.clock.now,
 			})
 			h.store.run.State = runstore.RunRunning
 			h.store.run.FinishedAt = nil

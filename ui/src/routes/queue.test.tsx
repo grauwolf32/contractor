@@ -305,7 +305,7 @@ describe("Runs Queue view", () => {
     expect(queueReads).toBeGreaterThan(1);
   });
 
-  it("redirects legacy Queue links and preserves active filters", async () => {
+  it("opens Queue deep links with active filters", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(
       runtimeConfig,
@@ -327,7 +327,7 @@ describe("Runs Queue view", () => {
     );
     const { router } = renderQueueApplication(
       api,
-      "/queue?membership=project&state=running",
+      "/runs?membership=project&state=running",
     );
 
     expect(

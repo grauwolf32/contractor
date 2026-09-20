@@ -85,7 +85,7 @@ func TestEvalConformanceFixtures(t *testing.T) {
 }
 
 func TestEvalTypedAuthoringRoundTrips(t *testing.T) {
-	for _, name := range []string{"create-workflow", "create-audit", "external-workflow", "external-audit"} {
+	for _, name := range []string{"create-workflow", "create-media-type", "create-audit", "external-workflow", "external-audit"} {
 		t.Run(name, func(t *testing.T) {
 			var typed CreateExperiment
 			if err := DecodeInto("CreateExperiment", fixture(t, name), &typed); err != nil {

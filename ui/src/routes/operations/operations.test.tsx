@@ -666,7 +666,7 @@ describe("Operations routes", () => {
         throw new Error(`unexpected ${request.method} ${request.url}`);
       }),
     );
-    renderOperations(api, "/operations/runtime-configs");
+    renderOperations(api, "/runs/configuration");
     expect(
       await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
     ).toBeInTheDocument();

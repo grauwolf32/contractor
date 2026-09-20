@@ -123,6 +123,9 @@ func validatePersistedExecution(
 	run runstore.WorkflowRun,
 	workflow executableWorkflow,
 ) error {
+	if execution.CreatedAt.IsZero() {
+		return fmt.Errorf("persisted StageExecution has no creation time")
+	}
 	if execution.RunID != run.RunID || execution.StageName != workflow.stageName || execution.Attempt <= 0 ||
 		(execution.Attempt == 1) != (execution.PreviousExecutionID == nil) ||
 		execution.StageSpecSchemaVersion != contracts.APIVersion ||

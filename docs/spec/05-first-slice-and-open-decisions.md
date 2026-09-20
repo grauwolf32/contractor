@@ -167,6 +167,15 @@ This slice must demonstrate:
   supplies the resulting allocation URL and optional token in RuntimeSettings
   over mTLS, and Agent clears secrets on release;
 - Workflow Scheduler records `preparing -> running -> finalizing -> terminal`;
+- every StageExecution has an immutable persisted `CreatedAt`. Its preparation
+  and Planner deadline derives from that timestamp; missing creation time is
+  invalid scheduler state, never a new budget from the time of observation;
+- Scheduler requires contextual allocation reservations with complete resolved
+  Runtime configuration, identity/label revision and an explicit performance
+  collection policy. Missing placement inputs fail before Worker preparation;
+  Scheduler does not invent configuration provenance or default a missing
+  collection policy to disabled. Model-free Workers retain a complete Runtime
+  configuration with no LLM route;
 - WorkflowRun records `initializing -> running -> succeeded`, with the final
   Stage acceptance, required output bindings and Run success in one transaction;
 - cancellation or participant loss records

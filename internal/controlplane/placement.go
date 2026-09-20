@@ -72,12 +72,6 @@ func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocat
 	}, nil
 }
 
-// ReserveAll keeps the legacy Allocator shape for embedding callers. Scheduler
-// uses ReserveAllContext so its preparation deadline also bounds SQL work.
-func (a *PlacementAllocator) ReserveAll(request ReservationRequest) ([]Reservation, error) {
-	return a.ReserveAllContext(context.Background(), request)
-}
-
 func (a *PlacementAllocator) ReserveAllContext(
 	ctx context.Context,
 	request ReservationRequest,

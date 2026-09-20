@@ -507,7 +507,7 @@ ui-verify:
 
 run-local:
 	go run ./cmd/contractor-server migrate
-	go run ./cmd/contractor-server serve --config-root ./configs/e2e
+	go run ./cmd/contractor-server serve --operator-config-root ./configs/e2e
 
 test: test-go test-runtime
 

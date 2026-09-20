@@ -23,5 +23,11 @@ current readiness.
 [Evals experience design](evals-experience-design.md) records the selected full
 browser journey and independent producer boundary; V38 implementation is planned.
 
+[Legacy compatibility removal](plans/2026-09-20-legacy-removal.md) records
+confirmed implementation shims, 41 superseded catalog entries and a staged
+removal plan. Python shims, deprecated process settings and obsolete UI
+redirects have been removed. The project does not require backward compatibility;
+remaining readers will move to strict current formats in subsequent increments.
+
 [Architecture review — 2026-09-15](reviews/architecture-review-2026-09-15.md)
 records the per-view scenario checks, fixes and verification limits.

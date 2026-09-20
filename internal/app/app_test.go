@@ -166,7 +166,7 @@ func TestParseConfig(t *testing.T) {
 			return "127.0.0.1:9443"
 		case "CONTRACTOR_PRIVATE_URL":
 			return "https://control.internal:9443"
-		case "CONTRACTOR_CONFIG_ROOT":
+		case "CONTRACTOR_OPERATOR_CONFIG_ROOT":
 			return "/srv/contractor/configs"
 		case "CONTRACTOR_CA_FILE":
 			return "/srv/contractor/pki/ca.pem"
@@ -176,8 +176,6 @@ func TestParseConfig(t *testing.T) {
 			return "/srv/contractor/pki/control-key.pem"
 		case "CONTRACTOR_LLM_GATEWAY_TOKEN":
 			return "gateway-token"
-		case "CONTRACTOR_PUBLIC_USER_ID":
-			return "local-user"
 		case "CONTRACTOR_PUBLIC_BEARER_TOKEN":
 			return "private-token"
 		case "CONTRACTOR_LOCAL_AUTH_FILE":
@@ -206,8 +204,7 @@ func TestParseConfig(t *testing.T) {
 	if cfg.DatabaseURL != "postgres://contractor:secret@database/contractor" {
 		t.Fatalf("database URL was not read from the shared environment setting")
 	}
-	if cfg.ConfigRoot != "/srv/contractor/configs" || cfg.PublicUserID != "local-user" ||
-		cfg.PublicBearerToken.Reveal() != "private-token" || cfg.LocalAuthFile != "/run/secrets/local-auth.yaml" ||
+	if cfg.PublicBearerToken.Reveal() != "private-token" || cfg.LocalAuthFile != "/run/secrets/local-auth.yaml" ||
 		len(cfg.BrowserOrigins) != 2 || cfg.BrowserOrigins[0] != "https://ui.example.test" {
 		t.Fatalf("public API settings were not parsed: %+v", cfg)
 	}
@@ -331,14 +328,12 @@ func TestParseConfigUsesIndependentDevelopmentPlannerCredentialAndMasterKeyPath(
 	}
 }
 
-func TestParseConfigPrefersExplicitConfigurationRootsAndDerivesManagedFlagDefault(t *testing.T) {
+func TestParseConfigReadsConfigurationRootsAndDerivesManagedFlagDefault(t *testing.T) {
 	t.Parallel()
 	explicit, err := ParseConfig(nil, func(key string) string {
 		switch key {
 		case "CONTRACTOR_OPERATOR_CONFIG_ROOT":
 			return "/srv/operator/configs"
-		case "CONTRACTOR_CONFIG_ROOT":
-			return "/ignored/legacy"
 		case "CONTRACTOR_MANAGED_CONFIG_ROOT":
 			return "/srv/managed/configs"
 		default:
@@ -424,44 +419,6 @@ func TestRunCLIValidatesConfigurationWithoutStartingServer(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("RunCLI config validate: %v", err)
-	}
-}
-
-func TestRunCLIRejectsBearerPrincipalMismatchBeforeStartup(t *testing.T) {
-	hash, err := auth.HashPassword([]byte("server bootstrap password"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	document, err := auth.BootstrapYAML("local-user", "admin", hash)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "local-auth.yaml")
-	if err := os.WriteFile(path, document, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	env := func(key string) string {
-		switch key {
-		case "CONTRACTOR_DATABASE_URL":
-			return "postgres://must-not-be-opened"
-		case "CONTRACTOR_PUBLIC_BEARER_TOKEN":
-			return "bearer-token"
-		case "CONTRACTOR_PUBLIC_USER_ID":
-			return "different-user"
-		case "CONTRACTOR_LOCAL_AUTH_FILE":
-			return path
-		case "CONTRACTOR_BROWSER_ORIGINS":
-			return "https://ui.example.test"
-		default:
-			return ""
-		}
-	}
-	err = RunCLI(
-		context.Background(), []string{"serve"}, env,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-	)
-	if err == nil || !strings.Contains(err.Error(), "does not match") {
-		t.Fatalf("principal mismatch error = %v", err)
 	}
 }
 

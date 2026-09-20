@@ -1,0 +1,65 @@
+{
+  "name": "Trace output media type",
+  "controlMode": "server",
+  "draft": {
+    "dataset": {
+      "id": "trace-small",
+      "revision": "r1"
+    },
+    "caseIds": [
+      "unsafe-query",
+      "safe-query"
+    ],
+    "variants": [
+      {
+        "id": "a",
+        "kind": "workflow",
+        "selector": "trace-a@1",
+        "executionConfig": {}
+      },
+      {
+        "id": "b",
+        "kind": "workflow",
+        "selector": "trace-b@1",
+        "executionConfig": {}
+      }
+    ],
+    "repetitions": 2,
+    "order": {
+      "kind": "alternating"
+    },
+    "checks": [
+      {
+        "id": "report-media",
+        "evaluator": "media-type@1",
+        "required": true,
+        "parameters": {
+          "output": "report",
+          "mediaType": "text/markdown"
+        }
+      }
+    ],
+    "comparison": {
+      "baseline": "a",
+      "candidate": "b",
+      "gates": {
+        "minCandidateEndToEndPass": 1,
+        "maxQualityDrop": 0
+      },
+      "requiredEqual": [
+        "source",
+        "tasks",
+        "scorers"
+      ],
+      "allowedDifferences": [
+        "instructions"
+      ]
+    },
+    "budgets": {
+      "maxMembers": 8,
+      "maxInFlight": 1,
+      "wallMs": 5400000,
+      "maxObservedTotalTokens": null
+    }
+  }
+}

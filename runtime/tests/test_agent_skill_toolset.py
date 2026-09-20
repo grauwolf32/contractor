@@ -111,10 +111,12 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
         assert "Follow the exact demo procedure" not in serialized_metrics
         assert "Reference contents" not in serialized_metrics
 
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
         session = await runtime._session_service.get_session(
             app_name=runtime._app_name,
             user_id=runtime._user_id,
-            session_id=runtime._session_id,
+            session_id=session_id,
         )
         assert session is not None
         assert session.state["_adk_activated_skill_contractor_worker"] == ["demo"]

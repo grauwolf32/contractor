@@ -12,7 +12,7 @@ func TestScanToolsetDescriptor(t *testing.T) {
 	if !ok {
 		t.Fatal("scan@1 descriptor is missing")
 	}
-	want := []string{"scan_ffuf", "scan_naabu", "scan_nuclei", "scan_sqlmap"}
+	want := []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"}
 	if !equalStrings(descriptor.Tools, want) || !equalStrings(descriptor.ActiveCheckTools, want) {
 		t.Fatalf("scan@1 must classify each scanner as an active check: %+v", descriptor)
 	}

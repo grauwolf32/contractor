@@ -39,7 +39,7 @@ func (s *Scheduler) liveOrNewReservations(
 			lost = lost || grant.Lost
 		}
 		if lost {
-			reservations, reserveErr := s.reserveAll(ctx, controlplane.ReservationRequest{
+			reservations, reserveErr := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
 				RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 				RunMetadataLabels: run.MetadataLabels.Clone(),
 				Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
@@ -50,7 +50,7 @@ func (s *Scheduler) liveOrNewReservations(
 			return reservations, false, errControlPlaneAllocationLost
 		}
 	}
-	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
+	reservations, err := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 		RunMetadataLabels: run.MetadataLabels.Clone(),
 		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
@@ -75,30 +75,23 @@ func (s *Scheduler) recordReservations(
 	reservations []controlplane.Reservation,
 ) error {
 	for _, reservation := range reservations {
-		collectionPolicy := reservation.PerformanceCollectionPolicy
-		if collectionPolicy.ValidatePinned() != nil {
-			// Legacy in-process allocators predate optional resource collection.
-			collectionPolicy = contracts.PerformanceCollectionDisabled
-		}
+		resolved := reservation.ResolvedRuntimeConfig
 		allocation := runstore.StageAllocation{
 			CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
 			AllocationID:       reservation.Grant.AllocationID, StageExecutionID: stageExecutionID,
 			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
-			AgentTemplateRef:            reservation.AgentTemplate.Ref,
-			WorkerRuntimeRef:            reservation.AgentTemplate.Runtime,
-			RuntimeAgentID:              reservation.Grant.RuntimeAgentID,
-			RuntimeAgentInstanceID:      reservation.Grant.RuntimeInstanceID,
-			RuntimeAgentLabelRevision:   reservation.RuntimeAgentLabelRevision,
-			PerformanceCollectionPolicy: collectionPolicy,
-		}
-		if reservation.ResolvedRuntimeConfig != nil {
-			resolved := reservation.ResolvedRuntimeConfig
-			allocation.RuntimeConfigurationSchemaVersion = runstore.AllocationRuntimeConfigurationSchemaVersion
-			allocation.RuntimeConfiguration = &runstore.AllocationRuntimeConfiguration{
+			AgentTemplateRef:                  reservation.AgentTemplate.Ref,
+			WorkerRuntimeRef:                  reservation.AgentTemplate.Runtime,
+			RuntimeAgentID:                    reservation.Grant.RuntimeAgentID,
+			RuntimeAgentInstanceID:            reservation.Grant.RuntimeInstanceID,
+			RuntimeAgentLabelRevision:         reservation.RuntimeAgentLabelRevision,
+			PerformanceCollectionPolicy:       reservation.PerformanceCollectionPolicy,
+			RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+			RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{
 				ModelPolicy: resolved.ModelPolicy.Ref,
 				Origins:     resolved.Origins,
 				Provenance:  resolved.Provenance,
-			}
+			},
 		}
 		operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 		err := s.store.RecordStageAllocation(operationContext, allocation)
@@ -157,28 +150,19 @@ func verifyReservations(
 			!reflect.DeepEqual(reservation.CompletionContract, expectedContracts[grant.LogicalAgentName]) {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}
-		if reservation.ResolvedRuntimeConfig == nil {
-			if !sameAllocationExecutionConfig(
-				reservation.ExecutionConfig,
-				allocationExecutionConfig(workflow.stage, grant.LogicalAgentName),
-			) {
-				return fmt.Errorf("Control Plane returned an allocation for different execution config")
-			}
-		} else {
-			resolved := reservation.ResolvedRuntimeConfig
-			selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
-			if resolved.Validate() != nil || resolved.ModelFree != binding.Template.IsToolWorker() || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
-				reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
-				reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
-				(reservation.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested) !=
-					(reservation.PerformanceMetrics != nil) ||
-				(reservation.PerformanceMetrics != nil && reservation.PerformanceMetrics.Validate() != nil) ||
-				!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{
-					ModelPolicy: resolved.ModelPolicy.Ref, LLMGateway: resolved.LLMGateway.Ref,
-					Credential: resolved.LLMCredential,
-				}) {
-				return fmt.Errorf("Control Plane returned invalid candidate Runtime provenance")
-			}
+		resolved := reservation.ResolvedRuntimeConfig
+		selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
+		if resolved == nil || resolved.Validate() != nil || resolved.ModelFree != binding.Template.IsToolWorker() || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+			reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
+			reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
+			(reservation.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested) !=
+				(reservation.PerformanceMetrics != nil) ||
+			(reservation.PerformanceMetrics != nil && reservation.PerformanceMetrics.Validate() != nil) ||
+			!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{
+				ModelPolicy: resolved.ModelPolicy.Ref, LLMGateway: resolved.LLMGateway.Ref,
+				Credential: resolved.LLMCredential,
+			}) {
+			return fmt.Errorf("Control Plane returned invalid candidate Runtime provenance")
 		}
 		if _, duplicate := seen[grant.LogicalAgentName]; duplicate {
 			return fmt.Errorf("Control Plane returned duplicate logical Agent allocations")
@@ -189,12 +173,11 @@ func verifyReservations(
 				persisted.RuntimeAgentInstanceID != grant.RuntimeInstanceID ||
 				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.Template.Ref ||
 				persisted.WorkerRuntimeRef != binding.Template.Runtime ||
-				reservation.ResolvedRuntimeConfig != nil &&
-					(persisted.RuntimeAgentID != grant.RuntimeAgentID ||
-						persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
-						persisted.PerformanceCollectionPolicy != reservation.PerformanceCollectionPolicy ||
-						persisted.RuntimeConfigurationSchemaVersion != runstore.AllocationRuntimeConfigurationSchemaVersion ||
-						!samePersistedRuntimeConfiguration(persisted.RuntimeConfiguration, reservation.ResolvedRuntimeConfig))) {
+				persisted.RuntimeAgentID != grant.RuntimeAgentID ||
+				persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
+				persisted.PerformanceCollectionPolicy != reservation.PerformanceCollectionPolicy ||
+				persisted.RuntimeConfigurationSchemaVersion != runstore.AllocationRuntimeConfigurationSchemaVersion ||
+				!samePersistedRuntimeConfiguration(persisted.RuntimeConfiguration, reservation.ResolvedRuntimeConfig)) {
 			return fmt.Errorf("live Control Plane allocation differs from durable provenance")
 		}
 	}
@@ -222,7 +205,7 @@ func samePersistedRuntimeConfiguration(
 	resolved *runtimeconfig.ResolvedRuntimeConfig,
 ) bool {
 	if persisted == nil || resolved == nil {
-		return persisted == nil && resolved == nil
+		return false
 	}
 	want := runstore.AllocationRuntimeConfiguration{
 		ModelPolicy: resolved.ModelPolicy.Ref, Origins: resolved.Origins, Provenance: resolved.Provenance,
@@ -251,7 +234,7 @@ func (s *Scheduler) existingLiveReservations(
 			return nil
 		}
 	}
-	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
+	reservations, err := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 		RunMetadataLabels: run.MetadataLabels.Clone(),
 		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
@@ -260,18 +243,4 @@ func (s *Scheduler) existingLiveReservations(
 		return nil
 	}
 	return reservations
-}
-
-type contextAllocator interface {
-	ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error)
-}
-
-func (s *Scheduler) reserveAll(
-	ctx context.Context,
-	request controlplane.ReservationRequest,
-) ([]controlplane.Reservation, error) {
-	if allocator, ok := s.allocator.(contextAllocator); ok {
-		return allocator.ReserveAllContext(ctx, request)
-	}
-	return s.allocator.ReserveAll(request)
 }

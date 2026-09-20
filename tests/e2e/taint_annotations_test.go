@@ -177,7 +177,7 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 	}
 	server := startProcess(t, "Go Server taint annotations", repositoryRoot, map[string]string{
 		"CONTRACTOR_DATABASE_URL":            isolateURL,
-		"CONTRACTOR_CONFIG_ROOT":             configRoot,
+		"CONTRACTOR_OPERATOR_CONFIG_ROOT":    configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN":           publicAddress,
 		"CONTRACTOR_PRIVATE_LISTEN":          privateAddress,
 		"CONTRACTOR_PRIVATE_URL":             privateBaseURL,
@@ -185,7 +185,6 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       llmGatewayToken,
-		"CONTRACTOR_PUBLIC_USER_ID":          userID,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,
 		"CONTRACTOR_LOCAL_AUTH_FILE":         writeE2ELocalAuth(t, temporaryRoot, userID),
 		"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",

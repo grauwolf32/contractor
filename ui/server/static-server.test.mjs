@@ -138,15 +138,11 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/evals/experiments/experiment-1/pairs/" + "a".repeat(64),
     "/evals/evaluation_example",
     "/evals/evaluation_example/artifacts/sources/service",
-    "/queue",
-    "/workflows",
-    "/workflows/openapi-from-workspace/3",
     "/artifacts",
     "/artifacts/projects/source",
     "/runs",
     "/runs/run_example",
     "/runs/run_example/artifacts/outputs/openapi",
-    "/skills",
     "/catalog",
     "/catalog/workflows",
     "/catalog/workflows/openapi-from-workspace/3",
@@ -155,8 +151,6 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/catalog/skills",
     "/operations",
     "/operations/runtime-agents",
-    "/operations/runtime-configs",
-    "/operations/runtime-configs/debug/1",
     "/runs/configuration",
     "/runs/configuration/debug/1",
     "/operations/allocations",
@@ -221,7 +215,6 @@ test("encoded client identities serve the same shell on direct GET and HEAD", as
   const version = encodeURIComponent("1.0.0+local");
   for (const path of [
     `/runs/configuration/default/${version}`,
-    `/operations/runtime-configs/default/${version}`,
     `/projects/${project}`,
     `/projects/${project}/artifacts`,
     `/projects/${project}/artifacts/sources/service`,
@@ -335,7 +328,7 @@ test("browser 404 offers recovery without widening SPA or API fallbacks", async 
   assert.equal(await api.text(), "not found\n");
 });
 
-test("API-looking, missing asset, extension and unknown routes never fall back", async (t) => {
+test("API-looking, missing asset, extension, retired and unknown routes never fall back", async (t) => {
   const { origin } = await fixture(t);
   for (const path of [
     "/v1/auth/session",
@@ -345,6 +338,13 @@ test("API-looking, missing asset, extension and unknown routes never fall back",
     "/settings",
     "/unknown",
     "/manifest.json",
+    "/queue?membership=project",
+    "/workflows",
+    "/workflows/openapi-from-workspace/3",
+    "/skills",
+    "/operations/runtime-configs",
+    "/operations/runtime-configs/debug/1",
+    "/operations/runtime-configs/default/1.0.0%2Blocal",
     "/workflows/name/1/extra",
     "/catalog/unknown",
     "/catalog/agents/worker/1/extra",

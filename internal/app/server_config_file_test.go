@@ -71,7 +71,7 @@ spec:
 			t.Fatalf("%s path %q was not resolved relative to the ServerConfig", name, got)
 		}
 	}
-	if cfg.PublicUserID != "" || len(cfg.BrowserOrigins) != 1 ||
+	if len(cfg.BrowserOrigins) != 1 ||
 		cfg.BrowserOrigins[0] != "http://127.0.0.1:4173" || !cfg.InsecureLoopbackCookie ||
 		cfg.PerformanceMetrics || !cfg.Pprof || cfg.PprofListen != "127.0.0.1:6061" {
 		t.Fatalf("remaining ServerConfig settings = %+v", cfg)

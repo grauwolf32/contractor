@@ -99,11 +99,6 @@ WHERE owner_id=$1 GROUP BY experiment_id`, owner)
 	}
 	otherOwner := owner + "-other-owner"
 	writeLocalAuth(s.t, s.temporaryRoot, otherOwner)
-	for index, value := range s.serverEnv {
-		if strings.HasPrefix(value, "CONTRACTOR_PUBLIC_USER_ID=") {
-			s.serverEnv[index] = "CONTRACTOR_PUBLIC_USER_ID=" + otherOwner
-		}
-	}
 	if err := s.restartServer(); err != nil {
 		s.t.Fatal(err)
 	}

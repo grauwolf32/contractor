@@ -1,10 +1,4 @@
-import {
-  Link,
-  Navigate,
-  Outlet,
-  useLocation,
-  useSearchParams,
-} from "react-router";
+import { Link, Outlet, useLocation, useSearchParams } from "react-router";
 
 import { TERMINAL_RUN_STATES } from "../../api/runs";
 import { useSession } from "../../auth/session";
@@ -74,15 +68,5 @@ export function RunsRoute() {
         <QueuePanel />
       )}
     </section>
-  );
-}
-
-export function LegacyQueueRedirect() {
-  const location = useLocation();
-  return (
-    <Navigate
-      replace
-      to={{ pathname: "/runs", search: location.search, hash: location.hash }}
-    />
   );
 }

@@ -108,7 +108,7 @@ export function ArtifactListRoute() {
         <ArtifactWriteForm
           excludedNamespace={{
             namespace: EXCLUDED_SKILL_NAMESPACE,
-            destination: "/skills",
+            destination: "/catalog/skills",
             label: "Skills",
           }}
           onWritten={(result) => {
@@ -137,7 +137,8 @@ export function ArtifactListRoute() {
             <p className="eyebrow">UserScope</p>
             <h3>Current bindings</h3>
             <small className="muted-copy">
-              Skill packages live in the <Link to="/skills">Skills</Link> tab.
+              Skill packages live in the{" "}
+              <Link to="/catalog/skills">Skills</Link> tab.
             </small>
           </div>
           <form className="inline-form" onSubmit={applyFilter}>

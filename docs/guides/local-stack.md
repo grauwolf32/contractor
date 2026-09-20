@@ -61,8 +61,7 @@ multiple documents, and secret-bearing fields such as database URLs or tokens.
 `CONTRACTOR_PUBLIC_BEARER_TOKEN` remains the non-browser authentication path;
 CLI and automation clients send it only in `Authorization: Bearer ...` and do
 not send browser Origin, cookie, or CSRF headers. It maps to the `userId` loaded
-from local-auth. `CONTRACTOR_PUBLIC_USER_ID` is a temporary compatibility
-assertion and, when present, must equal that value.
+from local-auth.
 
 The two LLM token variables are a development bootstrap only. A non-empty
 `CONTRACTOR_LLM_GATEWAY_TOKEN` creates the in-memory credential ID

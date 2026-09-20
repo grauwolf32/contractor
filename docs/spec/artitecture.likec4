@@ -3098,7 +3098,7 @@ views {
 
   view catalog {
     title 'Surface / Catalog and Agent Base Prompts'
-    description 'V33 implemented: /catalog groups Workflows, Agents and Skills; legacy links redirect. Agent detail shows exact base instructions, not task context or an effective invocation prompt. Runtime processes remain in Operations.'
+    description 'V33 implemented: /catalog groups Workflows, Agents and Skills. Agent detail shows exact base instructions, not task context or an effective invocation prompt. Runtime processes remain in Operations.'
 
     include browser with {
       title 'Catalog UI'

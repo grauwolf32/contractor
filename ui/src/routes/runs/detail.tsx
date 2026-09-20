@@ -490,9 +490,7 @@ function RunOutputPublications({ run }: { run: RunStatus }) {
           <p className="eyebrow">ProjectScope publication</p>
           <h3>Reusable output status</h3>
         </div>
-        <Link
-          to={`/projects/${encodeURIComponent(projectId)}#project-artifacts`}
-        >
+        <Link to={`/projects/${encodeURIComponent(projectId)}/artifacts`}>
           Open Project →
         </Link>
       </div>

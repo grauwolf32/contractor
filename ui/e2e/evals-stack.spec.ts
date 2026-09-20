@@ -221,6 +221,22 @@ test("real native setup, restart, exact evidence and review; independent externa
     await human
       .getByLabel("Pinned rubric revision", { exact: true })
       .fill("r1");
+    if (kind === "workflow") {
+      await page
+        .getByRole("button", { name: "Add assessment check", exact: true })
+        .click();
+      const media = page.locator(".eval-check").nth(2);
+      await media.getByLabel("Check ID", { exact: true }).fill("report-media");
+      await media
+        .getByLabel("Evaluator", { exact: true })
+        .selectOption("media-type@1");
+      await media
+        .getByLabel("Checked output role", { exact: true })
+        .fill("report");
+      await media
+        .getByLabel("Required media type", { exact: true })
+        .fill("text/plain");
+    }
     await page.getByLabel("Repetitions", { exact: true }).fill("2");
     await page.getByRole("button", { name: "Next step", exact: true }).click();
     await page.getByRole("button", { name: "Save draft", exact: true }).click();

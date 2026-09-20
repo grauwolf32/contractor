@@ -28,7 +28,6 @@ type serveConfigInputs struct {
 	blobPath                    string
 	operatorConfigRoot          string
 	managedConfigRoot           string
-	publicUserID                string
 	publicBearerToken           contracts.SecretString
 	localAuthFile               string
 	browserOrigins              repeatedStringFlag
@@ -96,14 +95,11 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 	operatorConfigRoot := settings.operatorConfigRoot
 	if value := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT"); value != "" {
 		operatorConfigRoot = value
-	} else if value := getenv("CONTRACTOR_CONFIG_ROOT"); value != "" {
-		operatorConfigRoot = value
 	}
 	managedConfigRoot := settings.managedConfigRoot
 	if value := getenv("CONTRACTOR_MANAGED_CONFIG_ROOT"); value != "" {
 		managedConfigRoot = value
 	}
-	publicUserID := getenv("CONTRACTOR_PUBLIC_USER_ID")
 	publicBearerToken := contracts.NewSecretString(getenv("CONTRACTOR_PUBLIC_BEARER_TOKEN"))
 	localAuthFile := settings.localAuthFile
 	if value := getenv("CONTRACTOR_LOCAL_AUTH_FILE"); value != "" {
@@ -182,7 +178,6 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		blobPath:                    blobPath,
 		operatorConfigRoot:          operatorConfigRoot,
 		managedConfigRoot:           managedConfigRoot,
-		publicUserID:                publicUserID,
 		publicBearerToken:           publicBearerToken,
 		localAuthFile:               localAuthFile,
 		browserOrigins:              browserOrigins,

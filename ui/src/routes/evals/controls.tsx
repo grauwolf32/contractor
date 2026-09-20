@@ -13,6 +13,7 @@ import {
 import { Dialog } from "../../app/dialog";
 import { createMutationIdempotencyKey } from "../../mutations/idempotency";
 import { EvalError } from "./common";
+import { EvalExecutionStatus } from "./execution-status";
 import { useEvalOwner } from "./queries";
 import {
   commandFinished,
@@ -138,6 +139,7 @@ export function EvalControls({
   const native = experiment.controlMode === "server";
   return (
     <section className="eval-controls">
+      <EvalExecutionStatus experiment={experiment} />
       {native ? (
         <div className="eval-actions">
           {experiment.allowedCommands

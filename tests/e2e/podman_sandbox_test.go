@@ -67,11 +67,11 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	publicURL, privateURL, runtimeURL := "http://"+publicAddress, "https://"+privateAddress, "https://"+runtimeAddress
 	user := "podman-e2e-" + randomHex(t, 8)
 	server := startProcess(t, "Podman Go Server", root, map[string]string{
-		"CONTRACTOR_DATABASE_URL": database, "CONTRACTOR_CONFIG_ROOT": config,
+		"CONTRACTOR_DATABASE_URL": database, "CONTRACTOR_OPERATOR_CONFIG_ROOT": config,
 		"CONTRACTOR_PUBLIC_LISTEN": publicAddress, "CONTRACTOR_PRIVATE_LISTEN": privateAddress,
 		"CONTRACTOR_PRIVATE_URL": privateURL, "CONTRACTOR_CA_FILE": ca.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": control.Certificate, "CONTRACTOR_CONTROL_PLANE_KEY_FILE": control.PrivateKey,
-		"CONTRACTOR_LLM_GATEWAY_TOKEN": llmGatewayToken, "CONTRACTOR_PUBLIC_USER_ID": user,
+		"CONTRACTOR_LLM_GATEWAY_TOKEN":   llmGatewayToken,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN": publicToken, "CONTRACTOR_LOCAL_AUTH_FILE": writeE2ELocalAuth(t, temporary, user),
 		"CONTRACTOR_BROWSER_ORIGINS": "https://ui.contractor.invalid",
 	}, binary, "serve")

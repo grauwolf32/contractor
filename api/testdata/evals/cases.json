@@ -18,6 +18,12 @@
     "valid": true
   },
   {
+    "name": "create-media-type",
+    "kind": "CreateExperiment",
+    "file": "valid/create-media-type.json",
+    "valid": true
+  },
+  {
     "name": "create-audit",
     "kind": "CreateExperiment",
     "file": "valid/create-audit.json",

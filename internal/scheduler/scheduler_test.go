@@ -421,7 +421,8 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	workerSelection.Credential = &workerCredential
 	stage.ExecutionConfig.Agents["builder"] = workerSelection
 
-	workerSettings, err := harness.scheduler.workerExecutionSettings(t.Context(), stage)
+	reservations := schedulerTestReservations(t, stage)
+	workerSettings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), harness.store.run, stage, reservations)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +449,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	) (contracts.SecretString, error) {
 		return contracts.SecretString{}, errors.New("provider leaked worker-secret")
 	})
-	if _, err := harness.scheduler.workerExecutionSettings(t.Context(), stage); err == nil ||
+	if _, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), harness.store.run, stage, reservations); err == nil ||
 		strings.Contains(err.Error(), "worker-secret") {
 		t.Fatalf("unsafe credential resolution error = %v", err)
 	}
@@ -469,8 +470,9 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 		}
 		return consumer(contracts.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
 	})
-	resolved, err := fallbackResolvedWorkerConfig(
+	resolved, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+		false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -529,7 +531,8 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}}
-	settings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage)
+	reservations := schedulerTestReservations(t, stage)
+	settings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage, reservations)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +548,7 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 
 	binding.Template.Toolsets[len(binding.Template.Toolsets)-1].Tools = []string{"http_history"}
 	stage.Agents["builder"] = binding
-	withoutHTTP, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage)
+	withoutHTTP, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage, reservations)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -621,7 +624,7 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			}
 
 			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
-			resolved, err := fallbackResolvedWorkerConfig(selection)
+			resolved, err := schedulerTestResolvedWorkerConfig(selection, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -981,7 +984,10 @@ func TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations(t *testing.T
 	execution := harness.persistedExecution(t, runstore.StageSucceeded)
 	harness.store.stages = []runstore.StageExecution{execution}
 	harness.store.run.State = runstore.RunSucceeded
-	first := harness.allocator.reservation(execution.StageExecutionID)
+	first, err := harness.allocator.reservation(execution.StageExecutionID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	second := first
 	second.Grant.AllocationID = "allocation-second"
 	second.Grant.RuntimeInstanceID = "runtime-2"
@@ -1039,11 +1045,20 @@ func TestTerminalReleaseRecoverySkipsStageOwnedByRunLane(t *testing.T) {
 }
 
 func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
+	resolved := reservation.ResolvedRuntimeConfig
 	return runstore.StageAllocation{
 		AllocationID: reservation.Grant.AllocationID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 		AgentTemplateRef: reservation.AgentTemplate.Ref, WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
-		RuntimeAgentInstanceID: reservation.Grant.RuntimeInstanceID,
+		RuntimeAgentInstanceID:            reservation.Grant.RuntimeInstanceID,
+		RuntimeAgentID:                    reservation.Grant.RuntimeAgentID,
+		RuntimeAgentLabelRevision:         reservation.RuntimeAgentLabelRevision,
+		CompletionContract:                contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
+		PerformanceCollectionPolicy:       reservation.PerformanceCollectionPolicy,
+		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
+		RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{
+			ModelPolicy: resolved.ModelPolicy.Ref, Origins: resolved.Origins, Provenance: resolved.Provenance,
+		},
 	}
 }
 
@@ -1852,7 +1867,7 @@ func (h *schedulerHarness) persistedExecution(
 				"source": {Required: true, Artifact: &input},
 			},
 		},
-		State: state,
+		State: state, CreatedAt: h.clock.now,
 	}
 	if state != runstore.StagePreparing {
 		sessionID, invocationID := "session-recovery", "invocation-recovery"
@@ -1865,22 +1880,17 @@ func (h *schedulerHarness) persistedExecution(
 }
 
 func (h *schedulerHarness) installRecordedReservation(stageExecutionID string) {
-	reservation := h.allocator.reservation(stageExecutionID)
+	reservation, err := h.allocator.reservation(stageExecutionID)
+	if err != nil {
+		h.t.Fatal(err)
+	}
 	h.allocator.cached = []controlplane.Reservation{reservation}
 	h.allocator.grants[reservation.Grant.AllocationID] = reservation.Grant
 	if h.allocator.fenced == nil {
 		h.allocator.fenced = make(map[string]bool)
 	}
 	h.allocator.fenced[reservation.Grant.AllocationID] = true
-	h.store.allocations = []runstore.StageAllocation{{
-		AllocationID:           reservation.Grant.AllocationID,
-		StageExecutionID:       stageExecutionID,
-		LogicalAgentName:       reservation.Grant.LogicalAgentName,
-		Namespace:              reservation.Grant.Namespace,
-		AgentTemplateRef:       reservation.AgentTemplate.Ref,
-		WorkerRuntimeRef:       reservation.AgentTemplate.Runtime,
-		RuntimeAgentInstanceID: reservation.Grant.RuntimeInstanceID,
-	}}
+	h.store.allocations = []runstore.StageAllocation{stageAllocationFromReservation(reservation)}
 }
 
 func (h *schedulerHarness) requestCancellation(reason string) {
@@ -2180,7 +2190,7 @@ func (p *memoryAtomicPersistence) CreateStageWithContext(
 		EscalationOrdinal:      params.EscalationOrdinal,
 		StageSpecSchemaVersion: params.StageSpecSchemaVersion, StageSpecSnapshot: params.StageSpecSnapshot,
 		StageContextSchemaVersion: params.StageContextSchemaVersion, StageContext: params.StageContext,
-		State: runstore.StagePreparing,
+		State: runstore.StagePreparing, CreatedAt: p.allocator.clock.now,
 	}
 	p.store.stages = append(p.store.stages, execution)
 	p.stageStates = append(p.stageStates, runstore.StagePreparing)
@@ -2319,6 +2329,7 @@ func (p *memoryAtomicPersistence) commitProgression(value StageProgression) {
 			StageSpecSnapshot:         params.StageSpecSnapshot,
 			StageContextSchemaVersion: params.StageContextSchemaVersion,
 			StageContext:              params.StageContext, State: runstore.StagePreparing,
+			CreatedAt: p.allocator.clock.now,
 		})
 		p.stageStates = append(p.stageStates, runstore.StagePreparing)
 	}
@@ -2404,6 +2415,46 @@ func (r *memoryArtifactResolver) Resolve(
 	return result, nil
 }
 
+func schedulerTestResolvedWorkerConfig(selection workflowconfig.ResolvedConsumerExecutionConfig, modelFree bool) (runtimeconfig.ResolvedRuntimeConfig, error) {
+	input := runtimeconfig.ResolveRuntimeConfigInput{
+		ModelFree: modelFree, ModelPolicy: selection.ModelPolicy,
+		Default: runtimeconfig.PinnedRuntimeConfig{
+			Label: "default", BindingRevision: 1,
+			Config: runtimeconfig.Ref{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest},
+		},
+	}
+	if selection.LLMGateway != nil {
+		gateway := *selection.LLMGateway
+		input.Workflow.Gateway = runtimeconfig.Field[contracts.LLMGatewayConfigRef]{Present: true, Value: gateway.Ref}
+		input.Gateways = map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig{gateway.Ref: gateway}
+		if selection.Credential != nil {
+			input.Workflow.Credential = runtimeconfig.Field[string]{Present: true, Value: selection.Credential.CredentialID}
+			input.LLMCredentials = map[string]runtimeconfig.LLMCredentialAuthorization{
+				selection.Credential.CredentialID: {
+					Ref: *selection.Credential, LLMGateway: gateway.Ref,
+					ModelPolicies: []contracts.ModelPolicyRef{selection.ModelPolicy.Ref}, Models: []string{selection.ModelPolicy.Model},
+				},
+			}
+		}
+	}
+	return runtimeconfig.ResolveRuntimeConfig(input)
+}
+
+func schedulerTestReservations(t *testing.T, stage workflowconfig.ResolvedStage) []controlplane.Reservation {
+	t.Helper()
+	reservations := make([]controlplane.Reservation, 0, len(stage.Agents))
+	for name, binding := range stage.Agents {
+		resolved, err := schedulerTestResolvedWorkerConfig(stage.ExecutionConfig.Agents[name], binding.Template.IsToolWorker())
+		if err != nil {
+			t.Fatal(err)
+		}
+		reservations = append(reservations, controlplane.Reservation{
+			Grant: controlplane.AllocationGrant{LogicalAgentName: name}, ResolvedRuntimeConfig: &resolved,
+		})
+	}
+	return reservations
+}
+
 type memoryAllocator struct {
 	workflow              workflowconfig.ResolvedWorkflow
 	clock                 staticClock
@@ -2418,14 +2469,21 @@ type memoryAllocator struct {
 	resolvedRuntimeConfig *runtimeconfig.ResolvedRuntimeConfig
 }
 
-func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	a.reserveCalls++
 	a.events.add("reserve")
 	if a.reserveError != nil {
 		return nil, a.reserveError
 	}
 	if len(a.cached) == 0 || a.cached[0].Grant.StageExecutionID != request.StageExecutionID {
-		a.cached = []controlplane.Reservation{a.reservationForRequest(request)}
+		reservation, err := a.reservationForRequest(request)
+		if err != nil {
+			return nil, err
+		}
+		a.cached = []controlplane.Reservation{reservation}
 		for _, reservation := range a.cached {
 			a.grants[reservation.Grant.AllocationID] = reservation.Grant
 		}
@@ -2433,9 +2491,16 @@ func (a *memoryAllocator) ReserveAll(request controlplane.ReservationRequest) ([
 	return append([]controlplane.Reservation(nil), a.cached...), nil
 }
 
-func (a *memoryAllocator) reservationForRequest(request controlplane.ReservationRequest) controlplane.Reservation {
+func (a *memoryAllocator) reservationForRequest(request controlplane.ReservationRequest) (controlplane.Reservation, error) {
 	a.allocationSequence++
 	binding := request.Bindings[0]
+	if binding.RuntimeSelection == nil {
+		return controlplane.Reservation{}, errors.New("test allocation requires a Runtime selection")
+	}
+	resolved, err := schedulerTestResolvedWorkerConfig(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker())
+	if err != nil {
+		return controlplane.Reservation{}, err
+	}
 	reservation := controlplane.Reservation{
 		Grant: controlplane.AllocationGrant{
 			AllocationID:   fmt.Sprintf("allocation-%d", a.allocationSequence),
@@ -2451,22 +2516,18 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
-	}
-	if binding.RuntimeSelection != nil && request.RuntimeConfig != nil {
-		resolved, err := fallbackResolvedWorkerConfig(*binding.RuntimeSelection)
-		if err == nil {
-			reservation.ResolvedRuntimeConfig = &resolved
-		}
+		ResolvedRuntimeConfig:       &resolved,
 	}
 	if a.resolvedRuntimeConfig != nil {
 		resolved := a.resolvedRuntimeConfig.Clone()
 		reservation.ResolvedRuntimeConfig = &resolved
 	}
-	return reservation
+	return reservation, nil
 }
 
-func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Reservation {
+func (a *memoryAllocator) reservation(stageExecutionID string) (controlplane.Reservation, error) {
 	binding := a.workflow.Stages[a.workflow.EntryStage].Agents["builder"]
+	selection := a.workflow.Stages[a.workflow.EntryStage].ExecutionConfig.Agents["builder"]
 	return a.reservationForRequest(controlplane.ReservationRequest{
 		RunID: "run-1", StageExecutionID: stageExecutionID,
 		Bindings: []controlplane.BindingRequirement{{
@@ -2474,6 +2535,7 @@ func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Rese
 			WorkerSessionMode: a.workflow.Stages[a.workflow.EntryStage].Session,
 			ResolvedSkills:    []contracts.ResolvedSkill{},
 			ExecutionConfig:   allocationExecutionConfig(a.workflow.Stages[a.workflow.EntryStage], "builder"),
+			RuntimeSelection:  &selection,
 		}},
 	})
 }

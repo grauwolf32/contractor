@@ -42,7 +42,6 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 	)
 	flags.StringVar(&c.databaseURL, "database-url", c.databaseURL, "PostgreSQL connection URL")
 	flags.StringVar(&c.operatorConfigRoot, "operator-config-root", c.operatorConfigRoot, "operator/bootstrap configuration root")
-	flags.StringVar(&c.operatorConfigRoot, "config-root", c.operatorConfigRoot, "deprecated alias for --operator-config-root")
 	flags.StringVar(&c.managedConfigRoot, "managed-config-root", c.managedConfigRoot, "Server-managed configuration publication root")
 	flags.StringVar(
 		&c.credentialMasterKeyFile,
@@ -56,7 +55,6 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 		c.llmGatewayAdminBindingsFile,
 		"absolute strict YAML file binding exact LLM Gateways to owner-only admin-key files",
 	)
-	flags.StringVar(&c.publicUserID, "public-user-id", c.publicUserID, "deprecated assertion matching local-auth userId")
 	flags.StringVar(&c.localAuthFile, "local-auth-file", c.localAuthFile, "absolute owner-only local authentication YAML")
 	flags.Var(&c.browserOrigins, "browser-origin", "exact allowed browser UI origin; repeat for multiple origins")
 	flags.BoolVar(

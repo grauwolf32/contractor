@@ -127,7 +127,10 @@ type scanFixedAllocator struct {
 	request controlplane.ReservationRequest
 }
 
-func (a *scanFixedAllocator) ReserveAll(request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+func (a *scanFixedAllocator) ReserveAllContext(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	a.reserveCalls++
 	a.events.add("reserve")
 	a.request = request
@@ -135,7 +138,10 @@ func (a *scanFixedAllocator) ReserveAll(request controlplane.ReservationRequest)
 		for _, binding := range request.Bindings {
 			one := request
 			one.Bindings = []controlplane.BindingRequirement{binding}
-			reservation := a.reservationForRequest(one)
+			reservation, err := a.reservationForRequest(one)
+			if err != nil {
+				return nil, err
+			}
 			a.cached = append(a.cached, reservation)
 			a.grants[reservation.Grant.AllocationID] = reservation.Grant
 		}

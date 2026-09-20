@@ -209,14 +209,7 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 }
 
 func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
-	startedAt := execution.CreatedAt
-	if startedAt.IsZero() {
-		// Legacy embeddings and focused in-memory stores created before the
-		// durable timestamp contract receive one finite budget from observation.
-		// PostgreSQL StageExecutions always use their immutable database time.
-		startedAt = s.now()
-	}
-	return startedAt.Add(s.options.PlannerTimeout)
+	return execution.CreatedAt.Add(s.options.PlannerTimeout)
 }
 
 func stageDeadlineFailure() planner.Failure {

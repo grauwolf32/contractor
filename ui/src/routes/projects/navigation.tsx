@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect } from "react";
-import { Navigate, NavLink, useLocation, useNavigate } from "react-router";
+import { useEffect } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router";
 
 const sections = [
   ["", "Overview"],
@@ -84,32 +84,4 @@ export function ProjectNavigation({ projectId }: { projectId: string }) {
       </label>
     </>
   );
-}
-
-export function ProjectLegacySectionRedirect({
-  projectId,
-  children,
-}: {
-  projectId: string;
-  children: ReactNode;
-}) {
-  const location = useLocation();
-  const root = `/projects/${encodeURIComponent(projectId)}`;
-  const legacy: Record<string, string> = {
-    "#project-overview": "settings",
-    "#project-artifacts": "artifacts",
-    "#project-workflows": "workflows",
-    "#project-runs": "runs",
-    "#project-audits": "audits",
-  };
-  const target = legacy[location.hash];
-  if (location.pathname === root && target)
-    return (
-      <Navigate
-        replace
-        to={{ pathname: `${root}/${target}`, search: location.search }}
-        state={location.state}
-      />
-    );
-  return children;
 }

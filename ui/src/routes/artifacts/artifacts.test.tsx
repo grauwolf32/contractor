@@ -312,7 +312,7 @@ describe("Artifact routes", () => {
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByRole("link", { name: "Skills" })).toHaveAttribute(
       "href",
-      "/skills",
+      "/catalog/skills",
     );
     expect(requests.some((request) => request.method === "PUT")).toBe(false);
   });

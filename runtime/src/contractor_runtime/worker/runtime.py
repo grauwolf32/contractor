@@ -214,16 +214,6 @@ class AdkWorkerRuntime:
         return None
 
     @property
-    def _session_id(self) -> str:
-        """Compatibility-only test view; session identity is not a wire contract."""
-
-        return (
-            self._session_lifecycle.active_session_id
-            or self._session_lifecycle.shared_session_id
-            or ""
-        )
-
-    @property
     def agent_card(self) -> Mapping[str, Any]:
         return dict(self._agent_card)
 

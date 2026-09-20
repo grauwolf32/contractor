@@ -10,8 +10,9 @@ import (
 
 func TestSchedulerMaterializesPinnedTelemetryExportSettings(t *testing.T) {
 	harness := newSchedulerHarness(t)
-	resolved, err := fallbackResolvedWorkerConfig(
+	resolved, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+		false,
 	)
 	if err != nil {
 		t.Fatal(err)

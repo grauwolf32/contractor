@@ -39,6 +39,11 @@ into a member-specific namespace. An Audit variant currently selects an exact
 AuditProfile: execution overrides are rejected because ordinary Audit creation
 has no override contract. Native Workflow variants use ordinary execution patches.
 
+Audit output slots are `report`, `coverage` and `findings` (the exact JSON machine
+report, with a pointer for the latter two), plus `summary` (the Markdown report).
+Preparation and collection share these slot/media contracts; a Markdown case
+must map its output to `summary`, not the machine `report` slot.
+
 The ordinary creation services verify prepared selection hashes again inside
 their transactions, after checking existing idempotency receipts. Drift cannot
 silently change an experiment; a lost response still recovers the original effect

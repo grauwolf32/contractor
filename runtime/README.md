@@ -240,20 +240,21 @@ contract.
 
 ## CLI scanners
 
-`scan@1` exposes `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and `scan_ffuf`.
+`scan@1` exposes `scan_nuclei`, `scan_sqlmap`, `scan_naabu`, `scan_ffuf` and
+`scan_katana`.
 Select the exact operations in an AgentTemplate:
 
 ```yaml
 toolsets:
   - ref: scan@1
-    tools: [scan_nuclei, scan_sqlmap, scan_naabu, scan_ffuf]
+    tools: [scan_nuclei, scan_sqlmap, scan_naabu, scan_ffuf, scan_katana]
 ```
 
 Provision the executables on the Runtime service's `PATH` before startup.
 Each binary is checked independently with `nuclei -version`, `sqlmap --version`,
-`naabu -version` or `ffuf -V`, under a two-second deadline. Missing, non-executable,
+`naabu -version`, `ffuf -V` or `katana -version`, under a two-second deadline. Missing, non-executable,
 failing or timed-out binaries omit only their own tool from advertised
-capabilities. If all four are unavailable, `scan@1` is absent. Installation
+capabilities. If all five are unavailable, `scan@1` is absent. Installation
 alone is insufficient: the version command must exit successfully. Restart
 the Runtime after changing installed scanners to refresh its frozen snapshot.
 
@@ -348,6 +349,43 @@ See the [Worker contract](../docs/spec/29-tool-workers.md) and the standalone
 `sqlmap-request@1` fixture binds its required `request` artifact to
 `sqlmap-scan@1`, publishes a `report` and uses a 300-second Worker timeout
 without model configuration or credentials.
+
+### Katana discovery
+
+Provision [Katana v1.7.0](https://github.com/projectdiscovery/katana/releases/tag/v1.7.0)
+on the Runtime service's `PATH` before startup. This version provides the native
+maximum-pages control used by the adapter; older versions without that control
+are unsupported. The capability probe accepts the 1.7.x family, tested with 1.7.0, and
+omits `scan_katana` for other versions until their command contract is checked.
+Provisioning remains an operator action: Runtime neither
+downloads Katana nor installs a browser. Confirm `katana -version` under the
+service environment, then restart Runtime to refresh its advertised capability.
+An unavailable Katana executable disables only `scan_katana`, leaving other
+scanner operations independently available.
+
+`scan_katana(url, max_depth=2, max_pages=100, rate_limit=10, timeout_seconds=60)`
+accepts one HTTP(S) seed. Bounds are depth 1–5, pages 1–1000, rate 1–1000 and
+deadline 1–3600 seconds. The adapter applies an anchored exact-origin scope,
+disables redirects, uses the ordinary non-headless crawler, and passes the
+native page limit. Headers/cookies, arbitrary flags, local files, external
+scope overrides and browser execution are not invocation inputs. The usual
+`scan_proxy_unsupported` rule and shared deadline/process-group cleanup apply.
+
+The adapter exports only supported same-origin URLs as a sorted, deduplicated
+UTF-8 `text/vnd.contractor.target-list` Artifact named `targets` in the Worker's
+namespace. The export is capped at 100 targets / 128 KiB and uses create-only
+publication. The report carries its exact revision, content digest, seed and
+origin, configured limits, per-URL source provenance and incomplete coverage
+reasons. Raw Katana request/response bodies are omitted. Empty discovery and
+Artifact publication failure are explicit failures, not reusable empty inputs.
+`discoveryComplete` is always `false`: successful bounded discovery is a sample,
+not evidence that the application has been exhaustively crawled.
+
+The model-free `katana-discovery@1` fixture publishes both `report` and `targets`.
+Its durable Worker receipt retains the exact output refs, so successful replay
+does not recrawl or republish the TargetList. See the [discovery example and
+manual scan handoff](../configs/scan/README.md#bounded-katana-discovery). It never
+dispatches another scan automatically. RequestSet export is not implemented.
 
 Combined workflows follow in the
 [ScanTools implementation plan](../docs/plans/2026-09-19-scan-tools.md).

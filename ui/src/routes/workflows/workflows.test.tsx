@@ -929,7 +929,7 @@ describe("Workflow routes", () => {
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
-    const { router } = renderWorkflowApplication(api, "/workflows");
+    const { router } = renderWorkflowApplication(api, "/catalog/workflows");
     expect(
       await screen.findByRole("link", {
         name: workflowDisplayName,
