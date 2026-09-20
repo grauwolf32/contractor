@@ -91,6 +91,7 @@ func (d *workflowAdapter) Create(ctx context.Context, e evalstore.Experiment, m 
 	}
 	return err
 }
+
 func (d *workflowAdapter) Cancel(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, sub evalstore.Submission) error {
 	if sub.ExecutionID == nil {
 		return evaldomain.Failure("eval_member_conflict")
@@ -110,7 +111,12 @@ func (d *workflowAdapter) Cancel(ctx context.Context, e evalstore.Experiment, m 
 	}
 	reason := "Evaluation experiment stopped."
 	owner := e.OwnerID
-	run, err := runstore.NewPostgresStore(d.operations.pool).RequestRunCancellation(ctx, *sub.ExecutionID, runstore.WorkflowRunCancellation{Code: runstore.CancellationUserRequested, RequestedAt: request.RequestedAt, RequestedBy: &owner, Reason: &reason})
+	run, err := runstore.NewPostgresStore(d.operations.pool).RequestRunCancellation(ctx, *sub.ExecutionID, runstore.WorkflowRunCancellation{
+		Code:        runstore.CancellationUserRequested,
+		RequestedAt: request.RequestedAt,
+		RequestedBy: &owner,
+		Reason:      &reason,
+	})
 	if err != nil {
 		return err
 	}

@@ -99,7 +99,10 @@ func (b *planBuilder) buildCases(truth map[string]blobRef) ([]evaldomain.Case, [
 		}
 		document := portableCase{SchemaVersion: portableCaseSchema, ID: id, Task: c.Task, Inputs: inputs, Requires: c.Requires, Outputs: outputs,
 			Evaluation: caseEvaluation{GroundTruth: truth, Assertions: map[string]json.RawMessage{}},
-			Provenance: caseProvenance{Sources: []documentRef{}, Datasets: []datasetProvenance{{ID: b.dataset.DatasetID, Revision: b.draft.Dataset.Revision}}},
+			Provenance: caseProvenance{
+				Sources:  []documentRef{},
+				Datasets: []datasetProvenance{{ID: b.dataset.DatasetID, Revision: b.draft.Dataset.Revision}},
+			},
 		}
 		ref, err := b.add("cases/"+id+".json", portableCaseSchema, document)
 		if err != nil {

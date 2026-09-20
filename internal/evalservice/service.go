@@ -16,6 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Each tick rotates a bounded set of members so large experiments share the worker.
+const membersPerTick = 10
+
 type BindingResolver interface {
 	Resolve(context.Context, string, evaldomain.Variant, []evaldomain.Case) (Preflight, error)
 }
@@ -25,12 +28,14 @@ type BindingResolver interface {
 type ExecutionDriver interface {
 	Reconcile(context.Context, evalstore.Experiment, evalstore.Member, evalstore.Claim) error
 }
+
 type Options struct {
 	Pool     *pgxpool.Pool
 	Resolver BindingResolver
 	Driver   ExecutionDriver
 	Now      func() time.Time
 }
+
 type Service struct {
 	pool     *pgxpool.Pool
 	resolver BindingResolver
@@ -47,12 +52,15 @@ func New(o Options) (*Service, error) {
 	}
 	return &Service{o.Pool, o.Resolver, o.Driver, o.Now}, nil
 }
+
 func (s *Service) tx(ctx context.Context, fn func(*evalstore.Store) error) error {
 	return pg.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx)) })
 }
+
 func scope(e evalstore.Experiment) evalstore.Scope {
 	return evalstore.Scope{OwnerID: e.OwnerID, ProjectID: e.ProjectID}
 }
+
 func diagnostic(code string) json.RawMessage {
 	d := evaldomain.Failure(code)
 	b, _ := json.Marshal(safeDiagnostic{Code: d.Code, Recovery: d.Recovery})
@@ -131,13 +139,13 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 	if err = s.recoverCommands(ctx, e, claim); err != nil {
 		return false, err
 	}
-	if e.State == "preparing" {
+	if e.State == evaldomain.StatePreparing {
 		if err = s.prepare(ctx, e, claim); err != nil {
 			return s.preparationFailed(ctx, e, claim, err)
 		}
-		return true, s.finishCommands(ctx, e, claim, true, nil, "prepare")
+		return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandPrepare)
 	}
-	outstanding, err := store.Outstanding(ctx, e.OwnerID, e.ID, 10)
+	outstanding, err := store.Outstanding(ctx, e.OwnerID, e.ID, membersPerTick)
 	if err != nil {
 		return false, err
 	}
@@ -175,11 +183,11 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 		return true, errors.Join(reconcileErrors...)
 	}
 	switch e.State {
-	case "running":
-		if err = s.finishCommands(ctx, e, claim, true, nil, "start", "resume"); err != nil {
+	case evaldomain.StateRunning:
+		if err = s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandStart, evaldomain.CommandResume); err != nil {
 			return false, err
 		}
-		if e.ControlMode == "external" {
+		if e.ControlMode == evaldomain.ControlExternal {
 			return len(outstanding) > 0, nil
 		}
 		next, err := store.NextMember(ctx, e.OwnerID, e.ID)
@@ -188,7 +196,7 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 		}
 		if next == nil {
 			return true, s.tx(ctx, func(st *evalstore.Store) error {
-				return st.Transition(ctx, scope(e), e.ID, claim, "running", "settling", e.ObservedTokens, nil)
+				return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StateRunning, evaldomain.StateSettling, e.ObservedTokens, nil)
 			})
 		}
 		if e.Outstanding >= e.MaxInFlight {
@@ -204,39 +212,46 @@ func (s *Service) Tick(ctx context.Context, claim evalstore.Claim) (bool, error)
 			return false, err
 		}
 		err = s.tx(ctx, func(st *evalstore.Store) error {
-			_, err := st.Admit(ctx, evalstore.Admission{Scope: scope(e), ExperimentID: e.ID, MemberID: next.MemberID, PlanSHA256: plan.SHA256, Claim: &claim, Mutation: id})
+			_, err := st.Admit(ctx, evalstore.Admission{
+				Scope:        scope(e),
+				ExperimentID: e.ID,
+				MemberID:     next.MemberID,
+				PlanSHA256:   plan.SHA256,
+				Claim:        &claim,
+				Mutation:     id,
+			})
 			return err
 		})
 		return err == nil, err
-	case "pausing":
+	case evaldomain.StatePausing:
 		if e.Outstanding == 0 {
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
-				return st.Transition(ctx, scope(e), e.ID, claim, "pausing", "paused", e.ObservedTokens, nil)
+				return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StatePausing, evaldomain.StatePaused, e.ObservedTokens, nil)
 			}); err != nil {
 				return false, err
 			}
-			return true, s.finishCommands(ctx, e, claim, true, nil, "pause")
+			return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandPause)
 		}
-	case "settling":
+	case evaldomain.StateSettling:
 		if e.Outstanding == 0 {
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
-				return st.Transition(ctx, scope(e), e.ID, claim, "settling", "finished", e.ObservedTokens, nil)
+				return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StateSettling, evaldomain.StateFinished, e.ObservedTokens, nil)
 			}); err != nil {
 				return false, err
 			}
-			return true, s.finishCommands(ctx, e, claim, true, nil, "finalize")
+			return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandFinalize)
 		}
-	case "cancelling":
+	case evaldomain.StateCancelling:
 		if e.Outstanding == 0 {
 			if e.DeletionRequestedAt != nil {
 				return s.purge(ctx, e)
 			}
 			if err = s.tx(ctx, func(st *evalstore.Store) error {
-				return st.Transition(ctx, scope(e), e.ID, claim, "cancelling", "cancelled", e.ObservedTokens, nil)
+				return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StateCancelling, evaldomain.StateCancelled, e.ObservedTokens, nil)
 			}); err != nil {
 				return false, err
 			}
-			return true, s.finishCommands(ctx, e, claim, true, nil, "cancel")
+			return true, s.finishCommands(ctx, e, claim, true, nil, evaldomain.CommandCancel)
 		}
 	}
 	return len(outstanding) > 0, nil
@@ -259,7 +274,7 @@ func (s *Service) preparationFailed(ctx context.Context, e evalstore.Experiment,
 		return st.Transition(ctx, scope(e), e.ID, claim, evaldomain.StatePreparing, target, e.ObservedTokens, detail)
 	})
 	if persistErr == nil && target == evaldomain.StateDraft {
-		persistErr = s.finishCommands(ctx, e, claim, false, detail, "prepare")
+		persistErr = s.finishCommands(ctx, e, claim, false, detail, evaldomain.CommandPrepare)
 	}
 	return persistErr == nil, errors.Join(fmt.Errorf("prepare evaluation %s: %w", e.ID, cause), persistErr)
 }
@@ -293,6 +308,7 @@ func (s *Service) recoverCommands(ctx context.Context, e evalstore.Experiment, c
 	}
 	return nil
 }
+
 func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, claim evalstore.Claim, success bool, detail json.RawMessage, kinds ...evaldomain.CommandKind) error {
 	rows, err := evalstore.NewPostgresStore(s.pool).PendingCommands(ctx, e.OwnerID, e.ID)
 	if err != nil {
@@ -309,8 +325,9 @@ func (s *Service) finishCommands(ctx context.Context, e evalstore.Experiment, cl
 	}
 	return nil
 }
+
 func (s *Service) purge(ctx context.Context, e evalstore.Experiment) (bool, error) {
-	deps, err := evalstore.NewPostgresStore(s.pool).Dependencies(ctx, e.OwnerID, e.ID, "", 100)
+	deps, err := evalstore.NewPostgresStore(s.pool).Dependencies(ctx, e.OwnerID, e.ID, "", evaldomain.MaxPageSize)
 	if err != nil {
 		return false, err
 	}

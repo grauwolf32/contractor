@@ -16,18 +16,22 @@ type Preflight struct {
 	Cases        map[string]Eligibility
 	Snapshot     json.RawMessage
 }
+
 type Pin struct {
 	Value  *string `json:"value"`
 	Origin string  `json:"origin"`
 }
+
 type Eligibility struct {
 	State  string
 	Reason *string
 }
+
 type Resource struct {
 	Path, Kind string
 	Document   evaldomain.Frozen `json:"-"`
 }
+
 type PlanBundle struct {
 	Private   map[string]evaldomain.Frozen   `json:"-"`
 	Plan      evaldomain.Frozen              `json:"-"`
@@ -36,10 +40,12 @@ type PlanBundle struct {
 	Inputs    map[string]evaldomain.Artifact `json:"-"`
 	Cases     map[string]evaldomain.Case     `json:"-"`
 }
+
 type documentRef struct {
 	Resource string `json:"resource"`
 	SHA256   string `json:"sha256"`
 }
+
 type blobRef struct {
 	Resource  string `json:"resource"`
 	SHA256    string `json:"sha256"`
@@ -54,6 +60,7 @@ func jsonBytes(value any) ([]byte, error) {
 	}
 	return b, nil
 }
+
 func hashJSON(value any) (string, error) {
 	b, err := jsonBytes(value)
 	if err != nil {

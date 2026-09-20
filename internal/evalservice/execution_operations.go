@@ -20,10 +20,12 @@ type executionOperations struct{ pool *pgxpool.Pool }
 func (d *executionOperations) tx(ctx context.Context, fn func(*evalstore.Store, pgx.Tx) error) error {
 	return postgres.InTx(ctx, d.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx), tx) })
 }
+
 func notFound(err error) bool {
 	var e *evaldomain.Error
 	return errors.As(err, &e) && e.Code == "eval_not_found"
 }
+
 func prepareOperation[T any](ctx context.Context, d *executionOperations, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, kind string, build func() (T, error)) (evalstore.Suboperation, error) {
 	store := evalstore.NewPostgresStore(d.pool)
 	op, err := store.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind)
@@ -47,6 +49,7 @@ func prepareOperation[T any](ctx context.Context, d *executionOperations, e eval
 	})
 	return op, err
 }
+
 func resolveOperation[T any](ctx context.Context, d *executionOperations, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, op evalstore.Suboperation, response T, rejected bool, executionID string) error {
 	raw, err := jsonBytes(response)
 	if err != nil {
@@ -61,11 +64,19 @@ func resolveOperation[T any](ctx context.Context, d *executionOperations, e eval
 		return s.ResolveSuboperation(ctx, scope(e), e.ID, m.MemberID, op.Kind, c, raw, rejected)
 	})
 }
+
 func (d *executionOperations) failDefinite(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, op evalstore.Suboperation, err error) error {
 	// Only local validation/fence failures establish non-acceptance. Timeouts and
 	// unknown database outcomes retain the original intent for idempotent replay.
-	if errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runservice.ErrPinnedSelectionChanged) || errors.Is(err, auditservice.ErrInvalid) || errors.Is(err, auditservice.ErrPinnedSelectionChanged) || errors.Is(err, auditservice.ErrProfileNotFound) || errors.Is(err, auditservice.ErrUnsupported) || errors.Is(err, projectstore.ErrDeleting) || errors.Is(err, auditstore.ErrProjectDeleting) {
-		return resolveOperation(ctx, d, e, m, c, op, operationRejected{Reason: "eval_pin_mismatch"}, true, "")
+	for _, definite := range []error{
+		runservice.ErrInvalid, runservice.ErrPinnedSelectionChanged,
+		auditservice.ErrInvalid, auditservice.ErrPinnedSelectionChanged,
+		auditservice.ErrProfileNotFound, auditservice.ErrUnsupported,
+		projectstore.ErrDeleting, auditstore.ErrProjectDeleting,
+	} {
+		if errors.Is(err, definite) {
+			return resolveOperation(ctx, d, e, m, c, op, operationRejected{Reason: "eval_pin_mismatch"}, true, "")
+		}
 	}
 	return err
 }

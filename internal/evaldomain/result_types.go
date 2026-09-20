@@ -13,6 +13,7 @@ type MemberIdentity struct {
 	Eligibility   string  `json:"eligibility"`
 	Reason        *string `json:"reason"`
 }
+
 type ExecutionView struct {
 	Ref        *ExecutionRef `json:"ref"`
 	State      string        `json:"state"`
@@ -20,6 +21,7 @@ type ExecutionView struct {
 	FinishedAt *time.Time    `json:"finishedAt"`
 	Reason     *string       `json:"reason"`
 }
+
 type MemberView struct {
 	Member           MemberIdentity `json:"member"`
 	Execution        *ExecutionView `json:"execution"`

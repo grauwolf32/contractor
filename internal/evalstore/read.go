@@ -3,6 +3,7 @@ package evalstore
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
@@ -11,6 +12,7 @@ type ListParams struct {
 	Limit                                                      int
 	Revision                                                   *int64
 }
+
 type ExperimentSummary struct {
 	ID          string `json:"experimentId"`
 	ProjectID   string `json:"projectId"`
@@ -20,6 +22,7 @@ type ExperimentSummary struct {
 	Revision    int64  `json:"revision"`
 	Expected    int    `json:"expectedMembers"`
 }
+
 type ExperimentPage struct {
 	Revision int64
 	Items    []ExperimentSummary
@@ -38,10 +41,12 @@ func (s *Store) List(ctx context.Context, p ListParams) (ExperimentPage, error) 
 	}
 	var out ExperimentPage
 	var raw []byte
-	err := s.db.QueryRow(ctx, `SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id=$1 AND project_id=$2),0),COALESCE((
- SELECT jsonb_agg(jsonb_build_object('experimentId',experiment_id,'projectId',project_id,'name',name,'controlMode',control_mode,'state',state,'revision',revision,'expectedMembers',expected_count) ORDER BY experiment_id)
- FROM (SELECT experiment_id,project_id,name,control_mode,state,revision,expected_count FROM eval_experiments
- WHERE owner_id=$1 AND ($2='' OR project_id=$2) AND ($3='' OR state=$3) AND ($4='' OR dataset_id=$4) AND ($5='' OR control_mode=$5) AND experiment_id>$6 ORDER BY experiment_id LIMIT $7) page),'[]'::jsonb)`, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterID, p.Limit).Scan(&out.Revision, &raw)
+	err := s.db.QueryRow(ctx, `
+SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id=$1 AND project_id=$2),0),COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('experimentId',experiment_id,'projectId',project_id,'name',name,'controlMode',control_mode,'state',state,'revision',revision,'expectedMembers',expected_count) ORDER BY experiment_id)
+        FROM (SELECT experiment_id,project_id,name,control_mode,state,revision,expected_count FROM eval_experiments
+            WHERE owner_id=$1 AND ($2='' OR project_id=$2) AND ($3='' OR state=$3) AND ($4='' OR dataset_id=$4) AND ($5='' OR control_mode=$5) AND experiment_id>$6 ORDER BY experiment_id LIMIT $7) page),'[]'::jsonb)
+`, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterID, p.Limit).Scan(&out.Revision, &raw)
 	if err != nil {
 		return out, err
 	}

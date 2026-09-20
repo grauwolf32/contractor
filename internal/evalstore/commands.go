@@ -49,8 +49,10 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 				return nil, evaldomain.Failure("eval_invalid")
 			}
 			// Copy authoring intent only: no member, receipt, clock or frozen plan is reused.
-			_, err = s.db.Exec(ctx, `INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit)
- SELECT $2,owner_id,project_id,$3,'server',name,'draft',draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit FROM eval_experiments WHERE experiment_id=$1`, e.ID, p.DuplicateID, p.DuplicatePortableID)
+			_, err = s.db.Exec(ctx, `
+INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit)
+SELECT $2,owner_id,project_id,$3,'server',name,'draft',draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit FROM eval_experiments WHERE experiment_id=$1
+`, e.ID, p.DuplicateID, p.DuplicatePortableID)
 			if err != nil {
 				return nil, normalize(err)
 			}
@@ -60,10 +62,12 @@ func (s *Store) Command(ctx context.Context, p CommandParams) (Receipt, error) {
 			return json.Marshal(ExperimentReceipt{ExperimentID: p.DuplicateID, Revision: 1, State: evaldomain.StateDraft})
 		}
 
-		_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state=$2,
-   started_at=CASE WHEN $3 THEN COALESCE(started_at,statement_timestamp()) ELSE started_at END,
-   deadline_at=CASE WHEN $3 THEN COALESCE(deadline_at,statement_timestamp()+wall_ms*interval '1 millisecond') ELSE deadline_at END,
-   last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp() ELSE last_producer_activity_at END,`+advance+` WHERE experiment_id=$1`, e.ID, target, p.Command.Kind == "start")
+		_, err = s.db.Exec(ctx, `
+UPDATE eval_experiments SET state=$2,
+started_at=CASE WHEN $3 THEN COALESCE(started_at,statement_timestamp()) ELSE started_at END,
+deadline_at=CASE WHEN $3 THEN COALESCE(deadline_at,statement_timestamp()+wall_ms*interval '1 millisecond') ELSE deadline_at END,
+last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp() ELSE last_producer_activity_at END,
+`+advance+` WHERE experiment_id=$1`, e.ID, target, p.Command.Kind == "start")
 		if err != nil {
 			return nil, err
 		}
@@ -112,6 +116,7 @@ func (s *Store) Transition(ctx context.Context, scope Scope, id string, claim Cl
 	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state=$2,observed_tokens=$3,diagnostic=$4,`+advance+` WHERE experiment_id=$1`, id, to, observedTokens, diagnostic)
 	return err
 }
+
 func (s *Store) CompleteCommand(ctx context.Context, scope Scope, id, commandID string, claim Claim, succeeded bool, diagnostic json.RawMessage) error {
 	if _, err := s.project(ctx, scope, true); err != nil {
 		return err
@@ -131,7 +136,13 @@ func (s *Store) CompleteCommand(ctx context.Context, scope Scope, id, commandID 
 	if succeeded {
 		state = "succeeded"
 	}
-	tag, err := s.db.Exec(ctx, `UPDATE eval_commands SET state=$3,diagnostic=$4,finished_at=clock_timestamp() WHERE experiment_id=$1 AND command_id=$2 AND state IN ('accepted','running')`, id, commandID, state, diagnostic)
+	tag, err := s.db.Exec(ctx, `
+UPDATE eval_commands
+SET state=$3, diagnostic=$4, finished_at=clock_timestamp()
+WHERE experiment_id=$1
+    AND command_id=$2
+    AND state IN ('accepted', 'running')
+`, id, commandID, state, diagnostic)
 	if err == nil && tag.RowsAffected() != 1 {
 		return evaldomain.Failure("eval_not_found")
 	}

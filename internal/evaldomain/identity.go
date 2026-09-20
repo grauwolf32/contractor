@@ -15,6 +15,7 @@ func Digest(data []byte) string {
 	h := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(h[:])
 }
+
 func MemberID(experiment, suite, caseID string, sample int, variant string) (string, error) {
 	if !idPattern.MatchString(variant) {
 		return "", Failure("eval_invalid")
@@ -24,18 +25,21 @@ func MemberID(experiment, suite, caseID string, sample int, variant string) (str
 	}
 	return identityHash([]any{experiment, suite, caseID, sample, variant}), nil
 }
+
 func PairID(experiment, suite, caseID string, sample int) (string, error) {
 	if err := pairIdentityValid(experiment, suite, caseID, sample); err != nil {
 		return "", err
 	}
 	return identityHash([]any{experiment, suite, caseID, sample}), nil
 }
+
 func pairIdentityValid(experiment, suite, caseID string, sample int) error {
 	if !idPattern.MatchString(experiment) || !idPattern.MatchString(suite) || !idPattern.MatchString(caseID) || sample < 1 || sample > MaxRepetitions {
 		return Failure("eval_invalid")
 	}
 	return nil
 }
+
 func identityHash(parts []any) string {
 	data, _ := json.Marshal(parts)
 	return Digest(data)[len("sha256:"):]

@@ -3,10 +3,11 @@ package evalcoordinator
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/evalstore"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
 type testClaims struct {

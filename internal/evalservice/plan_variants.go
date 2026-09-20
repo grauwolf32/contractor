@@ -39,7 +39,12 @@ func (b *planBuilder) buildVariants(cases []evaldomain.Case) ([]variantReference
 		}
 		tasks := make([]effectiveTask, 0, len(cases))
 		for _, c := range cases {
-			tasks = append(tasks, effectiveTask{Task: c.Task, Parameters: MapParameters(c, variant), Inputs: variant.InputMapping, Outputs: variant.OutputMapping})
+			tasks = append(tasks, effectiveTask{
+				Task:       c.Task,
+				Parameters: MapParameters(c, variant),
+				Inputs:     variant.InputMapping,
+				Outputs:    variant.OutputMapping,
+			})
 		}
 		taskDigest, err := hashJSON(tasks)
 		if err != nil {
@@ -75,42 +80,54 @@ func (b *planBuilder) buildMembers(experimentID string, cases []evaldomain.Case,
 	size := len(cases) * b.draft.Repetitions * len(variants)
 	members := make([]planMember, 0, size)
 	order := make([]string, 0, size)
-	for ci, c := range cases {
-		for sample := 1; sample <= b.draft.Repetitions; sample++ {
-			for _, variant := range variants {
-				id, err := evaldomain.MemberID(experimentID, b.draft.Dataset.ID, c.ID, sample, variant.ID)
-				if err != nil {
-					return nil, nil, err
-				}
-				eligibility, ok := b.preflight[variant.ID].Cases[c.ID]
-				if !ok {
-					return nil, nil, evaldomain.Failure("eval_not_ready")
-				}
-				members = append(members, planMember{
-					PublicMember: evaldomain.PublicMember{
-						MemberID:      id,
-						SuiteID:       b.draft.Dataset.ID,
-						CaseID:        c.ID,
-						Sample:        sample,
-						VariantID:     variant.ID,
-						CaseSHA256:    caseRefs[ci].SHA256,
-						BindingSHA256: variant.Binding.SHA256,
-						Eligibility:   eligibility.State,
-					},
-					Reason: eligibility.Reason,
-				})
-				order = append(order, id)
-				b.bundle.Cases[id] = c
-			}
+	for i, c := range cases {
+		caseMembers, err := b.buildCaseMembers(experimentID, c, caseRefs[i], variants)
+		if err != nil {
+			return nil, nil, err
+		}
+		members = append(members, caseMembers...)
+		for _, member := range caseMembers {
+			order = append(order, member.MemberID)
+			b.bundle.Cases[member.MemberID] = c
 		}
 	}
 	if b.draft.Order.Kind == "seeded_shuffle" {
-		// Version-independent permutation is retained explicitly in the frozen plan.
-		sort.Slice(order, func(i, j int) bool {
-			left := evaldomain.Digest([]byte(fmt.Sprintf("%d:%s", *b.draft.Order.Seed, order[i])))
-			right := evaldomain.Digest([]byte(fmt.Sprintf("%d:%s", *b.draft.Order.Seed, order[j])))
-			return left < right
-		})
+		// Hash each member once; sorting preserves the retained permutation.
+		keys := make(map[string]string, len(order))
+		for _, id := range order {
+			keys[id] = evaldomain.Digest([]byte(fmt.Sprintf("%d:%s", *b.draft.Order.Seed, id)))
+		}
+		sort.Slice(order, func(i, j int) bool { return keys[order[i]] < keys[order[j]] })
 	}
 	return members, order, nil
+}
+
+func (b *planBuilder) buildCaseMembers(experimentID string, c evaldomain.Case, caseRef documentRef, variants []variantReference) ([]planMember, error) {
+	members := make([]planMember, 0, b.draft.Repetitions*len(variants))
+	for sample := 1; sample <= b.draft.Repetitions; sample++ {
+		for _, variant := range variants {
+			id, err := evaldomain.MemberID(experimentID, b.draft.Dataset.ID, c.ID, sample, variant.ID)
+			if err != nil {
+				return nil, err
+			}
+			eligibility, ok := b.preflight[variant.ID].Cases[c.ID]
+			if !ok {
+				return nil, evaldomain.Failure("eval_not_ready")
+			}
+			members = append(members, planMember{
+				PublicMember: evaldomain.PublicMember{
+					MemberID:      id,
+					SuiteID:       b.draft.Dataset.ID,
+					CaseID:        c.ID,
+					Sample:        sample,
+					VariantID:     variant.ID,
+					CaseSHA256:    caseRef.SHA256,
+					BindingSHA256: variant.Binding.SHA256,
+					Eligibility:   eligibility.State,
+				},
+				Reason: eligibility.Reason,
+			})
+		}
+	}
+	return members, nil
 }

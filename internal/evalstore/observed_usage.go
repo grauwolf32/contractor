@@ -10,18 +10,20 @@ import (
 const maxObservedUsageRows = 10_000
 
 const ownedRunForUsage = `
- SELECT run_id
- FROM workflow_runs
- WHERE run_id = $1 AND owner_id = $2`
+SELECT run_id
+FROM workflow_runs
+WHERE run_id = $1 AND owner_id = $2
+`
 
 const ownedAuditRunsForUsage = `
- SELECT DISTINCT execution.run_id
- FROM audit_executions execution
- JOIN audits audit USING (audit_id)
- WHERE execution.audit_id = $1 AND audit.owner_id = $2
-   AND execution.run_id IS NOT NULL
- ORDER BY execution.run_id
- LIMIT $3`
+SELECT DISTINCT execution.run_id
+FROM audit_executions execution
+JOIN audits audit USING (audit_id)
+WHERE execution.audit_id = $1 AND audit.owner_id = $2
+    AND execution.run_id IS NOT NULL
+ORDER BY execution.run_id
+LIMIT $3
+`
 
 // KnownTokens is a bounded lower bound for budget enforcement. Each stage row
 // contributes once across all owned Audit roles; no parent aggregate is added.

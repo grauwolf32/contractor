@@ -29,6 +29,7 @@ func (d *memberResources) binding(ctx context.Context, e evalstore.Experiment, m
 	}
 	return wrapper.Settings.Snapshot, nil
 }
+
 func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, projectID string) (map[string]contracts.ArtifactRef, error) {
 	op, err := prepareOperation(ctx, d.operations, e, m, c, "inputs", func() (inputCopyRequest, error) {
 		inputs, err := MapInputs(evaldomain.Case{Inputs: m.Recipe.Case.Inputs}, m.Recipe.Variant)
@@ -85,6 +86,7 @@ func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m 
 	})
 	return refs, err
 }
+
 func memberCase(m evalstore.Member) evaldomain.Case {
 	return evaldomain.Case{
 		ID:       m.Recipe.Case.ID,

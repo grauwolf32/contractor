@@ -2,6 +2,7 @@ package evalservice
 
 import (
 	_ "embed"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 

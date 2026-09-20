@@ -16,6 +16,7 @@ import (
 type RunCreator interface {
 	CreatePublic(context.Context, runservice.PublicCreateParams) (runservice.CreateResult, error)
 }
+
 type AuditExecutor interface {
 	CreateDraft(context.Context, auditservice.CreateDraftParams) (auditstore.Audit, bool, error)
 	Start(context.Context, auditservice.StartParams) (auditservice.StartedAudit, error)
@@ -23,20 +24,24 @@ type AuditExecutor interface {
 	Cancel(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 }
+
 type RunNotifier interface {
 	Wake()
 	Cancel(string)
 }
+
 type Driver struct {
 	Pool     *pgxpool.Pool
 	Runs     RunCreator
 	Audits   AuditExecutor
 	Notifier RunNotifier
 }
+
 type executionAdapter interface {
 	Create(context.Context, evalstore.Experiment, evalstore.Member, evalstore.Claim) error
 	Cancel(context.Context, evalstore.Experiment, evalstore.Member, evalstore.Claim, evalstore.Submission) error
 }
+
 type memberReconciler struct {
 	operations *executionOperations
 	adapter    executionAdapter
@@ -59,6 +64,7 @@ func (d *Driver) Reconcile(ctx context.Context, e evalstore.Experiment, m evalst
 	}
 	return (&memberReconciler{operations: operations, adapter: adapter}).Reconcile(ctx, e, m, c)
 }
+
 func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim) error {
 	store := evalstore.NewPostgresStore(d.operations.pool)
 	sub, err := store.Submission(ctx, e.OwnerID, e.ID, m.MemberID)
@@ -105,7 +111,7 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 			kind = "audit-create"
 		}
 		op, opErr := store.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind)
-		if e.State == "cancelling" && notFound(opErr) {
+		if e.State == evaldomain.StateCancelling && notFound(opErr) {
 			return d.operations.tx(ctx, func(s *evalstore.Store, _ pgx.Tx) error {
 				for _, kind := range []string{"inputs", "project-create"} {
 					op, err := s.Suboperation(ctx, e.OwnerID, e.ID, m.MemberID, kind)
@@ -141,7 +147,7 @@ func (d *memberReconciler) Reconcile(ctx context.Context, e evalstore.Experiment
 	if sub.State != "accepted" {
 		return nil
 	}
-	if e.State == "cancelling" {
+	if e.State == evaldomain.StateCancelling {
 		if err = d.adapter.Cancel(ctx, e, m, c, sub); err != nil {
 			return err
 		}

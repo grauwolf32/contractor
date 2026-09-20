@@ -30,7 +30,9 @@ type Store struct {
 }
 
 func NewPostgresStore(db pg.DBTX) *Store { return &Store{db: db} }
-func NewTxStore(tx pgx.Tx) *Store        { return &Store{db: tx, tx: tx} }
+
+func NewTxStore(tx pgx.Tx) *Store { return &Store{db: tx, tx: tx} }
+
 func (s *Store) requireTx() error {
 	if s.tx == nil {
 		return ErrTransaction
@@ -39,10 +41,12 @@ func (s *Store) requireTx() error {
 }
 
 type Scope struct{ OwnerID, ProjectID string }
+
 type Receipt struct {
 	Response json.RawMessage
 	Replayed bool
 }
+
 type Experiment struct {
 	ID, OwnerID, ProjectID, PortableID, Name                           string
 	State                                                              evaldomain.State
@@ -84,6 +88,7 @@ func scanExperiment(row scanner) (Experiment, error) {
 	}
 	return e, err
 }
+
 func normalize(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return evaldomain.Failure("eval_not_found")
@@ -101,9 +106,11 @@ func normalize(err error) error {
 	}
 	return err
 }
+
 func validScope(scope Scope) bool {
 	return scope.OwnerID != "" && len(scope.OwnerID) <= 256 && resourceID.MatchString(scope.ProjectID)
 }
+
 func (s *Store) project(ctx context.Context, scope Scope, lock bool) (bool, error) {
 	if !validScope(scope) {
 		return false, evaldomain.Failure("eval_invalid")
@@ -141,7 +148,15 @@ func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation
 	}
 	var digest string
 	var response []byte
-	err = s.db.QueryRow(ctx, `SELECT request_sha256,response FROM eval_mutation_receipts WHERE owner_id=$1 AND project_id=$2 AND resource_id=$3 AND operation=$4 AND operation_key=$5`, scope.OwnerID, scope.ProjectID, resource, operation, id.Key).Scan(&digest, &response)
+	err = s.db.QueryRow(ctx, `
+SELECT request_sha256, response
+FROM eval_mutation_receipts
+WHERE owner_id=$1
+    AND project_id=$2
+    AND resource_id=$3
+    AND operation=$4
+    AND operation_key=$5
+`, scope.OwnerID, scope.ProjectID, resource, operation, id.Key).Scan(&digest, &response)
 	if err == nil {
 		if digest != id.RequestSHA256 {
 			return Receipt{}, evaldomain.Failure("eval_idempotency_conflict")
@@ -158,18 +173,24 @@ func (s *Store) mutateJSON(ctx context.Context, scope Scope, resource, operation
 	if err != nil {
 		return Receipt{}, err
 	}
-	_, err = s.db.Exec(ctx, `INSERT INTO eval_mutation_receipts(owner_id,project_id,resource_id,operation,operation_key,request_sha256,expected_revision,response) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, scope.OwnerID, scope.ProjectID, resource, operation, id.Key, id.RequestSHA256, id.ExpectedRevision, response)
+	_, err = s.db.Exec(ctx, `
+INSERT INTO eval_mutation_receipts(owner_id, project_id, resource_id, operation, operation_key, request_sha256, expected_revision, response)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+`, scope.OwnerID, scope.ProjectID, resource, operation, id.Key, id.RequestSHA256, id.ExpectedRevision, response)
 	return Receipt{Response: response}, normalize(err)
 }
+
 func (s *Store) Get(ctx context.Context, owner, id string) (Experiment, error) {
 	return scanExperiment(s.db.QueryRow(ctx, `SELECT `+experimentColumns+` FROM eval_experiments WHERE owner_id=$1 AND experiment_id=$2`, owner, id))
 }
+
 func (s *Store) locked(ctx context.Context, scope Scope, id string) (Experiment, error) {
 	if err := s.requireTx(); err != nil {
 		return Experiment{}, err
 	}
 	return scanExperiment(s.db.QueryRow(ctx, `SELECT `+experimentColumns+` FROM eval_experiments WHERE owner_id=$1 AND project_id=$2 AND experiment_id=$3 FOR UPDATE`, scope.OwnerID, scope.ProjectID, id))
 }
+
 func checkMutable(e Experiment, id evaldomain.MutationIdentity) error {
 	if e.DeletionRequestedAt != nil {
 		return evaldomain.Failure("eval_project_deleting")

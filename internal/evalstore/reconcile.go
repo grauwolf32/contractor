@@ -20,7 +20,15 @@ type CommandRecord struct {
 }
 
 func (s *Store) PendingCommands(ctx context.Context, owner, id string) ([]CommandRecord, error) {
-	rows, err := s.db.Query(ctx, `SELECT c.command_id,c.experiment_id,c.kind,c.state,c.accepted_revision,c.diagnostic,c.created_at,c.finished_at FROM eval_commands c JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND e.experiment_id=$2 AND c.state IN ('accepted','running') ORDER BY c.created_at,c.command_id LIMIT 100`, owner, id)
+	rows, err := s.db.Query(ctx, `
+SELECT c.command_id, c.experiment_id, c.kind, c.state, c.accepted_revision, c.diagnostic, c.created_at, c.finished_at
+FROM eval_commands c
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND c.state IN ('accepted', 'running')
+ORDER BY c.created_at, c.command_id LIMIT 100
+`, owner, id)
 	if err != nil {
 		return nil, err
 	}
@@ -35,19 +43,40 @@ func (s *Store) PendingCommands(ctx context.Context, owner, id string) ([]Comman
 	}
 	return out, rows.Err()
 }
+
 func (s *Store) Member(ctx context.Context, owner, id, member string) (Member, error) {
 	var m Member
 	var raw []byte
-	err := s.db.QueryRow(ctx, `SELECT m.member_id,m.pair_id,m.ordinal,m.suite_id,m.case_id,m.sample,m.variant_id,m.eligibility,m.execution_kind,m.recipe,m.submission_key,m.case_sha256,m.binding_sha256 FROM eval_members m JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND e.experiment_id=$2 AND m.member_id=$3`, owner, id, member).Scan(&m.MemberID, &m.PairID, &m.Ordinal, &m.SuiteID, &m.CaseID, &m.Sample, &m.VariantID, &m.Eligibility, &m.ExecutionKind, &raw, &m.SubmissionKey, &m.CaseSHA256, &m.BindingSHA256)
+	err := s.db.QueryRow(ctx, `
+SELECT m.member_id, m.pair_id, m.ordinal, m.suite_id, m.case_id, m.sample, m.variant_id, m.eligibility, m.execution_kind, m.recipe, m.submission_key, m.case_sha256, m.binding_sha256
+FROM eval_members m
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND m.member_id=$3
+`, owner, id, member).Scan(&m.MemberID, &m.PairID, &m.Ordinal, &m.SuiteID, &m.CaseID, &m.Sample, &m.VariantID, &m.Eligibility, &m.ExecutionKind, &raw, &m.SubmissionKey, &m.CaseSHA256, &m.BindingSHA256)
 	if err != nil {
 		return m, normalize(err)
 	}
 	err = json.Unmarshal(raw, &m.Recipe)
 	return m, err
 }
+
 func (s *Store) NextMember(ctx context.Context, owner, id string) (*Member, error) {
 	var member string
-	err := s.db.QueryRow(ctx, `SELECT m.member_id FROM eval_members m JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND e.experiment_id=$2 AND m.eligibility='eligible' AND NOT EXISTS(SELECT 1 FROM eval_submissions s WHERE s.experiment_id=m.experiment_id AND s.member_id=m.member_id) ORDER BY m.ordinal LIMIT 1`, owner, id).Scan(&member)
+	err := s.db.QueryRow(ctx, `
+SELECT m.member_id
+FROM eval_members m
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND m.eligibility='eligible'
+    AND NOT EXISTS(SELECT 1
+    FROM eval_submissions s
+    WHERE s.experiment_id=m.experiment_id
+        AND s.member_id=m.member_id)
+ORDER BY m.ordinal LIMIT 1
+`, owner, id).Scan(&member)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -57,11 +86,20 @@ func (s *Store) NextMember(ctx context.Context, owner, id string) (*Member, erro
 	m, err := s.Member(ctx, owner, id, member)
 	return &m, err
 }
+
 func (s *Store) Outstanding(ctx context.Context, owner, id string, limit int) ([]string, error) {
-	if limit < 1 || limit > 100 {
+	if limit < 1 || limit > evaldomain.MaxPageSize {
 		return nil, evaldomain.Failure("eval_invalid")
 	}
-	rows, err := s.db.Query(ctx, `SELECT s.member_id FROM eval_submissions s JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND e.experiment_id=$2 AND s.state IN ('intent','accepted') ORDER BY s.updated_at,s.member_id LIMIT $3`, owner, id, limit)
+	rows, err := s.db.Query(ctx, `
+SELECT s.member_id
+FROM eval_submissions s
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND s.state IN ('intent', 'accepted')
+ORDER BY s.updated_at, s.member_id LIMIT $3
+`, owner, id, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -125,11 +163,20 @@ func (s *Store) ObserveTokens(ctx context.Context, scope Scope, id, member strin
 	}
 	return nil
 }
+
 func (s *Store) Dependencies(ctx context.Context, owner, id, after string, limit int) ([]string, error) {
-	if limit < 1 || limit > 100 {
+	if limit < 1 || limit > evaldomain.MaxPageSize {
 		return nil, evaldomain.Failure("eval_invalid")
 	}
-	rows, err := s.db.Query(ctx, `SELECT d.project_id FROM eval_project_dependencies d JOIN projects p USING(project_id) WHERE d.owner_id=$1 AND d.experiment_id=$2 AND d.project_id>$3 ORDER BY d.project_id LIMIT $4`, owner, id, after, limit)
+	rows, err := s.db.Query(ctx, `
+SELECT d.project_id
+FROM eval_project_dependencies d
+JOIN projects p USING(project_id)
+WHERE d.owner_id=$1
+    AND d.experiment_id=$2
+    AND d.project_id>$3
+ORDER BY d.project_id LIMIT $4
+`, owner, id, after, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +194,15 @@ func (s *Store) Dependencies(ctx context.Context, owner, id, after string, limit
 
 func (s *Store) GetClaimed(ctx context.Context, claim Claim) (Experiment, error) {
 	var owner string
-	err := s.db.QueryRow(ctx, `SELECT e.owner_id FROM eval_experiments e JOIN eval_controller_claims c USING(experiment_id) WHERE c.experiment_id=$1 AND c.holder_id=$2 AND c.epoch=$3 AND c.expires_at>clock_timestamp()`, claim.ExperimentID, claim.HolderID, claim.Epoch).Scan(&owner)
+	err := s.db.QueryRow(ctx, `
+SELECT e.owner_id
+FROM eval_experiments e
+JOIN eval_controller_claims c USING(experiment_id)
+WHERE c.experiment_id=$1
+    AND c.holder_id=$2
+    AND c.epoch=$3
+    AND c.expires_at>clock_timestamp()
+`, claim.ExperimentID, claim.HolderID, claim.Epoch).Scan(&owner)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Experiment{}, ErrClaimLost
 	}

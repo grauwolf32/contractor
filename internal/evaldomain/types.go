@@ -8,6 +8,7 @@ type Source struct {
 	Revision     *string `json:"revision"`
 	SourceSHA256 *string `json:"sourceSha256"`
 }
+
 type Artifact struct {
 	Scope     string `json:"scope"`
 	ScopeID   string `json:"scopeId"`
@@ -18,15 +19,18 @@ type Artifact struct {
 	MediaType string `json:"mediaType"`
 	SizeBytes int64  `json:"sizeBytes"`
 }
+
 type Task struct {
 	Kind       string            `json:"kind"`
 	Objective  string            `json:"objective"`
 	Parameters map[string]string `json:"parameters"`
 }
+
 type Output struct {
 	MediaTypes []string `json:"mediaTypes"`
 	Required   bool     `json:"required"`
 }
+
 type Case struct {
 	ID       string              `json:"id"`
 	Task     Task                `json:"task"`
@@ -35,6 +39,7 @@ type Case struct {
 	Outputs  map[string]Output   `json:"outputs"`
 	Source   *Source             `json:"source,omitempty"`
 }
+
 type PrivateCheck struct {
 	ID       string            `json:"id"`
 	Revision string            `json:"revision"`
@@ -42,6 +47,7 @@ type PrivateCheck struct {
 	Expected map[string]string `json:"expected"`
 	Schema   string            `json:"schema,omitempty"`
 }
+
 type DatasetInput struct {
 	DatasetID     string         `json:"datasetId"`
 	Name          string         `json:"name"`
@@ -49,6 +55,7 @@ type DatasetInput struct {
 	Cases         []Case         `json:"cases"`
 	PrivateChecks []PrivateCheck `json:"privateChecks"`
 }
+
 type Dataset struct {
 	DatasetID     string  `json:"datasetId"`
 	Name          string  `json:"name"`
@@ -58,10 +65,12 @@ type Dataset struct {
 	CaseCount     int     `json:"caseCount"`
 	Source        *Source `json:"source,omitempty"`
 }
+
 type DatasetRef struct {
 	ID       string `json:"id"`
 	Revision string `json:"revision"`
 }
+
 type Variant struct {
 	ID              string                      `json:"id"`
 	Kind            string                      `json:"kind"`
@@ -72,6 +81,7 @@ type Variant struct {
 	OutputMapping   map[string]string           `json:"outputMapping,omitempty"`
 	Parameters      map[string]string           `json:"parameters,omitempty"`
 }
+
 type Check struct {
 	ID                   string            `json:"id"`
 	Evaluator            string            `json:"evaluator"`
@@ -81,21 +91,25 @@ type Check struct {
 	Parameters           map[string]string `json:"parameters,omitempty"`
 	AllowNotApplicable   bool              `json:"allowNotApplicable,omitempty"`
 }
+
 type Budgets struct {
 	MaxMembers             int    `json:"maxMembers"`
 	MaxInFlight            int    `json:"maxInFlight"`
 	WallMS                 int64  `json:"wallMs"`
 	MaxObservedTotalTokens *int64 `json:"maxObservedTotalTokens"`
 }
+
 type Order struct {
 	Kind string `json:"kind"`
 	Seed *int64 `json:"seed,omitempty"`
 }
+
 type Gates struct {
 	MinCandidateEndToEndPass float64  `json:"minCandidateEndToEndPass"`
 	MaxQualityDrop           float64  `json:"maxQualityDrop"`
 	MaxTotalTokensRatio      *float64 `json:"maxTotalTokensRatio,omitempty"`
 }
+
 type Comparison struct {
 	Baseline           string   `json:"baseline"`
 	Candidate          string   `json:"candidate"`
@@ -103,6 +117,7 @@ type Comparison struct {
 	RequiredEqual      []string `json:"requiredEqual"`
 	AllowedDifferences []string `json:"allowedDifferences"`
 }
+
 type Draft struct {
 	Dataset     DatasetRef `json:"dataset"`
 	CaseIDs     []string   `json:"caseIds"`
@@ -113,6 +128,7 @@ type Draft struct {
 	Comparison  Comparison `json:"comparison"`
 	Budgets     Budgets    `json:"budgets"`
 }
+
 type PublicMember struct {
 	MemberID      string `json:"member_id"`
 	SuiteID       string `json:"suite_id"`
@@ -123,6 +139,7 @@ type PublicMember struct {
 	Sample        int    `json:"sample"`
 	Eligibility   string `json:"eligibility"`
 }
+
 type PublicPlan struct {
 	SchemaVersion       string         `json:"schema_version"`
 	SourceSchemaVersion string         `json:"source_schema_version"`
@@ -131,10 +148,12 @@ type PublicPlan struct {
 	CreatedAt           string         `json:"created_at"`
 	Members             []PublicMember `json:"members"`
 }
+
 type MemberRecipe struct {
 	MemberID string `json:"memberId"`
 	Case     Case   `json:"case"`
 }
+
 type ExternalRegistration struct {
 	SchemaVersion    string         `json:"schemaVersion"`
 	SourcePlanSHA256 string         `json:"sourcePlanSha256"`
@@ -146,31 +165,38 @@ type ExternalRegistration struct {
 	Comparison       Comparison     `json:"comparison"`
 	Budgets          Budgets        `json:"budgets"`
 }
+
 type CreateExperiment struct {
 	Name         string                `json:"name"`
 	ControlMode  ControlMode           `json:"controlMode"`
 	Draft        *Draft                `json:"draft,omitempty"`
 	Registration *ExternalRegistration `json:"registration,omitempty"`
 }
+
 type DraftUpdate struct {
 	Name  string `json:"name"`
 	Draft Draft  `json:"draft"`
 }
+
 type Command struct {
 	Kind       CommandKind `json:"kind"`
 	PlanSHA256 string      `json:"planSha256,omitempty"`
 }
+
 type Submission struct {
 	PlanSHA256 string `json:"planSha256"`
 }
+
 type ExecutionRef struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
 }
+
 type Interval struct {
 	Start string `json:"start"`
 	End   string `json:"end"`
 }
+
 type MeasureScope struct {
 	MemberID   string         `json:"memberId"`
 	Kind       string         `json:"kind"`
@@ -178,6 +204,7 @@ type MeasureScope struct {
 	Missing    []string       `json:"missing"`
 	Interval   *Interval      `json:"interval"`
 }
+
 type Measure struct {
 	Value        *float64     `json:"value"`
 	Unit         string       `json:"unit"`
@@ -185,6 +212,7 @@ type Measure struct {
 	SourceRefs   []string     `json:"sourceRefs"`
 	Scope        MeasureScope `json:"scope"`
 }
+
 type Usage struct {
 	InputTokens       Measure `json:"inputTokens"`
 	OutputTokens      Measure `json:"outputTokens"`

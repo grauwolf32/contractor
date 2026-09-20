@@ -17,6 +17,7 @@ type AttemptObservation struct {
 	Truncated        bool             `json:"truncated"`
 	SourceSHA256     string           `json:"sourceSha256"`
 }
+
 type UsageObservation struct {
 	MemberID           string               `json:"memberId"`
 	Parent             ExecutionRef         `json:"parent"`
@@ -140,7 +141,12 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 		}
 		gaps = uniqueStrings(gaps)
 		sources = uniqueStrings(sources)
-		m := Measure{Unit: unit, Completeness: "unavailable", SourceRefs: sources, Scope: MeasureScope{MemberID: in.MemberID, Kind: kind, Executions: executions, Missing: gaps}}
+		m := Measure{
+			Unit:         unit,
+			Completeness: "unavailable",
+			SourceRefs:   sources,
+			Scope:        MeasureScope{MemberID: in.MemberID, Kind: kind, Executions: executions, Missing: gaps},
+		}
 		if count > 0 && (len(gaps) == 0 || total > 0) {
 			value := float64(total)
 			m.Value = &value
@@ -154,8 +160,26 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 		}
 		return m
 	}
-	out := Usage{InputTokens: metric("inputTokens", "tokens"), OutputTokens: metric("outputTokens", "tokens"), TotalTokens: metric("totalTokens", "tokens"), CachedInputTokens: metric("cachedInputTokens", "tokens"), ModelCalls: metric("modelCalls", "calls"), ToolCalls: metric("toolCalls", "calls"), ToolFailures: metric("toolFailures", "calls")}
-	out.WallMS = Measure{Unit: "milliseconds", Completeness: "unavailable", SourceRefs: []string{}, Scope: MeasureScope{MemberID: in.MemberID, Kind: kind, Executions: executions, Missing: []string{"parent timestamps unavailable"}}}
+	out := Usage{
+		InputTokens:       metric("inputTokens", "tokens"),
+		OutputTokens:      metric("outputTokens", "tokens"),
+		TotalTokens:       metric("totalTokens", "tokens"),
+		CachedInputTokens: metric("cachedInputTokens", "tokens"),
+		ModelCalls:        metric("modelCalls", "calls"),
+		ToolCalls:         metric("toolCalls", "calls"),
+		ToolFailures:      metric("toolFailures", "calls"),
+	}
+	out.WallMS = Measure{
+		Unit:         "milliseconds",
+		Completeness: "unavailable",
+		SourceRefs:   []string{},
+		Scope: MeasureScope{
+			MemberID:   in.MemberID,
+			Kind:       kind,
+			Executions: executions,
+			Missing:    []string{"parent timestamps unavailable"},
+		},
+	}
 	if in.Terminal && in.StartedAt != nil && in.FinishedAt != nil && digestPattern.MatchString(in.ParentSourceSHA256) {
 		start, e1 := time.Parse(time.RFC3339Nano, *in.StartedAt)
 		end, e2 := time.Parse(time.RFC3339Nano, *in.FinishedAt)
@@ -171,6 +195,7 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 	}
 	return out, nil
 }
+
 func uniqueStrings(values []string) []string {
 	out := make([]string, 0, len(values))
 	seen := map[string]bool{}

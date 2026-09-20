@@ -3,12 +3,12 @@ package evalservice
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx/v5/pgconn"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type failingResolver struct {

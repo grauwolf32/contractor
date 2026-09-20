@@ -20,19 +20,23 @@ type portableOutput struct {
 	MediaTypes []string `json:"media_types"`
 	Required   bool     `json:"required"`
 }
+
 type caseEvaluation struct {
 	GroundTruth map[string]blobRef         `json:"ground_truth"`
 	Assertions  map[string]json.RawMessage `json:"assertions"`
 }
+
 type datasetProvenance struct {
 	ID       string  `json:"id"`
 	Revision string  `json:"revision"`
 	SHA256   *string `json:"sha256"`
 }
+
 type caseProvenance struct {
 	Sources  []documentRef       `json:"sources"`
 	Datasets []datasetProvenance `json:"datasets"`
 }
+
 type portableCase struct {
 	SchemaVersion string                    `json:"schema_version"`
 	ID            string                    `json:"id"`
@@ -43,6 +47,7 @@ type portableCase struct {
 	Evaluation    caseEvaluation            `json:"evaluation"`
 	Provenance    caseProvenance            `json:"provenance"`
 }
+
 type portableCheck struct {
 	ID                   string            `json:"id"`
 	Scorer               string            `json:"scorer"`
@@ -52,13 +57,16 @@ type portableCheck struct {
 	Required             bool              `json:"required"`
 	AllowNotApplicable   bool              `json:"allow_not_applicable"`
 }
+
 type suiteScoring struct {
 	Decision string          `json:"decision"`
 	Checks   []portableCheck `json:"checks"`
 }
+
 type suiteProvenance struct {
 	Sources []documentRef `json:"sources"`
 }
+
 type portableSuite struct {
 	SchemaVersion string          `json:"schema_version"`
 	ID            string          `json:"id"`
@@ -66,33 +74,40 @@ type portableSuite struct {
 	Scoring       suiteScoring    `json:"scoring"`
 	Provenance    suiteProvenance `json:"provenance"`
 }
+
 type portableBudgets struct {
 	MaxMembers             int    `json:"max_members"`
 	MaxInFlight            int    `json:"max_in_flight"`
 	WallMS                 int64  `json:"wall_ms"`
 	MaxObservedTotalTokens *int64 `json:"max_observed_total_tokens"`
 }
+
 type publication struct {
 	Provider   string `json:"provider"`
 	Connection string `json:"connection"`
 	Enabled    bool   `json:"enabled"`
 }
+
 type variantReference struct {
 	ID      string      `json:"id"`
 	Binding documentRef `json:"binding"`
 }
+
 type suiteReference struct {
 	ID  string      `json:"id"`
 	Ref documentRef `json:"ref"`
 }
+
 type planMember struct {
 	evaldomain.PublicMember
 	Reason *string `json:"reason"`
 }
+
 type portableOrder struct {
 	Kind string `json:"kind"`
 	Seed *int64 `json:"seed"`
 }
+
 type portableExperiment struct {
 	SchemaVersion string                                  `json:"schema_version"`
 	ID            string                                  `json:"id"`
@@ -105,6 +120,7 @@ type portableExperiment struct {
 	Publication   publication                             `json:"publication"`
 	Extensions    evaldomain.PortableExperimentExtensions `json:"extensions"`
 }
+
 type portablePlan struct {
 	SchemaVersion  string                              `json:"schema_version"`
 	ExperimentID   string                              `json:"experiment_id"`
@@ -119,10 +135,12 @@ type portablePlan struct {
 	Comparison     evaldomain.PortableComparisonPolicy `json:"comparison"`
 	Publication    publication                         `json:"publication"`
 }
+
 type bindingSettings struct {
 	Variant  evaldomain.Variant `json:"variant"`
 	Snapshot json.RawMessage    `json:"snapshot"`
 }
+
 type portableBinding struct {
 	SchemaVersion string            `json:"schema_version"`
 	ID            string            `json:"id"`

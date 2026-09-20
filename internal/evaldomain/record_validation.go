@@ -9,6 +9,7 @@ import (
 func terminal(state any) bool {
 	return state == "succeeded" || state == "failed" || state == "cancelled"
 }
+
 func validateMeasure(m Measure, memberID string) error {
 	if memberID != "" && m.Scope.MemberID != memberID {
 		return Failure("eval_member_conflict")
@@ -40,11 +41,21 @@ func validateMeasure(m Measure, memberID string) error {
 	}
 	return nil
 }
+
 func validateUsage(u Usage, memberID string) error {
 	units := []struct {
 		m    Measure
 		unit string
-	}{{u.InputTokens, "tokens"}, {u.OutputTokens, "tokens"}, {u.TotalTokens, "tokens"}, {u.CachedInputTokens, "tokens"}, {u.ModelCalls, "calls"}, {u.ToolCalls, "calls"}, {u.ToolFailures, "calls"}, {u.WallMS, "milliseconds"}}
+	}{
+		{u.InputTokens, "tokens"},
+		{u.OutputTokens, "tokens"},
+		{u.TotalTokens, "tokens"},
+		{u.CachedInputTokens, "tokens"},
+		{u.ModelCalls, "calls"},
+		{u.ToolCalls, "calls"},
+		{u.ToolFailures, "calls"},
+		{u.WallMS, "milliseconds"},
+	}
 	for _, item := range units {
 		if item.m.Unit != item.unit {
 			return Failure("eval_invalid")
@@ -61,51 +72,67 @@ func validateUsage(u Usage, memberID string) error {
 	}
 	return nil
 }
+
+type resultValidation struct {
+	MemberID  string        `json:"memberId"`
+	Execution ExecutionView `json:"execution"`
+	Usage     Usage         `json:"usage"`
+}
+
 func validateResult(v map[string]any) error {
-	ex := asObject(v["execution"])
-	if err := validateExecution(ex); err != nil {
-		return err
-	}
 	if !uniqueRows(asRows(v["evidence"]), "id") {
-		return Failure("eval_invalid")
+		return Failure("eval_member_conflict")
 	}
-	member := v["memberId"].(string)
-	return typedCheck(v["usage"], func(u Usage) error {
-		if err := validateUsage(u, member); err != nil {
+	return typedCheck(v, func(result resultValidation) error {
+		if err := checkExecution(result.Execution); err != nil {
 			return err
 		}
-		for _, m := range []Measure{u.InputTokens, u.OutputTokens, u.TotalTokens, u.CachedInputTokens, u.ModelCalls, u.ToolCalls, u.ToolFailures, u.WallMS} {
-			if ex["ref"] != nil {
-				parent := asObject(ex["ref"])
-				found := false
-				wantKind := "workflow"
-				if parent["kind"] == "audit" {
-					wantKind = "audit"
-				}
-				if m.Scope.Kind != wantKind {
-					return Failure("eval_member_conflict")
-				}
-				for _, ref := range m.Scope.Executions {
-					if ref.Kind == parent["kind"] && ref.ID == parent["id"] {
-						found = true
-					}
-					if ref.Kind == "audit" && (ref.Kind != parent["kind"] || ref.ID != parent["id"]) {
-						return Failure("eval_member_conflict")
-					}
-				}
-				if !found || wantKind == "workflow" && len(m.Scope.Executions) != 1 {
-					return Failure("eval_member_conflict")
+		if err := validateUsage(result.Usage, result.MemberID); err != nil {
+			return err
+		}
+		u := result.Usage
+		for _, measure := range []Measure{
+			u.InputTokens, u.OutputTokens, u.TotalTokens, u.CachedInputTokens,
+			u.ModelCalls, u.ToolCalls, u.ToolFailures, u.WallMS,
+		} {
+			if parent := result.Execution.Ref; parent != nil {
+				if err := validateMeasureParent(measure.Scope, *parent); err != nil {
+					return err
 				}
 			}
-
-			if !terminal(ex["state"]) && m.Completeness == "complete" {
+			if !terminal(result.Execution.State) && measure.Completeness == "complete" {
 				return Failure("eval_invalid")
 			}
 		}
 		return nil
 	})
 }
+
+func validateMeasureParent(scope MeasureScope, parent ExecutionRef) error {
+	wantKind := "workflow"
+	if parent.Kind == "audit" {
+		wantKind = "audit"
+	}
+	if scope.Kind != wantKind {
+		return Failure("eval_member_conflict")
+	}
+	found := false
+	for _, ref := range scope.Executions {
+		if ref.Kind == parent.Kind && ref.ID == parent.ID {
+			found = true
+		}
+		if ref.Kind == "audit" && (ref.Kind != parent.Kind || ref.ID != parent.ID) {
+			return Failure("eval_member_conflict")
+		}
+	}
+	if !found || wantKind == "workflow" && len(scope.Executions) != 1 {
+		return Failure("eval_member_conflict")
+	}
+	return nil
+}
+
 func validateExecution(v map[string]any) error { return typedCheck(v, checkExecution) }
+
 func checkExecution(ex ExecutionView) error {
 	if ex.State == "not_submitted" && ex.Ref != nil || ex.State != "not_submitted" && ex.State != "unknown" && ex.Ref == nil {
 		return Failure("eval_member_conflict")
@@ -118,19 +145,42 @@ func checkExecution(ex ExecutionView) error {
 	}
 	return nil
 }
+
 func validateCounts(v map[string]any) error { return typedCheck(v, checkCounts) }
+
 func checkCounts(c Counts) error {
-	for _, n := range []int{c.Eligible, c.Unsupported, c.Blocked, c.Submitted, c.Terminal, c.Missing, c.Conflicting, c.CollectionComplete, c.Scored, c.QualityPassed, c.ExecutionSucceeded, c.EndToEndPassed} {
+	for _, n := range []int{
+		c.Eligible,
+		c.Unsupported,
+		c.Blocked,
+		c.Submitted,
+		c.Terminal,
+		c.Missing,
+		c.Conflicting,
+		c.CollectionComplete,
+		c.Scored,
+		c.QualityPassed,
+		c.ExecutionSucceeded,
+		c.EndToEndPassed,
+	} {
 		if n > c.Expected {
 			return Failure("eval_invalid")
 		}
 	}
-	if c.Eligible+c.Unsupported+c.Blocked != c.Expected || c.Terminal > c.Submitted || c.QualityPassed > c.Scored || c.EndToEndPassed > c.ExecutionSucceeded || c.EndToEndPassed > c.QualityPassed || c.EndToEndPassed > c.CollectionComplete || c.EndToEndPassed > c.Eligible {
+	if c.Eligible+c.Unsupported+c.Blocked != c.Expected ||
+		c.Terminal > c.Submitted ||
+		c.QualityPassed > c.Scored ||
+		c.EndToEndPassed > c.ExecutionSucceeded ||
+		c.EndToEndPassed > c.QualityPassed ||
+		c.EndToEndPassed > c.CollectionComplete ||
+		c.EndToEndPassed > c.Eligible {
 		return Failure("eval_invalid")
 	}
 	return nil
 }
+
 func validateRatio(v map[string]any) error { return typedCheck(v, checkRatio) }
+
 func checkRatio(r Ratio) error {
 	if r.Numerator > r.Denominator || r.Denominator == 0 && r.Value != nil {
 		return Failure("eval_invalid")
@@ -140,7 +190,9 @@ func checkRatio(r Ratio) error {
 	}
 	return nil
 }
+
 func validateSummary(v map[string]any) error { return typedCheck(v, checkSummary) }
+
 func checkSummary(s Summary) error {
 	if len(s.Counts) != 2 || len(s.Quality) != 2 {
 		return Failure("eval_invalid")
@@ -268,7 +320,9 @@ func validateQuality(v map[string]any) error {
 		return nil
 	})
 }
+
 func validateMemberView(v map[string]any) error { return typedCheck(v, checkMemberView) }
+
 func checkMemberView(v MemberView) error {
 	if v.Execution != nil {
 		if err := checkExecution(*v.Execution); err != nil {

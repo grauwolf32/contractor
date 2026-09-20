@@ -15,16 +15,19 @@ type Counts struct {
 	ExecutionSucceeded int `json:"executionSucceeded"`
 	EndToEndPassed     int `json:"endToEndPassed"`
 }
+
 type Ratio struct {
 	Numerator   int      `json:"numerator"`
 	Denominator int      `json:"denominator"`
 	Value       *float64 `json:"value"`
 }
+
 type Quality struct {
 	ExecutionSuccess   Ratio `json:"executionSuccess"`
 	EndToEndPass       Ratio `json:"endToEndPass"`
 	ConditionalQuality Ratio `json:"conditionalQuality"`
 }
+
 type Summary struct {
 	Counts               map[string]Counts  `json:"counts"`
 	Quality              map[string]Quality `json:"quality"`

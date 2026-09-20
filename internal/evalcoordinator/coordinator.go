@@ -15,19 +15,32 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
+const (
+	defaultPollInterval     = time.Second
+	defaultClaimLease       = time.Minute
+	defaultOperationTimeout = 20 * time.Second
+	defaultBatchSize        = 4
+	maxBatchSize            = 32
+	minPollInterval         = 10 * time.Millisecond
+	claimReleaseTimeout     = 5 * time.Second
+)
+
 type Store interface {
 	Claim(context.Context, string, time.Duration, int) ([]evalstore.Claim, error)
 	ReleaseClaim(context.Context, evalstore.Claim) error
 }
+
 type Service interface {
 	Tick(context.Context, evalstore.Claim) (bool, error)
 }
+
 type Options struct {
 	HolderID                              string
 	PollInterval, Lease, OperationTimeout time.Duration
 	Batch                                 int
 	Logger                                *slog.Logger
 }
+
 type Coordinator struct {
 	store   Store
 	service Service
@@ -48,31 +61,39 @@ func New(store Store, service Service, o Options) (*Coordinator, error) {
 		o.HolderID = "eval-" + hex.EncodeToString(b[:])
 	}
 	if o.PollInterval == 0 {
-		o.PollInterval = time.Second
+		o.PollInterval = defaultPollInterval
 	}
 	if o.Lease == 0 {
-		o.Lease = time.Minute
+		o.Lease = defaultClaimLease
 	}
 	if o.OperationTimeout == 0 {
-		o.OperationTimeout = 20 * time.Second
+		o.OperationTimeout = defaultOperationTimeout
 	}
 	if o.Batch == 0 {
-		o.Batch = 4
+		o.Batch = defaultBatchSize
 	}
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	if o.PollInterval < 10*time.Millisecond || o.Lease < time.Second || o.Lease > 5*time.Minute || o.OperationTimeout <= 0 || o.OperationTimeout >= o.Lease || o.Batch < 1 || o.Batch > 32 {
+	if o.PollInterval < minPollInterval ||
+		o.Lease < time.Second ||
+		o.Lease > 5*time.Minute ||
+		o.OperationTimeout <= 0 ||
+		o.OperationTimeout >= o.Lease ||
+		o.Batch < 1 ||
+		o.Batch > maxBatchSize {
 		return nil, errors.New("eval coordinator bounds are invalid")
 	}
 	return &Coordinator{store: store, service: service, options: o, wake: make(chan struct{}, 1)}, nil
 }
+
 func (c *Coordinator) Wake() {
 	select {
 	case c.wake <- struct{}{}:
 	default:
 	}
 }
+
 func (c *Coordinator) Run(ctx context.Context) error {
 	if !c.running.CompareAndSwap(false, true) {
 		return errors.New("eval coordinator is already running")
@@ -98,6 +119,7 @@ func (c *Coordinator) Run(ctx context.Context) error {
 		}
 	}
 }
+
 func (c *Coordinator) RunOnce(ctx context.Context) (bool, error) {
 	claimCtx, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
 	claims, err := c.store.Claim(claimCtx, c.options.HolderID, c.options.Lease, c.options.Batch)
@@ -118,7 +140,7 @@ func (c *Coordinator) RunOnce(ctx context.Context) (bool, error) {
 			if worked {
 				changed.Store(true)
 			}
-			releaseCtx, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			releaseCtx, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), claimReleaseTimeout)
 			releaseErr := c.store.ReleaseClaim(releaseCtx, claim)
 			releaseCancel()
 			if errors.Is(releaseErr, evalstore.ErrClaimLost) {

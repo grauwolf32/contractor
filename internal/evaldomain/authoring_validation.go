@@ -16,6 +16,7 @@ func decodeValue[T any](value any) (T, error) {
 	}
 	return out, nil
 }
+
 func typedCheck[T any](value any, validate func(T) error) error {
 	out, err := decodeValue[T](value)
 	if err != nil {
@@ -23,6 +24,7 @@ func typedCheck[T any](value any, validate func(T) error) error {
 	}
 	return validate(out)
 }
+
 func uniqueRows(rows []any, key string) bool {
 	seen := map[any]bool{}
 	for _, row := range rows {
@@ -34,8 +36,11 @@ func uniqueRows(rows []any, key string) bool {
 	}
 	return true
 }
+
 func asObject(value any) map[string]any { return value.(map[string]any) }
-func asRows(value any) []any            { return value.([]any) }
+
+func asRows(value any) []any { return value.([]any) }
+
 func numeric(value any) float64 {
 	switch n := value.(type) {
 	case json.Number:
@@ -126,6 +131,7 @@ func validateCase(c Case) error {
 	}
 	return nil
 }
+
 func validateVariants(variants []Variant, comparison Comparison, checks []Check, budgets Budgets) error {
 	if len(variants) != 2 || variants[0].ID == variants[1].ID || variants[0].Kind != variants[1].Kind {
 		return Failure("eval_invalid")
@@ -162,6 +168,7 @@ func validateVariants(variants []Variant, comparison Comparison, checks []Check,
 	}
 	return nil
 }
+
 func validateDraft(d Draft) error {
 	if err := validateVariants(d.Variants, d.Comparison, d.Checks, d.Budgets); err != nil {
 		return err
@@ -171,6 +178,7 @@ func validateDraft(d Draft) error {
 	}
 	return nil
 }
+
 func validatePublicPlan(p PublicPlan) error {
 	seen := map[string]bool{}
 	for _, m := range p.Members {
@@ -182,6 +190,7 @@ func validatePublicPlan(p PublicPlan) error {
 	}
 	return nil
 }
+
 func validateRegistration(r ExternalRegistration) error {
 	if r.SourcePlanSHA256 != r.Manifest.SourceRecordSHA256 {
 		return Failure("eval_pin_mismatch")

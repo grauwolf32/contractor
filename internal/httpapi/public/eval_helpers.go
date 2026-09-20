@@ -16,10 +16,21 @@ import (
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
+const (
+	defaultEvalPageSize = 25
+	maxEvalCursorBytes  = 8 * 1024
+)
+
 func (h *handler) evalError(w http.ResponseWriter, err error) {
 	var d *evaldomain.Error
 	if errors.As(err, &d) {
-		writeJSON(w, d.Status, errorResponse{Code: d.Code, Message: d.Message, Retryable: d.Recovery == "retry_same_request", RequestID: requestid.FromResponse(w), Details: map[string]string{"kind": "eval", "recovery": d.Recovery}})
+		writeJSON(w, d.Status, errorResponse{
+			Code:      d.Code,
+			Message:   d.Message,
+			Retryable: d.Recovery == "retry_same_request",
+			RequestID: requestid.FromResponse(w),
+			Details:   map[string]string{"kind": "eval", "recovery": d.Recovery},
+		})
 		return
 	}
 	h.handleError(w, err)
@@ -30,7 +41,7 @@ func (h *handler) evalJSON(w http.ResponseWriter, status int, kind string, v any
 		err = evaldomain.Validate(kind, raw)
 	}
 	if err != nil {
-		h.writeError(w, 500, "internal_error", "Evaluation response could not be rendered", false)
+		h.writeError(w, http.StatusInternalServerError, "internal_error", "Evaluation response could not be rendered", false)
 		return
 	}
 	writeJSON(w, status, json.RawMessage(raw))
@@ -87,14 +98,14 @@ func evalQuery(r *http.Request, extra ...string) (url.Values, int, error) {
 	if err != nil {
 		return nil, 0, evaldomain.Failure("eval_invalid")
 	}
-	limit := 25
+	limit := defaultEvalPageSize
 	if raw, ok := values["limit"]; ok {
 		limit, err = strconv.Atoi(raw[0])
-		if err != nil || limit < 1 || limit > 100 {
+		if err != nil || limit < 1 || limit > evaldomain.MaxPageSize {
 			return nil, 0, evaldomain.Failure("eval_invalid")
 		}
 	}
-	if raw, ok := values["cursor"]; ok && (raw[0] == "" || len(raw[0]) > 8192) {
+	if raw, ok := values["cursor"]; ok && (raw[0] == "" || len(raw[0]) > maxEvalCursorBytes) {
 		return nil, 0, evaldomain.Failure("eval_invalid")
 	}
 	return values, limit, nil
@@ -144,7 +155,7 @@ func (h *handler) evalPage(r *http.Request, q url.Values, more bool, snapshot st
 	mac := hmac.New(sha256.New, h.tokenDigest[:])
 	mac.Write(raw)
 	cursor := base64.RawURLEncoding.EncodeToString(append(raw, mac.Sum(nil)...))
-	if len(cursor) > 8192 {
+	if len(cursor) > maxEvalCursorBytes {
 		return out, evaldomain.Failure("eval_limit_exceeded")
 	}
 	out.NextCursor = &cursor

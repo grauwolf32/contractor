@@ -48,7 +48,14 @@ func (s *Service) Create(ctx context.Context, scope evalstore.Scope, document ev
 	var result evalstore.Receipt
 	err = s.tx(ctx, func(st *evalstore.Store) error {
 		var err error
-		result, err = st.Create(ctx, evalstore.CreateParams{Scope: scope, ID: id, PortableID: portable, Document: document, Mutation: mutation, Resources: resources})
+		result, err = st.Create(ctx, evalstore.CreateParams{
+			Scope:      scope,
+			ID:         id,
+			PortableID: portable,
+			Document:   document,
+			Mutation:   mutation,
+			Resources:  resources,
+		})
 		return err
 	})
 	return result, err

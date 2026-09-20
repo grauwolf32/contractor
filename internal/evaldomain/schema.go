@@ -127,6 +127,9 @@ func Freeze(kind string, data []byte) (Frozen, error) {
 	}
 	return Frozen{kind: kind, raw: bytes.Clone(data), sha256: Digest(data)}, nil
 }
-func (f Frozen) Kind() string   { return f.kind }
+
+func (f Frozen) Kind() string { return f.kind }
+
 func (f Frozen) Digest() string { return f.sha256 }
-func (f Frozen) Bytes() []byte  { return bytes.Clone(f.raw) }
+
+func (f Frozen) Bytes() []byte { return bytes.Clone(f.raw) }

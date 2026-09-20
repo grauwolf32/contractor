@@ -67,11 +67,16 @@ func validatePortablePlan(v map[string]any) error {
 // PortableComparison keeps gates in the established experiment extension, not
 // in plan/v1's closed comparison object. It never rewrites existing plan bytes.
 func PortableComparison(c Comparison) (PortableComparisonPolicy, PortableExperimentExtensions) {
-	return PortableComparisonPolicy{Baseline: c.Baseline, Candidate: c.Candidate, RequiredEqual: c.RequiredEqual, AllowedDifferences: c.AllowedDifferences}, PortableExperimentExtensions{ComparisonGates: PortableComparisonGates{
-		MinCandidateEndToEndPass: c.Gates.MinCandidateEndToEndPass,
-		MaxQualityDrop:           c.Gates.MaxQualityDrop,
-		MaxTotalTokensRatio:      c.Gates.MaxTotalTokensRatio,
-	}}
+	return PortableComparisonPolicy{
+			Baseline:           c.Baseline,
+			Candidate:          c.Candidate,
+			RequiredEqual:      c.RequiredEqual,
+			AllowedDifferences: c.AllowedDifferences,
+		}, PortableExperimentExtensions{ComparisonGates: PortableComparisonGates{
+			MinCandidateEndToEndPass: c.Gates.MinCandidateEndToEndPass,
+			MaxQualityDrop:           c.Gates.MaxQualityDrop,
+			MaxTotalTokensRatio:      c.Gates.MaxTotalTokensRatio,
+		}}
 }
 
 func PublicPlanProjection(plan Frozen) (PublicPlan, error) {

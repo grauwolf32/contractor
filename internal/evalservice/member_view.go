@@ -3,6 +3,7 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -17,6 +18,7 @@ type MemberPageParams struct {
 	OwnerID, ExperimentID, Snapshot, Filter, VariantID string
 	AfterOrdinal, Limit                                int
 }
+
 type MemberPage struct {
 	Snapshot      string
 	Revision      int64
@@ -69,9 +71,11 @@ func executionView(r evalstore.ExecutionObservation) ExecutionView {
 	}
 	return out
 }
+
 func isTerminal(state string) bool {
 	return state == "succeeded" || state == "failed" || state == "cancelled"
 }
+
 func executionMember(r evalstore.ExecutionObservation) MemberView {
 	ex := executionView(r)
 	return MemberView{
@@ -83,6 +87,7 @@ func executionMember(r evalstore.ExecutionObservation) MemberView {
 		Assessment: "unscored",
 	}
 }
+
 func ratio(n, d int) evaldomain.Ratio {
 	var value *float64
 	if d > 0 {
@@ -131,7 +136,11 @@ func executionSummary(rows []evalstore.ExecutionObservation) (json.RawMessage, e
 	}
 	quality := map[string]evaldomain.Quality{}
 	for arm, c := range counts {
-		quality[arm] = evaldomain.Quality{ExecutionSuccess: ratio(c.ExecutionSucceeded, c.Expected), EndToEndPass: ratio(0, c.Expected), ConditionalQuality: ratio(0, 0)}
+		quality[arm] = evaldomain.Quality{
+			ExecutionSuccess:   ratio(c.ExecutionSucceeded, c.Expected),
+			EndToEndPass:       ratio(0, c.Expected),
+			ConditionalQuality: ratio(0, 0),
+		}
 	}
 	out, err := jsonBytes(evaldomain.Summary{Counts: counts, Quality: quality, TerminalPairs: terminalPairs, Conclusion: "inconclusive"})
 	if err != nil {
@@ -139,6 +148,7 @@ func executionSummary(rows []evalstore.ExecutionObservation) (json.RawMessage, e
 	}
 	return out, evaldomain.Validate("Summary", out)
 }
+
 func memberMatches(v MemberView, filter, variant string) bool {
 	if variant != "" && v.Member.VariantID != variant {
 		return false
@@ -159,9 +169,10 @@ func memberMatches(v MemberView, filter, variant string) bool {
 	}
 	return false
 }
+
 func (s *Service) Members(ctx context.Context, p MemberPageParams) (MemberPage, error) {
 	result := MemberPage{Items: []MemberView{}, LastOrdinal: -1}
-	if p.Limit < 1 || p.Limit > evaldomain.MaxPageSize || p.AfterOrdinal < -1 || !contains([]string{"", "all", "unresolved", "failed", "unscored", "unsupported", "blocked", "conflicting"}, p.Filter) {
+	if p.Limit < 1 || p.Limit > evaldomain.MaxPageSize || p.AfterOrdinal < -1 || !slices.Contains([]string{"", "all", "unresolved", "failed", "unscored", "unsupported", "blocked", "conflicting"}, p.Filter) {
 		return result, evaldomain.Failure("eval_invalid")
 	}
 	err := pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {

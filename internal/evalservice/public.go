@@ -69,7 +69,7 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 		out.UpdatedAt = out.UpdatedAt.UTC()
 		out.StartedAt, out.DeadlineAt = utcTime(out.StartedAt), utcTime(out.DeadlineAt)
 		out.LastProducerActivityAt, out.DeletionRequestedAt = utcTime(out.LastProducerActivityAt), utcTime(out.DeletionRequestedAt)
-		if e.State == "draft" || e.State == "preparing" {
+		if e.State == evaldomain.StateDraft || e.State == evaldomain.StatePreparing {
 			var draft evaldomain.Draft
 			if err = json.Unmarshal(e.Draft.Bytes(), &draft); err != nil {
 				return err
@@ -127,9 +127,11 @@ func utcTime(value *time.Time) *time.Time {
 func (s *Service) List(ctx context.Context, p evalstore.SummaryPageParams) (evalstore.SummaryPage, error) {
 	return evalstore.NewPostgresStore(s.pool).SummaryPage(ctx, p)
 }
+
 func (s *Service) Datasets(ctx context.Context, scope evalstore.Scope, afterID, afterRevision string, limit int, revision *int64) (evalstore.DatasetPage, error) {
 	return evalstore.NewPostgresStore(s.pool).DatasetPage(ctx, scope, afterID, afterRevision, limit, revision)
 }
+
 func (s *Service) Dataset(ctx context.Context, scope evalstore.Scope, id, revision string) (evalstore.DatasetRevision, error) {
 	return evalstore.NewPostgresStore(s.pool).Dataset(ctx, scope, id, revision)
 }
@@ -170,6 +172,7 @@ func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc eva
 func (s *Service) ScopeForMutation(ctx context.Context, owner, id, operation, key string) (evalstore.Scope, error) {
 	return evalstore.NewPostgresStore(s.pool).ScopeForMutation(ctx, owner, id, operation, key)
 }
+
 func (s *Service) UpdateDraft(ctx context.Context, scope evalstore.Scope, id string, doc evaldomain.Frozen, m evaldomain.MutationIdentity) (evalstore.Receipt, error) {
 	var result evalstore.Receipt
 	err := s.tx(ctx, func(st *evalstore.Store) error {
@@ -179,6 +182,7 @@ func (s *Service) UpdateDraft(ctx context.Context, scope evalstore.Scope, id str
 	})
 	return result, err
 }
+
 func (s *Service) Delete(ctx context.Context, scope evalstore.Scope, id string, m evaldomain.MutationIdentity) (evalstore.Receipt, error) {
 	var result evalstore.Receipt
 	err := s.tx(ctx, func(st *evalstore.Store) error {
@@ -188,6 +192,7 @@ func (s *Service) Delete(ctx context.Context, scope evalstore.Scope, id string, 
 	})
 	return result, err
 }
+
 func (s *Service) GetCommand(ctx context.Context, owner, id, command string) (evalstore.CommandRecord, *string, error) {
 	st := evalstore.NewPostgresStore(s.pool)
 	record, err := st.CommandRecord(ctx, owner, id, command)

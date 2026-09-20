@@ -12,16 +12,19 @@ type DatasetReceipt struct {
 	DatasetID       string `json:"datasetId"`
 	DatasetRevision string `json:"datasetRevision"`
 }
+
 type ExperimentReceipt struct {
 	ExperimentID string           `json:"experimentId"`
 	Revision     int64            `json:"revision"`
 	State        evaldomain.State `json:"state"`
 }
+
 type AcceptedCommandReceipt struct {
 	CommandID          string `json:"commandId"`
 	ExperimentRevision int64  `json:"experimentRevision"`
 	State              string `json:"state"`
 }
+
 type AcceptedSubmissionReceipt struct {
 	SubmissionKey      string `json:"submissionKey"`
 	ExperimentRevision int64  `json:"experimentRevision"`
@@ -68,6 +71,7 @@ func (r Receipt) Dataset() (DatasetReceipt, error) {
 	}
 	return value, err
 }
+
 func (r Receipt) Experiment() (ExperimentReceipt, error) {
 	value, err := decodeReceipt(r, func(old legacyReceipt) ExperimentReceipt {
 		return ExperimentReceipt{old.ID, old.Revision, evaldomain.State(old.State)}
@@ -77,6 +81,7 @@ func (r Receipt) Experiment() (ExperimentReceipt, error) {
 	}
 	return value, err
 }
+
 func (r Receipt) Command() (AcceptedCommandReceipt, error) {
 	value, err := decodeReceipt(r, func(old legacyReceipt) AcceptedCommandReceipt {
 		return AcceptedCommandReceipt{old.ID, old.Revision, old.State}
@@ -86,6 +91,7 @@ func (r Receipt) Command() (AcceptedCommandReceipt, error) {
 	}
 	return value, err
 }
+
 func (r Receipt) Submission() (AcceptedSubmissionReceipt, error) {
 	value, err := decodeReceipt(r, func(old legacyReceipt) AcceptedSubmissionReceipt {
 		return AcceptedSubmissionReceipt{old.ID, old.Revision, old.State}

@@ -41,7 +41,15 @@ func DatasetProjection(input DatasetInput, projectID, revision string) (Dataset,
 	if err != nil {
 		return Dataset{}, Failure("eval_invalid")
 	}
-	out := Dataset{DatasetID: input.DatasetID, Name: input.Name, ProjectID: projectID, Revision: revision, VisibleSHA256: Digest(visible), CaseCount: len(input.Cases), Source: input.Source}
+	out := Dataset{
+		DatasetID:     input.DatasetID,
+		Name:          input.Name,
+		ProjectID:     projectID,
+		Revision:      revision,
+		VisibleSHA256: Digest(visible),
+		CaseCount:     len(input.Cases),
+		Source:        input.Source,
+	}
 	raw, _ := json.Marshal(out)
 	if err := Validate("Dataset", raw); err != nil {
 		return Dataset{}, err

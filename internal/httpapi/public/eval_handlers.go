@@ -56,7 +56,12 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 				message := "This AuditProfile requires unsupported Server capabilities."
 				reason = &message
 			}
-			bindings = append(bindings, binding{Kind: "audit", Selector: profile.Profile.Ref.Name + "@" + profile.Profile.Ref.Version, Available: profile.Compatibility.ServerCompatible, Reason: reason})
+			bindings = append(bindings, binding{
+				Kind:      "audit",
+				Selector:  profile.Profile.Ref.Name + "@" + profile.Profile.Ref.Version,
+				Available: profile.Compatibility.ServerCompatible,
+				Reason:    reason,
+			})
 		}
 	}
 	sort.Slice(bindings, func(i, j int) bool {
@@ -96,7 +101,19 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalJSON(w, 200, "Capabilities", map[string]any{"controlModes": []string{"server", "external"}, "executionKinds": []string{"workflow", "audit"}, "checks": []any{map[string]any{"evaluator": "human-review@1", "implementationSha256": evalservice.HumanPolicySHA256(), "available": true, "reason": nil}}, "importVersions": []string{"dataset@1", "contractor.eval-registration@1"}, "bindings": items, "page": page})
+	h.evalJSON(w, http.StatusOK, "Capabilities", map[string]any{
+		"controlModes":   []string{"server", "external"},
+		"executionKinds": []string{"workflow", "audit"},
+		"checks": []any{map[string]any{
+			"evaluator":            "human-review@1",
+			"implementationSha256": evalservice.HumanPolicySHA256(),
+			"available":            true,
+			"reason":               nil,
+		}},
+		"importVersions": []string{"dataset@1", "contractor.eval-registration@1"},
+		"bindings":       items,
+		"page":           page,
+	})
 }
 func (h *handler) importEvalDataset(w http.ResponseWriter, r *http.Request) {
 	doc, m, ok := h.evalBody(w, r, "DatasetInput", false)
@@ -122,7 +139,7 @@ func (h *handler) importEvalDataset(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	w.Header().Set("ETag", strconv.Quote(data.Metadata.Revision))
-	h.evalJSON(w, 201, "Dataset", data.Metadata)
+	h.evalJSON(w, http.StatusCreated, "Dataset", data.Metadata)
 }
 func (h *handler) listEvalDatasets(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r)
@@ -158,7 +175,7 @@ func (h *handler) listEvalDatasets(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalJSON(w, 200, "DatasetPage", map[string]any{"items": data.Items, "page": page})
+	h.evalJSON(w, http.StatusOK, "DatasetPage", map[string]any{"items": data.Items, "page": page})
 }
 func (h *handler) listEvalCases(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r)
@@ -200,7 +217,7 @@ func (h *handler) listEvalCases(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalJSON(w, 200, "CasePage", map[string]any{"items": items, "page": page})
+	h.evalJSON(w, http.StatusOK, "CasePage", map[string]any{"items": items, "page": page})
 }
 func (h *handler) createEvalExperiment(w http.ResponseWriter, r *http.Request) {
 	doc, m, ok := h.evalBody(w, r, "CreateExperiment", false)
@@ -212,7 +229,7 @@ func (h *handler) createEvalExperiment(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalReceipt(w, 201, receipt)
+	h.evalReceipt(w, http.StatusCreated, receipt)
 }
 func (h *handler) getEvalExperiment(w http.ResponseWriter, r *http.Request) {
 	if !h.evalExactQuery(w, r) {
@@ -224,7 +241,7 @@ func (h *handler) getEvalExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatInt(e.Revision, 10)))
-	h.evalJSON(w, 200, "Experiment", e)
+	h.evalJSON(w, http.StatusOK, "Experiment", e)
 }
 func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 	q, limit, err := evalQuery(r, "projectId", "state", "datasetId", "controlMode")
@@ -246,7 +263,15 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	p := evalstore.SummaryPageParams{ListParams: evalstore.ListParams{OwnerID: principalUserID(r.Context()), ProjectID: q.Get("projectId"), State: q.Get("state"), DatasetID: q.Get("datasetId"), ControlMode: q.Get("controlMode"), Limit: limit, Revision: revision}}
+	p := evalstore.SummaryPageParams{ListParams: evalstore.ListParams{
+		OwnerID:     principalUserID(r.Context()),
+		ProjectID:   q.Get("projectId"),
+		State:       q.Get("state"),
+		DatasetID:   q.Get("datasetId"),
+		ControlMode: q.Get("controlMode"),
+		Limit:       limit,
+		Revision:    revision,
+	}}
 	if len(cursor.Position) > 0 {
 		at, err := time.Parse(time.RFC3339Nano, cursor.Position[0])
 		if err != nil {
@@ -271,7 +296,7 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalJSON(w, 200, "ExperimentPage", map[string]any{"items": data.Items, "page": page})
+	h.evalJSON(w, http.StatusOK, "ExperimentPage", map[string]any{"items": data.Items, "page": page})
 }
 func evalStringIn(value string, options ...string) bool {
 	for _, option := range options {
@@ -296,7 +321,7 @@ func (h *handler) updateEvalDraft(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalReceipt(w, 200, receipt)
+	h.evalReceipt(w, http.StatusOK, receipt)
 }
 func (h *handler) deleteEvalExperiment(w http.ResponseWriter, r *http.Request) {
 	_, m, ok := h.evalBody(w, r, "Delete", true)
@@ -313,7 +338,7 @@ func (h *handler) deleteEvalExperiment(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalReceipt(w, 202, receipt)
+	h.evalReceipt(w, http.StatusAccepted, receipt)
 }
 func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) {
 	doc, m, ok := h.evalBody(w, r, "Command", true)
@@ -336,7 +361,7 @@ func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if command.Kind == "duplicate" {
-		h.evalReceipt(w, 201, receipt)
+		h.evalReceipt(w, http.StatusCreated, receipt)
 		return
 	}
 	ref, err := receipt.Command()
@@ -352,7 +377,15 @@ func (h *handler) commandEvalExperiment(w http.ResponseWriter, r *http.Request) 
 	if command.PlanSHA256 != "" {
 		digest = &command.PlanSHA256
 	}
-	h.evalJSON(w, 202, "CommandReceipt", map[string]any{"commandId": ref.CommandID, "experimentId": r.PathValue("id"), "kind": command.Kind, "state": ref.State, "experimentRevision": ref.ExperimentRevision, "planSha256": digest, "diagnostics": []any{}})
+	h.evalJSON(w, http.StatusAccepted, "CommandReceipt", map[string]any{
+		"commandId":          ref.CommandID,
+		"experimentId":       r.PathValue("id"),
+		"kind":               command.Kind,
+		"state":              ref.State,
+		"experimentRevision": ref.ExperimentRevision,
+		"planSha256":         digest,
+		"diagnostics":        []any{},
+	})
 	if h.dependencies.EvalNotifier != nil {
 		h.dependencies.EvalNotifier.Wake()
 	}
@@ -374,7 +407,15 @@ func (h *handler) getEvalCommand(w http.ResponseWriter, r *http.Request) {
 	if len(record.Diagnostic) > 0 {
 		diagnostics = append(diagnostics, record.Diagnostic)
 	}
-	h.evalJSON(w, 200, "CommandReceipt", map[string]any{"commandId": record.ID, "experimentId": record.ExperimentID, "kind": record.Kind, "state": state, "experimentRevision": record.Revision, "planSha256": digest, "diagnostics": diagnostics})
+	h.evalJSON(w, http.StatusOK, "CommandReceipt", map[string]any{
+		"commandId":          record.ID,
+		"experimentId":       record.ExperimentID,
+		"kind":               record.Kind,
+		"state":              state,
+		"experimentRevision": record.Revision,
+		"planSha256":         digest,
+		"diagnostics":        diagnostics,
+	})
 }
 func (h *handler) submitEvalMember(w http.ResponseWriter, r *http.Request) {
 	doc, m, ok := h.evalBody(w, r, "Submission", false)
@@ -408,7 +449,7 @@ func (h *handler) submitEvalMember(w http.ResponseWriter, r *http.Request) {
 	if receipt.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	h.evalJSON(w, 202, "SubmissionReceipt", map[string]any{"memberId": r.PathValue("memberId"), "planSha256": request.PlanSHA256, "state": state, "execution": nil})
+	h.evalJSON(w, http.StatusAccepted, "SubmissionReceipt", map[string]any{"memberId": r.PathValue("memberId"), "planSha256": request.PlanSHA256, "state": state, "execution": nil})
 	if h.dependencies.EvalNotifier != nil {
 		h.dependencies.EvalNotifier.Wake()
 	}
@@ -424,7 +465,15 @@ func (h *handler) listEvalMembers(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	p := evalservice.MemberPageParams{OwnerID: principalUserID(r.Context()), ExperimentID: r.PathValue("id"), Snapshot: q.Get("viewSnapshot"), Filter: q.Get("filter"), VariantID: q.Get("variantId"), AfterOrdinal: -1, Limit: limit}
+	p := evalservice.MemberPageParams{
+		OwnerID:      principalUserID(r.Context()),
+		ExperimentID: r.PathValue("id"),
+		Snapshot:     q.Get("viewSnapshot"),
+		Filter:       q.Get("filter"),
+		VariantID:    q.Get("variantId"),
+		AfterOrdinal: -1,
+		Limit:        limit,
+	}
 	if len(cursor.Position) > 0 {
 		p.AfterOrdinal, err = strconv.Atoi(cursor.Position[0])
 		if err != nil || p.Snapshot != "" && p.Snapshot != cursor.Snapshot {
@@ -443,5 +492,12 @@ func (h *handler) listEvalMembers(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, err)
 		return
 	}
-	h.evalJSON(w, 200, "MemberPage", map[string]any{"viewSnapshot": data.Snapshot, "freshness": "current", "experimentSummary": data.Summary, "filteredCount": data.FilteredCount, "items": data.Items, "page": page})
+	h.evalJSON(w, http.StatusOK, "MemberPage", map[string]any{
+		"viewSnapshot":      data.Snapshot,
+		"freshness":         "current",
+		"experimentSummary": data.Summary,
+		"filteredCount":     data.FilteredCount,
+		"items":             data.Items,
+		"page":              page,
+	})
 }

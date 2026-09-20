@@ -25,6 +25,7 @@ type auditRequest struct {
 	Inputs                       map[string]contracts.ArtifactRef
 	Scope                        auditservice.Scope
 }
+
 type startRequest struct {
 	AuditID                                      string
 	Revision                                     uint64
@@ -97,7 +98,7 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 	// The Audit exists, but no managed execution receipt is confirmed until its
 	// separate start operation succeeds. Cancelling an unstarted draft uses the
 	// ordinary deletion path and later its authoritative deletion tombstone.
-	if e.State == "cancelling" && audit.State == auditstore.AuditDraft {
+	if e.State == evaldomain.StateCancelling && audit.State == auditstore.AuditDraft {
 		return d.cancelDraft(ctx, e, m, c, audit)
 	}
 	if audit.State == auditstore.AuditDeleting {
@@ -144,6 +145,7 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 	}
 	return resolveOperation(ctx, d.operations, e, m, c, start, executionCreated{ID: result.Audit.AuditID}, false, result.Audit.AuditID)
 }
+
 func (d *auditAdapter) cancelDraft(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, a auditstore.Audit) error {
 	op, err := prepareOperation(ctx, d.operations, e, m, c, "cancel", func() (draftDeletionRequest, error) {
 		return draftDeletionRequest{ID: a.AuditID, Kind: "audit", DeleteDraft: true}, nil
@@ -166,6 +168,7 @@ func (d *auditAdapter) cancelDraft(ctx context.Context, e evalstore.Experiment, 
 	}
 	return resolveOperation(ctx, d.operations, e, m, c, op, draftDeletionAccepted{ID: result.Audit.AuditID, DeleteDraft: true}, false, "")
 }
+
 func (d *auditAdapter) Cancel(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, sub evalstore.Submission) error {
 	if sub.ExecutionID == nil {
 		return evaldomain.Failure("eval_member_conflict")

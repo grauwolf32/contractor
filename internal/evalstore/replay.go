@@ -3,6 +3,7 @@ package evalstore
 import (
 	"context"
 	"errors"
+
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/jackc/pgx/v5"
 )
@@ -15,7 +16,15 @@ func (s *Store) Replay(ctx context.Context, scope Scope, resource, operation str
 	}
 	var digest string
 	var response []byte
-	err := s.db.QueryRow(ctx, `SELECT request_sha256,response FROM eval_mutation_receipts WHERE owner_id=$1 AND project_id=$2 AND resource_id=$3 AND operation=$4 AND operation_key=$5`, scope.OwnerID, scope.ProjectID, resource, operation, m.Key).Scan(&digest, &response)
+	err := s.db.QueryRow(ctx, `
+SELECT request_sha256, response
+FROM eval_mutation_receipts
+WHERE owner_id=$1
+    AND project_id=$2
+    AND resource_id=$3
+    AND operation=$4
+    AND operation_key=$5
+`, scope.OwnerID, scope.ProjectID, resource, operation, m.Key).Scan(&digest, &response)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

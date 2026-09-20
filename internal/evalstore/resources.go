@@ -2,9 +2,10 @@ package evalstore
 
 import (
 	"context"
-	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"path"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 type PlanResource struct {
@@ -30,10 +31,18 @@ func (s *Store) putResources(ctx context.Context, id string, resources []PlanRes
 	}
 	return nil
 }
+
 func (s *Store) PlanResource(ctx context.Context, owner, id, path string) (PlanResource, error) {
 	var kind string
 	var data []byte
-	err := s.db.QueryRow(ctx, `SELECT r.document_kind,r.document FROM eval_plan_resources r JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND e.experiment_id=$2 AND r.resource_path=$3`, owner, id, path).Scan(&kind, &data)
+	err := s.db.QueryRow(ctx, `
+SELECT r.document_kind, r.document
+FROM eval_plan_resources r
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+    AND r.resource_path=$3
+`, owner, id, path).Scan(&kind, &data)
 	if err != nil {
 		return PlanResource{}, normalize(err)
 	}

@@ -47,7 +47,10 @@ func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
 				return ExperimentReceipt{}, evaldomain.Failure("eval_member_conflict")
 			}
 		}
-		_, err := s.db.Exec(ctx, `INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,draft,dataset_id,dataset_revision,max_in_flight,wall_ms,token_limit) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, p.ID, p.Scope.OwnerID, p.Scope.ProjectID, p.PortableID, input.ControlMode, input.Name, state, draft, datasetID, datasetRevision, budgets.MaxInFlight, budgets.WallMS, budgets.MaxObservedTotalTokens)
+		_, err := s.db.Exec(ctx, `
+INSERT INTO eval_experiments(experiment_id, owner_id, project_id, portable_id, control_mode, name, state, draft, dataset_id, dataset_revision, max_in_flight, wall_ms, token_limit)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+`, p.ID, p.Scope.OwnerID, p.Scope.ProjectID, p.PortableID, input.ControlMode, input.Name, state, draft, datasetID, datasetRevision, budgets.MaxInFlight, budgets.WallMS, budgets.MaxObservedTotalTokens)
 		if err != nil {
 			return ExperimentReceipt{}, normalize(err)
 		}
@@ -60,7 +63,13 @@ func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
 			if err != nil {
 				return ExperimentReceipt{}, err
 			}
-			setup := bytesOf(map[string]any{"variants": input.Registration.Variants, "checks": input.Registration.Checks, "comparison": input.Registration.Comparison, "budgets": budgets, "source": input.Registration.Source})
+			setup := bytesOf(map[string]any{
+				"variants":   input.Registration.Variants,
+				"checks":     input.Registration.Checks,
+				"comparison": input.Registration.Comparison,
+				"budgets":    budgets,
+				"source":     input.Registration.Source,
+			})
 			recipes := make(map[string]evaldomain.Case, len(input.Registration.Recipes))
 			for _, r := range input.Registration.Recipes {
 				recipes[r.MemberID] = r.Case
@@ -80,6 +89,7 @@ func (s *Store) Create(ctx context.Context, p CreateParams) (Receipt, error) {
 		return ExperimentReceipt{ExperimentID: p.ID, Revision: revision, State: state}, nil
 	})
 }
+
 func (s *Store) UpdateDraft(ctx context.Context, scope Scope, id string, document evaldomain.Frozen, mutation evaldomain.MutationIdentity) (Receipt, error) {
 	if document.Kind() != "DraftUpdate" {
 		return Receipt{}, evaldomain.Failure("eval_invalid")
@@ -96,10 +106,10 @@ func (s *Store) UpdateDraft(ctx context.Context, scope Scope, id string, documen
 		if err = checkMutable(e, mutation); err != nil {
 			return ExperimentReceipt{}, err
 		}
-		if e.ControlMode != "server" {
+		if e.ControlMode != evaldomain.ControlServer {
 			return ExperimentReceipt{}, evaldomain.Failure("eval_external_control")
 		}
-		if e.State != "draft" {
+		if e.State != evaldomain.StateDraft {
 			return ExperimentReceipt{}, evaldomain.Failure("eval_not_ready")
 		}
 		if _, err = s.Dataset(ctx, scope, input.Draft.Dataset.ID, input.Draft.Dataset.Revision); err != nil {
@@ -114,6 +124,7 @@ type Recipe struct {
 	Case    evaldomain.ExecutionCase `json:"case"`
 	Variant evaldomain.Variant       `json:"variant"`
 }
+
 type Member struct {
 	evaldomain.PublicMember
 	PairID                       string
@@ -121,6 +132,7 @@ type Member struct {
 	ExecutionKind, SubmissionKey string
 	Recipe                       Recipe
 }
+
 type Plan struct {
 	SHA256 string
 
@@ -131,7 +143,13 @@ type Plan struct {
 func (s *Store) FrozenPlan(ctx context.Context, owner, id string) (Plan, error) {
 	var kind, identity string
 	var raw, setup []byte
-	err := s.db.QueryRow(ctx, `SELECT p.document_kind,p.document,p.setup,p.plan_sha256 FROM eval_frozen_plans p JOIN eval_experiments e USING(experiment_id) WHERE e.owner_id=$1 AND e.experiment_id=$2`, owner, id).Scan(&kind, &raw, &setup, &identity)
+	err := s.db.QueryRow(ctx, `
+SELECT p.document_kind, p.document, p.setup, p.plan_sha256
+FROM eval_frozen_plans p
+JOIN eval_experiments e USING(experiment_id)
+WHERE e.owner_id=$1
+    AND e.experiment_id=$2
+`, owner, id).Scan(&kind, &raw, &setup, &identity)
 	if err != nil {
 		return Plan{}, normalize(err)
 	}
@@ -162,7 +180,7 @@ func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, clai
 	if e.DeletionRequestedAt != nil {
 		return evaldomain.Failure("eval_project_deleting")
 	}
-	if e.ControlMode != "server" || e.State != "preparing" || document.Kind() != "playground.plan/v1" {
+	if e.ControlMode != evaldomain.ControlServer || e.State != evaldomain.StatePreparing || document.Kind() != "playground.plan/v1" {
 		return evaldomain.Failure("eval_not_ready")
 	}
 	if err = s.persistPlan(ctx, e, document, setup, cases); err != nil {
@@ -170,6 +188,7 @@ func (s *Store) FreezePrepared(ctx context.Context, scope Scope, id string, clai
 	}
 	return s.putResources(ctx, id, resources)
 }
+
 func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldomain.Frozen, setup []byte, cases map[string]evaldomain.Case) error {
 	if err := evaldomain.Validate("ExperimentSetup", setup); err != nil {
 		return err
@@ -276,7 +295,10 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		}
 		// Scope the effect key by the server identity, not the portable ID alone.
 		key := "eval-" + evaldomain.Digest(bytesOf([]string{e.ID, m.MemberID}))[7:]
-		_, err = s.db.Exec(ctx, `INSERT INTO eval_members(experiment_id,member_id,pair_id,ordinal,suite_id,case_id,sample,variant_id,eligibility,execution_kind,recipe,submission_key,case_sha256,binding_sha256,eligibility_reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`, e.ID, m.MemberID, pair, ordinal, m.SuiteID, m.CaseID, m.Sample, m.VariantID, m.Eligibility, kind, bytesOf(Recipe{visible, v}), key, m.CaseSHA256, m.BindingSHA256, reasons[m.MemberID])
+		_, err = s.db.Exec(ctx, `
+INSERT INTO eval_members(experiment_id, member_id, pair_id, ordinal, suite_id, case_id, sample, variant_id, eligibility, execution_kind, recipe, submission_key, case_sha256, binding_sha256, eligibility_reason)
+VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+`, e.ID, m.MemberID, pair, ordinal, m.SuiteID, m.CaseID, m.Sample, m.VariantID, m.Eligibility, kind, bytesOf(Recipe{visible, v}), key, m.CaseSHA256, m.BindingSHA256, reasons[m.MemberID])
 		if err != nil {
 			return normalize(err)
 		}
@@ -292,7 +314,13 @@ func (s *Store) Members(ctx context.Context, owner, id string, afterOrdinal, lim
 	if _, err := s.Get(ctx, owner, id); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, `SELECT m.member_id,m.pair_id,m.ordinal,m.suite_id,m.case_id,m.sample,m.variant_id,m.eligibility,m.execution_kind,m.recipe,m.submission_key,m.case_sha256,m.binding_sha256 FROM eval_members m WHERE m.experiment_id=$1 AND m.ordinal>$2 ORDER BY m.ordinal LIMIT $3`, id, afterOrdinal, limit)
+	rows, err := s.db.Query(ctx, `
+SELECT m.member_id, m.pair_id, m.ordinal, m.suite_id, m.case_id, m.sample, m.variant_id, m.eligibility, m.execution_kind, m.recipe, m.submission_key, m.case_sha256, m.binding_sha256
+FROM eval_members m
+WHERE m.experiment_id=$1
+    AND m.ordinal>$2
+ORDER BY m.ordinal LIMIT $3
+`, id, afterOrdinal, limit)
 	if err != nil {
 		return nil, err
 	}

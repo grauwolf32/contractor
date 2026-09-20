@@ -8,14 +8,17 @@ type PortableComparisonPolicy struct {
 	RequiredEqual      []string `json:"required_equal"`
 	AllowedDifferences []string `json:"allowed_differences"`
 }
+
 type PortableComparisonGates struct {
 	MinCandidateEndToEndPass float64  `json:"min_candidate_end_to_end_pass"`
 	MaxQualityDrop           float64  `json:"max_quality_drop"`
 	MaxTotalTokensRatio      *float64 `json:"max_total_tokens_ratio,omitempty"`
 }
+
 type PortableExperimentExtensions struct {
 	ComparisonGates PortableComparisonGates `json:"playground:comparison-gates"`
 }
+
 type ExperimentSetup struct {
 	Dataset     DatasetRef `json:"dataset"`
 	CaseIDs     []string   `json:"caseIds"`

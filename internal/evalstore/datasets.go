@@ -29,6 +29,7 @@ func (s *Store) PutDataset(ctx context.Context, scope Scope, revision string, do
 		return DatasetReceipt{DatasetID: input.DatasetID, DatasetRevision: revision}, normalize(err)
 	})
 }
+
 func (s *Store) Dataset(ctx context.Context, scope Scope, id, revision string) (DatasetRevision, error) {
 	var out DatasetRevision
 	var document, metadata []byte
@@ -52,7 +53,14 @@ func (s *Store) ListDatasets(ctx context.Context, scope Scope, afterID, afterRev
 	if _, err := s.project(ctx, scope, false); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, `SELECT metadata FROM eval_dataset_revisions WHERE owner_id=$1 AND project_id=$2 AND (dataset_id,revision)>($3,$4) ORDER BY dataset_id,revision LIMIT $5`, scope.OwnerID, scope.ProjectID, afterID, afterRevision, limit)
+	rows, err := s.db.Query(ctx, `
+SELECT metadata
+FROM eval_dataset_revisions
+WHERE owner_id=$1
+    AND project_id=$2
+    AND (dataset_id, revision)>($3, $4)
+ORDER BY dataset_id, revision LIMIT $5
+`, scope.OwnerID, scope.ProjectID, afterID, afterRevision, limit)
 	if err != nil {
 		return nil, err
 	}
