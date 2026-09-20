@@ -3,8 +3,8 @@ id: V60-028
 title: Refresh Audit revision after source Run deletion in the controller gate
 milestone: project-review-v60
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 00a44a5b971f4a4e353779d0dcc63dc2c91e65dd
 depends_on: [V60-012]
 languages: [go, markdown]
 goal: Restore the full Audit controller regression while explicitly checking stale revision rejection.
@@ -28,3 +28,7 @@ tests:
   covers: [A1]
 - command: make test-audits-hardening
   covers: [A1, A2]
+verification:
+  evidence: tasks/evidence/v60-028.json
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.

@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "task_id": "V60-028",
   "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
-  "implementation_commit": null,
+  "implementation_commit": "00a44a5b971f4a4e353779d0dcc63dc2c91e65dd",
   "finding": {
     "priority": "P2",
     "before": "Full make test-audits-hardening fails because source Run deletion increments the Audit revision, making the saved Delete revision stale.",
@@ -41,7 +41,32 @@
       "go_skips": [],
       "summaries": [],
       "log_sha256": "fb7c1d13e9dde3999f9181296207d5c939e47ff95ba62df8bab0dd4b5032689f"
+    },
+    {
+      "command": [
+        "make",
+        "test-audits-hardening"
+      ],
+      "invoked_as": [
+        "make",
+        "--trace",
+        "test-audit-completion-e2e",
+        "test-audits-hardening",
+        "test-findings-e2e"
+      ],
+      "exit_code": 0,
+      "source_commit": "45b31abfd848739a0a1b32d7027028989a911a25",
+      "elapsed_seconds": null,
+      "timing_note": "Shared invocation; no invented per-target wall time. Subsequent Findings gate failed and does not invalidate completed Audit target.",
+      "log": ".local/v60-review/v60-audits-hardening-segment.log",
+      "log_sha256": "8cb713edf5bed41d1485ecaa6b85e6245893070cbe07b863ac6c733de9d37c6a",
+      "shared_log": ".local/v60-review/v60-final-audit.log",
+      "shared_log_sha256": "5c9b66d844d280d1e224793ba453e15255f89f9f7deac3313dfbb514a10b4d0a",
+      "go_passing_events": 193,
+      "go_skips": [],
+      "ui_tests": 34,
+      "ui_files": 3
     }
   ],
-  "final_gate": "pending frozen-source Audit hardening gate"
+  "final_gate": "passed actual PostgreSQL/race Audit hardening target; no selected skips"
 }
