@@ -22,6 +22,7 @@ from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
     assert version("google-adk") == "2.8.0"
     assert version("a2a-sdk") == "1.1.2"
+    assert version("mcp") == "1.30.0"
     assert importlib.util.find_spec("openai") is None
     assert importlib.util.find_spec("litellm") is None
 

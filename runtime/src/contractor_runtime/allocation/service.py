@@ -15,6 +15,7 @@ from contractor_runtime.adapters import (
     AdapterPreparationError,
     AllocationAdapterHost,
 )
+from contractor_runtime.adapters.host import _private_bypass_hosts
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation.cleanup import (
     _await_before_deadline,
@@ -62,6 +63,7 @@ from contractor_runtime.projectfs import (
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
+from contractor_runtime.toolsets.mcp.errors import MCPError
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -269,6 +271,7 @@ class AllocationService:
                     execution,
                     tools,
                 )
+                await self._prepare_tools(tools, adapter_deadline)
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
                         allocation_id=spec.allocation_id,
@@ -394,6 +397,23 @@ class AllocationService:
                     f"allocation workspace preparation failed ({error.code})",
                     retryable=error.retryable,
                     status_code=error.status_code,
+                ) from None
+            except MCPError as error:
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    project_workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                    execution,
+                )
+                raise AllocationError(
+                    "mcp_" + error.code,
+                    f"allocation MCP preparation failed ({error.code})",
+                    retryable=error.retryable,
+                    status_code=503 if error.retryable else 422,
                 ) from None
             except AllocationError:
                 await self._rollback_prepare(
@@ -567,7 +587,7 @@ class AllocationService:
         context: _AllocationContext,
         deadline: datetime,
     ) -> None:
-        await _close_tools(context.tools)
+        await _close_tools(context.tools, deadline=self._tool_close_deadline(deadline))
         if context.execution is not None:
             context.execution.reject()
             await context.execution.remove(deadline=deadline)
@@ -686,6 +706,15 @@ class AllocationService:
             channels |= getattr(factory, "common_infrastructure_channels", frozenset())
             created = await factory.create_selected(
                 **(
+                    {
+                        "private_bypass_hosts": _private_bypass_hosts(
+                            spec.runtime_settings, self._private_bypass_hosts
+                        )
+                    }
+                    if ref == "mcp@1"
+                    else {}
+                ),
+                **(
                     {"completion_contract": spec.completion_contract}
                     if ref == "audit-results@2"
                     else {}
@@ -735,6 +764,24 @@ class AllocationService:
                     retryable=False,
                     status_code=422,
                 )
+
+    async def _prepare_tools(self, tools: Mapping[str, ToolInstance], deadline: datetime) -> None:
+        monotonic_deadline = asyncio.get_running_loop().time() + max(
+            0.0, (deadline - self._now()).total_seconds()
+        )
+        for tool in tools.values():
+            prepare = getattr(tool, "prepare", None)
+            if callable(prepare):
+                await _await_before_deadline(
+                    lambda prepare=prepare: prepare(deadline=monotonic_deadline),
+                    deadline=deadline,
+                    now=self._now,
+                )
+
+    def _tool_close_deadline(self, deadline: datetime) -> float:
+        return asyncio.get_running_loop().time() + max(
+            0.0, (deadline - self._now()).total_seconds()
+        )
 
     @staticmethod
     def _workspace_tool_view(factory: Any, workspace: DirectWorkspaceSession | None) -> Any | None:
@@ -921,7 +968,7 @@ class AllocationService:
     ) -> None:
         try:
             await _await_before_deadline(
-                lambda: _close_tools(context.tools),
+                lambda: _close_tools(context.tools, deadline=self._tool_close_deadline(deadline)),
                 deadline=deadline,
                 now=self._now,
             )
@@ -1093,7 +1140,7 @@ class AllocationService:
 
         if worker is not None:
             await attempt(lambda: worker.abort(deadline))
-        await attempt(lambda: _close_tools(tools))
+        await attempt(lambda: _close_tools(tools, deadline=self._tool_close_deadline(deadline)))
         if project_workspace is not None:
             await attempt(
                 lambda: self._cleanup_project_workspace(project_workspace, deadline=deadline)
@@ -1108,6 +1155,24 @@ class AllocationService:
                 )
             )
         if failed:
+            if workspace is not None and adapter_host is not None:
+                self._context = _AllocationContext(
+                    allocation_id=spec.allocation_id,
+                    run_id=spec.run_id,
+                    stage_execution_id=spec.stage_execution_id,
+                    logical_agent_name=spec.logical_agent_name,
+                    namespace=spec.namespace,
+                    fingerprint=_spec_fingerprint(spec, self._fingerprint_key),
+                    started_at=self._now(),
+                    workspace=workspace,
+                    sandbox=sandbox,
+                    project_workspace=project_workspace,
+                    adapter_host=adapter_host,
+                    tools=dict(tools),
+                    worker_state=None,
+                    runtime_settings=spec.runtime_settings,
+                    worker=worker,
+                )
             await self._state.fence_allocation(spec.allocation_id)
             self._force_exit(70)
         if cancelled is not None:

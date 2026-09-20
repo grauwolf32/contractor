@@ -3,7 +3,7 @@ id: V61-005
 title: Own Streamable HTTP MCP sessions through allocation preparation and cleanup
 milestone: toolset-runtime-configuration
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V61-003, V14-003, V49-001]
 languages: [python, yaml, markdown]

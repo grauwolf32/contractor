@@ -12,9 +12,17 @@ from contractor_runtime.factories import (
 )
 
 
-async def _close_tools(tools: Mapping[str, ToolInstance]) -> None:
+async def _close_tools(
+    tools: Mapping[str, ToolInstance],
+    *,
+    deadline: float | None = None,
+) -> None:
     for name in reversed(tuple(tools)):
-        await tools[name].close()
+        bounded_close = getattr(tools[name], "close_before", None)
+        if deadline is not None and callable(bounded_close):
+            await bounded_close(deadline=deadline)
+        else:
+            await tools[name].close()
         if isinstance(tools, MutableMapping):
             del tools[name]
 

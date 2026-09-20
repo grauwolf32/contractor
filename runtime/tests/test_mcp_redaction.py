@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import timedelta
 from pathlib import Path
 
@@ -146,3 +147,43 @@ def test_mcp_allocation_admission_redaction_and_report_cleanup(tmp_path: Path, m
     assert SECRET.encode() not in b"".join(payloads)
     if mode == "valid":
         assert payloads
+
+
+@pytest.mark.parametrize("response", ["malformed_json", "malformed_rpc", "auth", "drop_call"])
+def test_sdk_failures_discard_remote_body_headers_session_id_and_tracebacks(
+    response, caplog
+) -> None:
+    from fakes.mcp import MCPFixture
+    from test_mcp_session import configuration, deadline
+
+    from contractor_runtime.toolsets.mcp.errors import MCPError
+    from contractor_runtime.toolsets.mcp.session import MCPSessionOwner
+
+    caplog.set_level(logging.DEBUG)
+
+    async def scenario() -> None:
+        async with MCPFixture() as server:
+            owner = MCPSessionOwner(configuration(server.url), ["search"])
+            if response == "drop_call":
+                await owner.prepare(deadline=deadline())
+                server.drop_call = True
+                with pytest.raises(MCPError) as failure:
+                    await owner.call("search", {"query": SECRET}, deadline=deadline())
+            else:
+                if response == "malformed_json":
+                    server.raw_response = SECRET.encode()
+                elif response == "malformed_rpc":
+                    server.raw_response = (
+                        '{"jsonrpc":"2.0","id":"' + SECRET + '","unexpected":true}'
+                    ).encode()
+                else:
+                    server.status = 401
+                with pytest.raises(MCPError) as failure:
+                    await owner.prepare(deadline=deadline())
+            await owner.close(deadline=deadline())
+            assert SECRET not in str(failure.value)
+            assert "private-mcp-session" not in str(failure.value)
+            assert SECRET not in caplog.text and "private-mcp-session" not in caplog.text
+            assert owner.closed
+
+    asyncio.run(scenario())

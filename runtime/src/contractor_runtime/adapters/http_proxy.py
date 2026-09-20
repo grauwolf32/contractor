@@ -8,7 +8,7 @@ import ssl
 import subprocess
 import tempfile
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 
@@ -100,6 +100,23 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
             await transport.aclose()
 
 
+class _GuardedProxyTransport(httpx.AsyncBaseTransport):
+    def __init__(
+        self, transport: httpx.AsyncBaseTransport, forbidden_hosts: frozenset[str]
+    ) -> None:
+        self._transport = transport
+        self._forbidden_hosts = forbidden_hosts
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        parsed = urlsplit(str(request.url))
+        if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
+            raise ProxyRequestError
+        return await self._transport.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._transport.aclose()
+
+
 class ProxyHTTPClient:
     """Narrow allocation handle; callers cannot change proxy routing."""
 
@@ -109,10 +126,24 @@ class ProxyHTTPClient:
         *,
         forbidden_hosts: Sequence[str] = (),
         metrics: RuntimeAdapterMetricsState | None = None,
+        isolated_transport: Callable[[str | None], httpx.AsyncBaseTransport] | None = None,
     ) -> None:
         self._client: httpx.AsyncClient | None = client
         self._forbidden_hosts = frozenset(forbidden_hosts)
         self._metrics = metrics
+        self._isolated_transport = isolated_transport
+
+    def new_isolated_transport(self, ca_bundle_pem: str | None = None) -> httpx.AsyncBaseTransport:
+        """Own a fresh pool on this route, with independent headers/cookies/TLS.
+
+        The caller owns its transport. It cannot change the proxy, and closing
+        it cannot close this handle's client or another tool's connections.
+        """
+        if self._client is None or self._isolated_transport is None:
+            raise ProxyRequestError
+        return _GuardedProxyTransport(
+            self._isolated_transport(ca_bundle_pem), self._forbidden_hosts
+        )
 
     @property
     def async_client(self) -> httpx.AsyncClient:
@@ -172,6 +203,7 @@ class ProxyHTTPClient:
         self._client = None
         self._forbidden_hosts = frozenset()
         self._metrics = None
+        self._isolated_transport = None
 
     def __repr__(self) -> str:
         return f"ProxyHTTPClient(active={self._client is not None!r})"
@@ -493,6 +525,29 @@ class HTTPProxyAdapter:
             retries=0,
         )
         observed = _ObservedProxyTransport(transport, self.metrics)
+
+        def isolated_transport(ca_bundle_pem: str | None) -> httpx.AsyncBaseTransport:
+            # SSLContext has no copy operation. Rebuild its public trust roots
+            # so extra endpoint trust never mutates another tool's TLS state.
+            isolated_tls = ssl.create_default_context()
+            roots = "".join(
+                ssl.DER_cert_to_PEM_cert(cert)
+                for cert in tls_context.get_ca_certs(binary_form=True)
+            )
+            isolated_tls.load_verify_locations(cadata=roots)
+            if ca_bundle_pem is not None:
+                isolated_tls.load_verify_locations(cadata=ca_bundle_pem)
+            return _ObservedProxyTransport(
+                httpx.AsyncHTTPTransport(
+                    verify=isolated_tls,
+                    proxy=proxy,
+                    trust_env=False,
+                    limits=limits,
+                    retries=0,
+                ),
+                self.metrics,
+            )
+
         handle = ProxyHTTPClient(
             httpx.AsyncClient(
                 transport=observed,
@@ -503,6 +558,7 @@ class HTTPProxyAdapter:
             ),
             forbidden_hosts=forbidden_hosts,
             metrics=self.metrics,
+            isolated_transport=isolated_transport,
         )
         self._clients.append(handle)
         return handle
