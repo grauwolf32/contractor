@@ -176,7 +176,13 @@ The original automatic `fail` transition decision remains immutable. Manual
 continuation is a separate receipt, unique per source execution. Repeating the
 same request returns the same target even if that target has already failed;
 another manual attempt must name that newer failed execution. Automatic retry
-and escalation counters are not reset. A new attempt repeats model/tool work and
+and escalation counters are not reset. A manual continuation records an immutable
+`resumeSourceExecutionId` equal to its `previousExecutionId`, retains the source's
+execution configuration variant and escalation ordinal, and is linked to its
+receipt in the same transaction. Only original automatic escalation attempts
+consume ordinal positions; manual attempts do not create or reset that budget.
+The new attempt still increments the overall attempt number used by retry limits.
+A new attempt repeats model/tool work and
 can repeat external side effects; the UI asks for confirmation.
 
 Continuation is unavailable for initialization failures with no failed stage,

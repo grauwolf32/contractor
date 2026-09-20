@@ -321,6 +321,10 @@ func (s *Scheduler) escalationAttempts(
 	if err != nil {
 		return 0, err
 	}
+	byID := make(map[string]runstore.StageExecution, len(executions))
+	for _, execution := range executions {
+		byID[execution.StageExecutionID] = execution
+	}
 	maxOrdinal := 0
 	seen := make(map[int]struct{})
 	for _, current := range executions {
@@ -329,6 +333,21 @@ func (s *Scheduler) escalationAttempts(
 		}
 		if current.EscalationOrdinal == nil || *current.EscalationOrdinal <= 0 {
 			return 0, fmt.Errorf("persisted escalation attempt has an invalid ordinal")
+		}
+		if current.ResumeSourceExecutionID != nil {
+			previous, exists := byID[*current.ResumeSourceExecutionID]
+			if !exists || current.PreviousExecutionID == nil ||
+				*current.PreviousExecutionID != previous.StageExecutionID ||
+				previous.RunID != current.RunID || previous.StageName != current.StageName ||
+				previous.Attempt+1 != current.Attempt ||
+				previous.ExecutionConfigVariant != current.ExecutionConfigVariant ||
+				previous.EscalationOrdinal == nil || *previous.EscalationOrdinal != *current.EscalationOrdinal ||
+				(previous.State != runstore.StageFailed && previous.State != runstore.StageInterrupted) {
+				return 0, fmt.Errorf("persisted manual escalation continuation has invalid lineage")
+			}
+			// A manual continuation repeats the pinned configuration; only the
+			// original automatic attempt consumes an escalation budget position.
+			continue
 		}
 		ordinal := *current.EscalationOrdinal
 		if _, duplicate := seen[ordinal]; duplicate {

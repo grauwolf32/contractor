@@ -307,6 +307,7 @@ type CreateStageExecutionParams struct {
 	StageName                 string
 	Attempt                   int
 	PreviousExecutionID       *string
+	ResumeSourceExecutionID   *string
 	ExecutionConfigVariant    StageExecutionConfigVariant
 	EscalationOrdinal         *int
 	StageSpecSchemaVersion    string
@@ -370,6 +371,7 @@ type StageExecution struct {
 	StageName                    string
 	Attempt                      int
 	PreviousExecutionID          *string
+	ResumeSourceExecutionID      *string
 	ExecutionConfigVariant       StageExecutionConfigVariant
 	EscalationOrdinal            *int
 	StageSpecSchemaVersion       string

@@ -38,14 +38,15 @@ func (s *PostgresStore) CreateStageExecution(
 	result, err := scanStageExecution(s.db.QueryRow(ctx, `
 INSERT INTO stage_executions (
     stage_execution_id, run_id, stage_name, attempt, previous_execution_id,
-    execution_config_variant, escalation_ordinal,
+    execution_config_variant, escalation_ordinal, resume_source_execution_id,
     stage_spec_schema_version, stage_spec_snapshot,
     stage_context_schema_version, stage_context_snapshot,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, 'preparing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '')
 RETURNING `+stageExecutionColumns,
 		params.StageExecutionID, params.RunID, params.StageName, params.Attempt,
 		params.PreviousExecutionID, params.ExecutionConfigVariant, params.EscalationOrdinal,
+		params.ResumeSourceExecutionID,
 		params.StageSpecSchemaVersion, []byte(params.StageSpecSnapshot),
 		params.StageContextSchemaVersion, encodedContext,
 	))
@@ -442,6 +443,10 @@ func validateCreateStageExecution(params CreateStageExecutionParams) error {
 		if err := validateOpaque("previousExecutionID", *params.PreviousExecutionID); err != nil {
 			return err
 		}
+	}
+	if params.ResumeSourceExecutionID != nil && (params.PreviousExecutionID == nil ||
+		*params.ResumeSourceExecutionID != *params.PreviousExecutionID) {
+		return invalidf("manual continuation must identify the previous execution")
 	}
 	variant := params.ExecutionConfigVariant
 	if variant == "" {

@@ -121,7 +121,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		}
 		next, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
 			StageExecutionID: targetID, RunID: runID, StageName: previous.StageName, Attempt: previous.Attempt + 1,
-			PreviousExecutionID: &sourceID, ExecutionConfigVariant: previous.ExecutionConfigVariant,
+			PreviousExecutionID: &sourceID, ResumeSourceExecutionID: &sourceID, ExecutionConfigVariant: previous.ExecutionConfigVariant,
 			EscalationOrdinal: previous.EscalationOrdinal, StageSpecSchemaVersion: previous.StageSpecSchemaVersion,
 			StageSpecSnapshot: previous.StageSpecSnapshot, StageContextSchemaVersion: previous.StageContextSchemaVersion,
 			StageContext: previous.StageContext,
