@@ -1,6 +1,7 @@
 import type { ArtifactMetadata } from "../api/artifacts";
 import type { RunMetadataLabelDraft } from "../api/run-metadata-labels";
 import { RunDraftKeyring } from "./idempotency";
+import type { ToolsetConnectionCreation } from "./toolset-connections";
 import {
   artifactOptionKey,
   emptyExecutionOverrides,
@@ -48,6 +49,7 @@ export interface RunDraftSummary extends RunDraftIdentity {
 }
 
 export interface RunDraftEntry {
+  connectionCreation?: ToolsetConnectionCreation;
   readonly key: string;
   readonly generation: number;
   readonly identity: RunDraftIdentity;
@@ -196,6 +198,7 @@ function reconcileSuggestions(
   entry.state = state;
   entry.initialState = cloneState(incoming);
   entry.meaningful =
+    entry.connectionCreation !== undefined ||
     entry.ambiguousSubmission ||
     entry.keyring.hasSubmission() ||
     !sameState(entry.state, entry.initialState);
@@ -288,6 +291,7 @@ export class RunDraftMemoryStore {
     if (internal !== entry || !entry.current) return false;
     entry.state = cloneState(state);
     entry.meaningful =
+      entry.connectionCreation !== undefined ||
       entry.ambiguousSubmission ||
       entry.keyring.hasSubmission() ||
       !sameState(entry.state, internal.initialState);
@@ -302,11 +306,23 @@ export class RunDraftMemoryStore {
     return true;
   }
 
+  keepConnectionCreation(
+    entry: RunDraftEntry,
+    progress: ToolsetConnectionCreation,
+  ): boolean {
+    if (!this.isCurrent(entry)) return false;
+    entry.connectionCreation = progress;
+    entry.meaningful = true;
+    entry.updatedAt = new Date().toISOString();
+    return true;
+  }
+
   setAmbiguousSubmission(entry: RunDraftEntry, ambiguous: boolean): boolean {
     const internal = this.#entries.get(entry.key);
     if (internal !== entry || !entry.current) return false;
     entry.ambiguousSubmission = ambiguous;
     entry.meaningful =
+      entry.connectionCreation !== undefined ||
       ambiguous ||
       entry.keyring.hasSubmission() ||
       !sameState(entry.state, internal.initialState);

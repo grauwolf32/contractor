@@ -680,6 +680,9 @@ describe("Operations routes", () => {
     const credentialForm = screen.getByRole("dialog", {
       name: "Create Runtime credential",
     });
+    expect(
+      within(credentialForm).getByRole("option", { name: "MCP headers" }),
+    ).toBeInTheDocument();
     await user.type(
       within(credentialForm).getByLabelText("Runtime credential ID"),
       "otel-debug",
@@ -713,6 +716,14 @@ describe("Operations routes", () => {
       screen.getByRole("button", { name: "Publish RuntimeConfig" }),
     );
     await user.type(screen.getByLabelText("RuntimeConfig name"), "debug");
+    await user.selectOptions(
+      screen.getByLabelText("MCP configuration"),
+      "configured",
+    );
+    await user.type(
+      screen.getByLabelText("MCP endpoint"),
+      "https://knowledge.example/mcp",
+    );
     await user.click(screen.getByLabelText("Worker LLM Gateway route"));
     await user.selectOptions(
       screen.getByLabelText("Exact LLM Gateway"),
@@ -753,6 +764,11 @@ describe("Operations routes", () => {
       }),
     );
     expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
+    expect(runtimeConfigBody?.spec.worker?.toolsets?.["mcp@1"]).toEqual({
+      endpoint: "https://knowledge.example/mcp",
+      connectTimeoutSeconds: 10,
+      requestTimeoutSeconds: 60,
+    });
     expect(runtimeConfigBody?.spec.worker?.llmGateway?.gateway).toBe(
       "local-litellm@1",
     );

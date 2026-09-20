@@ -253,3 +253,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+.toolset-configurations {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.toolset-requirement {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.toolset-requirement p {
+  margin: 0.35rem 0 0;
+}

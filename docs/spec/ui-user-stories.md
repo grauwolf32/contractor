@@ -305,3 +305,45 @@ To assess usability, have a new user and an experienced user perform the same
 tasks before and after the changes. Measure success without hints, time spent,
 backtracking, incorrect input choices and lost input. Set numerical targets
 after the baseline measurement; expert review does not replace user testing.
+
+### Configure a toolset when starting a Run
+
+The Run form reads `toolsetConfigurationRequirements` from the resolved Workflow,
+including consumers in later stages. It shows the exact toolset ref, selected tool
+names and stage/agent consumers. One shared configuration covers that ref for the
+whole Run; the user selects its existing Runtime label once.
+
+Coverage uses the safe label projection (`toolsetConfigurationCoverage`,
+`changedSections`). The picker does not download configuration documents per row.
+It shows inherited `default` coverage, explicit clears, missing settings and all
+sources of conflicting values. Equal normalized values deduplicate by
+`valueDigest`. Mixed profiles visibly retain their gateway, telemetry, proxy or
+other effects. Selected labels outside the current inventory page remain selected;
+unavailable or deleted required profiles prevent a new submission. An exact retry
+of an ambiguous Run creation still uses the original request/key and pins. Repeat
+continues to require review of retained values and changed/deleted binding notices.
+
+For `mcp@1`, **Create or resume MCP connection** opens the existing accessible
+dialog. The user enters a Streamable HTTP endpoint, chooses anonymous access, an
+existing MCP header credential, or a new write-only credential. Advanced fields
+contain CA certificates, connect timeout and request timeout. The same typed
+fields are available in Operations; Operations also supports a per-ref clear.
+
+Creation calls the existing credential, RuntimeConfig publication and label
+creation APIs in that order. Each step has its own stable idempotency key. A lost
+reply is retried with the same request fingerprint/key; confirmed steps retain
+only their safe identifiers. Label creation uses `If-None-Match: *`; updating a
+shared binding requires the explicit Operations action. Partial resources are
+never automatically deleted. The endpoint/settings stay in the mounted editor;
+header values are cleared on submit and erased after the credential request.
+React Query, Run draft state, browser storage and URLs do not retain credential
+material. In-memory draft progress retains only references and fingerprints, so
+navigation can resume while re-entering any unconfirmed settings/material.
+Reloading the browser requires starting again or selecting published resources in
+Operations; the UI never promises secret readback.
+
+The resulting Run request contains only `runtimeLabels`. The browser does not
+connect to MCP or claim a preflight success. Actual preparation performs
+connection, authentication and declaration validation. Existing Run detail error
+and allocation views show its safe failure code; fixing a connection requires a
+new immutable config version/binding and a new or reviewed Repeat Run.

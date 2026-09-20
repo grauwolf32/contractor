@@ -5,6 +5,7 @@ import {
 import {
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
@@ -22,6 +23,7 @@ import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import {
+  getRuntimeLabel,
   listRuntimeLabels,
   type RuntimeLabelBinding,
 } from "../../api/operations";
@@ -61,6 +63,14 @@ import {
 import { ErrorNotice, formatBytes, formatTimestamp } from "../artifacts/common";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
+import {
+  MCPConnectionDialog,
+  ToolsetConfigurationRequirements,
+} from "./toolset-configurations";
+import {
+  resolveToolsetCoverage,
+  ToolsetConnectionCreation,
+} from "../../run-drafts/toolset-connections";
 
 import "./run-drafts.css";
 
@@ -101,6 +111,9 @@ function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
         {binding.config.name}@{binding.config.version}
       </code>
       <span>binding revision {binding.revision}</span>
+      {binding.changedSections?.length ? (
+        <span>Changes: {binding.changedSections.join(", ")}</span>
+      ) : null}
       <code title={binding.config.digest}>
         {binding.config.digest.slice(0, 18)}…
       </code>
@@ -750,6 +763,11 @@ function WorkflowRunFormBody({
   const [gitSlot, setGitSlot] = useState<string | null>(null);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);
   const [discardRequested, setDiscardRequested] = useState(false);
+  const requirements = workflow.toolsetConfigurationRequirements ?? [];
+  const [connectionOpen, setConnectionOpen] = useState(false);
+  const [connectionCreation, setConnectionCreation] = useState(
+    () => draftEntry.connectionCreation ?? new ToolsetConnectionCreation(),
+  );
   const [draft, setDraft] = useState<RunDraftState>(() =>
     structuredClone(draftEntry.state),
   );
@@ -775,6 +793,7 @@ function WorkflowRunFormBody({
   const [runtimeOptionsOpen, setRuntimeOptionsOpen] = useState(
     () =>
       draft.runtimeLabels.length > 0 ||
+      requirements.length > 0 ||
       draft.repeat?.notices.some((notice) =>
         notice.field?.startsWith("runtimeLabels"),
       ) === true,
@@ -972,8 +991,55 @@ function WorkflowRunFormBody({
     queryFn: ({ pageParam }) =>
       listRuntimeLabels(api, pageParam === null ? {} : { cursor: pageParam }),
     getNextPageParam: nextCursor,
-    enabled: runtimeOptionsOpen,
+    enabled: runtimeOptionsOpen || requirements.length > 0,
   });
+  const coverageLabels =
+    requirements.length === 0 ? [] : ["default", ...selectedRuntimeLabels];
+  const selectedBindings = useQueries({
+    queries: coverageLabels.map((label) => ({
+      queryKey: queryKeys.operations.runtimeLabels.detail(label),
+      queryFn: () => getRuntimeLabel(api, label),
+      retry: false,
+      staleTime: 0,
+    })),
+  });
+  const labelBindings = new Map(
+    (runtimeLabelInventory.data?.pages.flatMap((page) => page.items) ?? []).map(
+      (binding) => [binding.label, binding],
+    ),
+  );
+  selectedBindings.forEach((query, index) => {
+    if (query.data !== undefined && query.error === null)
+      labelBindings.set(coverageLabels[index]!, query.data);
+    else labelBindings.delete(coverageLabels[index]!);
+  });
+  const coverageRefs = [
+    ...new Set([
+      ...requirements.map((requirement) => requirement.ref),
+      ...selectedRuntimeLabels.flatMap(
+        (label) =>
+          labelBindings
+            .get(label)
+            ?.toolsetConfigurationCoverage?.map((row) => row.ref) ?? [],
+      ),
+    ]),
+  ].sort();
+  const toolsetCoverage =
+    requirements.length === 0
+      ? []
+      : resolveToolsetCoverage(coverageRefs, selectedRuntimeLabels, [
+          ...labelBindings.values(),
+        ]);
+  const toolsetsReady = toolsetCoverage.every(
+    (value) =>
+      value.state !== "conflict" &&
+      value.state !== "unavailable" &&
+      (value.state === "configured" ||
+        !requirements.some(
+          (requirement) =>
+            requirement.ref === value.ref && requirement.configurationRequired,
+        )),
+  );
 
   const artifacts = useMemo(
     () =>
@@ -1010,24 +1076,14 @@ function WorkflowRunFormBody({
     () => credentialInventory.data?.pages.flatMap((page) => page.items) ?? [],
     [credentialInventory.data],
   );
-  const runtimeLabels = useMemo(
-    () =>
-      (runtimeLabelInventory.data?.pages.flatMap((page) => page.items) ?? [])
-        .filter((binding) => binding.label !== "default")
-        .sort((left, right) => left.label.localeCompare(right.label)),
-    [runtimeLabelInventory.data],
-  );
+  const runtimeLabels = [...labelBindings.values()]
+    .filter((binding) => binding.label !== "default")
+    .sort((left, right) => left.label.localeCompare(right.label));
   const retainedRuntimeLabels = useMemo(() => {
     const visible = new Set(runtimeLabels.map((binding) => binding.label));
     return selectedRuntimeLabels.filter((label) => !visible.has(label));
   }, [runtimeLabels, selectedRuntimeLabels]);
-  const defaultRuntimeConfig = useMemo(
-    () =>
-      runtimeLabelInventory.data?.pages
-        .flatMap((page) => page.items)
-        .find((binding) => binding.label === "default"),
-    [runtimeLabelInventory.data],
-  );
+  const defaultRuntimeConfig = labelBindings.get("default");
   const currentValidation = validateRunDraft(
     workflow,
     {
@@ -1198,6 +1254,15 @@ function WorkflowRunFormBody({
       artifactMap,
     );
     setValidationErrors(validation.errors);
+    if (!toolsetsReady && !(responseLost && exactRetry)) {
+      setValidationErrors((errors) => ({
+        ...errors,
+        toolsets:
+          "Resolve missing, cleared, unavailable or conflicting toolset connections before starting the Run.",
+      }));
+      setRuntimeOptionsOpen(true);
+      return;
+    }
     if (validation.request === undefined) {
       const errorKeys = Object.keys(validation.errors);
       if (
@@ -1275,6 +1340,7 @@ function WorkflowRunFormBody({
     draft.repeat !== undefined && !draft.repeat.reviewed;
   const draftReady =
     currentValidation.request !== undefined &&
+    (toolsetsReady || (responseLost && exactRetry)) &&
     !artifactInventory.isPending &&
     !repeatReviewPending;
   const consumerOverrideCount = (selection: ConsumerOverrideDraft): number =>
@@ -1301,7 +1367,9 @@ function WorkflowRunFormBody({
           ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
           : reviewRequiredNames.length > 0
             ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
-            : "Review highlighted settings";
+            : !toolsetsReady
+              ? "Resolve toolset connections"
+              : "Review highlighted settings";
 
   function renderParameters(
     slots: [string, WorkflowResource["parameters"][string]][],
@@ -1795,6 +1863,51 @@ function WorkflowRunFormBody({
         </p>
       </div>
 
+      {requirements.length === 0 ? null : (
+        <>
+          <ToolsetConfigurationRequirements
+            requirements={requirements}
+            coverage={toolsetCoverage}
+            onCreate={() => {
+              if (
+                connectionCreation.binding !== undefined &&
+                selectedRuntimeLabels.includes(connectionCreation.binding.label)
+              )
+                setConnectionCreation(new ToolsetConnectionCreation());
+              setConnectionOpen(true);
+            }}
+          />
+          {selectedBindings
+            .filter((query) => query.error !== null)
+            .map((query, index) => (
+              <ErrorNotice key={index} error={query.error} />
+            ))}
+          {validationErrors.toolsets === undefined ? null : (
+            <p className="field-error" role="alert">
+              {validationErrors.toolsets}
+            </p>
+          )}
+        </>
+      )}
+      {connectionOpen ? (
+        <MCPConnectionDialog
+          progress={connectionCreation}
+          onClose={() => setConnectionOpen(false)}
+          onStarted={() =>
+            draftStore.keepConnectionCreation(draftEntry, connectionCreation)
+          }
+          onCreated={(binding) => {
+            if (!draftStore.isCurrent(draftEntry)) return;
+            setSelectedRuntimeLabels((current) =>
+              [...new Set([...current, binding.label])].sort(),
+            );
+            clearError("toolsets");
+            setRuntimeOptionsOpen(true);
+            setConnectionOpen(false);
+          }}
+        />
+      ) : null}
+
       <details
         className="run-draft-disclosure"
         open={runtimeOptionsOpen}
@@ -1857,6 +1970,7 @@ function WorkflowRunFormBody({
                         current.filter((candidate) => candidate !== label),
                       );
                       clearError("runtimeLabels");
+                      clearError("toolsets");
                     }}
                   />
                   <span>
@@ -1880,6 +1994,7 @@ function WorkflowRunFormBody({
                         ).sort(),
                       );
                       clearError("runtimeLabels");
+                      clearError("toolsets");
                     }}
                   />
                   <span>

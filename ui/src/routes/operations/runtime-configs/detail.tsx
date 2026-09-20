@@ -85,6 +85,15 @@ export function RuntimeConfigDetailRoute() {
             </dl>
           </div>
           <div className="runtime-config-detail-grid">
+            {Object.entries(
+              query.data.document.spec.worker?.toolsets ?? {},
+            ).map(([ref, value]) => (
+              <OptionalBlock
+                key={ref}
+                title={`Worker toolset ${ref}`}
+                value={value}
+              />
+            ))}
             <OptionalBlock
               title="Worker LLM Gateway"
               value={query.data.document.spec.worker?.llmGateway}

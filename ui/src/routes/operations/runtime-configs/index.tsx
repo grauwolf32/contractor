@@ -33,6 +33,19 @@ import {
   formatTimestamp,
 } from "../../artifacts/common";
 
+import {
+  HeaderFields,
+  mcpHeaderMaterial,
+  type HeaderDraft,
+} from "../credentials/header-fields";
+import {
+  buildMCPConfig,
+  emptyMCPConfigDraft,
+  MCPConfigurationFields,
+  type MCPConfigDraft,
+} from "./mcp-fields";
+import { privateMutationKey } from "../../../run-drafts/toolset-connections";
+
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
 
@@ -79,6 +92,8 @@ interface ConfigDraft {
   plannerTelemetryCredential: string;
   plannerTelemetryTimeout: string;
   plannerTelemetryCaptureContent: boolean;
+  mcpMode: "inherit" | "configured" | "cleared";
+  mcpConfig: MCPConfigDraft;
   httpProxy: boolean;
   proxyURL: string;
   proxyCredential: string;
@@ -106,6 +121,8 @@ const emptyConfigDraft = (): ConfigDraft => ({
   plannerTelemetryCredential: "",
   plannerTelemetryTimeout: "10",
   plannerTelemetryCaptureContent: false,
+  mcpMode: "inherit",
+  mcpConfig: emptyMCPConfigDraft(),
   httpProxy: false,
   proxyURL: "",
   proxyCredential: "",
@@ -162,7 +179,8 @@ function buildDocument(
     !draft.gateway &&
     !draft.workerTelemetry &&
     !draft.plannerTelemetry &&
-    !draft.httpProxy
+    !draft.httpProxy &&
+    draft.mcpMode === "inherit"
   ) {
     errors.push("Select at least one typed RuntimeConfig block.");
   }
@@ -236,10 +254,27 @@ function buildDocument(
   if (draft.httpProxy && draft.proxyTargets.length === 0) {
     errors.push("HTTP proxy requires at least one explicit traffic target.");
   }
+  let mcpConfig;
+  if (draft.mcpMode === "configured") {
+    try {
+      mcpConfig = buildMCPConfig(draft.mcpConfig);
+    } catch (error) {
+      errors.push(
+        error instanceof Error ? error.message : "Invalid MCP configuration.",
+      );
+    }
+  }
   if (errors.length > 0 || (draft.gateway && selectedGateway === undefined)) {
     return { errors };
   }
   const worker: NonNullable<RuntimeConfigAuthorDocument["spec"]["worker"]> = {
+    ...(draft.mcpMode === "inherit"
+      ? {}
+      : {
+          toolsets: {
+            "mcp@1": draft.mcpMode === "cleared" ? null : mcpConfig!,
+          },
+        }),
     ...(draft.gateway
       ? {
           llmGateway: {
@@ -312,10 +347,12 @@ function buildDocument(
 function RuntimeConfigPublishForm({
   configs,
   gateways,
+  credentials,
   onClose,
 }: {
   configs: RuntimeConfigResource[];
   gateways: ConfigurationResource[];
+  credentials: RuntimeCredentialMetadata[];
   onClose: () => void;
 }) {
   const heading = useId();
@@ -578,6 +615,36 @@ function RuntimeConfigPublishForm({
             </fieldset>
           ),
         )}
+
+        <fieldset className="runtime-config-block">
+          <legend>Worker toolset · mcp@1</legend>
+          <label>
+            MCP configuration
+            <select
+              value={draft.mcpMode}
+              disabled={mutation.isPending}
+              onChange={(event) =>
+                update("mcpMode", event.target.value as ConfigDraft["mcpMode"])
+              }
+            >
+              <option value="inherit">Inherit</option>
+              <option value="configured">Configure Streamable HTTP</option>
+              <option value="cleared">Clear inherited configuration</option>
+            </select>
+          </label>
+          {draft.mcpMode === "configured" ? (
+            <MCPConfigurationFields
+              value={draft.mcpConfig}
+              onChange={(value) => update("mcpConfig", value)}
+              disabled={mutation.isPending}
+              credentials={credentials}
+              idPrefix="operations-mcp"
+            />
+          ) : null}
+          {draft.mcpMode === "cleared" ? (
+            <p>This profile clears mcp@1 even when default provides it.</p>
+          ) : null}
+        </fieldset>
 
         <fieldset className="runtime-config-block">
           <legend>
@@ -1010,18 +1077,15 @@ function RuntimeBindings({
   );
 }
 
-interface HeaderDraft {
-  id: number;
-  name: string;
-  value: string;
-}
-
 function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
   const heading = useId();
   const initialFocus = useRef<HTMLInputElement>(null);
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  const nextHeaderID = useRef(2);
+  const [credentialKeys] = useState(
+    () =>
+      new MutationDraftKeyring<{ digest: string }>("create-runtime-credential"),
+  );
   const [credentialId, setCredentialId] = useState("");
   const [kind, setKind] =
     useState<CreateRuntimeCredentialRequest["kind"]>("otlp-headers@1");
@@ -1055,7 +1119,17 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       return;
     }
     let request: CreateRuntimeCredentialRequest | undefined;
-    if (kind === "otlp-headers@1" || kind === "mcp-headers@1") {
+    if (kind === "mcp-headers@1") {
+      try {
+        request = {
+          credentialId,
+          kind,
+          material: { headers: mcpHeaderMaterial(headers) },
+        };
+      } catch (reason) {
+        setError(reason);
+      }
+    } else if (kind === "otlp-headers@1") {
       const material = Object.fromEntries(
         headers.map((header) => [header.name.trim(), header.value]),
       );
@@ -1093,7 +1167,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       const result = await createRuntimeCredential(
         api,
         request,
-        `create-runtime-credential-ui-${crypto.randomUUID()}`,
+        await privateMutationKey(credentialKeys, request),
       );
       setCreated(result);
       setCredentialId("");
@@ -1103,6 +1177,8 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
     } catch (reason) {
       setError(reason);
     } finally {
+      for (const name of Object.keys(request.material))
+        delete (request.material as Record<string, unknown>)[name];
       setPending(false);
     }
   }
@@ -1164,6 +1240,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
               }}
             >
               <option value="otlp-headers@1">OTLP headers</option>
+              <option value="mcp-headers@1">MCP headers</option>
               <option value="http-proxy-basic@1">HTTP proxy basic auth</option>
               <option value="http-proxy-bearer@1">
                 HTTP proxy bearer token
@@ -1179,72 +1256,11 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
           </label>
         </div>
         {kind === "otlp-headers@1" || kind === "mcp-headers@1" ? (
-          <div className="runtime-secret-rows">
-            {headers.map((header) => (
-              <div className="runtime-secret-row" key={header.id}>
-                <label>
-                  Header name
-                  <input
-                    autoComplete="off"
-                    value={header.name}
-                    onChange={(event) =>
-                      setHeaders((current) =>
-                        current.map((candidate) =>
-                          candidate.id === header.id
-                            ? { ...candidate, name: event.target.value }
-                            : candidate,
-                        ),
-                      )
-                    }
-                  />
-                </label>
-                <label>
-                  Header value · write only
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={header.value}
-                    onChange={(event) =>
-                      setHeaders((current) =>
-                        current.map((candidate) =>
-                          candidate.id === header.id
-                            ? { ...candidate, value: event.target.value }
-                            : candidate,
-                        ),
-                      )
-                    }
-                  />
-                </label>
-                <button
-                  className="danger-button delete-icon-button"
-                  type="button"
-                  aria-label={`Remove header ${header.name || header.id}`}
-                  title="Remove header"
-                  disabled={headers.length === 1}
-                  onClick={() =>
-                    setHeaders((current) =>
-                      current.filter((candidate) => candidate.id !== header.id),
-                    )
-                  }
-                >
-                  <DeleteIcon />
-                </button>
-              </div>
-            ))}
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                const id = nextHeaderID.current++;
-                setHeaders((current) => [
-                  ...current,
-                  { id, name: "", value: "" },
-                ]);
-              }}
-            >
-              Add header
-            </button>
-          </div>
+          <HeaderFields
+            rows={headers}
+            onChange={setHeaders}
+            disabled={pending}
+          />
         ) : kind === "http-proxy-basic@1" || kind === "http-origin-basic@1" ? (
           <div className="form-grid">
             <label>
@@ -1604,6 +1620,7 @@ export function RuntimeConfigurationRoute() {
         <RuntimeConfigPublishForm
           configs={loadedConfigs}
           gateways={gateways.data?.items ?? []}
+          credentials={credentials.data?.items ?? []}
           onClose={() => setCreateDialog(undefined)}
         />
       ) : null}
