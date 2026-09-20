@@ -87,6 +87,26 @@ progress:
       fast-forwarded local main. Existing unrelated worktree changes were preserved.
       A1 and A2 are verified and this task is completed. V55-006 UI integration
       remains pending; V55-008 can consume the RequestSet preparation contract.
+  - date: 2026-09-20
+    step: openapi31_followup_assessed
+    details: >-
+      Assessed OpenAPI 3.1 support at the user's request; production behavior is
+      unchanged. Existing kin-openapi v0.149.0 and jsonschema/v6 v6.0.3 dependencies
+      are sufficient for a bounded implementation. Main changes belong in
+      prepare.go, references.go and operation.go plus a native 2020-12 validation
+      adapter. Separate schema refs from OpenAPI Reference Objects, preserve ref
+      sibling constraints, handle schema examples arrays and explicit dialects,
+      and retain request-context/readOnly rules and existing 3.0 regressions.
+      Prefer direct JSON Schema compilation with an explicit deny-all external
+      loader: kin-openapi's 2020 wrapper falls back on compilation errors. The
+      existing evaldomain compiler demonstrates controlled resource loading.
+      A standalone spike passed 15 expected cases against pinned jsonschema/v6:
+      2020-12 keywords, local component refs, recursive schemas and anchors,
+      explicit dialect selection, and denied file/HTTP loads. An unregistered
+      OpenAPI base dialect correctly fails compilation and needs an adapter.
+      RequestSet v1, exact provenance and request identities can be retained.
+      Broad external resources, arbitrary dialects and advanced dynamic reference
+      semantics should be scoped separately from the initial 3.1 follow-up.
 remaining: []
 verification:
   - >-
