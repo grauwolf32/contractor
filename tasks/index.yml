@@ -871,8 +871,9 @@ audit_workflow_composition_planning:
     Reuse delivered V55 scanners and scan planning; pin Nuclei URLs without
     claiming execution of the source operation's method/body/authentication.
     Preparation APIs ship with preparation, without waiting for iterative routing.
-    V62-001 contract implementation was explicitly authorized while V62-009
-    release verification remains in progress. Existing in-progress owners outside V62 are unchanged.
+    V62-009 scanner acceptance and V62-001 contract acceptance passed on 2026-09-21.
+    V62-002 is the next implementation step; preparation execution stays gated
+    until V62-002–004 are delivered. Other series retain their recorded scopes.
 
 toolset_runtime_configuration_planning:
   planned_on: "2026-09-19"

@@ -3,8 +3,8 @@ id: V62-001
 title: Specify Audit preparation and a single explicit inventory source schema
 milestone: audit-workflow-composition
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 22fcba08211b83bb109c34c706ce5696602b699d
 depends_on: [V62-009, V25-001, V25-011, V39-007]
 languages: [go, json, yaml, openapi, markdown]
 goal: >-
@@ -88,6 +88,13 @@ progress:
     - Full public API conformance and catalog validation pass after V65 integration.
     - Generated UI client, application/e2e TypeScript, ESLint, Prettier, all 593 UI tests and production build pass.
     - Audit domain, intake, importer, service, controller and public API suites pass against disposable PostgreSQL; importer/controller fixtures explicitly admit queued Runs.
-  remaining:
-    - V62-009 remains in_progress; its production-process and cross-Run scanner collection acceptance are still prerequisites for closing this contract task.
-    - Preparation execution remains capability-gated until V62-002–004; passing authoring and API contract checks does not deliver those implementations.
+  remaining: []
+  capability_limit: Preparation execution remains gated until V62-002–004; this completed contract task does not deliver those implementations.
+
+acceptance_verification:
+  verified_on: "2026-09-21"
+  evidence: tasks/evidence/v62-001.json
+  prerequisite_evidence: tasks/evidence/v62-009.json
+  result: All A1–A3 criteria and required Go/API/client/TypeScript/catalog checks passed; the V62-009 prerequisite is accepted.
+  authoring_fixtures: {valid: 3, invalid: 24}
+  schema_policy: Obsolete schemas remain rejected; no compatibility reader or implicit conversion was introduced.

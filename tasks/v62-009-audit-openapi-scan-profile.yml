@@ -3,8 +3,8 @@ id: V62-009
 title: Connect supplied OpenAPI to SQLMap and pinned-URL Nuclei Audit checks
 milestone: audit-workflow-composition
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4bd4fd6d45200f813397e3aebcdcf91efef09fb9
 implementation_progress:
   checkpoint_commit: 22fcba08211b83bb109c34c706ce5696602b699d
   updated_on: "2026-09-21"
@@ -21,14 +21,12 @@ implementation_progress:
     - Catalog and saved-snapshot validation allow surrounding Stages and additional profile roles while retaining one canonical result producer, exact input mappings and executor-specific batch/approval limits.
     - Trusted scan dispatch and canonical result assembly preserve request/URL/template evidence; executable fixtures cover known failures, lost scanner responses and lost journal acknowledgements across Stage attempts.
     - Start and input preview validate generated task requirements against the declared executor after inventory construction; recovery selects the executor from the frozen Workflow contract.
-  remaining:
-    - Verify terminal evidence recovery and outcome-aware retries against collection faults across Audit Run boundaries, including retained evidence after Run deletion.
-    - Public API process/scanner fixtures and full acceptance verification for the candidate supplied-OpenAPI profiles.
+  remaining: []
   verified_commands:
     - go test ./internal/contracts ./internal/config ./internal/scanplan ./internal/auditdomain ./internal/auditscan ./internal/planner/... ./internal/auditservice ./internal/auditimport ./internal/auditcontroller ./internal/runservice
     - go test ./internal/scanplan ./internal/planner/scan ./internal/contracts
     - go test ./internal/scanplan ./internal/auditdomain ./internal/auditimport ./internal/planner/scan ./internal/contracts ./internal/config ./internal/auditcontroller ./internal/auditservice ./internal/runservice
-  release_status: Candidate profiles resolve and trusted execution is implemented; production-process and cross-Run collection acceptance gates remain pending.
+  release_status: Supplied-OpenAPI profiles passed production-process and cross-Run collection acceptance; source preparation remains outside this task.
 depends_on: [V55-007, V55-008, V39-007]
 languages: [go, python, yaml, markdown]
 goal: Prove useful bounded scanning from an existing exact OpenAPI before adding source preparation, with SQLMap request checks and Nuclei checks of pinned concrete URLs.
@@ -89,3 +87,14 @@ test_prerequisites:
 verification_requirements:
   - Verify the complete canonical result package and receipt, not only a successful scanner exit or JSON report.
   - Do not represent this bounded scan profile as the unimplemented autonomous pentest or independent PoC verification program.
+
+acceptance_verification:
+  verified_on: "2026-09-21"
+  evidence: tasks/evidence/v62-009.json
+  process_gate: make test-openapi-audit-scan-e2e
+  mandatory_process_cases: 7
+  ordinary_scanner_regression_cases: 8
+  runtime_cases: 201
+  postgres_cases_including_subtests: 644
+  mandatory_skips: 0
+  result: All A1–A4 criteria and required commands passed; no scanner engine or demo deployment changed.
