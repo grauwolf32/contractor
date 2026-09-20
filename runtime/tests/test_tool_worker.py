@@ -25,6 +25,7 @@ from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     AbortAllocationRequest,
     AllocationSpec,
+    ArtifactRef,
     ReleaseAllocationRequest,
     StageContentRequest,
 )
@@ -62,6 +63,7 @@ def request(spec, *, target="http://fixture.invalid/?secret=canary"):
 class ArtifactStore:
     def __init__(self):
         self.values = {}
+        self.revisions = {}
         self.fail_report = False
         self.ambiguous_start = False
         self.fail_terminal = False
@@ -75,6 +77,9 @@ class ArtifactStore:
         key = (namespace, name)
         current = self.values.get(key)
         if method == "GET":
+            exact = parse_qs(parsed.query).get("revision", [None])[0]
+            if exact is not None and current is not None and exact != current[2]:
+                current = self.revisions.get((*key, exact))
             if current is None:
                 return self.response(404, {"code": "not_found", "retryable": False})
             data, media_type, revision = current
@@ -97,6 +102,7 @@ class ArtifactStore:
         self.writes += 1
         revision = f"revision-{self.writes}"
         self.values[key] = (body, headers["Content-Type"], revision)
+        self.revisions[(*key, revision)] = self.values[key]
         if name.startswith("tool-invocation.") and current is None and self.ambiguous_start:
             raise ArtifactTransportError("start outcome is unknown")
         return self.response(
@@ -210,6 +216,231 @@ def test_tool_worker_report_and_recreated_allocation_replay(tmp_path):
             if name.startswith("tool-invocation.")
         ]
         assert len(receipts) == 1 and "canary" not in repr(receipts)
+
+    asyncio.run(scenario())
+
+
+def request_with_targets(spec):
+    value = request(spec)
+    value.result_artifacts["targets"] = ArtifactRef(namespace=spec.namespace, name="targets")
+    return value
+
+
+class PublishingTool(FixtureTool):
+    def __init__(self, store, spec):
+        super().__init__()
+        self.client = ArtifactClient(spec.allocation_id, store)
+        self.namespace = spec.namespace
+
+    async def __call__(self, url: str, rate_limit: int = 10) -> dict:
+        await super().__call__(url, rate_limit)
+        written = await self.client.write_artifact(
+            ArtifactRef(namespace=self.namespace, name="targets"),
+            data=b"https://fixture.invalid/discovered\n",
+            media_type="text/plain",
+            expected_revision=None,
+        )
+        ref = written.artifact.model_dump(by_alias=True)
+        return {"status": "completed", "targetsArtifact": ref, "artifacts": {"targets": ref}}
+
+
+def test_tool_additional_artifact_publication_exact_replay_and_binding_conflict(tmp_path):
+    async def scenario():
+        store, spec = ArtifactStore(), tool_spec()
+        tool = PublishingTool(store, spec)
+        stage_request = request_with_targets(spec)
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(stage_request)
+        assert result.failure is None, result
+        assert set(result.result.artifacts) == {"report", "targets"}
+        target_ref = result.result.artifacts["targets"]
+        assert target_ref.revision == "revision-2"
+        report = json.loads(store.values[(spec.namespace, "report")][0])
+        assert report["observation"]["targetsArtifact"] == target_ref.model_dump(by_alias=True)
+        assert await runtime.invoke(stage_request) == result
+
+        # The receipt identifies the originally published revision even after a
+        # later binding write; replay must not substitute that mutable latest.
+        await tool.client.write_artifact(
+            ArtifactRef(namespace=spec.namespace, name="targets"),
+            data=b"https://fixture.invalid/newer\n",
+            media_type="text/plain",
+            expected_revision=target_ref.revision,
+        )
+        spec.allocation_id = "replacement-allocation"
+        replacement = await worker(tmp_path, store, tool, spec=spec)
+        replay = await replacement.invoke(stage_request)
+        assert replay.failure is None, replay
+        assert replay.result.artifacts == result.result.artifacts
+        assert len(tool.calls) == 1
+        state = (await replacement.agent_state_snapshot()).state
+        assert state.last_completed_invocation.metrics.tool_calls == 0
+        assert state.last_completed_invocation.metrics.model_calls == 0
+
+        changed = request_with_targets(spec)
+        changed.result_artifacts["targets"].name = "other-targets"
+        assert (await runtime.invoke(changed)).failure.code == "tool_input_conflict"
+        replacement = await worker(tmp_path, store, tool, spec=spec)
+        assert (await replacement.invoke(changed)).failure.code == "tool_input_conflict"
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ["undeclared", "primary", "foreign", "wrong_name", "mutable", "missing", "malformed"],
+)
+def test_tool_additional_output_ref_validation(tmp_path, variant):
+    async def scenario():
+        store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
+        ref = {"namespace": spec.namespace, "name": "targets", "revision": "forged-revision"}
+        refs = {"targets": ref}
+        if variant == "undeclared":
+            refs = {"other": ref}
+        elif variant == "primary":
+            refs = {"report": {**ref, "name": "report"}}
+        elif variant == "foreign":
+            ref["namespace"] = "another-worker"
+        elif variant == "wrong_name":
+            ref["name"] = "another-output"
+        elif variant == "mutable":
+            ref.pop("revision")
+        elif variant == "missing":
+            refs = {}
+        elif variant == "malformed":
+            refs = [ref]
+        tool.result = {"status": "completed", "artifacts": refs}
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(request_with_targets(spec))
+        assert result.failure.code == "tool_output_invalid"
+        assert (spec.namespace, "report") not in store.values
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(request_with_targets(spec))).failure.code == (
+            "tool_output_invalid"
+        )
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("variant", ["foreign", "receipt", "memory", "alias", "duplicate", "limit"])
+def test_tool_additional_binding_rejected_before_launch(tmp_path, variant):
+    async def scenario():
+        store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
+        value = request_with_targets(spec)
+        binding = value.result_artifacts["targets"]
+        if variant == "foreign":
+            binding.namespace = "another-worker"
+        elif variant == "receipt":
+            binding.name = "tool-invocation.collision"
+        elif variant == "memory":
+            binding.name = "memory.collision"
+        elif variant == "alias":
+            binding.name = "report"
+        elif variant == "duplicate":
+            value.result_artifacts["alias"] = binding.model_copy()
+        else:
+            for index in range(16):
+                value.result_artifacts[f"extra{index}"] = ArtifactRef(
+                    namespace=spec.namespace, name=f"extra{index}"
+                )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        assert (await runtime.invoke(value)).failure.code == "tool_input_invalid"
+        assert not tool.calls and not store.values
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["absent", "revision", "read", "report", "report_conflict"])
+def test_tool_additional_artifact_publication_failures_never_rescan(tmp_path, failure):
+    class ReadFailureStore(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            if failure == "read" and method == "GET" and urlsplit(path).path.endswith("/targets"):
+                raise ArtifactTransportError("private-publication-failure-canary")
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        store, spec = ReadFailureStore(), tool_spec()
+        tool = PublishingTool(store, spec)
+        if failure in {"absent", "revision"}:
+            tool = FixtureTool()
+            if failure == "revision":
+                store.values[(spec.namespace, "targets")] = (b"target", "text/plain", "actual")
+            tool.result = {
+                "status": "completed",
+                "artifacts": {
+                    "targets": {
+                        "namespace": spec.namespace,
+                        "name": "targets",
+                        "revision": "forged",
+                    }
+                },
+            }
+        if failure == "report":
+            store.fail_report = True
+        elif failure == "report_conflict":
+            store.values[(spec.namespace, "report")] = (b"existing", "text/plain", "original")
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(request_with_targets(spec))
+        assert result.failure.code == "tool_report_failed"
+        assert "canary" not in repr(result)
+        if failure == "report_conflict":
+            assert store.values[(spec.namespace, "report")][0] == b"existing"
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(request_with_targets(spec))).failure.code == (
+            "tool_report_failed"
+        )
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("tamper", ["mutable", "undeclared", "missing_output", "missing_artifact"])
+def test_tool_additional_receipt_validation_never_rescans(tmp_path, tamper):
+    async def scenario():
+        store, spec = ArtifactStore(), tool_spec()
+        tool = PublishingTool(store, spec)
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        assert (await runtime.invoke(request_with_targets(spec))).failure is None
+        if tamper == "missing_artifact":
+            del store.values[(spec.namespace, "targets")]
+        else:
+            for key, (data, media, revision) in store.values.items():
+                if not key[1].startswith("tool-invocation."):
+                    continue
+                receipt = json.loads(data)
+                if tamper == "mutable":
+                    receipt["artifacts"]["targets"].pop("revision")
+                elif tamper == "undeclared":
+                    receipt["artifacts"]["forged"] = receipt["artifacts"].pop("targets")
+                else:
+                    receipt.pop("artifacts")
+                store.values[key] = (json.dumps(receipt).encode(), media, revision)
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(request_with_targets(spec))).failure.code == (
+            "tool_outcome_unknown"
+        )
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())
+
+
+def test_failed_tool_with_no_additional_outputs_still_publishes_diagnostics(tmp_path):
+    async def scenario():
+        store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
+        tool.result = {"status": "failed", "errorCode": "no_discovered_targets", "artifacts": {}}
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        assert (await runtime.invoke(request_with_targets(spec))).failure.code == (
+            "tool_execution_failed"
+        )
+        report = json.loads(store.values[(spec.namespace, "report")][0])
+        assert report["observation"] == tool.result
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(request_with_targets(spec))).failure.code == (
+            "tool_execution_failed"
+        )
+        assert len(tool.calls) == 1
 
     asyncio.run(scenario())
 

@@ -1,0 +1,27 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: katana-discovery, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+  inputs: {}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+    targets: {required: true, mediaTypes: [text/vnd.contractor.target-list]}
+  entryStage: discover
+  stages:
+    discover:
+      objective: Discover bounded same-origin targets for a later explicit scan
+      instructions: {ref: instructions/scan.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: katana-discovery@1}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+          targets: {required: true, mediaTypes: [text/vnd.contractor.target-list], from: {namespace: scanner, name: targets}}
+      workflowOutputs: {report: report, targets: targets}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

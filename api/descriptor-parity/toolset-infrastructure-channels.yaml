@@ -28,6 +28,7 @@ toolsets:
   run-artifacts@1: {}
   scan@1:
     scan_ffuf: [runtime-subprocess-launcher]
+    scan_katana: [runtime-subprocess-launcher]
     scan_naabu: [runtime-subprocess-launcher]
     scan_nuclei: [runtime-subprocess-launcher]
     scan_sqlmap: [runtime-subprocess-launcher]

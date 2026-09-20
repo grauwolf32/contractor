@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: katana-discovery, version: "1"}
+spec:
+  description: Discover a bounded set of same-origin HTTP targets with Katana.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_katana]
+  execution:
+    tool: scan_katana
+    arguments:
+      url: {source: parameter, name: target}
+      max_depth: {source: literal, value: 2}
+      max_pages: {source: literal, value: 100}
+      rate_limit: {source: literal, value: 10}
+      timeout_seconds: {source: literal, value: 60}
+    resultArtifact: report
+    timeoutSeconds: 90

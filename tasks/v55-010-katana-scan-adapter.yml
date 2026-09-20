@@ -3,7 +3,7 @@ id: V55-010
 title: Add Katana as a bounded discovery adapter
 milestone: scan-tools-followups
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V55-007]
 languages: [python, go, yaml, markdown]
 goal: Reuse the scan adapter registry for Katana discovery and export prepared inputs for later scans.
@@ -23,7 +23,58 @@ acceptance_criteria:
   - id: A2
     text: Local discovery fixture exports valid deterministic inputs and explicit coverage limits without spawning further scans.
 tests:
-  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana.py runtime/tests/test_scan_toolset.py runtime/tests/test_capabilities.py
+  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana.py runtime/tests/test_scan_katana_lifecycle.py runtime/tests/test_scan_toolset.py runtime/tests/test_capabilities.py runtime/tests/test_tool_worker.py
     covers: [A1, A2]
   - command: go test ./internal/config ./internal/scanplan/...
     covers: [A1, A2]
+  - command: KATANA_TEST_BINARY=/path/to/katana runtime/.venv/bin/pytest -W error runtime/tests/test_scan_katana_live.py
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestKatanaDiscoveryAcrossProductionProcesses$'
+    environment: Katana 1.7.x on PATH, Runtime virtual environment and disposable CONTRACTOR_TEST_DATABASE_URL
+    covers: [A1, A2]
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      User selected V55-010 after the verified V55-006 demo rollout. Started
+      isolated feat/v55-010-katana from main e1ea6209; unrelated workspace changes
+      remain outside this task. Reviewing the adapter registry, exact Artifact
+      publication and target-list planner contracts. Checking pinned Katana flags
+      and actual bounded loopback discovery before fixing the adapter contract.
+  - date: 2026-09-20
+    step: adapter_and_export_implemented
+    details: >-
+      Added independently probed scan_katana for the verified Katana 1.7 series,
+      matching Server descriptor and model-free katana-discovery Workflow.
+      Crawl scope is the seed HTTP origin with redirects/retries disabled, native
+      depth/page/rate/time bounds and private seed/config files. A seed file
+      prevents Katana's comma-separated URL flag from expanding query data into
+      additional targets. Allowlisted successful GET observations become a sorted,
+      deduplicated TargetList with exact ref/digest and bounded source provenance.
+      Reports expose incomplete coverage and never certify complete discovery.
+  - date: 2026-09-20
+    step: verification_in_progress
+    details: >-
+      Extended the ordinary tool Worker to carry explicitly declared additional
+      exact Artifact outputs through completion and durable receipt replay; old
+      single-report digests stay compatible. Added forged-ref, publication-failure
+      and no-rescan regressions. Unit/capability and Go catalog checks pass.
+      Real Katana loopback checks verified scope, page bounds and the private seed
+      behavior. Adjusted request/queue idle timeouts to reserve publication time;
+      reviewing cancellation while publishing and running a dedicated real
+      Server/Runtime/PostgreSQL integration without changing the demo stand.
+  - date: 2026-09-20
+    step: final_checks_passed
+    details: >-
+      Fixed publication lifecycle so close cancels and joins the finalizer and
+      concurrent invocations stay serialized until output publication completes;
+      common subprocess execution and cleanup code is unchanged. Preserved the
+      primary process error if a partial-result Artifact cannot be published.
+      The combined Runtime regression suite passed 411 tests plus the added
+      primary-error preservation regression; five real Katana loopback tests
+      passed. A dedicated Server/Runtime/PostgreSQL process gate passed in
+      47.190 seconds: four local requests, zero out-of-origin requests, two exact
+      outputs, zero model calls and no follow-up Runs. The exported TargetList
+      produced identical scan plans with five candidates/four selected jobs.
+      Go config/scanplan/planner/contracts/e2e tests, go vet, Ruff and diff checks
+      pass. Disposable test processes/database were removed; demo was untouched.

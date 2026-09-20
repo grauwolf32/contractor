@@ -1,4 +1,4 @@
-"""Typed wrappers for optional nuclei, sqlmap and naabu executables."""
+"""Typed adapters for independently available scanner and discovery executables."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
@@ -31,6 +32,14 @@ from contractor_runtime.toolsets.scan.ffuf import (
 from contractor_runtime.toolsets.scan.http_request import (
     MAX_REQUEST_ARTIFACT_BYTES,
     parse_http_request,
+)
+from contractor_runtime.toolsets.scan.katana import (
+    MAX_RESPONSE_BYTES,
+    MAX_TARGET_BYTES,
+    TARGET_LIST_MEDIA_TYPE,
+    canonical_url,
+    katana_observation,
+    scope_regex,
 )
 from contractor_runtime.toolsets.scan.process import ProcessResult, run_process
 from contractor_runtime.toolsets.scan.wordlist import MAX_WORDLIST_ARTIFACT_BYTES, parse_wordlist
@@ -51,12 +60,15 @@ class ScannerUnavailable(Exception):
 
 
 class _ScanSession:
-    def __init__(self, workspace, executables, templates, *, proxy_configured, artifact_client):
+    def __init__(
+        self, workspace, executables, templates, *, proxy_configured, artifact_client, namespace
+    ):
         self.workspace = workspace
         self.executables = executables
         self.templates = templates
         self.proxy_configured = proxy_configured
         self.artifact_client = artifact_client
+        self.namespace = namespace
         self._closed = False
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
@@ -69,8 +81,9 @@ class _ScanSession:
         *,
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
+        finalize: Callable[[dict], Awaitable[dict]] | None = None,
     ) -> dict:
-        async with self._lock:
+        async def invocation():
             if self._closed:
                 result = ProcessResult(None, error_code="scan_closed")
             elif self.proxy_configured:
@@ -80,12 +93,18 @@ class _ScanSession:
             elif not self.executables[tool.name]:
                 result = ProcessResult(None, error_code="scanner_unavailable")
             else:
-                self._task = asyncio.create_task(self._execute(tool, arguments, timeout, prepare))
-                try:
-                    result = await self._task
-                finally:
-                    self._task = None
-        return (observation or tool.observation)(result)
+                result = await self._execute(tool, arguments, timeout, prepare)
+            value = (observation or tool.observation)(result)
+            return await finalize(value) if finalize is not None else value
+
+        async with self._lock:
+            # Artifact publication is part of the invocation: keep it serialized
+            # and cancellable until close has joined its cleanup as well.
+            self._task = asyncio.create_task(invocation())
+            try:
+                return await self._task
+            finally:
+                self._task = None
 
     async def _execute(
         self,
@@ -148,6 +167,10 @@ class ScanTool:
     def observation(self, result: ProcessResult) -> dict:
         return {**result.observation(), "scanner": self.binary}
 
+    @staticmethod
+    def accepts_probe(result: ProcessResult) -> bool:
+        return result.error_code is None
+
     async def _call(
         self,
         timeout: int,
@@ -155,6 +178,7 @@ class ScanTool:
         *,
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
+        finalize: Callable[[dict], Awaitable[dict]] | None = None,
     ) -> dict:
         started = time.monotonic()
         result = None
@@ -162,7 +186,12 @@ class ScanTool:
         try:
             _integer(timeout, "timeout_seconds", 1, 3600)
             result = await self._session.execute(
-                self, arguments(), timeout, prepare=prepare, observation=observation
+                self,
+                arguments(),
+                timeout,
+                prepare=prepare,
+                observation=observation,
+                finalize=finalize,
             )
             return result
         except asyncio.CancelledError:
@@ -605,7 +634,164 @@ class FFUFTool(ScanTool):
         )
 
 
-SCANNERS = (NucleiTool, SQLMapTool, NaabuTool, FFUFTool)
+class KatanaTool(ScanTool):
+    name = "scan_katana"
+    binary = "katana"
+    version_arguments = ("-version",)
+
+    @staticmethod
+    def accepts_probe(result: ProcessResult) -> bool:
+        # The page-budget/scope contract is verified against the 1.7 series.
+        return (
+            result.error_code is None
+            and re.search(
+                rb"\bCurrent version: v1\.7\.[0-9]+(?:\s|$)", result.stdout + result.stderr
+            )
+            is not None
+        )
+
+    description = """Discover bounded same-origin HTTP targets using installed Katana 1.7.
+
+    Uses standard crawling with redirects and retries disabled, no browser, form
+    filling, JavaScript crawling or external lookups. Publishes a create-only
+    targets Artifact in the Worker's namespace and returns its exact reference.
+    Only observed same-origin GET responses become targets; no scan is dispatched.
+    A configured subprocess proxy is unsupported.
+
+    Args:
+        url: One HTTP(S) seed URL without credentials or a fragment.
+        max_depth: Maximum crawl depth, 1 through 5; defaults to 2.
+        max_pages: Katana per-domain page budget, 1 through 1000; defaults to 100.
+        rate_limit: Maximum configured requests per second, 1 through 1000; default 10.
+        timeout_seconds: Total deadline including artifact access, 1 through 3600;
+            defaults to 60. Individual request and queue idle timeouts are at
+            most 10 seconds and shorten with the total deadline.
+
+    Returns:
+        Process status, exact targetsArtifact, targetsDigest, source, limits and
+        bounded per-target provenance. discoveryComplete is always false: bounded
+        discovery cannot certify exhaustion. Coverage records skipped/failed and
+        truncated observations; raw headers, bodies and diagnostics are suppressed.
+    """
+
+    async def __call__(
+        self,
+        url: str,
+        max_depth: int = 2,
+        max_pages: int = 100,
+        rate_limit: int = 10,
+        timeout_seconds: int = 60,
+    ) -> dict:
+        seed = ""
+        data = b""
+        started = time.monotonic()
+        target = ArtifactRef(namespace=self._session.namespace, name="targets")
+
+        def arguments():
+            nonlocal seed
+            seed = canonical_url(url)
+            _integer(max_depth, "max_depth", 1, 5)
+            _integer(max_pages, "max_pages", 1, 1000)
+            _integer(rate_limit, "rate_limit", 1, 1000)
+            return [
+                "-j",
+                "-or",
+                "-ob",
+                "-eof",
+                "headers",
+                "-silent",
+                "-nc",
+                "-duc",
+                "-dr",
+                "-retry",
+                "0",
+                "-c",
+                "1",
+                "-p",
+                "1",
+                "-duf",
+                "-fs",
+                "fqdn",
+                "-cs",
+                scope_regex(seed),
+                "-d",
+                str(max_depth),
+                "-mdp",
+                str(max_pages),
+                "-rl",
+                str(rate_limit),
+                "-ct",
+                f"{max(1, timeout_seconds - 2)}s",
+                "-timeout",
+                str(min(10, max(1, timeout_seconds // 3))),
+                "-mrs",
+                str(MAX_RESPONSE_BYTES),
+            ]
+
+        async def prepare(directory: Path) -> list[str]:
+            try:
+                await self._session.artifact_client.read_artifact(
+                    target, max_bytes=MAX_TARGET_BYTES
+                )
+            except ArtifactAPIError as error:
+                if error.status_code != 404:
+                    raise ScannerUnavailable("scan_artifact_unavailable") from None
+            except Exception:
+                raise ScannerUnavailable("scan_artifact_unavailable") from None
+            else:
+                raise ScannerUnavailable("scan_output_exists")
+            # Katana's -u string-slice flag splits commas. A file preserves one
+            # exact seed and prevents query text from introducing another target.
+            for name, content in (("seed.txt", (seed + "\n").encode()), ("config.yaml", b"{}\n")):
+                with (directory / name).open("xb") as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    stream.write(content)
+            return ["-list", str(directory / "seed.txt"), "-config", str(directory / "config.yaml")]
+
+        def observation(result: ProcessResult) -> dict:
+            nonlocal data
+            value, data = katana_observation(
+                result,
+                seed=seed,
+                max_depth=max_depth,
+                max_pages=max_pages,
+                rate_limit=rate_limit,
+                timeout_seconds=timeout_seconds,
+            )
+            return value
+
+        async def finalize(value: dict) -> dict:
+            if data:
+                try:
+                    remaining = timeout_seconds - (time.monotonic() - started)
+                    if remaining <= 0:
+                        raise TimeoutError
+                    async with asyncio.timeout(remaining):
+                        written = await self._session.artifact_client.write_artifact(
+                            target,
+                            data=data,
+                            media_type=TARGET_LIST_MEDIA_TYPE,
+                            expected_revision=None,
+                        )
+                    exact = written.artifact.require_exact()
+                    if exact.namespace != target.namespace or exact.name != target.name:
+                        raise ValueError
+                    value["targetsArtifact"] = exact.model_dump(by_alias=True)
+                    value["artifacts"] = {"targets": value["targetsArtifact"]}
+                except Exception:
+                    value.update(
+                        status="failed",
+                        errorCode=value["errorCode"] or "scan_artifact_failed",
+                        artifactErrorCode="scan_artifact_failed",
+                    )
+            return value
+
+        return await self._call(
+            timeout_seconds, arguments, prepare=prepare, observation=observation, finalize=finalize
+        )
+
+
+SCANNERS = (NucleiTool, SQLMapTool, NaabuTool, FFUFTool, KatanaTool)
 
 
 class ScanToolsetFactory:
@@ -651,7 +837,7 @@ class ScanToolsetFactory:
                         Path(root),
                         PROBE_TIMEOUT_SECONDS,
                     )
-                return result.error_code is None
+                return self._scanners[name].accepts_probe(result)
             except OSError:
                 return False
 
@@ -674,7 +860,7 @@ class ScanToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
-        del run_id, namespace, project_workspace
+        del run_id, project_workspace
         if set(selected) - self.exported_tools:
             raise ValueError("unknown selected scan tools")
         if not selected:
@@ -688,6 +874,7 @@ class ScanToolsetFactory:
             self._templates,
             proxy_configured=adapter_handles.tool_subprocess is not None,
             artifact_client=self._clients(allocation_id, runtime_settings),
+            namespace=namespace,
         )
         return {name: self._scanners[name](session, metrics) for name in selected}
 

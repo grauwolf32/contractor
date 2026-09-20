@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 
 MAX_INPUT_BYTES = 64 * 1024
 MAX_REPORT_BYTES = 512 * 1024
+MAX_ADDITIONAL_ARTIFACTS = 16
+MAX_ADDITIONAL_REF_BYTES = 8192
+MAX_RECEIPT_BYTES = 16 * 1024
 RECEIPT_PREFIX = "tool-invocation."
 FAILURE_CODES = frozenset(
     {
@@ -192,6 +195,27 @@ class ToolWorkerRuntime:
             "arguments": arguments,
             "output": target.model_dump(by_alias=True),
         }
+        additional = {
+            slot: ref
+            for slot, ref in request.result_artifacts.items()
+            if slot != self._execution.result_artifact
+        }
+        if len(additional) > MAX_ADDITIONAL_ARTIFACTS:
+            raise ValueError("too many tool output bindings")
+        names = {target.name}
+        for ref in additional.values():
+            if (
+                ref.namespace != self._context.namespace
+                or ref.name.startswith((RECEIPT_PREFIX, "memory."))
+                or ref.name in names
+            ):
+                raise ValueError("invalid additional tool output binding")
+            names.add(ref.name)
+        if additional:
+            # Preserve pre-existing single-report invocation digests.
+            identity["additionalOutputs"] = {
+                slot: ref.model_dump(by_alias=True) for slot, ref in additional.items()
+            }
         canonical = jcs.canonicalize(identity)
         if len(canonical) > MAX_INPUT_BYTES:
             raise ValueError("tool input exceeds its bound")
@@ -204,6 +228,34 @@ class ToolWorkerRuntime:
             }
         ).removeprefix("sha256:")
         return arguments, target, key, "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+    def _additional_artifacts(self, value, request, *, complete):
+        """Accept only exact refs for the declared, Worker-owned output bindings."""
+        expected = set(request.result_artifacts) - {self._execution.result_artifact}
+        if (
+            not isinstance(value, dict)
+            or len(value) > MAX_ADDITIONAL_ARTIFACTS
+            or set(value) - expected
+            or (complete and set(value) != expected)
+            or len(_json(value)) > MAX_ADDITIONAL_REF_BYTES
+        ):
+            raise ValueError("invalid additional tool artifacts")
+        refs = {}
+        for slot, raw in value.items():
+            if not isinstance(raw, dict):
+                raise ValueError("invalid additional artifact reference")
+            ref = ArtifactRef.model_validate(raw).require_exact()
+            binding = request.result_artifacts[slot]
+            if ref.namespace != binding.namespace or ref.name != binding.name:
+                raise ValueError("additional artifact does not match its binding")
+            refs[slot] = ref
+        return refs
+
+    async def _verify_additional_artifacts(self, refs):
+        # Tools have their own Artifact clients, so a ref in a JSON observation
+        # is not proof of publication. Exact reads verify existence and revision.
+        for ref in refs.values():
+            await self._client.read_artifact(ref, max_bytes=MAX_REPORT_BYTES)
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
         if not self._accepting:
@@ -241,6 +293,7 @@ class ToolWorkerRuntime:
     async def _run(self, request, arguments, target, key, digest):
         invocation_id = "tool-" + key
         calls, error, report = 0, None, None
+        artifacts = {}
         cancelled, truncated, tool_failed = False, False, False
         receipt = ArtifactRef(namespace=self._context.namespace, name=RECEIPT_PREFIX + key)
         owned = None
@@ -254,7 +307,7 @@ class ToolWorkerRuntime:
         try:
             await asyncio.shield(beginning)
             try:
-                value = await self._client.read_artifact(receipt, max_bytes=8192)
+                value = await self._client.read_artifact(receipt, max_bytes=MAX_RECEIPT_BYTES)
             except ArtifactAPIError as failure:
                 if failure.status_code != 404:
                     raise ToolWorkerError("tool_outcome_unknown") from None
@@ -266,7 +319,15 @@ class ToolWorkerRuntime:
                     or type(saved.get("schemaVersion")) is not int
                     or saved.get("schemaVersion") != 1
                     or set(saved)
-                    - {"schemaVersion", "inputDigest", "phase", "report", "errorCode", "truncated"}
+                    - {
+                        "schemaVersion",
+                        "inputDigest",
+                        "phase",
+                        "report",
+                        "errorCode",
+                        "truncated",
+                        "artifacts",
+                    }
                     or type(saved.get("truncated", False)) is not bool
                 ):
                     raise ToolWorkerError("tool_outcome_unknown")
@@ -274,6 +335,9 @@ class ToolWorkerRuntime:
                     raise ToolWorkerError("tool_input_conflict")
                 if saved.get("phase") not in {"completed", "failed"}:
                     raise ToolWorkerError("tool_outcome_unknown")
+                artifacts = self._additional_artifacts(
+                    saved.get("artifacts", {}), request, complete=saved["phase"] == "completed"
+                )
                 if saved.get("report") is not None:
                     report = ArtifactRef.model_validate(saved["report"]).require_exact()
                     if report.namespace != target.namespace or report.name != target.name:
@@ -283,6 +347,7 @@ class ToolWorkerRuntime:
                     raise ToolWorkerError(code if code in FAILURE_CODES else "tool_outcome_unknown")
                 if report is None:
                     raise ToolWorkerError("tool_outcome_unknown")
+                await self._verify_additional_artifacts(artifacts)
                 truncated = saved.get("truncated", False)
             else:
                 owned = await self._client.write_artifact(
@@ -318,6 +383,11 @@ class ToolWorkerRuntime:
                     if name.endswith("Truncated")
                 )
                 try:
+                    artifacts = self._additional_artifacts(
+                        observation.get("artifacts", {}),
+                        request,
+                        complete=observation["status"] == "completed",
+                    )
                     payload = _json(
                         {
                             "schemaVersion": 1,
@@ -336,6 +406,7 @@ class ToolWorkerRuntime:
                     tool_failed = True
                     raise ToolWorkerError("tool_output_invalid") from None
                 try:
+                    await self._verify_additional_artifacts(artifacts)
                     published = await self._client.write_artifact(
                         target, data=payload, media_type="application/json", expected_revision=None
                     )
@@ -369,6 +440,10 @@ class ToolWorkerRuntime:
                     terminal["errorCode"] = error
                 if report is not None:
                     terminal["report"] = report.model_dump(by_alias=True)
+                if artifacts:
+                    terminal["artifacts"] = {
+                        slot: ref.model_dump(by_alias=True) for slot, ref in artifacts.items()
+                    }
                 try:
                     await self._client.write_artifact(
                         receipt,
@@ -424,7 +499,7 @@ class ToolWorkerRuntime:
                     tools=_metrics(self._execution.tool, calls)["tools"],
                     truncated=truncated,
                 ),
-                artifacts={self._execution.result_artifact: report},
+                artifacts={self._execution.result_artifact: report, **artifacts},
                 summarized=False,
             ),
         )

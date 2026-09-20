@@ -54,6 +54,10 @@ remain refs for adapters to resolve, never local paths or model context.
 a versionless binding in StageContentRequest.resultArtifacts and is required
 for every call; the target must be in the Worker's own namespace. Binding names
 with the reserved prefix `tool-invocation.` cannot be output targets.
+Up to 16 additional result bindings may be supplied for artifacts produced by
+the callable. They also belong to the Worker's namespace, have distinct names
+from each other and the report, and cannot use `tool-invocation.` or `memory.`
+prefixes. Invalid additional bindings fail before invocation.
 `timeoutSeconds` is an integer in 1–3600. The Worker enforces it around the tool
 call, independent of the tool's own deadline. Bound arguments plus artifact
 refs and output binding are limited to 64 KiB of canonical JSON.
@@ -113,25 +117,44 @@ The execution key is SHA-256 of canonical JSON containing runId,
 stageExecutionId, logicalAgentName and subtaskId. The owned namespace stores a
 `tool-invocation.<hex-key>` application/json receipt. It is created with
 If-None-Match before tool launch. The input digest covers template ref,
-resolved arguments and output binding; changes under the same key fail as
+resolved arguments and output binding, plus any additional result bindings;
+changes under the same key fail as
 `tool_input_conflict`. Objective/instructions do not affect execution identity.
 This is delivery deduplication within one StageExecution; an explicitly new
 Run/StageExecution is new work.
 
 The receipt starts with schemaVersion 1, inputDigest and phase `started`.
 Only its creator may launch. A terminal CAS update records phase `completed`
-or `failed`, optional exact report ref and a fixed error code. An existing
+or `failed`, optional exact report ref, optional additional artifact refs and
+a fixed error code. An existing
 started receipt means `tool_outcome_unknown`; Runtime does not rescan. A
 write with an ambiguous result also prevents launch. An in-memory completed
 delivery returns the same WorkerCompletion; receipt replay on another allocation
 publishes fresh local WorkerState with zero new tool/model calls and reuses the
-exact report. Receipts contain no target, credentials or raw arguments.
+exact report and additional artifacts. Receipts contain no target, credentials
+or raw arguments. Single-report invocation digests and receipt shapes remain
+compatible with previously completed invocations.
 
 The report is application/json, at most 512 KiB, with schemaVersion 1,
 tool, inputDigest, exact inputArtifacts and the unchanged bounded tool response
 under `observation`. Publication is create-only to the supplied output binding.
 Runtime must not overwrite an existing report or infer its ownership by name.
 There is no generic finding publication and no raw unbounded log artifact.
+
+The callable may return an `observation.artifacts` object mapping additional
+declared slots to exact ArtifactRefs. A successful observation must include
+every additional declared slot; a failed observation may include a subset so
+an early tool failure can still publish its diagnostic report. The map is at
+most 8192 UTF-8 JSON bytes. Each ref must identify its declared namespace and
+name, include an immutable revision and exclude the primary report slot.
+Runtime verifies each exact revision through the Artifact API with a 512 KiB
+read bound before publishing success. Invalid output mappings fail as
+`tool_output_invalid`; inaccessible or mismatched published revisions fail as
+`tool_report_failed`. The receipt persists validated refs, and WorkerCompletion
+returns them alongside the report for ordinary Workflow output propagation.
+Completed receipt replay revalidates the declared refs and their availability;
+an invalid or unavailable saved ref produces `tool_outcome_unknown`, never a
+new tool call or substitution of the latest mutable binding.
 
 | Event | Completion / recovery |
 | --- | --- |

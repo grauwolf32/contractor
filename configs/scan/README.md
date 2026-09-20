@@ -1,7 +1,7 @@
 # Model-free scan fixtures
 
 This standalone catalog contains `nuclei-target@1`, `naabu-host@1`,
-`sqlmap-request@1` and `ffuf-wordlist@1` with `passthrough@1` planning and
+`sqlmap-request@1`, `ffuf-wordlist@1` and `katana-discovery@1` with `passthrough@1` planning and
 one `tool@1` Worker each.
 It also includes `request-set-scan@1` and `target-scan-plan@1` using the
 deterministic `scan-plan@1` Planner; see [scan plan configuration](SCAN_PLAN.md).
@@ -11,7 +11,8 @@ templates, workflows and
 directories are required by the configuration loader; no model configuration
 or model credentials are needed.
 
-All six workflows publish the `report` output as `application/json`.
+All seven workflows publish the `report` output as `application/json`.
+Katana also publishes reusable `targets` as `text/vnd.contractor.target-list`.
 Nuclei and naabu accept one required string parameter, `target`.
 Nuclei expects an HTTP(S) URL;
 naabu expects a hostname or IP. Ports and rate limits are explicit literals
@@ -157,6 +158,70 @@ A failed or interrupted Run may have no published `report` output: inspect its
 Stage/Operations diagnostics and any retained scanner report Artifact instead
 of treating a missing report as an empty successful scan.
 
+## Bounded Katana discovery
+
+`katana-discovery@1` takes one required HTTP(S) `target` parameter and uses
+`katana-discovery@1`'s `scan_katana` Worker. Install the pinned Katana executable
+on the Runtime service's `PATH` and restart the Runtime; its independent
+`katana -version` probe controls only `scan_katana` availability. See the
+[Katana provisioning contract](../../runtime/README.md#katana-discovery).
+
+The fixture fixes depth at 2, the page budget at 100, the rate at 10 per second
+and the scanner deadline at 60 seconds; the Worker deadline is 90 seconds to
+allow report publication. Discovery stays within the seed's exact origin
+(scheme, hostname and effective port), with redirects and headless browsing
+disabled. It does not launch follow-up scans or claim complete coverage.
+
+```shell
+DISCOVERY_RUN="$(contractor --output name run create katana-discovery@1 \
+  --param 'target=https://app.example.test/')"
+contractor run watch "$DISCOVERY_RUN" --wait-timeout 2m
+contractor run output "$DISCOVERY_RUN" report --to discovery-report.json
+contractor run output "$DISCOVERY_RUN" targets --to discovered-targets.txt
+```
+
+The UTF-8 TargetList contains sorted, deduplicated same-origin HTTP(S) URLs,
+one per line, limited to 100 targets / 128 KiB. The report records the seed,
+origin, limits, per-URL source provenance and the exact `targetsArtifact`
+revision and content digest. `discoveryComplete` remains `false`: a bounded
+Katana crawl cannot prove that an application has no more reachable content.
+Check the report's coverage and incomplete reasons before reusing the list.
+An empty discovery does not publish a runnable empty TargetList or succeed as
+a scan input. Failed or cancelled discovery can leave retained diagnostic
+Artifacts without successful Workflow outputs.
+
+To scan these URLs later, explicitly upload the exported list and select its
+exact revision in a new `target-scan-plan@1` Run:
+
+```shell
+TARGETS_REF="$(contractor --output name artifact put discovery/targets \
+  --file discovered-targets.txt --type text/vnd.contractor.target-list --create)"
+SCAN_RUN="$(contractor --output name run create target-scan-plan@1 \
+  --artifact "targets=$TARGETS_REF")"
+contractor run watch "$SCAN_RUN" --wait-timeout 35m
+contractor run output "$SCAN_RUN" report --to scan-report.json
+```
+
+Use a new Artifact name or `--if-match` when updating an existing list. This
+second Run applies its own explicit [scan-plan budgets](SCAN_PLAN.md); creating
+the discovery Run alone never requests nuclei, naabu, SQLMap or ffuf work.
+RequestSet generation, authenticated crawling, arbitrary headers/cookies,
+JavaScript execution and browser installation are outside this fixture.
+
+The dedicated real-process gate requires Katana 1.7.x on `PATH`, the Runtime
+virtual environment and a disposable PostgreSQL URL. It starts isolated Server
+and Runtime processes, checks missing capability behavior, publishes both
+outputs from a loopback HTML crawl and feeds the actual TargetList bytes into
+the pure scan-plan builder. Cross-origin links and redirects must issue no
+requests; no subsequent scanner is executed. To retain report, targets and plan
+evidence, set `CONTRACTOR_KATANA_EVIDENCE_DIR`:
+
+```shell
+CONTRACTOR_KATANA_EVIDENCE_DIR="$PWD/.local/evidence/katana" \
+go test -tags=e2e -count=1 -timeout=6m ./tests/e2e \
+  -run '^TestKatanaDiscoveryAcrossProductionProcesses$'
+```
+
 ## Release verification
 
 Apply Server migrations before using these Workflows. Migration `000061` permits
@@ -165,7 +230,7 @@ database constraint rejects placement even when Runtime advertises the scanner.
 
 The real-process gate requires a disposable PostgreSQL database in
 `CONTRACTOR_TEST_DATABASE_URL`, installed Runtime dependencies (`cd runtime &&
-uv sync --locked`), and all four scanner executables on `PATH`. It starts the
+uv sync --locked`), and nuclei, naabu, SQLMap and ffuf executables on `PATH`. It starts the
 production Server and Runtime with local TLS identities, an isolated database,
 a private nuclei template and loopback HTTP/TCP targets. It does not require a
 model service or scan an external target.

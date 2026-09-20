@@ -236,7 +236,12 @@ func TestScanToolsAcrossProductionProcesses(t *testing.T) {
 
 func startScanStack(t *testing.T) *scanProcessHarness {
 	t.Helper()
-	for _, binary := range []string{"nuclei", "naabu", "sqlmap", "ffuf"} {
+	return startScanStackForTools(t, "nuclei-target@1", "nuclei", "naabu", "sqlmap", "ffuf")
+}
+
+func startScanStackForTools(t *testing.T, capacityWorkflow string, binaries ...string) *scanProcessHarness {
+	t.Helper()
+	for _, binary := range binaries {
 		if _, err := exec.LookPath(binary); err != nil {
 			t.Fatalf("real scanner %s is required on PATH for the scan release gate", binary)
 		}
@@ -368,7 +373,7 @@ http:
 		if len(runtimeToolset(agents[0], "scan@1").Tools) != 0 {
 			t.Fatal("runtime advertises missing scanner binaries")
 		}
-		runID := h.createRun(t, "nuclei-target@1", map[string]string{"target": h.targetURL}, nil)
+		runID := h.createRun(t, capacityWorkflow, map[string]string{"target": h.targetURL}, nil)
 		store := runstore.NewPostgresStore(h.pool)
 		waiting := waitForUnallocatedPreparingExecution(t, ctx, store, runID)
 		assertSameUnallocatedPreparingExecution(t, ctx, store, waiting)
@@ -381,7 +386,11 @@ http:
 	waitForObservedRuntimeAgents(t, ctx, h.server, []*childProcess{h.runtime}, h.client, h.baseURL, func(agents []observedRuntimeAgent) bool {
 		for _, agent := range agents {
 			tools := runtimeToolset(agent, "scan@1").Tools
-			if agent.ConfirmedLeaseUntil != nil && containsString(tools, "scan_nuclei") && containsString(tools, "scan_naabu") && containsString(tools, "scan_sqlmap") && containsString(tools, "scan_ffuf") {
+			available := agent.ConfirmedLeaseUntil != nil
+			for _, binary := range binaries {
+				available = available && containsString(tools, "scan_"+binary)
+			}
+			if available {
 				return true
 			}
 		}

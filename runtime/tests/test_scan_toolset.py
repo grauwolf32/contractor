@@ -30,9 +30,13 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
 
 @pytest.mark.parametrize("available_scanner", scan.SCANNERS, ids=lambda scanner: scanner.name)
 def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, available_scanner):
-    failures = iter(["import time; time.sleep(60)", "import sys; sys.exit(2)", "exit(3)"])
+    failures = iter(
+        ["import time; time.sleep(60)", "import sys; sys.exit(2)", "exit(3)", "exit(4)"]
+    )
     for scanner in scan.SCANNERS:
-        source = "import sys; sys.exit(0)" if scanner is available_scanner else next(failures)
+        source = (
+            "print('Current version: v1.7.0')" if scanner is available_scanner else next(failures)
+        )
         executable(tmp_path, scanner.binary, source)
     monkeypatch.setenv("PATH", str(tmp_path))
     monkeypatch.setattr(scan, "PROBE_TIMEOUT_SECONDS", 0.2)
@@ -58,6 +62,7 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
         (tmp_path / "sqlmap").unlink()
         (tmp_path / "naabu").write_text("#!/missing/interpreter\n")
         (tmp_path / "ffuf").unlink()
+        (tmp_path / "katana").unlink()
         missing_factory = scan.ScanToolsetFactory()
         empty = await discover_capabilities(
             FactoryRegistry(
@@ -126,6 +131,7 @@ def test_selection_adk_arguments_isolation_metrics_and_cleanup(tmp_path, monkeyp
                 "scan_nuclei": ["url"],
                 "scan_sqlmap": [],
                 "scan_ffuf": ["url", "wordlist_ref"],
+                "scan_katana": ["url"],
             }
             assert declaration.parameters_json_schema.get("required", []) == required[name]
 
@@ -187,6 +193,7 @@ def test_all_scanners_available_from_relative_path(tmp_path, monkeypatch):
         executable(
             tmp_path,
             scanner.binary,
+            "print('Current version: v1.7.0')\n"
             f"import sys; sys.exit(0 if sys.argv[1:] == {arguments!r} else 1)",
         )
     monkeypatch.chdir(tmp_path)
@@ -231,6 +238,7 @@ def test_registered_adapter_owns_binary_preparation_and_decoding(tmp_path, monke
         "scan_sqlmap",
         "scan_naabu",
         "scan_ffuf",
+        "scan_katana",
         "scan_fixture",
     }
     assert factory.infrastructure_channels["scan_fixture"] == {"runtime-subprocess-launcher"}
