@@ -220,6 +220,17 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	}
 	var after map[string]any
 	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/findings?limit=100", &after)
+	// asOf identifies each read snapshot; all other fields describe review state.
+	for _, snapshot := range []map[string]any{before, after} {
+		asOf, ok := snapshot["asOf"].(string)
+		if !ok {
+			t.Fatalf("Findings snapshot timestamp is missing or not a string: %+v", snapshot["asOf"])
+		}
+		if timestamp, err := time.Parse(time.RFC3339Nano, asOf); err != nil || timestamp.IsZero() {
+			t.Fatalf("invalid Findings snapshot timestamp %q: %v", asOf, err)
+		}
+		delete(snapshot, "asOf")
+	}
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("collection analysis mutated Audit review state")
 	}
