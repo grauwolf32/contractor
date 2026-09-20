@@ -3,8 +3,8 @@ id: V61-002
 title: Extend RuntimeConfig merge and credential lifecycle for configurable toolsets
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 761068d111291c092d1106aabd81d44ec09cb351
 depends_on: [V61-001]
 languages: [go, sql, yaml]
 goal: >-
@@ -67,3 +67,10 @@ test_prerequisites:
   - Set CONTRACTOR_TEST_DATABASE_URL to a disposable isolated PostgreSQL instance; do not print connection credentials.
 verification_requirements:
   - Record executed database cases, publication/deletion/rebind race evidence and old digest fixture results; skipped persistence tests do not satisfy A5.
+verification_evidence:
+  - Required race tests and all three PostgreSQL make targets passed on 2026-09-20 against the isolated contractor-v61-tests container; database tests were enabled.
+  - TestMCPRuntimeCredentialPostgresPublicationReplayDeletionAndRebindRace exercised encrypted material use, publication replay, wrong-kind rejection, binding/Run deletion holds and concurrent delete/rebind.
+  - TestPostgresToolsetPublicationAndPrincipalAssignmentRebindRace exercised configured/clear mixed profiles, registration/replacement rejection, rebind rollback and concurrent assignment/rebind.
+  - TestToolsetSchemaRegistryNativeUsesSameNormalizationMergeAndClone proves a second test-only typed schema uses the same canonical publication identity, merge, origin and clone machinery without production registration.
+  - Defaults, empty-map omission, old golden digests, both conflicting-label orders and credential-free atomic replacement passed.
+  - verify-public-api and verify-wire-contracts passed; focused public MCP credential and author/read schema cases passed.
