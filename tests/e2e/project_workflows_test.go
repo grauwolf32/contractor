@@ -677,7 +677,7 @@ func postProjectRun(
 	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
 	if payload.RunID == "" || payload.ProjectID == nil || *payload.ProjectID != projectID ||
-		payload.State != "initializing" && payload.State != "running" {
+		payload.State != "initializing" && payload.State != "pending" && payload.State != "running" {
 		t.Fatalf("create Project Run response = %+v", payload)
 	}
 	return payload.RunID
@@ -1118,7 +1118,7 @@ func createProjectRun(
 	defer response.Body.Close()
 	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
-	if payload.RunID == "" || payload.State != "initializing" && payload.State != "running" {
+	if payload.RunID == "" || payload.State != "initializing" && payload.State != "pending" && payload.State != "running" {
 		t.Fatalf("create %s Run response = %+v", workflow, payload)
 	}
 	return payload.RunID

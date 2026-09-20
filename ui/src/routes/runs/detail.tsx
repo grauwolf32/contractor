@@ -26,6 +26,7 @@ import {
   StateBadge,
 } from "./components";
 import { RunArtifactLibrary, RunOutputGallery } from "./artifacts";
+import { RunRecoveryControl } from "./recovery";
 import { RunResumeControl } from "./resume";
 import { useLiveRunProjection } from "./live";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
@@ -51,6 +52,10 @@ function triageTitle(run: RunStatus, triage: RunTriage): string {
       return "Run was cancelled";
     case "cancelling":
       return "Cancellation is in progress";
+    case "pending":
+      return "Run is queued";
+    case "waiting":
+      return "Waiting for the model";
     case "initializing":
       return "Run is initializing";
     case "running":
@@ -75,6 +80,10 @@ function triageDescription(run: RunStatus, triage: RunTriage): string {
       return "Work stopped and cleanup completed.";
     case "cancelling":
       return "Stopping active work and cleaning up.";
+    case "pending":
+      return "Execution will start when resources and the model are available.";
+    case "waiting":
+      return "The current invocation is preserved while the model recovers.";
     case "initializing":
       return "Preparing to start the first stage.";
     case "running":
@@ -142,6 +151,7 @@ function RunTriageSummary({
           )}
         </div>
       )}
+      <RunRecoveryControl run={run} />
       <div className={`run-next-action is-${triage.guidance.kind}`}>
         <span>Next action</span>
         <strong>{triage.guidance.title}</strong>

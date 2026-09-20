@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
@@ -25,11 +26,12 @@ type AllocationRegistry interface {
 }
 
 type Dependencies struct {
-	Registry     AllocationRegistry
-	Artifacts    *artifacts.Service
-	Findings     FindingIntake
-	NewRequestID func() (string, error)
-	Logger       *slog.Logger
+	GatewayRecovery *gatewayrecovery.Service
+	Registry        AllocationRegistry
+	Artifacts       *artifacts.Service
+	Findings        FindingIntake
+	NewRequestID    func() (string, error)
+	Logger          *slog.Logger
 }
 
 type FindingIntake interface {
@@ -52,6 +54,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 	current := &handler{dependencies: dependencies}
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts", current.listArtifacts)
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.getArtifact)
 	mux.HandleFunc("PUT /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.putArtifact)

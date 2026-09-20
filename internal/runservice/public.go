@@ -178,7 +178,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				if len(selectedSkills) == 0 {
 					stored, err = runs.TransitionRun(
-						ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+						ctx, runID, runstore.RunInitializing, runstore.RunPending,
 						runstore.Reason{Code: "initialized"},
 					)
 					return err

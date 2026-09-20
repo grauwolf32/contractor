@@ -582,3 +582,7 @@ func receiveError(t *testing.T, channel <-chan error, timeout time.Duration, ope
 		return nil
 	}
 }
+
+func (laneNoopPersistence) AdmitStage(context.Context, string, string) (runstore.StageExecution, error) {
+	return runstore.StageExecution{}, errors.New("unexpected admission")
+}

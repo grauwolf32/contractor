@@ -187,7 +187,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		if loadErr != nil {
 			err = loadErr
 		} else if current.State == runstore.RunCancelling ||
-			(errors.Is(cause, ErrAllocationLeaseLost) && current.State == runstore.RunRunning) {
+			(errors.Is(cause, ErrAllocationLeaseLost) && (current.State == runstore.RunRunning || current.State == runstore.RunWaiting)) {
 			err = s.executeRun(ownershipContext, current)
 		} else {
 			err = nil

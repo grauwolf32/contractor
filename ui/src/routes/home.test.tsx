@@ -70,13 +70,17 @@ describe("Action center", () => {
         }
         if (url.pathname === "/v1/runs") {
           const state = url.searchParams.get("state");
-          if (state === "running") {
+          if (
+            state === "running" ||
+            state === "pending" ||
+            state === "waiting"
+          ) {
             return apiResponse({
               items: [
                 {
-                  runId: "run-active",
+                  runId: state === "running" ? "run-active" : `run-${state}`,
                   workflow: "review@2",
-                  state: "running",
+                  state,
                   labels: {},
                   createdAt: "2026-09-02T10:00:00Z",
                   updatedAt: "2026-09-02T10:02:00Z",
@@ -85,7 +89,12 @@ describe("Action center", () => {
               page: { hasMore: false },
             });
           }
-          if (state === "initializing" || state === "cancelling") {
+          if (
+            state === "initializing" ||
+            state === "pending" ||
+            state === "waiting" ||
+            state === "cancelling"
+          ) {
             return apiResponse({ items: [], page: { hasMore: false } });
           }
           return apiResponse({
@@ -221,8 +230,25 @@ describe("Action center", () => {
     expect(
       screen.getByRole("link", { name: "View failed Runs →" }),
     ).toHaveAttribute("href", "/runs?view=completed&state=failed");
-    expect(requests.filter((url) => url.pathname === "/v1/runs")).toHaveLength(
-      4,
+    expect(
+      requests
+        .filter((url) => url.pathname === "/v1/runs")
+        .map((url) => url.searchParams.get("state")),
+    ).toEqual(
+      expect.arrayContaining([
+        null,
+        "initializing",
+        "pending",
+        "running",
+        "waiting",
+        "cancelling",
+      ]),
     );
+    expect(
+      screen.getByRole("link", { name: /review@2.*run-pending/i }),
+    ).toHaveAttribute("href", "/runs/run-pending");
+    expect(
+      screen.getByRole("link", { name: /review@2.*run-waiting/i }),
+    ).toHaveAttribute("href", "/runs/run-waiting");
   });
 });

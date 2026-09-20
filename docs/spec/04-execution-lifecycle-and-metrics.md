@@ -12,6 +12,34 @@ Planner and Worker sessions, finalization, recovery and execution reports.
 Planner decides when its strategy has finished; Workflow Scheduler remains the
 only component that commits durable `StageExecution` state.
 
+## Run admission and model recovery
+
+Run initialization commits `pending`. Resource admission sets `running` and the
+first `started_at`; each Stage records its own `admitted_at`, which starts that
+Stage's wall-clock budget. A queued Stage can wait for capacity without consuming
+its execution deadline. Admission, cancellation and finalization share Run-first
+transaction locking.
+
+A live invocation waiting for model availability sets its Run to `waiting`.
+This is an active state: leases, cancellation, retention, credentials, queue and
+Audit/eval reconciliation must treat it as non-terminal. StageExecution retains
+its existing lifecycle state and invocation identity. Runtime and modeled Planner
+clients retry only the interrupted model request, with the same serialized input.
+Tools and findings already produced by the invocation are not replayed.
+
+Server persists a recovery gate for the owner, resolved gateway digest, model,
+credential identity and model HTTP proxy route. Active invocations recover before
+new queued work. One leased probe checks a blocked route; stale successful
+responses cannot reopen it. Repeated failure reports are idempotent even when
+other invocations report failures between retries. The automatic window is bounded;
+manual retry reopens it, while cancellation and the admitted Stage wall-clock
+limit remain effective. Terminated invocations relinquish their recovery waits.
+This does not persist or restore an ADK session after Runtime process loss.
+
+Public `RunStatus.recovery` contains safe cause/timing and whether a manual retry
+is required. `POST /v1/runs/{runId}/retry-gateway` is owner-scoped and preserves the
+current invocation. See [local recovery settings](../guides/local-stack.md#model-availability-and-queued-runs).
+
 ## Stage and StageExecution identity
 
 `Stage` is a reusable named node in a Workflow definition. `StageExecution` is

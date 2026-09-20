@@ -1297,6 +1297,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/retry-gateway": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen automatic model recovery for a waiting or queued Run
+         * @description Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+         */
+        post: operations["retryRunGateway"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{runId}/resume": {
         parameters: {
             query?: never;
@@ -3938,11 +3960,11 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         /** @enum {unknown} */
-        WorkflowRunState: "initializing" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
+        WorkflowRunState: "initializing" | "pending" | "running" | "waiting" | "cancelling" | "succeeded" | "failed" | "cancelled";
         /** @enum {unknown} */
         WorkflowRunLifecycle: "active" | "terminal";
         /** @enum {unknown} */
-        NonTerminalWorkflowRunState: "initializing" | "running" | "cancelling";
+        NonTerminalWorkflowRunState: "initializing" | "pending" | "running" | "waiting" | "cancelling";
         /** @enum {unknown} */
         StageExecutionState: "preparing" | "running" | "finalizing" | "aborting" | "succeeded" | "failed" | "interrupted" | "cancelled";
         /** @enum {unknown} */
@@ -4351,7 +4373,19 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        RunRecovery: {
+            /** @enum {unknown} */
+            code: "model_unavailable" | "gateway_unavailable" | "gateway_timeout" | "gateway_rate_limited";
+            /** Format: date-time */
+            since: string;
+            /** Format: date-time */
+            nextRetryAt?: string;
+            /** Format: date-time */
+            automaticUntil: string;
+            requiresRetry: boolean;
+        };
         RunStatus: {
+            recovery?: components["schemas"]["RunRecovery"];
             /** @description Present only when this failed attempt can be manually continued after cleanup. */
             resumeStageExecutionId?: components["schemas"]["ResourceId"];
             runId: components["schemas"]["ResourceId"];
@@ -9319,6 +9353,45 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    retryRunGateway: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Recovery attempts enabled */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        runId: components["schemas"]["ResourceId"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];

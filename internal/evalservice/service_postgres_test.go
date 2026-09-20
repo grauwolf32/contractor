@@ -82,6 +82,9 @@ func (r *lostRunResponse) CreatePublic(ctx context.Context, p runservice.PublicC
 	if first {
 		if r.remove {
 			store := runstore.NewPostgresStore(r.pool)
+			if _, err = store.TransitionRun(ctx, result.Run.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+				return result, err
+			}
 			if _, err = store.TransitionRun(ctx, result.Run.RunID, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "fixture"}); err != nil {
 				return result, err
 			}
@@ -308,7 +311,7 @@ func (h *serviceHarness) prepared(t *testing.T, kind string) evalstore.Experimen
 
 func (h *serviceHarness) finishRuns(t *testing.T) {
 	t.Helper()
-	rows, err := h.pool.Query(t.Context(), `SELECT run_id,state FROM workflow_runs WHERE state IN ('running','cancelling') ORDER BY run_id`)
+	rows, err := h.pool.Query(t.Context(), `SELECT run_id,state FROM workflow_runs WHERE state IN ('pending','running','cancelling') ORDER BY run_id`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,6 +329,12 @@ func (h *serviceHarness) finishRuns(t *testing.T) {
 		t.Fatal(rows.Err())
 	}
 	for id, state := range states {
+		if state == runstore.RunPending {
+			if _, err := runstore.NewPostgresStore(h.pool).TransitionRun(t.Context(), id, state, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+				t.Fatal(err)
+			}
+			state = runstore.RunRunning
+		}
 		target := runstore.RunSucceeded
 		if state == runstore.RunCancelling {
 			target = runstore.RunCancelled

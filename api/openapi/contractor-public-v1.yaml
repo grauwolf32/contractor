@@ -4656,6 +4656,42 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/runs/{runId}/retry-gateway:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    post:
+      operationId: retryRunGateway
+      tags: [Runs]
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      summary: Reopen automatic model recovery for a waiting or queued Run
+      description: Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false}
+      responses:
+        '202':
+          description: Recovery attempts enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [runId]
+                properties:
+                  runId: {$ref: '#/components/schemas/ResourceId'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/runs/{runId}/resume:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -12157,11 +12193,11 @@ components:
         page: {$ref: '#/components/schemas/PageInfo'}
 
     WorkflowRunState:
-      enum: [initializing, running, cancelling, succeeded, failed, cancelled]
+      enum: [initializing, pending, running, waiting, cancelling, succeeded, failed, cancelled]
     WorkflowRunLifecycle:
       enum: [active, terminal]
     NonTerminalWorkflowRunState:
-      enum: [initializing, running, cancelling]
+      enum: [initializing, pending, running, waiting, cancelling]
     StageExecutionState:
       enum: [preparing, running, finalizing, aborting, succeeded, failed, interrupted, cancelled]
     StageOutcome:
@@ -12790,11 +12826,22 @@ components:
         errorCode: {type: string, minLength: 1, maxLength: 128}
         errorMessage: {type: string, minLength: 1, maxLength: 2048}
         createdAt: {type: string, format: date-time}
+    RunRecovery:
+      type: object
+      additionalProperties: false
+      required: [code, since, automaticUntil, requiresRetry]
+      properties:
+        code: {enum: [model_unavailable, gateway_unavailable, gateway_timeout, gateway_rate_limited]}
+        since: {type: string, format: date-time}
+        nextRetryAt: {type: string, format: date-time}
+        automaticUntil: {type: string, format: date-time}
+        requiresRetry: {type: boolean}
     RunStatus:
       type: object
       additionalProperties: false
       required: [runId, workflow, state, deletable, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs, outputPublications]
       properties:
+        recovery: {$ref: '#/components/schemas/RunRecovery'}
         resumeStageExecutionId:
           allOf: [{$ref: '#/components/schemas/ResourceId'}]
           description: Present only when this failed attempt can be manually continued after cleanup.

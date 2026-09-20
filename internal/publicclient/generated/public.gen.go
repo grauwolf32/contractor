@@ -5696,6 +5696,15 @@ type RunQueueProject struct {
 	ProjectId ResourceId  `json:"projectId"`
 }
 
+// RunRecovery defines model for RunRecovery.
+type RunRecovery struct {
+	AutomaticUntil time.Time   `json:"automaticUntil"`
+	Code           interface{} `json:"code"`
+	NextRetryAt    *time.Time  `json:"nextRetryAt,omitempty"`
+	RequiresRetry  bool        `json:"requiresRetry"`
+	Since          time.Time   `json:"since"`
+}
+
 // RunRepeatDraft defines model for RunRepeatDraft.
 type RunRepeatDraft struct {
 	ExecutionConfig RunRepeatExecutionConfig  `json:"executionConfig"`
@@ -5766,6 +5775,7 @@ type RunStatus struct {
 	Parameters         *map[string]string           `json:"parameters,omitempty"`
 	ProjectHttpTarget  *ProjectHTTPTarget           `json:"projectHttpTarget,omitempty"`
 	ProjectId          *ResourceId                  `json:"projectId,omitempty"`
+	Recovery           *RunRecovery                 `json:"recovery,omitempty"`
 
 	// ResumeStageExecutionId Present only when this failed attempt can be manually continued after cleanup.
 	ResumeStageExecutionId *ResourceId             `json:"resumeStageExecutionId,omitempty"`
@@ -7604,6 +7614,18 @@ type ResumeRunParams struct {
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// RetryRunGatewayJSONBody defines parameters for RetryRunGateway.
+type RetryRunGatewayJSONBody = map[string]interface{}
+
+// RetryRunGatewayParams defines parameters for RetryRunGateway.
+type RetryRunGatewayParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // DeleteGitKeyParams defines parameters for DeleteGitKey.
 type DeleteGitKeyParams struct {
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
@@ -7737,6 +7759,9 @@ type CancelRunJSONRequestBody = CancelRunRequest
 
 // ResumeRunJSONRequestBody defines body for ResumeRun for application/json ContentType.
 type ResumeRunJSONRequestBody ResumeRunJSONBody
+
+// RetryRunGatewayJSONRequestBody defines body for RetryRunGateway for application/json ContentType.
+type RetryRunGatewayJSONRequestBody = RetryRunGatewayJSONBody
 
 // ReplaceGitKeyJSONRequestBody defines body for ReplaceGitKey for application/json ContentType.
 type ReplaceGitKeyJSONRequestBody ReplaceGitKeyJSONBody
@@ -11150,6 +11175,24 @@ type ClientInterface interface {
 	// Corresponds with POST /v1/runs/{runId}/resume (the `ResumeRun` operationId).
 	ResumeRun(ctx context.Context, runId RunId, params *ResumeRunParams, body ResumeRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RetryRunGatewayWithBody Reopen automatic model recovery for a waiting or queued Run
+	//
+	// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+	RetryRunGatewayWithBody(ctx context.Context, runId RunId, params *RetryRunGatewayParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RetryRunGateway Reopen automatic model recovery for a waiting or queued Run
+	//
+	// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+	RetryRunGateway(ctx context.Context, runId RunId, params *RetryRunGatewayParams, body RetryRunGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteGitKey Remove the owner's configured Git key without changing imported artifacts
 	//
 	// Corresponds with DELETE /v1/settings/git-key (the `DeleteGitKey` operationId).
@@ -13837,6 +13880,44 @@ func (c *Client) ResumeRunWithBody(ctx context.Context, runId RunId, params *Res
 // Corresponds with POST /v1/runs/{runId}/resume (the `ResumeRun` operationId).
 func (c *Client) ResumeRun(ctx context.Context, runId RunId, params *ResumeRunParams, body ResumeRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewResumeRunRequest(c.Server, runId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RetryRunGatewayWithBody Reopen automatic model recovery for a waiting or queued Run
+//
+// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+func (c *Client) RetryRunGatewayWithBody(ctx context.Context, runId RunId, params *RetryRunGatewayParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRetryRunGatewayRequestWithBody(c.Server, runId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RetryRunGateway Reopen automatic model recovery for a waiting or queued Run
+//
+// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+func (c *Client) RetryRunGateway(ctx context.Context, runId RunId, params *RetryRunGatewayParams, body RetryRunGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRetryRunGatewayRequest(c.Server, runId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -23101,6 +23182,79 @@ func NewResumeRunRequestWithBody(server string, runId RunId, params *ResumeRunPa
 	return req, nil
 }
 
+// NewRetryRunGatewayRequest calls the generic RetryRunGateway builder with application/json body
+func NewRetryRunGatewayRequest(server string, runId RunId, params *RetryRunGatewayParams, body RetryRunGatewayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRetryRunGatewayRequestWithBody(server, runId, params, "application/json", bodyReader)
+}
+
+// NewRetryRunGatewayRequestWithBody constructs an http.Request for the RetryRunGateway method, with any body, and a specified content type
+func NewRetryRunGatewayRequestWithBody(server string, runId RunId, params *RetryRunGatewayParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/runs/%s/retry-gateway", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Origin != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewDeleteGitKeyRequest constructs an http.Request for the DeleteGitKey method
 func NewDeleteGitKeyRequest(server string, params *DeleteGitKeyParams) (*http.Request, error) {
 	var err error
@@ -24659,6 +24813,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/runs/{runId}/resume (the `ResumeRun` operationId).
 	ResumeRunWithResponse(ctx context.Context, runId RunId, params *ResumeRunParams, body ResumeRunJSONRequestBody, reqEditors ...RequestEditorFn) (*ResumeRunResponse, error)
+
+	// RetryRunGatewayWithBodyWithResponse Reopen automatic model recovery for a waiting or queued Run
+	//
+	// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+	RetryRunGatewayWithBodyWithResponse(ctx context.Context, runId RunId, params *RetryRunGatewayParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RetryRunGatewayResponse, error)
+
+	// RetryRunGatewayWithResponse Reopen automatic model recovery for a waiting or queued Run
+	//
+	// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+	RetryRunGatewayWithResponse(ctx context.Context, runId RunId, params *RetryRunGatewayParams, body RetryRunGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryRunGatewayResponse, error)
 
 	// DeleteGitKeyWithResponse Remove the owner's configured Git key without changing imported artifacts
 	//
@@ -41808,6 +41980,137 @@ func (r ResumeRunResponse) ContentType() string {
 	return ""
 }
 
+// RetryRunGatewayResponse400Headers the declared response headers of an HTTP 400 response for RetryRunGateway
+type RetryRunGatewayResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// RetryRunGatewayResponse401Headers the declared response headers of an HTTP 401 response for RetryRunGateway
+type RetryRunGatewayResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// RetryRunGatewayResponse403Headers the declared response headers of an HTTP 403 response for RetryRunGateway
+type RetryRunGatewayResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// RetryRunGatewayResponse404Headers the declared response headers of an HTTP 404 response for RetryRunGateway
+type RetryRunGatewayResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// RetryRunGatewayResponse409Headers the declared response headers of an HTTP 409 response for RetryRunGateway
+type RetryRunGatewayResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// RetryRunGatewayResponse500Headers the declared response headers of an HTTP 500 response for RetryRunGateway
+type RetryRunGatewayResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type RetryRunGatewayResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *struct {
+		RunId ResourceId `json:"runId"`
+	}
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *RetryRunGatewayResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *RetryRunGatewayResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *RetryRunGatewayResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *RetryRunGatewayResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *RetryRunGatewayResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *RetryRunGatewayResponse500Headers
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON202() *struct {
+	RunId ResourceId `json:"runId"`
+} {
+	return r.JSON202
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r RetryRunGatewayResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r RetryRunGatewayResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RetryRunGatewayResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RetryRunGatewayResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RetryRunGatewayResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // DeleteGitKeyResponse204Headers the declared response headers of an HTTP 204 response for DeleteGitKey
 type DeleteGitKeyResponse204Headers struct {
 	XRequestID RequestId
@@ -44547,6 +44850,36 @@ func (c *ClientWithResponses) ResumeRunWithResponse(ctx context.Context, runId R
 		return nil, err
 	}
 	return ParseResumeRunResponse(rsp)
+}
+
+// RetryRunGatewayWithBodyWithResponse Reopen automatic model recovery for a waiting or queued Run
+//
+// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+func (c *ClientWithResponses) RetryRunGatewayWithBodyWithResponse(ctx context.Context, runId RunId, params *RetryRunGatewayParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RetryRunGatewayResponse, error) {
+	rsp, err := c.RetryRunGatewayWithBody(ctx, runId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRetryRunGatewayResponse(rsp)
+}
+
+// RetryRunGatewayWithResponse Reopen automatic model recovery for a waiting or queued Run
+//
+// Continues the existing invocation without replaying tools or creating a new stage attempt. Shared route recovery also unblocks other queued Runs using that route.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/runs/{runId}/retry-gateway (the `RetryRunGateway` operationId).
+func (c *ClientWithResponses) RetryRunGatewayWithResponse(ctx context.Context, runId RunId, params *RetryRunGatewayParams, body RetryRunGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryRunGatewayResponse, error) {
+	rsp, err := c.RetryRunGateway(ctx, runId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRetryRunGatewayResponse(rsp)
 }
 
 // DeleteGitKeyWithResponse Remove the owner's configured Git key without changing imported artifacts
@@ -65546,6 +65879,153 @@ func ParseResumeRunResponse(rsp *http.Response) (*ResumeRunResponse, error) {
 		response.Headers409 = &headers
 	case rsp.StatusCode == 500:
 		var headers ResumeRunResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseRetryRunGatewayResponse parses an HTTP response from a RetryRunGatewayWithResponse call
+func ParseRetryRunGatewayResponse(rsp *http.Response) (*RetryRunGatewayResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RetryRunGatewayResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest struct {
+			RunId ResourceId `json:"runId"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 400:
+		var headers RetryRunGatewayResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers RetryRunGatewayResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers RetryRunGatewayResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers RetryRunGatewayResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers RetryRunGatewayResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers RetryRunGatewayResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

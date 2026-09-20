@@ -49,6 +49,11 @@ class AdkWorkerRuntimeFactory:
         return await probe_native_agent_skills()
 
     async def create(self, context: WorkerBuildContext) -> AdkWorkerRuntime:
+        if context.runtime_settings.llm_recovery:
+            if self._artifact_client_factory is None:
+                raise RuntimeError("Model recovery requires the allocation control transport")
+            control = self._artifact_client_factory(context.allocation_id, context.runtime_settings)
+            context = replace(context, gateway_recovery=control.gateway_recovery_client())
         prepared = await prepare_agent_skills(
             context.resolved_skills,
             allocation_id=context.allocation_id,

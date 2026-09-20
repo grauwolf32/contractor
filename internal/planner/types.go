@@ -6,6 +6,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -49,6 +50,7 @@ func InvocationInstrumentation(invocation Invocation) telemetry.PlannerInstrumen
 // for construction of this invocation's model client and is never persisted in
 // Planner state or events.
 type ModelAccess struct {
+	Recovery    *gatewayrecovery.Participant
 	ModelPolicy contracts.ResolvedModelPolicy
 	LLMGateway  contracts.ResolvedLLMGatewayConfig
 	Credential  *contracts.LLMCredentialRef

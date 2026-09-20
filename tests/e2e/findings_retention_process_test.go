@@ -108,6 +108,14 @@ func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
 
 func runOrdinaryFindingProducer(t *testing.T, h *findingsHarness, projectID string, source artifactRef, sourcePayload []byte, openAPI artifactRef, openAPIPayload []byte) string {
 	t.Helper()
+	body := ordinaryFindingProducerBody(t, h, projectID, source, sourcePayload, openAPI, openAPIPayload)
+	runID := postProjectRun(t, h.client, h.baseURL, projectID, "ordinary-findings", body, false)
+	waitForFindingsRun(t, h, runID, "succeeded")
+	return runID
+}
+
+func ordinaryFindingProducerBody(t *testing.T, h *findingsHarness, projectID string, source artifactRef, sourcePayload []byte, openAPI artifactRef, openAPIPayload []byte) []byte {
+	t.Helper()
 	inventory, err := auditdomain.BuildOpenAPIInventory(openAPIPayload, "application/yaml", auditdomain.InventoryOptions{
 		Round: 1, WorkflowRole: "trace", SourceInputName: "openapi", SourceRef: exactContractRef(t, openAPI), ApprovalRequirement: auditdomain.ApprovalNone,
 	})
@@ -130,8 +138,9 @@ func runOrdinaryFindingProducer(t *testing.T, h *findingsHarness, projectID stri
 		t.Fatal(err)
 	}
 	manifestRef := uploadProjectScopeArtifact(t, h.client, h.baseURL, projectID, "fixtures", "ordinary-manifest", "application/json", encoded)
-	body, _ := json.Marshal(map[string]any{"workflow": "fixture-ordinary-findings@1", "artifacts": map[string]artifactRef{"task": taskRef, "execution_manifest": manifestRef, "source": source}})
-	runID := postProjectRun(t, h.client, h.baseURL, projectID, "ordinary-findings", body, false)
-	waitForFindingsRun(t, h, runID, "succeeded")
-	return runID
+	body, err := json.Marshal(map[string]any{"workflow": "fixture-ordinary-findings@1", "artifacts": map[string]artifactRef{"task": taskRef, "execution_manifest": manifestRef, "source": source}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
 }

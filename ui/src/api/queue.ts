@@ -6,6 +6,8 @@ import { safeRunMetadataLabels } from "./run-metadata-labels";
 export const QUEUE_PAGE_SIZE = 50;
 export const QUEUE_STATES = [
   "initializing",
+  "pending",
+  "waiting",
   "running",
   "cancelling",
 ] as const satisfies readonly QueueState[];

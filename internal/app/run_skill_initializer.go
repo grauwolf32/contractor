@@ -65,7 +65,7 @@ func (i *runSkillInitializer) InitializeRunSkills(
 			return err
 		}
 		result, err = store.TransitionRun(
-			ctx, run.RunID, runstore.RunInitializing, runstore.RunRunning,
+			ctx, run.RunID, runstore.RunInitializing, runstore.RunPending,
 			runstore.Reason{Code: "initialized"},
 		)
 		return err

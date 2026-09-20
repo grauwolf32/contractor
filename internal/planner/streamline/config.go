@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
@@ -63,6 +64,7 @@ func normalizeLimits(value Limits) (Limits, error) {
 }
 
 type GatewaySettings struct {
+	Recovery        *gatewayrecovery.Participant
 	URL             string
 	Token           contracts.SecretString
 	Model           string

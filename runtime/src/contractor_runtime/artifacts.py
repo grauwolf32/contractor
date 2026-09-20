@@ -114,6 +114,12 @@ class ArtifactClient:
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
         self._observed_exact_refs: list[ArtifactRef] = []
 
+    def gateway_recovery_client(self):
+        """Share the existing allocation mTLS transport with model coordination."""
+        from contractor_runtime.llm.recovery import GatewayRecoveryClient
+
+        return GatewayRecoveryClient(self._allocation_id, self._transport)
+
     @property
     def allocation_id(self) -> str:
         """Return the immutable allocation scope used by every request."""

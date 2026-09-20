@@ -14,6 +14,8 @@ type WorkflowRunState string
 
 const (
 	RunInitializing WorkflowRunState = "initializing"
+	RunPending      WorkflowRunState = "pending"
+	RunWaiting      WorkflowRunState = "waiting"
 	RunRunning      WorkflowRunState = "running"
 	RunCancelling   WorkflowRunState = "cancelling"
 	RunSucceeded    WorkflowRunState = "succeeded"
@@ -37,7 +39,7 @@ func (l WorkflowRunLifecycle) Valid() bool {
 func (l WorkflowRunLifecycle) Includes(state WorkflowRunState) bool {
 	switch l {
 	case RunLifecycleActive:
-		return state == RunInitializing || state == RunRunning || state == RunCancelling
+		return state == RunInitializing || state == RunPending || state == RunRunning || state == RunWaiting || state == RunCancelling
 	case RunLifecycleTerminal:
 		return state == RunSucceeded || state == RunFailed || state == RunCancelled
 	default:
@@ -366,6 +368,7 @@ func (t StageTermination) Validate() error {
 }
 
 type StageExecution struct {
+	AdmittedAt                   *time.Time
 	StageExecutionID             string
 	RunID                        string
 	StageName                    string

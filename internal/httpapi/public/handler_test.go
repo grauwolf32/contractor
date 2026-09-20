@@ -1094,7 +1094,7 @@ func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
 	}
 }
 
-func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
+func TestCreateRunForksInputAndReturnsPending(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	user, _ := fixture.artifacts.User("user-1")
 	written, err := user.Write(
@@ -1118,7 +1118,7 @@ func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 		t.Fatalf("Run initialization guard calls = %d", fixture.credentials.guarded)
 	}
 	run := fixture.runs.runs["run_fixed"]
-	if run.State != runstore.RunRunning || run.OwnerID != "user-1" || len(run.WorkflowSnapshot) == 0 {
+	if run.State != runstore.RunPending || run.OwnerID != "user-1" || len(run.WorkflowSnapshot) == 0 {
 		t.Fatalf("stored Run = %+v", run)
 	}
 	runArtifacts, _ := fixture.artifacts.Run("run_fixed")

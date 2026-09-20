@@ -87,7 +87,7 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 WITH credential_runs AS (
     SELECT run_id, created_at
     FROM workflow_runs
-    WHERE state IN ('initializing', 'running', 'cancelling')
+    WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
       AND (
           jsonb_path_exists(
               workflow_snapshot,
@@ -496,7 +496,7 @@ WITH page AS (
       AND ($8::text IS NULL OR project_id = $8)
       AND (
           $9::text IS NULL
-          OR ($9 = 'active' AND state IN ('initializing', 'running', 'cancelling'))
+          OR ($9 = 'active' AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling'))
           OR ($9 = 'terminal' AND state IN ('succeeded', 'failed', 'cancelled'))
       )
       AND (
@@ -627,7 +627,7 @@ SET state = 'cancelling',
     run_cancellation = $3::jsonb,
     updated_at = clock_timestamp(),
     finished_at = NULL
-WHERE run_id = $1 AND state IN ('initializing', 'running')
+WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting')
 RETURNING `+workflowRunColumns,
 		runID, contracts.APIVersion, encoded, cancellation.Reason,
 	))
@@ -666,12 +666,12 @@ func (s *PostgresStore) ClaimRunnableRun(
 WITH candidate AS (
     SELECT run_id
     FROM workflow_runs
-    WHERE (state IN ('running', 'cancelling')
+    WHERE (state IN ('pending', 'running', 'waiting', 'cancelling')
        OR (state = 'initializing' AND state_reason_code = 'skill_initialization_pending'))
       AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
     ORDER BY CASE
                  WHEN state = 'cancelling' THEN 0
-                 WHEN state = 'running' THEN 1
+                 WHEN state IN ('running', 'waiting') THEN 1
                  ELSE 2
              END,
              updated_at, created_at, run_id
@@ -742,7 +742,7 @@ func (s *PostgresStore) RenewRunClaim(
 UPDATE workflow_runs
 SET scheduler_claim_expires_at = clock_timestamp() + ($3::bigint * interval '1 microsecond'),
     updated_at = clock_timestamp()
-WHERE run_id = $1 AND state IN ('initializing', 'running', 'cancelling') AND scheduler_claim_id = $2`,
+WHERE run_id = $1 AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling') AND scheduler_claim_id = $2`,
 		runID, claimID, duration.Microseconds())
 	if err != nil {
 		return fmt.Errorf("renew WorkflowRun %q claim: %w", runID, err)
@@ -852,8 +852,10 @@ func validateIdempotencyKey(value string) error {
 
 func validateRunTransition(expected, next WorkflowRunState) error {
 	allowed := map[WorkflowRunState]map[WorkflowRunState]bool{
-		RunInitializing: {RunRunning: true, RunFailed: true},
-		RunRunning:      {RunSucceeded: true, RunFailed: true},
+		RunInitializing: {RunPending: true, RunRunning: true, RunFailed: true},
+		RunPending:      {RunRunning: true, RunFailed: true},
+		RunWaiting:      {RunRunning: true, RunSucceeded: true, RunFailed: true},
+		RunRunning:      {RunWaiting: true, RunSucceeded: true, RunFailed: true},
 		RunCancelling:   {RunCancelled: true},
 	}
 	if !allowed[expected][next] {
@@ -864,7 +866,7 @@ func validateRunTransition(expected, next WorkflowRunState) error {
 
 func validWorkflowRunState(state WorkflowRunState) bool {
 	switch state {
-	case RunInitializing, RunRunning, RunCancelling, RunSucceeded, RunFailed, RunCancelled:
+	case RunInitializing, RunPending, RunRunning, RunWaiting, RunCancelling, RunSucceeded, RunFailed, RunCancelled:
 		return true
 	default:
 		return false

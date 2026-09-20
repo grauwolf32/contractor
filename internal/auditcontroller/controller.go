@@ -591,7 +591,7 @@ func (c *Controller) cancelOneSubmittedRun(
 		if err != nil {
 			return false, err
 		}
-		if run.State != runstore.RunInitializing && run.State != runstore.RunRunning {
+		if run.State != runstore.RunInitializing && run.State != runstore.RunPending && run.State != runstore.RunRunning && run.State != runstore.RunWaiting {
 			continue
 		}
 		reason := "Parent Audit dispatch closed before the child Run completed."

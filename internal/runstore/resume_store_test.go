@@ -93,7 +93,11 @@ func failResumeStage(t *testing.T, ctx context.Context, store *PostgresStore, ru
 	if _, err := store.RecordStageTransitionDecision(ctx, RecordStageTransitionDecisionParams{SourceExecutionID: stageID, RunID: runID, Action: StageTransitionFail}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.TransitionRun(ctx, runID, RunRunning, RunFailed, Reason{Code: "test_failure"}); err != nil {
+	current, loadErr := store.GetRun(ctx, runID)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if _, err := store.TransitionRun(ctx, runID, current.State, RunFailed, Reason{Code: "test_failure"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -154,7 +158,7 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.State != RunRunning || after.FinishedAt != nil || !after.StartedAt.Equal(*before.StartedAt) || !reflect.DeepEqual(after.RuntimeConfig, before.RuntimeConfig) || !reflect.DeepEqual(after.WorkflowSnapshot, before.WorkflowSnapshot) {
+	if after.State != RunPending || after.FinishedAt != nil || !after.StartedAt.Equal(*before.StartedAt) || !reflect.DeepEqual(after.RuntimeConfig, before.RuntimeConfig) || !reflect.DeepEqual(after.WorkflowSnapshot, before.WorkflowSnapshot) {
 		t.Fatalf("Run changed incorrectly: %+v", after)
 	}
 	old, err := store.GetStageExecution(ctx, *source)

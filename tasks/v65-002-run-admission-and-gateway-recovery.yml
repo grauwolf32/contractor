@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V65-002
+title: Persist pending and waiting Runs and coordinate gateway recovery
+milestone: run-admission-gateway-recovery
+priority: P1
+status: completed
+implementation_commit: null
+depends_on:
+- V65-001
+languages:
+- go
+- python
+- typescript
+- sql
+- openapi
+- markdown
+goal: Persist pending and waiting Runs and coordinate gateway recovery
+context:
+  authority: User explicitly requested tasks and implementation after the crAPI outage on 2026-09-20.
+    Preserve other working-tree changes.
+  design:
+  - docs/plans/2026-09-20-run-gateway-recovery.md
+scope:
+  in:
+  - Run initialization ends in pending; real execution admission sets running and startedAt. Queue time
+    does not consume Stage execution time.
+  - Persist a shared route-scoped recovery gate; stop admitting queued work to a failed model without
+    affecting unrelated routes.
+  - Retry only the failed model request in the existing invocation; retain tools, artifacts and finding
+    identities. Expose waiting reason and recovery schedule; support cancellation and manual retry after
+    the automatic recovery allowance.
+  - Use explicit validated recovery configuration and single-probe recovery; preserve the configured overall
+    Stage deadline and distinguish it from request timeouts.
+  out:
+  - Replay an entire Stage automatically after ambiguous tool effects.
+  - Persist/restore ADK sessions after Runtime process loss.
+  - Change crAPI truth or turn infrastructure failures into benchmark quality failures.
+acceptance_criteria:
+- id: A1
+  then: Run initialization ends in pending; real execution admission sets running and startedAt. Queue
+    time does not consume Stage execution time.
+- id: A2
+  then: Persist a shared route-scoped recovery gate; stop admitting queued work to a failed model without
+    affecting unrelated routes.
+- id: A3
+  then: Retry only the failed model request in the existing invocation; retain tools, artifacts and finding
+    identities. Expose waiting reason and recovery schedule; support cancellation and manual retry after
+    the automatic recovery allowance.
+- id: A4
+  then: Use explicit validated recovery configuration and single-probe recovery; preserve the configured
+    overall Stage deadline and distinguish it from request timeouts.
+tests:
+  - command: "go test ./internal/runstore ./internal/runservice ./internal/scheduler ./internal/app ./internal/httpapi/public ./internal/httpapi/privateartifacts"
+    covers: [A1, A2, A3, A4]
+  - command: "go test -race ./internal/scheduler -run ^TestGatewayRecovery -count=1"
+    covers: [A1, A2, A3, A4]
+  - command: "go test ./internal/auditcontroller ./internal/evalservice ./internal/memory ./internal/projectlifecycle ./internal/credentials"
+    covers: [A1, A2, A3]
+verification_requirements:
+  - PostgreSQL checks use CONTRACTOR_TEST_DATABASE_URL for an isolated test instance; process gates create and drop isolated schemas.
+  - Evidence and remaining unrelated repository-wide failures are recorded in docs/plans/2026-09-20-run-gateway-recovery.md and the Playground task journal.

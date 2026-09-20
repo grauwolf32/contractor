@@ -178,12 +178,12 @@ This slice must demonstrate:
   identity, positive label revision, current configuration schema and explicit
   policy; incomplete historical records fail without rewriting stored bytes.
   Model-free Workers retain a complete Runtime configuration with no LLM route;
-- WorkflowRun records `initializing -> running -> succeeded`, with the final
+- WorkflowRun records `initializing -> pending -> running -> succeeded`, with the final
   Stage acceptance, required output bindings and Run success in one transaction;
 - cancellation or participant loss records
   `preparing/running -> aborting -> cancelled/interrupted`, with a durable
   StageTermination and bounded abort deadline;
-- Run cancellation records `initializing/running -> cancelling -> cancelled`,
+- Run cancellation records `initializing/pending/running/waiting -> cancelling -> cancelled`,
   starts no new Stage, and cannot be held open by an unreachable Worker after
   the Stage abort deadline;
 - tests cover both outcomes of the Run cancel-versus-success race: the first

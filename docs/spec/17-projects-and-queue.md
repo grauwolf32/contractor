@@ -278,7 +278,7 @@ Queue is a top-level UI/read API over ordinary nonterminal WorkflowRuns across
 standalone Projects, evaluation Projects and standalone execution:
 
 ```text
-initializing | running | cancelling
+initializing | pending | running | waiting | cancelling
 ```
 
 It is not another durable queue table or Scheduler. Scheduler continues to

@@ -29,7 +29,7 @@ func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) er
 	if run.State == runstore.RunCancelling {
 		return s.executeCancelling(ctx, run)
 	}
-	if run.State != runstore.RunRunning {
+	if run.State != runstore.RunRunning && run.State != runstore.RunPending && run.State != runstore.RunWaiting {
 		return nil
 	}
 	workflow, err := decodeExecutableWorkflow(run)
@@ -169,31 +169,19 @@ func (s *Scheduler) finishCancelledRun(ctx context.Context, runID string) error 
 }
 
 func (s *Scheduler) failUnsupportedRun(ctx context.Context, runID string, cause error) error {
+	return s.failActiveRun(ctx, runID, "unsupported_workflow_shape", cause)
+}
+func (s *Scheduler) failInvalidRunState(ctx context.Context, runID string, cause error) error {
+	return s.failActiveRun(ctx, runID, "scheduler_state_invalid", cause)
+}
+func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause error) error {
 	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 	defer cancel()
-	_, err := s.store.TransitionRun(
-		operationContext,
-		runID,
-		runstore.RunRunning,
-		runstore.RunFailed,
-		runstore.Reason{Code: "unsupported_workflow_shape"},
-	)
+	current, err := s.store.GetRun(operationContext, runID)
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	return nil
-}
-
-func (s *Scheduler) failInvalidRunState(ctx context.Context, runID string, cause error) error {
-	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
-	defer cancel()
-	_, err := s.store.TransitionRun(
-		operationContext,
-		runID,
-		runstore.RunRunning,
-		runstore.RunFailed,
-		runstore.Reason{Code: "scheduler_state_invalid"},
-	)
+	_, err = s.store.TransitionRun(operationContext, runID, current.State, runstore.RunFailed, runstore.Reason{Code: code})
 	if err != nil {
 		return errors.Join(cause, err)
 	}

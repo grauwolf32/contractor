@@ -85,7 +85,7 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 
 	initializer := &runSkillInitializer{pool: pool}
 	initialized, err := initializer.InitializeRunSkills(ctx, "run-skill-init")
-	if err != nil || initialized.State != runstore.RunRunning ||
+	if err != nil || initialized.State != runstore.RunPending ||
 		len(initialized.SkillSnapshot) != 1 || initialized.SkillSnapshot[0].Artifact == nil ||
 		initialized.SkillSnapshot[0].Source == nil ||
 		*initialized.SkillSnapshot[0].Source.Revision != *created.Ref.Revision {
@@ -104,7 +104,7 @@ func TestPostgresRunSkillInitializerUsesCommittedExactSelection(t *testing.T) {
 		t.Fatalf("Run Skill lineage = (%+v, %v)", lineage, err)
 	}
 	replayed, err := initializer.InitializeRunSkills(ctx, "run-skill-init")
-	if err != nil || replayed.State != runstore.RunRunning ||
+	if err != nil || replayed.State != runstore.RunPending ||
 		replayed.SkillSnapshot[0].Artifact == nil ||
 		*replayed.SkillSnapshot[0].Artifact.Revision != *initialized.SkillSnapshot[0].Artifact.Revision ||
 		*replayed.SkillSnapshot[0].Source.Revision != *created.Ref.Revision {
@@ -163,7 +163,7 @@ WHERE scope_kind = 'run' AND scope_id = 'run-invalid-skills'
 	validWorkflow := appSkillWorkflowWithNames(t, "alpha")
 	createAppSkillRunSelection(t, ctx, pool, validWorkflow, "run-valid-after-invalid")
 	running, err := initializer.InitializeRunSkills(ctx, "run-valid-after-invalid")
-	if err != nil || running.State != runstore.RunRunning ||
+	if err != nil || running.State != runstore.RunPending ||
 		len(running.SkillSnapshot) != 1 || running.SkillSnapshot[0].Source == nil ||
 		valid.Ref.Revision == nil || *running.SkillSnapshot[0].Source.Revision != *valid.Ref.Revision {
 		t.Fatalf("unrelated valid Run after invalid package = (%+v, %v)", running, err)

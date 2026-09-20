@@ -1118,6 +1118,11 @@
           ],
           "default": null
         },
+        "llmRecovery": {
+          "default": false,
+          "title": "Llmrecovery",
+          "type": "boolean"
+        },
         "requestTimeoutSeconds": {
           "exclusiveMinimum": 0,
           "title": "Requesttimeoutseconds",

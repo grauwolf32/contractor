@@ -68,7 +68,8 @@ func configureHTTP(
 	}
 	runStore := runstore.NewPostgresStore(pool)
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
-		Authentication: authentication, BrowserOrigins: browserOrigins,
+		GatewayRecovery: workflows.gatewayRecovery,
+		Authentication:  authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
 		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
 		Runs: runStore, RunQueue: runStore, RunLifecycle: runStore, RunCreator: audits.runs, Artifacts: catalogs.artifacts,
@@ -106,7 +107,7 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane API: %w", err)
 	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
-		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, Logger: logger,
+		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
 	})
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)

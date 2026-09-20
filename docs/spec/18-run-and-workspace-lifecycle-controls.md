@@ -25,7 +25,7 @@ The top-level UI has one **Runs** destination with two views:
 
 ```text
 Runs
-  Queue       default; initializing | running | cancelling
+  Queue       default; initializing | pending | running | waiting | cancelling
   Completed   succeeded | failed | cancelled
 ```
 

@@ -395,14 +395,5 @@ func (s *Scheduler) finishRunFromTerminalTermination(
 	if execution.Termination == nil {
 		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("terminal interrupted Stage has no termination"))
 	}
-	operationContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
-	defer cancel()
-	_, err := s.store.TransitionRun(
-		operationContext,
-		run.RunID,
-		runstore.RunRunning,
-		runstore.RunFailed,
-		runstore.Reason{Code: execution.Termination.Code},
-	)
-	return err
+	return s.failActiveRun(ctx, run.RunID, execution.Termination.Code, nil)
 }

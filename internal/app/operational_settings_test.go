@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -31,6 +32,7 @@ spec:
   projectLifecycle: {operationTimeout: 19s, claimDuration: 71s}
   auditController: {pollInterval: 3s, claimLease: 45s, operationTimeout: 12s, claimBatch: 9}
   database: {connectTimeout: 4s, acquireTimeout: 3s, queryTimeout: 23s, statementTimeout: 16s, lockTimeout: 4s, idleTransactionTimeout: 31s}
+  llmRecovery: {requestTimeout: 75s, initialDelay: 2s, maxDelay: 40s, automaticWindow: 6m}
   a2a: {pollInterval: 250ms}
   credentialManagement: {connectTimeout: 2s, requestTimeout: 14s}
 `)
@@ -39,6 +41,7 @@ spec:
 		t.Fatal(err)
 	}
 	want := OperationalSettings{
+		LLMRecovery:          gatewayrecovery.Policy{RequestTimeout: 75 * time.Second, InitialDelay: 2 * time.Second, MaxDelay: 40 * time.Second, AutomaticWindow: 6 * time.Minute},
 		Scheduler:            SchedulerSettings{37 * time.Second, 13 * time.Second, 11 * time.Second},
 		RuntimeLifecycle:     RuntimeLifecycleSettings{17 * time.Second},
 		ProjectLifecycle:     ProjectLifecycleSettings{19 * time.Second, 71 * time.Second},

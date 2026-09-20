@@ -199,3 +199,44 @@ Public HTTP addresses and hostnames are rejected by this development mode.
   `contractor server config validate --root ./configs/e2e`.
 - Gateway 404 responses usually mean the configured base omitted or duplicated
   the provider's `/v1` path.
+
+## Model availability and queued Runs
+
+A newly initialized Run is `pending` until the scheduler acquires its resources.
+It becomes `running` at admission. If a started invocation loses its model, the
+Run becomes `waiting`; its findings and conversation stay in that invocation.
+Server coordinates recovery for the resolved owner/gateway/model/credential and
+model proxy route, across Runtime processes and Server-side modeled planners.
+Other Runs on that route remain queued. A single probe checks recovery.
+
+These process settings are configurable under `ServerConfig.spec`:
+
+```yaml
+llmRecovery:
+  requestTimeout: 60s
+  initialDelay: 1s
+  maxDelay: 30s
+  automaticWindow: 5m
+```
+
+The defaults allow a short local model reload, cap each request at one minute,
+use exponential retry delays from one to thirty seconds, and stop automatic
+probes after five minutes. For a slower model, increase `requestTimeout` to cover
+its expected response time. Matching environment variables are
+`CONTRACTOR_LLM_RECOVERY_REQUEST_TIMEOUT`, `CONTRACTOR_LLM_RECOVERY_INITIAL_DELAY`,
+`CONTRACTOR_LLM_RECOVERY_MAX_DELAY`, and `CONTRACTOR_LLM_RECOVERY_AUTOMATIC_WINDOW`.
+CLI flags use the corresponding `--llm-recovery-...` names.
+
+After the automatic window expires, restore the model and choose **Retry model
+connection** on the Run page, or POST `{}` to `/v1/runs/{runId}/retry-gateway`.
+This retries the existing model call; it does not create a new Stage attempt or
+replay tools. Cancellation remains available while waiting. The configured Stage
+wall-clock deadline starts at resource admission and continues during recovery;
+queue residence does not consume it. Runtime process loss does not preserve the
+in-memory conversation.
+
+Transient failures include transport errors, HTTP 408/409/429/5xx and the exact
+observed LM Studio model-unloaded HTTP 400 messages. An ordinary HTTP 400,
+authentication failure, exhausted quota or context limit is a permanent error.
+Only safe error codes and timing are retained; provider response bodies are not
+published in recovery status.

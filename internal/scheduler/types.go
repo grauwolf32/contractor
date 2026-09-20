@@ -9,6 +9,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -100,6 +101,7 @@ type TerminationProgression struct {
 // AtomicPersistence is deliberately high-level: implementations either commit
 // every listed RunStore and ArtifactStore mutation or expose none of them.
 type AtomicPersistence interface {
+	AdmitStage(context.Context, string, string) (runstore.StageExecution, error)
 	CreateStageWithContext(
 		context.Context,
 		runstore.CreateStageExecutionParams,
@@ -218,6 +220,7 @@ func (realClock) Now() time.Time                                { return time.No
 func (realClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
 
 type Options struct {
+	GatewayRecovery        *gatewayrecovery.Service
 	PollInterval           time.Duration
 	ClaimDuration          time.Duration
 	OperationTimeout       time.Duration

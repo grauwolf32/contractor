@@ -46,6 +46,7 @@ export interface RunTriage {
 
 export interface RunTriageGuidance {
   kind:
+    | "recovery-wait"
     | "scheduled-retry"
     | "placement-wait"
     | "gateway-configuration"
@@ -201,6 +202,15 @@ function guidance(
   attempt: StageAttempt | undefined,
   issue: RunTriageIssue | undefined,
 ): RunTriageGuidance {
+  if (run.recovery !== undefined || run.state === "waiting") {
+    return {
+      kind: "recovery-wait",
+      title: "Waiting for model recovery",
+      message: run.recovery?.requiresRetry
+        ? "Restore the model, then enable retry. The current invocation is retained."
+        : "Recovery is automatic. You can cancel the Run while it waits.",
+    };
+  }
   if (run.state === "succeeded") {
     const hasOutputs = Object.keys(run.outputs).length > 0;
     return {

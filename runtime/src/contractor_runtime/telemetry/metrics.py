@@ -23,6 +23,7 @@ from contractor_runtime.contracts import (
     WorkerCompletionDiagnostics,
     WorkerSummarizerMetrics,
 )
+from contractor_runtime.llm.errors import GatewayFailure
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
@@ -338,12 +339,18 @@ class MetricsState:
             or re.fullmatch(r"[A-Za-z][A-Za-z0-9_.]{0,127}", error_type) is None
         ):
             error_type = type(error).__name__
+        failure = getattr(error, "failure", None)
+        detail = error_type
+        if isinstance(failure, GatewayFailure):
+            detail += f"; {failure.code}"
+            if failure.status is not None:
+                detail += f"; HTTP {failure.status}"
         self._increment("llm_errors")
         self._append_error(
             ExecutionError(
                 code="model_call_failed",
-                message=_bounded_error(f"Model call failed ({error_type})", ()),
-                retryable=True,
+                message=_bounded_error(f"Model call failed ({detail})", ()),
+                retryable=bool(getattr(error, "retryable", True)),
             )
         )
 

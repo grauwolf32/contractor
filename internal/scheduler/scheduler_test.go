@@ -758,26 +758,27 @@ func TestSchedulerLeavesPreparingStageDeferredWhenCapacityIsUnavailable(t *testi
 	}
 }
 
-func TestSchedulerCapacityWaitStopsAtImmutableStageDeadline(t *testing.T) {
-	harness := newSchedulerHarness(t)
-	harness.allocator.reserveError = controlplane.ErrInsufficientCapacity
-
-	worked, err := harness.scheduler.RunOnce(context.Background())
-	if !worked || !errors.Is(err, ErrDeferred) || len(harness.store.stages) != 1 {
-		t.Fatalf("initial capacity wait = (%v, %v), stages=%d", worked, err, len(harness.store.stages))
+func TestSchedulerQueueResidenceDoesNotConsumeExecutionDeadline(t *testing.T) {
+	h := newSchedulerHarness(t)
+	h.store.run.State = runstore.RunPending
+	h.allocator.reserveError = controlplane.ErrInsufficientCapacity
+	for range 2 {
+		worked, err := h.scheduler.RunOnce(t.Context())
+		if !worked || !errors.Is(err, ErrDeferred) {
+			t.Fatalf("capacity wait=(%v,%v)", worked, err)
+		}
+		if h.store.run.State != runstore.RunPending || h.store.stages[0].AdmittedAt != nil {
+			t.Fatal("queued Run admitted without capacity")
+		}
+		h.store.stages[0].CreatedAt = h.clock.now.Add(-24 * time.Hour)
 	}
-	harness.store.stages[0].CreatedAt = harness.clock.now.Add(-31 * time.Second)
-
-	worked, err = harness.scheduler.RunOnce(context.Background())
-	if err != nil || !worked {
-		t.Fatalf("expired capacity wait = (%v, %v)", worked, err)
+	h.allocator.reserveError = nil
+	worked, err := h.scheduler.RunOnce(t.Context())
+	if !worked || err != nil {
+		t.Fatalf("admission=(%v,%v)", worked, err)
 	}
-	execution := harness.store.stages[0]
-	if execution.State != runstore.StageInterrupted || execution.Termination == nil ||
-		execution.Termination.Code != "stage_deadline_exceeded" ||
-		execution.Termination.Phase != runstore.TerminationPreparing ||
-		!execution.Termination.Retryable || harness.planners.createCalls != 0 {
-		t.Fatalf("expired capacity lifecycle = %+v", execution)
+	if h.store.stages[0].AdmittedAt == nil || h.store.run.State != runstore.RunSucceeded {
+		t.Fatalf("admitted Run: %+v", h.store.run)
 	}
 }
 
@@ -1966,7 +1967,7 @@ func (s *memorySchedulerStore) ClaimRunnableRun(
 	s.claimCalls++
 	pendingSkills := s.run.State == runstore.RunInitializing &&
 		s.run.StateReason.Code == runstore.SkillInitializationPendingReason
-	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunCancelling && !pendingSkills ||
+	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunPending && s.run.State != runstore.RunWaiting && s.run.State != runstore.RunCancelling && !pendingSkills ||
 		s.claimID != "" || duration <= 0 {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
 	}
@@ -2177,7 +2178,7 @@ type memoryAtomicPersistence struct {
 func (p *memoryAtomicPersistence) CreateStageWithContext(
 	_ context.Context, params runstore.CreateStageExecutionParams, _ []ContextPin,
 ) (runstore.StageExecution, error) {
-	if p.store.run.State != runstore.RunRunning {
+	if p.store.run.State != runstore.RunRunning && p.store.run.State != runstore.RunPending {
 		return runstore.StageExecution{}, runstore.ErrConflict
 	}
 	if p.queuePaused {
@@ -2859,4 +2860,23 @@ func sortedKeys[T any](values map[string]T) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID string) (runstore.StageExecution, error) {
+	if p.store.run.RunID != runID || p.store.run.State == runstore.RunCancelling {
+		return runstore.StageExecution{}, runstore.ErrConflict
+	}
+	for i := range p.store.stages {
+		if p.store.stages[i].StageExecutionID == stageID {
+			if p.store.stages[i].AdmittedAt == nil {
+				now := p.allocator.clock.now
+				p.store.stages[i].AdmittedAt = &now
+			}
+			if p.store.run.State == runstore.RunPending {
+				p.store.run.State = runstore.RunRunning
+			}
+			return p.store.stages[i], nil
+		}
+	}
+	return runstore.StageExecution{}, runstore.ErrNotFound
 }

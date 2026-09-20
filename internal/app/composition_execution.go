@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -32,6 +33,7 @@ type plannerServices struct {
 }
 
 type workflowServices struct {
+	gatewayRecovery *gatewayrecovery.Service
 	scheduler       *scheduler.Scheduler
 	projectDeletion *projectlifecycle.Controller
 	settings        *settingsstore.PostgresStore
@@ -67,7 +69,7 @@ func configurePlanners(
 	}
 	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
 		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-			URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
+			Recovery: access.Recovery, URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
 			MaxOutputTokens: access.ModelPolicy.MaxOutputTokens, RequestTimeout: cfg.PlannerTimeout,
 		})
 	}
@@ -111,6 +113,10 @@ func configureWorkflows(
 	plannerTelemetryRegistry *telemetry.PlannerAdapterRegistry,
 	logger *slog.Logger,
 ) (workflowServices, error) {
+	recovery, err := gatewayrecovery.New(pool, cfg.Operations.LLMRecovery)
+	if err != nil {
+		return workflowServices{}, err
+	}
 	planners, err := configurePlanners(pool, catalogs.artifacts, control.runtimeClient, cfg)
 	if err != nil {
 		return workflowServices{}, err
@@ -136,6 +142,7 @@ func configureWorkflows(
 		control.workers,
 		planners.registry,
 		scheduler.Options{
+			GatewayRecovery:     recovery,
 			OperationTimeout:    cfg.Operations.Scheduler.OperationTimeout,
 			FinalizationTimeout: cfg.Operations.Scheduler.FinalizationTimeout,
 			AbortTimeout:        cfg.Operations.Scheduler.AbortTimeout,
@@ -165,5 +172,5 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure Project deletion controller: %w", err)
 	}
-	return workflowServices{scheduler: workflowScheduler, projectDeletion: projectDeletionController, settings: schedulerSettings, planners: planners}, nil
+	return workflowServices{gatewayRecovery: recovery, scheduler: workflowScheduler, projectDeletion: projectDeletionController, settings: schedulerSettings, planners: planners}, nil
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import json
 import re
@@ -17,6 +18,7 @@ from google.genai import types
 from pydantic import BaseModel, PrivateAttr
 
 from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestError
+from contractor_runtime.llm.errors import GatewayFailure
 
 _SAFE_ERROR_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 _FINISH_REASON = {
@@ -31,9 +33,16 @@ _FINISH_REASON = {
 class GatewayModelError(RuntimeError):
     """Secret-free boundary error for failures below the model adapter."""
 
-    def __init__(self, provider_error_type: str, *, retryable: bool = True) -> None:
+    def __init__(
+        self,
+        provider_error_type: str,
+        *,
+        retryable: bool = True,
+        failure: GatewayFailure | None = None,
+    ) -> None:
         self.provider_error_type = provider_error_type
         self.retryable = retryable
+        self.failure = failure
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
@@ -70,11 +79,19 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
     ) -> AsyncGenerator[LlmResponse]:
         provider_error_type: str | None = None
         retryable = False
+        failure = None
         response: LlmResponse | None = None
         try:
             if stream:
                 raise _AdapterFailure("StreamingUnsupported")
-            async with asyncio.timeout(self._client_handle.operation_timeout_seconds):
+            # Coordinated calls have per-attempt transport timeouts and remain
+            # cancellable by the authoritative Stage deadline while waiting.
+            operation = (
+                contextlib.nullcontext()
+                if self._client_handle.recovery is not None
+                else asyncio.timeout(self._client_handle.operation_timeout_seconds)
+            )
+            async with operation:
                 completion = await self._client_handle.complete(
                     _completion_request(self.model, llm_request)
                 )
@@ -84,10 +101,13 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         except Exception as error:
             provider_error_type = _safe_error_type(error)
             retryable = _retryable_gateway_error(error)
+            failure = error.failure if isinstance(error, GatewayRequestError) else None
         if provider_error_type is not None:
             # Raise outside the except suite so the provider exception is not
             # retained through __context__ and cannot keep headers/body alive.
-            raise GatewayModelError(provider_error_type, retryable=retryable) from None
+            raise GatewayModelError(
+                provider_error_type, retryable=retryable, failure=failure
+            ) from None
         if response is None:  # Defensive: every non-error call must produce one response.
             raise GatewayModelError("InvalidGatewayResponse") from None
         yield response

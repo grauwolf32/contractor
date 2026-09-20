@@ -24,6 +24,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -55,29 +56,30 @@ type runCreateResponse struct {
 }
 
 type runStatus struct {
-	ResumeStageExecutionID *string                `json:"resumeStageExecutionId,omitempty"`
-	RunID                  string                 `json:"runId"`
-	ProjectID              *string                `json:"projectId,omitempty"`
-	Workflow               string                 `json:"workflow"`
-	State                  string                 `json:"state"`
-	Deletable              bool                   `json:"deletable"`
-	RuntimeLabels          []string               `json:"runtimeLabels"`
-	Labels                 map[string]string      `json:"labels"`
-	RuntimeConfiguration   json.RawMessage        `json:"runtimeConfiguration"`
-	ProjectHTTPTarget      json.RawMessage        `json:"projectHttpTarget,omitempty"`
-	Cancellation           json.RawMessage        `json:"cancellation,omitempty"`
-	Parameters             map[string]string      `json:"parameters,omitempty"`
-	Inputs                 map[string]artifactRef `json:"inputs,omitempty"`
-	Attempts               []runAttempt           `json:"attempts"`
-	Transitions            []json.RawMessage      `json:"transitions"`
-	Outputs                map[string]artifactRef `json:"outputs"`
-	OutputPublications     []runOutputPublication `json:"outputPublications"`
-	EventCursor            json.RawMessage        `json:"eventCursor,omitempty"`
-	ActiveStageExecutionID *string                `json:"activeStageExecutionId,omitempty"`
-	CreatedAt              time.Time              `json:"createdAt,omitempty"`
-	UpdatedAt              time.Time              `json:"updatedAt,omitempty"`
-	StartedAt              *time.Time             `json:"startedAt,omitempty"`
-	FinishedAt             *time.Time             `json:"finishedAt,omitempty"`
+	Recovery               *gatewayrecovery.Status `json:"recovery,omitempty"`
+	ResumeStageExecutionID *string                 `json:"resumeStageExecutionId,omitempty"`
+	RunID                  string                  `json:"runId"`
+	ProjectID              *string                 `json:"projectId,omitempty"`
+	Workflow               string                  `json:"workflow"`
+	State                  string                  `json:"state"`
+	Deletable              bool                    `json:"deletable"`
+	RuntimeLabels          []string                `json:"runtimeLabels"`
+	Labels                 map[string]string       `json:"labels"`
+	RuntimeConfiguration   json.RawMessage         `json:"runtimeConfiguration"`
+	ProjectHTTPTarget      json.RawMessage         `json:"projectHttpTarget,omitempty"`
+	Cancellation           json.RawMessage         `json:"cancellation,omitempty"`
+	Parameters             map[string]string       `json:"parameters,omitempty"`
+	Inputs                 map[string]artifactRef  `json:"inputs,omitempty"`
+	Attempts               []runAttempt            `json:"attempts"`
+	Transitions            []json.RawMessage       `json:"transitions"`
+	Outputs                map[string]artifactRef  `json:"outputs"`
+	OutputPublications     []runOutputPublication  `json:"outputPublications"`
+	EventCursor            json.RawMessage         `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID *string                 `json:"activeStageExecutionId,omitempty"`
+	CreatedAt              time.Time               `json:"createdAt,omitempty"`
+	UpdatedAt              time.Time               `json:"updatedAt,omitempty"`
+	StartedAt              *time.Time              `json:"startedAt,omitempty"`
+	FinishedAt             *time.Time              `json:"finishedAt,omitempty"`
 }
 
 type runOutputPublication struct {

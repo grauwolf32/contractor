@@ -27,6 +27,8 @@ export const RUN_PAGE_SIZE = 50;
 export const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 export const RUN_STATES = [
   "initializing",
+  "pending",
+  "waiting",
   "running",
   "cancelling",
   "succeeded",
@@ -260,6 +262,7 @@ export async function getRun(
     ...(run.projectId === undefined ? {} : { projectId: run.projectId }),
     workflow: run.workflow,
     state: run.state,
+    ...(run.recovery === undefined ? {} : { recovery: run.recovery }),
     deletable: run.deletable,
     ...(typeof run.resumeStageExecutionId === "string" &&
     RUN_ID_PATTERN.test(run.resumeStageExecutionId)
@@ -542,4 +545,20 @@ export async function previewRunArtifact(
   return previewExactArtifact(metadata, () =>
     downloadRunArtifact(api, runId, metadata),
   );
+}
+
+export async function retryRunGateway(
+  api: PublicAPI,
+  runId: string,
+): Promise<void> {
+  requireRunID(runId);
+  const result = await api.request((client) =>
+    client.POST("/v1/runs/{runId}/retry-gateway", {
+      params: { path: { runId } },
+      body: {},
+    }),
+  );
+  const data = requireData(result);
+  if (result.response.status !== 202 || data.runId !== runId)
+    throw invalidRunResponse(result.response.status);
 }

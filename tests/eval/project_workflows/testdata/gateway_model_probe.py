@@ -112,6 +112,7 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
             proxy = ProxyHTTPClient(http_client)
             context = SimpleNamespace(
                 model_policy=case.policy,
+                gateway_recovery=None,
                 runtime_settings=settings,
                 adapter_handles=SimpleNamespace(model_http=proxy),
             )

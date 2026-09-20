@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -177,7 +178,7 @@ func runListCursorKindForProject(
 
 func publicRunState(state runstore.WorkflowRunState) bool {
 	switch state {
-	case runstore.RunInitializing, runstore.RunRunning, runstore.RunCancelling,
+	case runstore.RunInitializing, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting, runstore.RunCancelling,
 		runstore.RunSucceeded, runstore.RunFailed, runstore.RunCancelled:
 		return true
 	default:
@@ -634,7 +635,16 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			DecidedAt:           decision.DecidedAt,
 		})
 	}
+	var recovery *gatewayrecovery.Status
+	if h.dependencies.GatewayRecovery != nil {
+		recovery, err = h.dependencies.GatewayRecovery.Status(r.Context(), run.RunID)
+		if err != nil {
+			h.handleError(w, err)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
+		Recovery:               recovery,
 		ResumeStageExecutionID: resumeSource,
 		RunID:                  run.RunID, ProjectID: run.ProjectID,
 		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,

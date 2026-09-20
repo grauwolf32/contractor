@@ -33,6 +33,11 @@ type findingsHarness struct {
 
 func startFindingsHarness(t *testing.T, stages []domainGatewayStage, beforeRuntime ...func(*findingsHarness)) *findingsHarness {
 	t.Helper()
+	return startConfiguredFindingsHarness(t, stages, nil, beforeRuntime...)
+}
+
+func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, configure func(string), beforeRuntime ...func(*findingsHarness)) *findingsHarness {
+	t.Helper()
 	if testing.Short() {
 		t.Fatal("findings process checks cannot run in short mode")
 	}
@@ -77,6 +82,9 @@ func startFindingsHarness(t *testing.T, stages []domainGatewayStage, beforeRunti
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	installOrdinaryFindingFixture(t, configRoot, "audit_openapi_operation_tracer", "audit_openapi_operation_trace", "fixture-ordinary-findings")
+	if configure != nil {
+		configure(configRoot)
+	}
 	publicAddress, privateAddress, runtimeAddress := freeAddress(t), freeAddress(t), freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
 	privateBaseURL := "https://" + privateAddress

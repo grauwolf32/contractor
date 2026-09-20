@@ -227,7 +227,7 @@ func (h *evalAPIHarness) command(t *testing.T, id, kind string) *httptest.Respon
 func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 	t.Helper()
 	if kind == "workflow" {
-		rows, err := h.pool.Query(t.Context(), `SELECT run_id FROM workflow_runs WHERE state='running'`)
+		rows, err := h.pool.Query(t.Context(), `SELECT run_id FROM workflow_runs WHERE state IN ('pending','running')`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,6 +244,16 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 			t.Fatal(rows.Err())
 		}
 		for _, id := range ids {
+			runs := runstore.NewPostgresStore(h.pool)
+			current, err := runs.GetRun(t.Context(), id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if current.State == runstore.RunPending {
+				if _, err = runs.TransitionRun(t.Context(), id, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if _, err = runstore.NewPostgresStore(h.pool).TransitionRun(t.Context(), id, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "fixture"}); err != nil {
 				t.Fatal(err)
 			}

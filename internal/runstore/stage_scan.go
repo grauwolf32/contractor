@@ -19,7 +19,7 @@ candidate_result_schema_version, candidate_stage_result,
 accepted_result_schema_version, accepted_stage_result,
 termination_schema_version, stage_termination,
 finalization_id, finalization_deadline, abort_id, abort_deadline,
-created_at, updated_at, planner_started_at, terminal_at`
+created_at, updated_at, planner_started_at, terminal_at, admitted_at`
 
 func prefixedStageExecutionColumns(alias string) string {
 	parts := strings.Split(stageExecutionColumns, ",")
@@ -49,7 +49,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 		&result.AcceptedResultSchemaVersion, &accepted,
 		&result.TerminationSchemaVersion, &termination,
 		&result.FinalizationID, &result.FinalizationDeadline, &result.AbortID, &result.AbortDeadline,
-		&result.CreatedAt, &result.UpdatedAt, &result.PlannerStartedAt, &result.TerminalAt,
+		&result.CreatedAt, &result.UpdatedAt, &result.PlannerStartedAt, &result.TerminalAt, &result.AdmittedAt,
 	); err != nil {
 		return StageExecution{}, err
 	}

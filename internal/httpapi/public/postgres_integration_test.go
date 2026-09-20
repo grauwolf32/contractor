@@ -130,7 +130,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatalf("POST Run = %d: %s", createResponse.Code, createResponse.Body.String())
 	}
 	storedRun, err := runs.GetRun(ctx, "run-public")
-	if err != nil || storedRun.State != runstore.RunRunning || storedRun.OwnerID != "user-1" ||
+	if err != nil || storedRun.State != runstore.RunPending || storedRun.OwnerID != "user-1" ||
 		len(storedRun.WorkflowSnapshot) == 0 || storedRun.MetadataLabels["eval.id"] != "eval_postgres" {
 		t.Fatalf("stored Run = (%+v, %v)", storedRun, err)
 	}
@@ -203,6 +203,9 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		}
 		outputRef = bound.TargetRef
 		if err := txArtifacts.FreezeRunOutputs(ctx, "run-public"); err != nil {
+			return err
+		}
+		if _, err := runstore.NewPostgresStore(tx).TransitionRun(ctx, "run-public", runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
 			return err
 		}
 		_, err = runstore.NewPostgresStore(tx).TransitionRun(

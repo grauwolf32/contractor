@@ -177,7 +177,7 @@ SELECT state
 FROM workflow_runs
 WHERE run_id = $1
 FOR UPDATE`, binding.RunID).Scan(&runState)
-	if errors.Is(err, pgx.ErrNoRows) || err == nil && runState != runstore.RunRunning {
+	if errors.Is(err, pgx.ErrNoRows) || err == nil && (runState != runstore.RunRunning && runState != runstore.RunWaiting) {
 		return ErrAccessForbidden
 	}
 	if err != nil {

@@ -113,7 +113,7 @@ func TestPrecomputedAnalysisRunForksReportsAndRejectsWrongMediaType(t *testing.T
 				assertErrorCode(t, response, "invalid_request")
 				return
 			}
-			if fixture.runs.runs["run_fixed"].State != runstore.RunRunning {
+			if fixture.runs.runs["run_fixed"].State != runstore.RunPending {
 				t.Fatalf("Run state = %q", fixture.runs.runs["run_fixed"].State)
 			}
 			runArtifacts, _ := fixture.artifacts.Run("run_fixed")

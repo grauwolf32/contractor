@@ -115,6 +115,7 @@ func TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure(t *testi
 }
 
 type domainGateway struct {
+	outage *recoveryOutage
 	server *httptest.Server
 	token  string
 
@@ -290,6 +291,9 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if g.outage != nil && g.outage.intercept(w, request, encoded) {
+		return
+	}
 	message, finishReason, call, err := g.next(request)
 	if err != nil {
 		var scripted *scriptedModelFailure

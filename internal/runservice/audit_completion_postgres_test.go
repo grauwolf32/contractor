@@ -237,7 +237,7 @@ func TestAuditCompletionPostgresAtomicCreationRestartAndAllocation(t *testing.T)
 	if _, err := runArtifacts.Write(ctx, completion.Contract.ResultArtifact, artifacts.Payload{MediaType: "application/zip", Data: []byte("prior failed attempt output")}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.TransitionRun(ctx, "run", runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "test_failure"}); err != nil {
+	if _, err := runs.TransitionRun(ctx, "run", runstore.RunPending, runstore.RunFailed, runstore.Reason{Code: "test_failure"}); err != nil {
 		t.Fatal(err)
 	}
 	cursor, err := runs.GetRunEventCursor(ctx, "run")

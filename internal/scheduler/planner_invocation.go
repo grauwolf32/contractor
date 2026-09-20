@@ -19,6 +19,10 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 			Code: "planner_execution_config_unavailable", Message: "Planner execution configuration is unavailable", Retryable: false,
 		})
 	}
+	if modelAccess != nil && s.options.GatewayRecovery != nil {
+		route := plannerModelRoute(run.OwnerID, workflow.stage)
+		modelAccess.Recovery = s.options.GatewayRecovery.Planner(run.RunID, execution.StageExecutionID, *route)
+	}
 	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
 	plannerTelemetry := s.newPlannerTelemetry(
 		ctx, run, execution, reservations, plannerRef, modelAccess,

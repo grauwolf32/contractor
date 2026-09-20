@@ -309,7 +309,7 @@ LIMIT $2`, credentialID, limit)
 	runRows, err := r.db.Query(ctx, `
 SELECT run_id
 FROM workflow_runs
-WHERE state IN ('initializing', 'running', 'cancelling')
+WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
   AND (
       (runtime_config_snapshot->'runtimeCredentialIds') ? $1
       OR project_http_target_snapshot#>>'{credential,credentialId}' = $1

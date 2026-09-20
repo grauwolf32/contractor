@@ -441,9 +441,9 @@ func printRunStatus(printer *Printer, status *publicapi.RunStatus) error {
 }
 
 func validRunState(value string, nonTerminal bool) bool {
-	for _, state := range []string{"initializing", "running", "cancelling", "succeeded", "failed", "cancelled"} {
+	for _, state := range []string{"initializing", "pending", "running", "waiting", "cancelling", "succeeded", "failed", "cancelled"} {
 		if state == value {
-			return !nonTerminal || state == "initializing" || state == "running" || state == "cancelling"
+			return !nonTerminal || state == "initializing" || state == "pending" || state == "running" || state == "waiting" || state == "cancelling"
 		}
 	}
 	return false

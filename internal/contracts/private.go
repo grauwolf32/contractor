@@ -541,6 +541,7 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
+	LLMRecovery           bool                      `json:"llmRecovery,omitempty"`
 	LLMGatewayURL         string                    `json:"llmGatewayUrl,omitempty"`
 	LLMGatewayToken       *SecretString             `json:"llmGatewayToken,omitempty"`
 	ArtifactAPIURL        string                    `json:"artifactApiUrl"`

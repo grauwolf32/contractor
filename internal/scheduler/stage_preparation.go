@@ -137,11 +137,12 @@ func (s *Scheduler) prepareAndPlan(ctx context.Context, run runstore.WorkflowRun
 	if err != nil || prepared == nil {
 		return err
 	}
-	return s.invokeStagePlanner(ctx, run, workflow, execution, deadline, prepared)
+	return s.invokeStagePlanner(ctx, run, workflow, execution, prepared.deadline, prepared)
 }
 
 // A nil prepared Stage means a durable abort/defer path has already handled it.
 type preparedStageWorkers struct {
+	deadline     time.Time
 	reservations []controlplane.Reservation
 	handles      map[string]contracts.WorkerHandle
 }
@@ -149,7 +150,7 @@ type preparedStageWorkers struct {
 func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, stageDeadline time.Time) (*preparedStageWorkers, error) {
 	reservations, fresh, err := s.liveOrNewReservations(ctx, run, workflow, execution)
 	if errors.Is(err, controlplane.ErrInsufficientCapacity) {
-		if !s.now().Before(stageDeadline) {
+		if execution.AdmittedAt != nil && !s.now().Before(stageDeadline) {
 			return nil, s.beginAbort(ctx, run, workflow, execution, nil, stageDeadlineFailure())
 		}
 		return nil, ErrDeferred
@@ -169,11 +170,29 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	if err != nil {
 		return nil, err
 	}
-	if !s.now().Before(stageDeadline) {
+	if execution.AdmittedAt != nil && !s.now().Before(stageDeadline) {
 		return nil, s.beginAbort(ctx, run, workflow, execution, reservations, stageDeadlineFailure())
 	}
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return nil, cause
+	}
+	if fresh {
+		allowed, gateErr := s.admitModelRoutes(ctx, run, workflow.stage, reservations)
+		if gateErr != nil || !allowed {
+			s.releaseUnprepared(reservations)
+			if gateErr != nil {
+				return nil, gateErr
+			}
+			return nil, ErrDeferred
+		}
+	}
+	if execution.AdmittedAt == nil {
+		execution, err = s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
+		if err != nil {
+			s.releaseUnprepared(reservations)
+			return nil, err
+		}
+		stageDeadline = s.stageDeadline(execution)
 	}
 	if fresh {
 		if err := s.recordReservations(ctx, execution.StageExecutionID, reservations); err != nil {
@@ -181,6 +200,12 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 			return nil, s.beginAbort(ctx, run, workflow, execution, nil, planner.Failure{
 				Code: "allocation_record_failed", Message: "Stage allocation provenance could not be recorded", Retryable: true,
 			})
+		}
+	}
+
+	if fresh {
+		if err := s.bindModelRoutes(ctx, run, reservations); err != nil {
+			return nil, s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{Code: "model_route_binding_failed", Message: "Model recovery route could not be bound", Retryable: true})
 		}
 	}
 
@@ -201,15 +226,18 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return nil, cause
 	}
-	if !s.now().Before(stageDeadline) {
+	if execution.AdmittedAt != nil && !s.now().Before(stageDeadline) {
 		return nil, s.beginAbort(ctx, run, workflow, execution, reservations, stageDeadlineFailure())
 	}
 
-	return &preparedStageWorkers{reservations: reservations, handles: handles}, nil
+	return &preparedStageWorkers{reservations: reservations, handles: handles, deadline: stageDeadline}, nil
 }
 
 func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
-	return execution.CreatedAt.Add(s.options.PlannerTimeout)
+	if execution.AdmittedAt != nil {
+		return execution.AdmittedAt.Add(s.options.PlannerTimeout)
+	}
+	return s.now().Add(s.options.PlannerTimeout)
 }
 
 func stageDeadlineFailure() planner.Failure {

@@ -316,6 +316,12 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: run-admission-gateway-recovery
+    exit_task: V65-003
+    outcome: >-
+      Runs wait for resource admission and recover from transient model outages
+      within their existing invocations, with shared route coordination,
+      cancellation, manual retry and visible pending/waiting states.
   - id: audit-check-prioritization
     exit_task: V64-011
     outcome: >-
@@ -2962,3 +2968,6 @@ tasks:
   - {id: V64-009, file: v64-009-audit-priority-ui.yml}
   - {id: V64-010, file: v64-010-audit-priority-profile.yml}
   - {id: V64-011, file: v64-011-audit-priority-release.yml}
+  - {id: V65-001, file: v65-001-gateway-error-classification.yml}
+  - {id: V65-002, file: v65-002-run-admission-and-gateway-recovery.yml}
+  - {id: V65-003, file: v65-003-run-recovery-ui-and-process-gate.yml}

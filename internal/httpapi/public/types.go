@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -211,6 +212,7 @@ type FindingProposalManagement interface {
 }
 
 type Dependencies struct {
+	GatewayRecovery         *gatewayrecovery.Service
 	Evals                   EvalManagement
 	EvalNotifier            interface{ Wake() }
 	GitImports              GitImportService
@@ -470,6 +472,7 @@ type artifactLineagePageResponse struct {
 }
 
 type runStatusResponse struct {
+	Recovery               *gatewayrecovery.Status           `json:"recovery,omitempty"`
 	RunID                  string                            `json:"runId"`
 	ProjectID              *string                           `json:"projectId,omitempty"`
 	Workflow               string                            `json:"workflow"`

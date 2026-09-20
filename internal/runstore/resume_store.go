@@ -113,7 +113,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		}
 		// A new immutable attempt uses the exact failed attempt's context and effective
 		// configuration. No Planner session, allocation or terminal fact is reused.
-		_, err = tx.Exec(ctx, `UPDATE workflow_runs SET state='running',state_reason_code='user_resumed',
+		_, err = tx.Exec(ctx, `UPDATE workflow_runs SET state='pending',state_reason_code='user_resumed',
     state_reason_message='',finished_at=NULL,updated_at=clock_timestamp()
     WHERE run_id=$1`, runID)
 		if err != nil {

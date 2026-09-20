@@ -108,7 +108,7 @@ alternative path is `aborting`: Scheduler stores StageTermination, fences
 writes, performs a bounded best-effort drain and reaches `cancelled` or
 `interrupted` without waiting for terminal A2A Task state.
 
-WorkflowRun separately owns `initializing`, `running`, `cancelling` and terminal
+WorkflowRun separately owns `initializing`, `pending`, `running`, `waiting`, `cancelling` and terminal
 `succeeded`/`failed`/`cancelled` states. Cancel and success serialize on the
 durable Run row; the first committed transition wins.
 

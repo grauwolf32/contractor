@@ -27,7 +27,7 @@ import { formatRunDuration } from "./runs/triage";
 
 type ActiveRunState = Extract<
   WorkflowRunState,
-  "initializing" | "running" | "cancelling"
+  "initializing" | "pending" | "running" | "waiting" | "cancelling"
 >;
 
 function compactRunId(runId: string): string {
@@ -420,7 +420,9 @@ export function HomeRoute() {
   const initializing = useActiveRun("initializing");
   const running = useActiveRun("running");
   const cancelling = useActiveRun("cancelling");
-  const activeQueries = [initializing, running, cancelling];
+  const pending = useActiveRun("pending");
+  const waiting = useActiveRun("waiting");
+  const activeQueries = [initializing, pending, running, waiting, cancelling];
   const workflows = useWorkflowInventory();
   const operations = useOperations(operationsAuthorized);
   const activePages = activeQueries.map((query) => query.data);
@@ -509,7 +511,7 @@ export function HomeRoute() {
         <Link className="action-metric-card" to="/runs">
           <span>Active Runs</span>
           <strong>{activeCount}</strong>
-          <small>initializing, running, cancelling</small>
+          <small>initializing, pending, running, waiting, cancelling</small>
         </Link>
         <Link
           className={`action-metric-card ${recent.data?.items.some((run) => run.state === "failed" && recent.dataUpdatedAt - Date.parse(run.finishedAt ?? run.updatedAt) < 86400000) ? "metric-attention" : ""}`}

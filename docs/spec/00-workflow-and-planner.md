@@ -959,11 +959,13 @@ outcome.
 WorkflowRun has an explicit durable lifecycle:
 
 ```text
-initializing -> running -> succeeded
-      |             \----> failed
-      \------------------> failed
+initializing -> pending -> running -> succeeded
+                           |   ^
+                           v   |
+                          waiting
 
-initializing / running -> cancelling -> cancelled
+initializing / pending / running / waiting -> failed
+initializing / pending / running / waiting -> cancelling -> cancelled
 ```
 
 ```python
@@ -987,7 +989,9 @@ same immutable WorkflowRunCancellation recorded by the winning cancel request.
   normalized executionConfig, pinned default/Run-selected Runtime-label
   configurations, immutable metadata labels and exact input and Agent Skill
   forks are being committed; no Stage may start;
-- `running`: Workflow Scheduler may select and create StageExecutions;
+- `pending`: initialization or manual continuation has committed, but resource admission has not occurred;
+- `running`: the admitted Stage may execute Planner, model and tool work;
+- `waiting`: the current invocation waits for recovery of its model route;
 - `cancelling`: cancellation intent is durable, no new StageExecution or
   Workflow-output mapping is allowed, and active executions are stopped through
   their bounded `aborting` path unless they already entered `finalizing`;
@@ -995,13 +999,13 @@ same immutable WorkflowRunCancellation recorded by the winning cancel request.
 - `failed` is terminal unless the owner explicitly continues an eligible Run
   through `POST /v1/runs/{runId}/resume` under
   [04](04-execution-lifecycle-and-metrics.md#manual-continuation-of-a-failed-run).
-  That transaction changes the Run to `running` and creates a new StageExecution
+  That transaction changes the Run to `pending` and creates a new StageExecution
   after confirmed allocation release. It preserves completed StageExecutions,
   successful results and exact input/configuration pins; it does not revive a
   terminal StageExecution or replay its Planner session.
 
 An initialization error moves the Run to `failed` with a stable error and no
-StageExecution. Cancellation is accepted from `initializing` or `running` by
+StageExecution. Cancellation is accepted from `initializing`, `pending`, `running` or `waiting` by
 compare-and-set. Repeating cancellation is idempotent; cancellation of any
 terminal Run returns that existing terminal state without mutation.
 

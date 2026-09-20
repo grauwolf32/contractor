@@ -65,6 +65,16 @@ func (m *openAICompatibleModel) GenerateContent(
 		}
 		httpRequest.Header.Set("Content-Type", "application/json")
 		httpRequest.Header.Set(requestid.Header, requestid.Ensure(ctx))
+		if m.settings.Recovery != nil {
+			body, err := m.settings.Recovery.Do(httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			result, err := decodeChatResponse(body)
+			yield(result, err)
+			return
+		}
 		response, err := m.settings.HTTPClient.Do(httpRequest)
 		if err != nil {
 			yield(nil, fmt.Errorf("Planner Gateway request failed"))

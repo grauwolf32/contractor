@@ -1180,7 +1180,7 @@ func (f *fakeRunStore) RequestRunCancellation(
 	if !ok {
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
 	}
-	if run.State == runstore.RunInitializing || run.State == runstore.RunRunning {
+	if run.State == runstore.RunInitializing || run.State == runstore.RunPending || run.State == runstore.RunRunning || run.State == runstore.RunWaiting {
 		version := contracts.APIVersion
 		run.State = runstore.RunCancelling
 		run.StateReason = runstore.Reason{Code: runstore.CancellationUserRequested}

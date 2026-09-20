@@ -59,6 +59,7 @@ from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactor
 
 if TYPE_CHECKING:
     from contractor_runtime.agent_skills.runtime import PreparedAgentSkills
+    from contractor_runtime.llm.recovery import GatewayRecoveryClient
     from contractor_runtime.projectfs import DirectWorkspaceSession
     from contractor_runtime.projectfs.storage import (
         WorkspaceChanges,
@@ -102,6 +103,7 @@ class WorkerBuildContext:
     state: Any
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
+    gateway_recovery: GatewayRecoveryClient | None = field(default=None, repr=False)
     execution: ToolExecutionConfig | None = None
     template_ref: AgentTemplateRef | None = None
     summarizer: WorkerSummarizerConfig | None = None

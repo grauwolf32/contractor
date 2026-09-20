@@ -115,6 +115,8 @@ func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
 		candidate := runstore.WorkflowRunState(values[0])
 		if candidate != runstore.RunInitializing &&
 			candidate != runstore.RunRunning &&
+			candidate != runstore.RunPending &&
+			candidate != runstore.RunWaiting &&
 			candidate != runstore.RunCancelling {
 			h.handleError(w, fmt.Errorf("%w: Queue state must be non-terminal", errInvalidRequest))
 			return

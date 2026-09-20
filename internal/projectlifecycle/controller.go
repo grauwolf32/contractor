@@ -293,7 +293,7 @@ func (c *Controller) cancelOneRun(
 SELECT run_id
 FROM workflow_runs
 WHERE project_id = $1 AND owner_id = $2
-  AND state IN ('initializing', 'running')
+  AND state IN ('initializing', 'pending', 'running', 'waiting')
 ORDER BY created_at, run_id
 LIMIT 1`, claim.ProjectID, claim.OwnerID).Scan(&runID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -343,7 +343,7 @@ func (c *Controller) waitForDrain(
 SELECT EXISTS (
     SELECT 1 FROM workflow_runs
     WHERE project_id = $1
-      AND state IN ('initializing', 'running', 'cancelling')
+      AND state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
 ) OR EXISTS (
     SELECT 1
     FROM workflow_runs AS run

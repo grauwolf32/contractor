@@ -436,6 +436,7 @@ def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
 
 
 class RuntimeSettings(WireModel):
+    llm_recovery: bool = Field(default=False, strict=True, exclude_if=lambda value: not value)
     llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     llm_gateway_token: SecretStr | None = None
     artifact_api_url: str

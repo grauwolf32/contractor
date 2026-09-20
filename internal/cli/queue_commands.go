@@ -41,7 +41,7 @@ func (c *CLI) listQueue(ctx context.Context, client *publicclient.Client, printe
 	var state, membership, cursor string
 	var limit int
 	flags, err := parseFlags("contractor queue list", c.stderr, args, func(flags *flag.FlagSet) {
-		flags.StringVar(&state, "state", "", "filter by initializing, running, or cancelling")
+		flags.StringVar(&state, "state", "", "filter by initializing, pending, running, waiting, or cancelling")
 		flags.StringVar(&membership, "membership", "", "filter by standalone, project, or evaluation")
 		flags.StringVar(&cursor, "cursor", "", "pagination cursor")
 		flags.IntVar(&limit, "limit", 50, "maximum number of queue items")

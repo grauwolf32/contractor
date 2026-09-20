@@ -136,6 +136,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 	resolved runtimeconfig.ResolvedRuntimeConfig,
 ) (contracts.RuntimeSettings, error) {
 	result := contracts.RuntimeSettings{
+		LLMRecovery:           s.options.GatewayRecovery != nil,
 		LLMGatewayURL:         resolved.LLMGateway.URL,
 		ArtifactAPIURL:        s.options.RuntimeSettings.ArtifactAPIURL,
 		RequestTimeoutSeconds: s.options.RuntimeSettings.RequestTimeoutSeconds,

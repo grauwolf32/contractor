@@ -240,6 +240,54 @@ beforeEach(() => {
 });
 
 describe("Run routes", () => {
+  it("shows a waiting invocation and retries the model without a new stage", async () => {
+    let posts = 0;
+    let current = runFixture({
+      state: "waiting",
+      recovery: {
+        code: "model_unavailable",
+        since: "2026-09-20T20:00:00Z",
+        automaticUntil: "2026-09-20T20:05:00Z",
+        requiresRetry: true,
+      },
+    });
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (
+        path === "/v1/runs/run-router/retry-gateway" &&
+        request.method === "POST"
+      ) {
+        posts++;
+        expect(await request.json()).toEqual({});
+        current = runFixture();
+        return apiResponse({ runId: "run-router" }, { status: 202 });
+      }
+      if (path === "/v1/runs/run-router") return apiResponse(current);
+      throw new Error(`Unexpected request: ${request.method} ${path}`);
+    });
+    renderRunApplication(api, "/runs/run-router");
+    const retry = await screen.findByRole("button", {
+      name: "Retry model connection",
+    });
+    expect(
+      screen.getByText("The model was unloaded or is unavailable."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue from failed stage" }),
+    ).not.toBeInTheDocument();
+    await userEvent.setup().click(retry);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Retry model connection" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(posts).toBe(1);
+    expect(current.attempts).toHaveLength(1);
+  });
+
   it("continues a failed stage only after confirmation and refreshes the authoritative Run", async () => {
     let posts = 0;
     let requestBody: unknown;

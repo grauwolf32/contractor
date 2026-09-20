@@ -38,7 +38,7 @@ WITH page AS (
       ON project.project_id = run.project_id
      AND project.owner_id = run.owner_id
     WHERE run.owner_id = $1
-      AND run.state IN ('initializing', 'running', 'cancelling')
+      AND run.state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
       AND ($2::text IS NULL OR run.state = $2)
       AND (
           $3::text IS NULL
@@ -124,6 +124,8 @@ func validateRunQueueParams(params ListRunQueueParams) error {
 	if params.State != nil &&
 		*params.State != RunInitializing &&
 		*params.State != RunRunning &&
+		*params.State != RunPending &&
+		*params.State != RunWaiting &&
 		*params.State != RunCancelling {
 		return invalidf("WorkflowRun queue state must be non-terminal")
 	}

@@ -146,7 +146,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			}
 			if len(normalized.Skills) == 0 {
 				run, err = runs.TransitionRun(
-					ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+					ctx, runID, runstore.RunInitializing, runstore.RunPending,
 					runstore.Reason{Code: "initialized"},
 				)
 				if err != nil {

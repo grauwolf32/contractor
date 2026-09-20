@@ -8,6 +8,8 @@ func (h *handler) registerRunRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/runs", h.listRuns)
 	mux.HandleFunc("POST /v1/runs/{runID}/cancel", h.cancelRun)
 	mux.HandleFunc("POST /v1/runs/{runID}/resume", h.resumeRun)
+	mux.HandleFunc("POST /v1/runs/{runID}/retry-gateway", h.retryRunGateway)
+	mux.HandleFunc("/v1/runs/{runID}/retry-gateway", h.methodNotAllowed)
 	mux.HandleFunc("DELETE /v1/runs/{runID}", h.deleteRun)
 	mux.HandleFunc("GET /v1/runs/{runID}", h.getRun)
 	mux.HandleFunc("GET /v1/runs/{runID}/repeat-draft", h.getRunRepeatDraft)

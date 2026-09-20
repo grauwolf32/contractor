@@ -36,7 +36,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 	var created runstore.StageExecution
 	err := persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
-		if err := lockRunState(ctx, tx, params.RunID, runstore.RunRunning); err != nil {
+		if err := lockRunState(ctx, tx, params.RunID, runstore.RunPending, runstore.RunRunning); err != nil {
 			return err
 		}
 		if err := store.LockRunQueueAdmission(ctx, params.RunID); err != nil {
@@ -139,7 +139,7 @@ func lockRunForAborting(ctx context.Context, tx pgx.Tx, runID string) error {
 	if err != nil {
 		return fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
 	}
-	if actual != runstore.RunRunning && actual != runstore.RunCancelling {
+	if actual != runstore.RunRunning && actual != runstore.RunPending && actual != runstore.RunWaiting && actual != runstore.RunCancelling {
 		return &runstore.StateConflictError{
 			Resource: "WorkflowRun", ID: runID,
 			Expected: string(runstore.RunRunning) + " or " + string(runstore.RunCancelling),
@@ -157,7 +157,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		store := runstore.NewPostgresStore(tx)
-		if err := lockRunState(ctx, tx, value.RunID, runstore.RunRunning); err != nil {
+		if err := lockRunState(ctx, tx, value.RunID, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting); err != nil {
 			return err
 		}
 		if err := lockStageForRun(ctx, tx, value.StageExecutionID, value.RunID); err != nil {
@@ -227,7 +227,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		return err
 	}
 	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRunState(ctx, tx, value.RunID, runstore.RunRunning); err != nil {
+		if err := lockRunState(ctx, tx, value.RunID, runstore.RunPending, runstore.RunRunning, runstore.RunWaiting); err != nil {
 			return err
 		}
 		if err := lockStageForRun(ctx, tx, value.StageExecutionID, value.RunID); err != nil {
@@ -242,6 +242,16 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		if err := store.CompleteStageTermination(ctx, value.StageExecutionID); err != nil {
 			return err
 		}
+		// A terminated invocation cannot continue recovering its model. Drop
+		// its waits before admitting any configured follow-up Stage.
+		if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, value.RunID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE workflow_runs SET state='running',updated_at=clock_timestamp()
+WHERE run_id=$1 AND state='waiting'`, value.RunID); err != nil {
+			return err
+		}
+
 		if err := commitNextStage(ctx, tx, store, value.Progression); err != nil {
 			return err
 		}
@@ -325,7 +335,7 @@ func lockRunState(
 	ctx context.Context,
 	tx pgx.Tx,
 	runID string,
-	expected runstore.WorkflowRunState,
+	expected ...runstore.WorkflowRunState,
 ) error {
 	var actual runstore.WorkflowRunState
 	err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).Scan(&actual)
@@ -335,12 +345,12 @@ func lockRunState(
 	if err != nil {
 		return fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
 	}
-	if actual != expected {
-		return &runstore.StateConflictError{
-			Resource: "WorkflowRun", ID: runID, Expected: string(expected),
+	for _, state := range expected {
+		if actual == state {
+			return nil
 		}
 	}
-	return nil
+	return &runstore.StateConflictError{Resource: "WorkflowRun", ID: runID, Expected: fmt.Sprint(expected)}
 }
 
 func lockStageForRun(ctx context.Context, tx pgx.Tx, stageExecutionID, runID string) error {
@@ -537,10 +547,14 @@ func commitTerminalRun(
 			return err
 		}
 	}
-	_, err := store.TransitionRun(
+	current, err := store.GetRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	_, err = store.TransitionRun(
 		ctx,
 		runID,
-		runstore.RunRunning,
+		current.State,
 		progression.TerminalRunState,
 		progression.RunReason,
 	)

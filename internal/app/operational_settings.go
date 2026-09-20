@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // OperationalSettings contains resolved process budgets, independent of transport
 // request timeouts and persisted Workflow/Allocation deadlines.
 type OperationalSettings struct {
+	LLMRecovery          gatewayrecovery.Policy
 	Scheduler            SchedulerSettings
 	RuntimeLifecycle     RuntimeLifecycleSettings
 	ProjectLifecycle     ProjectLifecycleSettings
@@ -65,6 +67,12 @@ type CredentialManagementSettings struct {
 }
 
 type operationalSpec struct {
+	LLMRecovery struct {
+		RequestTimeout  *string `yaml:"requestTimeout"`
+		InitialDelay    *string `yaml:"initialDelay"`
+		MaxDelay        *string `yaml:"maxDelay"`
+		AutomaticWindow *string `yaml:"automaticWindow"`
+	} `yaml:"llmRecovery"`
 	Scheduler struct {
 		OperationTimeout    *string `yaml:"operationTimeout"`
 		FinalizationTimeout *string `yaml:"finalizationTimeout"`
@@ -102,6 +110,7 @@ type operationalSpec struct {
 
 func defaultOperationalSettings() OperationalSettings {
 	return OperationalSettings{
+		LLMRecovery: gatewayrecovery.DefaultPolicy(),
 		Scheduler: SchedulerSettings{
 			OperationTimeout:    30 * time.Second,
 			FinalizationTimeout: 10 * time.Second,
@@ -147,6 +156,10 @@ type operationalDuration struct {
 
 func (s *OperationalSettings) durations(spec operationalSpec) []operationalDuration {
 	return []operationalDuration{
+		{"llmRecovery.requestTimeout", "llm-recovery-request-timeout", &s.LLMRecovery.RequestTimeout, spec.LLMRecovery.RequestTimeout},
+		{"llmRecovery.initialDelay", "llm-recovery-initial-delay", &s.LLMRecovery.InitialDelay, spec.LLMRecovery.InitialDelay},
+		{"llmRecovery.maxDelay", "llm-recovery-max-delay", &s.LLMRecovery.MaxDelay, spec.LLMRecovery.MaxDelay},
+		{"llmRecovery.automaticWindow", "llm-recovery-automatic-window", &s.LLMRecovery.AutomaticWindow, spec.LLMRecovery.AutomaticWindow},
 		{"scheduler.operationTimeout", "scheduler-operation-timeout", &s.Scheduler.OperationTimeout, spec.Scheduler.OperationTimeout},
 		{"scheduler.finalizationTimeout", "scheduler-finalization-timeout", &s.Scheduler.FinalizationTimeout, spec.Scheduler.FinalizationTimeout},
 		{"scheduler.abortTimeout", "scheduler-abort-timeout", &s.Scheduler.AbortTimeout, spec.Scheduler.AbortTimeout},
@@ -209,6 +222,9 @@ func (s *OperationalSettings) registerFlags(flags *flag.FlagSet) {
 }
 
 func (s *OperationalSettings) validate() error {
+	if err := s.LLMRecovery.Validate(); err != nil {
+		return err
+	}
 	for _, setting := range s.durations(operationalSpec{}) {
 		if *setting.target <= 0 {
 			return fmt.Errorf("spec.%s must be positive", setting.path)
