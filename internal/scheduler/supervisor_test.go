@@ -516,7 +516,7 @@ func (laneNoopArtifacts) Resolve(context.Context, string, contracts.ArtifactRef)
 
 type laneNoopAllocator struct{}
 
-func (laneNoopAllocator) ReserveAll(controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
+func (laneNoopAllocator) ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
 	return nil, errors.New("unexpected allocation")
 }
 func (laneNoopAllocator) GetGrant(string) (controlplane.AllocationGrant, error) {

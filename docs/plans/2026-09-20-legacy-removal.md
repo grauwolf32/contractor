@@ -1,7 +1,8 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C03 implemented and verified.
-C04–C07 and D01–D07 remain planned.
+Status: C01–C04 implemented, verified and integrated into local `main`.
+C01–C03 were integrated as `1d661196`; C04 followed on
+`refactor/scheduler-legacy-removal`. C05–C07 and D01–D07 remain planned.
 Reviewed working tree on 2026-09-20, HEAD
 `e1ea6209713d1c8d637d1106ce92a4960a4a2c58`, including existing uncommitted
 documentation. The user requested finding code retained only for backward
@@ -128,34 +129,35 @@ Preserved the hash anchors used by evaluation workspace pages and
 `/evals/legacy`: these render content. `/catalog` still opens its current
 Workflows index.
 
-### C04 — Scheduler interfaces and fallback execution settings
+### C04 — Scheduler interfaces and fallback execution settings (implemented)
 
-Production composition creates `PlacementAllocator` in
-[composition_control.go](../../internal/app/composition_control.go). Its
-[ReserveAll](../../internal/controlplane/placement.go) delegates to
-`ReserveAllContext(context.Background(), ...)` solely to retain the old shape.
-[allocation_reservations.go](../../internal/scheduler/allocation_reservations.go)
-detects a separate optional `contextAllocator`, falling back to `ReserveAll`.
-Make the contextual method part of the Scheduler's required interface and
-update all implementations/fakes. Preserve the real InMemoryRegistry and its
-reservation behavior; this does not justify deleting the registry.
+Scheduler's [Allocator](../../internal/scheduler/types.go) now requires
+`ReserveAllContext`. Removed the optional interface/type assertion and the
+context-free `PlacementAllocator.ReserveAll` wrapper. Production composition
+already uses `PlacementAllocator`; the independent `InMemoryRegistry.ReserveAll`
+operation remains in use by the Registry and its consumers.
 
-The same old implementation support appears in:
+Removed the following fallback behavior:
 
-- `recordReservations`: invalid/missing collection policy becomes `disabled`;
-- `verifyReservations`: separate handling for missing resolved RuntimeConfig;
-- [stage_preparation.go](../../internal/scheduler/stage_preparation.go),
-  `stageDeadline`: missing `CreatedAt` becomes observation time;
-- [execution_preparation.go](../../internal/scheduler/execution_preparation.go):
-  the test-used `workerExecutionSettings` wrapper, optional reservation sets and
-  `fallbackResolvedWorkerConfig`, which synthesizes configuration without a
-  placement result. The production caller supplies reservations.
+- [allocation_reservations.go](../../internal/scheduler/allocation_reservations.go)
+  rejects missing resolved RuntimeConfig, identity/label revision and invalid
+  collection policy before persisting allocations or preparing Workers. Policy
+  is no longer replaced with `disabled`. Recovery requires complete matching
+  durable provenance.
+- [workflow.go](../../internal/scheduler/workflow.go) rejects missing persisted
+  Stage `CreatedAt` as `scheduler_state_invalid`. The deadline always derives
+  from the immutable timestamp; observing a Stage cannot start a new budget.
+- [execution_preparation.go](../../internal/scheduler/execution_preparation.go)
+  requires one complete reservation set and rejects duplicate/missing Workers
+  or resolved configuration. Removed the test-only wrapper and
+  `fallbackResolvedWorkerConfig`; Scheduler cannot manufacture provenance.
 
-Move the fakes to complete current values, then replace missing required
-execution inputs with explicit failures. Do not synthesize placement provenance
-or reset a Stage's deadline. Preserve model-free `tool@1` Workers: their absent
-LLM route is valid and is not evidence of missing RuntimeConfig. Coordinate this
-change with V61 toolset pinning, which touches allocation/configuration paths.
+Updated in-memory allocators and stores to provide contextual reservations,
+complete provenance and creation times, including manual Resume/retry fixtures.
+Test placement configuration uses the real `runtimeconfig.ResolveRuntimeConfig`
+resolver with explicit fixture inputs. Model-free `tool@1` Workers remain valid
+with no LLM route. Updated specification 05. V61 toolset pinning is separate
+work on overlapping allocation/configuration paths and is not merged here.
 
 ### C05 — model-backed Planner constructors
 
@@ -291,8 +293,8 @@ shrinking that contract is separate from removing an internal no-op.
 
 ## Execution order and acceptance
 
-C01/C02 are implemented in the first increment and C03 in the second;
-later items remain planned.
+C01/C02 are implemented in the first increment, C03 in the second and C04 in
+the third; later items remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -395,4 +397,28 @@ configured for the mocked cross-origin API. All eight initially failing
 scenarios passed on recheck; the three Operations scenarios passed initially.
 The real Go/Python browser stack was not run in this increment.
 
-Next increment: C04, Scheduler compatibility with older allocator/store shapes.
+## Third increment — C04 results
+
+Implemented in the isolated `refactor/scheduler-legacy-removal` worktree based
+on local `main` commit `1d661196`. Existing unrelated working-tree changes on
+`main` were preserved.
+
+Verification completed on 2026-09-20:
+
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to a disposable PostgreSQL 17
+  container, `go test -race -count=1 -timeout=8m ./internal/scheduler ./internal/controlplane ./internal/planner/...`
+  passed. Database tests were enabled, including placement/provenance,
+  model-free Workers, credential connection use, scheduler claims/cancellation,
+  recovery, result publication and Planner sessions.
+- Added regression coverage for missing Stage creation times, incomplete live
+  and durable allocation provenance, missing/duplicate Worker reservations and
+  propagation of cancellation through the required contextual interface.
+- `go test -run '^$' ./...` and
+  `go test -tags=e2e -run '^$' ./tests/e2e ./tests/ui-stack ./tests/eval/project_workflows`
+  passed as compile checks. Full process/browser/live-model suites were not run
+  for this increment.
+- Go formatting and `git diff --check` passed. The initial unit run identified
+  one manual-Resume fixture family without creation times; it was updated and
+  the complete database-backed race run passed afterward.
+
+Next increment: C05, obsolete model-backed Planner constructors.

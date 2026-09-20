@@ -18,40 +18,32 @@ import (
 
 // Allocation configuration is materialized only at preparation time. These
 // helpers do not acquire claims, persist snapshots or own allocation release.
-func (s *Scheduler) workerExecutionSettings(
-	ctx context.Context,
-	stage workflowconfig.ResolvedStage,
-	reservationSets ...[]controlplane.Reservation,
-) (map[string]contracts.WorkerExecutionSettings, error) {
-	return s.workerExecutionSettingsForRun(ctx, runstore.WorkflowRun{}, stage, reservationSets...)
-}
-
 func (s *Scheduler) workerExecutionSettingsForRun(
 	ctx context.Context,
 	run runstore.WorkflowRun,
 	stage workflowconfig.ResolvedStage,
-	reservationSets ...[]controlplane.Reservation,
+	reservationSet []controlplane.Reservation,
 ) (map[string]contracts.WorkerExecutionSettings, error) {
-	reservations := make(map[string]controlplane.Reservation)
-	if len(reservationSets) > 1 {
-		return nil, fmt.Errorf("Worker execution settings accept at most one reservation set")
+	if len(reservationSet) != len(stage.ExecutionConfig.Agents) {
+		return nil, fmt.Errorf("reservation set differs from Worker execution settings")
 	}
-	if len(reservationSets) == 1 {
-		for _, reservation := range reservationSets[0] {
-			reservations[reservation.Grant.LogicalAgentName] = reservation
+	reservations := make(map[string]controlplane.Reservation, len(reservationSet))
+	for _, reservation := range reservationSet {
+		name := reservation.Grant.LogicalAgentName
+		if _, duplicate := reservations[name]; duplicate {
+			return nil, fmt.Errorf("duplicate Worker reservation %q", name)
 		}
+		reservations[name] = reservation
 	}
 	result := make(map[string]contracts.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
-	for logicalName, selection := range stage.ExecutionConfig.Agents {
-		var resolved runtimeconfig.ResolvedRuntimeConfig
-		var err error
-		modelFree := stage.Agents[logicalName].Template.IsToolWorker()
-		if reservation, ok := reservations[logicalName]; ok && reservation.ResolvedRuntimeConfig != nil {
-			resolved = reservation.ResolvedRuntimeConfig.Clone()
-		} else {
-			resolved, err = fallbackResolvedWorkerConfig(selection, modelFree)
+	for logicalName := range stage.ExecutionConfig.Agents {
+		reservation, ok := reservations[logicalName]
+		if !ok || reservation.ResolvedRuntimeConfig == nil {
+			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
 		}
-		if err != nil || resolved.Validate() != nil || resolved.ModelFree != modelFree {
+		resolved := reservation.ResolvedRuntimeConfig.Clone()
+		modelFree := stage.Agents[logicalName].Template.IsToolWorker()
+		if resolved.Validate() != nil || resolved.ModelFree != modelFree {
 			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
 		}
 		runtimeSettings, err := s.materializeRuntimeSettings(ctx, resolved)
@@ -69,9 +61,6 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 			ModelPolicy: cloneModelPolicy(resolved.ModelPolicy), RuntimeSettings: runtimeSettings,
 			ResolvedRuntimeConfigProvenance: resolved.Provenance,
 		}
-	}
-	if len(reservations) != 0 && len(reservations) != len(result) {
-		return nil, fmt.Errorf("reservation set differs from Worker execution settings")
 	}
 	return result, nil
 }
@@ -140,45 +129,6 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 		return nil, errors.New("Project HTTP target settings are invalid")
 	}
 	return target, nil
-}
-
-func fallbackResolvedWorkerConfig(
-	selection workflowconfig.ResolvedConsumerExecutionConfig,
-	toolWorker ...bool,
-) (runtimeconfig.ResolvedRuntimeConfig, error) {
-	if len(toolWorker) > 1 {
-		return runtimeconfig.ResolvedRuntimeConfig{}, fmt.Errorf("Worker configuration accepts at most one runtime selection")
-	}
-	if len(toolWorker) == 1 && toolWorker[0] {
-		return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
-			ModelFree: true, ModelPolicy: selection.ModelPolicy,
-			Default: runtimeconfig.PinnedRuntimeConfig{Label: "default", BindingRevision: 1,
-				Config: runtimeconfig.Ref{Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion, Digest: runtimeconfig.BuiltInDigest}},
-		})
-	}
-	if selection.LLMGateway == nil {
-		return runtimeconfig.ResolvedRuntimeConfig{}, fmt.Errorf("Worker has no complete LLM Gateway route")
-	}
-	gatewayRef := selection.LLMGateway.Ref
-	provenance := contracts.ResolvedRuntimeConfigProvenance{
-		Default: contracts.RuntimeLabelBindingProvenance{
-			Label: "default", BindingRevision: 1,
-			Config: contracts.RuntimeConfigRef{
-				Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
-				Digest: runtimeconfig.BuiltInDigest,
-			},
-		},
-		RunLabels:        []contracts.RuntimeLabelBindingProvenance{},
-		AgentLabels:      []contracts.RuntimeLabelBindingProvenance{},
-		RuntimeAdapters:  []contracts.RuntimeAdapterRef{},
-		LLMGatewayConfig: &gatewayRef, LLMCredential: cloneCredentialRef(selection.Credential),
-		RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
-	}
-	return runtimeconfig.ResolvedRuntimeConfig{
-		ModelPolicy: cloneModelPolicy(selection.ModelPolicy), LLMGateway: *selection.LLMGateway,
-		LLMCredential:           cloneCredentialRef(selection.Credential),
-		RequiredRuntimeAdapters: []contracts.RuntimeAdapterRef{}, Provenance: provenance,
-	}, nil
 }
 
 func (s *Scheduler) materializeRuntimeSettings(

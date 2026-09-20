@@ -139,7 +139,7 @@ type ArtifactResolver interface {
 }
 
 type Allocator interface {
-	ReserveAll(controlplane.ReservationRequest) ([]controlplane.Reservation, error)
+	ReserveAllContext(context.Context, controlplane.ReservationRequest) ([]controlplane.Reservation, error)
 	GetGrant(string) (controlplane.AllocationGrant, error)
 	GetReservation(string) (controlplane.Reservation, error)
 	SetWriteFence(string) error
