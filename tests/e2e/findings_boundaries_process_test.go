@@ -128,7 +128,7 @@ func TestFindingsReaderBoundariesAcrossProcesses(t *testing.T) {
 }
 
 func findingsBoundaryReaderStage() domainGatewayStage {
-	return domainGatewayStage{name: "findings/boundaries", tools: []string{"list_findings", "read_artifact", "write_text_artifact"}, steps: []domainGatewayStep{
+	return domainGatewayStage{name: "findings/boundaries", tools: withMemoryTools([]string{"list_findings", "read_artifact", "write_text_artifact"}), steps: []domainGatewayStep{
 		toolGatewayStep("list_findings", fixedArguments(map[string]any{})),
 		toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "list_findings")
