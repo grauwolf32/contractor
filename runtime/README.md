@@ -262,9 +262,11 @@ Nuclei uses operator-provisioned templates in `NUCLEI_TEMPLATES_DIR` (default
 prove template availability: a missing directory returns
 `nuclei_templates_unavailable`. Calls select HTTP templates using IDs, tags and
 severity; automatic updates/downloads, redirects and external OAST callbacks
-are disabled. SQLMap uses batch mode and a fresh per-call session, accepts URL,
-parameter selection, POST data, cookie, level and risk, and performs injection
-detection. Naabu uses TCP CONNECT scanning on one hostname/IP and explicit ports.
+are disabled. SQLMap uses batch mode and a fresh per-call session for injection
+detection. It accepts either an exact `request_ref` for one prepared HTTP
+request or the existing URL, parameter selection, POST data and cookie
+arguments; both modes accept level and risk. Naabu uses TCP CONNECT scanning
+on one hostname/IP and explicit ports.
 See upstream CLI references for [nuclei](https://github.com/projectdiscovery/nuclei),
 [sqlmap](https://github.com/sqlmapproject/sqlmap/wiki/usage) and
 [naabu](https://github.com/projectdiscovery/naabu).
@@ -279,6 +281,28 @@ status, error code, exit code and truncation information. A completed process
 does not certify a clean target; partial results and SQLMap diagnostics require
 interpretation. Direct tool calls return observations; `tool@1` Workers persist
 them as reports. Neither path automatically publishes security findings.
+
+SQLMap request artifacts use UTF-8 JSON with media type `application/json` or
+`application/vnd.contractor.http-request+json`. The six required fields are
+`schemaVersion: 1`, `method`, `url`, `headers`, `body` and a nonempty explicit
+`testParameters` list. The artifact is limited to 256 KiB and its text body to
+64 KiB. Runtime validates the supported request subset before launch; the
+[request contract](../docs/spec/01-agent-template.md#sqlmap-http-request-artifacts)
+defines methods, header/parameter limits and rejected representations.
+`request_ref` must contain a revision and cannot be combined with nonempty
+`url`, `parameter`, `data` or `cookie`. No additional generic Artifact tool is
+needed to read the request through the allocation's private Artifact client.
+
+The request is materialized as private mode-`0600` `request.http` and passed to
+sqlmap with `-r`, its explicit method, UTF-8 encoding and `-p` parameter names.
+Request mode uses `--skip-waf` to disable automatic WAF probes that add random
+query parameters outside that selection.
+The request line retains the absolute HTTP(S) URL and explicit port. Input
+retrieval shares the scan deadline, and request/output files are removed after
+completion or cancellation. Request-mode observations suppress stdout/stderr
+with `diagnosticsRedacted: true`, retain the exact `requestArtifact` ref and
+expose only recognized `injectionTechniques`. `injectionOutcome` is `reported`
+when those labels appear and `unknown` otherwise; it is not a clean-scan flag.
 
 These fixed scanner processes run on the Runtime host and need network access.
 They do not use the offline Podman execution sandbox. The initial implementation
@@ -301,9 +325,12 @@ It publishes a bounded JSON report through the Artifact API and returns its
 exact revision in WorkerCompletion. Durable invocation receipts prevent an
 automatic rescan after cancellation, response loss or an unknown outcome.
 See the [Worker contract](../docs/spec/29-tool-workers.md) and the standalone
-[nuclei/naabu Workflow fixtures](../configs/scan/README.md).
+[nuclei/naabu/SQLMap Workflow fixtures](../configs/scan/README.md). The
+`sqlmap-request@1` fixture binds its required `request` artifact to
+`sqlmap-scan@1`, publishes a `report` and uses a 300-second Worker timeout
+without model configuration or credentials.
 
-Full HTTP request input and ffuf wordlists follow in the
+ffuf wordlists and combined workflows follow in the
 [ScanTools implementation plan](../docs/plans/2026-09-19-scan-tools.md).
 
 ## Tool descriptions

@@ -481,7 +481,8 @@ only tools whose version commands succeed are advertised. Missing scanners do
 not prevent Runtime registration, and an empty ScanToolset is omitted. All three
 operations are active checks for Audit compatibility. The initial CLI contract
 and provisioning requirements are documented in the
-[Runtime README](../../runtime/README.md#cli-scanners).
+[Runtime README](../../runtime/README.md#cli-scanners). Prepared SQLMap inputs
+follow the [HTTP request contract](#sqlmap-http-request-artifacts) below.
 
 Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
@@ -530,6 +531,92 @@ Toolset refs identify registered code; Workflow and AgentTemplate cannot name a
 Python module, callable, executable or shell command. Internal helpers used by
 a selected tool are not themselves model-visible tools and do not need to
 appear in the allowlist.
+
+### SQLMap HTTP request artifacts
+
+`scan_sqlmap(request_ref=...)` accepts one prepared HTTP request in an exact
+ArtifactRef containing `namespace`, `name` and `revision`. The allocation's
+Artifact client resolves the ref under its normal access and visibility rules;
+the caller cannot supply a local request-file path. The artifact media type
+must be `application/json` or `application/vnd.contractor.http-request+json`.
+An inaccessible artifact, wrong media type or invalid request fails before
+scanner launch with a fixed diagnostic that omits supplied request data.
+
+The UTF-8 JSON object has exactly these six required fields. Duplicate JSON
+keys, extra fields, nulls and implicit type conversions are rejected.
+
+| Field | Version 1 contract |
+| --- | --- |
+| `schemaVersion` | Integer `1`. |
+| `method` | One of `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, in uppercase. |
+| `url` | Absolute ASCII `http://` or `https://` URL, including any query string and explicit port. No embedded credentials, fragment, whitespace, backslash or malformed percent escape. |
+| `headers` | Array of objects with exactly `name` and `value` string fields; an empty array is allowed. Header names are unique case-insensitively. |
+| `body` | UTF-8 text string; use `""` for an empty body. It is not decoded from base64 or coerced from a JSON object. |
+| `testParameters` | Nonempty array of distinct explicit parameter names passed to sqlmap's `-p`. Each matches `[A-Za-z0-9_][A-Za-z0-9_.\[\]-]*`. Runtime does not choose parameters or infer a request from an OpenAPI document. |
+
+The request artifact is at most 256 KiB, the UTF-8 body at most 64 KiB and the
+URL at most 8192 bytes. At most 64 input headers are accepted, with names up to
+128 bytes and values up to 8192 bytes; serialized headers, including synthesized
+headers, are at most 32 KiB. At most 64 test parameters are accepted, each up
+to 128 bytes. Request v1 represents a single request, not a RequestSet or a
+scanner proxy-log format.
+
+Header names use HTTP token characters and values are printable ASCII without
+leading or trailing whitespace. A supplied `Host` must match the URL authority
+and explicit port case-insensitively. A supplied `Content-Length` must be the
+decimal UTF-8 body length; Runtime adds either header when absent. A
+`Content-Type` charset, if present, must be `utf-8` or `utf8` and appear once.
+`Authorization`, `Cookie` and custom headers can be supplied. Encoding,
+connection and conditional headers that sqlmap cannot preserve are rejected:
+`Connection`, `Content-Encoding`, `Expect`, `If-Modified-Since`,
+`If-None-Match`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Trailer`,
+`Transfer-Encoding` and `Upgrade`.
+
+The text subset excludes carriage returns and other body characters below
+U+0020 except tab and line feed. A body may contain internal line feeds but
+cannot end with a line feed or a final whitespace-only line: sqlmap's reader
+would change those representations. Binary bodies and non-UTF-8 charsets are
+unsupported. Literal `*` injection markers in the URL, body or headers are
+rejected, with `Accept: */*` permitted. Scanner request-file delimiters
+`==========`, `### Conversation` and case-insensitive `<request base64=`,
+`%INJECTHERE%`, `%INJECT_HERE%`, `%INJECT HERE%` are also rejected. These
+restrictions keep one artifact from becoming multiple requests or an implicit
+injection-marker selection.
+
+Runtime serializes an absolute-form HTTP/1.1 request line, the validated
+headers and UTF-8 body into `request.http`. The absolute URL retains HTTPS and
+any explicit port. The file is created exclusively with mode `0600` under a
+private per-call directory and passed through `-r`, together with an explicit
+`--method`, `--encoding=utf-8` and the selected `-p` names. `--skip-waf`
+disables automatic WAF probes that would add unselected query parameters.
+Redirects and response-driven cookie replacement are disabled. Artifact retrieval
+and file materialization share the scanner deadline. Completion, timeout, cancellation
+and allocation close remove temporary request/output files; child cleanup is
+joined before deletion.
+
+Request mode cannot be combined with nonempty `url`, `parameter`, `data` or
+`cookie` arguments. Without `request_ref`, the existing URL mode remains
+available. Both modes accept `level` (1–5, default 1), `risk` (1–3, default 1)
+and `timeout_seconds` (1–3600, default 300). Request mode does not accept
+additional CLI options or enable dumping databases or executing commands.
+
+Request-mode observations retain process `status`, `exitCode`, `errorCode`,
+duration and truncation fields, and add the exact `requestArtifact` ref.
+`stdout` and `stderr` are empty and `diagnosticsRedacted` is `true` because
+arbitrary scanner diagnostics can reveal headers, credentials or body data.
+`injectionTechniques` contains only recognized fixed labels: `boolean-based
+blind`, `error-based`, `inline query`, `stacked queries`, `time-based blind`
+and `union query`. `injectionOutcome` is `reported` when at least one such
+label is found and `unknown` otherwise. An empty technique list or a completed
+process never establishes a negative SQL-injection result.
+
+A model-free `tool@1` Worker binds `request_ref` using
+`{source: artifact, name: request}`. Its report preserves exact `inputArtifacts`
+and `inputDigest` alongside this redacted observation under the
+[tool Worker report contract](29-tool-workers.md#receipt-report-and-replay).
+Receipt replay reuses the stored report without rescanning. The
+[SQLMap Workflow fixture](../../configs/scan/README.md#sqlmap-request) supplies
+the required input slot and a complete upload/run example.
 
 ### Model-visible tool descriptions
 

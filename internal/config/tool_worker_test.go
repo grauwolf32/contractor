@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -15,7 +16,7 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 	if snapshot.Counts().ModelPolicies != 0 {
 		t.Fatal("scan fixtures must have no model policies")
 	}
-	for _, name := range []string{"nuclei-target@1", "naabu-host@1"} {
+	for _, name := range []string{"nuclei-target@1", "naabu-host@1", "sqlmap-request@1"} {
 		workflow, err := snapshot.ResolveRunWorkflow(context.Background(), name, ExecutionConfigPatch{}, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -41,6 +42,29 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 		if _, found := template.Execution.Arguments["injected"]; found {
 			t.Fatal("execution map is not owned")
 		}
+	}
+}
+
+func TestSQLMapWorkerBindsPreparedRequestArtifact(t *testing.T) {
+	snapshot := mustLoad(t, "../../configs/scan", MVPDescriptors())
+	workflow, err := snapshot.ResolveRunWorkflow(context.Background(), "sqlmap-request@1", ExecutionConfigPatch{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages["scan"]
+	execution := stage.Agents["scanner"].Template.Execution
+	if execution.Tool != "scan_sqlmap" || execution.Arguments["request_ref"] != (contracts.ToolArgumentBinding{Source: "artifact", Name: "request"}) {
+		t.Fatalf("prepared request is not passed as an Artifact ref: %+v", execution)
+	}
+	if stage.Context.Artifacts["request"] != (ContextArtifact{Namespace: "inputs", Name: "request", Required: true}) {
+		t.Fatalf("unexpected request context: %+v", stage.Context.Artifacts)
+	}
+	if !workflow.Inputs["request"].Required || !reflect.DeepEqual(workflow.Inputs["request"].MediaTypes, []string{"application/json", "application/vnd.contractor.http-request+json"}) {
+		t.Fatalf("prepared request input must require JSON: %+v", workflow.Inputs)
+	}
+	delete(stage.Context.Artifacts, "request")
+	if validateWorkflowExecutionConfigs(workflow) == nil {
+		t.Fatal("missing prepared request context accepted")
 	}
 }
 

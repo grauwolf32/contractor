@@ -117,9 +117,8 @@ def test_selection_adk_arguments_isolation_metrics_and_cleanup(tmp_path, monkeyp
             assert declaration.name == name
             assert tool.description == tool.__doc__
             assert declaration.description == inspect.cleandoc(tool.description)
-            assert declaration.parameters_json_schema["required"] == (
-                ["host"] if name == "scan_naabu" else ["url"]
-            )
+            required = {"scan_naabu": ["host"], "scan_nuclei": ["url"], "scan_sqlmap": []}
+            assert declaration.parameters_json_schema.get("required", []) == required[name]
 
         nuclei = await tools["scan_nuclei"](
             "https://target.invalid/?q=$(touch%20owned)",
@@ -370,6 +369,18 @@ def test_json_results_are_bounded_and_invalid_output_is_failure(tmp_path, monkey
     asyncio.run(scenario())
     results, truncated, invalid = scan._json_lines(b'{"port":80}\n' * 120 + b"[]\n")
     assert len(results) == 100 and truncated and invalid == 1
+
+
+def test_sqlmap_techniques_never_expose_arbitrary_diagnostics():
+    assert scan._sqlmap_techniques(
+        b"Authorization: Bearer secret-canary\n"
+        b"    Type: boolean-based blind\n"
+        b"    Payload: id=1 AND secret-canary\n"
+        b"    Type: UNION query\n"
+        b"    Type: secret-canary\n"
+        b"    Type: error-based secret-canary\n"
+        b"    Type: boolean-based blind\n"
+    ) == ["boolean-based blind", "union query"]
 
 
 @pytest.mark.skipif(shutil.which("nuclei") is None, reason="optional nuclei binary is absent")

@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: sqlmap-scan, version: "1"}
+spec:
+  description: Check one prepared HTTP request for SQL injection using sqlmap.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_sqlmap]
+  execution:
+    tool: scan_sqlmap
+    arguments:
+      request_ref: {source: artifact, name: request}
+      level: {source: literal, value: 1}
+      risk: {source: literal, value: 1}
+    resultArtifact: report
+    timeoutSeconds: 300

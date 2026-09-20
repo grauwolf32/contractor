@@ -27,7 +27,85 @@ acceptance_criteria:
   - id: A3
     text: Raw files are private, exact input refs appear in the report, and cancellation deletes temporary files without leaking secrets to metrics.
 tests:
-  - command: runtime/.venv/bin/pytest -W error runtime/tests/test_scan_toolset.py runtime/tests/test_scan_http_request.py runtime/tests/test_tool_worker.py
+  - command: PYTHONPATH=runtime/src runtime/.venv/bin/pytest -W error runtime/tests/test_scan_toolset.py runtime/tests/test_scan_http_request.py runtime/tests/test_scan_sqlmap_request.py runtime/tests/test_scan_sqlmap_live.py runtime/tests/test_tool_worker.py
     covers: [A1, A2, A3]
   - command: go test ./internal/config
     covers: [A1]
+  - command: PYTHONPATH=runtime/src runtime/.venv/bin/pytest -W error runtime/tests/test_contracts.py runtime/tests/test_allocation.py runtime/tests/test_a2a_server.py runtime/tests/test_adk_runtime.py
+    covers: [A1, A3]
+progress:
+  - date: 2026-09-20
+    step: resumed
+    details: >-
+      Resumed the existing implementation in .local/worktrees/v55-004-sqlmap-http-request
+      on feat/v55-004-sqlmap-http-request. Prepared-request parser, artifact-backed
+      sqlmap -r invocation, private scratch, redacted provenance report and model-free
+      SQLMap fixtures were present as uncommitted changes.
+  - date: 2026-09-20
+    step: baseline_verification
+    details: >-
+      Required Python baseline returned 128 passed and 4 failed; all four new SQLMap
+      integration tests fail during AllocationSpec fixture reconstruction because
+      model_dump emits forbidden null model fields. Go configuration tests pass.
+      Ruff found one E501 and four files needing formatting. The worktree shares
+      main's virtualenv, so PYTHONPATH=runtime/src is required to test this checkout.
+  - date: 2026-09-20
+    step: implementation_in_progress
+    details: >-
+      Correcting the integration fixture and adding adapter rejection, artifact-read
+      deadline, cancellation and cleanup tests. Documenting the versioned request
+      contract and workflow usage. Formatted the existing parser/adapter changes.
+      Downloaded upstream sqlmap commit 0c491b755187bc580fe2dee18105a4b8f74ea2ba
+      (1.10.9.18#dev) into /tmp for a reproducible loopback HTTP/HTTPS transport check;
+      the optional live test has been added and is awaiting execution.
+  - date: 2026-09-20
+    step: adapter_and_worker_verified
+    details: >-
+      Fixed the SQLMap AllocationSpec fixture to exclude absent model fields.
+      Four Worker integration cases and 29 new adapter cases passed together
+      (33 passed, 13 deselected). Coverage includes invalid and hidden refs,
+      mutually exclusive arguments, media type/revision mismatch, malformed or
+      oversized content before launch, cancellation/close/deadline during artifact
+      retrieval and active subprocess execution, process descendants, private
+      scratch cleanup and secret-free metrics. The normative request contract,
+      README instructions and upload/run/report example are now documented.
+      Subprocess tests require execution outside the restricted sandbox.
+  - date: 2026-09-20
+    step: live_transport_correction
+    details: >-
+      Real sqlmap preserved the initial HTTP/HTTPS POST and HTTPS PATCH requests,
+      including encoded URL, headers and multiline UTF-8 body. The stronger
+      parameter-selection assertion exposed sqlmap's automatic WAF probe adding
+      a random query parameter. Request mode now passes --skip-waf so this probe
+      cannot bypass the artifact's explicit testParameters; rerunning the live tests.
+  - date: 2026-09-20
+    step: live_transport_verified_and_reviewed
+    details: >-
+      All three pinned-upstream loopback cases now pass (HTTP POST, HTTPS POST,
+      HTTPS PATCH), preserving the initial request on the wire and keeping query,
+      cookie and authorization values unchanged while sqlmap probes the selected
+      JSON parameter. Independent review found that sqlmap recognizes Burp XML
+      request markers case-insensitively; corrected the validator accordingly and
+      added regression coverage so nested XML request data cannot replace the target.
+  - date: 2026-09-20
+    step: final_checks_passed
+    details: >-
+      Combined scanner and Worker/Allocation/A2A/ADK regression suite passed all
+      407 tests, including the real sqlmap cases and the mixed-case XML regression.
+      Go configuration tests, go vet, focused Ruff/format, gofmt and diff checks pass.
+      Updated this worktree to main 22c464c1 by fast-forward; incoming Evals changes
+      do not overlap the implementation or its Runtime/configuration dependencies.
+      Implementation is ready to commit and integrate.
+remaining:
+  - Record verification evidence, commit and integrate the completed task into main.
+verification:
+  - >-
+    Expanded Python gate passed with warnings treated as errors: 407 tests covering
+    scanners, request parsing/validation/lifecycle, real sqlmap transport, tool Worker,
+    contracts, Allocation, A2A and ADK. Log: /tmp/v55-004-runtime-gate.log.
+  - >-
+    Live transport tests passed with upstream sqlmap 1.10.9.18#dev, commit
+    0c491b755187bc580fe2dee18105a4b8f74ea2ba, downloaded to /tmp and exposed on PATH.
+    All targets were loopback HTTP/HTTPS fixtures; no external target was scanned.
+  - Go configuration tests and go vet ./internal/config passed.
+  - Focused Ruff checks, formatting of 10 Python files, gofmt and git diff --check passed.

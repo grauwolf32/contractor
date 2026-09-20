@@ -224,7 +224,7 @@ def built_in_factories(
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
-    scan_toolset = ScanToolsetFactory()
+    scan_toolset = ScanToolsetFactory(artifact_client_factory)
     taint_annotations_toolset = TaintAnnotationsToolsetFactory()
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)

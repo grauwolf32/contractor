@@ -5,7 +5,7 @@ import json
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import httpx
 import pytest
@@ -444,3 +444,203 @@ def test_tool_contract_digest_and_model_boundary():
     ]:
         with pytest.raises(ValueError):
             ToolArgumentBinding.model_validate(binding)
+
+
+def sqlmap_spec():
+    spec = tool_spec()
+    template = spec.agent_template
+    template.ref.template_id = "sqlmap-scan"
+    template.description = "Check one prepared HTTP request for SQL injection."
+    template.toolsets[0].tools = ["scan_sqlmap"]
+    template.execution.tool = "scan_sqlmap"
+    template.execution.arguments = {
+        "request_ref": ToolArgumentBinding(source="artifact", name="request")
+    }
+    template.ref.digest = _agent_template_digest(template)
+    return AllocationSpec.model_validate(spec.model_dump(by_alias=True, exclude_none=True))
+
+
+def prepared_request(spec):
+    return StageContentRequest(
+        apiVersion="contractor/v1alpha1",
+        subtaskId="0",
+        objective="Check the prepared request",
+        instructions="Check the prepared request",
+        parameters={},
+        artifacts={"request": {"namespace": "inputs", "name": "request", "revision": "request-1"}},
+        resultArtifacts={"report": {"namespace": spec.namespace, "name": "report"}},
+    )
+
+
+async def sqlmap_allocation(tmp_path, store, spec):
+    factories = built_in_factories(
+        tmp_path / "work",
+        artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, store),
+    )
+    state = RuntimeState(
+        capabilities=CapabilitySnapshot.create(
+            runtimes=("tool@1",),
+            toolsets={"scan@1": frozenset({"scan_sqlmap"})},
+            sandbox_profiles=("local-workdir@1",),
+        )
+    )
+    await state.mark_registered()
+    service = AllocationService(
+        factories=factories, state=state, a2a_base_url="https://runtime.example"
+    )
+    await service.prepare(spec)
+    return service
+
+
+async def release_sqlmap_allocation(service, spec):
+    await service.abort(
+        AbortAllocationRequest(
+            apiVersion="contractor/v1alpha1",
+            allocationId=spec.allocation_id,
+            abortId="done",
+            reason={"code": "test_done", "message": "Done", "retryable": False},
+            deadline=datetime.now(UTC) + timedelta(seconds=2),
+        )
+    )
+    await service.release(
+        ReleaseAllocationRequest(apiVersion="contractor/v1alpha1", allocationId=spec.allocation_id)
+    )
+
+
+@pytest.mark.parametrize("method", ["POST", "PATCH"])
+def test_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, monkeypatch, method):
+    from test_scan_toolset import executable
+
+    marker = tmp_path / "calls"
+    body = '{"id":7,"token":"body-canary-ключ"}'
+    request_line = f"{method} https://target.invalid:8443/items%2Fsearch?id=7 HTTP/1.1\r\n"
+    executable(
+        tmp_path,
+        "sqlmap",
+        "import pathlib, stat, sys\n"
+        "if '--version' in sys.argv:\n"
+        "    print('fixture-sqlmap')\n"
+        "    sys.exit(0)\n"
+        "args = sys.argv[1:]\n"
+        f"assert '--method={method}' in args\n"
+        "assert '--encoding=utf-8' in args\n"
+        "assert '--skip-waf' in args\n"
+        "assert args[args.index('-p') + 1] == 'id'\n"
+        "request = pathlib.Path(args[args.index('-r') + 1])\n"
+        "assert stat.S_IMODE(request.stat().st_mode) == 0o600\n"
+        "assert stat.S_IMODE(request.parent.stat().st_mode) == 0o700\n"
+        "raw = request.read_bytes()\n"
+        f"assert raw.startswith({request_line.encode()!r})\n"
+        "assert b'Host: target.invalid:8443\\r\\n' in raw\n"
+        "assert b'Authorization: Bearer header-canary\\r\\n' in raw\n"
+        "assert b'Cookie: session=cookie-canary\\r\\n' in raw\n"
+        "assert b'Content-Type: application/json\\r\\n' in raw\n"
+        f"assert raw.partition(b'\\r\\n\\r\\n')[2] == {body.encode()!r}\n"
+        f"with open({str(marker)!r}, 'a') as calls:\n"
+        "    calls.write('scan\\n')\n"
+        "print(raw.decode())\n"
+        "print(raw.decode(), file=sys.stderr)\n",
+    )
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    async def scenario():
+        store, spec = ArtifactStore(), sqlmap_spec()
+        store.values[("inputs", "request")] = (
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "method": method,
+                    "url": "https://target.invalid:8443/items%2Fsearch?id=7",
+                    "headers": [
+                        {"name": "Authorization", "value": "Bearer header-canary"},
+                        {"name": "Cookie", "value": "session=cookie-canary"},
+                        {"name": "Content-Type", "value": "application/json"},
+                    ],
+                    "body": body,
+                    "testParameters": ["id"],
+                }
+            ).encode(),
+            "application/json",
+            "request-1",
+        )
+        service = await sqlmap_allocation(tmp_path, store, spec)
+        try:
+            stage_request = prepared_request(spec)
+            result = await service._context.worker.invoke(stage_request)
+            assert result.failure is None, result
+            assert marker.read_text() == "scan\n"
+            report = json.loads(store.values[(spec.namespace, "report")][0])
+            request_ref = stage_request.artifacts["request"].model_dump(by_alias=True)
+            assert report["inputArtifacts"] == {"request": request_ref}
+            assert report["observation"]["requestArtifact"] == request_ref
+            assert report["observation"]["status"] == "completed"
+            assert report["observation"]["diagnosticsRedacted"] is True
+            snapshot = await service.agent_state_snapshot(spec.allocation_id)
+            assert snapshot.state.last_completed_invocation.metrics.model_calls == 0
+            assert snapshot.state.last_completed_invocation.metrics.tool_calls == 1
+            assert "canary" not in repr(snapshot)
+            assert "canary" not in repr(report)
+            assert not list((tmp_path / "work").rglob("scan_sqlmap-*"))
+        finally:
+            await release_sqlmap_allocation(service, spec)
+
+        spec.allocation_id = "replacement-allocation"
+        replacement = await sqlmap_allocation(tmp_path, store, spec)
+        try:
+            replay = await replacement._context.worker.invoke(stage_request)
+            assert replay.failure is None
+            assert replay.result.artifacts == result.result.artifacts
+            assert marker.read_text() == "scan\n"
+            state = await replacement.agent_state_snapshot(spec.allocation_id)
+            assert state.state.last_completed_invocation.metrics.model_calls == 0
+            assert state.state.last_completed_invocation.metrics.tool_calls == 0
+        finally:
+            await release_sqlmap_allocation(replacement, spec)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("status", [403, 404])
+def test_sqlmap_unreadable_request_never_launches(tmp_path, monkeypatch, status):
+    from test_scan_toolset import executable
+
+    marker = tmp_path / "calls"
+    executable(
+        tmp_path,
+        "sqlmap",
+        "import pathlib, sys\n"
+        "if '--version' not in sys.argv:\n"
+        f"    pathlib.Path({str(marker)!r}).write_text('unexpected scan')\n",
+    )
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    class UnreadableRequestStore(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            parsed = urlsplit(path)
+            if method == "GET" and parsed.path.endswith("/artifacts/inputs/request"):
+                assert parse_qs(parsed.query) == {"revision": ["request-1"]}
+                return self.response(
+                    status,
+                    {
+                        "code": "forbidden" if status == 403 else "not_found",
+                        "retryable": False,
+                        "message": "sensitive-error-canary",
+                    },
+                )
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        store, spec = UnreadableRequestStore(), sqlmap_spec()
+        service = await sqlmap_allocation(tmp_path, store, spec)
+        try:
+            result = await service._context.worker.invoke(prepared_request(spec))
+            assert result.failure.code == "tool_input_invalid"
+            assert not result.failure.retryable
+            assert not marker.exists()
+            assert "canary" not in repr(result)
+            assert "canary" not in repr(await service.agent_state_snapshot(spec.allocation_id))
+            assert not list((tmp_path / "work").rglob("scan_sqlmap-*"))
+        finally:
+            await release_sqlmap_allocation(service, spec)
+
+    asyncio.run(scenario())

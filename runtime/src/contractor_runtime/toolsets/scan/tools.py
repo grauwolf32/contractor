@@ -10,7 +10,7 @@ import re
 import shutil
 import tempfile
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -18,15 +18,22 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.scan.http_request import (
+    MAX_REQUEST_ARTIFACT_BYTES,
+    parse_http_request,
+)
 from contractor_runtime.toolsets.scan.process import ProcessResult, run_process
 from contractor_runtime.workspace import AllocationWorkspace
 
 PROBE_TIMEOUT_SECONDS = 2.0
 MAX_RESULTS = 100
 MAX_RESULTS_BYTES = 128 * 1024
+PrepareInvocation = Callable[[Path], Awaitable[list[str]]]
 
 
 class ScanInputError(ToolInputError):
@@ -38,16 +45,25 @@ class ScannerUnavailable(Exception):
 
 
 class _ScanSession:
-    def __init__(self, workspace, executables, templates, *, proxy_configured):
+    def __init__(self, workspace, executables, templates, *, proxy_configured, artifact_client):
         self.workspace = workspace
         self.executables = executables
         self.templates = templates
         self.proxy_configured = proxy_configured
+        self.artifact_client = artifact_client
         self._closed = False
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
 
-    async def execute(self, tool: ScanTool, arguments: list[str], timeout: int) -> dict:
+    async def execute(
+        self,
+        tool: ScanTool,
+        arguments: list[str],
+        timeout: int,
+        *,
+        prepare: PrepareInvocation | None = None,
+        observation: Callable[[ProcessResult], dict] | None = None,
+    ) -> dict:
         async with self._lock:
             if self._closed:
                 result = ProcessResult(None, error_code="scan_closed")
@@ -58,22 +74,38 @@ class _ScanSession:
             elif not self.executables[tool.name]:
                 result = ProcessResult(None, error_code="scanner_unavailable")
             else:
-                self._task = asyncio.create_task(self._execute(tool, arguments, timeout))
+                self._task = asyncio.create_task(self._execute(tool, arguments, timeout, prepare))
                 try:
                     result = await self._task
                 finally:
                     self._task = None
-        return tool.observation(result)
+        return (observation or tool.observation)(result)
 
-    async def _execute(self, tool: ScanTool, arguments: list[str], timeout: int) -> ProcessResult:
+    async def _execute(
+        self,
+        tool: ScanTool,
+        arguments: list[str],
+        timeout: int,
+        prepare: PrepareInvocation | None,
+    ) -> ProcessResult:
+        started = time.monotonic()
         with tempfile.TemporaryDirectory(prefix=f"{tool.name}-", dir=self.workspace) as root:
             directory = Path(root)
             try:
                 prepared = tool.prepare(directory, self.templates)
+                if prepare is not None:
+                    # Artifact retrieval and materialization share the scan deadline.
+                    async with asyncio.timeout(timeout):
+                        prepared += await prepare(directory)
+            except TimeoutError:
+                return ProcessResult(None, error_code="scan_timeout")
             except ScannerUnavailable as error:
                 return ProcessResult(None, error_code=str(error))
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                return ProcessResult(None, error_code="scan_timeout")
             command = [self.executables[tool.name], *arguments, *prepared]
-            return await run_process(command, directory, timeout)
+            return await run_process(command, directory, remaining)
 
     async def close(self) -> None:
         self._closed = True
@@ -110,13 +142,22 @@ class ScanTool:
     def observation(self, result: ProcessResult) -> dict:
         return {**result.observation(), "scanner": self.binary}
 
-    async def _call(self, timeout: int, arguments: Callable[[], list[str]]) -> dict:
+    async def _call(
+        self,
+        timeout: int,
+        arguments: Callable[[], list[str]],
+        *,
+        prepare: PrepareInvocation | None = None,
+        observation: Callable[[ProcessResult], dict] | None = None,
+    ) -> dict:
         started = time.monotonic()
         result = None
         error = None
         try:
             _integer(timeout, "timeout_seconds", 1, 3600)
-            result = await self._session.execute(self, arguments(), timeout)
+            result = await self._session.execute(
+                self, arguments(), timeout, prepare=prepare, observation=observation
+            )
             return result
         except asyncio.CancelledError:
             error = RuntimeError("scan cancelled")
@@ -239,25 +280,31 @@ class SQLMapTool(ScanTool):
     name = "scan_sqlmap"
     binary = "sqlmap"
     version_arguments = ("--version",)
-    description = """Check one HTTP(S) URL for SQL injection using sqlmap batch mode.
+    description = """Check one prepared HTTP request or URL for SQL injection with sqlmap.
 
     Each call uses a fresh session. No database dumping or shell operations are
     requested. A configured subprocess proxy is unsupported. Review the output
     to distinguish detected injection, a negative check, and scanner diagnostics.
 
     Args:
-        url: Absolute HTTP(S) target URL without embedded credentials.
+        url: HTTP(S) URL for legacy URL mode; omit when using request_ref.
         parameter: Optional comma-separated parameter names to test.
         data: Optional POST body, at most 16384 UTF-8 bytes; empty sends GET.
         cookie: Optional Cookie header, at most 4096 UTF-8 bytes.
         level: sqlmap test coverage level, 1 through 5; defaults to 1.
         risk: sqlmap test risk level, 1 through 3; defaults to 1.
         timeout_seconds: Total scan deadline, 1 through 3600 seconds; defaults to 300.
+        request_ref: Exact artifact reference with namespace, name and revision.
+            Contains one schemaVersion 1 HTTP request (method, url, headers, body,
+            testParameters). Mutually exclusive with url, parameter, data and cookie.
+            Only supported UTF-8 text requests are accepted; see the scan request contract.
 
     Returns:
         status, exitCode, errorCode, bounded stdout/stderr previews, truncation
         flags and durationMs. completed means the process exited successfully,
-        not that the target is free of SQL injection. Evidence is not published.
+        not that the target is free of SQL injection. Request mode suppresses raw
+        diagnostics and returns exact requestArtifact and bounded injection evidence.
+        Direct calls do not publish evidence; tool@1 publishes a report artifact.
     """
 
     def prepare(self, directory: Path, templates: Path) -> list[str]:
@@ -265,23 +312,39 @@ class SQLMapTool(ScanTool):
 
     async def __call__(
         self,
-        url: str,
+        url: str = "",
         parameter: str = "",
         data: str = "",
         cookie: str = "",
         level: int = 1,
         risk: int = 1,
         timeout_seconds: int = 300,
+        request_ref: dict[str, str] | None = None,
     ) -> dict:
+        # All preparation/projection state belongs to this invocation. Concurrent
+        # callers never overwrite an input on the shared ToolInstance.
+        exact_ref: ArtifactRef | None = None
+
         def arguments():
-            _url(url)
-            _tokens(parameter)
-            _text(data, "data", 16384)
-            _text(cookie, "cookie", 4096)
+            nonlocal exact_ref
+            if request_ref is None:
+                _url(url)
+                _tokens(parameter)
+                _text(data, "data", 16384)
+                _text(cookie, "cookie", 4096)
+            else:
+                if any(value != "" for value in (url, parameter, data, cookie)):
+                    raise ScanInputError("request_ref cannot be combined with URL-mode arguments")
+                try:
+                    exact_ref = ArtifactRef.model_validate(request_ref).require_exact()
+                    require_model_visible_binding(exact_ref.namespace, exact_ref.name)
+                except (ValueError, TypeError):
+                    raise ScanInputError(
+                        "request_ref must be an accessible exact artifact ref"
+                    ) from None
             _integer(level, "level", 1, 5)
             _integer(risk, "risk", 1, 3)
             command = [
-                f"--url={url}",
                 "--batch",
                 "--disable-coloring",
                 "--ignore-stdin",
@@ -292,6 +355,8 @@ class SQLMapTool(ScanTool):
                 f"--level={level}",
                 f"--risk={risk}",
             ]
+            if request_ref is None:
+                command.insert(0, f"--url={url}")
             if parameter:
                 command += ["-p", parameter]
             if data:
@@ -300,7 +365,63 @@ class SQLMapTool(ScanTool):
                 command.append(f"--cookie={cookie}")
             return command
 
-        return await self._call(timeout_seconds, arguments)
+        async def prepare_request(directory: Path) -> list[str]:
+            assert exact_ref is not None
+            try:
+                value = await self._session.artifact_client.read_artifact(
+                    exact_ref, max_bytes=MAX_REQUEST_ARTIFACT_BYTES
+                )
+            except Exception:
+                raise ScanInputError("request artifact is inaccessible or invalid") from None
+            if value.media_type not in {
+                "application/json",
+                "application/vnd.contractor.http-request+json",
+            }:
+                raise ScanInputError("request artifact must contain HTTP request JSON")
+            request = parse_http_request(value.data)
+            path = directory / "request.http"
+            try:
+                # Exclusive creation and mode independent of the service umask.
+                with path.open("xb") as output:
+                    os.fchmod(output.fileno(), 0o600)
+                    output.write(request.raw)
+            except OSError:
+                raise ScannerUnavailable("scan_request_file_unavailable") from None
+            return [
+                "-r",
+                str(path),
+                f"--method={request.method}",
+                "--encoding=utf-8",
+                "--drop-set-cookie",
+                # The automatic WAF probe injects an unselected query parameter.
+                "--skip-waf",
+                "-p",
+                ",".join(request.test_parameters),
+            ]
+
+        def request_observation(result: ProcessResult) -> dict:
+            assert exact_ref is not None
+            response = self.observation(result)
+            # Scanner diagnostics can echo or transform credentials and payloads.
+            # A finite vocabulary preserves evidence without substring-redaction
+            # promises for arbitrary request bodies or vulnerable target responses.
+            techniques = _sqlmap_techniques(result.stdout)
+            response.update(
+                stdout="",
+                stderr="",
+                diagnosticsRedacted=True,
+                requestArtifact=exact_ref.model_dump(by_alias=True),
+                injectionOutcome="reported" if techniques else "unknown",
+                injectionTechniques=techniques,
+            )
+            return response
+
+        return await self._call(
+            timeout_seconds,
+            arguments,
+            prepare=prepare_request if request_ref is not None else None,
+            observation=request_observation if request_ref is not None else None,
+        )
 
 
 class NaabuTool(JSONLinesScanTool):
@@ -368,10 +489,12 @@ class ScanToolsetFactory:
 
     def __init__(
         self,
+        artifact_client_factory: ArtifactClientFactory | None = None,
         *,
         templates_directory: Path | None = None,
         scanners: Sequence[type[ScanTool]] = SCANNERS,
     ) -> None:
+        self._clients = artifact_client_factory or _unconfigured_client
         self._scanners = {scanner.name: scanner for scanner in scanners}
         if len(self._scanners) != len(scanners):
             raise ValueError("duplicate scan tool names")
@@ -427,7 +550,7 @@ class ScanToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
-        del allocation_id, run_id, namespace, runtime_settings, project_workspace
+        del run_id, namespace, project_workspace
         if set(selected) - self.exported_tools:
             raise ValueError("unknown selected scan tools")
         if not selected:
@@ -440,6 +563,7 @@ class ScanToolsetFactory:
             self._executables,
             self._templates,
             proxy_configured=adapter_handles.tool_subprocess is not None,
+            artifact_client=self._clients(allocation_id, runtime_settings),
         )
         return {name: self._scanners[name](session, metrics) for name in selected}
 
@@ -538,3 +662,22 @@ def _json_lines(output: bytes) -> tuple[list[dict], bool, int]:
         items.append(value)
         size += len(line)
     return items, truncated, invalid
+
+
+def _sqlmap_techniques(output: bytes) -> list[str]:
+    """Expose only sqlmap's fixed technique labels, never parameters or payloads."""
+    allowed = {
+        b"boolean-based blind",
+        b"error-based",
+        b"inline query",
+        b"stacked queries",
+        b"time-based blind",
+        b"union query",
+    }
+    return sorted(
+        {
+            value.decode("ascii")
+            for match in re.finditer(rb"(?m)^[ \t]*Type:[ \t]*([^\r\n]+)", output)
+            if (value := match[1].strip().lower()) in allowed
+        }
+    )
