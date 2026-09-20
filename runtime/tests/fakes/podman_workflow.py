@@ -109,8 +109,8 @@ class ArtifactPeer:
 
 
 def sample_spec(peer):
-    template = document("agent-templates/podman_python_fixer.yaml")
-    workflow = document("workflows/podman_python_check.yaml")["spec"]
+    template = document("agent-templates/podman_python_fixer_v2_memory.yaml")
+    workflow = document("workflows/podman_python_check_v2_memory.yaml")["spec"]
     stage = workflow["stages"][workflow["entryStage"]]
     authored = template["spec"]
     spec = allocation_spec()
@@ -198,7 +198,18 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
     session = context.project_workspace
     peer.session = session
     root, scratch = Path(session.storage.root), context.workspace.path
-    assert set(context.tools) == {"read_file", "edit", "exec_command", "write_artifact"}
+    assert set(context.tools) == {
+        "read_file",
+        "edit",
+        "exec_command",
+        "write_artifact",
+        "append_memory",
+        "list_memories",
+        "list_memory_tags",
+        "read_memory",
+        "search_memory",
+        "write_memory",
+    }
     assert peer.writes == []
     saved_write = context.tools["write_artifact"]
     provider = service._factories.workspace_provider

@@ -61,7 +61,7 @@ func TestFindingsReaderRequiresDeclaredCollectionInputInWorkflowSnapshot(t *test
 		{"both", []string{"finding", "list_findings"}, &ArtifactSlot{Required: true, MediaTypes: []string{auditdomain.FindingCollectionMediaType}}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			workflow, err := snapshot.Workflow("openapi-from-workspace@5")
+			workflow, err := snapshot.Workflow("openapi-from-workspace@7")
 			if err != nil {
 				t.Fatal(err)
 			}

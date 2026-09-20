@@ -20,7 +20,7 @@ policy:
 
 programs:
   - id: top10-2025
-    profile: owasp-top10-2025-source-risk@1
+    profile: owasp-top10-2025-source-risk@2
     mode: risk-assessment
     standard:
       scheme: owasp-web-top10
@@ -31,7 +31,7 @@ programs:
     expected_assessments: [inconclusive, not-tested, satisfied, violated]
     prohibited_claims: [application is compliant, application is secure, OWASP certified]
   - id: asvs-5.0-l1-pilot
-    profile: owasp-asvs-5-0-l1-source-review@1
+    profile: owasp-asvs-5-0-l1-source-review@2
     mode: requirements-verification
     standard:
       scheme: owasp-asvs

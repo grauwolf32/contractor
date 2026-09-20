@@ -41,7 +41,7 @@ func newTaintAnnotationGateway(token string) *domainGateway {
 func taintMutationGatewayStage() domainGatewayStage {
 	return domainGatewayStage{
 		name:  "taint/mutate",
-		tools: append([]string(nil), taintAnnotationModelTools...),
+		tools: withMemoryTools(taintAnnotationModelTools),
 		steps: []domainGatewayStep{
 			toolGatewayStep("list_skills", fixedArguments(map[string]any{})),
 			{
@@ -141,7 +141,7 @@ func taintMutationGatewayStage() domainGatewayStage {
 func taintCleanReuseGatewayStage() domainGatewayStage {
 	return domainGatewayStage{
 		name:  "taint/clean-reuse",
-		tools: append([]string(nil), taintAnnotationModelTools...),
+		tools: withMemoryTools(taintAnnotationModelTools),
 		steps: []domainGatewayStep{
 			toolGatewayStep("list_skills", fixedArguments(map[string]any{})),
 			{

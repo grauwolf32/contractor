@@ -16,12 +16,12 @@ func TestRepositoryTraceAnnotationTemplateIsExactAndImmutable(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	template, err := snapshot.AgentTemplate("workspace_taint_analyst@1")
+	template, err := snapshot.AgentTemplate("workspace_taint_analyst@3")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if template.Ref.Digest != "sha256:2540080dc394fc4820acb99098793ce869519f1afc8d82911a5659bd8b28a443" ||
-		template.Instructions.Digest != "sha256:dda89b2bace334ce4cf08f99bb2a2ba428d62d61ad9f51ac78ee43b358f1f0bf" {
+	if template.Ref.Digest != "sha256:ce8121490d4df14093c222472484905cdbc874cdf47a85932c238a73d41e2b9a" ||
+		template.Instructions.Digest != "sha256:d7dd97762d58ea11053830d1cd792f866ac82e300e907117a6a262ea283215b3" {
 		t.Fatalf(
 			"immutable trace template snapshot = template %s instructions %s",
 			template.Ref.Digest,
@@ -29,6 +29,7 @@ func TestRepositoryTraceAnnotationTemplateIsExactAndImmutable(t *testing.T) {
 		)
 	}
 	assertExactTemplateTools(t, template, map[string][]string{
+		"memory-tools@1": {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 		"code-analysis@1": {
 			"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
 			"find_callees", "find_callers", "find_symbol", "functions_that_raise",
@@ -43,13 +44,13 @@ func TestRepositoryTraceAnnotationTemplateIsExactAndImmutable(t *testing.T) {
 		Namespace: contracts.AgentSkillNamespace,
 		Name:      "trace",
 	}}) {
-		t.Fatalf("workspace_taint_analyst@1 skills = %+v", template.Skills)
+		t.Fatalf("workspace_taint_analyst@3 skills = %+v", template.Skills)
 	}
 	if template.Runtime != (contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"}) ||
 		template.SandboxProfile != (contracts.SandboxProfileRef{
 			SandboxProfileID: "local-workdir", Version: "1",
 		}) {
-		t.Fatalf("workspace_taint_analyst@1 execution boundary = %+v", template)
+		t.Fatalf("workspace_taint_analyst@3 execution boundary = %+v", template)
 	}
 
 	lower := strings.ToLower(template.Instructions.Text)
@@ -79,7 +80,7 @@ func TestRepositoryTraceAnnotationWorkflowOwnsOverlayResults(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("taint-trace-from-workspace@2")
+	workflow, err := snapshot.Workflow("taint-trace-from-workspace@4")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestRepositoryTraceAnnotationWorkflowOwnsOverlayResults(t *testing.T) {
 		stage.Planner != (PlannerRef{PlannerID: "passthrough", Version: "1"}) ||
 		len(stage.Agents) != 1 || stage.Agents["analyst"].Namespace != "analysis" ||
 		stage.Agents["analyst"].Template.Ref.TemplateID != "workspace_taint_analyst" ||
-		stage.Agents["analyst"].Template.Ref.Version != "1" {
+		stage.Agents["analyst"].Template.Ref.Version != "3" {
 		t.Fatalf("taint trace Stage refs = %+v", stage)
 	}
 	wantContext := StageContext{
@@ -150,10 +151,10 @@ func TestRepositoryTraceAnnotationWorkflowOwnsOverlayResults(t *testing.T) {
 
 func TestRepositoryTraceAnnotationAssignmentRejectsToolDrift(t *testing.T) {
 	root := copyConfigTree(t)
-	path := filepath.Join(root, "agent-templates", "workspace_taint_analyst.yaml")
+	path := filepath.Join(root, "agent-templates", "workspace_taint_analyst_v3_memory.yaml")
 	replaceFile(t, path, "      tools: [annotate_trace, annotate_validate, annotate_sink]", "      tools: [annotate_trace, annotate_validate]")
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	template, err := snapshot.AgentTemplate("workspace_taint_analyst@1")
+	template, err := snapshot.AgentTemplate("workspace_taint_analyst@3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func validateRepositoryTraceAnnotationAssignment(
 	for _, relative := range []string{
 		"skills/trace/SKILL.md",
 		"skills/trace/references/annotations.md",
-		"instructions/workspace-taint-analyst-worker.md",
+		"instructions/workspace-taint-analyst-worker-memory.md",
 	} {
 		contents, err := os.ReadFile(filepath.Join(root, relative))
 		if err != nil {

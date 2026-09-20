@@ -16,10 +16,10 @@ func TestRepositoryCurrentLikeC4TemplatesSelectSkill(t *testing.T) {
 		selector     string
 		instructions string
 	}{
-		{"likec4_builder@2", "instructions/likec4-builder-worker-v2.md"},
-		{"likec4_validator@2", "instructions/likec4-validator-worker-v2.md"},
-		{"workspace_likec4_builder@1", "instructions/workspace-likec4-builder-worker.md"},
-		{"workspace_likec4_validator@1", "instructions/workspace-likec4-validator-worker.md"},
+		{"likec4_builder@4", "instructions/likec4-builder-worker-v2-memory.md"},
+		{"likec4_validator@4", "instructions/likec4-validator-worker-v2-memory.md"},
+		{"workspace_likec4_builder@3", "instructions/workspace-likec4-builder-worker-memory.md"},
+		{"workspace_likec4_validator@3", "instructions/workspace-likec4-validator-worker-memory.md"},
 	}
 	wantSkills := []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "likec4"}}
 	for _, test := range tests {
@@ -51,9 +51,9 @@ func TestRepositoryCurrentLikeC4WorkflowsPinSkilledTemplates(t *testing.T) {
 		builderTemplate   string
 		validatorTemplate string
 	}{
-		{"likec4-from-analysis@3", "likec4_build", "likec4_validate", "likec4_builder@2", "likec4_validator@2"},
-		{"likec4-from-workspace@5", "likec4_build", "likec4_validate", "workspace_likec4_builder@1", "workspace_likec4_validator@1"},
-		{"likec4-from-workspace-streamline@2", "likec4_build", "likec4_validate", "workspace_likec4_builder@1", "workspace_likec4_validator@1"},
+		{"likec4-from-analysis@5", "likec4_build", "likec4_validate", "likec4_builder@4", "likec4_validator@4"},
+		{"likec4-from-workspace@7", "likec4_build", "likec4_validate", "workspace_likec4_builder@3", "workspace_likec4_validator@3"},
+		{"likec4-from-workspace-streamline@4", "likec4_build", "likec4_validate", "workspace_likec4_builder@3", "workspace_likec4_validator@3"},
 	}
 	for _, test := range workflows {
 		t.Run(test.selector, func(t *testing.T) {
@@ -85,19 +85,19 @@ func TestRepositoryCurrentLikeC4InstructionsKeepMandatoryProcedure(t *testing.T)
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	checks := map[string][]string{
-		"instructions/likec4-builder-worker-v2.md": {
+		"instructions/likec4-builder-worker-v2-memory.md": {
 			"named `source` input", "likec4/architecture", "load_likec4", "write_likec4",
 			"specification", "model", "views", "relative/path:line", "validate_likec4",
 			"valid: true", "selected `likec4` Agent Skill", "references/...",
 		},
-		"instructions/likec4-validator-worker-v2.md": {
+		"instructions/likec4-validator-worker-v2-memory.md": {
 			"repair-only", "architecture_candidate", "validate_likec4", "bounded repair pass",
 			"validation-report", "valid: true", "selected `likec4` Agent Skill",
 		},
-		"instructions/workspace-likec4-builder-worker.md": {
+		"instructions/workspace-likec4-builder-worker-memory.md": {
 			"private workspace root", "relative/path:line", "Cumulative workspace export is automatic",
 		},
-		"instructions/workspace-likec4-validator-worker.md": {
+		"instructions/workspace-likec4-validator-worker-memory.md": {
 			"cumulative workspace state", "repair-only", "Cumulative workspace export is automatic",
 		},
 	}

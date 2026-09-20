@@ -35,6 +35,7 @@ func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
 		"http_history", "http_read_body", "http_request", "http_session_clear",
 		"http_session_get", "http_session_set", "read_text_artifact", "write_text_artifact",
 	}
+	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{
 		name:  name,
@@ -98,6 +99,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 		"http_request", "list_skills", "load_skill", "load_skill_resource",
 		"read_text_artifact", "write_text_artifact",
 	}
+	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{
 		name:  name,

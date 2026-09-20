@@ -197,7 +197,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	operations.createRuntimeLabel("agent-skills-debug", skillTelemetry)
 
 	blockerInput := uploadInput(t, publicClient, publicBaseURL)
-	blockerRunID := createRun(t, publicClient, publicBaseURL, blockerInput)
+	blockerRunID := createWorkflowRun(t, publicClient, publicBaseURL, "artifact-copy@2", "agent-skills-blocker", blockerInput)
 	select {
 	case <-gateway.blockedRequest():
 	case <-ctx.Done():
@@ -295,7 +295,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	)
 
 	reuseRunID := createWorkflowRun(
-		t, publicClient, publicBaseURL, "artifact-copy@1", "agent-skills-empty-reuse", blockerInput,
+		t, publicClient, publicBaseURL, "artifact-copy@2", "agent-skills-empty-reuse", blockerInput,
 	)
 	reuseStatus := waitForRun(
 		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, reuseRunID,
@@ -555,7 +555,7 @@ func createAgentSkillWorkflowRun(
 ) string {
 	t.Helper()
 	requestBody := map[string]any{
-		"workflow": "likec4-from-analysis@3",
+		"workflow": "likec4-from-analysis@5",
 		"parameters": map[string]string{
 			"objective": "Model the implemented API and architecture boundaries",
 		},

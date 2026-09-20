@@ -434,7 +434,7 @@ spec:
       instructions: {ref: instructions/http-analysis-e2e-planner.md}
       planner: passthrough@1
       agents:
-        explorer: {template: http_explorer@1, namespace: http}
+        explorer: {template: http_explorer@3, namespace: http}
       result:
         artifacts:
           report:

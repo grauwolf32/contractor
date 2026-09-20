@@ -12,9 +12,9 @@ not require `annotations.json`, `trace_id`, a function or a sink.
 
 For an analysis variant that uses annotations, exporting its artifacts through
 ordinary Workflow outputs is sufficient. The
-[taint-trace Workflow](../../configs/workflows/taint_trace_from_workspace.yaml)
+[taint-trace Workflow](../../configs/workflows/taint_trace_from_workspace_v4_memory.yaml)
 already exports workspace state/diff. The current
-[OpenAPI graph Worker](../../configs/workflows/audit_openapi_operation_trace.yaml)
+[OpenAPI graph Worker](../../configs/workflows/audit_openapi_operation_trace_v3_memory.yaml)
 does not enable annotation tools or this export. These are added to the selected
 analysis variant, rather than to every scenario that produces findings.
 

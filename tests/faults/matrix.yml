@@ -97,7 +97,7 @@ cases:
     fault: One Runtime prepare fails after another slot became ready.
     expected: Every reserved allocation is fenced, aborted, and released; no partial WorkerHandle set escapes.
     requirements: [R1, R2]
-    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestPrepareAllCleansEveryReservationAfterPartialFailure}
+    test: {source: internal/controlplane/runtime_batch_test.go, symbol: TestPrepareAllCleansEveryReservationAfterPartialFailure}
   - id: running-ambiguous-a2a-delivery
     category: retry
     phase: running

@@ -11,15 +11,15 @@ import (
 
 func TestFindingsCatalogSeparatesProducerAndGenericReader(t *testing.T) {
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	profile, err := snapshot.AuditProfile("openapi-operation-trace@3")
+	profile, err := snapshot.AuditProfile("openapi-operation-trace@5")
 	if err != nil {
 		t.Fatal(err)
 	}
 	producer := profile.Workflows["trace"].Workflow
 	stage := producer.Stages[producer.EntryStage]
 	agent := stage.Agents["checker"].Template
-	if agent.Ref.TemplateID != "audit_openapi_operation_tracer" || agent.Ref.Version != "2" ||
-		producer.Ref.Name != "audit-openapi-operation-trace" || producer.Ref.Version != "2" ||
+	if agent.Ref.TemplateID != "audit_openapi_operation_tracer" || agent.Ref.Version != "4" ||
+		producer.Ref.Name != "audit-openapi-operation-trace" || producer.Ref.Version != "4" ||
 		profile.Interaction.FindingConfirmation != AuditFindingHumanRequired ||
 		profile.Interaction.ActiveChecks != AuditActiveChecksProhibited {
 		t.Fatalf("producer or policy is not explicitly versioned: %+v", profile)
@@ -40,7 +40,7 @@ func TestFindingsCatalogSeparatesProducerAndGenericReader(t *testing.T) {
 		!strings.Contains(agent.Instructions.Text, "operation-resolution") {
 		t.Fatal("producer instructions omit receipt handoff or coverage/reproduction discipline")
 	}
-	reader, err := snapshot.Workflow("findings-review@1")
+	reader, err := snapshot.Workflow("findings-review@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,6 +52,7 @@ func TestFindingsCatalogSeparatesProducerAndGenericReader(t *testing.T) {
 	readerStage := reader.Stages[reader.EntryStage]
 	readerAgent := readerStage.Agents["analyst"].Template
 	want := map[string][]string{
+		"memory-tools@1":      {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 		"security-findings@2": {"list_findings"}, "run-artifacts@1": {"read_artifact"},
 		"text-artifacts@1": {"write_text_artifact"},
 	}
@@ -64,7 +65,7 @@ func TestFindingsCatalogSeparatesProducerAndGenericReader(t *testing.T) {
 	}
 	// All newly selected role instructions have their own paths. Existing
 	// versioned instruction closures and the trace Skill are not rewritten.
-	if agent.Instructions.Ref == "instructions/audit-openapi-operation-tracer-worker.md" {
+	if agent.Instructions.Ref == "instructions/audit-openapi-operation-tracer-worker-memory.md" {
 		t.Fatal("new producer overwrote its prior instruction path")
 	}
 }

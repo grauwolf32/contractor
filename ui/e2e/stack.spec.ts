@@ -748,16 +748,16 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   ).toHaveValue("7");
   await page
     .getByLabel("Version of openapi-from-workspace", { exact: true })
-    .selectOption("5");
+    .selectOption("7");
   await page
-    .getByRole("button", { name: "Configure openapi-from-workspace@5" })
+    .getByRole("button", { name: "Configure openapi-from-workspace@7" })
     .click();
   const workflowDialog = page.getByRole("dialog", {
     name: "Configure Run",
   });
   await expect(
     workflowDialog.locator(".workflow-drawer-heading code"),
-  ).toHaveText("openapi-from-workspace@5");
+  ).toHaveText("openapi-from-workspace@7");
   await workflowDialog
     .getByRole("button", { name: "Confirm exact input for source" })
     .click();
@@ -809,7 +809,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     );
   }
   await expect(
-    page.locator(".run-metadata").getByText("openapi-from-workspace@5", {
+    page.locator(".run-metadata").getByText("openapi-from-workspace@7", {
       exact: true,
     }),
   ).toBeVisible();
@@ -848,9 +848,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .click();
   await page
     .getByLabel("Version of openapi-from-workspace", { exact: true })
-    .selectOption("5");
+    .selectOption("7");
   await expect(
-    page.getByRole("button", { name: "Run again openapi-from-workspace@5" }),
+    page.getByRole("button", { name: "Run again openapi-from-workspace@7" }),
   ).toBeVisible();
 
   await page.goto("/operations/configurations");

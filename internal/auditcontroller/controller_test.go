@@ -480,7 +480,7 @@ func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeController
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("source-checklist@1")
+	profile, err := snapshot.AuditProfile("source-checklist@2")
 	if err != nil {
 		t.Fatal(err)
 	}

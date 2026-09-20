@@ -9,8 +9,8 @@ func TestRepositoryWorkspaceStreamlinePreservesCurrentContract(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct{ baseline, streamline string }{
-		{"likec4-from-workspace@5", "likec4-from-workspace-streamline@2"},
-		{"openapi-from-workspace@5", "openapi-from-workspace-streamline@1"},
+		{"likec4-from-workspace@7", "likec4-from-workspace-streamline@4"},
+		{"openapi-from-workspace@7", "openapi-from-workspace-streamline@2"},
 	} {
 		t.Run(test.streamline, func(t *testing.T) {
 			snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())

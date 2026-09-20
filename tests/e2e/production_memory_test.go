@@ -44,12 +44,12 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 	}
 	var catalog struct {
 		Templates []struct {
-			Legacy, Active string
-			ActiveFile     string `json:"active_file"`
+			Active     string
+			ActiveFile string `json:"active_file"`
 		} `json:"templates"`
 		Workflows []struct {
-			Legacy, Active string
-			ActiveFile     string `json:"active_file"`
+			Active     string
+			ActiveFile string `json:"active_file"`
 		} `json:"workflows"`
 	}
 	data, err := os.ReadFile(filepath.Join(repositoryRoot, "configs/memory-catalog.json"))
@@ -79,12 +79,13 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 			Instructions struct{ Ref string }
 			ModelPolicy  string `yaml:"modelPolicy"`
 			Summarizer   *struct {
-				ModelPolicy string `yaml:"modelPolicy"`
+				Instructions struct{ Ref string }
+				ModelPolicy  string `yaml:"modelPolicy"`
 			}
 		}
 	}
 	for _, entry := range catalog.Templates {
-		if entry.Legacy == "artifact_builder@1" {
+		if entry.Active == "artifact_builder@2" {
 			template = entry.Active
 			if err := yaml.Unmarshal(copyFile(entry.ActiveFile), &selected); err != nil {
 				t.Fatal(err)
@@ -92,7 +93,7 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 		}
 	}
 	for _, entry := range catalog.Workflows {
-		if entry.Legacy == "artifact-copy@1" {
+		if entry.Active == "artifact-copy@2" {
 			workflow = entry.Active
 			copyFile(entry.ActiveFile)
 		}
@@ -105,6 +106,7 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 	policies := map[string]bool{selected.Spec.ModelPolicy: true}
 	if selected.Spec.Summarizer != nil {
 		policies[selected.Spec.Summarizer.ModelPolicy] = true
+		copyFile("configs/" + selected.Spec.Summarizer.Instructions.Ref)
 	}
 	files, err := filepath.Glob(filepath.Join(repositoryRoot, "configs/model-policies/*.yaml"))
 	if err != nil {

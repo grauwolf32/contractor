@@ -186,7 +186,7 @@ func (h *evalAPIHarness) dataset(t *testing.T, kind string) (evaldomain.Draft, e
 	}
 	for i := range draft.Variants {
 		draft.Variants[i].Kind = kind
-		draft.Variants[i].Selector = "artifact-copy@1"
+		draft.Variants[i].Selector = "artifact-copy@2"
 		if kind == "audit" {
 			draft.Variants[i].Selector = "public-checklist@1"
 		}

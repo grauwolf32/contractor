@@ -10,7 +10,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("likec4-from-workspace@5")
+	workflow, err := snapshot.Workflow("likec4-from-workspace@7")
 	if err != nil {
 		t.Fatalf("resolve LikeC4 Workflow: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	assertBoundedRetry(t, validate.On.Failed, 2)
 	assertBoundedRetry(t, validate.On.Interrupted, 2)
 
-	openapi, err := snapshot.Workflow("openapi-from-workspace@5")
+	openapi, err := snapshot.Workflow("openapi-from-workspace@7")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +132,9 @@ func TestRepositoryLikeC4WorkspaceAgentToolAllowlists(t *testing.T) {
 		expected map[string][]string
 	}{
 		{
-			ref: "workspace_likec4_builder@1",
+			ref: "workspace_likec4_builder@3",
 			expected: map[string][]string{
+				"memory-tools@1":      {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 				"filesystem@1":        {"glob", "grep", "ls", "read_file"},
 				"workspace-changes@1": {"changed_paths", "diff", "rollback_changes"},
 				"text-artifacts@1":    {"read_text_artifact"},
@@ -141,8 +142,9 @@ func TestRepositoryLikeC4WorkspaceAgentToolAllowlists(t *testing.T) {
 			},
 		},
 		{
-			ref: "workspace_likec4_validator@1",
+			ref: "workspace_likec4_validator@3",
 			expected: map[string][]string{
+				"memory-tools@1":      {"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory"},
 				"filesystem@1":        {"glob", "grep", "ls", "read_file"},
 				"workspace-changes@1": {"changed_paths", "diff", "rollback_changes"},
 				"text-artifacts@1":    {"read_text_artifact", "write_text_artifact"},
@@ -171,10 +173,10 @@ func TestRepositoryLikeC4WorkspaceInstructionsAreSelfContained(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	checks := map[string][]string{
-		"instructions/workspace-likec4-builder-worker.md": {
+		"instructions/workspace-likec4-builder-worker-memory.md": {
 			"specification", "model", "views", "relative/path:line", "existing_likec4",
 		},
-		"instructions/workspace-likec4-validator-worker.md": {
+		"instructions/workspace-likec4-validator-worker-memory.md": {
 			"repair-only", "exactly once more", "validation-report",
 		},
 		"instructions/likec4-build-planner.md": {

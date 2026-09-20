@@ -35,7 +35,7 @@ func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
 	schema = strings.Replace(schema, "    post:\n      operationId: getItem", "    post:\n      operationId: postItem", 1)
 	openAPI := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "openapi", "shared-function", "application/yaml", []byte(schema))
 	audit := runAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client, h.baseURL, project.ProjectID,
-		"openapi-operation-trace@3", map[string]artifactRef{"source": source, "openapi": openAPI}, 2, 2, 0, "")
+		"openapi-operation-trace@5", map[string]artifactRef{"source": source, "openapi": openAPI}, 2, 2, 0, "")
 	var items struct {
 		Items []auditProgramItem `json:"items"`
 	}
@@ -127,7 +127,7 @@ func runOrdinaryFindingProducer(t *testing.T, h *findingsHarness, projectID stri
 		t.Fatal(err)
 	}
 	manifestRef := uploadProjectScopeArtifact(t, h.client, h.baseURL, projectID, "fixtures", "ordinary-manifest", "application/json", encoded)
-	body, _ := json.Marshal(map[string]any{"workflow": "audit-openapi-operation-trace@2", "artifacts": map[string]artifactRef{"task": taskRef, "execution_manifest": manifestRef, "source": source}})
+	body, _ := json.Marshal(map[string]any{"workflow": "audit-openapi-operation-trace@4", "artifacts": map[string]artifactRef{"task": taskRef, "execution_manifest": manifestRef, "source": source}})
 	runID := postProjectRun(t, h.client, h.baseURL, projectID, "ordinary-findings", body, false)
 	waitForFindingsRun(t, h, runID, "succeeded")
 	return runID

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-//go:embed testdata/model-policies/*.yaml testdata/agent-templates/*.yaml testdata/execution-configs/*.yaml testdata/escalation/workflows/*.yaml
+//go:embed testdata/model-policies/*.yaml testdata/agent-templates/*.yaml testdata/workflows/*.yaml testdata/instructions/*.md testdata/execution-configs/*.yaml testdata/escalation/workflows/*.yaml
 var fixtures embed.FS
 
 // CopyWithPolicies copies a catalog and overlays static testdata resources.

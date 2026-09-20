@@ -25,7 +25,7 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 		publishedValidation string
 	}{
 		{
-			ref: "openapi-from-workspace@5",
+			ref: "openapi-from-workspace@7",
 			domainStages: map[string]string{
 				"dependency_discovery": "workspace_source_graph_analyst",
 				"project_discovery":    "workspace_source_graph_analyst",
@@ -38,7 +38,7 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 			publishedValidation: "openapi_validation_report",
 		},
 		{
-			ref: "likec4-from-workspace@5",
+			ref: "likec4-from-workspace@7",
 			domainStages: map[string]string{
 				"dependency_discovery": "workspace_source_graph_analyst",
 				"project_discovery":    "workspace_source_graph_analyst",
@@ -116,7 +116,7 @@ func TestRepositoryPassthroughWorkspaceWorkflowsUseExpandedWorkerBudget(t *testi
 		t.Fatalf("expanded domain Worker policy = %+v", policy)
 	}
 
-	for _, selector := range []string{"openapi-from-workspace@5", "likec4-from-workspace@5"} {
+	for _, selector := range []string{"openapi-from-workspace@7", "likec4-from-workspace@7"} {
 		workflow, workflowErr := snapshot.Workflow(selector)
 		if workflowErr != nil {
 			t.Fatal(workflowErr)
@@ -168,11 +168,11 @@ func TestRepositoryWorkspaceTemplatesUseOnlyNarrowFilesystemContracts(t *testing
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	for _, ref := range []string{
-		"workspace_source_graph_analyst@1",
-		"workspace_openapi_builder@1",
-		"workspace_openapi_validator@1",
-		"workspace_likec4_builder@1",
-		"workspace_likec4_validator@1",
+		"workspace_source_graph_analyst@3",
+		"workspace_openapi_builder@3",
+		"workspace_openapi_validator@3",
+		"workspace_likec4_builder@3",
+		"workspace_likec4_validator@3",
 	} {
 		template, err := snapshot.AgentTemplate(ref)
 		if err != nil {
@@ -185,12 +185,12 @@ func TestRepositoryWorkspaceTemplatesUseOnlyNarrowFilesystemContracts(t *testing
 		if !reflect.DeepEqual(toolsets["filesystem@1"], []string{"glob", "grep", "ls", "read_file"}) {
 			t.Fatalf("%s filesystem tools = %+v", ref, toolsets)
 		}
-		if ref != "workspace_source_graph_analyst@1" &&
+		if ref != "workspace_source_graph_analyst@3" &&
 			!reflect.DeepEqual(toolsets["workspace-changes@1"], []string{"changed_paths", "diff", "rollback_changes"}) {
 			t.Fatalf("%s workspace-change tools = %+v", ref, toolsets)
 		}
 		instructions := strings.Join(strings.Fields(template.Instructions.Text), " ")
-		if ref != "workspace_source_graph_analyst@1" &&
+		if ref != "workspace_source_graph_analyst@3" &&
 			(!strings.Contains(strings.ToLower(instructions), "workspace export is automatic") ||
 				!strings.Contains(instructions, "host path")) {
 			t.Fatalf("%s instructions do not explain workspace boundaries", ref)

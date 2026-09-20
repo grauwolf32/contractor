@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -258,7 +259,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	openAPIRunRequest := projectRunRequest("openapi-from-workspace@5", map[string]artifactRef{
+	openAPIRunRequest := projectRunRequest("openapi-from-workspace@7", map[string]artifactRef{
 		"source": source, "existing_openapi": openAPISeedRef,
 	})
 	openAPIRunID := postProjectRun(
@@ -312,6 +313,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]int64{5, 5, 9, 9},
 		map[string]string{
 			"inputs/source": "application/zip", "inputs/existing_openapi": "application/yaml",
+			artifactpolicy.RunSystemNamespace + "/" + artifactpolicy.RunRepeatRequestName: artifactpolicy.RunRepeatRequestMediaType,
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
 			"analysis/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"analysis/workspace_diff":  "text/x-diff",
@@ -353,7 +355,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		},
 	)
 
-	likeC4RunRequest := projectRunRequest("likec4-from-workspace@5", map[string]artifactRef{
+	likeC4RunRequest := projectRunRequest("likec4-from-workspace@7", map[string]artifactRef{
 		"source": source, "existing_likec4": likeC4SeedRef,
 	})
 	likeC4RunID := postProjectRun(
@@ -392,6 +394,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]int64{5, 5, 11, 9},
 		map[string]string{
 			"inputs/source": "application/zip", "inputs/existing_likec4": "text/plain",
+			artifactpolicy.RunSystemNamespace + "/" + artifactpolicy.RunRepeatRequestName: artifactpolicy.RunRepeatRequestMediaType,
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
 			"analysis/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"analysis/workspace_diff":  "text/x-diff",
@@ -1252,8 +1255,8 @@ func assertProjectRunDurable(
 				execution.StageName, workerToolCalls, modelCalls[index]-2, metrics.Tools)
 		}
 		budget := metrics.WorkerBudget
-		if budget == nil || budget.MaxModelCalls != 24 || budget.MaxToolCalls != 96 ||
-			budget.MaxTotalTokens != 500000 || budget.ObservedModelCalls != modelCalls[index] ||
+		if budget == nil || budget.MaxModelCalls != 200 || budget.MaxToolCalls != 200 ||
+			budget.MaxTotalTokens != 2500000 || budget.ObservedModelCalls != modelCalls[index] ||
 			budget.ObservedToolCalls != workerToolCalls ||
 			budget.ObservedTotalTokens != modelCalls[index]*16 ||
 			budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {

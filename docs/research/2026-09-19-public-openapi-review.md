@@ -65,7 +65,7 @@ resolve them. The listed fixes do not require rewriting the entire API.
    **30 of 41 AgentTemplate versions failed validation** because of
    `body.summarizer.instructions`. The remaining 11 AgentTemplates, four
    ModelPolicies and one Gateway passed. Example:
-   [artifact_builder.yaml](../../configs/agent-templates/artifact_builder.yaml).
+   [artifact_builder_v2_memory.yaml](../../configs/agent-templates/artifact_builder_v2_memory.yaml).
 
    The mismatch affects list/detail configuration responses. A strict client
    rejects the resource; Go typed models lose the unknown field when decoding,

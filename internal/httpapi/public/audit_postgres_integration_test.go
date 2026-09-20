@@ -184,7 +184,7 @@ spec:
   workflows:
     check:
       kind: check
-      ref: openapi-from-workspace@5
+      ref: openapi-from-workspace@7
       inputs:
         source: {source: audit-input, name: source}
       parameters:

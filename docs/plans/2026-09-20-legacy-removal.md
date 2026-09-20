@@ -1,9 +1,10 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C06 implemented, verified and integrated into local `main`.
-C01–C03 were integrated as `1d661196`, C04 as `bc32a76b`, C05 as `71f77e00`;
-C06 followed on `refactor/http-batch-legacy-removal`. C07 and D01–D07 remain
-planned.
+Status: C01–C07 implemented, verified and integrated into local `main`;
+D01–D07 remain planned.
+C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
+C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
+`refactor/catalog-legacy-removal`.
 Reviewed working tree on 2026-09-20, HEAD
 `e1ea6209713d1c8d637d1106ce92a4960a4a2c58`, including existing uncommitted
 documentation. The user requested finding code retained only for backward
@@ -207,45 +208,49 @@ query counts retain their existing behavior. The PostgreSQL regression test
 asserts response contents and query bounds directly instead of comparing with
 the retired per-stage path. Updated specification 06.
 
-## C07 — retire superseded configuration from the default catalog
+## C07 — retire superseded configuration from the default catalog (implemented)
 
-[memory-catalog.json](../../configs/memory-catalog.json) explicitly maps
-**20 AgentTemplates, 16 Workflows and 5 AuditProfiles** from `legacy` to `active`.
-All 41 legacy files and all 41 successor files exist. These are configuration
-duplicates retained for compatibility, not 41 independently obsolete engines.
+Removed the 41 superseded definitions inventoried in
+[memory-catalog.json](../../configs/memory-catalog.json): **20 AgentTemplates,
+16 Workflows and 5 AuditProfiles**. All 41 successor YAML files retain their
+previous bytes. The default catalog now contains 21 AgentTemplates, 17 Workflows,
+6 AuditProfiles and 38 instruction files; the separate Audit completion example
+remains supported.
 
-A literal-selector scan of configuration YAML outside the 41-file removal set
-found these remaining references:
+Removed 14 instruction files with no remaining default-catalog consumer. Other
+pre-Memory instruction files are still selected by current Planner stages and
+remain required. The four ordinary examples now use current templates under
+version 2. Router/Streamline examples use their existing Memory example
+bytes at the canonical filenames; the two duplicate `_memory.yaml` copies are
+removed.
 
-| Legacy selector | Consumers outside the removal set |
-| --- | --- |
-| `artifact_builder@1` | `configs/examples/{streamline_review_workflow,multi_stage_workflow,bounded_retry_workflow}.yaml`; `configs/e2e/workflows/{escalating_copy,artifact_copy,router_review,streamline_copy}.yaml` |
-| `openapi_builder@1`, `openapi_validator@1` | `configs/examples/router_openapi_workflow.yaml` |
+Consumers and tests:
 
-This scan is evidence, not a full resolved dependency proof: test code and
-external operator catalogs can refer to selectors differently.
+- Updated repository-catalog assertions, process Workflow/Audit selectors,
+  shared Skill assignment checks and ordinary project/Audit evaluation harnesses.
+  Exact tool allowlists now include their existing Memory operations. Domain
+  capabilities, outputs, topology, completion policy and snapshot-copy assertions
+  remain covered.
+- The isolated `configs/e2e`, `testdata/configs` and minimal loader catalogs keep
+  their own behavioral fixtures. `configtest` now includes its artifact-copy
+  Workflow and instructions alongside the existing test-only artifact builder
+  and policies. Its escalation fixture uses the current validator template.
+- Frozen V40 `catalog-baseline.json`, variants, candidate definitions and release
+  manifests remain unchanged; their tests load the retained catalog directly.
+- [production_memory_test.go](../../internal/config/production_memory_test.go)
+  verifies current closure, all six Memory operations, retired-selector rejection
+  and reading complete pinned Workflow/AuditProfile snapshots without a catalog
+  lookup. [catalog_cleanup_test.go](../../internal/config/catalog_cleanup_test.go)
+  verifies the exact current Workflow set and instruction/template reachability.
+- New requests for absent exact selectors fail resolution. Repeat retains the
+  original identity and reports blocking `workflow_unavailable`; it never picks
+  a successor automatically. Independently published managed/operator resources
+  are outside this source-catalog deletion.
 
-Removal sequence:
-
-1. Build the complete resolved reference closure, including bundled examples,
-   process fixtures, managed/operator configuration and frozen evaluation inputs.
-2. Move genuinely necessary old test/evaluation definitions into dedicated
-   fixture roots with their exact content. Keep frozen V40 experiment inputs
-   unchanged; substituting Memory-enabled successors changes the experiment.
-   Update ordinary examples to current selectors and validate their closure.
-3. Adjust [production_memory_test.go](../../internal/config/production_memory_test.go)
-   and [catalog_cleanup_test.go](../../internal/config/catalog_cleanup_test.go):
-   current tests deliberately require both versions in the default catalog.
-   Retain successor behavior, reachability and immutable-identity checks.
-4. Remove the 41 old YAML files from the default catalog, then remove only
-   instructions/policies proven unreachable from all retained configurations.
-   Update `configs/README.md`, `configs/MEMORY.md` and their inventory semantics.
-5. Verify retained Run/Audit execution from pinned snapshots. Define how Repeat
-   and new requests using a removed exact selector fail; never silently map
-   an old identity to its successor or reuse the old identity for new bytes.
-
-The server-managed catalog is a separate source. Removing a repository file
-does not prove that a published resource or external reference disappeared.
+[configs/README.md](../../configs/README.md) and
+[configs/MEMORY.md](../../configs/MEMORY.md) describe the current inventory.
+`memory-catalog.json` schema version 2 keeps `retired`, `active` and `active_file`
+as an inventory and retirement record, with no paths to deleted definitions.
 
 ## Historical-data readers: planned strict-format cleanup
 
@@ -306,7 +311,8 @@ shrinking that contract is separate from removing an internal no-op.
 ## Execution order and acceptance
 
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
-the third, C05 in the fourth and C06 in the fifth; later items remain planned.
+the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
+D01–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -488,5 +494,41 @@ Verification completed on 2026-09-20:
   The four retired optional batch interfaces and their compatibility branches
   have no remaining implementation references.
 
-Next increment: C07, retire 41 superseded entries from the default catalog
-after updating their remaining consumers.
+## Sixth increment — C07 results
+
+Retired the superseded default-catalog definitions and their orphan instructions,
+updated the ordinary examples, and moved all default-catalog consumers to current
+selectors. Implemented in `refactor/catalog-legacy-removal` and integrated into
+local `main`, preserving unrelated working-tree changes. The 41 successor YAML files and frozen V40 catalog inputs
+retain their exact bytes.
+
+Verification completed on 2026-09-20:
+
+- `make test-config` passed, including command-line validation of all 21 templates,
+  17 Workflows, 6 AuditProfiles and 38 instructions.
+- PostgreSQL 17 race tests passed for configuration, Agent Skills, Audit
+  controller, public HTTP API, Run service, scheduler, ordinary and frozen eval
+  harnesses, untagged E2E matrix tests and fault matrix tests.
+- Seven process scenarios for Memory, project Workflows, Audit programs, Findings,
+  Agent Skills, HTTP/Caido and taint annotations passed against real Go/Python processes and scripted model gateways.
+  The Audit scenario includes removal of its current staged catalog and a Server
+  restart before checking retained results and provenance.
+- The real Chromium Operations/Project/Streamline browser scenario passed with
+  Node 24.20.0 and pnpm 11.24.0; optional screenshot OCR was unavailable. Full
+  managed-Evals browser journeys and paid-model/real-Podman-container gates were
+  not run in this increment.
+- Four offline Python Podman Workflow tests passed with warnings as errors.
+- Browser fixture closure tests load both ordinary and managed-Evals catalogs,
+  including both Workflow/Audit arms. E2E, UI-stack and project-eval packages
+  compile with the `e2e` build tag.
+- Initial runs exposed stale test assumptions: removed selectors/files, exact
+  tool lists without Memory, old policy budgets, an omitted summarizer instruction
+  dependency, a fault-matrix source-file pointer, and a Findings comparison that
+  included the changing read timestamp. The Agent Skills retry fixture now uses
+  a transient Gateway response with HTTP retries disabled, so it exercises the
+  intended Stage retry. Updated those fixtures while retaining
+  domain, authorization, snapshot, review-state and tool-boundary assertions.
+- Local documentation links, formatting and `git diff --check` passed.
+
+Next increment: D01, require an explicit session mode in persisted Stage
+snapshots instead of interpreting a missing mode as `shared`.

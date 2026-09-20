@@ -5,7 +5,7 @@ kind: Workflow
 
 metadata:
   name: streamline-review
-  version: "1"
+  version: "2"
 
 spec:
   parameters:
@@ -40,7 +40,7 @@ spec:
       planner: streamline@1
       agents:
         reviewer:
-          template: artifact_builder@1
+          template: artifact_builder@2
           namespace: review
       context:
         artifacts:

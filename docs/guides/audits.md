@@ -7,14 +7,15 @@ tracks scope, coverage, evidence, findings and review across their Runs. See the
 
 The operator catalog ships two bounded source-input demo programs:
 
-- `source-checklist@1` turns a checklist plus a source ZIP into one check per
+- `source-checklist@2` turns a checklist plus a source ZIP into one check per
   checklist entry and executes up to two compatible checks in one ordinary Run.
-- `openapi-operation-trace@1` turns an OpenAPI document plus a source ZIP into
+- `openapi-operation-trace@4` turns an OpenAPI document plus a source ZIP into
   one trace item per supported path operation. Callbacks and webhooks are
   reported as inventory or coverage gaps; the Server never follows remote
   references.
 
-Both profiles use ordinary `audit-source-check@1` Runs. The Runtime's
+The profiles use ordinary `audit-source-check@3` and
+`audit-openapi-operation-trace@3` Runs, respectively. The Runtime's
 `submit_check_result` tool derives immutable item identities and the execution
 manifest digest from trusted Run inputs, writes one complete canonical result
 package, and leaves validation, evidence retention, coverage and settlement to
@@ -82,7 +83,7 @@ checklist_ref=$(
 
 audit=$(
   jq -nc --argjson source "$source_ref" --argjson checklist "$checklist_ref" \
-    '{profile:{name:"source-checklist",version:"1"},
+    '{profile:{name:"source-checklist",version:"2"},
       inputs:{source:$source,checklist:$checklist},
       scope:{objective:"Trace the bounded checklist against this source revision."}}' |
   curl -fsS -X POST -H "$AUTHORIZATION" \
@@ -112,7 +113,7 @@ curl -fsS -H "$AUTHORIZATION" "$CONTRACTOR_URL/v1/audits/$audit_id/report" | jq 
 A completed Audit can legitimately report `completed-with-gaps`,
 `inconclusive`, `unmapped`, or partial trace coverage. Completion means the
 bounded execution and collection lifecycle settled; it is not a security or
-compliance certification. The same flow starts `openapi-operation-trace@1` by
+compliance certification. The same flow starts `openapi-operation-trace@4` by
 uploading an `openapi` input and changing the exact profile selector.
 
 ## Curated Top 10 and ASVS programs
@@ -120,10 +121,10 @@ uploading an `openapi` input and changing the exact profile selector.
 Two additional operator profiles exercise the same ordinary Run path with an
 exact licensed standard package:
 
-- `owasp-top10-2025-source-risk@1` assesses ten bounded, independently authored
+- `owasp-top10-2025-source-risk@2` assesses ten bounded, independently authored
   source-risk scenarios mapped to the OWASP Top 10:2025 categories. It is a
   risk-awareness report, not exhaustive vulnerability discovery.
-- `owasp-asvs-5-0-l1-source-review@1` verifies a selected five-requirement ASVS
+- `owasp-asvs-5-0-l1-source-review@2` verifies a selected five-requirement ASVS
   5.0.0 Level 1 pilot. Its selection, version-qualified requirement IDs,
   automated evidence, manual work, and not-applicable decisions remain separate
   in coverage and in the machine report.

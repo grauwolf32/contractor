@@ -1,18 +1,24 @@
 # Working catalog with shared Memory
 
-Use the active selectors below for new Runs and Audits. These successors select
-all six `memory-tools@1` operations explicitly. Exact legacy selectors remain
-available for compatibility; they do not select Memory. Existing pinned Runs are
-unchanged. Custom templates continue to opt in explicitly.
+Use the active selectors below for new Runs and Audits. They select all six
+`memory-tools@1` operations explicitly. The retired selectors have been removed
+from the default catalog and are not aliases. Existing complete Run/Audit
+snapshots remain readable. Custom templates continue to opt in explicitly.
 
 The machine-readable inventory is [memory-catalog.json](memory-catalog.json).
+Schema version 2 records `retired`, `active` and `active_file`; only the active
+files are shipped. New requests for retired selectors fail resolution, and
+Repeat reports blocking `workflow_unavailable` when its exact Workflow is absent.
+Removing these source files does not delete independently published managed or
+operator-owned resources. Frozen V40 evaluation inputs and isolated test
+catalogs retain their own exact definitions outside the default catalog.
 Successor Workflows select successor templates, and successor AuditProfiles select
 those Workflows. `http_explorer` remains a reusable standalone Catalog template.
 Version numbers reserved by the frozen instruction evaluation are skipped.
 
 ## AgentTemplate
 
-| Legacy selector | Active selector |
+| Retired selector | Active selector |
 | --- | --- |
 | `artifact_builder@1` | [`artifact_builder@2`](agent-templates/artifact_builder_v2_memory.yaml) |
 | `audit_asvs_source_verifier@1` | [`audit_asvs_source_verifier@3`](agent-templates/audit_asvs_source_verifier_v3_memory.yaml) |
@@ -37,7 +43,7 @@ Version numbers reserved by the frozen instruction evaluation are skipped.
 
 ## Workflow
 
-| Legacy selector | Active selector |
+| Retired selector | Active selector |
 | --- | --- |
 | `artifact-copy@1` | [`artifact-copy@2`](workflows/artifact_copy_v2_memory.yaml) |
 | `audit-asvs-source-verification@1` | [`audit-asvs-source-verification@3`](workflows/audit_asvs_source_verification_v3_memory.yaml) |
@@ -58,7 +64,7 @@ Version numbers reserved by the frozen instruction evaluation are skipped.
 
 ## AuditProfile
 
-| Legacy selector | Active selector |
+| Retired selector | Active selector |
 | --- | --- |
 | `openapi-operation-trace@2` | [`openapi-operation-trace@4`](audit-profiles/openapi_operation_trace_v4_memory.yaml) |
 | `openapi-operation-trace@3` | [`openapi-operation-trace@5`](audit-profiles/openapi_operation_trace_v5_memory.yaml) |
@@ -76,5 +82,5 @@ Memory uses ordinary budgets and never substitutes for artifacts, findings, or
 Audit completion. Streamline and Router mirror selected operations; passthrough
 retains its direct dispatch without a synthetic Planner loop.
 
-Copyable examples: [Router](examples/router_openapi_workflow_memory.yaml) and
-[Streamline](examples/streamline_review_workflow_memory.yaml).
+Copyable examples: [Router](examples/router_openapi_workflow.yaml) and
+[Streamline](examples/streamline_review_workflow.yaml).

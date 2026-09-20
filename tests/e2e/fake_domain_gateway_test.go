@@ -286,11 +286,13 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var scripted *scriptedModelFailure
 		if errors.As(err, &scripted) {
+			// Return a transient error without an in-call HTTP retry so the Workflow retries.
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
+			w.Header().Set("x-should-retry", "false")
+			w.WriteHeader(http.StatusServiceUnavailable)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"error": map[string]any{
-					"message": "deterministic model failure", "type": "invalid_request_error",
+					"message": "deterministic model failure", "type": "server_error",
 				},
 			})
 			return
@@ -525,6 +527,11 @@ func (g *domainGateway) writeFailure(w http.ResponseWriter, status int, message 
 	})
 }
 
+func withMemoryTools(tools []string) []string {
+	return append(append([]string(nil), tools...),
+		"append_memory", "list_memories", "list_memory_tags", "read_memory", "search_memory", "write_memory")
+}
+
 func domainGatewayStages() []domainGatewayStage {
 	analystTools := []string{
 		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
@@ -558,6 +565,12 @@ func domainGatewayStages() []domainGatewayStage {
 		"read_text_artifact", "replace_likec4", "rollback_changes", "validate_likec4",
 		"write_likec4", "write_text_artifact",
 	}
+
+	analystTools = withMemoryTools(analystTools)
+	openAPIBuilderTools = withMemoryTools(openAPIBuilderTools)
+	openAPIValidatorTools = withMemoryTools(openAPIValidatorTools)
+	likeC4BuilderTools = withMemoryTools(likeC4BuilderTools)
+	likeC4ValidatorTools = withMemoryTools(likeC4ValidatorTools)
 
 	stages := make([]domainGatewayStage, 0, 8)
 	stages = append(stages,

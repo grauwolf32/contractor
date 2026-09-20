@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/config"
 )
 
 const managedEvalWorkerSummary = "Managed Evals deterministic output retained"
@@ -89,6 +91,7 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 			t.Fatal(err)
 		}
 		value := strings.Replace(string(raw), "name: "+oldName, "name: "+newName, 1)
+		value = strings.ReplaceAll(value, "artifact_builder@1", "artifact_builder@2")
 		if directory == "audit-profiles" {
 			value = strings.Replace(value, "batchSize: 2", "batchSize: 1", 1)
 		}
@@ -98,10 +101,10 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 	}
 	for _, arm := range []string{"a", "b"} {
 		copyVariant("configs/e2e/workflows/artifact_copy.yaml", "workflows", "artifact-copy", "eval-copy-"+arm)
-		copyVariant("configs/audit-profiles/source-checklist.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)
+		copyVariant("configs/audit-profiles/source_checklist_v2_memory.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)
 	}
 	// The fixture uses no Skills uploaded by the Operations browser journey.
-	path := filepath.Join(target, "agent-templates", "audit_source_checker.yaml")
+	path := filepath.Join(target, "agent-templates", "audit_source_checker_v3_memory.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -128,5 +131,37 @@ func TestManagedEvalGatewayHasIndependentHistories(t *testing.T) {
 		if !strings.Contains(string(raw), "read_artifact") {
 			t.Fatal(fmt.Sprint(message))
 		}
+	}
+}
+
+func TestUIStackConfigurationClosure(t *testing.T) {
+	for _, managedEvals := range []bool{false, true} {
+		t.Run(fmt.Sprintf("managed_evals_%t", managedEvals), func(t *testing.T) {
+			root := repoRoot(t)
+			target := stageUIStackConfiguration(t, root, filepath.Join(t.TempDir(), "configs"),
+				"http://127.0.0.1:9999/v1", "http://127.0.0.1:9998")
+			if managedEvals {
+				stageManagedEvalConfiguration(t, root, target)
+			}
+			snapshot, err := config.Load(target, config.MVPDescriptors())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, selector := range []string{"streamline-copy@1", "openapi-from-workspace@7"} {
+				if _, err := snapshot.Workflow(selector); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if managedEvals {
+				for _, arm := range []string{"a", "b"} {
+					if _, err := snapshot.Workflow("eval-copy-" + arm + "@1"); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := snapshot.AuditProfile("eval-audit-" + arm + "@2"); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+		})
 	}
 }

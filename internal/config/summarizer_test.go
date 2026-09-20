@@ -39,8 +39,8 @@ func TestRepositoryOrdinaryWorkersUseTerminalSummarizer(t *testing.T) {
 			t.Fatalf("Worker %s summarizer configuration = %+v", name, template.Summarizer)
 		}
 	}
-	if enabled != 30 || audit != 11 {
-		t.Fatalf("summarized/audit Workers = %d/%d, want 30/11", enabled, audit)
+	if enabled != 15 || audit != 6 {
+		t.Fatalf("summarized/audit Workers = %d/%d, want 15/6", enabled, audit)
 	}
 }
 

@@ -812,7 +812,9 @@ func stageUIStackConfiguration(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(target, "workflows", "streamline_copy.yaml"), bytes.ReplaceAll(streamlineBytes, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@2")), 0o600); err != nil {
+	streamlineBytes = bytes.ReplaceAll(streamlineBytes, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@2"))
+	streamlineBytes = bytes.ReplaceAll(streamlineBytes, []byte("artifact_builder@1"), []byte("artifact_builder@2"))
+	if err := os.WriteFile(filepath.Join(target, "workflows", "streamline_copy.yaml"), streamlineBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if !gatewayUpdated || !managerUpdated {

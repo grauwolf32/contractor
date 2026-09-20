@@ -2,7 +2,8 @@
 
 For new Runs and Audits, use the versioned [working Memory catalog](MEMORY.md).
 It maps all 20 roles and their Workflow/AuditProfile references to explicit
-Memory selections; older exact selectors remain available for compatibility.
+Memory selections. Superseded exact selectors are removed from this catalog;
+new requests must select an available version explicitly.
 
 This directory contains the executable default configuration for Contractor's
 Application Security orchestration platform. Versioned Workflows define checks
@@ -44,9 +45,12 @@ Historical source-analysis and earlier workspace/Skill versions are deleted,
 not archived or republished. Existing Runs retain their complete resolved
 Workflow snapshots; a deleted exact identity is never reused. Process-only
 Router/Streamline Memory fixtures live under `configs/e2e` and do not enter the
-default catalog. The working successors listed above select Memory explicitly;
-their pre-Memory versions remain available under the legacy exact selectors
-listed in [MEMORY.md](MEMORY.md).
+default catalog. The working successors listed above select Memory explicitly.
+[MEMORY.md](MEMORY.md) lists the retired identities and their active successors;
+it does not define aliases. Repeat is blocked with `workflow_unavailable` when
+the original exact Workflow is absent. Removing a bundled resource does not
+remove copies published into a separate managed or operator catalog. Frozen
+instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
 The two initial AuditProfiles are deliberately generic, one-round and
 non-certifying. They require an exact source ZIP plus either a custom checklist
@@ -117,9 +121,9 @@ aliases to the same Qwen model; each role can be routed independently later.
 The passthrough workspace Workflows pin `worker@2`.
 `openapi-from-workspace-streamline@2` and `likec4-from-workspace-streamline@4`
 retain the exact graph-backed workspace, artifact handoffs, cumulative state/diff
-and output contracts of their respective `*-from-workspace@5` variants, with
+and output contracts of their respective `*-from-workspace@7` variants, with
 `streamline@1` in every Stage. Their modeled Planners use `planner@2`;
-their Workers use `worker@2`. The three OpenAPI workflow families, including their Memory variants, retry validation
+their Workers use `worker@2`. The three OpenAPI workflow families retry validation
 with `maxAttempts: 2`: the initial attempt and at most one retry for a retryable
 failure. The retry preserves the effective Run policy; no production escalation
 profile is published. Escalation fixtures remain under testdata.
@@ -127,14 +131,14 @@ Choose these when each semantic Stage benefits from explicit
 ordered subtask decomposition; the passthrough variant remains the simpler
 default when one Worker invocation can own the complete Stage objective.
 
-The three shared policies declare a context window of 118,000 tokens. The 30 ordinary
-Worker templates (including Memory variants) enable a one-shot, tool-free terminal summarizer at
+The three shared policies declare a context window of 118,000 tokens. The 15 ordinary
+Worker templates enable a one-shot, tool-free terminal summarizer at
 `contextWindowRatio: 0.8` (94,400 provider-reported prompt tokens). It uses the
 existing `worker-model` alias with up to 8,192 output tokens. No cumulative
 summary threshold is configured. The summarizer completes the invocation; it
 does not compact history and resume the tool loop. Required output artifacts
 must already exist, and an invalid or incomplete summary still fails the task.
-The 11 Audit Worker templates (including Memory and completion variants) retain mandatory `audit-results` submission and
+The 6 Audit Worker templates (including the completion variant) retain mandatory `audit-results` submission and
 omit terminal summarization; `audit-check-results@1` completion prohibits it.
 Planner context metadata does not enable a Planner summarizer.
 
@@ -235,9 +239,8 @@ started. Deployments using different credentials must override these
 reference-only selections in the Run `executionConfig` or publish their own
 Workflow versions.
 
-`examples/*_memory.yaml` contains the recommended Memory-enabled Router and
-Streamline examples. The other `examples/` files retain legacy selections and
-contain copyable multi-Stage, bounded-retry, single-Worker
+`examples/` contains Memory-enabled Router and Streamline examples, plus
+copyable multi-Stage, bounded-retry, single-Worker
 `streamline@1`, and multi-Worker `router@1` Workflow manifests. They are
 intentionally outside `workflows/`, so they document supported shapes without
 changing the default end-to-end fixture.
