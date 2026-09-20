@@ -3,7 +3,7 @@ id: V60-009
 title: Review authentication, delivery gates and operational recovery evidence
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-001
 - V60-002
@@ -30,7 +30,7 @@ scope:
   - Complete disposable startup/upgrade/restore walkthrough and measure gate timing and selected bounded resource
     paths before proposing optimizations.
   out:
-  - Take over active V38 managed Evals, V40-002, V55-004 or V56 toolsets; change intentionally deferred semantics without a contract decision.
+  - Take over active V38 managed Evals, V40-002, V55-004 or V61 toolsets; change intentionally deferred semantics without a contract decision.
   - Live model runs, production data mutation or deployment.
   - Claim whole-project correctness from one review slice.
 acceptance_criteria:
