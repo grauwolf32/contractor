@@ -3,8 +3,8 @@ id: V60-027
 title: Preserve independent findings when importing one receipt into multiple Audits
 milestone: project-review-v60
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: f72102a16258172d726a2688b51b5334fb103aeb
 depends_on: [V60-012]
 languages: [go, sql, markdown]
 goal: Allow the same exact receipt in compatible Audits without colliding finding or direct-assessment identities.
@@ -39,3 +39,12 @@ tests:
 verification_requirements:
   - Retain original collision evidence, migration compatibility assertions and the full gate results in V60-027/V60-008 evidence.
   - Use only the isolated review database and exact local fixture artifacts; no live models or existing user Audits.
+
+review_evidence:
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  evidence: tasks/evidence/v60-027.json
+  result: Focused, migration, complete package and required Audit hardening checks passed without selected skips.
+verification:
+  evidence: tasks/evidence/v60-027.json
+  report: docs/research/2026-09-20-v60-008-audit-product-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
