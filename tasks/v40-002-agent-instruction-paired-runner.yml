@@ -113,3 +113,23 @@ preparation_progress:
     - "Source citation roles, mandatory Workflow target and Audit checklist inputs need a reviewed live mapping."
     - "Trusted analysis normalization, media conversion and observation/review receipt collection are absent."
     - "A1 evidence must aggregate three items across unchanged batchSize=2 child Runs."
+
+acceptance_review:
+  verified_on: "2026-09-21"
+  evidence: tasks/evidence/v40-002-acceptance-20260921.json
+  outcome: Recorded preparation passes; live acceptance remains blocked and implementation_commit stays null.
+  checks:
+    - Catalog validation passed for 212 projects and 10 suites; 13 instruction experiment tests passed.
+    - Existing plan CLI reproduced all 24 recorded members in a fresh temporary directory; Contractor archive/config tests passed.
+    - GET-only demo preflight made 23 requests; only audit-source-check@1 among the requested exact selectors was available.
+    - The frozen baseline metadata probe is blocked with provider_preflight_unavailable; it supplies no new evidence of live equality pins.
+  current_schema_blocker: >-
+    The immutable experiment Audit wrappers select removed audit-results@1 and
+    obsolete inventory fields. A new separately pinned experiment must use the
+    current task/completion and inventory schemas in both arms. Do not rewrite
+    the accepted archive or restore legacy schema/toolset support to run it.
+  next_boundary: >-
+    Resolve capability/input/output mappings and aggregate dispatch/budgets in
+    the existing playground provider, prepare and publish a separately authorized
+    current-schema release, then freeze a strict live plan. V40-003 owns any
+    future model execution; recorded controls are not live acceptance evidence.
