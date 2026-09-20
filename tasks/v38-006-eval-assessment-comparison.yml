@@ -3,8 +3,8 @@ id: "V38-006"
 title: "Collect eval results and build attributed complete comparisons"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "9fc021501ce34389ecc7f35ca65bdf7959a25ce9"
 implementation_repository: "contractor"
 depends_on: ["V38-005"]
 languages: ["go", "sql", "yaml", "typescript"]
@@ -144,3 +144,18 @@ tests:
     command: >-
       make verify-public-api && make ui-typecheck
     covers: ["A2", "A3"]
+
+verification_result:
+  date: "2026-09-20"
+  database: "Disposable PostgreSQL 17; isolated schemas, no live models or shared demo writes."
+  evidence: "docs/plans/2026-09-20-managed-evals-comparison.md"
+  result: >-
+    Required Eval race suite passed: 183 tests/subtests, no skips. Additional
+    coordinator, Project lifecycle, Audit, artifact and migration race suites passed.
+    The 10,000-member persistence fixture verified two queries per selected page,
+    632876-byte maximum response, complete pair coverage and chart consistency.
+    Stage-metric accounting, inventory gaps, review retention, evidence deletion,
+    progress buckets, signed filters and external revisions passed. Public contract,
+    both UI TypeScript configurations, go vet and repeatable client generation passed.
+    UI typechecks used the existing dependency directory with automatic reinstall
+    disabled through warn mode; Node 26.7.0 emitted the package's Node 24.20.x warning.

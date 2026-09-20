@@ -3,6 +3,7 @@
 Scope: finish assessment, selection and complete comparison APIs from spec 29,
 starting from the preserved V38-006 work in `feat/v38-managed-evals`.
 Implementation branch: `feat/v38-006-comparison`, based on main `15974cba`.
+Implementation commit: `9fc021501ce34389ecc7f35ca65bdf7959a25ce9`.
 
 - [x] Preserve the original work and move a copy onto current main.
 - [x] Refactor comparison, collection and persistence; verify evidence invalidation.
