@@ -659,3 +659,49 @@ def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
             validator = Draft202012Validator({"$ref": reference}, registry=registry)
             errors = list(validator.iter_errors(json.loads(path.read_text(encoding="utf-8"))))
             assert bool(errors) is not expected_valid, (path.name, errors)
+
+
+TOOLSET_FIXTURES = FIXTURES.parent / "toolset-runtime-configuration"
+
+
+@pytest.mark.parametrize(
+    "case", json.loads((TOOLSET_FIXTURES / "cases.json").read_text()), ids=lambda case: case["file"]
+)
+def test_toolset_configuration_shared_golden(case: dict[str, Any]) -> None:
+    from contractor_runtime.contracts import ToolsetCapability
+
+    raw = (TOOLSET_FIXTURES / case["file"]).read_bytes().strip()
+    models = {
+        "settings": RuntimeSettings,
+        "capability": ToolsetCapability,
+        "provenance": ResolvedRuntimeConfigProvenance,
+    }
+    if case["kind"] in models:
+        model = models[case["kind"]]
+        if case["valid"]:
+            value = decode_private(model, raw)
+            assert encode_private(value) == raw
+            assert "mcp-secret-canary" not in repr(value)
+        else:
+            with pytest.raises(PrivateProtocolDecodeError) as failure:
+                decode_private(model, raw)
+            assert "mcp-secret-canary" not in str(failure.value)
+
+    schema_root = FIXTURES.parents[1] / "v1alpha1"
+    schemas = {
+        path.name: json.loads(path.read_text()) for path in schema_root.glob("*.schema.json")
+    }
+    registry = Registry().with_resources(
+        [(schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()]
+    )
+    pointers = {
+        "settings": "allocation.schema.json#/$defs/RuntimeSettings",
+        "capability": "agent-registration.schema.json#/properties/supportedToolsets/items",
+        "provenance": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
+        "origins": "toolset-origins.schema.json",
+    }
+    validator = Draft202012Validator(
+        {"$ref": "https://contractor.local/schema/v1alpha1/" + pointers[case["kind"]]},
+        registry=registry,
+    )
+    assert validator.is_valid(json.loads(raw)) == case["schemaValid"]

@@ -3016,11 +3016,45 @@ export interface components {
             caBundlePem?: string;
             requestTimeoutSeconds?: number;
         };
+        RuntimeMCPConfig: {
+            /** Format: uri */
+            endpoint: string;
+            credential?: components["schemas"]["RuntimeCredentialId"];
+            caBundlePem?: string;
+            /** @default 10 */
+            connectTimeoutSeconds: number;
+            /** @default 60 */
+            requestTimeoutSeconds: number;
+        };
+        /** @description Exact registered refs; each value is atomic. Empty map is a no-op. Null clears a single ref. */
+        RuntimeToolsetPatches: {
+            "mcp@1"?: components["schemas"]["RuntimeMCPConfig"] | null;
+        };
+        ToolsetConfigurationRequirement: {
+            ref: components["schemas"]["RuntimeCapabilityRef"];
+            configurationRequired: boolean;
+            configurationSchema: components["schemas"]["RuntimeCapabilityRef"];
+            /** @enum {unknown} */
+            toolDiscovery: "static" | "allocation";
+            workerRuntimes: components["schemas"]["RuntimeCapabilityRef"][];
+        };
+        /** @description Safe normalized per-value digest; excludes RuntimeConfig document identity and secret material. */
+        ToolsetConfigurationCoverage: {
+            ref: components["schemas"]["RuntimeCapabilityRef"];
+            /** @constant */
+            state: "configured";
+            valueDigest: components["schemas"]["Digest"];
+        } | {
+            ref: components["schemas"]["RuntimeCapabilityRef"];
+            /** @constant */
+            state: "cleared";
+        };
         RuntimeLLMGatewayAuthorPatch: {
             gateway?: components["schemas"]["Selector"];
             credential?: components["schemas"]["ConfigId"] | null;
         };
         RuntimeWorkerAuthorPatch: {
+            toolsets?: components["schemas"]["RuntimeToolsetPatches"];
             llmGateway?: components["schemas"]["RuntimeLLMGatewayAuthorPatch"];
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
@@ -3044,6 +3078,7 @@ export interface components {
             credential?: components["schemas"]["ConfigId"] | null;
         };
         RuntimeWorkerPatch: {
+            toolsets?: components["schemas"]["RuntimeToolsetPatches"];
             llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"];
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
@@ -3096,7 +3131,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "http-origin-basic@1" | "http-origin-bearer@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "mcp-headers@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -3107,6 +3142,12 @@ export interface components {
         RuntimeCredentialPage: {
             items: components["schemas"]["RuntimeCredentialMetadata"][];
             page: components["schemas"]["PageInfo"];
+        };
+        MCPHeadersMaterial: {
+            /** @description HTTP token names up to 64 bytes; no duplicate case variants, reserved protocol or hop-by-hop headers. Combined names and values at most 16 KiB. */
+            headers: {
+                [key: string]: string;
+            };
         };
         OTLPHeadersMaterial: {
             headers: {
@@ -3131,6 +3172,11 @@ export interface components {
             token: string;
         };
         CreateRuntimeCredentialRequest: {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "mcp-headers@1";
+            material: components["schemas"]["MCPHeadersMaterial"];
+        } | {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
             kind: "otlp-headers@1";
@@ -3176,6 +3222,9 @@ export interface components {
             configs?: components["schemas"]["RuntimeConfigRef"][];
         };
         StageRuntimeOrigins: {
+            toolsets?: {
+                [key: string]: components["schemas"]["RuntimeFieldOrigin"];
+            };
             llmGateway?: components["schemas"]["RuntimeFieldOrigin"];
             llmCredential?: components["schemas"]["RuntimeFieldOrigin"];
             workerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
@@ -3916,9 +3965,11 @@ export interface components {
             retryable: boolean;
         };
         RuntimeToolsetCapability: {
+            /** @constant */
+            toolDiscovery?: "allocation";
             ref: components["schemas"]["RuntimeCapabilityRef"];
             tools: components["schemas"]["ConfigId"][];
-        };
+        } & unknown;
         WorkspaceLimits: {
             maxFiles: number;
             /** Format: int64 */

@@ -224,6 +224,7 @@ _FORBIDDEN_RUNTIME_HEADERS = frozenset(
     }
 )
 RuntimeCredentialKind = Literal[
+    "mcp-headers@1",
     "caido-bearer@1",
     "http-origin-basic@1",
     "http-origin-bearer@1",

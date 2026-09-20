@@ -31,6 +31,7 @@ const (
 	RuntimeCredentialCaidoBearer  RuntimeCredentialKind = "caido-bearer@1"
 	RuntimeCredentialOriginBasic  RuntimeCredentialKind = "http-origin-basic@1"
 	RuntimeCredentialOriginBearer RuntimeCredentialKind = "http-origin-bearer@1"
+	RuntimeCredentialMCPHeaders   RuntimeCredentialKind = "mcp-headers@1"
 )
 
 const (
@@ -95,7 +96,7 @@ type RuntimeCredentialKind string
 func (k RuntimeCredentialKind) Validate() error {
 	switch k {
 	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer,
-		RuntimeCredentialCaidoBearer, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer:
+		RuntimeCredentialCaidoBearer, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer, RuntimeCredentialMCPHeaders:
 		return nil
 	default:
 		return invalidf("unknown Runtime credential kind")
@@ -541,6 +542,7 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
+	Toolsets              ToolsetRuntimeSettings    `json:"toolsets,omitempty"`
 	LLMGatewayURL         string                    `json:"llmGatewayUrl,omitempty"`
 	LLMGatewayToken       *SecretString             `json:"llmGatewayToken,omitempty"`
 	ArtifactAPIURL        string                    `json:"artifactApiUrl"`
@@ -616,6 +618,9 @@ type WorkerExecutionSettings struct {
 }
 
 func (s RuntimeSettings) Validate() error {
+	if err := s.Toolsets.Validate(); err != nil {
+		return err
+	}
 	if s.LLMGatewayURL != "" {
 		if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
 			return err
@@ -916,7 +921,7 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 	result.SupportedToolsets = make([]ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability
-		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
+		result.SupportedToolsets[index].Tools = append([]string{}, capability.Tools...)
 		sort.Strings(result.SupportedToolsets[index].Tools)
 	}
 	sort.Strings(result.InitialLabels)

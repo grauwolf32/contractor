@@ -54,15 +54,27 @@ type RuntimeFieldOrigin struct {
 }
 
 type ResolvedRuntimeConfigOrigins struct {
-	LLMGateway       *RuntimeFieldOrigin `json:"llmGateway,omitempty"`
-	LLMCredential    *RuntimeFieldOrigin `json:"llmCredential,omitempty"`
-	WorkerTelemetry  *RuntimeFieldOrigin `json:"workerTelemetry,omitempty"`
-	HTTPProxy        *RuntimeFieldOrigin `json:"httpProxy,omitempty"`
-	Caido            *RuntimeFieldOrigin `json:"caido,omitempty"`
-	PlannerTelemetry *RuntimeFieldOrigin `json:"plannerTelemetry,omitempty"`
+	Toolsets         map[string]RuntimeFieldOrigin `json:"toolsets,omitempty"`
+	LLMGateway       *RuntimeFieldOrigin           `json:"llmGateway,omitempty"`
+	LLMCredential    *RuntimeFieldOrigin           `json:"llmCredential,omitempty"`
+	WorkerTelemetry  *RuntimeFieldOrigin           `json:"workerTelemetry,omitempty"`
+	HTTPProxy        *RuntimeFieldOrigin           `json:"httpProxy,omitempty"`
+	Caido            *RuntimeFieldOrigin           `json:"caido,omitempty"`
+	PlannerTelemetry *RuntimeFieldOrigin           `json:"plannerTelemetry,omitempty"`
 }
 
 func (o ResolvedRuntimeConfigOrigins) Validate() error {
+	if len(o.Toolsets) > contracts.MaximumConfiguredToolsets {
+		return resolutionError(ResolutionInvalid, "worker.toolsets", ErrInvalid)
+	}
+	for ref, origin := range o.Toolsets {
+		if err := (contracts.ToolsetCapability{Ref: ref, Tools: []string{}, ToolDiscovery: "allocation"}).Validate(); err != nil {
+			return resolutionError(ResolutionInvalid, "worker.toolsets", ErrInvalid)
+		}
+		if (origin.Layer != LayerDefault && origin.Layer != LayerRunLabels) || origin.validate() != nil {
+			return resolutionError(ResolutionInvalid, "worker.toolsets."+ref, ErrInvalid)
+		}
+	}
 	fields := []struct {
 		path   string
 		origin *RuntimeFieldOrigin
@@ -863,7 +875,15 @@ func cloneOrigin(value *RuntimeFieldOrigin) *RuntimeFieldOrigin {
 }
 
 func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigins {
+	var toolsets map[string]RuntimeFieldOrigin
+	if value.Toolsets != nil {
+		toolsets = make(map[string]RuntimeFieldOrigin, len(value.Toolsets))
+		for ref, origin := range value.Toolsets {
+			toolsets[ref] = *cloneOrigin(&origin)
+		}
+	}
 	return ResolvedRuntimeConfigOrigins{
+		Toolsets:         toolsets,
 		LLMGateway:       cloneOrigin(value.LLMGateway),
 		LLMCredential:    cloneOrigin(value.LLMCredential),
 		WorkerTelemetry:  cloneOrigin(value.WorkerTelemetry),

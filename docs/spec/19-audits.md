@@ -1802,3 +1802,16 @@ publication.
 
 Audit entities, schemas, APIs, lifecycle, limits, and increments are proposed
 contracts until their owning tasks are completed.
+
+
+### Configured remote toolsets
+
+Audit baselines pin RuntimeConfig versions and credential holds by the same
+mechanism as ordinary Runs; late/replacement allocations retain those pins.
+Generic MCP tools have unknown external effects. A profile requiring trusted
+effect classification/action admission is incompatible with such a toolset,
+with a stable `unknown_external_tool_effects` reason before scheduling. Names,
+server descriptions and `readOnlyHint` are not trusted classifications. Do not
+weaken existing active-check gates or infer that closing a session undoes a
+remote operation. A future reviewed, explicitly registered toolset version may
+provide trusted classifications through its descriptor.

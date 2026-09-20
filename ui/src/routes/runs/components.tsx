@@ -16,6 +16,18 @@ type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type Metrics = components["schemas"]["MetricsSummary"];
 type Diagnostics = components["schemas"]["AttemptDiagnostics"];
 
+function runtimeOriginEntries(
+  origins: components["schemas"]["StageRuntimeOrigins"],
+) {
+  const { toolsets, ...fields } = origins;
+  return [
+    ...Object.entries(fields),
+    ...Object.entries(toolsets ?? {}).map(
+      ([ref, origin]) => [`toolsets.${ref}`, origin] as const,
+    ),
+  ];
+}
+
 function stateLabel(value: string): string {
   return value.replaceAll("_", " ");
 }
@@ -230,11 +242,11 @@ function RuntimeConfigurationView({ attempt }: { attempt: StageAttempt }) {
               <div>
                 <dt>Final safe origins</dt>
                 <dd>
-                  {Object.entries(allocation.origins).length === 0 ? (
+                  {runtimeOriginEntries(allocation.origins).length === 0 ? (
                     "none"
                   ) : (
                     <ul className="runtime-origin-list">
-                      {Object.entries(allocation.origins).map(
+                      {runtimeOriginEntries(allocation.origins).map(
                         ([field, origin]) => (
                           <li
                             className={

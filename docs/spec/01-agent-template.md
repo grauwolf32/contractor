@@ -408,7 +408,8 @@ spec:
 `toolsets` is a mandatory list but may be empty. Every entry contains exactly a
 versioned `ref` and a non-empty `tools` list. Tool names are case-sensitive,
 must be unique within that entry and must be exported by the selected Toolset
-version. A Toolset ref may appear only once in an AgentTemplate. List order has
+version. Static exports are checked at authoring time; allocation-discovered
+exports are checked during allocation preparation as specified below. A Toolset ref may appear only once in an AgentTemplate. List order has
 no meaning: normalization sorts selections by exact ref and sorts tool names
 before computing the AgentTemplate digest.
 
@@ -497,8 +498,9 @@ validation. Each Runtime Agent has its own installed and enabled
 ToolsetFactory registry, then derives a positive capability snapshot from that
 registry through the startup probes defined by [02](02-runtime-and-a2a.md).
 Installed code alone is not a capability: the Runtime Agent advertises a
-Toolset ref only when at least one exported tool can honor its complete
-contract in that process environment.
+static Toolset ref only when at least one exported tool can honor its complete
+contract in that process environment. Allocation discovery follows the readiness
+contract below.
 
 Each exported-tool descriptor also declares a fixed subset of infrastructure
 channels it consumes: `runtime-http-client` and/or
@@ -510,7 +512,7 @@ HTTP may use its optional proxy channel or a bounded direct client; Caido's
 channel is mandatory. HTTP-proxy targeting is owned by [07], and the HTTP/Caido
 tool boundary by [11](11-http-and-caido-tools.md).
 
-A Toolset capability contains the exact ref and the subset of its exported
+A static Toolset capability contains the exact ref and the subset of its exported
 tools whose prerequisites passed. This deliberately has the same granularity
 as `ToolsetSelection`. For example, an environment without the LikeC4
 executable may advertise the editing operations of `likec4@1` but omit
@@ -518,7 +520,7 @@ executable may advertise the editing operations of `likec4@1` but omit
 template that selects `validate_likec4` cannot be placed there, while a
 template selecting only the advertised editing operations can.
 
-AgentTemplateCatalog rejects unknown refs, unknown selected tool names and
+AgentTemplateCatalog rejects unknown refs, unknown static tool names and
 cross-Toolset collisions in final model-visible tool names independently of
 the currently connected fleet. Runtime Agent validates every AllocationSpec
 against its immutable startup capability snapshot, then asks each factory to
@@ -898,3 +900,25 @@ incompatible runtime/card fails preparation before Planner starts.
 11. AgentTemplate declares versionless Agent Skill ArtifactRefs; WorkflowRun,
     not Runtime, resolves them in owner UserScope and pins exact immutable
     revisions under [09].
+
+
+### Configurable and allocation-discovered toolsets
+
+Authoring remains `toolsets: [{ref: mcp@1, tools: [search, fetch]}]`. Configuration
+requirements are registered code metadata, not YAML fields on the selection.
+ToolsetDescriptor adds configuration schema/required metadata, supported Worker
+runtimes, discovery mode and common infrastructure channels. Omitted discovery
+is static and preserves all current inventory checks. `allocation` mode requires
+an empty static inventory, explicit selected names and a compatible Worker.
+Unknown refs/modes and cross-toolset name collisions remain errors. MCP names
+must match `[A-Za-z_][A-Za-z0-9_]{0,63}`; reject incompatible names without renaming.
+At most 64 remote tools may be selected in one allocation.
+
+For allocation discovery the Server validates the exact ref, registered mode,
+configuration requirement, Worker compatibility and names at authoring/Run
+creation. Runtime validates the requested subset and schemas against the remote
+endpoint at allocation preparation. Neither publication nor startup contacts a
+user endpoint. `mcp@1` is configuration-required, supports `adk@1`, and uses the
+common `runtime-http-client` channel for all selected tools. It has unknown
+external effects for Audit admission. Static native capability/probe rules above
+continue unchanged. A descriptor alone does not advertise a working factory.

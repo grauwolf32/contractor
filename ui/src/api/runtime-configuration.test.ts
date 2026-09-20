@@ -62,6 +62,43 @@ describe("safe Runtime configuration projections", () => {
     });
   });
 
+  it("accepts Run-owned toolset origins and rejects Agent overrides or secret fields", () => {
+    const value = {
+      allocations: [
+        {
+          logicalAgent: "reviewer",
+          agentLabels: [],
+          runtimeAdapters: [],
+          status: "pinned",
+          origins: {
+            toolsets: {
+              "mcp@1": {
+                layer: "run_labels",
+                configs: [{ name: "knowledge", version: "1", digest }],
+              },
+            },
+          },
+        },
+      ],
+    };
+    expect(
+      safeStageRuntimeConfiguration(value).allocations[0]?.origins.toolsets?.[
+        "mcp@1"
+      ]?.layer,
+    ).toBe("run_labels");
+    value.allocations[0]!.origins.toolsets["mcp@1"].layer = "agent_labels";
+    expect(() => safeStageRuntimeConfiguration(value)).toThrow(
+      "Toolset origin layer",
+    );
+    value.allocations[0]!.origins.toolsets["mcp@1"].layer = "run_labels";
+    Object.assign(value.allocations[0]!.origins.toolsets["mcp@1"], {
+      headers: { Authorization: "secret" },
+    });
+    expect(() => safeStageRuntimeConfiguration(value)).toThrow(
+      "response shape",
+    );
+  });
+
   it("fails closed on unexpected secret-like fields", () => {
     expect(() =>
       safeRunRuntimeConfiguration({

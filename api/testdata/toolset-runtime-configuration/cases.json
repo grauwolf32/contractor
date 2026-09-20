@@ -1,0 +1,242 @@
+[
+  {
+    "file": "settings-mcp.json",
+    "kind": "settings",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "settings-no-auth.json",
+    "kind": "settings",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "settings-existing.json",
+    "kind": "settings",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "endpoint-userinfo.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "endpoint-query.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "endpoint-fragment.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "endpoint-stdio.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "connect-zero.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "connect-large.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "request-zero.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "request-large.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "timeout-string.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "legacy-transport.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "inline-credential.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "header-accept.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-content-type.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-mcp-session-id.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-mcp-protocol-version.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-last-event-id.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-host.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-connection.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-proxy-authorization.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-crlf.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "header-case-duplicate.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "header-too-long.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "header-total-too-large.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": true
+  },
+  {
+    "file": "unregistered-ref.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "settings-null-map.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "settings-null-value.json",
+    "kind": "settings",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "discovery-allocation.json",
+    "kind": "capability",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "discovery-static.json",
+    "kind": "capability",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "discovery-static-empty.json",
+    "kind": "capability",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "discovery-fake-tools.json",
+    "kind": "capability",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "discovery-unknown.json",
+    "kind": "capability",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "discovery-null-tools.json",
+    "kind": "capability",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "credential-provenance.json",
+    "kind": "provenance",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "origins-run.json",
+    "kind": "origins",
+    "valid": true,
+    "schemaValid": true
+  },
+  {
+    "file": "origins-agent-rejected.json",
+    "kind": "origins",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "discovery-null.json",
+    "kind": "capability",
+    "valid": false,
+    "schemaValid": false
+  },
+  {
+    "file": "discovery-empty.json",
+    "kind": "capability",
+    "valid": false,
+    "schemaValid": false
+  }
+]

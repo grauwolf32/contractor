@@ -163,7 +163,7 @@ is one immutable `CapabilitySnapshot`:
 ```text
 CapabilitySnapshot
   supported_runtimes: sorted set of exact WorkerRuntime refs
-  supported_toolsets: sorted map of exact Toolset ref -> sorted non-empty tool set
+  supported_toolsets: sorted map of exact Toolset ref -> static tool set or allocation discovery
   supported_sandbox_profiles: sorted set of exact SandboxProfile refs
   supported_runtime_adapters: sorted set of exact RuntimeAdapter refs
 ```
@@ -662,8 +662,9 @@ required workspace storage = local for podman@1; otherwise no storage constraint
 
 A Runtime Agent is a candidate only when it is `idle`, has a confirmed control
 lease, is otherwise placement-eligible, advertises the exact runtime and
-sandbox refs, its advertised tool set is a superset of every selected tool for
-each exact Toolset ref, and its advertised adapter set contains every adapter
+sandbox refs, each static tool inventory is a superset of selected names (or
+the exact registered allocation-discovery capability is present), and its
+advertised adapter set contains every adapter
 required after combining that principal's Agent labels with the pinned Run
 labels. Extra capabilities neither activate settings, change Worker behavior
 nor become model-visible.
@@ -948,3 +949,106 @@ managed AgentTemplate service are not prerequisites.
     an existing allocation.
 26. Allocation, A2A Task/context, Contractor invocation and ADK session IDs are
     distinct; only Runtime may create or observe the ADK session identity.
+
+
+## Allocation discovery and MCP session ownership
+
+An allocation-discovered registration capability is exactly
+`{"ref":"mcp@1","tools":[],"toolDiscovery":"allocation"}`. Omitted
+`toolDiscovery` retains static discovery and requires a nonempty exact inventory.
+Unknown modes and a nonempty inventory with allocation discovery are invalid.
+Both Server and Runtime compare this mode with trusted descriptor/factory
+metadata. Advertising the mode for an arbitrary static ref cannot bypass
+placement. The startup probe checks only installed SDK/factory readiness, never
+a remote endpoint. `mcp@1` is advertised only when its full implementation is
+installed. It introduces no RuntimeAdapter.
+
+Factory construction returns all selected ToolInstances into the allocation's
+existing cleanup ownership **before any remote connection**. A narrow optional
+`prepare(deadline)` hook then initializes/discovers the owned resources. Worker
+construction follows successful preparation. If one preparation fails, cleanup
+covers every already owned resource, including partially opened sessions.
+A shared owner provides one MCP session for the tools of one ref in an
+allocation. SDK async contexts enter and exit in the same long-lived owner task;
+per-call tasks do not own those contexts. Close is idempotent and bounded by the
+existing cleanup deadline. Unconfirmed close stays unconfirmed and keeps the
+Runtime fenced; it never becomes a successful release by swallowing errors.
+Lease expiry, drain and abort cancel in-flight work and use this same path.
+Session shutdown cannot reverse completed remote effects.
+
+Use the official MCP Python SDK for Streamable HTTP negotiation, initialization,
+session IDs, JSON-RPC framing and protocol validation. A Contractor-owned ADK
+BaseTool adapts the fixed remote schema/results to existing tool callbacks,
+budgets, metrics and completion observations. No hand-written JSON-RPC client,
+new WorkerRuntime, hidden FunctionTool signature, or model-visible MCP
+administration tools are introduced. Finalizer and terminal summarizer remain
+tool-free. No sampling, roots, elicitation, remote prompt/resource fetching or
+server-requested filesystem access is enabled.
+
+### Frozen inventory, limits and schema subset
+
+The following limits are mandatory, measured as UTF-8 bytes for JSON/text and
+applied before buffering/parsing beyond their bounds:
+
+| Boundary | Maximum |
+| --- | --- |
+| One decoded HTTP JSON response or SSE event | 2 MiB |
+| Total discovery responses | 8 MiB |
+| Discovery pages / total advertised tools | 16 / 1024 |
+| Cursor / remote description | 2048 / 4096 bytes |
+| Selected tools | 64 |
+| One input/output schema / all selected declarations | 64 KiB / 256 KiB |
+| Schema nesting depth / nodes per schema | 16 / 2048 |
+| Call arguments / complete returned result | 64 KiB / 256 KiB |
+| Result content blocks | 64 |
+
+Repeated cursors, duplicate advertised names, missing selected tools, invalid
+schemas or exceeded limits fail allocation preparation with a bounded safe
+reason. Discovery follows pagination, but never widens the selection. Freeze
+selected names, descriptions, input/output schemas and their canonical digest
+for the allocation lifetime. `listChanged` cannot add or replace visible tools.
+No implicit reconnection after a call failure occurs. If an implementation
+reconnects before dispatch, it must first verify the selected frozen schemas;
+a change requires a new allocation, not mutation of an existing Worker.
+
+Input schema root must be an object schema with `type: object`. Output schema,
+when present, has the same root requirement. Supported JSON Schema keywords:
+`type`, `properties`, `required`, `additionalProperties`, `items`, `enum`,
+`const`, `anyOf`, `oneOf`, `allOf`, `minimum`, `maximum`, `exclusiveMinimum`,
+`exclusiveMaximum`, `multipleOf`, `minLength`, `maxLength`, `minItems`, `maxItems`,
+`uniqueItems`, `minProperties`, `maxProperties`, `title`, `description`, `default`.
+Primitive types and finite type arrays (including null) are allowed. Nested
+boolean schemas are allowed. Validate the schema itself against Draft 2020-12,
+then validate arguments/results locally without coercion. No `$ref` (including
+local references), `$id`, `$schema`, regex/pattern, format, unevaluated/conditional
+keywords or other extension keywords are accepted in this first version. This
+closed subset intentionally rejects unsupported schemas during preparation;
+there is no lossy conversion or deferred remote-reference resolution.
+
+### Results, failure and replay
+
+Tool results preserve the envelope `content`, optional `structuredContent`, and
+`isError` (default false). Only text content blocks are supported initially.
+Images, audio, resource links, embedded resources and unknown content types
+produce a bounded `unsupported_content` tool failure; URLs in text remain inert.
+`structuredContent` is a JSON object and is validated against an advertised
+output schema for successful results. Tool-declared `isError: true` is retained
+and counted as a tool failure. Unsupported/oversized/invalid results become
+bounded tool errors; do not silently truncate structured values or include raw
+transport diagnostics/credential headers in a model result or public error.
+
+| Failure | Required behavior |
+| --- | --- |
+| Connect/auth/initialize/list failure | Allocation preparation fails; bounded reason; close all owned resources |
+| Invalid call arguments | Reject locally before dispatch; count failed call |
+| Tool returns `isError` | Preserve bounded supported content and error flag; count failed call |
+| Transport/protocol timeout after dispatch | Report `outcome_unknown`; **never automatically replay tools/call** |
+| Invalid/unsupported response | Safe tool failure; no response-driven follow-up network IO |
+| Invocation cancellation/lease loss | Cancel locally; bounded session cleanup; remote outcome may remain unknown |
+| Cleanup exceeds deadline or fails | Existing unconfirmed-cleanup/fencing behavior |
+
+Initialization/discovery may be retried only within the preparation deadline;
+the first implementation need not retry. Read-only hints and tool names do not
+make a tools/call safe to replay. Model/provider SDK retry policies must not
+re-dispatch remote calls. Application decisions to make a new call remain
+subject to the existing tool budget and do not erase a prior ambiguous outcome.

@@ -413,15 +413,63 @@
     },
     "allocationSpec": {
       "additionalProperties": false,
-      "if": {"properties": {"agentTemplate": {"properties": {"runtime": {"properties": {"runtimeId": {"const": "tool"}, "version": {"const": "1"}}}}}}},
-      "then": {"properties": {
-        "modelPolicy": false,
-        "workspace": {"type": "null"},
-        "completionContract": false,
-        "runtimeSettings": {"properties": {"llmGatewayUrl": false, "llmGatewayToken": {"type": "null"}}},
-        "resolvedRuntimeConfigProvenance": {"properties": {"llmGatewayConfig": {"type": "null"}, "llmCredential": {"type": "null"}}}
-      }},
-      "else": {"required": ["modelPolicy"], "properties": {"runtimeSettings": {"required": ["llmGatewayUrl"]}}},
+      "if": {
+        "properties": {
+          "agentTemplate": {
+            "properties": {
+              "runtime": {
+                "properties": {
+                  "runtimeId": {
+                    "const": "tool"
+                  },
+                  "version": {
+                    "const": "1"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "modelPolicy": false,
+          "workspace": {
+            "type": "null"
+          },
+          "completionContract": false,
+          "runtimeSettings": {
+            "properties": {
+              "llmGatewayUrl": false,
+              "llmGatewayToken": {
+                "type": "null"
+              }
+            }
+          },
+          "resolvedRuntimeConfigProvenance": {
+            "properties": {
+              "llmGatewayConfig": {
+                "type": "null"
+              },
+              "llmCredential": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "modelPolicy"
+        ],
+        "properties": {
+          "runtimeSettings": {
+            "required": [
+              "llmGatewayUrl"
+            ]
+          }
+        }
+      },
       "properties": {
         "apiVersion": {
           "$ref": "common.schema.json#/$defs/apiVersion"
@@ -1011,7 +1059,8 @@
             "http-origin-bearer@1",
             "http-proxy-basic@1",
             "http-proxy-bearer@1",
-            "otlp-headers@1"
+            "otlp-headers@1",
+            "mcp-headers@1"
           ],
           "title": "Kind",
           "type": "string"
@@ -1122,6 +1171,16 @@
           "exclusiveMinimum": 0,
           "title": "Requesttimeoutseconds",
           "type": "integer"
+        },
+        "toolsets": {
+          "type": "object",
+          "additionalProperties": false,
+          "maxProperties": 32,
+          "properties": {
+            "mcp@1": {
+              "$ref": "#/$defs/MCPToolsetSettings"
+            }
+          }
         }
       },
       "required": [
@@ -1253,6 +1312,60 @@
       ],
       "title": "TelemetryRetrySettings",
       "type": "object"
+    },
+    "MCPToolsetSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpoint",
+        "connectTimeoutSeconds",
+        "requestTimeoutSeconds"
+      ],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "pattern": "^https?://[^/?#@\\s]+(?:/[^?#\\s]*)?$"
+        },
+        "headers": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[^\\r\\n]*$"
+          }
+        },
+        "caBundlePem": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "connectTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "requestTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        }
+      }
     }
   },
   "oneOf": [

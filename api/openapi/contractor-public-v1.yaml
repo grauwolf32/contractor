@@ -5247,6 +5247,57 @@ components:
           $ref: '#/components/schemas/RuntimeCredentialId'
         caBundlePem: {type: string, minLength: 1, maxLength: 65536}
         requestTimeoutSeconds: {type: integer, minimum: 1, maximum: 120}
+    RuntimeMCPConfig:
+      type: object
+      additionalProperties: false
+      required: [endpoint]
+      properties:
+        endpoint: {type: string, format: uri, minLength: 1, maxLength: 2048, pattern: '^https?://[^/?#@\s]+(?:/[^?#\s]*)?$'}
+        credential: {$ref: '#/components/schemas/RuntimeCredentialId'}
+        caBundlePem: {type: string, minLength: 1, maxLength: 65536}
+        connectTimeoutSeconds: {type: integer, minimum: 1, maximum: 60, default: 10}
+        requestTimeoutSeconds: {type: integer, minimum: 1, maximum: 600, default: 60}
+    RuntimeToolsetPatches:
+      type: object
+      additionalProperties: false
+      maxProperties: 32
+      description: Exact registered refs; each value is atomic. Empty map is a no-op. Null clears a single ref.
+      properties:
+        mcp@1:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeMCPConfig'}
+            - {type: 'null'}
+    ToolsetConfigurationRequirement:
+      type: object
+      additionalProperties: false
+      required: [ref, configurationRequired, configurationSchema, toolDiscovery, workerRuntimes]
+      properties:
+        ref: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        configurationRequired: {type: boolean}
+        configurationSchema: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        toolDiscovery: {enum: [static, allocation]}
+        workerRuntimes:
+          type: array
+          minItems: 1
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+    ToolsetConfigurationCoverage:
+      description: Safe normalized per-value digest; excludes RuntimeConfig document identity and secret material.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [ref, state, valueDigest]
+          properties:
+            ref: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+            state: {const: configured, type: string}
+            valueDigest: {$ref: '#/components/schemas/Digest'}
+        - type: object
+          additionalProperties: false
+          required: [ref, state]
+          properties:
+            ref: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+            state: {const: cleared, type: string}
     RuntimeLLMGatewayAuthorPatch:
       type: object
       additionalProperties: false
@@ -5263,6 +5314,7 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
+        toolsets: {$ref: '#/components/schemas/RuntimeToolsetPatches'}
         llmGateway:
           $ref: '#/components/schemas/RuntimeLLMGatewayAuthorPatch'
         telemetry:
@@ -5310,6 +5362,7 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
+        toolsets: {$ref: '#/components/schemas/RuntimeToolsetPatches'}
         llmGateway:
           $ref: '#/components/schemas/RuntimeLLMGatewayPatch'
         telemetry:
@@ -5392,7 +5445,7 @@ components:
       properties:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
-      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, http-origin-basic@1, http-origin-bearer@1]
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, http-origin-basic@1, http-origin-bearer@1, mcp-headers@1]
     RuntimeCredentialMetadata:
       type: object
       additionalProperties: false
@@ -5409,6 +5462,17 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RuntimeCredentialMetadata'}}
         page: {$ref: '#/components/schemas/PageInfo'}
+    MCPHeadersMaterial:
+      type: object
+      additionalProperties: false
+      required: [headers]
+      properties:
+        headers:
+          type: object
+          minProperties: 1
+          maxProperties: 32
+          description: HTTP token names up to 64 bytes; no duplicate case variants, reserved protocol or hop-by-hop headers. Combined names and values at most 16 KiB.
+          additionalProperties: {type: string, minLength: 1, maxLength: 4096, pattern: '^[^\r\n]*$'}
     OTLPHeadersMaterial:
       type: object
       additionalProperties: false
@@ -5454,6 +5518,13 @@ components:
         token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
     CreateRuntimeCredentialRequest:
       oneOf:
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: mcp-headers@1}
+            material: {$ref: '#/components/schemas/MCPHeadersMaterial', writeOnly: true}
         - type: object
           additionalProperties: false
           required: [credentialId, kind, material]
@@ -5529,6 +5600,11 @@ components:
       type: object
       additionalProperties: false
       properties:
+        toolsets:
+          type: object
+          maxProperties: 32
+          propertyNames: {pattern: '^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$'}
+          additionalProperties: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
         llmGateway: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
         llmCredential: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
         workerTelemetry: {$ref: '#/components/schemas/RuntimeFieldOrigin'}
@@ -6535,13 +6611,17 @@ components:
       additionalProperties: false
       required: [ref, tools]
       properties:
+        toolDiscovery: {type: string, const: allocation}
         ref: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         tools:
           type: array
-          minItems: 1
           maxItems: 256
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
+      allOf:
+        - if: {required: [toolDiscovery]}
+          then: {properties: {tools: {maxItems: 0}}}
+          else: {properties: {tools: {minItems: 1}}}
     WorkspaceLimits:
       type: object
       additionalProperties: false

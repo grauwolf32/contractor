@@ -37,6 +37,7 @@ from contractor_runtime.contracts.base import (
     _require_url,
 )
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
+from contractor_runtime.contracts.toolset_settings import ToolsetRuntimeSettings
 
 
 class AgentTemplateRef(WireModel):
@@ -436,6 +437,9 @@ def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
 
 
 class RuntimeSettings(WireModel):
+    toolsets: ToolsetRuntimeSettings = Field(
+        default_factory=dict, max_length=32, exclude_if=lambda value: not value
+    )
     llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     llm_gateway_token: SecretStr | None = None
     artifact_api_url: str

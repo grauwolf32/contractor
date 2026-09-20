@@ -1055,7 +1055,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       return;
     }
     let request: CreateRuntimeCredentialRequest | undefined;
-    if (kind === "otlp-headers@1") {
+    if (kind === "otlp-headers@1" || kind === "mcp-headers@1") {
       const material = Object.fromEntries(
         headers.map((header) => [header.name.trim(), header.value]),
       );
@@ -1067,7 +1067,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
         )
       ) {
         setError(
-          new Error("Provide unique non-empty OTLP header names and values."),
+          new Error("Provide unique non-empty header names and values."),
         );
       } else {
         request = { credentialId, kind, material: { headers: material } };
@@ -1178,7 +1178,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
             </select>
           </label>
         </div>
-        {kind === "otlp-headers@1" ? (
+        {kind === "otlp-headers@1" || kind === "mcp-headers@1" ? (
           <div className="runtime-secret-rows">
             {headers.map((header) => (
               <div className="runtime-secret-row" key={header.id}>

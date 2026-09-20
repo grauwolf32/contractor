@@ -267,6 +267,42 @@ function safeRuntimeTelemetry(
   };
 }
 
+function safeToolsetPatches(
+  value: components["schemas"]["RuntimeToolsetPatches"],
+): components["schemas"]["RuntimeToolsetPatches"] {
+  requireExactRuntimeKeys(value, [], ["mcp@1"]);
+  const mcp = value["mcp@1"];
+  if (mcp === undefined) return {};
+  if (mcp === null) return { "mcp@1": null };
+  requireExactRuntimeKeys(
+    mcp,
+    ["endpoint", "connectTimeoutSeconds", "requestTimeoutSeconds"],
+    ["credential", "caBundlePem"],
+  );
+  if (
+    typeof mcp.endpoint !== "string" ||
+    new TextEncoder().encode(mcp.endpoint).length > 2048 ||
+    !/^https?:\/\/[^/?#@\s]+(?:\/[^?#\s]*)?$/.test(mcp.endpoint) ||
+    !Number.isInteger(mcp.connectTimeoutSeconds) ||
+    mcp.connectTimeoutSeconds < 1 ||
+    mcp.connectTimeoutSeconds > 60 ||
+    !Number.isInteger(mcp.requestTimeoutSeconds) ||
+    mcp.requestTimeoutSeconds < 1 ||
+    mcp.requestTimeoutSeconds > 600
+  ) {
+    throw new TypeError("MCP configuration is invalid");
+  }
+  if (mcp.credential !== undefined) requireRuntimeCredentialId(mcp.credential);
+  if (
+    mcp.caBundlePem !== undefined &&
+    (typeof mcp.caBundlePem !== "string" ||
+      new TextEncoder().encode(mcp.caBundlePem).length > 65536)
+  ) {
+    throw new TypeError("MCP CA bundle is invalid");
+  }
+  return { "mcp@1": { ...mcp } };
+}
+
 function safeRuntimeDocument(
   value: RuntimeConfigDocument,
 ): RuntimeConfigDocument {
@@ -280,7 +316,7 @@ function safeRuntimeDocument(
     requireExactRuntimeKeys(
       worker,
       [],
-      ["llmGateway", "telemetry", "httpProxy", "caido"],
+      ["llmGateway", "telemetry", "httpProxy", "caido", "toolsets"],
     );
     if (worker.llmGateway !== undefined) {
       requireExactRuntimeKeys(worker.llmGateway, [], ["gateway", "credential"]);
@@ -322,6 +358,9 @@ function safeRuntimeDocument(
         ? {}
         : {
             worker: {
+              ...(worker.toolsets === undefined
+                ? {}
+                : { toolsets: safeToolsetPatches(worker.toolsets) }),
               ...(worker.llmGateway === undefined
                 ? {}
                 : {
@@ -450,6 +489,7 @@ function safeRuntimeCredential(
   if (
     ![
       "otlp-headers@1",
+      "mcp-headers@1",
       "http-proxy-basic@1",
       "http-proxy-bearer@1",
       "caido-bearer@1",
@@ -569,7 +609,7 @@ function safeRuntimeAgent(
   const seenToolsets = new Set<string>();
   const toolsets = value.supportedToolsets.map((capability) => {
     if (capability !== null && typeof capability === "object") {
-      requireExactRuntimeKeys(capability, ["ref", "tools"]);
+      requireExactRuntimeKeys(capability, ["ref", "tools"], ["toolDiscovery"]);
     }
     if (
       capability === null ||
@@ -579,7 +619,10 @@ function safeRuntimeAgent(
       !RUNTIME_CAPABILITY_REF_PATTERN.test(capability.ref) ||
       seenToolsets.has(capability.ref) ||
       !Array.isArray(capability.tools) ||
-      capability.tools.length === 0 ||
+      (capability.toolDiscovery === undefined
+        ? capability.tools.length === 0
+        : capability.toolDiscovery !== "allocation" ||
+          capability.tools.length !== 0) ||
       capability.tools.length > MAX_RUNTIME_TOOLS_PER_TOOLSET
     ) {
       throw new TypeError("Runtime Agent capabilities are invalid");
@@ -594,7 +637,13 @@ function safeRuntimeAgent(
     if (new Set(tools).size !== tools.length) {
       throw new TypeError("Runtime Agent capabilities are invalid");
     }
-    return { ref: capability.ref, tools: tools.sort() };
+    return {
+      ref: capability.ref,
+      tools: tools.sort(),
+      ...(capability.toolDiscovery === undefined
+        ? {}
+        : { toolDiscovery: capability.toolDiscovery }),
+    };
   });
   toolsets.sort((left, right) => left.ref.localeCompare(right.ref));
   return {

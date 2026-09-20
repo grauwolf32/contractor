@@ -459,6 +459,40 @@ describe("Operations API", () => {
     );
   });
 
+  it("preserves typed MCP settings and clear while rejecting inline secrets", async () => {
+    const mcp = {
+      endpoint: "https://knowledge.example/mcp",
+      credential: "knowledge",
+      connectTimeoutSeconds: 10,
+      requestTimeoutSeconds: 60,
+    };
+    const document = {
+      apiVersion: "contractor/v1alpha1",
+      kind: "RuntimeConfig",
+      metadata: { name: "knowledge", version: "1" },
+      spec: { worker: { toolsets: { "mcp@1": mcp as typeof mcp | null } } },
+    };
+    const resource = {
+      ref: { ...document.metadata, digest },
+      document,
+      builtIn: false,
+      createdBy: "user-1",
+      createdAt: "2026-09-20T00:00:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response(resource)),
+    );
+    expect(await getRuntimeConfig(api, "knowledge", "1")).toEqual(resource);
+    document.spec.worker.toolsets["mcp@1"] = null;
+    expect(await getRuntimeConfig(api, "knowledge", "1")).toEqual(resource);
+    document.spec.worker.toolsets["mcp@1"] = mcp;
+    Object.assign(mcp, { headers: { Authorization: "secret" } });
+    await expect(getRuntimeConfig(api, "knowledge", "1")).rejects.toThrow(
+      "response shape",
+    );
+  });
+
   it.each([
     {
       adapter: "caido-graphql@1" as const,

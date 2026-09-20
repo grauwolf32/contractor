@@ -3,7 +3,7 @@ id: V61-001
 title: Specify Run-scoped toolset configuration and allocation discovery contracts
 milestone: toolset-runtime-configuration
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V8-016, V50-001, V55-003]
 languages: [go, python, typescript, json, yaml, markdown]

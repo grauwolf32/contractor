@@ -162,3 +162,14 @@ real A2A invocation with an artifact transport and controlled tool; successful
 publication; missing capabilities; timeout/cancel/close; report/receipt failures;
 in-memory and recreated-allocation replay; and changed-input rejection. Existing
 ADK configuration, allocation and runtime suites must pass unchanged.
+
+
+### Configured toolsets
+
+Native configured toolsets reuse Run-owned `worker.toolsets` and the same
+allocation projection/credential path. `execution.arguments` remains invocation
+input; configuration is never injected into that argument object. Required
+configuration is registered on the exact toolset version and validated before
+Run creation. A native descriptor may explicitly support `tool@1`; unrelated
+model configuration must still be filtered without catalog/credential access.
+`mcp@1` initially supports only `adk@1` and is rejected in a `tool@1` template.

@@ -1045,3 +1045,136 @@ errors. Error bodies remain bounded and secret-free.
   attributes;
 - external Vault/KMS-backed runtime credentials and automatic secret rotation;
 - immutable RuntimeConfig version garbage collection.
+
+
+## Run-owned toolset configuration
+
+`worker.toolsets` is an optional map of **exact registered toolset refs** to
+schema-checked configuration values or `null`. It configures a selected toolset;
+it never selects additional tools. AgentTemplate retains `ref` plus `tools` and
+Run creation retains `runtimeLabels`. No new resource, binding field, per-agent
+address or executionConfig override is introduced.
+
+```yaml
+apiVersion: contractor/v1alpha1
+kind: RuntimeConfig
+metadata: {name: knowledge, version: '1'}
+spec:
+  worker:
+    toolsets:
+      mcp@1:
+        endpoint: https://knowledge.example.com/mcp
+        credential: knowledge-access
+        connectTimeoutSeconds: 10
+        requestTimeoutSeconds: 60
+```
+
+Create a normal label binding from `knowledge` to the exact RuntimeConfig
+name/version/digest, then launch with `runtimeLabels: [knowledge]`. The credential
+is created separately with kind `mcp-headers@1`. Neither endpoint nor credential
+material belongs in AgentTemplate or Workflow. One `mcp@1` denotes one endpoint
+per Run. All agents selecting it share that configuration; each allocation owns
+an independent session and may select a different explicit subset of tools.
+
+A code-owned ToolsetDescriptor registers a typed configuration schema and its
+required/optional flag. A future native `example-native@2` may register a closed
+schema such as `{project: string, region: string}` and use exactly the same map,
+merge, binding, pinning and projection rules. This illustrative ref is not a
+built-in production toolset. Unregistered refs, unknown fields and values that
+do not match the registered type are rejected. Adding required settings to an
+existing native implementation requires a new exact contract version; an old
+Runtime must never receive a configuration it cannot understand.
+
+### Merge and sources
+
+There are at most 32 configured refs per document and effective Run map. For
+this map only, precedence is **default binding, then explicit Run labels**.
+The entire value of one ref is an atomic merge unit; credential, endpoint and
+other options cannot be assembled from different labels. Different refs are
+independent. A mixed profile may also change LLM, proxy or telemetry through
+those fields' existing precedence; the UI must show these additional effects.
+
+| Patch | Effect |
+| --- | --- |
+| `toolsets` absent, or ref absent | Inherit the earlier value |
+| `toolsets: {}` | No operation; omit from normalized document |
+| `toolsets: {mcp@1: null}` | Clear that ref, retaining the clearing origin |
+| Two labels with equal normalized values for one ref | Deduplicate; retain both exact config refs in origin |
+| Two labels with different values, or value versus clear | Reject with `runtime_config_conflict` at `worker.toolsets.<ref>` |
+| `toolsets: null` | Reject; whole-map clear is not supported |
+| Missing/cleared required config for a selected ref | Reject Run creation as `runtime_config_incomplete` |
+
+Conflict detection is independent of label order. An inherited default may be
+overridden or cleared by the Run layer. Explicit labels are not ordered
+priorities. An empty user document remains invalid after removing no-ops.
+
+Physical Runtime Agent labels cannot contain **any** toolset patch, including
+clear, a patch for an unused ref, or a mixed profile. Reject both assignment of
+such a label and rebinding a label already assigned to a principal. Default
+binding is the Run source, not an Agent-specific override. Existing proxy,
+telemetry and model resolution continues to obey its current precedence.
+
+### MCP configuration and credential bounds
+
+Only MCP **Streamable HTTP** is supported. HTTP+SSE legacy endpoints and stdio
+are not transport options. Streamable HTTP responses may contain SSE events.
+`mcp@1` supports `adk@1` initially. Configuration contains only:
+
+| Field | Contract |
+| --- | --- |
+| `endpoint` | Required absolute HTTP(S) URL, 1–2048 UTF-8 bytes; no userinfo, query (even empty), fragment (even empty) or surrounding whitespace |
+| `credential` | Optional existing Runtime credential ID of kind `mcp-headers@1`; no inline headers/token |
+| `caBundlePem` | Optional 1–65536 UTF-8 bytes, 1–8 valid X.509 PEM certificates, no private key or other material |
+| `connectTimeoutSeconds` | Integer 1–60; authoring omission normalizes to 10 |
+| `requestTimeoutSeconds` | Integer 1–600; authoring omission normalizes to 60 |
+
+An earlier allocation, invocation or lease deadline always wins. Redirects are
+not followed, including during initialization, discovery and session deletion.
+MCP uses the existing `runtime-http-client` infrastructure channel and
+`tool-http` proxy policy, including forbidden private service origins. An MCP
+credential authorizes only that endpoint and is never forwarded to an origin
+named in remote content or tool arguments.
+
+`mcp-headers@1` material is a closed `{headers: {name: value}}` object with 1–32
+headers. Names are HTTP tokens of 1–64 ASCII bytes. Values are nonempty, at most
+4096 UTF-8 bytes, with no CR/LF. The combined name/value size is at most 16 KiB.
+Reject case-insensitive duplicate names, hop-by-hop/Host/Content-Length headers,
+proxy authorization and SDK-owned `Accept`, `Content-Type`, `MCP-Session-Id`,
+`MCP-Protocol-Version`, `Last-Event-ID`. Use the existing encrypted credential
+store and safe metadata APIs; no secret material appears in errors, logs,
+provenance, browser persistence or configuration documents.
+
+### Pinning, allocation and public projections
+
+Run creation validates requirements against the same exact default/label
+revisions and immutable config digests that it pins in its transaction. No
+network IO or endpoint health check runs inside that transaction. Retain
+credential holds through existing Run/baseline/allocation lifetimes and deletion
+barriers. A concurrent rebind cannot change what that Run later resolves.
+
+Before looking up credential material, project the effective map to refs
+selected by the allocation. Thus an unrelated allocation never loads or receives
+MCP credentials. The private `runtimeSettings.toolsets` map contains typed
+materialized settings (`headers`, not `credential`) with explicit normalized
+timeouts. Omit an empty map. Existing private payloads, built-in RuntimeConfig
+canonical bytes and AgentTemplate digests remain unchanged. Safe resolution
+origins gain an optional `toolsets` map keyed by ref; values are ordinary
+`RuntimeFieldOrigin` with only `default` or `run_labels` sources, including
+clears. Origins contain immutable refs, never settings or credentials.
+
+Existing Runs, late Stages, replacements and Audit baselines use their pins.
+An idempotent Run-create replay returns the original Run. **Repeat** creates a
+new Run from reviewed current bindings and pins new revisions; the UI identifies
+changed bindings before submission. Endpoint configuration does not pin the
+remote server implementation. A discovered schema digest is diagnostic and
+cannot claim remote code reproducibility.
+
+Workflow detail exposes an optional sorted `toolsetRequirements` array with
+`ref`, `configurationRequired`, `configurationSchema`, `toolDiscovery` and
+`workerRuntimes`. Label list/detail exposes an optional sorted `toolsets` array
+of `{ref, state, valueDigest?}`: state is `configured` or `cleared`; only configured
+has `valueDigest`. The digest is SHA-256 of the canonical **normalized per-ref
+value**, excluding document metadata. Equal values in different documents must
+compare equal. These safe projections support requirement coverage and conflict
+preview without fetching every full RuntimeConfig or returning endpoint/secret
+material. They are hints; Run-create validation remains authoritative.

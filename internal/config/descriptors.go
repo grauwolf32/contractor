@@ -24,11 +24,24 @@ const (
 // Audit compatibility checks; model text and tool names are never trusted to
 // infer those effects at start time.
 type ToolsetDescriptor struct {
-	RequiredSandboxProfile string
-	Tools                  []string
-	InfrastructureChannels map[string][]ToolInfrastructureChannel
-	ActiveCheckTools       []string
-	FindingProposalTools   []string
+	// Empty discovery retains the historical static inventory contract.
+	ToolDiscovery                string
+	Configuration                *ToolsetConfigurationDescriptor
+	SupportedWorkerRuntimes      []string
+	CommonInfrastructureChannels []ToolInfrastructureChannel
+	UnknownExternalEffects       bool
+	RequiredSandboxProfile       string
+	Tools                        []string
+	InfrastructureChannels       map[string][]ToolInfrastructureChannel
+	ActiveCheckTools             []string
+	FindingProposalTools         []string
+}
+
+// Schema names resolve through a code-owned typed configuration registry.
+// A descriptor is not permission for a Runtime to advertise an absent factory.
+type ToolsetConfigurationDescriptor struct {
+	Schema   string
+	Required bool
 }
 
 // SandboxProfileDescriptor describes authoring and binding-specific placement

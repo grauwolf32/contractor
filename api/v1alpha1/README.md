@@ -87,3 +87,12 @@ omission disables sampling. Shared producer fragments live in `performance.schem
 Resource integers are bounded by `2^53 - 1`. A complete report requires CPU/RSS
 boundaries, two successful RSS observations and no uncovered interval above 30 seconds.
 Shared Go/Python cases also verify cross-field invariants beyond JSON Schema.
+
+Optional `runtimeSettings.toolsets` carries typed allocation-only configurations
+keyed by exact registered refs. `mcp@1` materializes Streamable HTTP settings and
+redacted header secrets; omitted maps preserve old encodings. Registration may
+advertise `toolDiscovery: allocation` with an empty tool inventory. Omitted
+mode retains the static nonempty inventory rule. The shared cases under
+`api/testdata/toolset-runtime-configuration` are consumed by the standard Go and
+Python contract targets. `toolset-origins.schema.json` describes the non-secret
+Server origin projection; it is not an additional private protocol version.

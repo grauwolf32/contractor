@@ -70,6 +70,42 @@ function safePin(value: unknown): RunRuntimeConfiguration["default"] {
   };
 }
 
+function safeOrigin(raw: unknown): components["schemas"]["RuntimeFieldOrigin"] {
+  const layers = new Set([
+    "default",
+    "workflow_execution_config",
+    "run_labels",
+    "run_execution_config",
+    "escalation_execution_config",
+    "agent_labels",
+  ]);
+  if (!isRecord(raw)) {
+    throw new TypeError("Stage Runtime origin is invalid");
+  }
+  exactKeys(raw, ["layer"], ["configs"]);
+  if (typeof raw.layer !== "string" || !layers.has(raw.layer)) {
+    throw new TypeError("Stage Runtime origin layer is invalid");
+  }
+  const configs =
+    raw.configs === undefined
+      ? undefined
+      : Array.isArray(raw.configs) && raw.configs.length <= 32
+        ? raw.configs.map(safeRef)
+        : (() => {
+            throw new TypeError("Stage Runtime origin refs are invalid");
+          })();
+  const labelLayer = ["default", "run_labels", "agent_labels"].includes(
+    raw.layer,
+  );
+  if (labelLayer !== (configs !== undefined && configs.length > 0)) {
+    throw new TypeError("Stage Runtime origin refs do not match its layer");
+  }
+  return {
+    layer: raw.layer as components["schemas"]["RuntimeFieldOrigin"]["layer"],
+    ...(configs === undefined ? {} : { configs }),
+  };
+}
+
 export function safeStageRuntimeConfiguration(
   value: unknown,
 ): components["schemas"]["StageRuntimeConfiguration"] {
@@ -84,14 +120,6 @@ export function safeStageRuntimeConfiguration(
   ) {
     throw new TypeError("Stage Runtime allocations are invalid");
   }
-  const layers = new Set([
-    "default",
-    "workflow_execution_config",
-    "run_labels",
-    "run_execution_config",
-    "escalation_execution_config",
-    "agent_labels",
-  ]);
   const originKeys = Object.keys({
     llmGateway: true,
     llmCredential: true,
@@ -100,9 +128,12 @@ export function safeStageRuntimeConfiguration(
     caido: true,
     plannerTelemetry: true,
   } satisfies Record<
-    keyof components["schemas"]["StageRuntimeOrigins"],
+    Exclude<keyof components["schemas"]["StageRuntimeOrigins"], "toolsets">,
     true
-  >) as (keyof components["schemas"]["StageRuntimeOrigins"])[];
+  >) as Exclude<
+    keyof components["schemas"]["StageRuntimeOrigins"],
+    "toolsets"
+  >[];
   const allocations = value.allocations.map((candidate) => {
     if (!isRecord(candidate)) {
       throw new TypeError("Stage Runtime allocation is invalid");
@@ -151,37 +182,26 @@ export function safeStageRuntimeConfiguration(
     ) {
       throw new TypeError("Stage Runtime adapters are not canonical");
     }
-    exactKeys(candidate.origins, [], originKeys);
+    exactKeys(candidate.origins, [], [...originKeys, "toolsets"]);
     const origins: components["schemas"]["StageRuntimeOrigins"] = {};
     for (const key of originKeys) {
       const raw = candidate.origins[key];
       if (raw === undefined) continue;
-      if (!isRecord(raw)) {
-        throw new TypeError("Stage Runtime origin is invalid");
+      origins[key] = safeOrigin(raw);
+    }
+    if (candidate.origins.toolsets !== undefined) {
+      const raw = candidate.origins.toolsets;
+      if (!isRecord(raw) || Object.keys(raw).length > 32)
+        throw new TypeError("Toolset origins are invalid");
+      origins.toolsets = {};
+      for (const [ref, origin] of Object.entries(raw)) {
+        if (!ADAPTER.test(ref))
+          throw new TypeError("Toolset origin ref is invalid");
+        const parsed = safeOrigin(origin);
+        if (parsed.layer !== "default" && parsed.layer !== "run_labels")
+          throw new TypeError("Toolset origin layer is invalid");
+        origins.toolsets[ref] = parsed;
       }
-      exactKeys(raw, ["layer"], ["configs"]);
-      if (typeof raw.layer !== "string" || !layers.has(raw.layer)) {
-        throw new TypeError("Stage Runtime origin layer is invalid");
-      }
-      const configs =
-        raw.configs === undefined
-          ? undefined
-          : Array.isArray(raw.configs) && raw.configs.length <= 32
-            ? raw.configs.map(safeRef)
-            : (() => {
-                throw new TypeError("Stage Runtime origin refs are invalid");
-              })();
-      const labelLayer = ["default", "run_labels", "agent_labels"].includes(
-        raw.layer,
-      );
-      if (labelLayer !== (configs !== undefined && configs.length > 0)) {
-        throw new TypeError("Stage Runtime origin refs do not match its layer");
-      }
-      origins[key] = {
-        layer:
-          raw.layer as components["schemas"]["RuntimeFieldOrigin"]["layer"],
-        ...(configs === undefined ? {} : { configs }),
-      };
     }
     return {
       logicalAgent: candidate.logicalAgent,

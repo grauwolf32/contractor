@@ -7,6 +7,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import (
     Field,
+    field_validator,
     model_validator,
 )
 
@@ -31,11 +32,26 @@ from contractor_runtime.contracts.workspace import WorkspaceCapabilities
 class ToolsetCapability(WireModel):
     ref: str
     tools: list[str]
+    tool_discovery: Literal["allocation"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @field_validator("tool_discovery", mode="before")
+    @classmethod
+    def reject_null_discovery(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("toolDiscovery must be omitted or allocation")
+        return value
 
     @model_validator(mode="after")
     def validate_capability(self) -> Self:
         _require_selector("ref", self.ref)
-        if not self.tools or len(self.tools) != len(set(self.tools)):
+        if self.tool_discovery == "allocation":
+            if self.tools:
+                raise ValueError("allocation toolset capability must have empty tools")
+        elif not self.tools:
+            raise ValueError("static toolset capability has no tools")
+        if len(self.tools) != len(set(self.tools)):
             raise ValueError("tools must be non-empty and unique")
         for tool in self.tools:
             _require_text("tool", tool)

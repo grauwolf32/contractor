@@ -1,5 +1,10 @@
 package contracts
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 type AgentObservedState string
 
 const (
@@ -19,8 +24,62 @@ const (
 )
 
 type ToolsetCapability struct {
-	Ref   string   `json:"ref"`
-	Tools []string `json:"tools"`
+	Ref           string   `json:"ref"`
+	Tools         []string `json:"tools"`
+	ToolDiscovery string   `json:"toolDiscovery,omitempty"`
+}
+
+func (c *ToolsetCapability) UnmarshalJSON(raw []byte) error {
+	type wire ToolsetCapability
+	var value wire
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&value); err != nil {
+		return invalidf("invalid toolset capability")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return invalidf("invalid toolset capability")
+	}
+	if _, present := fields["toolDiscovery"]; present && value.ToolDiscovery != "allocation" {
+		return invalidf("invalid tool discovery mode")
+	}
+	*c = ToolsetCapability(value)
+	return nil
+}
+
+// Validate describes installation readiness, never remote endpoint readiness.
+// Allocation discovery deliberately advertises no invented tool inventory.
+func (c ToolsetCapability) Validate() error {
+	if err := validateSelector("supportedToolsets.ref", c.Ref); err != nil {
+		return err
+	}
+	if c.Tools == nil {
+		return invalidf("toolset capability tools must be an array")
+	}
+	switch c.ToolDiscovery {
+	case "":
+		if len(c.Tools) == 0 {
+			return invalidf("static toolset capability has no tools")
+		}
+	case "allocation":
+		if len(c.Tools) != 0 {
+			return invalidf("allocation toolset capability must have empty tools")
+		}
+	default:
+		return invalidf("unknown tool discovery mode")
+	}
+	seen := make(map[string]struct{})
+	for _, tool := range c.Tools {
+		if err := validateOpaqueID("tool name", tool); err != nil {
+			return err
+		}
+		if _, exists := seen[tool]; exists {
+			return invalidf("duplicate tool in capability")
+		}
+		seen[tool] = struct{}{}
+	}
+	return nil
 }
 
 type AgentHeartbeat struct {
@@ -101,26 +160,13 @@ func validateCapabilities(runtimes []string, toolsets []ToolsetCapability, sandb
 	}
 	seen = make(map[string]struct{})
 	for _, capability := range toolsets {
-		if err := validateSelector("supportedToolsets.ref", capability.Ref); err != nil {
+		if err := capability.Validate(); err != nil {
 			return err
 		}
 		if _, exists := seen[capability.Ref]; exists {
 			return invalidf("duplicate toolset capability %q", capability.Ref)
 		}
 		seen[capability.Ref] = struct{}{}
-		if len(capability.Tools) == 0 {
-			return invalidf("toolset capability %q has no tools", capability.Ref)
-		}
-		toolNames := make(map[string]struct{})
-		for _, tool := range capability.Tools {
-			if err := validateOpaqueID("tool name", tool); err != nil {
-				return err
-			}
-			if _, exists := toolNames[tool]; exists {
-				return invalidf("duplicate tool %q in capability %q", tool, capability.Ref)
-			}
-			toolNames[tool] = struct{}{}
-		}
 	}
 	return nil
 }
