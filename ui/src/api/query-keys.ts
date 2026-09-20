@@ -354,6 +354,7 @@ export const queryKeys = {
     },
     runtimeCredentials: {
       all: ["operations", "runtime-credentials"] as const,
+      picker: ["operations", "runtime-credentials", "picker"] as const,
       list: (cursor?: string) =>
         ["operations", "runtime-credentials", "list", cursor ?? null] as const,
     },

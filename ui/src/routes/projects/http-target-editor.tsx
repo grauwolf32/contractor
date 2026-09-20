@@ -131,14 +131,41 @@ function ProjectHTTPTargetDialog({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const credentials = useQuery({
-    queryKey: queryKeys.operations.runtimeCredentials.list(),
-    queryFn: () => listRuntimeCredentials(api),
+    queryKey: queryKeys.operations.runtimeCredentials.picker,
+    queryFn: async ({ signal }) => {
+      const items: RuntimeCredentialMetadata[] = [];
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      for (;;) {
+        signal.throwIfAborted();
+        const page = await listRuntimeCredentials(
+          api,
+          cursor === undefined ? {} : { cursor },
+        );
+        signal.throwIfAborted();
+        items.push(...page.items);
+        if (!page.page.hasMore) return items;
+        cursor = page.page.nextCursor;
+        if (!cursor || seen.has(cursor)) {
+          throw new Error(
+            "Runtime credentials could not be fully loaded. Retry before choosing a credential.",
+          );
+        }
+        seen.add(cursor);
+      }
+    },
   });
-  const originCredentials = (credentials.data?.items ?? []).filter(
+  const originCredentials = (credentials.data ?? []).filter(
     (credential): credential is OriginCredential =>
       credential.kind === "http-origin-basic@1" ||
       credential.kind === "http-origin-bearer@1",
   );
+  const currentCredentialMissing =
+    currentCredential !== undefined &&
+    !originCredentials.some(
+      (credential) =>
+        credential.credentialId === currentCredential.credentialId,
+    );
 
   function clearSecrets(): void {
     setUsername("");
@@ -314,19 +341,38 @@ function ProjectHTTPTargetDialog({
           </select>
         </label>
         {authMode === "existing" ? (
-          credentials.isPending ? (
-            <p className="loading-copy">Loading active credentials…</p>
-          ) : credentials.error !== null ? (
-            <ErrorNotice error={credentials.error} />
-          ) : (
+          <>
+            {credentials.isPending ? (
+              <p className="loading-copy">Loading active credentials…</p>
+            ) : null}
+            {credentials.error === null ? null : (
+              <>
+                <ErrorNotice error={credentials.error} />
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={credentials.isFetching}
+                  onClick={() => void credentials.refetch()}
+                >
+                  Retry credentials
+                </button>
+              </>
+            )}
             <label>
               Active HTTP origin credential
               <select
                 required
                 value={credentialID}
+                disabled={credentials.isFetching}
                 onChange={(event) => setCredentialID(event.target.value)}
               >
                 <option value="">Select credential</option>
+                {currentCredentialMissing ? (
+                  <option value={currentCredential.credentialId}>
+                    {currentCredential.credentialId} · {currentCredential.kind}{" "}
+                    (current)
+                  </option>
+                ) : null}
                 {originCredentials.map((credential) => (
                   <option
                     key={credential.credentialId}
@@ -337,7 +383,7 @@ function ProjectHTTPTargetDialog({
                 ))}
               </select>
             </label>
-          )
+          </>
         ) : authMode === "basic" ? (
           <div className="form-grid">
             <label>
@@ -384,7 +430,9 @@ function ProjectHTTPTargetDialog({
           <button
             type="submit"
             disabled={
-              pending || (authMode === "existing" && credentials.isFetching)
+              pending ||
+              (authMode === "existing" &&
+                (credentials.isFetching || credentials.error !== null))
             }
           >
             {pending ? "Saving…" : "Save target"}
