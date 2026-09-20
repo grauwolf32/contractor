@@ -715,3 +715,52 @@ describe("Operations API", () => {
     );
   });
 });
+
+it("reads safe label coverage and mixed effects without fetching configuration documents", async () => {
+  const first = {
+    label: "knowledge",
+    config: { name: "first", version: "1", digest },
+    revision: "2",
+    createdBy: "user-1",
+    createdAt: "2026-09-01T00:00:00Z",
+    updatedBy: "user-1",
+    updatedAt: "2026-09-02T00:00:00Z",
+    toolsetConfigurationCoverage: [
+      { ref: "mcp@1", state: "configured", valueDigest: digest },
+    ],
+    changedSections: ["worker.llmGateway", "worker.toolsets"],
+  };
+  const same = {
+    ...first,
+    label: "same",
+    config: {
+      ...first.config,
+      name: "second",
+      digest: `sha256:${"2".repeat(64)}`,
+    },
+  };
+  const fetcher = vi.fn(async () =>
+    response({ items: [first, same], page: { hasMore: false } }),
+  );
+  const api = new PublicAPI(runtimeConfig, fetcher);
+  const page = await listRuntimeLabels(api);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(page.items[0]?.toolsetConfigurationCoverage).toEqual(
+    page.items[1]?.toolsetConfigurationCoverage,
+  );
+  expect(page.items[0]?.changedSections).toEqual([
+    "worker.llmGateway",
+    "worker.toolsets",
+  ]);
+  Object.assign(first.toolsetConfigurationCoverage[0]!, {
+    endpoint: "https://private.example",
+  });
+  await expect(listRuntimeLabels(api)).rejects.toThrow("projection is invalid");
+  delete (
+    first.toolsetConfigurationCoverage[0] as unknown as Record<string, unknown>
+  ).endpoint;
+  first.changedSections = ["worker.llmGateway"];
+  await expect(listRuntimeLabels(api)).rejects.toThrow(
+    "coverage does not match",
+  );
+});

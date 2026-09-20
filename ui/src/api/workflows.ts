@@ -4,6 +4,7 @@ import type { components } from "./generated/public";
 import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
 import { safeRunRuntimeConfiguration } from "./runtime-configuration";
 import { safeRunMetadataLabels } from "./run-metadata-labels";
+import { safeToolsetConfigurationRequirements } from "./toolset-configuration";
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
@@ -84,7 +85,31 @@ export async function getWorkflow(
       ...(signal === undefined ? {} : { signal }),
     }),
   );
-  return requireData(result);
+  const resource = requireData(result);
+  const keys = new Set([
+    "ref",
+    "presentation",
+    "entryStage",
+    "parameters",
+    "inputs",
+    "outputs",
+    "stages",
+    "toolsetConfigurationRequirements",
+  ]);
+  if (!resource || Object.keys(resource).some((key) => !keys.has(key))) {
+    throw new TypeError("Workflow response shape is invalid");
+  }
+  return {
+    ...resource,
+    ...(resource.toolsetConfigurationRequirements === undefined
+      ? {}
+      : {
+          toolsetConfigurationRequirements:
+            safeToolsetConfigurationRequirements(
+              resource.toolsetConfigurationRequirements,
+            ),
+        }),
+  };
 }
 
 export async function listConfigurations(

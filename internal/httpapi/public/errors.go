@@ -29,6 +29,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var auditUnsupported *auditservice.UnsupportedError
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
 	var runNotDeletable *runstore.RunNotDeletableError
+	var runtimeResolution *runtimeconfig.ResolutionError
 	switch {
 	case errors.Is(err, settingsstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
@@ -69,6 +70,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusBadRequest, "runtime_label_unknown", "a selected Runtime label is unavailable", false)
 	case errors.Is(err, runtimeconfig.ErrConflict):
 		h.writeError(w, http.StatusConflict, "runtime_config_conflict", "selected Runtime labels conflict", false)
+	case errors.As(err, &runtimeResolution) && runtimeResolution.Code == runtimeconfig.ResolutionIncomplete:
+		h.writeError(w, http.StatusBadRequest, "runtime_config_incomplete", "a required Runtime configuration is missing or cleared", false)
 	case errors.Is(err, runtimeconfig.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime label configuration is invalid", false)
 	case errors.As(err, &runtimeCredentialInUse):

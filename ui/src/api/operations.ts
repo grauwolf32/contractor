@@ -2,6 +2,10 @@ import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
 import {
+  safeRuntimeChangedSections,
+  safeToolsetConfigurationCoverage,
+} from "./toolset-configuration";
+import {
   safeConfigurationResource,
   safeCredentialResource,
 } from "./safe-resources";
@@ -452,18 +456,37 @@ function safeRuntimeConfigResource(
 }
 
 function safeRuntimeLabel(value: RuntimeLabelBinding): RuntimeLabelBinding {
-  requireExactRuntimeKeys(value, [
-    "label",
-    "config",
-    "revision",
-    "createdBy",
-    "createdAt",
-    "updatedBy",
-    "updatedAt",
-  ]);
+  requireExactRuntimeKeys(
+    value,
+    [
+      "label",
+      "config",
+      "revision",
+      "createdBy",
+      "createdAt",
+      "updatedBy",
+      "updatedAt",
+    ],
+    ["toolsetConfigurationCoverage", "changedSections"],
+  );
   requireRuntimeIdentity(value.label);
   if (!/^[1-9][0-9]{0,19}$/.test(value.revision)) {
     throw new TypeError("Runtime label revision is invalid");
+  }
+  const coverage =
+    value.toolsetConfigurationCoverage === undefined
+      ? undefined
+      : safeToolsetConfigurationCoverage(value.toolsetConfigurationCoverage);
+  const sections =
+    value.changedSections === undefined
+      ? undefined
+      : safeRuntimeChangedSections(value.changedSections);
+  if (
+    Boolean(coverage?.length) !== Boolean(sections?.includes("worker.toolsets"))
+  ) {
+    throw new TypeError(
+      "Runtime label coverage does not match its changed sections",
+    );
   }
   return {
     label: value.label,
@@ -473,6 +496,10 @@ function safeRuntimeLabel(value: RuntimeLabelBinding): RuntimeLabelBinding {
     createdAt: value.createdAt,
     updatedBy: value.updatedBy,
     updatedAt: value.updatedAt,
+    ...(coverage === undefined
+      ? {}
+      : { toolsetConfigurationCoverage: coverage }),
+    ...(sections === undefined ? {} : { changedSections: sections }),
   };
 }
 

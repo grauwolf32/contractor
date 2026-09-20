@@ -205,13 +205,17 @@ func (f *fakeRuntimeConfigManagement) GetVersion(_ context.Context, name, versio
 
 func (f *fakeRuntimeConfigManagement) ListBindings(
 	_ context.Context, after string, limit int,
-) ([]runtimeconfig.Binding, error) {
+) ([]runtimeconfig.BindingProjection, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	items := make([]runtimeconfig.Binding, 0, len(f.bindings))
+	items := make([]runtimeconfig.BindingProjection, 0, len(f.bindings))
 	for _, binding := range f.bindings {
 		if binding.Label > after {
-			items = append(items, binding)
+			projection, err := runtimeconfig.ProjectBinding(binding, f.versions[runtimeConfigKey(binding.Ref.Name, binding.Ref.Version)])
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, projection)
 		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Label < items[j].Label })
@@ -221,14 +225,14 @@ func (f *fakeRuntimeConfigManagement) ListBindings(
 	return items, nil
 }
 
-func (f *fakeRuntimeConfigManagement) GetBinding(_ context.Context, label string) (runtimeconfig.Binding, error) {
+func (f *fakeRuntimeConfigManagement) GetBinding(_ context.Context, label string) (runtimeconfig.BindingProjection, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	binding, ok := f.bindings[label]
 	if !ok {
-		return runtimeconfig.Binding{}, runtimeconfig.ErrNotFound
+		return runtimeconfig.BindingProjection{}, runtimeconfig.ErrNotFound
 	}
-	return binding, nil
+	return runtimeconfig.ProjectBinding(binding, f.versions[runtimeConfigKey(binding.Ref.Name, binding.Ref.Version)])
 }
 
 func (f *fakeRuntimeConfigManagement) CreateBinding(

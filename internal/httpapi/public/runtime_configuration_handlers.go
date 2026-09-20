@@ -258,6 +258,18 @@ func (h *handler) putRuntimeLabel(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errors.New("Runtime label mutation returned no binding"))
 		return
 	}
+	// Project the exact immutable mutation result, including idempotent replay,
+	// rather than looking up a binding that may already have moved again.
+	version, err := h.dependencies.RuntimeConfigs.GetVersion(r.Context(), result.Binding.Ref.Name, result.Binding.Ref.Version)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	projection, err := runtimeconfig.ProjectBinding(*result.Binding, version)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	if !result.Replayed {
 		if err := h.dependencies.OperationsInvalidator.InvalidateOperations(
 			controlplane.OperationsConfiguration, label,
@@ -275,7 +287,7 @@ func (h *handler) putRuntimeLabel(w http.ResponseWriter, r *http.Request) {
 	if mode == labelMutationCreate {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, runtimeLabelResource(*result.Binding))
+	writeJSON(w, status, runtimeLabelResource(projection))
 }
 
 func (h *handler) deleteRuntimeLabel(w http.ResponseWriter, r *http.Request) {
@@ -479,9 +491,11 @@ func runtimeConfigResource(version runtimeconfig.Version) runtimeConfigResourceR
 	}
 }
 
-func runtimeLabelResource(binding runtimeconfig.Binding) runtimeLabelResponse {
+func runtimeLabelResource(binding runtimeconfig.BindingProjection) runtimeLabelResponse {
 	return runtimeLabelResponse{
-		Label: binding.Label, Config: binding.Ref, Revision: strconv.FormatUint(binding.Revision, 10),
+		ToolsetConfigurationCoverage: binding.ToolsetConfigurationCoverage,
+		ChangedSections:              binding.ChangedSections,
+		Label:                        binding.Label, Config: binding.Ref, Revision: strconv.FormatUint(binding.Revision, 10),
 		CreatedBy: binding.CreatedBy, CreatedAt: binding.CreatedAt,
 		UpdatedBy: binding.UpdatedBy, UpdatedAt: binding.UpdatedAt,
 	}

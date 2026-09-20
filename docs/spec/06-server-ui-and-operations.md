@@ -1342,3 +1342,15 @@ anchors redirect with their query and return context: `#project-overview` to
 Settings (the former metadata area), and Artifacts/Workflows/Runs/Audits anchors to
 their corresponding sections. Eval workspaces retain their existing layout and
 scope. The static server accepts direct requests for every new section URL.
+
+### Workflow toolset configuration read models
+
+The launch form reads `toolsetConfigurationRequirements` from workflow detail
+and `toolsetConfigurationCoverage` / `changedSections` from the existing
+paginated Runtime label list and individual label reads. These contain sorted
+logical requirements, configured/cleared states and per-value digests; they do
+not contain endpoint, CA or credential material. Include the `default` row when
+calculating coverage, and retain selected rows across pagination. Display all
+changed sections for mixed profiles. Full RuntimeConfig reads are only needed
+when explicitly opening the configuration editor, never once per picker row.
+See [the projection contract](07-runtime-labels-and-infrastructure-config.md#pinning-allocation-and-public-projections).

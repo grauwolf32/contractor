@@ -95,7 +95,12 @@ func (h *handler) getWorkflow(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: Workflow was not found", runstore.ErrNotFound))
 		return
 	}
-	writeJSON(w, http.StatusOK, workflowResourceReadModel(workflow))
+	resource, err := workflowResourceReadModel(workflow)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resource)
 }
 
 func workflowSummaryReadModel(workflow config.ResolvedWorkflow) workflowSummaryResponse {
@@ -105,10 +110,15 @@ func workflowSummaryReadModel(workflow config.ResolvedWorkflow) workflowSummaryR
 	}
 }
 
-func workflowResourceReadModel(workflow config.ResolvedWorkflow) workflowResourceResponse {
+func workflowResourceReadModel(workflow config.ResolvedWorkflow) (workflowResourceResponse, error) {
+	requirements, err := config.WorkflowToolsetRequirements(workflow)
+	if err != nil {
+		return workflowResourceResponse{}, err
+	}
 	result := workflowResourceResponse{
-		workflowSummaryResponse: workflowSummaryReadModel(workflow),
-		Stages:                  make(map[string]workflowStageResponse, len(workflow.Stages)),
+		ToolsetConfigurationRequirements: requirements,
+		workflowSummaryResponse:          workflowSummaryReadModel(workflow),
+		Stages:                           make(map[string]workflowStageResponse, len(workflow.Stages)),
 	}
 	stageNames := make([]string, 0, len(workflow.Stages))
 	for name := range workflow.Stages {
@@ -143,7 +153,7 @@ func workflowResourceReadModel(workflow config.ResolvedWorkflow) workflowResourc
 			},
 		}
 	}
-	return result
+	return result, nil
 }
 
 func resolvedStageExecutionConfigReadModel(

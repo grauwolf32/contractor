@@ -8,6 +8,7 @@ import (
 )
 
 const MaximumToolsetConsumers = 256
+const MaximumToolsetRequirementTools = 1024
 
 type ToolsetConsumer struct {
 	Stage string `json:"stage"`
@@ -57,6 +58,9 @@ func WorkflowToolsetRequirements(workflow ResolvedWorkflow) ([]ToolsetConfigurat
 				for _, name := range selection.Tools {
 					tools[ref][name] = struct{}{}
 				}
+				if len(tools[ref]) > MaximumToolsetRequirementTools {
+					return nil, fmt.Errorf("Workflow toolset requirements exceed supported limits")
+				}
 			}
 		}
 	}
@@ -66,6 +70,7 @@ func WorkflowToolsetRequirements(workflow ResolvedWorkflow) ([]ToolsetConfigurat
 			requirement.Tools = append(requirement.Tools, name)
 		}
 		sort.Strings(requirement.Tools)
+		sort.Strings(requirement.WorkerRuntimes)
 		sort.Slice(requirement.Consumers, func(i, j int) bool {
 			left, right := requirement.Consumers[i], requirement.Consumers[j]
 			if left.Stage != right.Stage {

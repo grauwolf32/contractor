@@ -80,12 +80,12 @@ func (s *ManagementService) GetVersion(ctx context.Context, name, version string
 
 func (s *ManagementService) ListBindings(
 	ctx context.Context, afterLabel string, limit int,
-) ([]Binding, error) {
-	return s.repository.ListBindings(ctx, afterLabel, limit)
+) ([]BindingProjection, error) {
+	return s.repository.ListBindingProjections(ctx, afterLabel, limit)
 }
 
-func (s *ManagementService) GetBinding(ctx context.Context, label string) (Binding, error) {
-	return s.repository.GetBinding(ctx, label)
+func (s *ManagementService) GetBinding(ctx context.Context, label string) (BindingProjection, error) {
+	return s.repository.GetBindingProjection(ctx, label)
 }
 
 func (s *ManagementService) CreateBinding(

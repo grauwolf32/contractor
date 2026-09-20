@@ -3037,6 +3037,11 @@ export interface components {
             /** @enum {unknown} */
             toolDiscovery: "static" | "allocation";
             workerRuntimes: components["schemas"]["RuntimeCapabilityRef"][];
+            tools: string[];
+            consumers: {
+                stage: components["schemas"]["ConfigId"];
+                agent: components["schemas"]["ConfigId"];
+            }[];
         };
         /** @description Safe normalized per-value digest; excludes RuntimeConfig document identity and secret material. */
         ToolsetConfigurationCoverage: {
@@ -3122,6 +3127,10 @@ export interface components {
             updatedBy: components["schemas"]["AuditActor"];
             /** Format: date-time */
             updatedAt: string;
+            /** @description Sorted exact refs changed by this label. Omitted refs inherit; cleared refs remove an inherited value. No endpoint or credential material is included. */
+            toolsetConfigurationCoverage?: components["schemas"]["ToolsetConfigurationCoverage"][];
+            /** @description Sorted complete list of affected sections, including mixed infrastructure profiles. Omitted for an empty configuration. */
+            changedSections?: ("planner.telemetry" | "worker.caido" | "worker.httpProxy" | "worker.llmGateway" | "worker.telemetry" | "worker.toolsets")[];
         };
         RuntimeLabelPage: {
             items: components["schemas"]["RuntimeLabelBinding"][];
@@ -3761,6 +3770,8 @@ export interface components {
          *     }
          */
         WorkflowResource: {
+            /** @description Sorted configuration requirements across every stage, deduplicated by exact Toolset ref. Consumers are logical stage/agent identities; no physical placement or connection data is exposed. */
+            toolsetConfigurationRequirements?: components["schemas"]["ToolsetConfigurationRequirement"][];
             ref: components["schemas"]["WorkflowRef"];
             presentation?: components["schemas"]["WorkflowPresentation"];
             entryStage: components["schemas"]["ConfigId"];

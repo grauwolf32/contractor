@@ -29,6 +29,73 @@ function response(value: unknown, status = 200): Response {
 }
 
 describe("Workflow API", () => {
+  const requirement = {
+    ref: "mcp@1",
+    configurationRequired: true,
+    configurationSchema: "mcp-streamable-http@1",
+    toolDiscovery: "allocation",
+    workerRuntimes: ["adk@1"],
+    tools: ["fetch", "search"],
+    consumers: [
+      { stage: "late", agent: "reader" },
+      { stage: "start", agent: "finder" },
+    ],
+  };
+
+  it("parses complete shared and late-stage requirements from the workflow response", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          ref: { name: "configured", version: "1" },
+          entryStage: "start",
+          parameters: {},
+          inputs: {},
+          outputs: {},
+          stages: {},
+          toolsetConfigurationRequirements: [requirement],
+        }),
+      ),
+    );
+    expect(
+      (await getWorkflow(api, "configured", "1"))
+        .toolsetConfigurationRequirements,
+    ).toEqual([requirement]);
+  });
+
+  it.each([
+    { ...requirement, endpoint: "https://private.example" },
+    { ...requirement, tools: ["search", "fetch"] },
+    { ...requirement, tools: ["search", "search"] },
+    {
+      ...requirement,
+      consumers: [
+        { stage: "late", agent: "reader", runtimeAgentId: "private" },
+      ],
+    },
+    { ...requirement, consumers: [] },
+    { ...requirement, configurationRequired: "true" },
+    { ...requirement, workerRuntimes: [] },
+    { ...requirement, toolDiscovery: "future" },
+  ])("rejects malformed or private toolset requirements %#", async (bad) => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          ref: { name: "configured", version: "1" },
+          entryStage: "start",
+          parameters: {},
+          inputs: {},
+          outputs: {},
+          stages: {},
+          toolsetConfigurationRequirements: [bad],
+        }),
+      ),
+    );
+    await expect(getWorkflow(api, "configured", "1")).rejects.toThrow(
+      "projection is invalid",
+    );
+  });
   it("uses generated exact and cursor query operations", async () => {
     const requests: Request[] = [];
     const abort = new AbortController();

@@ -142,8 +142,8 @@ type RuntimeConfigManagement interface {
 	Publish(context.Context, []byte, string, string) (runtimeconfig.PublishResult, error)
 	ListVersions(context.Context, string, string, int) ([]runtimeconfig.Version, error)
 	GetVersion(context.Context, string, string) (runtimeconfig.Version, error)
-	ListBindings(context.Context, string, int) ([]runtimeconfig.Binding, error)
-	GetBinding(context.Context, string) (runtimeconfig.Binding, error)
+	ListBindings(context.Context, string, int) ([]runtimeconfig.BindingProjection, error)
+	GetBinding(context.Context, string) (runtimeconfig.BindingProjection, error)
 	CreateBinding(context.Context, string, runtimeconfig.Ref, string, string, time.Time) (runtimeconfig.BindingMutationResult, error)
 	Rebind(context.Context, string, uint64, runtimeconfig.Ref, string, string, time.Time) (runtimeconfig.BindingMutationResult, error)
 	DeleteBinding(context.Context, string, uint64, string, string, time.Time) (runtimeconfig.BindingMutationResult, error)
@@ -743,13 +743,15 @@ type runtimeLabelPageResponse struct {
 }
 
 type runtimeLabelResponse struct {
-	Label     string            `json:"label"`
-	Config    runtimeconfig.Ref `json:"config"`
-	Revision  string            `json:"revision"`
-	CreatedBy string            `json:"createdBy"`
-	CreatedAt time.Time         `json:"createdAt"`
-	UpdatedBy string            `json:"updatedBy"`
-	UpdatedAt time.Time         `json:"updatedAt"`
+	ToolsetConfigurationCoverage []runtimeconfig.ToolsetCoverage `json:"toolsetConfigurationCoverage,omitempty"`
+	ChangedSections              []string                        `json:"changedSections,omitempty"`
+	Label                        string                          `json:"label"`
+	Config                       runtimeconfig.Ref               `json:"config"`
+	Revision                     string                          `json:"revision"`
+	CreatedBy                    string                          `json:"createdBy"`
+	CreatedAt                    time.Time                       `json:"createdAt"`
+	UpdatedBy                    string                          `json:"updatedBy"`
+	UpdatedAt                    time.Time                       `json:"updatedAt"`
 }
 
 type runtimeLabelMutationRequest struct {
@@ -938,7 +940,8 @@ type workflowSummaryResponse struct {
 
 type workflowResourceResponse struct {
 	workflowSummaryResponse
-	Stages map[string]workflowStageResponse `json:"stages"`
+	Stages                           map[string]workflowStageResponse         `json:"stages"`
+	ToolsetConfigurationRequirements []config.ToolsetConfigurationRequirement `json:"toolsetConfigurationRequirements,omitempty"`
 }
 
 type instructionsRefResponse struct {

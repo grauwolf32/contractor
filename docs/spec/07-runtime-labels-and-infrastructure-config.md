@@ -1169,12 +1169,27 @@ changed bindings before submission. Endpoint configuration does not pin the
 remote server implementation. A discovered schema digest is diagnostic and
 cannot claim remote code reproducibility.
 
-Workflow detail exposes an optional sorted `toolsetRequirements` array with
+Workflow detail exposes an optional sorted `toolsetConfigurationRequirements` array with
 `ref`, `configurationRequired`, `configurationSchema`, `toolDiscovery` and
-`workerRuntimes`. Label list/detail exposes an optional sorted `toolsets` array
+`workerRuntimes`, plus the sorted union of selected `tools` and sorted logical
+`consumers: [{stage, agent}]` across every workflow stage. Bounds are 32 refs,
+1024 tools and 256 consumers per ref. Label list/detail exposes an optional
+sorted `toolsetConfigurationCoverage` array
 of `{ref, state, valueDigest?}`: state is `configured` or `cleared`; only configured
 has `valueDigest`. The digest is SHA-256 of the canonical **normalized per-ref
 value**, excluding document metadata. Equal values in different documents must
 compare equal. These safe projections support requirement coverage and conflict
 preview without fetching every full RuntimeConfig or returning endpoint/secret
 material. They are hints; Run-create validation remains authoritative.
+
+`changedSections` lists every affected section in sorted order:
+`planner.telemetry`, `worker.caido`, `worker.httpProxy`, `worker.llmGateway`,
+`worker.telemetry`, `worker.toolsets`. It includes clears. The label list/detail
+joins the current binding revision and exact immutable config in one database
+statement; no per-row lookup or separate stored coverage inventory is used.
+Mutation replay projects its original immutable result, even after a rebind.
+The reserved `default` row provides default coverage; omitted refs inherit and
+an empty built-in profile omits both projection arrays. A selected deleted label
+returns not-found. Missing/cleared required Run configuration returns the safe
+`runtime_config_incomplete` code; same-layer conflict remains
+`runtime_config_conflict`. Neither error contains connection material.

@@ -5271,7 +5271,7 @@ components:
     ToolsetConfigurationRequirement:
       type: object
       additionalProperties: false
-      required: [ref, configurationRequired, configurationSchema, toolDiscovery, workerRuntimes]
+      required: [ref, configurationRequired, configurationSchema, toolDiscovery, workerRuntimes, tools, consumers]
       properties:
         ref: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         configurationRequired: {type: boolean}
@@ -5283,6 +5283,23 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        tools:
+          type: array
+          minItems: 1
+          maxItems: 1024
+          uniqueItems: true
+          items: {type: string, pattern: '^[A-Za-z_][A-Za-z0-9_]{0,63}$'}
+        consumers:
+          type: array
+          minItems: 1
+          maxItems: 256
+          items:
+            type: object
+            additionalProperties: false
+            required: [stage, agent]
+            properties:
+              stage: {$ref: '#/components/schemas/ConfigId'}
+              agent: {$ref: '#/components/schemas/ConfigId'}
     ToolsetConfigurationCoverage:
       description: Safe normalized per-value digest; excludes RuntimeConfig document identity and secret material.
       oneOf:
@@ -5432,6 +5449,17 @@ components:
         createdAt: {type: string, format: date-time}
         updatedBy: {$ref: '#/components/schemas/AuditActor'}
         updatedAt: {type: string, format: date-time}
+        toolsetConfigurationCoverage:
+          description: Sorted exact refs changed by this label. Omitted refs inherit; cleared refs remove an inherited value. No endpoint or credential material is included.
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/ToolsetConfigurationCoverage'}
+        changedSections:
+          description: Sorted complete list of affected sections, including mixed infrastructure profiles. Omitted for an empty configuration.
+          type: array
+          maxItems: 6
+          uniqueItems: true
+          items: {enum: [planner.telemetry, worker.caido, worker.httpProxy, worker.llmGateway, worker.telemetry, worker.toolsets]}
     RuntimeLabelPage:
       type: object
       additionalProperties: false
@@ -6229,6 +6257,11 @@ components:
       additionalProperties: false
       required: [ref, entryStage, parameters, inputs, outputs, stages]
       properties:
+        toolsetConfigurationRequirements:
+          description: Sorted configuration requirements across every stage, deduplicated by exact Toolset ref. Consumers are logical stage/agent identities; no physical placement or connection data is exposed.
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/ToolsetConfigurationRequirement'}
         ref: {$ref: '#/components/schemas/WorkflowRef'}
         presentation: {$ref: '#/components/schemas/WorkflowPresentation'}
         entryStage: {$ref: '#/components/schemas/ConfigId'}
