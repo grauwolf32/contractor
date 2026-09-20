@@ -3,7 +3,7 @@ id: V60-024
 title: Verify the integrated independent-review corrections
 milestone: project-review-v60
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V60-013
 - V60-014

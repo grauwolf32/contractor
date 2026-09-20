@@ -3,7 +3,7 @@ id: V60-016
 title: Resume escalated Run attempts without reusing automatic escalation identity
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -45,3 +45,14 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: 74d3ede369ecd9b4bde838a8bfc905cefbd1d25c
+verification:
+  evidence: tasks/evidence/v60-016.json
+  results:
+  - RunStore,Scheduler,public API and PostgreSQL packages passed with race detector and disposable PostgreSQL.
+  - Base and both escalation variants support repeated resume, response-loss replay, preserved snapshots and immutable
+    receipts; missing-receipt writes roll back.
+  - Scheduler restart keeps the effective policy and exhausted automatic budget; corrupt ordinal/lineage histories
+    remain rejected.
+  - Migration59→60 preserves historical row contents, backfills manual identity, passes checksum/idempotency and
+    cascade purge; normal Run deletion after two resumes passes.
