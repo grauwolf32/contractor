@@ -3,7 +3,7 @@ id: V60-024
 title: Verify the integrated independent-review corrections
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-013
 - V60-014
@@ -59,3 +59,16 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: fa2cbaa4bf9cc57f4754b159a8c84e9ad05e9b02
+verification:
+  evidence: tasks/evidence/v60-024.json
+  results:
+  - All11 corrective tasks are completed with separate implementation commits and permanent regressions.
+  - Full Go+PostgreSQL:62 packages passed,3507 passing test/subtest events,5 explicit live/GPU skips;11 packages
+    contain no tests.
+  - Focused race checks passed for all changed Go subsystems, including PostgreSQL scenarios.
+  - Runtime:2388 passed,34 explicit/optional skips; UI:451 passed in65files with two workers; static server:11passed.
+  - Go vet,TypeScript,ESLint/Prettier,Ruff lint/format and diff whitespace checks passed.
+  - Initial UI full run had one five-second Workflow-test timeout; unchanged suite passed with maxWorkers=2.
+  - Final source hashes match59 recorded files. Disposable PostgreSQL container stopped after verification.
+  - Broader readability taskV60-025 stays pending; release gates/live models/external targets were not invoked.

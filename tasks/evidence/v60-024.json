@@ -1,0 +1,58 @@
+{
+  "task_id": "V60-024",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "fa2cbaa4bf9cc57f4754b159a8c84e9ad05e9b02",
+  "source_commit": "1ffc30d566153e70eab4e9fba6a0428b523574f5",
+  "toolchain": {
+    "go": "1.25.6",
+    "python": "3.13.14",
+    "node": "24.20.0",
+    "postgresql": "17.11"
+  },
+  "commands": [
+    "go test -json -count=1 -p 2 ./...",
+    "cd runtime && .venv/bin/python -m pytest -W error tests",
+    "cd ui && corepack pnpm test --run --maxWorkers=2",
+    "cd ui && corepack pnpm typecheck",
+    "cd ui && node --test server/*.test.mjs"
+  ],
+  "database": "Isolated disposable PostgreSQL; CONTRACTOR_TEST_DATABASE_URL supplied to Go runs; container stopped afterward.",
+  "go_results": {
+    "test_events": {
+      "pass": 3507,
+      "skip": 5
+    },
+    "package_results": {
+      "skip": 11,
+      "pass": 62
+    },
+    "skipped_tests": [
+      "TestPinnedLiteLLMContract",
+      "TestLocalNVIDIAGPU",
+      "TestLiveProjectWorkflows",
+      "TestLiveGatewayToolCall",
+      "TestLiveRouterWorkflow"
+    ],
+    "failures": [],
+    "last_packages": [
+      "github.com/grauwolf32/contractor/tests/integration/configuration",
+      "github.com/grauwolf32/contractor/tests/integration/lease",
+      "github.com/grauwolf32/contractor/tests/eval/project_workflows",
+      "github.com/grauwolf32/contractor/tools/performancebench",
+      "github.com/grauwolf32/contractor/tests/integration/streamline"
+    ]
+  },
+  "results": [
+    "All11 corrective tasks are completed with separate implementation commits and permanent regressions.",
+    "Full Go+PostgreSQL:62 packages passed,3507 passing test/subtest events,5 explicit live/GPU skips;11 packages contain no tests.",
+    "Focused race checks passed for all changed Go subsystems, including PostgreSQL scenarios.",
+    "Runtime:2388 passed,34 explicit/optional skips; UI:451 passed in65files with two workers; static server:11passed.",
+    "Go vet,TypeScript,ESLint/Prettier,Ruff lint/format and diff whitespace checks passed.",
+    "Initial UI full run had one five-second Workflow-test timeout; unchanged suite passed with maxWorkers=2.",
+    "Final source hashes match59 recorded files. Disposable PostgreSQL container stopped after verification.",
+    "Broader readability taskV60-025 stays pending; release gates/live models/external targets were not invoked."
+  ],
+  "report": "docs/research/2026-09-20-independent-review-fix-results.md",
+  "logs": ".local/review-fixes/",
+  "source_hash_manifest_sha256": "cd9d830deb533160d0a14eb0c5896afea1aeda85d508932a11852a9e3f30ef79"
+}
