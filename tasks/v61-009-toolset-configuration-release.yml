@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V61-009
+title: Verify configured toolsets and MCP across Run, Runtime and browser boundaries
+milestone: toolset-runtime-configuration
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V61-006, V61-008]
+languages: [go, python, typescript, yaml, markdown]
+goal: >-
+  Prove the complete reusable-connection journey and failure matrix through
+  production boundaries with isolated infrastructure and no paid model service.
+context:
+  authority: User requested a complete task specification for the agreed Run-scoped toolset/MCP feature, including verification.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/01-agent-template.md
+    - docs/spec/02-runtime-and-a2a.md
+    - docs/spec/07-runtime-labels-and-infrastructure-config.md
+    - docs/spec/19-audits.md
+    - docs/spec/ui-user-stories.md
+  acceptance: >-
+    Use real Server/PostgreSQL/Scheduler/private allocation/Runtime/ADK boundaries,
+    a controlled local Streamable HTTP server and scripted model responses.
+    Browser creation/selection must call production APIs. No external MCP,
+    live-provider benchmark, production Run or deployment is authorized by this task.
+scope:
+  in:
+    - Add isolated catalogs and fixtures for two agents sharing mcp@1 config with different tools plus a native-only consumer.
+    - Exercise actual publish/bind/Run-create, placement, session initialization, calls, completion, report/provenance and confirmed release.
+    - Verify changed default/binding behavior for late stages, replacement allocations, exact request replay and reviewed Repeat with a new Run.
+    - Exercise mandatory protocol/lifecycle/credential/reference faults and native/model-free/Audit-admission regressions across component boundaries.
+    - Add real-browser connection creation/selection, mixed-profile/conflict display, partial-publication recovery and changed-binding review.
+    - Document usage, supported auth/schema/content/transport boundaries, capability diagnostics and server-first rollout/rollback constraints.
+    - Provide one release target that checks prerequisites and mandatory-case execution with durable truthful verification evidence.
+  out:
+    - Deploy services, mutate existing immutable published configurations, run user Audits or treat fixture results as live-model quality evidence.
+deliverables:
+  - path: Makefile
+    description: New test-toolset-runtime-configuration-release target covering required persistence/process/browser cases and regressions.
+  - path: scripts/test-toolset-runtime-configuration-release.py
+    description: New bounded release orchestrator that fails on absent prerequisites, missing selected cases or skipped mandatory cases.
+  - path: tests/e2e/toolset_runtime_configuration_test.go
+    description: New real process/DB/Scheduler/MCP integration scenarios and injected failures.
+  - path: tests/e2e/testdata
+    description: Isolated versioned MCP/native workflow catalog and scripted-model/local-server fixtures.
+  - path: ui
+    description: Browser journey fixtures using real public endpoints and exact mutation recovery checks.
+  - path: docs/guides
+    description: User connection/configuration launch guide with validated short YAML examples.
+  - path: docs/operations
+    description: Capability, credentials, connection errors, lifecycle and mixed-fleet rollout/rollback reference.
+  - path: tasks/evidence/v61-009.json
+    description: Create only during implementation verification; record actual commands/cases, prerequisites and residual limits.
+requirements:
+  - id: R1
+    text: Prove common non-secret Run settings and separate session IDs for two allocations, exact per-agent allowlists and absence of MCP settings/secrets on the native-only allocation.
+  - id: R2
+    text: A changed binding cannot alter existing Run late-stage/replacement settings; replay returns its original Run and Repeat reviews and pins a newly selected current version.
+  - id: R3
+    text: Mandatory faults include missing config, equal/conflicting profiles, wrong credential kind, missing capability/tool, pagination, bad/oversized schema/content, auth/proxy/TLS failure and accepted-call response loss.
+  - id: R4
+    text: Preparation/call cancellation, lease loss, failed prepare, concurrent close and cleanup deadline expiry assert actual owner/task/socket accounting and truthful release/fencing.
+  - id: R5
+    text: Credential deletion/rebind races, Run/Audit holds, public/log/metrics redaction, native/tool@1 compatibility and unknown-effect Audit rejection execute as mandatory cases.
+  - id: R6
+    text: Release target fails if database, runtime dependencies, local MCP fixture or browser are absent, or a mandatory case is not selected/skips; ordinary unit success is insufficient.
+acceptance_criteria:
+  - id: A1
+    text: Real ordinary Runs execute the shared-config/two-session/three-consumer fixture, expose only selected tools and end with confirmed cleanup and valid existing completion semantics.
+  - id: A2
+    text: Persistence/restart/binding/replay/Repeat tests prove immutable Run configuration and credential references across late stages and allocation replacement.
+  - id: A3
+    text: Every required protocol/lifecycle fault produces bounded truthful errors with no automatic duplicate operation, leaked local resources, plaintext exposure or false cleanup success.
+  - id: A4
+    text: A browser user creates and reuses a connection, resolves a conflict, recovers partial publication and reviews changed Repeat bindings against real APIs.
+  - id: A5
+    text: Native/model-free/static-fleet/Audit regressions and generated wire/public contracts pass; the release gate proves mandatory cases ran and records honest evidence plus supported limits.
+tests:
+  - command: make test-toolset-runtime-configuration-release
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-wire-contracts test-wire-cross-language verify-public-api test-config
+    covers: [A1, A5]
+  - command: make ui-generate-check ui-typecheck ui-test ui-build
+    covers: [A4, A5]
+test_prerequisites:
+  - Disposable isolated PostgreSQL via CONTRACTOR_TEST_DATABASE_URL, compatible locked Runtime dependencies and controlled localhost MCP fixture.
+  - Local browser/runtime/server build prerequisites, mTLS fixture identities and scripted model; no external service credential is required.
+verification_requirements:
+  - Record executed mandatory case counts and zero mandatory skips, real component boundaries, browser evidence, exact SDK version and cleanup/secret assertions.
+  - Keep status pending/in_progress until all criteria and commands pass; do not fill implementation_commit or verification evidence with planning-only work.

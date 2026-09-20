@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V61-004
+title: Match allocation-discovered toolsets without weakening static capabilities
+milestone: toolset-runtime-configuration
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V61-001]
+languages: [go, python, yaml, markdown]
+goal: >-
+  Admit exact MCP tool selections whose remote inventory is checked during
+  preparation while preserving truthful startup and placement capabilities.
+context:
+  authority: User requests an arbitrary configured Streamable HTTP endpoint with tool names fixed by AgentTemplate.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/01-agent-template.md
+    - docs/spec/02-runtime-and-a2a.md
+    - docs/spec/19-audits.md
+    - docs/spec/29-tool-workers.md
+  reuse: Current descriptor registry, exact ToolsetSelection, CapabilitySnapshot, registration and isBindingCompatible/Runtime validation.
+scope:
+  in:
+    - Register the mcp@1 contract descriptor with required typed configuration, allocation discovery, adk@1 compatibility and a common runtime-http-client channel.
+    - Preserve portable/unique selected names and cross-toolset/reserved-name collision checks while deferring remote membership checks only for declared dynamic descriptors.
+    - Implement typed static/allocation discovery results and wire conversion without remote startup I/O or fabricated tool names.
+    - Update Server and Runtime compatibility checks together, including heterogeneous fleets and missing generic capability diagnostics.
+    - Keep factory output equality/name checks mandatory after preparation and expose dynamic infrastructure channels without per-tool static enumeration.
+    - Classify generic MCP effects as unknown and reject incompatible Audit profiles with a stable compatibility reason using existing admission paths.
+    - Reject generic MCP selection by tool@1 until that execution/result contract is explicitly implemented.
+  out:
+    - Connect to an endpoint, accept wildcard tools, trust MCP annotations as effect authority or automatically enable capabilities for an unfinished production factory.
+    - Rework unrelated capability matching, permit arbitrary descriptor injection or add a new Audit approval workflow.
+deliverables:
+  - path: internal/config/descriptors.go
+    description: Trusted MCP contract and static/dynamic descriptor validation with exact selected names.
+  - path: internal/controlplane/registry.go
+    description: Allocation-discovery compatibility alongside existing static subset matching.
+  - path: internal/auditservice/compatibility.go
+    description: Explicit unknown-external-effect compatibility reason and regressions for current native policies.
+  - path: runtime/src/contractor_runtime/capabilities.py
+    description: Truthful local discovery snapshots and registration for supported factory modes.
+  - path: runtime/src/contractor_runtime/allocation
+    description: Mirrored compatibility checks and retained exact factory output postconditions.
+requirements:
+  - id: R1
+    text: Allocation discovery must agree with both a trusted Server descriptor and a local factory; an empty native tools array or unrecognized mode never grants arbitrary tools.
+  - id: R2
+    text: An old static-only Runtime is not eligible for mcp@1; unavailable local MCP dependencies suppress its capability without disabling unrelated native tools.
+  - id: R3
+    text: Required configuration is validated in V61-003 and remote membership in V61-006; placement never claims remote readiness merely from a local probe.
+  - id: R4
+    text: Active-check admission is conservative for all generic MCP selections, independent of tool names, descriptions and readOnlyHint-style annotations.
+acceptance_criteria:
+  - id: A1
+    text: Authoring accepts exact MCP tool names under adk@1, rejects invalid/colliding/reserved names and tool@1 selection, and retains all native static membership checks.
+  - id: A2
+    text: Go and Python match the same static/dynamic compatibility matrix, including empty inventories, forged modes, unavailable SDK and a mixed old/new fleet.
+  - id: A3
+    text: Startup probes perform no endpoint network request, advertise no imaginary tools and do not enable MCP until its production implementation is ready.
+  - id: A4
+    text: Generic MCP cannot bypass prohibited/approval-required Audit effect policy; compatibility reasons are safely projected and native Audit fixtures remain valid.
+  - id: A5
+    text: Runtime still rejects a factory that returns extra/missing/mismatched tool names and takes ownership of returned resources before failing validation.
+tests:
+  - command: go test ./internal/config ./internal/contracts ./internal/controlplane ./internal/auditservice ./internal/httpapi/public
+    covers: [A1, A2, A4]
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_capabilities.py tests/test_contracts.py tests/test_allocation.py tests/test_allocation_contracts.py tests/test_tool_worker.py
+    covers: [A1, A2, A3, A5]
+  - command: make verify-wire-contracts test-wire-cross-language verify-public-api
+    covers: [A2, A4]
+verification_requirements:
+  - Use injectable fake dynamic factories for this task; enabling the real MCP factory is owned by V61-006 after lifecycle and ADK integration pass.

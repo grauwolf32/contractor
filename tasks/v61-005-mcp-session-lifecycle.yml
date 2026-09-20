@@ -1,0 +1,80 @@
+schema_version: "1.0"
+id: V61-005
+title: Own Streamable HTTP MCP sessions through allocation preparation and cleanup
+milestone: toolset-runtime-configuration
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V61-003, V14-003, V49-001]
+languages: [python, yaml, markdown]
+goal: >-
+  Provide a bounded allocation-owned MCP SDK session and routed HTTP transport
+  whose setup, calls, cancellation and cleanup retain explicit ownership.
+context:
+  authority: User chose Streamable HTTP only and shared Run configuration with isolated allocation sessions.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  specification:
+    - docs/spec/02-runtime-and-a2a.md
+    - docs/spec/07-runtime-labels-and-infrastructure-config.md
+  reuse: Existing AllocationService ownership, abort/release/lease fencing, absolute deadlines and ProxyHTTPClient route/host guards.
+scope:
+  in:
+    - Add and lock a compatible official MCP SDK dependency; declare any directly imported production schema-validation dependency explicitly.
+    - Implement one session owner per allocation/ref with Streamable HTTP initialization, paginated inventory, calls and idempotent close.
+    - Add optional bounded preparation after ToolInstance ownership, ensuring partial setup remains visible to rollback and termination.
+    - Enter and exit SDK task-group contexts in the same owning task and account for outstanding requests/background tasks through cleanup.
+    - Adapt dedicated MCP HTTP state to the existing tool-http proxy route without bypassing host guards, leaking headers or closing a borrowed shared client.
+    - Enforce CA/redirect policy, fixed message/discovery/schema bounds and the earlier applicable connect/RPC/preparation/cleanup deadline.
+    - Distinguish bounded setup retry and stream resumption from replay of an ambiguously completed tools/call; do not repeat that operation automatically.
+    - Implement safe transport/protocol/auth/timeout errors and session-ID/header redaction with a controlled local Streamable HTTP fixture.
+  out:
+    - Legacy SSE transport, stdio/subprocess servers, transport fallback, interactive OAuth, remote root access or a new resource supervisor.
+    - Advertise the production MCP toolset before V61-006 completes selected-tool and Worker behavior.
+deliverables:
+  - path: runtime/src/contractor_runtime/toolsets/mcp/session.py
+    description: New SDK-backed owner with bounded discovery/calls and provable shutdown.
+  - path: runtime/src/contractor_runtime/toolsets/mcp/errors.py
+    description: Stable content-free setup, call and cleanup failure categories.
+  - path: runtime/src/contractor_runtime/allocation
+    description: Preparation after ownership and cancellation-safe rollback integration.
+  - path: runtime/src/contractor_runtime/adapters/http_proxy.py
+    description: Narrow reusable transport integration retaining route, guards and client ownership.
+  - path: runtime/pyproject.toml
+    description: Explicit compatible production dependencies and regenerated uv.lock.
+  - path: runtime/tests/test_mcp_session.py
+    description: New local protocol/discovery/HTTP fixture and timeout/retry tests.
+  - path: runtime/tests/test_mcp_lifecycle.py
+    description: New setup/call/termination race tests with resource accounting and deadline assertions.
+  - path: runtime/tests/test_mcp_redaction.py
+    description: Extend private-settings checks to actual SDK transport/session failures and logs.
+requirements:
+  - id: R1
+    text: Resource ownership exists before the first cancellable network await. No failed prepare, cancelled construction or repeated close loses the session owner.
+  - id: R2
+    text: Each allocation gets independent session/headers/cookies; tools in one allocation share one owner. Closing it preserves unrelated tool-http clients.
+  - id: R3
+    text: SDK cleanup errors and unfinished local tasks cannot become confirmed release; retries keep saved terminal deadlines and existing fencing semantics.
+  - id: R4
+    text: Test both application/json and text/event-stream responses of Streamable HTTP; support normal stateful/stateless sessions and optional GET/DELETE behavior through the SDK without legacy fallback.
+  - id: R5
+    text: Setup/discovery and result limits apply before unbounded buffering; no blanket tools/call retry is introduced by wrappers, reconnect or HTTP transport.
+acceptance_criteria:
+  - id: A1
+    text: Local fixtures initialize and enumerate bounded paginated tools using both response modes, rejecting auth/protocol errors and excessive inventory/messages deterministically.
+  - id: A2
+    text: Cancellation during connect/initialize/list/call, failed prepare, concurrent close and lease loss leave no unowned task/socket/session; unconfirmed cleanup stays explicit.
+  - id: A3
+    text: Distinct configured timeouts reach actual consumers while shorter enclosing deadlines win and termination retries do not reset the saved deadline.
+  - id: A4
+    text: Proxy/TLS/host/redirect tests demonstrate actual route enforcement, independent MCP headers and preservation of borrowed client ownership on success and failure.
+  - id: A5
+    text: A fixture that accepts a call and drops its response observes exactly one operation; diagnostics contain no credential/session plaintext and cancellation promises no remote rollback.
+tests:
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_mcp_session.py tests/test_mcp_lifecycle.py tests/test_mcp_redaction.py tests/test_http_proxy_adapter.py tests/test_adapter_host.py
+    covers: [A1, A2, A3, A4, A5]
+  - command: cd runtime && uv run --frozen pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_workspace_timeouts.py tests/test_dependency_smoke.py
+    covers: [A2, A3, A4]
+  - command: cd runtime && uv run --frozen ruff check src/contractor_runtime/toolsets/mcp src/contractor_runtime/allocation src/contractor_runtime/adapters/http_proxy.py tests/test_mcp_session.py tests/test_mcp_lifecycle.py tests/test_mcp_redaction.py
+    covers: [A2, A5]
+verification_requirements:
+  - Execute controlled local protocol fixtures without external MCP services and assert operation counts, task/socket ownership, actual proxy routing and logs rather than mocking only the final tool return.

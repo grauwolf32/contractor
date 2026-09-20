@@ -316,6 +316,13 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: toolset-runtime-configuration
+    exit_task: V61-009
+    outcome: >-
+      Users select reusable typed toolset settings through existing RuntimeConfig
+      labels at Run launch. Exact shared Run configuration reaches only selected
+      allocations; MCP Streamable HTTP tools have isolated sessions, strict
+      selection, bounded lifecycle and verified UI/process integration.
   - id: scan-tools-first-slice
     exit_task: V55-006
     outcome: >-
@@ -707,6 +714,33 @@ milestones:
       gateway retryability, and terminal summaries use configurable bounded
       instructions. Implicit byte-based context admission is removed; future
       compactification must be a separate explicit strategy.
+
+toolset_runtime_configuration_planning:
+  planned_on: "2026-09-19"
+  renumbered_on: "2026-09-20"
+  previous_task_series: V56
+  status: planned
+  authority: >-
+    User requested task specifications after reviewing generic toolset
+    configuration through AgentTemplate and existing bindings; one configuration
+    per toolset per Run and Streamable HTTP only are explicit decisions.
+  design: docs/plans/2026-09-19-toolset-runtime-configuration.md
+  task_ids: [V61-001, V61-002, V61-003, V61-004, V61-005, V61-006, V61-007, V61-008, V61-009]
+  dependency_layers:
+    - [V61-001]
+    - [V61-002, V61-004]
+    - [V61-003]
+    - [V61-005, V61-007]
+    - [V61-006, V61-008]
+    - [V61-009]
+  release_task: V61-009
+  constraints: >-
+    Reuse RuntimeConfig versions, label bindings, Run snapshots, credential
+    storage, allocation delivery and existing UI mutations. Keep AgentTemplate
+    ref/tools authoring and Run runtimeLabels; typed settings use worker.toolsets.
+    No per-agent configuration, legacy transport, new configuration resource or
+    implicit physical-Agent label override. Planning does not enable MCP or
+    change the delivery priorities of existing queues.
 
 server_maintainability_planning:
   planned_on: "2026-09-07"
@@ -2726,3 +2760,12 @@ tasks:
   - {id: V60-010, file: v60-010-configuration-evaluation-backlog-review.yml}
   - {id: V60-011, file: v60-011-audit-gate-runtime-matrix.yml}
   - {id: V60-012, file: v60-012-run-deletion-audit-revisions.yml}
+  - {id: V61-001, file: v61-001-toolset-configuration-contracts.yml}
+  - {id: V61-002, file: v61-002-toolset-runtime-config-store.yml}
+  - {id: V61-003, file: v61-003-run-toolset-pinning-allocation.yml}
+  - {id: V61-004, file: v61-004-allocation-tool-discovery.yml}
+  - {id: V61-005, file: v61-005-mcp-session-lifecycle.yml}
+  - {id: V61-006, file: v61-006-mcp-tools-adk.yml}
+  - {id: V61-007, file: v61-007-toolset-configuration-read-api.yml}
+  - {id: V61-008, file: v61-008-toolset-connections-ui.yml}
+  - {id: V61-009, file: v61-009-toolset-configuration-release.yml}
