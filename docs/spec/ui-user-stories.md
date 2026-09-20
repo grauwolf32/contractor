@@ -207,7 +207,7 @@ an explicitly selected evaluator or a human decision.
 
 **Selected design, implementation pending:** V38-001 defines the
 [full browser journey](../evals-experience-design.md): configure, prepare, start,
-review and compare experiments. [Spec 29](29-managed-evals.md) keeps native
+review and compare experiments. [Spec 30](30-managed-evals.md) keeps native
 Contractor execution independent of Playground, which can import data and drive
 external experiments through the same public API. V38-002 through V38-010 own
 implementation and verification. Existing grouping of ordinary Runs by `eval.*`

@@ -13,7 +13,7 @@ goal: >-
   reports for native and external experiments.
 context:
   specification: >-
-    docs/spec/29-managed-evals.md
+    docs/spec/30-managed-evals.md
   design: >-
     docs/evals-experience-design.md
   format: >-
@@ -43,7 +43,7 @@ scope:
     - >-
       Implement owner-only review context, immutable result/assessment revisions, predecessor
       links and CAS selection. Add their public routes plus pairs, pair detail and safe
-      JSON/Markdown report endpoints from spec 29. Add bounded member execution inventories
+      JSON/Markdown report endpoints from spec 30. Add bounded member execution inventories
       over authoritative Run/Audit associations, including all roles/rounds and inventory
       revision/completeness, for UI and external collectors.
     - >-
@@ -51,7 +51,7 @@ scope:
       per-arm/suite totals, paired dimension coverage, regression/unresolved filters,
       nearest-rank p50/p90, stable snapshot pagination and missing-evidence invalidation.
     - >-
-      Add the spec 29 chart endpoint and bound bin drill-down filters. Materialize quality,
+      Add the spec 30 chart endpoint and bound bin drill-down filters. Materialize quality,
       complete-pair token/duration distributions with at most 20 shared bins, paginated raw-unit
       pair deltas, and server-observed progress with at most 200 returned time buckets.
   out:

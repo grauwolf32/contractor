@@ -1,4 +1,4 @@
-# 29 — Independent managed Evals and external producers
+# 30 — Independent managed Evals and external producers
 
 Status: **V38-001 design and V38-002–006 contracts, persistence, coordination, public APIs and selected comparisons implemented. Browser UI, Playground client and release acceptance remain V38-007–010.**
 

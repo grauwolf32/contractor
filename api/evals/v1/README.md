@@ -1,7 +1,7 @@
 # Managed evaluation data contract
 
 V38-002 introduces data codecs and fixtures; it does **not** expose HTTP routes.
-[Spec 29](../../../docs/spec/29-managed-evals.md) owns the managed behavior and
+[Spec 30](../../../docs/spec/30-managed-evals.md) owns the managed behavior and
 [spec 26](../../../docs/spec/26-portable-evaluation-format.md) owns the portable
 format. Public OpenAPI and generated clients land with the V38-005/006 handlers.
 

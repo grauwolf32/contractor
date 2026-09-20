@@ -117,7 +117,7 @@ design_progress:
   branch: docs/v38-evals-experience
   state: "Product and ownership decisions resolved; design and planning verification passed."
   document: docs/evals-experience-design.md
-  specification: docs/spec/29-managed-evals.md
+  specification: docs/spec/30-managed-evals.md
   decision: >-
     Full browser setup, launch and comparison use Contractor's native experiment
     service over ordinary Run/Audit execution. Playground is an optional independent

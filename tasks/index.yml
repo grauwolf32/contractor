@@ -834,7 +834,7 @@ active_delivery_order:
 managed_evals_planning:
   planned_on: "2026-09-19"
   status: planned
-  specification: docs/spec/29-managed-evals.md
+  specification: docs/spec/30-managed-evals.md
   design: docs/evals-experience-design.md
   design_task: V38-001
   tasks: [V38-002, V38-003, V38-004, V38-005, V38-006, V38-007, V38-008, V38-009, V38-010]
@@ -853,7 +853,7 @@ managed_evals_planning:
     - Chart projections and tables share exact cohorts, scope and completeness; unavailable metrics are not zero.
     - Contractor has no Playground runtime dependency or callback; Playground is an optional public API client.
     - Immutable server/external control mode prevents simultaneous dispatch; existing Run/Audit services and Scheduler own execution.
-    - Spec 29 is an explicit later managed-mode extension; existing spec 26 portable bundles and private CLI journals remain valid.
+    - Spec 30 is an explicit later managed-mode extension; existing spec 26 portable bundles and private CLI journals remain valid.
     - V40 live prerequisites, quality campaigns and multi-program dispatch remain separate; no default token limit tightening.
 
 portable_eval_format_planning:

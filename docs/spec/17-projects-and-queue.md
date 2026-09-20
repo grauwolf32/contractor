@@ -49,7 +49,7 @@ cancel/drain/purge operation rather than a synchronous foreign-key cascade;
 entry point. It does not create an eval-only Scheduler path. The implemented
 Evals view uses Project kind plus the generic `purpose=eval` and `eval.*` Run-label
 convention in [16](16-run-metadata-labels.md). Planned managed Evals in
-[29](29-managed-evals.md) add explicit experiments inside evaluation Projects;
+[30](30-managed-evals.md) add explicit experiments inside evaluation Projects;
 the Project remains their owner/storage container. Legacy labelled Runs remain
 inspectable and do not acquire verified experiment membership by label matching.
 

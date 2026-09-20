@@ -90,12 +90,13 @@ agent не обеспечивает нужный structured output для исп
 | Установка, миграции, восстановление / V60-007, V60-009 | deployment/testing guides, CLI migrate, manifests, schema guards | fresh disposable install, supported upgrade, newer schema refusal, interrupted migration, missing secret, restore instructions | Есть выполненный повторяемый сценарий и допустимое состояние после отказа. Наличие SQL-файла само по себе не доказывает upgrade/recovery. |
 | CI и тестовая достоверность / V60-009 | Makefile, CI, gate scripts, test matrices | required tests действительно начались/прошли; skip/fail/missing evidence, secret redaction, nonzero subprocess, env guards, pinned generation | Gate не принимает пропуски и не отклоняет валидный результат из-за обработки лога. Обязательные process/browser tests видны в результате; recorded evidence соответствует commit и toolchain. |
 | Производительность / V60-009 | spec 22; metrics, pool usage, bounded reads, runtime memory | минимальный пул, конкурентные страницы, cold/warm allocation, workspace digest/hash/parse, repeated data transfer | Сначала baseline RSS/latency/query count, затем сравнение на одинаковых данных. Без измерений оптимизация остаётся гипотезой. |
-| Evals и продуктовый backlog / V60-010 | specs 05, 17, 26, 28, task files V38/V40/V55 | implemented/draft distinction, frozen plan, model attribution, missing evidence, determinism/scorer inputs | Проверены control-plane contracts и связь task→evidence; live quality не выводится из offline fixtures. Новая задача не дублирует активную. |
+| Evals и продуктовый backlog / V60-010 | specs 05, 17, 26, 28, 30, task files V38/V40/V55 | implemented/draft distinction, frozen plan, model attribution, missing evidence, determinism/scorer inputs | Проверены control-plane contracts и связь task→evidence; live quality не выводится из offline fixtures. Новая задача не дублирует активную. |
 
 Specs 05 и 28 отдельно проверяются как границы незавершённого продукта:
 их draft-поведение не объявляется реализованным и не превращается автоматически
-в дефект текущего релиза. Карта охватывает спецификации 00–29, включая 29,
-которую нужно читать напрямую, даже если навигационный каталог отстаёт.
+в дефект текущего релиза. Карта охватывает спецификации 00–30, включая
+[29 — Tool Workers](../spec/29-tool-workers.md) и
+[30 — managed Evals](../spec/30-managed-evals.md).
 
 ## Проверки по этапам
 

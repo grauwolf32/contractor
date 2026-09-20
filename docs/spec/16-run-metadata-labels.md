@@ -134,7 +134,7 @@ scan and deserialize every historical Run.
 
 The eval subsystem owns a convention over generic labels; generic Run label
 validation and Scheduler behavior do not add eval-specific branches. The planned
-managed experiment domain in [29](29-managed-evals.md) owns explicit member
+managed experiment domain in [30](30-managed-evals.md) owns explicit member
 registration and verified submission receipts separately. Labels remain useful
 for correlation but never establish membership, dispatch ownership or assessment
 authority.

@@ -13,7 +13,7 @@ goal: >-
   service to external drivers.
 context:
   specification: >-
-    docs/spec/29-managed-evals.md
+    docs/spec/30-managed-evals.md
   design: >-
     docs/evals-experience-design.md
   format: >-

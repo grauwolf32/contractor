@@ -13,7 +13,7 @@ goal: >-
   the UI and any external client.
 context:
   specification: >-
-    docs/spec/29-managed-evals.md
+    docs/spec/30-managed-evals.md
   design: >-
     docs/evals-experience-design.md
   format: >-
@@ -41,7 +41,7 @@ scope:
       Implement capabilities, dataset list/revision import/visible-case reads, native/external
       experiment create/list/detail, draft PATCH,
       prepare/start/pause/resume/cancel/finalize/duplicate commands, command polling, member
-      listing/submission and experiment DELETE from spec 29.
+      listing/submission and experiment DELETE from spec 30.
     - >-
       Publish OpenAPI and generated client changes atomically with handlers. Expose exact
       compatible Workflow/AuditProfile versions, bounded supported validators and safe
@@ -68,7 +68,7 @@ requirements:
       Registration strings cannot grant permissions.
   - id: "R3"
     text: >-
-      Implement list bounds, indexed queries and collection/view cursor binding from spec 29.
+      Implement list bounds, indexed queries and collection/view cursor binding from spec 30.
       Overlarge limits fail explicitly. Imported visible bytes retain their verified digest and
       distinguish source assertions; private check data never appears in generic list/detail
       DTOs.

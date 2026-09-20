@@ -54,7 +54,7 @@ implementation_commit: e716fca1d999367abe2d140ae478514f05917d0d
 verification:
   evidence: tasks/evidence/v60-001.json
   results:
-  - Detailed plan covers specification domains 00 through 29 and concrete scenario, command and completion boundaries.
+  - Detailed plan covers specification domains 00 through 30 and concrete scenario, command and completion boundaries.
   - Three independent review tracks executed source/history checks and focused regressions; four reproduced defects mapped to V60-002 through V60-004.
   - Accepted decisions, rejected hypotheses, unexecuted verification and active V38/V40/V55/V56 work recorded separately.
   - 359 indexed task IDs and YAML keys are unique; task paths, dependencies, graph, acceptance coverage and local document links validated.

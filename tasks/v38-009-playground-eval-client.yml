@@ -13,7 +13,7 @@ goal: >-
   external experiments and publish attributed assessments through the public protocol.
 context:
   specification: >-
-    docs/spec/29-managed-evals.md
+    docs/spec/30-managed-evals.md
   design: >-
     docs/evals-experience-design.md
   format: >-
@@ -81,7 +81,7 @@ acceptance_criteria:
     then: >-
       Requests use only documented owner APIs, leak no truth/credentials and retain exact IDs,
       mappings and attributed assessments. Workflow/Audit kind is preserved; Audit child
-      accounting follows spec 29 and cannot change the expected member denominator. Follow
+      accounting follows spec 30 and cannot change the expected member denominator. Follow
       the managed member execution inventory API across all pages/roles; an item list alone
       cannot establish complete Audit usage.
   - id: "A2"
