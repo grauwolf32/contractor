@@ -7,6 +7,33 @@ for (const width of [390, 1280]) {
   }, info) => {
     await page.setViewportSize({ width, height: 900 });
     await installEvalFixture(page, { prepared: true });
+    await page.goto("/evals/experiments/experiment-1/overview");
+    const quality = page.getByRole("heading", {
+      name: "Quality A/B",
+      exact: true,
+    });
+    const progress = page.getByRole("heading", {
+      name: "Execution progress",
+      exact: true,
+    });
+    const overviewChart = page.getByLabel("Overview chart", { exact: true });
+    await expect(quality).toBeVisible();
+    if (width === 390) {
+      await expect(progress).not.toBeVisible();
+      await overviewChart.focus();
+      await overviewChart.press("ArrowDown");
+      await overviewChart.press("Enter");
+      await expect(overviewChart).toHaveValue("progress");
+      await expect(progress).toBeVisible();
+      await expect(quality).not.toBeVisible();
+    } else {
+      await expect(overviewChart).not.toBeVisible();
+      await expect(progress).toBeVisible();
+    }
+    await page.screenshot({
+      path: info.outputPath(`overview-${width}.png`),
+      fullPage: true,
+    });
     await page.goto("/evals/experiments/experiment-1/comparison?filter=all");
     await expect(
       page.getByRole("heading", { name: "Token distribution", exact: true }),

@@ -107,6 +107,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
+.eval-overview-selector {
+  display: none;
+}
 .eval-arm-a {
   --eval-arm: var(--eval-a);
 }
@@ -289,6 +292,12 @@
   background: var(--eval-b);
 }
 @media (max-width: 700px) {
+  .eval-overview-selector {
+    display: block;
+  }
+  .eval-overview-charts > [data-selected="false"] {
+    display: none;
+  }
   .eval-variants,
   .eval-overview-charts,
   .eval-page .form-grid {

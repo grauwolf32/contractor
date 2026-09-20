@@ -7,11 +7,11 @@ import {
   type EvalExperiment,
   type EvalMemberQuery,
 } from "../../api/evals";
-import { EvalChartPanel } from "./charts";
 import { EvalError, EvalField, EvalFrame } from "./common";
 import { EvalComparison } from "./comparison";
 import { EvalControls } from "./controls";
 import { MemberSummary, MemberExecutions } from "./member";
+import { EvalOverviewCharts } from "./overview";
 import { useEvalExperiment } from "./queries";
 import { EvalReadiness } from "./readiness";
 import { EvalSetupForm } from "./setup";
@@ -223,18 +223,10 @@ export function EvalDetailRoute() {
                     </p>
                   ) : null}
                   {data.viewSnapshot ? (
-                    <div className="eval-overview-charts">
-                      <EvalChartPanel
-                        experiment={data}
-                        chart="quality"
-                        snapshot={data.viewSnapshot}
-                      />
-                      <EvalChartPanel
-                        experiment={data}
-                        chart="progress"
-                        snapshot={data.viewSnapshot}
-                      />
-                    </div>
+                    <EvalOverviewCharts
+                      experiment={data}
+                      snapshot={data.viewSnapshot}
+                    />
                   ) : null}
                   <Link
                     to={`/evals/experiments/${encodeURIComponent(experimentId)}/setup`}

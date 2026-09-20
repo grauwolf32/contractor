@@ -37,6 +37,8 @@ still apply.
 ## Compare and review
 
 **Overview** shows progress, coverage and quality against every expected member.
+On a narrow screen, use **Overview chart** to switch between quality and progress;
+wide screens show both charts together.
 **Comparison** pairs the same case/sample across A/B. The initial filter focuses
 on regressions and unresolved pairs; **All pairs** includes the full matrix.
 **Attempts** shows member state and evidence; **Setup** retains the frozen plan.
