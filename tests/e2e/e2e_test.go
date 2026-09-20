@@ -55,6 +55,7 @@ type runCreateResponse struct {
 }
 
 type runStatus struct {
+	ResumeStageExecutionID *string                `json:"resumeStageExecutionId,omitempty"`
 	RunID                  string                 `json:"runId"`
 	ProjectID              *string                `json:"projectId,omitempty"`
 	Workflow               string                 `json:"workflow"`

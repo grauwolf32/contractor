@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: mcp_searcher
+  version: "1"
+spec:
+  description: Isolated toolset release fixture
+  runtime: adk@1
+  instructions: {ref: instructions/mcp-worker.md}
+  modelPolicy: worker@1
+  toolsets:
+    - ref: mcp@1
+      tools: [search]
+  sandboxProfile: local-workdir@1

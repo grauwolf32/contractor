@@ -24,3 +24,5 @@ Server, Runtime and UI settings have separate owners. Workflow execution
 policies live in the [configuration catalog](../../configs/README.md);
 Runtime labels select infrastructure; Run metadata labels group Runs.
 See the [specification index](../spec/README.md) for those contracts.
+
+- [Toolset connections and MCP](toolset-connections.md) — supported transport, lifecycle, diagnostics and release/rollback checks.

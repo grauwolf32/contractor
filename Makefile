@@ -540,3 +540,8 @@ test-artifact-blob-backends:
 .PHONY: test-findings-e2e
 test-findings-e2e:
 	python3 scripts/test-findings-e2e.py
+
+.PHONY: test-toolset-runtime-configuration-release
+test-toolset-runtime-configuration-release:
+	python3 -m unittest discover -s scripts -p 'test_toolset_release_gate.py'
+	python3 scripts/test-toolset-runtime-configuration-release.py

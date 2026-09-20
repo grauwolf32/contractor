@@ -1,0 +1,66 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: toolset-shared
+  version: "1"
+spec:
+  parameters: {}
+  inputs: {}
+  outputs: {}
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+  entryStage: search
+  stages:
+    search:
+      objective: Call the selected search tool once
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        search: {template: mcp_searcher@1}
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          next: fetch
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+    fetch:
+      objective: Call the selected fetch tool once
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        fetch: {template: mcp_fetcher@1}
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          next: native
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+    native:
+      objective: Call the selected native tool once
+      instructions: {ref: instructions/copy-planner.md}
+      planner: passthrough@1
+      agents:
+        native: {template: mcp_native@1}
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

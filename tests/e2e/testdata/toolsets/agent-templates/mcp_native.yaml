@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: mcp_native
+  version: "1"
+spec:
+  description: Isolated toolset release fixture
+  runtime: adk@1
+  instructions: {ref: instructions/mcp-worker.md}
+  modelPolicy: worker@1
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [list_artifacts]
+  sandboxProfile: local-workdir@1

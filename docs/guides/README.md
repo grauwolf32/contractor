@@ -13,3 +13,5 @@
 
 Use the [configuration catalog](../../configs/README.md) for shipped Workflow
 versions and their requirements.
+
+- [Toolset connections for a Run](toolset-connections.md) — choose or create reusable MCP connections through Runtime labels.
