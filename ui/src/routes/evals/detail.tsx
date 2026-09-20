@@ -15,10 +15,12 @@ import { EvalOverviewCharts } from "./overview";
 import { useEvalExperiment } from "./queries";
 import { EvalReadiness } from "./readiness";
 import { EvalSetupForm } from "./setup";
+import { useEvalViewRefresh } from "./view-refresh";
 
 function Attempts({ experiment }: { experiment: EvalExperiment }) {
   const api = usePublicAPI();
   const [params, setParams] = useSearchParams();
+  const refresh = useEvalViewRefresh(experiment, "attempts");
   const snapshot = params.get("viewSnapshot") ?? experiment.viewSnapshot;
   const cursor = params.get("cursor");
   const filters = [
@@ -64,7 +66,7 @@ function Attempts({ experiment }: { experiment: EvalExperiment }) {
           ))}
         </select>
       </EvalField>
-      <EvalError error={members.error} reload={() => setParams({ filter })} />
+      <EvalError error={members.error} reload={() => void refresh()} />
       {members.data ? (
         <>
           <p>

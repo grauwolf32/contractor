@@ -11,10 +11,12 @@ import { ContextLink } from "../../app/context-navigation";
 import { EvalChartPanel } from "./charts";
 import { EvalError, EvalField } from "./common";
 import { MemberSummary } from "./member";
+import { useEvalViewRefresh } from "./view-refresh";
 
 export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
   const api = usePublicAPI();
   const [params, setParams] = useSearchParams();
+  const refresh = useEvalViewRefresh(experiment, "comparison");
   const snapshot = params.get("viewSnapshot") ?? experiment.viewSnapshot;
   const filter =
     params.get("filter") === "all"
@@ -74,14 +76,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
         <button
           type="button"
           className="secondary-button"
-          onClick={() =>
-            update({
-              viewSnapshot: experiment.viewSnapshot,
-              cursor: null,
-              chartCursor: null,
-              binFilter: null,
-            })
-          }
+          onClick={() => void refresh()}
         >
           Refresh comparison snapshot
         </button>
@@ -171,17 +166,7 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
           </button>
         </p>
       ) : null}
-      <EvalError
-        error={pairs.error}
-        reload={() =>
-          update({
-            viewSnapshot: experiment.viewSnapshot,
-            cursor: null,
-            chartCursor: null,
-            binFilter: null,
-          })
-        }
-      />
+      <EvalError error={pairs.error} reload={() => void refresh()} />
       {pairs.data ? (
         <>
           <p>
