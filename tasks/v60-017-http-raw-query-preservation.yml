@@ -3,7 +3,7 @@ id: V60-017
 title: Preserve caller-provided raw HTTP query bytes
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -39,3 +39,9 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: 0dd5bb1041cef0cffb35cd96f73354ead9942ac5
+verification:
+  evidence: tasks/evidence/v60-017.json
+  results:
+  - 44 tests passed. Raw percent-encoded bytes, separators and bare/duplicate keys survive; only newly supplied
+    query pairs are encoded.

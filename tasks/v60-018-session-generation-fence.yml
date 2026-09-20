@@ -3,7 +3,7 @@ id: V60-018
 title: Fence stale session responses from newer authentication state
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -43,3 +43,9 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: c7018285cc89f5d2e55c6d5835bd6c96a541dbea
+verification:
+  evidence: tasks/evidence/v60-018.json
+  results:
+  - 19 client/session tests passed; application and E2E TypeScript checks passed.
+  - Initial focused run used Node26.7.0; pinned Node24.20.0 is used by the later integration task.

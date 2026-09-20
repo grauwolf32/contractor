@@ -3,7 +3,7 @@ id: V60-014
 title: Detach WorkerHandle AgentCard copies without shared mutation
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -37,3 +37,9 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: bcdfd661c15bf60a7f7e017a828e285021b4bde1
+verification:
+  evidence: tasks/evidence/v60-014.json
+  results:
+  - Six planner packages passed with race detector; database-dependent unrelated cases skipped without a DSN.
+  - Clone marshals into a nil destination map and omits invalid non-JSON cards; nested copies are independent.

@@ -1,0 +1,15 @@
+{
+  "task_id": "V60-017",
+  "verified_on": "2026-09-20",
+  "base_commit": "5856beb5c13429f4be54856015ad7e86bd8b573d",
+  "implementation_commit": "0dd5bb1041cef0cffb35cd96f73354ead9942ac5",
+  "reproduction": "Before the patch 14 query preservation cases failed and 5 limits cases passed; the corrected focused suite passes.",
+  "commands": [
+    "cd runtime && .venv/bin/python -m pytest -W error tests/test_http_toolset.py tests/test_http_caido_security.py tests/test_http_redirects.py"
+  ],
+  "results": [
+    "44 tests passed. Raw percent-encoded bytes, separators and bare/duplicate keys survive; only newly supplied query pairs are encoded."
+  ],
+  "logs": ".local/review-fixes/",
+  "scope": "Local source and regression checks; no deployment, real models or external security targets."
+}

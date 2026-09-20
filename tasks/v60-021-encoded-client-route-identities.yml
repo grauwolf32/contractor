@@ -3,7 +3,7 @@ id: V60-021
 title: Serve encoded valid client-route identities on direct navigation
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-001
 languages:
@@ -39,3 +39,8 @@ verification_requirements:
 - Record actual verification; PostgreSQL scenarios require an isolated disposable database and must not skip.
 - Keep implementation scoped to this task, then record the full implementation commit and verification evidence
   separately.
+implementation_commit: cf21c0763994443b49a6ef8ed66959f0b8adf8f8
+verification:
+  evidence: tasks/evidence/v60-021.json
+  results:
+  - 11 Node tests passed. Decoded safe paths are used consistently; encoded separators and traversal remain rejected.
