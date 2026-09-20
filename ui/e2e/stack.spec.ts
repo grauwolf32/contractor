@@ -647,9 +647,14 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto("/operations/allocations/completed");
   await page.getByLabel("Exact Run ID (optional)").fill(streamlineRunID);
   await page.getByRole("button", { name: "Apply filter" }).click();
-  const retainedResource = page
-    .locator("article.allocation-resource-card")
+  const retainedRow = page
+    .getByRole("row")
     .filter({ has: page.getByRole("link", { name: streamlineRunID }) });
+  await expect(retainedRow).toHaveCount(1);
+  await retainedRow.getByRole("button", { name: /^Metrics for / }).click();
+  const retainedResource = page
+    .getByRole("region", { name: /^Metrics for / })
+    .locator("article.allocation-resource-card");
   await expect(retainedResource).toHaveCount(1);
   await expect(
     retainedResource.getByText("available", { exact: true }),
@@ -764,7 +769,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   );
   await workflowDialog.getByLabel("Include optional objective").check();
   await workflowDialog
-    .locator('input[name="parameter-objective"]')
+    .locator('[name="parameter-objective"]')
     .fill("Model the browser fixture API and trust boundary");
   await workflowDialog
     .getByRole("button", { name: "Start Project Workflow Run" })

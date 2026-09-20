@@ -29,6 +29,7 @@ def go_gate(name, arguments, evidence):
         )
         for line in process.stdout:
             log.write(line)
+            log.flush()
             try:
                 event = json.loads(line)
             except ValueError:
