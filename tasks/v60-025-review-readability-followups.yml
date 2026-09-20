@@ -3,7 +3,7 @@ id: V60-025
 title: Simplify reviewed subsystem boundaries after correctness fixes
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V60-024
 languages:
@@ -71,3 +71,17 @@ verification_requirements:
 - Use the pinned Node24 toolchain for UI checks.
 - Compare moved declarations directly and compare typed merge output/errors against the original implementation.
 - Record final implementation commit and verification evidence in a separate completion metadata commit.
+implementation_commit: 5fad87a3d4e783f3322bb72755c4195f717d1f14
+verification:
+  evidence: tasks/evidence/v60-025.json
+  report: docs/research/2026-09-20-review-readability-results.md
+  results:
+  - Audit detail reduced from 2132 to 229 lines; extracted section bodies and module constants remain unchanged.
+  - All 58 moved Go production declarations and 39 test declarations preserve signatures and bodies.
+  - Typed RuntimeConfig merge matches the original output and structured errors in 18000 deterministic cases.
+  - Four affected Go packages pass with race detection and disposable PostgreSQL; final RuntimeConfig cleanup
+    passes the package suite and differential probe again.
+  - Both cross-language mTLS lifecycle cases pass; all Go packages compile and affected packages pass go vet.
+  - Full UI suite passes 452 tests in 65 files; typecheck, lint, formatting and production build pass.
+  - All 30 recorded source hashes match; disposable PostgreSQL stopped after verification.
+  - Python lifecycle and HTTP helpers were inspected directly and retained because their contracts differ.
