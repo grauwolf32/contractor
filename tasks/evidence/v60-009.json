@@ -1,0 +1,432 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-009",
+  "verified_on": "2026-09-20",
+  "base_commit": "8edeabf21194f5bba8dd258d53a072af713c630e",
+  "implementation_commit": null,
+  "environment": {
+    "base": "8edeabf21194f5bba8dd258d53a072af713c630e",
+    "container": "contractor-v60-deep-review-db",
+    "node_bin": "/home/ruslan/.local/share/pnpm/store/v11/links/@/node/24.20.0/0520f9d6e7528abf408f91c68a98f2ae99c3c1b7765f065d4601595291d3bee2/node_modules/node/bin",
+    "db": "disposable PostgreSQL 17, loopback, random port, isolated schemas",
+    "go": "go1.25.6",
+    "python": "3.13 locked uv",
+    "GOFLAGS": "-p=2 -v",
+    "GOMAXPROCS": 2
+  },
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./internal/auth",
+        "./internal/httpapi/public",
+        "./internal/mtls",
+        "-run",
+        "ReviewAmbiguous|Login|Cookie|CredentialedCORS|Authentication|SessionLifecycle|SessionRevocation|OriginPolicy|ManagedCredential|RuntimeCredential|Secret|MTLS"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 21.27,
+      "log": ".local/v60-review/v60-009-auth.log",
+      "go_passing_events": 53,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "bd9dc1ffa81576544eaea8820f72392b04121539818f46d276288fe2118a3ace"
+    },
+    {
+      "command": [
+        "make",
+        "test-mtls"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.12,
+      "log": ".local/v60-review/v60-009-mtls.log",
+      "go_passing_events": 10,
+      "go_skips": [],
+      "summaries": [
+        "5 passed in 0.46s"
+      ],
+      "log_sha256": "bfcc0e974d2b025f5361552cf9ec13a8e756a89b84408424170623ea2459776a"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-race",
+        "-count=1",
+        "./tests/integration/restore"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 17.59,
+      "log": ".local/v60-review/v60-009-restore.log",
+      "go_passing_events": 3,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "77d37d3b9438e236fef903d502438a25550d61e2341431622e44df2fd43fb933"
+    },
+    {
+      "command": [
+        "go",
+        "run",
+        "./tools/performancebench",
+        "-repetitions=3",
+        "-http-requests=10000",
+        "-collection-cycles=240",
+        "-profile-seconds=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 10.3,
+      "log": ".local/v60-review/v60-009-performance.log",
+      "go_passing_events": 0,
+      "go_skips": [],
+      "summaries": [],
+      "log_sha256": "c348e09a8901410bf310b09068967aa25678c91cbff0070d94d24cf610d82b1e"
+    }
+  ],
+  "benchmark": {
+    "schemaVersion": "contractor.performance-benchmark.v1",
+    "generatedAt": "2026-09-20T10:38:08Z",
+    "goVersion": "go1.25.6",
+    "os": "linux",
+    "architecture": "amd64",
+    "logicalCPU": 8,
+    "scenarios": [
+      {
+        "name": "http_disabled",
+        "samples": [
+          {
+            "scenario": "http_disabled",
+            "operations": 10000,
+            "wallSeconds": 0.001590832,
+            "cpuSeconds": 0.0016480000000000002,
+            "rssBytes": 11399168,
+            "allocationsPerOp": 1.0002,
+            "throughputPerSecond": 6286018.888229555,
+            "p95Nanoseconds": 184
+          },
+          {
+            "scenario": "http_disabled",
+            "operations": 10000,
+            "wallSeconds": 0.003288989,
+            "cpuSeconds": 0.0023840000000000003,
+            "rssBytes": 11599872,
+            "allocationsPerOp": 1.0002,
+            "throughputPerSecond": 3040447.9917688994,
+            "p95Nanoseconds": 221
+          },
+          {
+            "scenario": "http_disabled",
+            "operations": 10000,
+            "wallSeconds": 0.001870004,
+            "cpuSeconds": 0.0019289999999999997,
+            "rssBytes": 11399168,
+            "allocationsPerOp": 1.0002,
+            "throughputPerSecond": 5347582.144209317,
+            "p95Nanoseconds": 208
+          }
+        ],
+        "summary": {
+          "throughputMean": 4891349.674735923,
+          "throughputCV": 0.278799660844111,
+          "p95MeanNanoseconds": 204.33333333333334,
+          "p95CV": 0.07500531114239901,
+          "cpuMeanSeconds": 0.0019870000000000005,
+          "rssMeanBytes": 11466069.333333334,
+          "allocationsMeanPerOp": 1.0002
+        }
+      },
+      {
+        "name": "http_enabled",
+        "samples": [
+          {
+            "scenario": "http_enabled",
+            "operations": 10000,
+            "wallSeconds": 0.008072559,
+            "cpuSeconds": 0.008558,
+            "rssBytes": 16285696,
+            "allocationsPerOp": 16.001,
+            "throughputPerSecond": 1238764.560283796,
+            "p95Nanoseconds": 1082
+          },
+          {
+            "scenario": "http_enabled",
+            "operations": 10000,
+            "wallSeconds": 0.01170745,
+            "cpuSeconds": 0.011572,
+            "rssBytes": 15831040,
+            "allocationsPerOp": 16.001,
+            "throughputPerSecond": 854156.9684260878,
+            "p95Nanoseconds": 1390
+          },
+          {
+            "scenario": "http_enabled",
+            "operations": 10000,
+            "wallSeconds": 0.01377185,
+            "cpuSeconds": 0.014027,
+            "rssBytes": 14761984,
+            "allocationsPerOp": 16.0011,
+            "throughputPerSecond": 726118.8583959308,
+            "p95Nanoseconds": 2928
+          }
+        ],
+        "summary": {
+          "throughputMean": 939680.1290352716,
+          "throughputCV": 0.2318327903830535,
+          "p95MeanNanoseconds": 1800,
+          "p95CV": 0.44859267821321164,
+          "cpuMeanSeconds": 0.011385666666666667,
+          "rssMeanBytes": 15626240,
+          "allocationsMeanPerOp": 16.001033333333336
+        }
+      },
+      {
+        "name": "collection_disabled",
+        "samples": [
+          {
+            "scenario": "collection_disabled",
+            "operations": 240,
+            "wallSeconds": 1.7627e-05,
+            "cpuSeconds": 3.099999999999978e-05,
+            "rssBytes": 10051584,
+            "allocationsPerOp": 0.004166666666666667,
+            "throughputPerSecond": 13615476.258013276,
+            "p95Nanoseconds": 40
+          },
+          {
+            "scenario": "collection_disabled",
+            "operations": 240,
+            "wallSeconds": 1.7414e-05,
+            "cpuSeconds": 4.49999999999999e-05,
+            "rssBytes": 10125312,
+            "allocationsPerOp": 0.004166666666666667,
+            "throughputPerSecond": 13782014.471115194,
+            "p95Nanoseconds": 47
+          },
+          {
+            "scenario": "collection_disabled",
+            "operations": 240,
+            "wallSeconds": 1.3905e-05,
+            "cpuSeconds": 3.300000000000004e-05,
+            "rssBytes": 10047488,
+            "allocationsPerOp": 0.004166666666666667,
+            "throughputPerSecond": 17259978.425026968,
+            "p95Nanoseconds": 30
+          }
+        ],
+        "summary": {
+          "throughputMean": 14885823.051385147,
+          "throughputCV": 0.1128696435507935,
+          "p95MeanNanoseconds": 39,
+          "p95CV": 0.1788756370637295,
+          "cpuMeanSeconds": 3.633333333333324e-05,
+          "rssMeanBytes": 10074794.666666666,
+          "allocationsMeanPerOp": 0.004166666666666667
+        }
+      },
+      {
+        "name": "collection_enabled",
+        "samples": [
+          {
+            "scenario": "collection_enabled",
+            "operations": 240,
+            "wallSeconds": 0.112569148,
+            "cpuSeconds": 0.115525,
+            "rssBytes": 15769600,
+            "allocationsPerOp": 2627.2125,
+            "throughputPerSecond": 2132.0228878342405,
+            "p95Nanoseconds": 1145234,
+            "retainedFrames": 240,
+            "retainedBytes": 625120,
+            "databaseReads": 60,
+            "databaseSizeReads": 12,
+            "historyWrites": 60
+          },
+          {
+            "scenario": "collection_enabled",
+            "operations": 240,
+            "wallSeconds": 0.10697959,
+            "cpuSeconds": 0.110786,
+            "rssBytes": 16109568,
+            "allocationsPerOp": 2627.2625,
+            "throughputPerSecond": 2243.418581058312,
+            "p95Nanoseconds": 1090701,
+            "retainedFrames": 240,
+            "retainedBytes": 625120,
+            "databaseReads": 60,
+            "databaseSizeReads": 12,
+            "historyWrites": 60
+          },
+          {
+            "scenario": "collection_enabled",
+            "operations": 240,
+            "wallSeconds": 0.105690413,
+            "cpuSeconds": 0.108528,
+            "rssBytes": 15876096,
+            "allocationsPerOp": 2627.266666666667,
+            "throughputPerSecond": 2270.7830652530424,
+            "p95Nanoseconds": 1038593,
+            "retainedFrames": 240,
+            "retainedBytes": 625120,
+            "databaseReads": 60,
+            "databaseSizeReads": 12,
+            "historyWrites": 60
+          }
+        ],
+        "summary": {
+          "throughputMean": 2215.4081780485317,
+          "throughputCV": 0.02708814473029011,
+          "p95MeanNanoseconds": 1091509.3333333333,
+          "p95CV": 0.039889496621541086,
+          "cpuMeanSeconds": 0.111613,
+          "rssMeanBytes": 15918421.333333334,
+          "allocationsMeanPerOp": 2627.2472222222223
+        }
+      },
+      {
+        "name": "pprof_off",
+        "samples": [
+          {
+            "scenario": "pprof_off",
+            "operations": 5068928,
+            "wallSeconds": 1.000008629,
+            "cpuSeconds": 0.979371,
+            "rssBytes": 10813440,
+            "allocationsPerOp": 3.945607434155703e-07,
+            "throughputPerSecond": 5068884.260597715,
+            "p95Nanoseconds": 303
+          },
+          {
+            "scenario": "pprof_off",
+            "operations": 5273984,
+            "wallSeconds": 0.999992313,
+            "cpuSeconds": 0.987069,
+            "rssBytes": 10739712,
+            "allocationsPerOp": 3.7921995971167146e-07,
+            "throughputPerSecond": 5274024.54142665,
+            "p95Nanoseconds": 302
+          },
+          {
+            "scenario": "pprof_off",
+            "operations": 5216512,
+            "wallSeconds": 1.000004088,
+            "cpuSeconds": 0.9822179999999999,
+            "rssBytes": 10805248,
+            "allocationsPerOp": 3.8339794866761546e-07,
+            "throughputPerSecond": 5216490.67498612,
+            "p95Nanoseconds": 307
+          }
+        ],
+        "summary": {
+          "throughputMean": 5186466.492336828,
+          "throughputCV": 0.01665820678104296,
+          "p95MeanNanoseconds": 304,
+          "p95CV": 0.007106075327201602,
+          "cpuMeanSeconds": 0.982886,
+          "rssMeanBytes": 10786133.333333334,
+          "allocationsMeanPerOp": 3.857262172649524e-07
+        }
+      },
+      {
+        "name": "pprof_idle",
+        "samples": [
+          {
+            "scenario": "pprof_idle",
+            "operations": 4658560,
+            "wallSeconds": 1.000009328,
+            "cpuSeconds": 0.991221,
+            "rssBytes": 12115968,
+            "allocationsPerOp": 4.293172139030087e-07,
+            "throughputPerSecond": 4658516.545357665,
+            "p95Nanoseconds": 327
+          },
+          {
+            "scenario": "pprof_idle",
+            "operations": 5163136,
+            "wallSeconds": 1.000021543,
+            "cpuSeconds": 0.987,
+            "rssBytes": 12079104,
+            "allocationsPerOp": 3.873614795349183e-07,
+            "throughputPerSecond": 5163024.772957317,
+            "p95Nanoseconds": 304
+          },
+          {
+            "scenario": "pprof_idle",
+            "operations": 4642944,
+            "wallSeconds": 1.000011939,
+            "cpuSeconds": 0.9770960000000001,
+            "rssBytes": 14716928,
+            "allocationsPerOp": 4.3076117222176275e-07,
+            "throughputPerSecond": 4642888.568553381,
+            "p95Nanoseconds": 310
+          }
+        ],
+        "summary": {
+          "throughputMean": 4821476.62895612,
+          "throughputCV": 0.050108148478706836,
+          "p95MeanNanoseconds": 313.6666666666667,
+          "p95CV": 0.031055556208719356,
+          "cpuMeanSeconds": 0.9851056666666667,
+          "rssMeanBytes": 12970666.666666666,
+          "allocationsMeanPerOp": 4.158132885532299e-07
+        }
+      },
+      {
+        "name": "pprof_active",
+        "samples": [
+          {
+            "scenario": "pprof_active",
+            "operations": 4419328,
+            "wallSeconds": 0.999911256,
+            "cpuSeconds": 0.983275,
+            "rssBytes": 13512704,
+            "allocationsPerOp": 3.394181196779239e-06,
+            "throughputPerSecond": 4419720.223651527,
+            "p95Nanoseconds": 336,
+            "profileResponseBytes": 2451
+          },
+          {
+            "scenario": "pprof_active",
+            "operations": 4528768,
+            "wallSeconds": 0.999990529,
+            "cpuSeconds": 0.9737410000000001,
+            "rssBytes": 13500416,
+            "allocationsPerOp": 3.3121590684265565e-06,
+            "throughputPerSecond": 4528810.892367962,
+            "p95Nanoseconds": 318,
+            "profileResponseBytes": 2443
+          },
+          {
+            "scenario": "pprof_active",
+            "operations": 4961024,
+            "wallSeconds": 1.000015961,
+            "cpuSeconds": 0.9892610000000001,
+            "rssBytes": 14974976,
+            "allocationsPerOp": 3.0235693276226844e-06,
+            "throughputPerSecond": 4960944.818359755,
+            "p95Nanoseconds": 312,
+            "profileResponseBytes": 2512
+          }
+        ],
+        "summary": {
+          "throughputMean": 4636491.978126415,
+          "throughputCV": 0.050405684565601405,
+          "p95MeanNanoseconds": 322,
+          "p95CV": 0.0316709286558558,
+          "cpuMeanSeconds": 0.9820923333333335,
+          "rssMeanBytes": 13996032,
+          "allocationsMeanPerOp": 3.243303197609493e-06
+        }
+      }
+    ]
+  },
+  "final_gate": "pending frozen-source release/public API/Audit gate",
+  "boundaries": [
+    "Only disposable PostgreSQL, loopback services and fake Gateways; no live models or deployment.",
+    "Go pass events include parent tests and subtests.",
+    "Restore uses actual pg_dump/pg_restore, both payload backends and destroys original database and filesystem content before restoring. Keys, authentication bootstrap and operator/managed configuration are separately retained, not recovered by this database test.",
+    "Benchmark is host-specific and concurrent host activity makes small differences inconclusive; collection records logical IO from the harness."
+  ]
+}

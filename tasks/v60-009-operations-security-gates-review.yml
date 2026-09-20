@@ -44,6 +44,8 @@ acceptance_criteria:
   text: Required commands execute successfully on the reviewed commit; relevant database/process/browser cases must
     not silently skip, and actual toolchain and evidence levels are recorded.
 tests:
+- command: go test -tags=integration -race -count=1 ./tests/integration/restore
+  covers: [A1, A3]
 - command: make verify-public-api
   covers:
   - A1

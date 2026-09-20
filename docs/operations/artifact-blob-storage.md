@@ -61,6 +61,48 @@ their metadata. The command does not read payload bytes or delete unknown file
 names. Interrupted cleanup can be rerun offline. No automatic reconciliation
 service, persistent cleanup queue or populated-store migration is provided.
 
+## Offline backup and restore
+
+Pause admission, drain or cancel active allocations, confirm release, then stop
+every Server and writer before taking the backup. Keep writers stopped until
+both snapshots finish. A PostgreSQL dump and an independently changing blob
+directory are not a consistent backup.
+
+1. Make a PostgreSQL custom-format dump (`pg_dump --format=custom --no-owner`).
+   Supply connection credentials through protected PostgreSQL connection
+   settings, not a password in command arguments.
+2. For filesystem storage, also copy the complete dedicated blob root while
+   writers remain stopped. Retain the corresponding database dump and directory
+   as one backup set. PostgreSQL storage needs no separate payload directory.
+3. Separately retain operator/managed configurations, local-auth bootstrap,
+   PKI and the credential master key with their original owner-only permissions.
+   They are not included in the database dump. Restore keys securely; the
+   database cannot recover them.
+4. Restore into an empty replacement database with
+   `pg_restore --exit-on-error --no-owner --dbname=<replacement> <archive>`.
+   Restore the matching filesystem snapshot to its dedicated path if selected.
+   Keep the recorded backend; changing its flag is not a migration.
+5. Run the matching release's migrator, start Server and Runtime, verify
+   readiness, authentication, exact retained Artifact revisions and a new
+   controlled write, then resume admission. Browser sessions are process-local
+   and require login after restart. Forward-only upgrades require a matching
+   binary/schema pair; restoring a backup is distinct from schema rollback.
+
+The automated disposable rehearsal requires `pg_dump`, `pg_restore` and a test
+PostgreSQL role allowed to create databases:
+
+```shell
+go test -tags=integration -race -count=1 ./tests/integration/restore
+```
+
+Set `CONTRACTOR_TEST_DATABASE_URL` to an isolated PostgreSQL installation. The
+test creates and removes only its own randomly named databases. It backs up,
+destroys the original store and restores both supported backends, checking two
+exact revisions, binary bytes, digests, idempotency and stale/current CAS. A
+database-only filesystem restore must fail to read the absent payload. This
+is an offline logical recovery rehearsal, not a point-in-time recovery or
+power-loss durability test.
+
 ## Deployment without PVC
 
 [PostgreSQL deployment](../../deploy/artifact-blobs/postgresql.yaml) runs with a
