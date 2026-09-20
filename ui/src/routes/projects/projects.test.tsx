@@ -126,7 +126,7 @@ describe("Project routes", () => {
     );
   });
 
-  it("redirects legacy Run anchors, sends cursors to the filtered API and resets pages when the view changes", async () => {
+  it("opens Run section links, sends cursors to the filtered API and resets pages when the view changes", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(
       runtimeConfig,
@@ -143,7 +143,7 @@ describe("Project routes", () => {
     );
     const { router } = renderProjectApplication(
       api,
-      "/projects/project_example?view=completed&state=succeeded&cursor=page2#project-runs",
+      "/projects/project_example/runs?view=completed&state=succeeded&cursor=page2",
     );
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Runs" });

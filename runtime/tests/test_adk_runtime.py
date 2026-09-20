@@ -151,10 +151,12 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         )
         assert model.requests[-1]["toolNames"] == []
         assert "result finalization input" in model.requests[-1]["contentText"]
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
         session = await runtime._session_service.get_session(
             app_name=runtime._app_name,
             user_id=runtime._user_id,
-            session_id=runtime._session_id,
+            session_id=session_id,
         )
         assert session is not None
         contractor_state = session.state["contractor"]
@@ -847,10 +849,12 @@ def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> No
 
         assert result.result is not None
         assert len(model.requests) == 3
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
         session = await runtime._session_service.get_session(
             app_name=runtime._app_name,
             user_id=runtime._user_id,
-            session_id=runtime._session_id,
+            session_id=session_id,
         )
         assert session is not None
         assert SECRET not in repr(session.events)
@@ -947,10 +951,12 @@ def test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding(
             report_id="worker-report", duration_ms=1
         ).metrics.worker_budget
         assert budget is not None and budget.observed_tool_calls == 1
+        session_id = runtime._session_lifecycle.shared_session_id
+        assert session_id is not None
         session = await runtime._session_service.get_session(
             app_name=runtime._app_name,
             user_id=runtime._user_id,
-            session_id=runtime._session_id,
+            session_id=session_id,
         )
         assert session is not None
         function_responses = [

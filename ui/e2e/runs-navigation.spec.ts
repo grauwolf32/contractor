@@ -290,7 +290,7 @@ test("Runs defaults to Queue and keeps terminal history in Completed", async ({
   expect(runListRequests).toHaveLength(1);
   expect(runListRequests[0]?.searchParams.get("lifecycle")).toBe("terminal");
 
-  await page.goto("/queue?membership=project");
+  await page.goto("/runs?membership=project");
   await expect(page).toHaveURL(/\/runs\?membership=project$/);
   await expect(
     page.getByRole("link", { name: "run-active-browser" }),

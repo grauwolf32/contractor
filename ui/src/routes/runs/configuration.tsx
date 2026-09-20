@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, Outlet, useLocation } from "react-router";
+import { Outlet } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { getOperationsSnapshot } from "../../api/operations";
@@ -83,22 +83,5 @@ export function RunConfigurationLayout() {
       )}
       <Outlet />
     </>
-  );
-}
-
-export function LegacyRuntimeConfigurationRedirect() {
-  const location = useLocation();
-  return (
-    <Navigate
-      replace
-      to={{
-        pathname: location.pathname.replace(
-          /^\/operations\/runtime-configs/,
-          "/runs/configuration",
-        ),
-        search: location.search,
-        hash: location.hash,
-      }}
-    />
   );
 }

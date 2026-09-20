@@ -568,17 +568,26 @@ describe("Catalog", () => {
     ).toBe(prompt);
   });
 
-  it.each(["/skills", "/workflows"])(
-    "preserves legacy %s query and fragment",
-    async (path) => {
-      const { router } = setup(`${path}?keep=yes#section`);
-      await waitFor(() =>
-        expect(router.state.location.pathname).toBe(`/catalog${path}`),
-      );
-      expect(router.state.location.search).toBe("?keep=yes");
-      expect(router.state.location.hash).toBe("#section");
-    },
-  );
+  it.each([
+    "/skills",
+    "/workflows",
+    "/workflows/openapi-from-source/1",
+    "/queue",
+    "/operations/runtime-configs",
+    "/operations/runtime-configs/debug/1",
+  ])("shows recovery for retired route %s", async (path) => {
+    const { router } = setup(`${path}?keep=yes#section`);
+    expect(
+      await screen.findByRole("heading", { name: "Page not found" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe(path);
+    expect(router.state.location.search).toBe("?keep=yes");
+    expect(router.state.location.hash).toBe("#section");
+    expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute(
+      "href",
+      "/projects",
+    );
+  });
 
   it("does not display or copy instructions from another digest", async () => {
     setup("/catalog/agents/researcher/1", { mismatch: true });

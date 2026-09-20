@@ -39,8 +39,8 @@ all filters are bound into the cursor kind.
 
 The two tabs deliberately need not use the same endpoint: their ordering and
 display projections are different even though both read `workflow_runs`.
-`/queue` remains a client-side compatibility redirect to the Queue view of
-`/runs`; Queue is no longer a separate top-level navigation item.
+The Queue view opens at `/runs`; Queue is not a separate top-level navigation
+item.
 
 ## Durable owner queue gate
 

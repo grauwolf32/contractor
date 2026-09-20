@@ -2,13 +2,6 @@ import { Navigate, NavLink, Outlet, useLocation, useMatch } from "react-router";
 
 import "./catalog.css";
 
-export function LegacyCatalogRedirect() {
-  const { pathname, search, hash } = useLocation();
-  return (
-    <Navigate replace to={{ pathname: `/catalog${pathname}`, search, hash }} />
-  );
-}
-
 export function CatalogIndexRedirect() {
   const { search, hash } = useLocation();
   return (

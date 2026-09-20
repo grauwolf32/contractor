@@ -1,0 +1,398 @@
+# Legacy compatibility removal — analysis and plan
+
+Status: C01–C03 implemented and verified.
+C04–C07 and D01–D07 remain planned.
+Reviewed working tree on 2026-09-20, HEAD
+`e1ea6209713d1c8d637d1106ce92a4960a4a2c58`, including existing uncommitted
+documentation. The user requested finding code retained only for backward
+compatibility and planning its removal. This document records the findings,
+consumers, removal order and acceptance conditions.
+
+The user subsequently clarified that this is a fresh project and backward
+compatibility is not required. Remove obsolete paths directly, updating current
+callers and contracts in the same increment. A deprecation window, compatibility
+adapter or migration of obsolete formats is not a prerequisite. This decision
+supersedes the initial review's historical-data inventory gates.
+
+## Recommendation
+
+Start with six groups of runtime/API implementation shims, then retire the
+**41 explicitly superseded catalog entries**. Seven further groups support
+historical persisted data; replace them with strict current-format handling
+in separate increments.
+
+Recovery, history, repeat and idempotency replay must continue to work for
+current records. Old-only records may become unsupported; missing authority
+must produce an explicit failure instead of invented current values. Test
+fixtures should implement current internal interfaces instead of keeping a
+second production execution path alive.
+
+No live database, operator-managed catalog, installed client or external
+deployment was inspected. Their usage is unknown. Searches covered Go, Python,
+UI, static serving, configuration, deployment examples, tests and specifications.
+The initial inventory was a static review, not proof of whole-repository
+dead-code elimination. Subsequent implementation checks are recorded below.
+
+## Candidates without a persisted-data migration
+
+The C identifiers below are local plan items, not task-registry entries.
+Each row should be a separate implementation change, with its consumer changes
+and checks in the same change.
+
+| ID | Candidate and evidence | Removal and remaining dependency | Risk |
+| --- | --- | --- | --- |
+| C01 | Python compatibility import and test-only session property | Remove the unused import module; update four test accesses before deleting the property. | Low inside the repository; external Python imports are unknown. |
+| C02 | Deprecated server flags, environment variables and duplicate config fields | Update launcher/test inputs to canonical settings, then remove parsing and assertions. | Old launchers may stop working or lose their configured root. |
+| C03 | Four families of old UI redirects | Retire old URLs together in the router and static server; update links and route contracts. | Old bookmarks stop redirecting. |
+| C04 | Scheduler compatibility with older in-process allocators/stores | Require contextual reservations, complete placement results and durable creation times; update fakes. | Execution-sensitive refactor; cancellation, policy and provenance need regression checks. |
+| C05 | Pre-ModelAccess Streamline/Router factory path | Make configured factories the single model-backed construction path; inject fake models through the same path. | Tests must retain temperature, budgets and model-selection coverage. |
+| C06 | Per-stage HTTP read fallbacks for older interfaces | Require batch methods on the relevant read interfaces; update test readers. | Preserve absent optional data and authorization/error behavior. |
+
+### C01 — Python import and session shims (implemented)
+
+- Removed `runtime/src/contractor_runtime/app.py`, which only re-exported
+  `server.create_app` and explicitly called itself a compatibility import.
+  Repository callers, including [cli.py](../../runtime/src/contractor_runtime/cli.py),
+  already import from `contractor_runtime.server`; no consumer of
+  `contractor_runtime.app` was found.
+- [worker/runtime.py](../../runtime/src/contractor_runtime/worker/runtime.py),
+  no longer exposes `AdkWorkerRuntime._session_id`, the compatibility-only test
+  view. Updated three accesses in
+  [test_adk_runtime.py](../../runtime/tests/test_adk_runtime.py) and one in
+  [test_agent_skill_toolset.py](../../runtime/tests/test_agent_skill_toolset.py).
+  The tests now obtain the explicit shared session ID from the session lifecycle
+  and assert its presence before inspecting the session. Shared/isolated session
+  behavior and cleanup assertions remain covered.
+
+### C02 — process configuration aliases (implemented)
+
+Removed the following compatibility surface together:
+
+- `--config-root` and `CONTRACTOR_CONFIG_ROOT`, superseded by
+  `--operator-config-root` and `CONTRACTOR_OPERATOR_CONFIG_ROOT`;
+- `Config.ConfigRoot`, a duplicate of `Config.OperatorConfigRoot`;
+- `--public-user-id`, `CONTRACTOR_PUBLIC_USER_ID`, the corresponding input/config
+  fields and the comparison with local-auth's user ID. Local-auth already owns
+  the authenticated principal; the compatibility value is only an assertion.
+
+Evidence: [config_flags.go](../../internal/app/config_flags.go),
+[config_inputs.go](../../internal/app/config_inputs.go),
+[config_validate.go](../../internal/app/config_validate.go) and
+[app.go](../../internal/app/app.go). Updated
+[specification 06](../spec/06-server-ui-and-operations.md) to the current surface.
+
+Updated [Makefile](../../Makefile)'s `run-local`, numerous
+`tests/e2e` launchers, `tests/eval/project_workflows`, `tests/ui-stack`, and
+[local-stack.md](../guides/local-stack.md). Cross-owner tests still create/change
+the actual local-auth identity and check isolation. Removed only their duplicate
+environment setting and the unit test of the obsolete equality assertion.
+
+Old flags now receive the normal unknown-flag error. Old environment variables
+are no longer read; set `CONTRACTOR_OPERATOR_CONFIG_ROOT` or
+`--operator-config-root` for a non-default catalog root. Local-auth is the sole
+principal source. No replacement compatibility parser or warning path was added.
+
+`--server-config` is another spelling for `--config`, but was not shown to be a
+historical-only path; it is outside this confirmed deprecated set.
+
+### C03 — UI URL redirects (implemented)
+
+Removed four compatibility handlers:
+
+- `LegacyCatalogRedirect` in [catalog/layout.tsx](../../ui/src/routes/catalog/layout.tsx):
+  `/workflows`, `/workflows/:name/:version`, `/skills` to `/catalog/...`;
+- `LegacyQueueRedirect` in [runs/index.tsx](../../ui/src/routes/runs/index.tsx):
+  `/queue` to `/runs`;
+- `LegacyRuntimeConfigurationRedirect` in
+  [runs/configuration.tsx](../../ui/src/routes/runs/configuration.tsx):
+  `/operations/runtime-configs...` to `/runs/configuration...`;
+- `ProjectLegacySectionRedirect` in
+  [projects/navigation.tsx](../../ui/src/routes/projects/navigation.tsx):
+  five old project-root hashes to section paths.
+
+Updated [router.tsx](../../ui/src/app/router.tsx),
+[projects/detail.tsx](../../ui/src/routes/projects/detail.tsx),
+[static-server.mjs](../../ui/server/static-server.mjs) and specifications 06/18.
+Removed obsolete static route patterns as well as React handlers. Canonical
+direct loads, encoded identities, query strings and current section navigation
+remain supported. Retired path routes produce the existing 404 experience.
+Old project hashes can remain on the valid project root but no longer select
+sections; HTTP never receives those hashes.
+
+Updated Skills links in Artifacts and Project artifact links in Run details
+and the Workflow launch form to explicit current paths. Existing route and
+browser tests now open canonical addresses; retired URLs are covered by the
+existing React recovery and static-server rejection tests.
+
+Preserved the hash anchors used by evaluation workspace pages and
+`/evals/legacy`: these render content. `/catalog` still opens its current
+Workflows index.
+
+### C04 — Scheduler interfaces and fallback execution settings
+
+Production composition creates `PlacementAllocator` in
+[composition_control.go](../../internal/app/composition_control.go). Its
+[ReserveAll](../../internal/controlplane/placement.go) delegates to
+`ReserveAllContext(context.Background(), ...)` solely to retain the old shape.
+[allocation_reservations.go](../../internal/scheduler/allocation_reservations.go)
+detects a separate optional `contextAllocator`, falling back to `ReserveAll`.
+Make the contextual method part of the Scheduler's required interface and
+update all implementations/fakes. Preserve the real InMemoryRegistry and its
+reservation behavior; this does not justify deleting the registry.
+
+The same old implementation support appears in:
+
+- `recordReservations`: invalid/missing collection policy becomes `disabled`;
+- `verifyReservations`: separate handling for missing resolved RuntimeConfig;
+- [stage_preparation.go](../../internal/scheduler/stage_preparation.go),
+  `stageDeadline`: missing `CreatedAt` becomes observation time;
+- [execution_preparation.go](../../internal/scheduler/execution_preparation.go):
+  the test-used `workerExecutionSettings` wrapper, optional reservation sets and
+  `fallbackResolvedWorkerConfig`, which synthesizes configuration without a
+  placement result. The production caller supplies reservations.
+
+Move the fakes to complete current values, then replace missing required
+execution inputs with explicit failures. Do not synthesize placement provenance
+or reset a Stage's deadline. Preserve model-free `tool@1` Workers: their absent
+LLM route is valid and is not evidence of missing RuntimeConfig. Coordinate this
+change with V61 toolset pinning, which touches allocation/configuration paths.
+
+### C05 — model-backed Planner constructors
+
+[streamline/factory.go](../../internal/planner/streamline/factory.go) retains
+both `model` and `modelFactory`, direct-LLM `NewFactory`/`NewFactoryWithMemory`
+constructors and corresponding Router delegates.
+[router/factory.go](../../internal/planner/router/factory.go) exposes both forms.
+[streamline/planner.go](../../internal/planner/streamline/planner.go)'s
+`newRootAgent` explicitly uses a legacy zero temperature without ModelAccess.
+
+[composition_execution.go](../../internal/app/composition_execution.go) uses
+configured factories. No ordinary application caller of the direct-LLM
+Streamline/Router constructors was found; their remaining callers are tests.
+Update those tests with valid ModelAccess and a fake InvocationModelFactory,
+then remove the unused constructors, `Factory.model` and the missing-access
+branches. Preserve the distinction between omitted temperature and explicit
+zero. Do not impose ModelAccess on `passthrough@1` or `scan-plan@1`.
+
+### C06 — HTTP batch reader fallbacks
+
+[run_detail_batch.go](../../internal/httpapi/public/run_detail_batch.go) tries
+three optional interfaces and otherwise loops over individual Stage reads.
+The comment explicitly reserves these paths for older/non-PostgreSQL
+implementations. Production already has:
+
+- `PostgresStore.ListStageAllocationsBatch`;
+- `telemetry.Repository.GetStageMetricsBatch`;
+- `planner/session.Service.LoadPlans`.
+
+Require these methods on the corresponding interfaces in
+[public/types.go](../../internal/httpapi/public/types.go), implement them in
+test readers and remove type assertions and per-stage loops. Optional Metrics
+and PlannerPlans dependencies can remain optional. Do not remove individual
+read methods that have other consumers. Preserve authorized-Run reads,
+best-effort metrics, exact Planner session identity checks and bounded SQL
+query counts.
+
+## C07 — retire superseded configuration from the default catalog
+
+[memory-catalog.json](../../configs/memory-catalog.json) explicitly maps
+**20 AgentTemplates, 16 Workflows and 5 AuditProfiles** from `legacy` to `active`.
+All 41 legacy files and all 41 successor files exist. These are configuration
+duplicates retained for compatibility, not 41 independently obsolete engines.
+
+A literal-selector scan of configuration YAML outside the 41-file removal set
+found these remaining references:
+
+| Legacy selector | Consumers outside the removal set |
+| --- | --- |
+| `artifact_builder@1` | `configs/examples/{streamline_review_workflow,multi_stage_workflow,bounded_retry_workflow}.yaml`; `configs/e2e/workflows/{escalating_copy,artifact_copy,router_review,streamline_copy}.yaml` |
+| `openapi_builder@1`, `openapi_validator@1` | `configs/examples/router_openapi_workflow.yaml` |
+
+This scan is evidence, not a full resolved dependency proof: test code and
+external operator catalogs can refer to selectors differently.
+
+Removal sequence:
+
+1. Build the complete resolved reference closure, including bundled examples,
+   process fixtures, managed/operator configuration and frozen evaluation inputs.
+2. Move genuinely necessary old test/evaluation definitions into dedicated
+   fixture roots with their exact content. Keep frozen V40 experiment inputs
+   unchanged; substituting Memory-enabled successors changes the experiment.
+   Update ordinary examples to current selectors and validate their closure.
+3. Adjust [production_memory_test.go](../../internal/config/production_memory_test.go)
+   and [catalog_cleanup_test.go](../../internal/config/catalog_cleanup_test.go):
+   current tests deliberately require both versions in the default catalog.
+   Retain successor behavior, reachability and immutable-identity checks.
+4. Remove the 41 old YAML files from the default catalog, then remove only
+   instructions/policies proven unreachable from all retained configurations.
+   Update `configs/README.md`, `configs/MEMORY.md` and their inventory semantics.
+5. Verify retained Run/Audit execution from pinned snapshots. Define how Repeat
+   and new requests using a removed exact selector fail; never silently map
+   an old identity to its successor or reuse the old identity for new bytes.
+
+The server-managed catalog is a separate source. Removing a repository file
+does not prove that a published resource or external reference disappeared.
+
+## Historical-data readers: planned strict-format cleanup
+
+These are confirmed compatibility branches. Under the user's fresh-project
+decision, old shapes can become unsupported. Their removal remains separate
+from C01–C07 because it touches execution/replay semantics, not because old
+data needs a compatibility window.
+
+| ID | Code and historical shape | Current behavior to preserve when removing it |
+| --- | --- | --- |
+| D01 | [config/persisted.go](../../internal/config/persisted.go): missing Stage `session` means `shared`, whereas newly authored omission becomes explicit `isolated`. | Require the explicit persisted mode; preserve intentional shared/isolated execution and reject missing or invalid persisted modes. |
+| D02 | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): infer old Workflow role kinds and verify `auditProfileLegacyDigest`. | Require current role kinds and digest validation, including embedded closures. Do not re-sign or reinterpret an old snapshot as a current one. |
+| D03 | [evalstore/receipts.go](../../internal/evalstore/receipts.go): convert old `{id, revision, state}` into typed receipts. | Keep typed receipt replay and idempotency identity; reject old overloaded receipts rather than inventing typed fields. |
+| D04 | [auditservice/resume.go](../../internal/auditservice/resume.go): continue terminal `deadline_exhausted` Audits; reopen items and archive report links. | Preserve ordinary paused Resume, review expiration, replay and holds. Remove terminal continuation across backend, reports, UI and public contract together. |
+| D05 | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
+| D06 | [public/run_repeat_handlers.go](../../internal/httpapi/public/run_repeat_handlers.go): reconstruct inputs from lineage when repeat-request authority is absent. | Keep Repeat from a valid retained request. Missing/corrupt authority must block Repeat; audit-managed Runs remain excluded. |
+| D07 | [auditstore/report_review.go](../../internal/auditstore/report_review.go) and [validation.go](../../internal/auditstore/validation.go): accept old `text/plain` report summaries; current publisher writes `text/markdown`. | Require the current summary media type; retain report acceptance and exact artifact validation without relabeling old artifacts. |
+
+For D04, the change extends beyond `Resume`: inspect
+[auditcontroller/controller.go](../../internal/auditcontroller/controller.go),
+[auditimport/report.go](../../internal/auditimport/report.go), stored
+`continuation_count`, report naming, UI Continue controls and public OpenAPI.
+Previously continued records may become unsupported; ensure no current path
+still creates or consumes the removed continuation state.
+
+### Removal rules for persisted formats
+
+For each D item, verify that current writers supply the required shape, remove
+the old reader, update the owning contract and test both current-format behavior
+and explicit rejection of missing authority. Do not add automatic repair,
+dual-read support or a migration tool solely for obsolete data.
+
+Current Run recovery, paused Audit Resume, report acceptance and idempotent
+replay remain product behavior. Keep their positive and negative tests. Existing
+SQL migrations are checksum-verified execution inputs; use forward schema changes
+when needed. Removing a compatibility decoder does not itself require purging
+records or rewriting immutable artifact bytes.
+
+## Items that should remain outside this cleanup
+
+| Apparent legacy surface | Why it is not proven compatibility-only |
+| --- | --- |
+| `audit-results@1` and [audit_results/v1.py](../../runtime/src/contractor_runtime/toolsets/audit_results/v1.py) | Five active Memory templates still select it: ASVS, both OpenAPI tracers, risk checker and source checker. `source-checklist@3`/`audit-source-check@4` demonstrate v2 completion, but do not replace all these families. Migrating them is a product/configuration change before Runtime support can be retired. |
+| [audit_results/packages.py](../../runtime/src/contractor_runtime/toolsets/audit_results/packages.py), despite its “legacy” docstring | Shared package codecs also support current trusted completion through `encoding.py`. Deleting the whole module with v1 would break current behavior. |
+| `/evals/legacy`, old evaluation workspace pages and Project kind `evaluation` | These render/access actual retained work. Current managed Evals setup also creates `evaluation` Projects. Direct/portable evaluation remains an explicit contract in specs 26/30; it is not replaced automatically by a native experiment. |
+| SQLMap's URL input mode in [scan/tools.py](../../runtime/src/contractor_runtime/toolsets/scan/tools.py) | It remains an executable input mode alongside `request_ref` under the same `scan@1` surface. Removing it reduces that tool API; establish consumer/version retirement separately. |
+| Ordinary Worker finalizer | Current completion policy and provider limitations, not a reader for an obsolete format. The existing V57-003 decision is archived; this cleanup does not reopen or silently implement it. |
+| Omitted optional fields, stable canonical digests, ciphertext, ordinary `@1` refs and SQL migration history | These can be current contracts/invariants. Age or absence of a field does not prove an obsolete branch; do not bulk-delete compatibility tests or every `@1` implementation. |
+
+Adjacent dead code: `InventoryCompatibility` in
+[auditservice/compatibility.go](../../internal/auditservice/compatibility.go)
+always returns `nil`, while `start.go` and `preview.go` still check its result.
+This can be considered in a small separate cleanup after checking V62's
+inventory work. It is not evidence that all Audit compatibility validation can
+be removed. Likewise `batching_unsupported` is retained as a public wire enum;
+shrinking that contract is separate from removing an internal no-op.
+
+## Execution order and acceptance
+
+C01/C02 are implemented in the first increment and C03 in the second;
+later items remain planned.
+This document uses local IDs and does not mark task-registry entries complete.
+
+| Order | Work | Exit condition |
+| --- | --- | --- |
+| 1 | C01 | No compatibility import/property or old test accesses; current server/session tests pass. |
+| 2 | C02 and C03, each as its own change | Canonical launchers/routes work, old consumers are accounted for, specification and retirement notes match actual behavior. |
+| 3 | C04, C05, C06, each as its own change | Tests use current interfaces; no parallel old implementation path remains; execution, auth, cancellation and SQL bounds hold. Coordinate overlapping V61 work. |
+| 4 | C07 | All 41 entries are removed from the default catalog after resolving consumers; retained fixtures and historical execution remain valid. |
+| 5 | D01–D07, as individually reviewable changes | Current-format writes, reads and recovery pass; old formats fail explicitly. No historical-data inventory or compatibility transition is required. |
+
+Relevant verification for the future implementation:
+
+| Scope | Checks |
+| --- | --- |
+| C01 | `runtime/.venv/bin/pytest -W error runtime/tests/test_app.py runtime/tests/test_adk_runtime.py runtime/tests/test_agent_skill_toolset.py runtime/tests/test_session_lifecycle.py` |
+| C02 | `go test ./internal/app ./internal/cli`; affected process/UI-stack launchers with a disposable PostgreSQL database; owner-isolation scenarios. |
+| C03 | `make ui-typecheck ui-test ui-build`; canonical and retired direct route loads, encoded identities and project navigation. |
+| C04–C05 | `go test ./internal/scheduler ./internal/controlplane ./internal/planner/...`; corresponding PostgreSQL placement/provenance and scheduler cancellation/deadline gates with `CONTRACTOR_TEST_DATABASE_URL` set. |
+| C06 | `go test ./internal/httpapi/public ./internal/runstore ./internal/telemetry ./internal/planner/session`; database-backed Run detail batching/query-budget tests. |
+| C07 | `make test-config`; catalog closure/Memory tests and affected process/evaluation fixture preparation. No paid model run is implied by fixture validation. |
+| D changes | Targeted upgrade/history/recovery tests for the affected format; `make verify-wire-contracts test-wire-cross-language verify-public-api ui-generate-check` when a wire/schema boundary changes. Regenerate affected clients first. |
+
+Database tests that skip without a test URL are not upgrade evidence. Keep
+the existing negative tests for corrupt/mixed snapshots, identity mismatches,
+missing authority and response-loss replay. Change old-success expectations
+only for the explicitly retired boundary, rather than deleting the tests
+wholesale. At integration, run the normal `make verify` and affected release
+gates once; record the actual results and exclusions.
+
+## Initial static review
+
+- Inspected the cited production branches, composition roots, consumers,
+  existing regression tests and owning specifications.
+- Parsed `memory-catalog.json`, checked the 20/16/5 counts and existence of both
+  files for every mapping, and searched remaining configuration YAML consumers.
+- Confirmed that five active Memory Audit templates still use `audit-results@1`.
+- Checked all 52 local document links at the review baseline.
+- That initial review changed no application code and ran no application tests
+  or migrations; no production-data absence or performance improvement was claimed.
+
+## First increment — C01/C02 results
+
+Removed the Python compatibility module and test-only session property, the two
+deprecated flags and environment inputs, the duplicate Config fields and the
+obsolete user-ID equality assertion. Updated the four Python test accesses,
+Go configuration tests, process launchers, cross-owner test setup, Makefile,
+local guide and owning specification. Existing authentication and ownership
+checks continue to use the local-auth principal.
+
+Verification completed on 2026-09-20:
+
+- `go test ./internal/app ./internal/cli ./internal/auth ./internal/httpapi/public`
+  passed. Optional PostgreSQL tests in these packages were not enabled in this run.
+- `runtime/.venv/bin/pytest -W error runtime/tests/test_app.py runtime/tests/test_adk_runtime.py runtime/tests/test_agent_skill_toolset.py runtime/tests/test_session_lifecycle.py`
+  passed: **102 tests**.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing at a disposable PostgreSQL 17
+  container, `go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRunMetadataLabelsAcrossProcesses)$'`
+  passed. This exercises actual Go/Python startup and Workflow execution, plus
+  the foreign-owner metadata/history access boundary using local-auth alone.
+- `go test -tags=e2e -run '^$' ./tests/e2e ./tests/ui-stack ./tests/eval/project_workflows`
+  passed as a compile check only; browser and live-model evaluations were not run.
+- Ruff lint/format checks for the changed Python files, Go formatting and
+  `git diff --check` passed. Searches found no remaining retired inputs or
+  Python compatibility accesses in implementation, executable fixtures or
+  current guides/specifications.
+
+Initial sandboxed test attempts could not open local sockets; Go and Python
+checks were rerun successfully after full access was enabled. No production
+database was used.
+
+## Second increment — C03 results
+
+Removed the four UI compatibility handlers and their static-server route
+patterns. Updated current links, route/browser fixtures and the owning
+specifications. Retired path URLs now return 404; old Project root fragments
+no longer redirect. Current Catalog, Runs, Runtime Configuration and Project
+section URLs remain the supported entry points.
+
+Verification completed on 2026-09-20 using Node 24.20.0 and pnpm 11.24.0:
+
+- `pnpm typecheck` passed for application and browser-test TypeScript.
+- `pnpm test --run` passed: **496 tests across 70 files**.
+- `pnpm test:server` passed: **11 tests**, including retired path rejection,
+  canonical direct GET/HEAD loads, encoded identities and 404 recovery.
+- `pnpm build --outDir /tmp/contractor-c03-dist` passed. Vite reported its
+  chunk-size warning; the build completed successfully.
+- Chromium scenarios in `catalog.spec.ts`, `runs-navigation.spec.ts`,
+  `project-workspace.spec.ts` and `operations-forms.spec.ts` passed:
+  **11 scenarios total** against the built static UI with mocked API responses.
+  Coverage includes direct routes, search/filter state, exact Agent versions,
+  Project sections and uploads, Workflow launch, Run results, Operations
+  capability checks and mobile layouts.
+- ESLint and Prettier checks for the changed UI files, document-link validation
+  and `git diff --check` passed.
+
+The first browser attempt exposed a stale Catalog fixture assumption about the
+default Agent version and a test-server CSP/API-origin mismatch. The fixture
+now explicitly selects its required version; the local static server was
+configured for the mocked cross-origin API. All eight initially failing
+scenarios passed on recheck; the three Operations scenarios passed initially.
+The real Go/Python browser stack was not run in this increment.
+
+Next increment: C04, Scheduler compatibility with older allocator/store shapes.

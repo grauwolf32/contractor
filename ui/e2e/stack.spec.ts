@@ -319,7 +319,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   };
   const flushCapture = installEvidenceCapture(page, apiURL, evidence);
 
-  await page.goto("/workflows");
+  await page.goto("/catalog/workflows");
   await expect(page.getByRole("region", { name: "Sign in" })).toBeVisible();
   await login(page, username, password);
 
@@ -929,7 +929,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   ).toBeVisible();
   await expect(page.getByText("ui-stack-key", { exact: true })).toHaveCount(0);
 
-  await page.goto("/operations/runtime-configs");
+  await page.goto("/runs/configuration");
   await expect(
     page.getByRole("heading", { name: "RuntimeConfig versions" }),
   ).toBeVisible();

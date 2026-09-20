@@ -222,7 +222,6 @@ func runBrowserStack(t *testing.T, evalMode string) {
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       modelGatewayCanary,
-		"CONTRACTOR_PUBLIC_USER_ID":          userID,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicBearerCanary,
 		"CONTRACTOR_LOCAL_AUTH_FILE":         localAuthFile,
 		"CONTRACTOR_BROWSER_ORIGINS":         uiURL,
@@ -351,11 +350,6 @@ func (s *uiStack) assertRunOwnerBoundaries(ownerID string) {
 	s.t.Helper()
 	otherOwner := ownerID + "-other-owner"
 	writeLocalAuth(s.t, s.temporaryRoot, otherOwner)
-	for index, entry := range s.serverEnv {
-		if strings.HasPrefix(entry, "CONTRACTOR_PUBLIC_USER_ID=") {
-			s.serverEnv[index] = "CONTRACTOR_PUBLIC_USER_ID=" + otherOwner
-		}
-	}
 	if err := s.restartServer(); err != nil {
 		s.t.Fatal(err)
 	}

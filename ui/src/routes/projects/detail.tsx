@@ -15,7 +15,7 @@ import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { useProjectDeletion } from "./use-project-deletion";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
-import { ProjectNavigation, ProjectLegacySectionRedirect } from "./navigation";
+import { ProjectNavigation } from "./navigation";
 import { AuditAnchor } from "./audits/shared";
 
 import "../primary-actions.css";
@@ -146,9 +146,7 @@ function ProjectWorkspaceRoute({
       ) : expectedKind === "project" ? (
         <>
           <ProjectNavigation projectId={projectId} />
-          <ProjectLegacySectionRedirect projectId={projectId}>
-            <Outlet context={project.data} />
-          </ProjectLegacySectionRedirect>
+          <Outlet context={project.data} />
         </>
       ) : (
         <>

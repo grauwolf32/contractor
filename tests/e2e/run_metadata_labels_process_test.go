@@ -108,7 +108,7 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	}
 	serverEnvironment := map[string]string{
 		"CONTRACTOR_DATABASE_URL":            isolateURL,
-		"CONTRACTOR_CONFIG_ROOT":             configRoot,
+		"CONTRACTOR_OPERATOR_CONFIG_ROOT":    configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN":           publicAddress,
 		"CONTRACTOR_PRIVATE_LISTEN":          privateAddress,
 		"CONTRACTOR_PRIVATE_URL":             privateBaseURL,
@@ -116,7 +116,6 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN":       llmGatewayToken,
-		"CONTRACTOR_PUBLIC_USER_ID":          userID,
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,
 		"CONTRACTOR_LOCAL_AUTH_FILE":         writeE2ELocalAuth(t, temporaryRoot, userID),
 		"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",
@@ -797,7 +796,6 @@ func assertForeignOwnerCannotDiscoverMetadataRuns(
 	environment["CONTRACTOR_PUBLIC_LISTEN"] = foreignPublicAddress
 	environment["CONTRACTOR_PRIVATE_LISTEN"] = foreignPrivateAddress
 	environment["CONTRACTOR_PRIVATE_URL"] = "https://" + foreignPrivateAddress
-	environment["CONTRACTOR_PUBLIC_USER_ID"] = foreignUserID
 	environment["CONTRACTOR_PUBLIC_BEARER_TOKEN"] = foreignToken
 	environment["CONTRACTOR_LOCAL_AUTH_FILE"] = writeE2ELocalAuth(t, temporaryRoot, foreignUserID)
 	foreignServer := startProcess(

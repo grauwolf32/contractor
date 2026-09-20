@@ -235,7 +235,7 @@ describe("Evals and global Skills routes", () => {
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
     );
-    renderApplication(api, "/skills");
+    renderApplication(api, "/catalog/skills");
 
     expect(
       await screen.findByRole("link", { name: "architecture-review" }),

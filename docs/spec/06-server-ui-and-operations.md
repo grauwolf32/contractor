@@ -42,8 +42,7 @@ Operations
 
 Catalog groups reusable execution definitions. Its canonical routes are
 `/catalog/workflows`, `/catalog/agents` and `/catalog/skills`; `/catalog` opens
-Workflows. Legacy `/workflows`, `/workflows/:name/:version` and `/skills` redirect
-to their Catalog equivalents while preserving query and fragment state.
+Workflows. Exact Workflow details use `/catalog/workflows/:name/:version`.
 Runtime Agent processes remain in Operations.
 
 Agents lists exact published AgentTemplate versions, with description and links
@@ -508,9 +507,8 @@ complete set; there is no root precedence and no implicit override.
 
 The executable settings are `--operator-config-root` /
 `CONTRACTOR_OPERATOR_CONFIG_ROOT` and `--managed-config-root` /
-`CONTRACTOR_MANAGED_CONFIG_ROOT`. `CONTRACTOR_CONFIG_ROOT` and
-`--config-root` remain temporary aliases for the operator root. When the
-managed root is omitted, local configuration derives a sibling
+`CONTRACTOR_MANAGED_CONFIG_ROOT`. When the managed root is omitted, local
+configuration derives a sibling
 `managed-configs/` directory from the final operator-root path.
 
 The first UI increment publishes only ModelPolicy and LLMGatewayConfig
@@ -1147,9 +1145,7 @@ listener. It permits exact HTTP browser origins only on loopback or RFC 1918
 private IPv4 literals, allowing an explicitly trusted local-network demo proxy;
 public HTTP addresses and hostnames remain invalid. The production cookie name
 is never downgraded. The retained non-browser `Authorization: Bearer` path maps
-to this same local-auth principal and requires neither Origin nor CSRF. The old
-`CONTRACTOR_PUBLIC_USER_ID`, when present, is only a compatibility assertion
-that must equal local-auth `userId`, not a second principal source.
+to this same local-auth principal and requires neither Origin nor CSRF.
 
 Sessions have an eight-hour idle limit, a 24-hour absolute limit and a maximum
 of eight live sessions; a ninth successful login revokes the oldest. An
@@ -1344,8 +1340,7 @@ presented as a complete history search.
 
 Section URLs preserve filters and cursor stacks through reload and detail return.
 Navigation between sections retains each section's query in browser history state;
-filters and explicit Workflow versions remain in that section's URL. Legacy root
-anchors redirect with their query and return context: `#project-overview` to
-Settings (the former metadata area), and Artifacts/Workflows/Runs/Audits anchors to
-their corresponding sections. Eval workspaces retain their existing layout and
-scope. The static server accepts direct requests for every new section URL.
+filters and explicit Workflow versions remain in that section's URL. Links to
+Project sections use their explicit paths. Eval workspaces retain their existing
+layout and scope, including their in-page anchors. The static server accepts
+direct requests for every section URL.

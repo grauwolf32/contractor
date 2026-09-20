@@ -134,48 +134,43 @@ describe("Run configuration navigation", () => {
     );
   });
 
-  it.each(["/runs/configuration", "/operations/runtime-configs"])(
-    "opens %s under Runs and supports refresh",
-    async (path) => {
-      const { router, requests } = setup(path);
-      await screen.findByRole("heading", { name: "RuntimeConfig versions" });
+  it("opens Runtime configuration under Runs and supports refresh", async () => {
+    const { router, requests } = setup("/runs/configuration");
+    await screen.findByRole("heading", { name: "RuntimeConfig versions" });
+    expect(await screen.findByRole("link", { name: "debug@1" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/runs/configuration");
+    const tabs = screen.getByRole("navigation", { name: "Run views" });
+    expect(tabs).toHaveClass("operations-navigation");
+    expect(
+      within(tabs)
+        .getAllByRole("link")
+        .map((link) => link.textContent?.trim()),
+    ).toEqual(["Queue", "Completed", "Configuration"]);
+    expect(
+      within(tabs).getByRole("link", { name: /Configuration/ }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(tabs).getByRole("link", { name: /Queue/ }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      screen.queryByRole("navigation", { name: "Operations sections" }),
+    ).toBeNull();
+    const reads = requests.filter(
+      (p) => p === "/v1/operations/runtime-configs",
+    ).length;
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Refresh configuration" }));
+    await waitFor(() =>
       expect(
-        await screen.findByRole("link", { name: "debug@1" }),
-      ).toBeVisible();
-      expect(router.state.location.pathname).toBe("/runs/configuration");
-      const tabs = screen.getByRole("navigation", { name: "Run views" });
-      expect(tabs).toHaveClass("operations-navigation");
-      expect(
-        within(tabs)
-          .getAllByRole("link")
-          .map((link) => link.textContent?.trim()),
-      ).toEqual(["Queue", "Completed", "Configuration"]);
-      expect(
-        within(tabs).getByRole("link", { name: /Configuration/ }),
-      ).toHaveAttribute("aria-current", "page");
-      expect(
-        within(tabs).getByRole("link", { name: /Queue/ }),
-      ).not.toHaveAttribute("aria-current");
-      expect(
-        screen.queryByRole("navigation", { name: "Operations sections" }),
-      ).toBeNull();
-      const reads = requests.filter(
-        (p) => p === "/v1/operations/runtime-configs",
-      ).length;
-      await userEvent
-        .setup()
-        .click(screen.getByRole("button", { name: "Refresh configuration" }));
-      await waitFor(() =>
-        expect(
-          requests.filter((p) => p === "/v1/operations/runtime-configs").length,
-        ).toBeGreaterThan(reads),
-      );
-    },
-  );
+        requests.filter((p) => p === "/v1/operations/runtime-configs").length,
+      ).toBeGreaterThan(reads),
+    );
+  });
 
-  it("redirects exact legacy versions, preserving query and fragment", async () => {
+  it("opens exact versions with query and fragment", async () => {
     const { router } = setup(
-      "/operations/runtime-configs/debug/1?from=bookmark#worker",
+      "/runs/configuration/debug/1?from=bookmark#worker",
     );
     await screen.findByRole("heading", { name: "debug@1" });
     expect(screen.getByRole("heading", { name: "Worker Caido" })).toBeVisible();
@@ -190,16 +185,15 @@ describe("Run configuration navigation", () => {
     ).toHaveAttribute("href", "/runs/configuration");
   });
 
-  it.each([
-    "/runs/configuration",
-    "/runs/configuration/debug/1",
-    "/operations/runtime-configs",
-  ])("keeps operator authorization on %s", async (path) => {
-    const { requests } = setup(path, false);
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Operations capability is required",
-    );
-    expect(screen.queryByRole("link", { name: /Configuration/ })).toBeNull();
-    expect(requests).toEqual(["/v1/auth/session"]);
-  });
+  it.each(["/runs/configuration", "/runs/configuration/debug/1"])(
+    "keeps operator authorization on %s",
+    async (path) => {
+      const { requests } = setup(path, false);
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Operations capability is required",
+      );
+      expect(screen.queryByRole("link", { name: /Configuration/ })).toBeNull();
+      expect(requests).toEqual(["/v1/auth/session"]);
+    },
+  );
 });

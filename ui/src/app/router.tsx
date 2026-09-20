@@ -25,16 +25,12 @@ import { ProjectFindingsRoute } from "../routes/projects/audits/findings";
 import { ProjectWorkflowRunRoute } from "../routes/projects/workflow-run";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
-import { LegacyQueueRedirect, RunsRoute } from "../routes/runs";
-import {
-  LegacyRuntimeConfigurationRedirect,
-  RunConfigurationLayout,
-} from "../routes/runs/configuration";
+import { RunsRoute } from "../routes/runs";
+import { RunConfigurationLayout } from "../routes/runs/configuration";
 import { SkillsRoute } from "../routes/skills";
 import {
   CatalogIndexRedirect,
   CatalogLayoutRoute,
-  LegacyCatalogRedirect,
 } from "../routes/catalog/layout";
 import { AgentListRoute } from "../routes/catalog/agents";
 import { AgentDetailRoute } from "../routes/catalog/agent-detail";
@@ -66,14 +62,6 @@ export function applicationRoutes(): RouteObject[] {
           element: <ApplicationShell />,
           children: [
             { index: true, element: <HomeRoute /> },
-            {
-              path: "/workflows",
-              element: <LegacyCatalogRedirect />,
-            },
-            {
-              path: "/workflows/:name/:version",
-              element: <LegacyCatalogRedirect />,
-            },
             {
               path: "/projects",
               element: <ProjectListRoute />,
@@ -152,7 +140,6 @@ export function applicationRoutes(): RouteObject[] {
               path: "/evals/:projectId/artifacts/:namespace/:name",
               element: <EvaluationArtifactDetailRoute />,
             },
-            { path: "/queue", element: <LegacyQueueRedirect /> },
             {
               path: "/artifacts",
               element: <ArtifactListRoute />,
@@ -178,20 +165,11 @@ export function applicationRoutes(): RouteObject[] {
                 },
               ],
             },
-            {
-              path: "/operations/runtime-configs",
-              element: <LegacyRuntimeConfigurationRedirect />,
-            },
-            {
-              path: "/operations/runtime-configs/:name/:version",
-              element: <LegacyRuntimeConfigurationRedirect />,
-            },
             { path: "/runs/:runId", element: <RunDetailRoute /> },
             {
               path: "/runs/:runId/artifacts/:namespace/:name",
               element: <RunArtifactDetailRoute />,
             },
-            { path: "/skills", element: <LegacyCatalogRedirect /> },
             {
               path: "/catalog",
               element: <CatalogLayoutRoute />,

@@ -328,11 +328,11 @@ http:
 	}
 	privateURL := "https://" + privateAddress
 	h.server = startProcess(t, "Go Scan Server", h.repositoryRoot, map[string]string{
-		"CONTRACTOR_DATABASE_URL": h.databaseURL, "CONTRACTOR_CONFIG_ROOT": configRoot,
+		"CONTRACTOR_DATABASE_URL": h.databaseURL, "CONTRACTOR_OPERATOR_CONFIG_ROOT": configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN": publicAddress, "CONTRACTOR_PRIVATE_LISTEN": privateAddress, "CONTRACTOR_PRIVATE_URL": privateURL,
 		"CONTRACTOR_CA_FILE": caPaths.Certificate, "CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPaths.Certificate, "CONTRACTOR_CONTROL_PLANE_KEY_FILE": controlPaths.PrivateKey,
-		"CONTRACTOR_PUBLIC_USER_ID": h.userID, "CONTRACTOR_PUBLIC_BEARER_TOKEN": publicToken,
-		"CONTRACTOR_LOCAL_AUTH_FILE": writeE2ELocalAuth(t, h.temporaryRoot, h.userID), "CONTRACTOR_BROWSER_ORIGINS": h.browserBaseURL,
+		"CONTRACTOR_PUBLIC_BEARER_TOKEN": publicToken,
+		"CONTRACTOR_LOCAL_AUTH_FILE":     writeE2ELocalAuth(t, h.temporaryRoot, h.userID), "CONTRACTOR_BROWSER_ORIGINS": h.browserBaseURL,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN": "",
 	}, serverBinary, "serve")
 	waitForHTTP(t, ctx, h.server, h.client, h.baseURL+"/readyz", http.StatusOK)

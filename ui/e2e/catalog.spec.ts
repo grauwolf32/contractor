@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import packageMetadata from "../package.json" with { type: "json" };
 
-test("Catalog discovers exact Workflows and Agent usage while preserving legacy routes", async ({
+test("Catalog discovers exact Workflows and Agent usage from direct routes", async ({
   page,
 }, testInfo) => {
   const origin = new URL(String(testInfo.project.use.baseURL)).origin;
@@ -137,7 +137,7 @@ test("Catalog discovers exact Workflows and Agent usage while preserving legacy 
     });
   });
 
-  await page.goto("/workflows?keep=yes#section");
+  await page.goto("/catalog/workflows?keep=yes#section");
   await expect(page).toHaveURL(`${origin}/catalog/workflows?keep=yes#section`);
   await expect(
     page.getByRole("heading", { name: "OpenAPI source analysis" }),
@@ -161,6 +161,7 @@ test("Catalog discovers exact Workflows and Agent usage while preserving legacy 
   await page.getByRole("link", { name: "Agents", exact: true }).click();
   await page.getByLabel("Search agents").fill("evidence-analyst");
   await expect(page).toHaveURL(/q=evidence-analyst/);
+  await page.getByLabel("Version of evidence-analyst").selectOption("1");
   await page.locator('a[href="/catalog/agents/evidence-analyst/1"]').click();
   await expect(
     page.getByRole("heading", { name: "Evidence analyst", exact: true }),
@@ -211,7 +212,7 @@ test("Catalog discovers exact Workflows and Agent usage while preserving legacy 
     path: testInfo.outputPath("catalog-agent-mobile.png"),
     fullPage: true,
   });
-  await page.goto("/skills?keep=yes#section");
+  await page.goto("/catalog/skills?keep=yes#section");
   await expect(page).toHaveURL(`${origin}/catalog/skills?keep=yes#section`);
   await expect(
     page.getByRole("heading", { name: "Skills", exact: true }),

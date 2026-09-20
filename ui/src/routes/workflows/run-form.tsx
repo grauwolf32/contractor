@@ -1730,7 +1730,7 @@ function WorkflowRunFormBody({
                           to={
                             projectId === undefined
                               ? "/artifacts"
-                              : `/projects/${encodeURIComponent(projectId)}#project-artifacts`
+                              : `/projects/${encodeURIComponent(projectId)}/artifacts`
                           }
                         >
                           Upload one

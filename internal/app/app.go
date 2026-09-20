@@ -27,20 +27,17 @@ import (
 
 // Config contains process-level settings needed by the bootstrap server.
 type Config struct {
-	Operations            OperationalSettings
-	ListenAddress         string
-	PrivateListenAddress  string
-	PrivateURL            string
-	ShutdownTimeout       time.Duration
-	RuntimeRequestTimeout time.Duration
-	WorkerRequestTimeout  time.Duration
-	DatabaseURL           string
-	ArtifactBlobBackend   artifacts.BlobBackend
-	ArtifactBlobPath      string
-	GitImport             gitimport.Config
-	// ConfigRoot is the deprecated alias retained for callers that inspect
-	// parsed settings. Runtime composition uses the two explicit roots below.
-	ConfigRoot                  string
+	Operations                  OperationalSettings
+	ListenAddress               string
+	PrivateListenAddress        string
+	PrivateURL                  string
+	ShutdownTimeout             time.Duration
+	RuntimeRequestTimeout       time.Duration
+	WorkerRequestTimeout        time.Duration
+	DatabaseURL                 string
+	ArtifactBlobBackend         artifacts.BlobBackend
+	ArtifactBlobPath            string
+	GitImport                   gitimport.Config
 	OperatorConfigRoot          string
 	ManagedConfigRoot           string
 	CredentialMasterKeyFile     string
@@ -53,7 +50,6 @@ type Config struct {
 	DevelopmentPlannerToken     contracts.SecretString
 	PlannerTimeout              time.Duration
 	PublicBearerToken           contracts.SecretString
-	PublicUserID                string
 	LocalAuthFile               string
 	BrowserOrigins              []string
 	InsecureLoopbackCookie      bool
@@ -102,9 +98,6 @@ func RunCLI(
 	bootstrap, err := auth.LoadBootstrap(cfg.LocalAuthFile)
 	if err != nil {
 		return fmt.Errorf("load local authentication: %w", err)
-	}
-	if strings.TrimSpace(cfg.PublicUserID) != "" && cfg.PublicUserID != bootstrap.Principal.UserID {
-		return errors.New("CONTRACTOR_PUBLIC_USER_ID does not match local-auth userId")
 	}
 	authentication, err := auth.NewService(bootstrap, auth.Options{})
 	if err != nil {
