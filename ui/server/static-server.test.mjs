@@ -205,6 +205,68 @@ test("Project Workflow Run URLs serve the shell directly on GET and HEAD", async
   }
 });
 
+test("encoded client identities serve the same shell on direct GET and HEAD", async (t) => {
+  const { origin } = await fixture(t);
+  const project = encodeURIComponent("project:example");
+  const audit = encodeURIComponent("audit:example");
+  const run = encodeURIComponent("run:example");
+  const version = encodeURIComponent("1.0.0+local");
+  for (const path of [
+    `/runs/configuration/default/${version}`,
+    `/operations/runtime-configs/default/${version}`,
+    `/projects/${project}`,
+    `/projects/${project}/artifacts`,
+    `/projects/${project}/artifacts/sources/service`,
+    `/projects/${project}/audits/${audit}/coverage`,
+    `/projects/${project}/workflows/artifact-copy/1/run`,
+    `/evals/${project}`,
+    `/evals/${project}/artifacts/sources/service`,
+    `/runs/${run}`,
+    `/runs/${run}/artifacts/outputs/result`,
+  ]) {
+    const get = await rawRequest(origin, path);
+    assert.equal(get.status, 200, path);
+    assert.equal(get.body, "<!doctype html><title>UI</title>");
+    const head = await rawRequest(origin, path, "HEAD");
+    assert.equal(head.status, 200, path);
+    assert.equal(head.body, "");
+    assert.equal(head.headers["content-length"], get.headers["content-length"]);
+    assert.equal(head.headers["cache-control"], "no-store");
+  }
+});
+
+test("decoding client identities preserves route and traversal boundaries", async (t) => {
+  const { origin } = await fixture(t);
+  for (const path of [
+    "/runs/configuration/default/1%2Flocal",
+    "/runs/configuration/default/1%5Clocal",
+    "/projects/project%00id",
+    "/projects/project%3Aexample/%2e%2e/runs",
+    "/projects/project%3Aexample/artifacts/sources/%",
+  ]) {
+    assert.equal((await rawRequest(origin, path)).status, 400, path);
+  }
+  for (const path of [
+    "/runs/configuration/default/1%252Blocal",
+    "/projects/project%253Aexample/workflows/artifact-copy/1/run",
+    "/projects/project%3Aexample/unknown",
+    "/runs/configuration/default/1%3Fextra",
+    "/runs/configuration/default/1%23extra",
+    "/%76%31/auth/session",
+    "/%61pi/runs",
+    "/%70rivate/control",
+  ]) {
+    const response = await rawRequest(origin, path, "GET", {
+      Accept: "text/html",
+    });
+    assert.equal(response.status, 404, path);
+    assert.doesNotMatch(response.body, /<title>UI<\/title>/, path);
+    if (/^\/%(?:76|61|70)/.test(path)) {
+      assert.equal(response.body, "not found\n", path);
+    }
+  }
+});
+
 test("runtime config, health and hashed assets have distinct cache policy", async (t) => {
   const { origin } = await fixture(t);
   const configResponse = await fetch(`${origin}/runtime-config.json`);

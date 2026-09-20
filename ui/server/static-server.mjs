@@ -29,7 +29,7 @@ const CLIENT_ROUTE_PATTERNS = [
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:artifacts|workflows|runs|audits|findings|settings)$/,
-  /^\/projects\/[A-Za-z0-9](?:[A-Za-z0-9_.:-]|%3[aA]){0,255}\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\/run$/,
+  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\/run$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:overview|coverage|findings|checks|reviews|runs|report)$/,
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
@@ -208,7 +208,7 @@ function requestPath(requestTarget) {
   ) {
     throw new URIError("unsafe path");
   }
-  return new URL(requestTarget, "http://contractor-ui.invalid").pathname;
+  return decodedPath;
 }
 
 async function readRegularFile(path) {
