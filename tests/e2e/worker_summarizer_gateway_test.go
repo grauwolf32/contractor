@@ -328,6 +328,9 @@ func (g *summarizerGateway) writeCompletion(
 
 func (g *summarizerGateway) scriptedProviderFailure(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
+	// This scenario tests Stage retryability after one scripted request.
+	// Suppress transport retries without changing the retryable HTTP 504.
+	w.Header().Set("X-Should-Retry", "false")
 	w.WriteHeader(http.StatusGatewayTimeout)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"error": map[string]any{
