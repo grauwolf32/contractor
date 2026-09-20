@@ -6417,6 +6417,13 @@ components:
       "maxLength": 128,
       "pattern": "^[a-z0-9][a-z0-9._-]*$"
     }
+    EvalCheckParameterName: {
+      "description": "Evaluator-defined parameter key, including camelCase names such as mediaType.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+    }
     EvalOpaque: {
       "type": "string",
       "minLength": 1,
@@ -6944,7 +6951,7 @@ components:
         "parameters": {
           "type": "object",
           "propertyNames": {
-            "$ref": "#/components/schemas/EvalId"
+            "$ref": "#/components/schemas/EvalCheckParameterName"
           },
           "additionalProperties": {
             "type": "string",

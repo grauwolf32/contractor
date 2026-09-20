@@ -8,6 +8,13 @@
       "maxLength": 128,
       "pattern": "^[a-z0-9][a-z0-9._-]*$"
     },
+    "CheckParameterName": {
+      "description": "Evaluator-defined parameter key, including camelCase names such as mediaType.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+    },
     "Opaque": {
       "type": "string",
       "minLength": 1,
@@ -524,7 +531,7 @@
         "parameters": {
           "type": "object",
           "propertyNames": {
-            "$ref": "#/$defs/Id"
+            "$ref": "#/$defs/CheckParameterName"
           },
           "additionalProperties": {
             "type": "string",
