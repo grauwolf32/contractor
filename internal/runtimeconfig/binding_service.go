@@ -13,12 +13,12 @@ import (
 type BindingService struct {
 	pool        *pgxpool.Pool
 	repository  *Repository
-	credentials RuntimeCredentialCatalog
+	credentials TransactionRuntimeCredentialCatalog
 }
 
 func NewBindingService(
 	pool *pgxpool.Pool,
-	credentials RuntimeCredentialCatalog,
+	credentials TransactionRuntimeCredentialCatalog,
 ) (*BindingService, error) {
 	if pool == nil || credentials == nil {
 		return nil, errors.New("RuntimeConfig binding service dependencies are incomplete")
@@ -79,7 +79,7 @@ func (s *BindingService) Rebind(
 			if !samePrincipalSnapshots(current, locked) {
 				return ErrPrecondition
 			}
-			if err := s.validateTargetWith(ctx, repository, ref); err != nil {
+			if err := s.validateTargetInTransaction(ctx, tx, ref); err != nil {
 				return err
 			}
 			result, err = repository.Rebind(ctx, label, expectedRevision, ref, actor, at)
@@ -117,15 +117,26 @@ func (s *BindingService) Delete(ctx context.Context, label string, expectedRevis
 }
 
 func (s *BindingService) validateTarget(ctx context.Context, ref Ref) error {
-	return s.validateTargetWith(ctx, s.repository, ref)
+	return s.validateTargetWith(ctx, s.repository, s.credentials, ref)
 }
 
-func (s *BindingService) validateTargetWith(ctx context.Context, repository *Repository, ref Ref) error {
+func (s *BindingService) validateTargetInTransaction(ctx context.Context, tx pgx.Tx, ref Ref) error {
+	validator, err := s.credentials.ForRuntimeTransaction(tx)
+	if err != nil {
+		return err
+	}
+	if validator == nil {
+		return errors.New("transaction Runtime credential validator is not configured")
+	}
+	return s.validateTargetWith(ctx, NewRepository(tx), validator, ref)
+}
+
+func (s *BindingService) validateTargetWith(ctx context.Context, repository *Repository, validator RuntimeCredentialValidator, ref Ref) error {
 	version, err := repository.GetVersionByRef(ctx, ref)
 	if err != nil {
 		return err
 	}
-	return validateSpecRuntimeCredentials(ctx, version.Spec, s.credentials)
+	return validateSpecRuntimeCredentials(ctx, version.Spec, validator)
 }
 
 func samePrincipalSnapshots(left, right []RuntimeAgentPrincipal) bool {

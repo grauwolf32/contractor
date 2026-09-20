@@ -370,6 +370,10 @@ func assertRuntimeConfigSQLState(t *testing.T, err error, want string) {
 
 type allowRuntimeCredentialCatalog struct{}
 
+func (catalog allowRuntimeCredentialCatalog) ForRuntimeTransaction(pgx.Tx) (RuntimeCredentialValidator, error) {
+	return catalog, nil
+}
+
 func (allowRuntimeCredentialCatalog) ValidateRuntimeCredential(context.Context, string, ...string) error {
 	return nil
 }

@@ -116,7 +116,7 @@ func (s *ManagementService) CreateBinding(
 				result = replayed
 				return nil
 			}
-			if err := s.bindings.validateTargetWith(ctx, repository, ref); err != nil {
+			if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
 				return err
 			}
 			binding, err := repository.CreateBinding(ctx, label, ref, actor, at)
@@ -199,7 +199,7 @@ func (s *ManagementService) Rebind(
 			if !samePrincipalSnapshots(current, locked) {
 				return ErrPrecondition
 			}
-			if err := s.bindings.validateTargetWith(ctx, repository, ref); err != nil {
+			if err := s.bindings.validateTargetInTransaction(ctx, tx, ref); err != nil {
 				return err
 			}
 			binding, err := repository.Rebind(ctx, label, expectedRevision, ref, actor, at)

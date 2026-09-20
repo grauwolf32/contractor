@@ -22,6 +22,16 @@ func NewRuntimeCredentialRepository(db persistencepostgres.DBTX) *RuntimeCredent
 	return &RuntimeCredentialRepository{db: db}
 }
 
+// Get exposes only active metadata through this repository's connection. It
+// also serves transaction-scoped placement without involving the pool service.
+func (r *RuntimeCredentialRepository) Get(ctx context.Context, credentialID string) (RuntimeCredentialMetadata, error) {
+	record, err := r.GetActiveRecord(ctx, credentialID)
+	if err != nil {
+		return RuntimeCredentialMetadata{}, err
+	}
+	return record.Metadata, nil
+}
+
 func (r *RuntimeCredentialRepository) CountActive(ctx context.Context) (int64, error) {
 	var count int64
 	if r == nil || r.db == nil || r.db.QueryRow(ctx, `

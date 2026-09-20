@@ -89,6 +89,14 @@ type RuntimeCredentialCatalog interface {
 	CredentialReferenceBarrier
 }
 
+// TransactionRuntimeCredentialCatalog retains the same lifecycle fence while
+// binding validation to the transaction which will persist a new reference.
+// The returned validator must not borrow a second pooled connection.
+type TransactionRuntimeCredentialCatalog interface {
+	RuntimeCredentialCatalog
+	ForRuntimeTransaction(pgx.Tx) (RuntimeCredentialValidator, error)
+}
+
 func validateSpecRuntimeCredentials(
 	ctx context.Context, spec Spec, validator RuntimeCredentialValidator,
 ) error {

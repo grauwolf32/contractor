@@ -77,7 +77,8 @@ func configureControlPlane(
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
 		Pool: pool, Registry: registry, Gateways: configurationManager,
 		LLMCredentials: credentialSet.provider, RuntimeCredentials: credentialSet.runtime,
-		CredentialGuard: credentialSet.lifecycle, PerformanceMetrics: cfg.PerformanceMetrics,
+		TransactionLLMCredentials: credentialSet.transactionLookup,
+		CredentialGuard:           credentialSet.lifecycle, PerformanceMetrics: cfg.PerformanceMetrics,
 	})
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure candidate Runtime placement: %w", err)

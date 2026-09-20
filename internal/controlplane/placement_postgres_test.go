@@ -163,6 +163,7 @@ func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *tes
 		ctx, pool, request, request.Bindings[0], AuthenticatedPrincipal{
 			RuntimeAgentID: runtimeAgentID, Labels: []string{"site"}, LabelRevision: 1,
 		},
+		placementCredentialLookups{llm: fixture.allocator.llmCredentials, runtime: fixture.allocator.runtimeCredentials},
 	)
 	if err != nil || next.WorkerTelemetry == nil ||
 		next.WorkerTelemetry.Endpoint != "https://new-otel.example/v1/traces" {
@@ -301,6 +302,9 @@ func newPlacementFixture(
 		Pool: pool, Registry: registry,
 		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
 		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (workflowconfig.CredentialLookup, error) { return llmCredentials, nil },
+		),
 		CredentialGuard: placementGuardFunc(func(_ context.Context, fn func() error) error { return fn() }),
 	})
 	if err != nil {

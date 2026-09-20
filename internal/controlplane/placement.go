@@ -34,37 +34,41 @@ type PlacementRuntimeCredentialLookup interface {
 }
 
 type PlacementAllocatorOptions struct {
-	Pool               *pgxpool.Pool
-	Registry           *InMemoryRegistry
-	Gateways           PlacementGatewayLookup
-	LLMCredentials     workflowconfig.CredentialLookup
-	RuntimeCredentials PlacementRuntimeCredentialLookup
-	CredentialGuard    PlacementCredentialGuard
-	PerformanceMetrics bool
+	Pool                      *pgxpool.Pool
+	Registry                  *InMemoryRegistry
+	Gateways                  PlacementGatewayLookup
+	LLMCredentials            workflowconfig.CredentialLookup
+	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+	RuntimeCredentials        PlacementRuntimeCredentialLookup
+	CredentialGuard           PlacementCredentialGuard
+	PerformanceMetrics        bool
 }
 
 // PlacementAllocator composes immutable SQL catalogs with the process-local
 // liveness Registry. Every potentially blocking lookup happens outside the
 // Registry mutex; only compact compatibility edges cross that boundary.
 type PlacementAllocator struct {
-	pool               *pgxpool.Pool
-	registry           *InMemoryRegistry
-	gateways           PlacementGatewayLookup
-	llmCredentials     workflowconfig.CredentialLookup
-	runtimeCredentials PlacementRuntimeCredentialLookup
-	credentialGuard    PlacementCredentialGuard
-	performanceMetrics bool
+	pool                      *pgxpool.Pool
+	registry                  *InMemoryRegistry
+	gateways                  PlacementGatewayLookup
+	llmCredentials            workflowconfig.CredentialLookup
+	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+	runtimeCredentials        PlacementRuntimeCredentialLookup
+	credentialGuard           PlacementCredentialGuard
+	performanceMetrics        bool
 }
 
 func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocator, error) {
 	if options.Pool == nil || options.Registry == nil || options.Gateways == nil ||
-		options.LLMCredentials == nil || options.RuntimeCredentials == nil || options.CredentialGuard == nil {
+		options.LLMCredentials == nil || options.TransactionLLMCredentials == nil ||
+		options.RuntimeCredentials == nil || options.CredentialGuard == nil {
 		return nil, errors.New("candidate placement dependencies are incomplete")
 	}
 	return &PlacementAllocator{
 		pool: options.Pool, registry: options.Registry, gateways: options.Gateways,
 		llmCredentials: options.LLMCredentials, runtimeCredentials: options.RuntimeCredentials,
-		credentialGuard: options.CredentialGuard, performanceMetrics: options.PerformanceMetrics,
+		transactionLLMCredentials: options.TransactionLLMCredentials,
+		credentialGuard:           options.CredentialGuard, performanceMetrics: options.PerformanceMetrics,
 	}, nil
 }
 
@@ -102,7 +106,8 @@ func (a *PlacementAllocator) ReserveAllContext(
 			if !isBindingCompatible(candidate.Registration, binding) {
 				continue
 			}
-			resolved, err := a.resolveCandidate(ctx, a.pool, request, binding, candidate.Principal)
+			resolved, err := a.resolveCandidate(ctx, a.pool, request, binding, candidate.Principal,
+				placementCredentialLookups{llm: a.llmCredentials, runtime: a.runtimeCredentials})
 			if err != nil {
 				if contextError := ctx.Err(); contextError != nil {
 					return nil, contextError
@@ -226,6 +231,11 @@ func (a *PlacementAllocator) pinReservations(
 	for _, binding := range request.Bindings {
 		bindings[binding.LogicalAgentName] = binding
 	}
+	llmLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, a.transactionLLMCredentials)
+	if err != nil {
+		return err
+	}
+	lookups := placementCredentialLookups{llm: llmLookup, runtime: credentials.NewRuntimeCredentialRepository(tx)}
 	for _, reservation := range reservations {
 		candidate := candidates[reservation.Grant.RuntimeInstanceID]
 		principal, ok := principalsByID[reservation.Grant.RuntimeAgentID]
@@ -237,7 +247,7 @@ func (a *PlacementAllocator) pinReservations(
 		if !ok {
 			return errors.New("selected placement references an unknown logical Agent")
 		}
-		resolved, err := a.resolveCandidate(ctx, tx, request, binding, candidate.Principal)
+		resolved, err := a.resolveCandidate(ctx, tx, request, binding, candidate.Principal, lookups)
 		if err != nil {
 			return placementCatalogError(err)
 		}
@@ -311,6 +321,7 @@ func (a *PlacementAllocator) resolveCandidate(
 	request ReservationRequest,
 	binding BindingRequirement,
 	principal AuthenticatedPrincipal,
+	lookups placementCredentialLookups,
 ) (runtimeconfig.ResolvedRuntimeConfig, error) {
 	if request.RuntimeConfig == nil || binding.RuntimeSelection == nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, runtimeconfig.ErrInvalid
@@ -361,7 +372,7 @@ func (a *PlacementAllocator) resolveCandidate(
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
-	llmCredentials, runtimeCredentials, err := a.credentialCatalogs(ctx, *binding.RuntimeSelection, allConfigs)
+	llmCredentials, runtimeCredentials, err := lookups.catalogs(ctx, *binding.RuntimeSelection, allConfigs)
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
@@ -418,7 +429,14 @@ func (a *PlacementAllocator) gatewayCatalog(
 	return result, nil
 }
 
-func (a *PlacementAllocator) credentialCatalogs(
+// Keep SQL-backed lookup ownership explicit. Optimistic resolution uses pool
+// readers; the recheck under the lifecycle barrier uses transaction readers.
+type placementCredentialLookups struct {
+	llm     workflowconfig.CredentialLookup
+	runtime PlacementRuntimeCredentialLookup
+}
+
+func (lookups placementCredentialLookups) catalogs(
 	ctx context.Context,
 	selection workflowconfig.ResolvedConsumerExecutionConfig,
 	configs []runtimeconfig.PinnedRuntimeConfig,
@@ -437,7 +455,7 @@ func (a *PlacementAllocator) credentialCatalogs(
 	}
 	llmResult := make(map[string]runtimeconfig.LLMCredentialAuthorization, len(llmIDs))
 	for id := range llmIDs {
-		metadata, err := a.llmCredentials.LookupLLMCredential(ctx, id)
+		metadata, err := lookups.llm.LookupLLMCredential(ctx, id)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -449,7 +467,7 @@ func (a *PlacementAllocator) credentialCatalogs(
 	}
 	runtimeResult := make(map[string]contracts.RuntimeCredentialKind, len(runtimeIDs))
 	for id := range runtimeIDs {
-		metadata, err := a.runtimeCredentials.Get(ctx, id)
+		metadata, err := lookups.runtime.Get(ctx, id)
 		if err != nil {
 			return nil, nil, err
 		}

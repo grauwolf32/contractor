@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -59,11 +60,7 @@ func (s *RuntimeCredentialService) Get(ctx context.Context, credentialID string)
 	if s == nil || s.repository == nil {
 		return RuntimeCredentialMetadata{}, errors.New("Runtime credential service is not configured")
 	}
-	record, err := s.repository.GetActiveRecord(ctx, credentialID)
-	if err != nil {
-		return RuntimeCredentialMetadata{}, err
-	}
-	return record.Metadata, nil
+	return s.repository.Get(ctx, credentialID)
 }
 
 func (s *RuntimeCredentialService) Create(
@@ -172,11 +169,16 @@ func (s *RuntimeCredentialService) ValidateRuntimeCredential(
 	if s == nil || s.repository == nil {
 		return errors.New("Runtime credential service is not configured")
 	}
-	record, err := s.repository.GetActiveRecord(ctx, credentialID)
-	if err != nil {
-		return err
+	return s.repository.ValidateRuntimeCredential(ctx, credentialID, allowedKinds...)
+}
+
+// ForRuntimeTransaction supplies metadata validation only. The caller keeps
+// WithCredentialReferences held through commit; the transaction owns all SQL.
+func (s *RuntimeCredentialService) ForRuntimeTransaction(tx pgx.Tx) (runtimeconfig.RuntimeCredentialValidator, error) {
+	if s == nil || s.repository == nil || tx == nil {
+		return nil, errors.New("transaction Runtime credential validation is not configured")
 	}
-	return validateAllowedRuntimeKinds(record.Metadata.Kind, allowedKinds)
+	return NewRuntimeCredentialRepository(tx), nil
 }
 
 func (s *RuntimeCredentialService) WithCredentialReferences(ctx context.Context, fn func() error) error {
