@@ -88,6 +88,15 @@ progress:
       retained evidence hashes in tasks/evidence/v55-010.json. A1 and A2 are
       verified; V55-010 is completed. Installing Katana and deploying this new
       catalog/Runtime to the demo remain separate deployment actions.
+  - date: 2026-09-20
+    step: integrated_into_main
+    details: >-
+      Fast-forwarded local main to 2c0beee3cc701ff29f210f001e6d146cd7324548.
+      Preserved 98 pre-existing dirty paths; one concurrently edited E2E helper
+      needed a conflict-free three-way merge of its uncommitted Server settings
+      changes with the committed scanner-selection helper. The other dirty files
+      and staged diff remained byte-identical. Retained private integration
+      snapshots and merge evidence under .local/evidence/v55-010/.
 remaining: []
 verification:
   - >-

@@ -141,6 +141,19 @@
     {
       "path": ".local/evidence/v55-010/katana-upstream/seedfile-probe.json",
       "sha256": "5c57cb86632f0ed1176d7922bf0d2bbbc9defe6be4c66da818bd03e8027efae1"
+    },
+    {
+      "path": ".local/evidence/v55-010/merge-main.json",
+      "sha256": "1883874bc7b2428cf6e54f43cde0a833af701b7db38ac2e7fcd878c8a83be5ae"
     }
-  ]
+  ],
+  "integration": {
+    "previousMain": "e1ea6209713d1c8d637d1106ce92a4960a4a2c58",
+    "integratedRevision": "2c0beee3cc701ff29f210f001e6d146cd7324548",
+    "preservedDirtyFiles": 98,
+    "method": "fast-forward with conflict-free preservation of one unstaged patch",
+    "threeWayMergedPaths": [
+      "tests/e2e/scan_tools_test.go"
+    ]
+  }
 }
