@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-033",
+  "verified_on": "2026-09-20",
+  "implementation_commit": "58784b0229aab6c4dcda55cbfac6187563aa14de",
+  "task_start_commit": "bd059661988d747ef01432e3b44dc6323e5911d7",
+  "report": "docs/research/2026-09-20-v60-033-production-memory-staging.md",
+  "classification": "P2 mandatory release test fixture dependency omission; no production configuration defect",
+  "normative_basis": [
+    "docs/spec/15-worker-summarization.md: configured ref/digest/text pinned; omission keeps built-in legacy instructions",
+    "V47-004 configurable summarizer instructions",
+    "V48-004 production Memory catalog selection"
+  ],
+  "reproduction": {
+    "shared_target": "make release-verify -> make test-production-memory-e2e",
+    "failing_test": "TestProductionMemoryTemplatesAcrossProcesses",
+    "error": "agent-templates/artifact_builder_v2_memory.yaml: spec.summarizer: instructions: unknown instruction ref \"instructions/terminal-summarizer.md\"",
+    "log": ".local/v60-review/v60-033-release-failure.log",
+    "log_sha256": "cfc06dfd4b86066556d67e80eefdb4e0edcb3c4e27f48f6897447b6b42c081e9"
+  },
+  "environment": {
+    "go": "go1.25.6 linux/amd64; GOMAXPROCS=2, GOFLAGS=-p=2 -v",
+    "runtime": "Python 3.13.14, uv sync --locked from project lockfile",
+    "database": "Disposable PostgreSQL17; URL/credentials not recorded",
+    "models": "Local scripted Gateway only; no real models"
+  },
+  "checks": [
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestProductionMemoryConfigurationStaging$"
+      ],
+      "exit_code": 1,
+      "started_at_unix": 1789903780.809161,
+      "duration_seconds": 3.139,
+      "log": ".local/v60-review/v60-006-v60-033-staging-before.log",
+      "log_sha256": "c1f3483a2b1fe991370f33a304dbf20ffa81b8bcc957b5431fb4339c435108bd",
+      "go_reported_pass_events": 0,
+      "go_reported_fail_events": 3,
+      "go_reported_skip_events": 0,
+      "interpretation": "Regression setup mistake: fake Gateway URL lacked required absolute /v1 inference path; corrected before actual reproduction"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestProductionMemoryConfigurationStaging$"
+      ],
+      "exit_code": 1,
+      "started_at_unix": 1789903833.6174679,
+      "duration_seconds": 2.768,
+      "log": ".local/v60-review/v60-006-v60-033-staging-reproduction.log",
+      "log_sha256": "5cca3443bdf2f083606f9ccfaa21eab6fd33055aa14a805619ddaeef73c7f96b",
+      "go_reported_pass_events": 1,
+      "go_reported_fail_events": 2,
+      "go_reported_skip_events": 0,
+      "interpretation": "Confirmed pre-fix failure: configured alternate summarizer instructions missing; legacy omission passed"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestProductionMemoryConfigurationStaging$"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789903857.0438073,
+      "duration_seconds": 2.947,
+      "log": ".local/v60-review/v60-006-v60-033-staging-fixed.log",
+      "log_sha256": "de5c3214845d0835411b8acce8226c780632217f1303e96de0eb5eddf8c11ebc",
+      "go_reported_pass_events": 3,
+      "go_reported_fail_events": 0,
+      "go_reported_skip_events": 0,
+      "interpretation": "Both configured and legacy cases pass after the fixture dependency fix"
+    },
+    {
+      "command": [
+        "make",
+        "test-production-memory-e2e"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789903871.5407856,
+      "duration_seconds": 105.999,
+      "log": ".local/v60-review/v60-006-v60-033-production-memory.log",
+      "log_sha256": "0f8f260ac79e033d900310f3539cc7f6a656c6e1851c3e195b8c52234359ce36",
+      "go_reported_pass_events": 1,
+      "go_reported_fail_events": 0,
+      "go_reported_skip_events": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "started_at_unix": 1789904043.3148515,
+      "duration_seconds": 0.004,
+      "log": ".local/v60-review/v60-006-v60-033-diff-check.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "go_reported_pass_events": 0,
+      "go_reported_fail_events": 0,
+      "go_reported_skip_events": 0
+    }
+  ],
+  "acceptance": {
+    "A1": "Configured alternate Worker and summarizer refs resolve exact source content and template digests; real unmodified production process case passes",
+    "A2": "Legacy omitted summarizer instructions pass; pre-fix configured dependency omission reproduced and fixed",
+    "A3": "make test-production-memory-e2e passed in 105.999 s, one real process test, zero skips"
+  },
+  "boundaries": [
+    "Only tests/e2e fixture staging and focused regression changed",
+    "No production configuration, instruction bytes, behavior or existing assertions changed",
+    "Go pass/fail counts include parent and subtests",
+    "Full release-verify remains a separate aggregate gate owned by root; this evidence proves the corrected target"
+  ]
+}

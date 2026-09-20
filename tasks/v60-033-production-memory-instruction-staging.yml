@@ -3,7 +3,7 @@ id: V60-033
 title: Stage configured summarizer instructions in the production Memory process fixture
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V47-004, V48-004]
 languages: [go, markdown]
 goal: Restore exact production Memory template dependency staging in the existing process gate.
@@ -44,3 +44,14 @@ tests:
 verification_requirements:
   - Record the original release failure and passing targeted/process logs with hashes and counts.
   - Keep task start, implementation and subsequent completion metadata commits separate.
+
+verification:
+  date: 2026-09-20
+  report: docs/research/2026-09-20-v60-033-production-memory-staging.md
+  evidence: tasks/evidence/v60-033.json
+  results:
+    - Configured and legacy staging regressions passed; exact template content and digests preserved.
+    - make test-production-memory-e2e passed in 105.999 s with one real process test and zero skips.
+    - git diff --check passed; production configuration and process assertions unchanged.
+
+implementation_commit: 58784b0229aab6c4dcda55cbfac6187563aa14de
