@@ -308,6 +308,33 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	evidencePath := filepath.Join(temporaryRoot, "browser-evidence.json")
 	screenshotPath := filepath.Join(temporaryRoot, "browser-state.png")
 	playwrightOutput := filepath.Join(temporaryRoot, "playwright-output")
+	// These fixture journeys back the named Project, Audit, lifecycle,
+	// Scheduler and Performance browser gates alongside the real stack.
+	// Scan and managed Evals retain their own process fixtures and invocations.
+	requiredBrowserSpecs := []string{
+		"e2e/stack.spec.ts",
+		"e2e/audits.spec.ts",
+		"e2e/lifecycle-controls.spec.ts",
+		"e2e/project-workspace.spec.ts",
+		"e2e/run-repeat.spec.ts",
+		"e2e/scheduler-settings.spec.ts",
+		"e2e/performance.spec.ts",
+	}
+	browserReport := filepath.Join(temporaryRoot, "browser-report.json")
+	if evidence := os.Getenv("CONTRACTOR_UI_EVIDENCE_DIR"); evidence != "" {
+		directory, err := filepath.Abs(evidence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		invocationDirectory, err := os.MkdirTemp(directory, "run-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		browserReport = filepath.Join(invocationDirectory, "browser-report.json")
+	}
 	playwrightEnvironment := cleanEnvironment(map[string]string{
 		"CONTRACTOR_UI_STACK":               "1",
 		"CONTRACTOR_UI_E2E_BASE_URL":        uiURL,
@@ -322,12 +349,13 @@ func runBrowserStack(t *testing.T, evalMode string) {
 		"CONTRACTOR_UI_E2E_EVIDENCE_PATH":   evidencePath,
 		"CONTRACTOR_UI_E2E_SCREENSHOT_PATH": screenshotPath,
 		"CONTRACTOR_UI_E2E_OUTPUT_DIR":      playwrightOutput,
+		"PLAYWRIGHT_JSON_OUTPUT_FILE":       browserReport,
 	}, "PATH", "HOME", "XDG_CACHE_HOME", "COREPACK_HOME", "TMPDIR", "LANG", "LC_ALL", "TZ")
 	assertEnvironmentHasNoSecrets(t, playwrightEnvironment, secrets)
-	runChecked(
-		t, filepath.Join(repositoryRoot, "ui"), playwrightEnvironment,
-		"corepack", "pnpm", "exec", "playwright", "test", "e2e/stack.spec.ts",
-	)
+	browserArgs := append([]string{"pnpm", "exec", "playwright", "test", "--reporter=line,json"}, requiredBrowserSpecs...)
+	runChecked(t, filepath.Join(repositoryRoot, "ui"), playwrightEnvironment, "corepack", browserArgs...)
+	assertBrowserReport(t, browserReport, requiredBrowserSpecs)
+	t.Logf("Playwright execution report: %s", browserReport)
 	tracePaths := filesNamed(t, playwrightOutput, "trace.zip")
 
 	stack.assertRunOwnerBoundaries(userID)

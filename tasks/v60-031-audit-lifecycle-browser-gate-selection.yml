@@ -1,0 +1,42 @@
+schema_version: '1.0'
+id: V60-031
+title: Restore Audit lifecycle and repeat journeys to the mandatory browser gate
+milestone: project-review-v60
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V37-012]
+languages: [go, typescript, markdown]
+goal: Ensure the named Audit and lifecycle browser gates actually execute their promised Project and finding journeys.
+context:
+  authority: User requested completion of V60 reviews; V60-008 found required browser aliases silently omit their journey files.
+  specification:
+  - docs/spec/06-server-ui-and-operations.md
+  - docs/spec/18-run-and-workspace-lifecycle-controls.md
+  - docs/spec/19-audits.md
+  - docs/spec/ui-user-stories.md
+  finding: >-
+    efa7d5da narrowed TestBrowserOperationsStack to e2e/stack.spec.ts.
+    Both test-audits-browser and test-lifecycle-controls-browser depend only on
+    test-ui-stack, which no longer selected audits, lifecycle-controls, project-workspace, run-repeat, Scheduler settings
+    or Performance browser cases despite its Makefile contract.
+scope:
+  in:
+  - Select the six promised fixture journey files alongside the real stack journey.
+  - Validate the Playwright JSON report for executed cases in each required file and reject skipped, unexpected or flaky outcomes.
+  - Keep separate native/external Evals stack execution and real secret/owner boundary assertions.
+  - Record actual before/after selection and run the full affected browser gate without required skips.
+  out:
+  - Change application behavior, weaken browser assertions or replace real process checks with route fixtures.
+acceptance_criteria:
+- id: A1
+  text: The production-stack invocation selects audits, lifecycle-controls, project-workspace, run-repeat, scheduler-settings and performance cases as well as stack.spec.ts.
+- id: A2
+  text: Full test-ui-stack passes with required Chromium cases executed and separate real native/external Evals journeys preserved; evidence distinguishes fixture UI cases from real backend journeys.
+tests:
+- command: make test-ui-stack
+  covers: [A1, A2]
+verification_requirements:
+- Capture file selection before and after the correction; list-only evidence does not replace browser execution.
+- Reuse the isolated review PostgreSQL and local fake Gateways; no live models or parallel UI builds.
+- Record the source commit delta from the already running full release and rerun its affected full prerequisite after the correction.

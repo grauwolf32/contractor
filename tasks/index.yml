@@ -2827,6 +2827,7 @@ tasks:
   - {id: V60-028, file: v60-028-audit-gate-deletion-revision.yml}
   - {id: V60-029, file: v60-029-fault-matrix-test-location.yml}
   - {id: V60-030, file: v60-030-planner-test-formatting.yml}
+  - {id: V60-031, file: v60-031-audit-lifecycle-browser-gate-selection.yml}
   - {id: V61-001, file: v61-001-toolset-configuration-contracts.yml}
   - {id: V61-002, file: v61-002-toolset-runtime-config-store.yml}
   - {id: V61-003, file: v61-003-run-toolset-pinning-allocation.yml}
