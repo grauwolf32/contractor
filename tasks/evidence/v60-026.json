@@ -41,7 +41,8 @@
       "log": ".local/v60-review/v60-006-result-parity-before.log",
       "go_reported_pass_events": 14,
       "go_reported_skip_events": 0,
-      "python_summaries": []
+      "python_summaries": [],
+      "log_sha256": "f02966d3536b28554a1e76b6ae2a938ae053dc6a04ae96d7b9d59939f1f2a8b8"
     },
     {
       "command": [
@@ -60,7 +61,8 @@
       "go_reported_skip_events": 0,
       "python_summaries": [
         "18 passed, 133 deselected in 0.25s"
-      ]
+      ],
+      "log_sha256": "e1dbbafe19b4421542f3656a8d14bba1dba8412d04781af757c9cf38e59628c8"
     },
     {
       "command": [
@@ -80,7 +82,8 @@
       "log": ".local/v60-review/v60-006-result-parity-after.log",
       "go_reported_pass_events": 23,
       "go_reported_skip_events": 0,
-      "python_summaries": []
+      "python_summaries": [],
+      "log_sha256": "772cd56d8f9a3b9ef5a35920a247829f5f5c5e9db949814118aadc69022892a0"
     },
     {
       "command": [
@@ -99,7 +102,8 @@
       "log": ".local/v60-review/v60-006-result-parity-final.log",
       "go_reported_pass_events": 568,
       "go_reported_skip_events": 0,
-      "python_summaries": []
+      "python_summaries": [],
+      "log_sha256": "d9889ba231ee7049b0743f99d650e8c6ca88602bddf8e0d5c57910cacea8679b"
     },
     {
       "command": [
@@ -116,7 +120,8 @@
       "python_summaries": [
         "193 passed in 0.57s",
         "114 passed, 79 deselected in 0.42s"
-      ]
+      ],
+      "log_sha256": "d14c4ce8038c8a0375e3341f372151ea7fc7fd97aed7ab9d0d90151126881dcb"
     },
     {
       "command": [
@@ -130,7 +135,8 @@
       "log": ".local/v60-review/v60-006-lint.log",
       "go_reported_pass_events": 0,
       "go_reported_skip_events": 0,
-      "python_summaries": []
+      "python_summaries": [],
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
     }
   ],
   "regressions": [

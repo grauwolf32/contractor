@@ -24,7 +24,8 @@
       "log": ".local/v60-review/v60-006-v60-010-config.log",
       "go_reported_pass_events": 428,
       "go_reported_skip_events": 0,
-      "python_summaries": []
+      "python_summaries": [],
+      "log_sha256": "4b3311a8980b60e24a2731e45bb2dab5120ade988b7a7d088909297def347420"
     },
     {
       "command": [
@@ -42,7 +43,8 @@
         "193 passed in 0.57s",
         "114 passed, 79 deselected in 0.42s"
       ],
-      "reused_from": "V60-006, same relevant production source; target actually executed"
+      "reused_from": "V60-006, same relevant production source; target actually executed",
+      "log_sha256": "d14c4ce8038c8a0375e3341f372151ea7fc7fd97aed7ab9d0d90151126881dcb"
     },
     {
       "command": [
@@ -59,7 +61,8 @@
       "go_reported_pass_events": 84,
       "go_reported_skip_events": 0,
       "python_summaries": [],
-      "reused_from": "V60-006, same relevant production source; target actually executed"
+      "reused_from": "V60-006, same relevant production source; target actually executed",
+      "log_sha256": "eefccdf8bb3de2629fb15fd5ce8c195062096a12a92346b62d30449e74aadd17"
     },
     {
       "command": [
@@ -74,7 +77,8 @@
       "log": ".local/v60-review/v60-006-v60-010-instruction-configs.log",
       "go_reported_pass_events": 10,
       "go_reported_skip_events": 0,
-      "python_summaries": []
+      "python_summaries": [],
+      "log_sha256": "8b7f1d1af975ff262d2cfd2e5ab513fb46777fdb05562404a042d6c144022c60"
     },
     {
       "command": [
@@ -100,7 +104,8 @@
       "python_summaries": [
         "237 passed in 46.40s"
       ],
-      "scope": "Initial read-only sibling verification; repeated against exact committed archive after concurrent working-tree edits were observed"
+      "scope": "Initial read-only sibling verification; repeated against exact committed archive after concurrent working-tree edits were observed",
+      "log_sha256": "d9413cd787477b0c5c9132985fe6e936391cd02fb25223b37e93d7a8ef4dc88e"
     },
     {
       "command": [
@@ -127,7 +132,8 @@
         "237 passed in 55.48s"
       ],
       "source_commit": "d2ffd39ff4c214cf514225a8fd097824ac676c86",
-      "environment": "PYTHONDONTWRITEBYTECODE=1; PYTHONPATH set to immutable local archive evals/src; sibling existing venv Python 3.13.14; no cacheprovider"
+      "environment": "PYTHONDONTWRITEBYTECODE=1; PYTHONPATH set to immutable local archive evals/src; sibling existing venv Python 3.13.14; no cacheprovider",
+      "log_sha256": "28bf9136e54b271e32d5021520f5c9d6a3e12278a11f65d0ffbeaa91998319d6"
     },
     {
       "command": [
@@ -138,7 +144,8 @@
       "exit_code": 0,
       "started_at_unix": 1789901262.643629,
       "duration_seconds": 0.004,
-      "log": ".local/v60-review/v60-006-v60-010-diff-check.log"
+      "log": ".local/v60-review/v60-006-v60-010-diff-check.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ],
   "playground": {
