@@ -3,7 +3,7 @@ id: V60-039
 title: Check Project Workflow budget reports against the pinned execution policy
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-009]
 languages: [go, markdown]
 goal: Restore exact process budget assertions after production ModelPolicy consolidation without weakening accounting checks.
@@ -37,3 +37,9 @@ verification_requirements:
   - Preserve the real required-release failure, history and focused before/after evidence.
   - Keep tracked source frozen until the current required release invocation finishes.
   - Keep task-start, implementation and completion metadata commits separate.
+
+implementation_commit: ef7defc766b3c70b568829dcfc5d8bc0777dbcb7
+verification:
+  evidence: tasks/evidence/v60-039.json
+  report: docs/research/2026-09-20-v60-039-project-budget-fixture-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.

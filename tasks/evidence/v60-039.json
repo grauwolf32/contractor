@@ -1,0 +1,183 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-039",
+  "verified_at": "2026-09-20T13:10:35.212346+00:00",
+  "task_start_commit": "ba5d0fa30bd9b42ac843b29cb10cc2f1981c225d",
+  "status": "verified-ready-for-task-completion",
+  "report": "docs/research/2026-09-20-v60-039-project-budget-fixture-review.md",
+  "source_baseline": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+  "finding": {
+    "priority": "P2",
+    "owner": "tests/e2e/project_workflows_test.go assertProjectRunDurable",
+    "reproduction": "Succeeded dependency_discovery reports worker@2 limits 200/200/2500000 with exact expected observed counters 5/3/80. The assertion still requires obsolete limits 24/96/500000.",
+    "normative_basis": "Spec04 binds ModelPolicy attribution to immutable execution configuration. History394018a0 consolidated current production Project Workflow selections on worker@2.",
+    "correction": "Read expected limits from StageSpecSnapshot.ExecutionConfig.Agents[allocation.LogicalAgentName].ModelPolicy; retain exact limits, observed counters, missing usage and exhaustion assertions."
+  },
+  "required_release_failure": {
+    "source_log": ".local/v60-review/v60-release-verified.log",
+    "source_lines": [
+      32298,
+      32305
+    ],
+    "source_test": "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+    "test_seconds": 56.97,
+    "go_process_exit_code": 1,
+    "required_make_target": "test-project-workspaces-e2e",
+    "log": ".local/v60-review/v60-039-release-before.log",
+    "log_sha256": "94d0671c3a30109240390230ed3d71d9a7a0879a5e8aef4aa559faf95646368d"
+  },
+  "checks": [
+    {
+      "phase": "before",
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-039-before-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestProjectWorkerBudgetMatchesPinnedPolicy$"
+      ],
+      "exit_code": 1,
+      "seconds": 3.304,
+      "log": ".local/v60-review/v60-039-before.log",
+      "log_sha256": "90a7d49368b8939269d7a222b23b9df13ea9c4b0451ac652ec86f66486890992",
+      "go_fail_events": 1,
+      "go_skip_events": 0,
+      "note": "The overlay extracts the original stale numeric comparison into the proposed validator, preserving its rejection behavior. The required process gate independently reproduced the failure against unchanged source."
+    },
+    {
+      "phase": "after",
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-039-after-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestProjectWorkerBudgetMatchesPinnedPolicy$"
+      ],
+      "exit_code": 0,
+      "seconds": 3.076,
+      "log": ".local/v60-review/v60-039-after.log",
+      "log_sha256": "e002fcceb81abf1f6bd7d0431635d0ba6ff07bb14c8f97656431602e3aa7d08e",
+      "go_pass_events": 13,
+      "go_skip_events": 0
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-039-remainder-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestReviewProjectRemainingStageFixtures$"
+      ],
+      "exit_code": 0,
+      "seconds": 2.76,
+      "log": ".local/v60-review/v60-039-remainder.log",
+      "log_sha256": "ed568f4ce042bd9666714c5a4ff5ea578a3cdb2eea306dc290054e2fdacef42f",
+      "go_pass_events": 9,
+      "go_skip_events": 0,
+      "note": "Local disposable review overlay only; checks actual current catalog against all eight existing Gateway scripts without database/process execution."
+    },
+    {
+      "phase": "applied-source-focused",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestProjectWorkerBudgetMatchesPinnedPolicy$"
+      ],
+      "exit_code": 0,
+      "seconds": 2.79,
+      "log": ".local/v60-review/v60-039-focused-source.log",
+      "log_sha256": "80a7d495b336c4fc399fc1e8b583f56236f4b5d40c103e0964c8ee3a20903a49",
+      "go_pass_events": 13,
+      "go_skip_events": 0,
+      "implementation_commit": "ef7defc766b3c70b568829dcfc5d8bc0777dbcb7",
+      "execution": "Applied tracked sources; no Go overlay. Implementation commit identifies the tested change."
+    },
+    {
+      "phase": "integrated-full-target-before-V60-040",
+      "command": [
+        "make",
+        "test-project-workspaces-e2e"
+      ],
+      "execution": "Required target in fail-fast integrated invocation; Go process failed before the following Python workspace-process recipe could execute.",
+      "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "exit_code": 1,
+      "process_test_seconds": 56.39,
+      "go_process_package_seconds": 56.396,
+      "go_pass_events": 0,
+      "go_fail_events": 1,
+      "go_skip_events": 0,
+      "log": ".local/v60-review/v60-039-integrated-repeat-binding-failure.log",
+      "log_sha256": "afa351f598f7738e3ac367138795379287a2b126690c27b78ae1fdf8785ccd08",
+      "source_log": ".local/v60-review/v60-release-integrated.log",
+      "source_line_start": 2907,
+      "source_line_end": 2919,
+      "diagnosis": "Pinned budget assertions passed. The later physical-binding exact-set assertion omitted the required contractor-system/repeat-request record introduced byc0089806/spec03. Separate correctionV60-040; this is not a full-gate success."
+    },
+    {
+      "phase": "full-required-target",
+      "command": [
+        "make",
+        "test-project-workspaces-e2e"
+      ],
+      "execution": "Complete target recipe in the fail-fast integrated invocation, including Go process and subsequent Python workspace-process tests.",
+      "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+      "exit_code": 0,
+      "process_test_seconds": 164.99,
+      "go_process_package_seconds": 164.995,
+      "go_pass_events": 1,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "python_passed": 4,
+      "python_seconds": 0.95,
+      "python_skips": 0,
+      "log": ".local/v60-review/v60-039-040-full-target.log",
+      "log_sha256": "fa758c8c0b838243c3d319894728d86f62b6f07d542acd3ec949f68fee2661a0",
+      "source_log": ".local/v60-review/v60-release-complete.log",
+      "source_line_start": 1,
+      "source_line_end": 13,
+      "completion_observed_by": "Next target test-audits-process started normally in fail-fast make invocation."
+    }
+  ],
+  "acceptance": {
+    "A1": "Applied-source focused PASS (2.79s): 13 Go events, zero skips; each altered limit/counter, unavailable usage, exhaustion, absent budget/Agent and malformed snapshot rejects. Effective execution override wins over template defaults; original snapshot remains independent of later in-memory authoring changes.",
+    "A2": "PASS: complete make test-project-workspaces-e2e at e49c6523 after separate V60-040 fixture correction; real process164.99s plus Python4PASS0.95s, zero skips. Exact pinned budget, durable results, publications, lineage, restart, placement and cleanup assertions all passed."
+  },
+  "boundaries": [
+    "No production policy, Runtime, timeout or process assertion weakening.",
+    "Original focused checks used Go overlays during the previous source freeze; applied tracked-source tests subsequently passed without an overlay.",
+    "Before comparison overlay is extracted old logic, not an additional original checked-in test. Actual original process failure is separately retained.",
+    "All eight scripted stages pass current catalog/toolset/budget preflight; this is configuration evidence, not real process success.",
+    "Both required commands passed; completion metadata is separate from implementation. The overall release invocation remains in progress."
+  ],
+  "source_sha256": {
+    "tests/e2e/project_workflows_test.go": "6456757a5dfcbe805c728c400adbfc45b3d2c2a1cb5a432a5798d087ab046feb",
+    "tests/e2e/project_workflow_budget_test.go": "11934eb8328bc69a2bf0f547b04fa70ad6f1f640fe0cc18dc72ac01cff46b92e"
+  },
+  "implementation_commit": "ef7defc766b3c70b568829dcfc5d8bc0777dbcb7",
+  "prepared_patch": {
+    "path": ".local/v60-review/v60-039-project-budget.patch",
+    "sha256": "0f277cf6fd5ec517fa6596f83c6bee83efc77c51c7837b9af1875699627b8b6d",
+    "apply_check": "git apply --check passed before the patch was applied and committed; retained as preparation evidence."
+  },
+  "verified_source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+  "implementation_source_sha256": {
+    "tests/e2e/project_workflows_test.go": "6a107c639c5ccac0a50d948ca60af56722d34f2d8e7a6bbfca2959486dca417a",
+    "tests/e2e/project_workflow_budget_test.go": "11934eb8328bc69a2bf0f547b04fa70ad6f1f640fe0cc18dc72ac01cff46b92e"
+  }
+}
