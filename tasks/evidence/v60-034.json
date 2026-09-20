@@ -1,0 +1,252 @@
+{
+  "schema_version": "1.0",
+  "task_id": "V60-034",
+  "verified_at": "2026-09-20T13:17:59.162741+00:00",
+  "task_start_commit": "6f711bc3dfd50c493c522541b7f0ab26a42dd78e",
+  "implementation_commit": "020156fab8043a2dfe5c43188cd96dca547020ae",
+  "status": "verified-ready-for-task-completion",
+  "report": "docs/research/2026-09-20-v60-034-audit-catalog-fixture-review.md",
+  "finding": {
+    "priority": "P2",
+    "owner": "tests/e2e Audit catalog replacement fixture",
+    "reproduction": "Original copied catalog validates; original replacement removes shared instruction files required by surviving version-3 Workflows. The initial instruction-only fix passes config.Load but the full process restart fails because the surviving version-2 Audit profiles still refer to the removed current standard packages.",
+    "normative_basis": "The process removes authoring profiles and current standard bindings, restarts Server, and verifies unchanged pinned Audit history plus unavailable current catalog. Remaining Workflows need shared instructions; remaining Audit profiles must not depend on removed standards.",
+    "correction": "Initial implementation retains shared instructions. Applied followup also removes both version-2 profiles that require removed standards, extends current-profile absence assertions to both versions, and adds actual Server startup/standardsstore regression. Current-binding SQL deletion and all original historical-process assertions are unchanged."
+  },
+  "original_removed_files": [
+    "audit-profiles/owasp-asvs-5.0-l1-source-review.yaml",
+    "audit-profiles/owasp-top10-2025-source-risk.yaml",
+    "audit-standards/owasp-asvs-5.0.0",
+    "audit-standards/owasp-web-top10-2025",
+    "agent-templates/audit_asvs_source_verifier.yaml",
+    "agent-templates/audit_risk_source_checker.yaml",
+    "instructions/audit-asvs-source-verifier-worker.md",
+    "instructions/audit-risk-source-checker-worker.md",
+    "workflows/audit_asvs_source_verification.yaml",
+    "workflows/audit_top10_source_risk.yaml"
+  ],
+  "checks": [
+    {
+      "phase": "initial",
+      "command": [
+        "go",
+        "run",
+        "./cmd/contractor-server",
+        "config",
+        "validate",
+        "--root",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-034-bn3b09cq/configs"
+      ],
+      "exit_code": 0,
+      "seconds": 1.039,
+      "log": ".local/v60-review/v60-034-initial.log",
+      "log_sha256": "f5eb69afbef7d1ad3c839c8e53c2e1ccee995a1b0b3604dc91e79e1a02fb2b90"
+    },
+    {
+      "phase": "removed",
+      "command": [
+        "go",
+        "run",
+        "./cmd/contractor-server",
+        "config",
+        "validate",
+        "--root",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-034-bn3b09cq/configs"
+      ],
+      "exit_code": 1,
+      "seconds": 0.196,
+      "log": ".local/v60-review/v60-034-removed.log",
+      "log_sha256": "1fce71c775e634446edfa824e8b7b25a9ff57572b76a2148ae770d9eb3d18b91"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestAuditProgramCatalogReplacementPreservesSharedInstructions$"
+      ],
+      "exit_code": 0,
+      "seconds": 2.99,
+      "log": ".local/v60-review/v60-034-focused.log",
+      "log_sha256": "2494d9d5b2880897a45f1f78255d6b740bf375f0bd3523273d61b670f9c72b58",
+      "go_pass_events": 3,
+      "go_skip_events": 0
+    },
+    {
+      "command": [
+        "go",
+        "run",
+        "./cmd/contractor-server",
+        "config",
+        "validate",
+        "--root",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-034-bn3b09cq/configs"
+      ],
+      "exit_code": 0,
+      "seconds": 0.253,
+      "log": ".local/v60-review/v60-034-fixed-cli.log",
+      "log_sha256": "9e6e39fdbb230ba4bfdd43da3c1fdd0f22e74bbdacebccca0acb0c68113bc124",
+      "go_pass_events": 0,
+      "go_skip_events": 0
+    },
+    {
+      "phase": "full-production-process-before-followup",
+      "command": [
+        "make",
+        "test-audits-process"
+      ],
+      "invocation": "Target inside the recorded make -k release invocation; overall release is failed, not passed.",
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "exit_code": 1,
+      "go_package_seconds": 481.807,
+      "go_pass_events": 2,
+      "go_fail_events": 1,
+      "go_skip_events": 0,
+      "log": ".local/v60-review/v60-034-release-process-before.log",
+      "log_sha256": "e1d9f70930a49b6c96702d03aee3804fa05e2eb4a94450beab5a7541add1f2ec",
+      "original_log": ".local/v60-review/v60-release-verified.log",
+      "original_line_start": 32923,
+      "original_line_end": 32950
+    },
+    {
+      "phase": "followup-before",
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-034-followup-before-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestAuditProgramCatalogReplacementRestartsServer$"
+      ],
+      "exit_code": 1,
+      "seconds": 7.108,
+      "log": ".local/v60-review/v60-034-followup-before.log",
+      "log_sha256": "26c6b0536d1f6494661ecb336f715d09f5cc823f80a810485b240dc4ce47d08f",
+      "go_pass_events": 0,
+      "go_fail_events": 1,
+      "go_skip_events": 0,
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "execution": "Go overlay; tracked test sources were frozen during the release invocation."
+    },
+    {
+      "phase": "followup-after",
+      "command": [
+        "go",
+        "test",
+        "-overlay",
+        "/home/ruslan/src/contractor/.local/worktrees/v60-deep-review/.local/v60-review/v60-034-followup-after-overlay.json",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestAuditProgramCatalogReplacement(PreservesSharedInstructions|RestartsServer)$"
+      ],
+      "exit_code": 0,
+      "seconds": 6.482,
+      "log": ".local/v60-review/v60-034-followup-after.log",
+      "log_sha256": "5a616fb2a920d304b69193eec41e664c27e0d57be8e2ae5f4fd9559adb2faa14",
+      "go_pass_events": 4,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "source_commit": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
+      "execution": "Go overlay; tracked test sources were frozen during the release invocation."
+    },
+    {
+      "phase": "applied-source-focused",
+      "command": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "-count=1",
+        "./tests/e2e",
+        "-run",
+        "^TestAuditProgramCatalogReplacement(PreservesSharedInstructions|RestartsServer)$"
+      ],
+      "exit_code": 0,
+      "seconds": 9.17,
+      "log": ".local/v60-review/v60-034-followup-source.log",
+      "log_sha256": "1adbf85fec30d024f8b12600d03348872b76c26fd8df95fa4de13f8e7c978a3d",
+      "go_pass_events": 4,
+      "go_skip_events": 0,
+      "implementation_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "execution": "Applied tracked sources; no Go overlay. Implementation commit identifies the tested change."
+    },
+    {
+      "phase": "full-required-target",
+      "command": [
+        "make",
+        "test-audits-process"
+      ],
+      "execution": "Complete target recipe in the fail-fast integrated invocation; the following release lint target started only after this target passed.",
+      "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+      "exit_code": 0,
+      "go_package_seconds": 474.894,
+      "go_pass_events": 3,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "tests": [
+        {
+          "name": "TestAuditProgramsAcrossProductionProcesses",
+          "seconds": 363.73,
+          "status": "PASS"
+        },
+        {
+          "name": "TestHeterogeneousRuntimeCapabilityPlacement",
+          "seconds": 46.02,
+          "status": "PASS"
+        },
+        {
+          "name": "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "seconds": 65.13,
+          "status": "PASS"
+        }
+      ],
+      "log": ".local/v60-review/v60-034-full-target.log",
+      "log_sha256": "6d0d07e92789dafa9e6b55919244e0be565e33c5b4b7e3038261a6490817652b",
+      "source_log": ".local/v60-review/v60-release-complete.log",
+      "source_line_start": 14,
+      "source_line_end": 27
+    }
+  ],
+  "acceptance": {
+    "A1": "PASS on applied tracked followup: copied config preserves exact V3 workflows/instructions, both profile versions removed; actual Server restarts with both current standards absent, and exact retained Project standard pins remain readable with unchanged digests. Four Go PASS events, zero skips.",
+    "A2": "PASS: complete make test-audits-process at e49c6523, three Go PASS events/zero skips, package474.894s. The Audit journey363.73s confirms restart, both current profile versions/standards absent, and unchanged pinned baselines, coverage, reports and finding backtraces; both placement/concurrency tests also passed."
+  },
+  "boundaries": [
+    "Original CLI/config.Load checks use no database or models; followup restart regression uses an isolated database and loopback Server, with no Runtime/model requests.",
+    "All replacement configuration/database state is disposable; production code, source configs, current-binding deletion and historical-process assertions are unchanged.",
+    "Original failed CLI/process attempts remain preserved separately from the successful applied-source and full-process checks.",
+    "Both required commands passed; task completion metadata remains separate from the initial and followup implementation commits. The overall release invocation is still running and is not claimed passed."
+  ],
+  "initial_implementation_source_sha256": {
+    "tests/e2e/audit_programs_process_test.go": "88a4d810727fbd29c9d5205c8735ff5fe2857ba7b0a4e362177e0353a86a25e8",
+    "tests/e2e/audit_catalog_configuration_test.go": "74572fb41ca45f01194bda738c877081af91f03fc7b98bac2d021efc43ff1cbc"
+  },
+  "followup": {
+    "status": "applied-focused-and-full-process-verified",
+    "implementation_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+    "patch": ".local/v60-review/v60-034-followup.patch",
+    "patch_sha256": "e3dccbc9b10b47fc0dc3e65846f7c55ddf23216eb630d240e1cd12efcd4e3ff2",
+    "source_sha256": {
+      "tests/e2e/audit_programs_process_test.go": "5d7feb519109f10ae9312be2636393a793e391a4570c568f66434a19febb51df",
+      "tests/e2e/audit_catalog_configuration_test.go": "f23fed12bb606347c438a92785679872e443cb49328b6789e53ded0b66de3128",
+      "tests/e2e/audit_catalog_restart_test.go": "dc4da5500d5c426ae875813f0c83819edb9a0be695ac44e9507d2c3ebf00893d"
+    }
+  },
+  "source_sha256": {
+    "tests/e2e/audit_programs_process_test.go": "5d7feb519109f10ae9312be2636393a793e391a4570c568f66434a19febb51df",
+    "tests/e2e/audit_catalog_configuration_test.go": "f23fed12bb606347c438a92785679872e443cb49328b6789e53ded0b66de3128",
+    "tests/e2e/audit_catalog_restart_test.go": "dc4da5500d5c426ae875813f0c83819edb9a0be695ac44e9507d2c3ebf00893d"
+  },
+  "implementation_commits": [
+    "020156fab8043a2dfe5c43188cd96dca547020ae",
+    "747839c255fc3eef800281d837b1c57ab87f892d"
+  ],
+  "verified_source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b"
+}

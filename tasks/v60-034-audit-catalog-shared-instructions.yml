@@ -3,7 +3,7 @@ id: V60-034
 title: Preserve shared instructions in the Audit catalog replacement fixture
 milestone: project-review-v60
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V60-008]
 languages: [go, markdown]
 goal: Keep the disposable replacement catalog valid while proving retained Audit history survives loss of its original authoring entries.
@@ -39,3 +39,12 @@ verification_requirements:
   - Record the original successful validation and reproduced post-replacement failure before editing the fixture.
   - Use only disposable configuration/database state; preserve the production-process assertions.
   - Keep task-start, implementation and completion metadata commits separate.
+
+implementation_followup_commits:
+  - 747839c255fc3eef800281d837b1c57ab87f892d
+
+implementation_commit: 020156fab8043a2dfe5c43188cd96dca547020ae
+verification:
+  evidence: tasks/evidence/v60-034.json
+  report: docs/research/2026-09-20-v60-034-audit-catalog-fixture-review.md
+  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
