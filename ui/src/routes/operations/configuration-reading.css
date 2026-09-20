@@ -1,34 +1,3 @@
-.configuration-scope-links {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.7rem;
-  margin: 0.5rem 0 1rem;
-  font-size: 0.85rem;
-}
-.configuration-scope-label {
-  color: var(--muted-strong);
-}
-.configuration-scope-links a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-height);
-  padding: 0.4rem 0.55rem;
-  border-radius: 0.4rem;
-  overflow-wrap: anywhere;
-}
-.configuration-scope-links a:hover {
-  background: var(--surface-raised);
-}
-.configuration-scope-links a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-@media (max-width: 640px) {
-  .configuration-scope-label {
-    flex-basis: 100%;
-  }
-}
 .runtime-config-block:has(> legend input[type="checkbox"]:not(:checked))
   > :not(legend) {
   /* The shared checkbox label uses an important display rule. */

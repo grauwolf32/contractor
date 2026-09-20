@@ -1,4 +1,4 @@
-import { ConfigurationLinks } from "../configuration-links";
+import "../configuration-reading.css";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -33,7 +33,6 @@ export function ConfigurationListRoute() {
   });
   return (
     <div className="panel operations-library">
-      <ConfigurationLinks />
       <div className="section-heading">
         <div>
           <p className="eyebrow">Immutable published configuration</p>

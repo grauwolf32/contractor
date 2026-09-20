@@ -1,4 +1,4 @@
-import { ConfigurationLinks } from "../configuration-links";
+import "../configuration-reading.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
@@ -136,7 +136,6 @@ export function OperationsSettingsRoute() {
         </div>
       </header>
 
-      {canManageScheduler ? <ConfigurationLinks /> : null}
       <nav className="settings-directory" aria-label="Settings on this page">
         {canManageScheduler ? (
           <a href="#workflow-scheduling">

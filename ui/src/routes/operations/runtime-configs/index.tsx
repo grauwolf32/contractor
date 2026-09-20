@@ -1,4 +1,4 @@
-import { ConfigurationLinks } from "../configuration-links";
+import "../configuration-reading.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -1471,7 +1471,6 @@ export function RuntimeConfigurationRoute() {
     configs.error ?? labels.error ?? credentials.error ?? gateways.error;
   return (
     <>
-      <ConfigurationLinks />
       {inventoryError === null ? null : <ErrorNotice error={inventoryError} />}
       <div className="panel operations-library">
         <div className="section-heading">

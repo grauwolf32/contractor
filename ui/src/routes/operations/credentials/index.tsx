@@ -1,4 +1,4 @@
-import { ConfigurationLinks } from "../configuration-links";
+import "../configuration-reading.css";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -25,7 +25,6 @@ export function CredentialListRoute() {
   });
   return (
     <>
-      <ConfigurationLinks />
       <div className="panel operations-library">
         <div className="section-heading">
           <div>

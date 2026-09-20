@@ -1,4 +1,4 @@
-import { ConfigurationLinks } from "../configuration-links";
+import "../configuration-reading.css";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
@@ -27,7 +27,6 @@ function LoadedConfiguration({
   const clone = useRef<HTMLDetailsElement>(null);
   return (
     <>
-      <ConfigurationLinks />
       {resource.ref.kind === "model-policies" ||
       resource.ref.kind === "llm-gateways" ? (
         <button
