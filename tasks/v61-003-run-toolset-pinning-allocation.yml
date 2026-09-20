@@ -3,8 +3,8 @@ id: V61-003
 title: Pin shared toolset settings on Run and deliver only allocation-selected configuration
 milestone: toolset-runtime-configuration
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ba594c9ba7108666f05c1e2530ecf074b32c9655
 depends_on: [V61-002, V61-004, V25-005, V37-008]
 languages: [go, python, yaml]
 goal: >-
@@ -76,3 +76,10 @@ test_prerequisites:
   - Isolated CONTRACTOR_TEST_DATABASE_URL; mandatory Run/Audit/reference tests must execute rather than skip.
 verification_requirements:
   - Create the planned MCP redaction test module in this task and record emitted-wire plus persisted/public negative-secret assertions.
+verification_evidence:
+  - All required commands passed on 2026-09-20 with CONTRACTOR_TEST_DATABASE_URL set to the isolated contractor-v61-tests instance; all seven Go package race suites executed database cases.
+  - Public Run PostgreSQL tests exercised late-stage missing/clear/conflicting toolsets, concurrent idempotent creation, replay without workflow lookup after rebind, new-Run current binding selection and reload of original immutable settings.
+  - Placement PostgreSQL tests observed zero MCP credential lookups for native allocation, identical settings for search/fetch consumers and durable origins/credential references without connection bodies.
+  - Audit start/replay retained the exact MCP baseline and prevented credential deletion after unbinding; Run and two unreleased allocation holds protected the credential until both allocations were released. Existing trusted child-Run atomic replay tests also passed.
+  - Python required suite plus allocation/OTLP/content regressions passed 275 tests; private wire contains headers while repr, validation errors, Agent Card, exporter attributes and final reports exclude the header canary.
+  - Scheduler delivery/erasure, selected configuration checks, strict typed resolution roundtrip/clone and old wire golden/digest checks passed; Ruff and git diff checks passed.
