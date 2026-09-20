@@ -61,8 +61,16 @@ func TestAuditCompletionOptInDigestSnapshotAndClone(t *testing.T) {
 	if again.Workflows["check"].WorkerCompletion.Stage != "check" {
 		t.Fatal("snapshot shares completion pointer")
 	}
-	if _, err := auditProfileLegacyDigest(Selector{ID: profile.Ref.Name, Version: profile.Ref.Version}, profile); err == nil {
-		t.Fatal("legacy digest accepted a new completion choice")
+	// A reader cannot discard the pinned completion choice under the same digest.
+	binding := decoded.Workflows["check"]
+	binding.WorkerCompletion = nil
+	decoded.Workflows["check"] = binding
+	raw, err = json.Marshal(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodeResolvedAuditProfileSnapshot(raw); err == nil {
+		t.Fatal("snapshot accepted a removed completion choice without a matching digest")
 	}
 }
 

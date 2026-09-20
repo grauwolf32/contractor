@@ -1,7 +1,7 @@
 # Legacy compatibility removal — analysis and plan
 
-Status: C01–C07 and D01 implemented, verified and integrated into local `main`;
-D02–D07 remain planned.
+Status: C01–C07 and D01–D02 implemented, verified and integrated into local `main`;
+D03–D07 remain planned.
 C01–C03 were integrated into local `main` as `1d661196`, C04 as `bc32a76b`,
 C05 as `71f77e00`, C06 as `6acb157d`; C07 followed on
 `refactor/catalog-legacy-removal`.
@@ -262,7 +262,7 @@ data needs a compatibility window.
 | ID | Code and historical shape | Current behavior to preserve when removing it |
 | --- | --- | --- |
 | D01 (implemented) | [config/persisted.go](../../internal/config/persisted.go): removed the missing Stage `session` → `shared` compatibility rule. | Both snapshot decoders require an explicit valid mode; authored omission still becomes `isolated` before persistence. |
-| D02 | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): infer old Workflow role kinds and verify `auditProfileLegacyDigest`. | Require current role kinds and digest validation, including embedded closures. Do not re-sign or reinterpret an old snapshot as a current one. |
+| D02 (implemented) | [config/persisted.go](../../internal/config/persisted.go) and [audit_profile.go](../../internal/config/audit_profile.go): removed old Workflow role inference and the legacy digest algorithm. | Require explicit current role kinds and the current digest, including embedded closures and optional Worker completion. Old snapshots fail without reinterpretation or rewriting. |
 | D03 | [evalstore/receipts.go](../../internal/evalstore/receipts.go): convert old `{id, revision, state}` into typed receipts. | Keep typed receipt replay and idempotency identity; reject old overloaded receipts rather than inventing typed fields. |
 | D04 | [auditservice/resume.go](../../internal/auditservice/resume.go): continue terminal `deadline_exhausted` Audits; reopen items and archive report links. | Preserve ordinary paused Resume, review expiration, replay and holds. Remove terminal continuation across backend, reports, UI and public contract together. |
 | D05 | [runstore/allocation_store.go](../../internal/runstore/allocation_store.go), [telemetry/allocation_resources.go](../../internal/telemetry/allocation_resources.go), [telemetry/repository.go](../../internal/telemetry/repository.go), [auditstore/validation.go](../../internal/auditstore/validation.go) and [auditstore/read.go](../../internal/auditstore/read.go): absent allocation provenance/policy and historical `provenanceIncomplete`. | Require complete current provenance; keep current disabled/unsupported/missing-report states and model-free Workers valid. Reject incomplete old records instead of fabricating policy or origin. |
@@ -300,6 +300,26 @@ Planner/Worker execution, including recovery of preparing/running Stages, and
 that no snapshot is rewritten. Existing retry and escalation tests retain
 explicit `shared` across fresh attempts.
 
+### D02 — explicit persisted Audit Workflow roles (implemented)
+
+Removed the extra JSON shape pass, missing-kind inference and alternate digest
+algorithm from AuditProfile decoding. Every persisted Workflow binding now
+requires `check`, `discovery` or `assessment`; the single digest implementation
+always includes that kind, the embedded Workflow and any explicit
+`workerCompletion` contract. Current authors already provide explicit role kinds
+and current writers retain them. Their serialized format and digest are unchanged.
+
+Updated [specification 19](../spec/19-audits.md). The
+[snapshot tests](../../internal/config/persisted_audit_profile_test.go) cover
+current role round trips, legacy and mixed snapshots, missing/null/empty/unknown/
+non-string kinds, a changed valid kind and a frozen digest from the removed
+algorithm. Invalid snapshots return no usable profile and retain original bytes.
+The [completion test](../../internal/config/audit_completion_test.go) also rejects
+removing an explicit completion contract without changing its digest. The
+[Controller regression](../../internal/auditcontroller/controller_test.go) closes
+dispatch for the retired shape in accepted and assessing rounds before any
+child Run or execution intent, preserving the stored snapshot and round/items.
+
 ### Removal rules for persisted formats
 
 For each D item, verify that current writers supply the required shape, remove
@@ -336,7 +356,8 @@ shrinking that contract is separate from removing an internal no-op.
 
 C01/C02 are implemented in the first increment, C03 in the second, C04 in
 the third, C05 in the fourth, C06 in the fifth and C07 in the sixth;
-D01 is implemented in the seventh increment; D02–D07 remain planned.
+D01 is implemented in the seventh increment and D02 in the eighth;
+D03–D07 remain planned.
 This document uses local IDs and does not mark task-registry entries complete.
 
 | Order | Work | Exit condition |
@@ -583,5 +604,34 @@ Verification completed on 2026-09-20:
   passed. Searches found no remaining implementation reference to the removed
   normalizer. No paid model call, browser run or data migration was needed.
 
-Next increment: D02, require current Audit Workflow role kinds and remove the
-legacy role digest and inference path.
+## Eighth increment — D02 results
+
+Implemented in `refactor/audit-role-legacy-removal`, based on D01 commit
+`a4643be9`, and integrated into local `main`. Unrelated working-tree edits were
+preserved.
+
+Verification completed on 2026-09-20:
+
+- Compared all six default AuditProfile digests before and after removing the
+  alternate algorithm: every current digest is identical, including the profile
+  with explicit Worker completion.
+- `go test -count=1 -timeout=8m ./...` passed with optional database/live-model
+  environment variables unset: **63 packages with tests**.
+- With `CONTRACTOR_TEST_DATABASE_URL` pointing to disposable PostgreSQL 17,
+  `go test -race -count=1 -timeout=8m` passed for `./internal/config/...`,
+  `./internal/auditservice`, `./internal/auditcontroller`, `./internal/auditimport`,
+  `./internal/runservice` and `./internal/httpapi/public`. Existing draft/start,
+  paused Resume, replay and completion tests continue to pass.
+- `TestAuditProgramsAcrossProductionProcesses` passed against disposable
+  PostgreSQL 17, real Go/Python processes and a scripted model gateway. It covers
+  the current Audit programs and retained results/provenance after removing the
+  staged catalog and restarting the Server.
+- `go vet ./...`, changed-file Go formatting, local specification/plan links
+  and `git diff --check` passed. Searches found no remaining implementation of
+  the removed role inference or legacy digest helpers.
+- Full `make verify`, browser journeys and paid-model tests were not run in
+  this Go-only increment. No public wire schema, UI or Runtime code changed,
+  and no obsolete-data migration was introduced.
+
+Next increment: D03, require typed Eval receipts and remove conversion from the
+old overloaded `{id, revision, state}` shape.

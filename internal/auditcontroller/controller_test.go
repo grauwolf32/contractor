@@ -1,6 +1,7 @@
 package auditcontroller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,46 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
+
+func TestControllerRejectsLegacyProfileBeforeRoleDispatch(t *testing.T) {
+	for _, state := range []auditstore.RoundState{auditstore.RoundAccepted, auditstore.RoundAssessing} {
+		t.Run(string(state), func(t *testing.T) {
+			harness := newControllerHarness(t, 1, 1)
+			var body map[string]any
+			if err := json.Unmarshal(harness.store.audit.ProfileSnapshot, &body); err != nil {
+				t.Fatal(err)
+			}
+			for _, binding := range body["workflows"].(map[string]any) {
+				delete(binding.(map[string]any), "kind")
+			}
+			// Frozen legacy digest of source-checklist@2 before role inference was removed.
+			const legacyDigest = "sha256:961e420db7fb831f2fdf0bf4ff09f3687067069e4abcab6d2d712fc9c1bbfebd"
+			body["ref"].(map[string]any)["digest"] = legacyDigest
+			raw, err := json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			harness.store.audit.ProfileSnapshot = bytes.Clone(raw)
+			harness.store.audit.Profile.Digest = legacyDigest
+			harness.store.round.State = state
+			if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+				t.Fatalf("reject legacy profile = (%t, %v)", worked, err)
+			}
+			audit := harness.store.auditSnapshot()
+			if audit.State != auditstore.AuditFinalizing || audit.Dispatch != auditstore.DispatchClosed ||
+				audit.StopReason == nil || audit.StopReason.Code != "role_contract_invalid" {
+				t.Fatalf("invalid profile did not close dispatch: %+v", audit)
+			}
+			if harness.store.executionCount() != 0 || harness.creator.createdCount() != 0 ||
+				harness.store.round.State != state || harness.store.itemState(0) != auditstore.ItemReady {
+				t.Fatal("invalid profile advanced a round, item or child Run")
+			}
+			if !bytes.Equal(audit.ProfileSnapshot, raw) || audit.Profile.Digest != legacyDigest {
+				t.Fatal("controller rewrote legacy profile authority")
+			}
+		})
+	}
+}
 
 func TestControllerDispatchesThroughWindowAndOnlyObservesTerminal(t *testing.T) {
 	harness := newControllerHarness(t, 4, 2)
