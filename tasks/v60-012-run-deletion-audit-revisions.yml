@@ -3,7 +3,7 @@ id: V60-012
 title: Invalidate affected Audit revisions atomically when a retained Run is deleted
 milestone: project-review-v60
 priority: P2
-status: pending
+status: completed
 depends_on:
 - V60-003
 - V60-011
@@ -28,6 +28,10 @@ context:
   contract_interaction: Report importer writes fixed immutable report artifacts before CommitReport/ProposeReport
     CAS; report bytes include Audit.UpdatedAt. A naive concurrent revision bump can strand a different immutable
     payload on retry, so deletion/report coordination must be tested before changing revision writes.
+  contract_decision: Run deletion always advances affected Audit revisions, including terminal Audits. While an
+    affected Audit is finalizing, this external-retention mutation preserves updated_at so a report retry retains
+    its generatedFrom timestamp and exact immutable bytes. Other states advance updated_at normally. Finding
+    and frozen review-subject revisions do not change when only source Run availability changes.
 scope:
   in:
   - Identify every affected Audit through managed execution association and retained imported receipt holds, including
@@ -57,7 +61,7 @@ acceptance_criteria:
   text: Actual HTTP old revision/cursor/cache context is invalidated after deletion; refreshed provenance retains
     exact refs and correct source/attempt identities.
 tests:
-- command: go test -tags=integration -race -count=1 ./internal/runstore ./internal/auditservice ./internal/auditimport
+- command: go test -tags=integration -race -count=1 ./internal/runstore ./internal/findingintake ./internal/auditservice ./internal/auditimport
     ./internal/httpapi/public
   covers:
   - A1
@@ -83,3 +87,19 @@ verification_requirements:
   choosing the minimal implementation.
 - Do not mark complete while lock ordering or immutable report retry remains unresolved; record original implementation
   hash and exact executed evidence in later metadata.
+implementation_commit: dca420ba8e4333707ef1ae3f4ca70a4cb458f2ef
+verification:
+  evidence: tasks/evidence/v60-012.json
+  results:
+  - Baseline actual HTTP and import-lock regressions failed before the fix; the same current paths pass with PostgreSQL.
+  - Source Run and sorted Audit locks stabilize destination discovery; each affected Audit advances exactly once,
+    including terminal Audits, with rollback/rejection/repeat semantics and unchanged finding revision.
+  - Six real PostgreSQL concurrency scenarios cover import/delete winners, cancellation, rollback and Audit purge
+    in both orders, checking actual blocking PIDs and lock SQL rather than timing sleeps.
+  - Automatic and human-required report finalization survive Run deletion at all three write cutpoints; retry
+    retains exact bytes/refs. Pending approve/reject, proposal replay and decision replay preserve frozen authority.
+  - A naive timestamp mutation reproduces immutable binding collision; specs 18/19 record finalizing timestamp preservation.
+  - Required five-package integration race run and public pagination gate passed; Audit completion gate passed
+    173 Go cases and 331 Runtime tests with no selected skips. Final strengthened assertions passed focused race tests.
+  - Broader go test ./... with disposable PostgreSQL, go vet ./..., formatting and task-dependency checks passed.
+  - Same-receipt second-Audit identity collision is a separate documented V60-008 contract-review follow-up.

@@ -153,6 +153,10 @@ type completionFixture struct {
 }
 
 func newCompletionFixture(t *testing.T, pool *pgxpool.Pool) *completionFixture {
+	return newCompletionFixtureWithReportAcceptance(t, pool, "automatic")
+}
+
+func newCompletionFixtureWithReportAcceptance(t *testing.T, pool *pgxpool.Pool, acceptance string) *completionFixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
@@ -205,6 +209,9 @@ func newCompletionFixture(t *testing.T, pool *pgxpool.Pool) *completionFixture {
 		if strings.HasPrefix(name, "agent-templates/") {
 			data = bytes.ReplaceAll(data, []byte("  skills:\n    - namespace: skills\n      name: trace\n"), nil)
 		}
+		if strings.HasPrefix(name, "audit-profiles/") {
+			data = bytes.ReplaceAll(data, []byte("reportAcceptance: automatic"), []byte("reportAcceptance: "+acceptance))
+		}
 		mustCompletion(t, os.WriteFile(filepath.Join(catalogRoot, name), data, 0600))
 	}
 	catalog, err := config.Load(catalogRoot, config.MVPDescriptors())
@@ -217,7 +224,7 @@ func newCompletionFixture(t *testing.T, pool *pgxpool.Pool) *completionFixture {
 	mustCompletion(t, err)
 	draft, _, err := f.audits.CreateDraft(ctx, auditstore.CreateDraftParams{AuditID: f.id, OwnerID: "owner", ProjectID: f.id, Profile: auditstore.ProfileIdentity{Name: f.profile.Ref.Name, Version: f.profile.Ref.Version, Digest: f.profile.Ref.Digest}, ProfileSnapshot: profileBytes, InputSelection: json.RawMessage(`{}`), Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20}, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("audit"))})
 	mustCompletion(t, err)
-	_, _, err = f.audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: "owner", AuditID: f.id, ExpectedRevision: draft.Revision, RoundID: f.id, RoundOrdinal: 1, Manifest: f.manifest, BaselineSnapshot: json.RawMessage(`{}`), DeadlineAt: time.Now().Add(time.Hour), Items: items, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("round"))})
+	_, _, err = f.audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{OwnerID: "owner", AuditID: f.id, ExpectedRevision: draft.Revision, RoundID: f.id, RoundOrdinal: 1, Manifest: f.manifest, BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inventory":{"gaps":[]}}`), DeadlineAt: time.Now().Add(time.Hour), Items: items, IdempotencyKey: f.id, RequestDigest: completionDigest([]byte("round"))})
 	mustCompletion(t, err)
 	claims, err := f.audits.Claim(ctx, auditstore.ClaimParams{HolderID: f.id, Lease: 5 * time.Minute, Limit: 100})
 	mustCompletion(t, err)

@@ -1390,6 +1390,13 @@ provenance; an imported proposal is protected by the destination Audit's own
 exact holds. Run deletion therefore cannot leak abandoned proposal pins or
 silently remove evidence already retained by an Audit.
 
+Run deletion and creation of a destination proposal hold serialize on the source
+Run before taking Audit, receipt/retention and Artifact locks. Deletion locks
+all affected Audits in Audit-ID order, then commits their revision invalidation
+with the tombstones and Run removal. An import which commits first is included
+in that invalidation; an import after committed deletion finds no live source.
+No Run deletion changes a finding assessment or a frozen report-review subject.
+
 For an Audit child Run, collection accounts for every committed proposal
 receipt before making the Run deletable: an allowed proposal receives an exact
 Audit-owned inbox link/hold, while a profile with finding production disabled
@@ -1574,6 +1581,17 @@ retained-artifact, or budget-counter mutation. Controller claim acquire/renew/re
 does not advance the public revision. Consequently an unchanged strong ETag
 means the complete bounded Audit projection is unchanged, not merely that the
 top-level lifecycle state is unchanged.
+
+Run deletion advances every affected Audit revision even when that Audit is
+terminal. While an Audit is `finalizing`, this external-retention invalidation
+preserves its `updatedAt`: report `generatedFrom` uses that frozen timestamp,
+and Run availability is not part of the report payload. A conflict after an
+immutable report write can therefore retry with identical bytes and exact refs
+before the mandatory revision CAS. Other Audit states advance `updatedAt`
+normally on Run deletion. Revision/ETag, rather than timestamp alone, remains
+the authoritative change token. A pending report review continues to authorize
+only its frozen subject revision/digest, independent of the current Audit
+revision after an availability change.
 
 ## 18. End-to-end examples
 

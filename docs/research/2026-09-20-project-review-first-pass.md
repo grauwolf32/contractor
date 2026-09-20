@@ -10,8 +10,9 @@
 **шесть подтверждённых замечаний**. Это не завершённое ревью всех подсистем.
 Углублённые проверки V60-005–010 остаются отдельной очередью.
 
-**Результат реализации: PR-01–05 исправлены и проверены; PR-06 запланирована
-следующей отдельной задачей V60-012.** [Общая проверка интеграции](../../tasks/evidence/v60-integration.json)
+**Результат реализации: PR-01–06 исправлены и проверены.** PR-06 закрыта
+в [V60-012 с проверкой report retry](2026-09-20-run-deletion-audit-revisions.md).
+[Общая проверка первоначальной интеграции](../../tasks/evidence/v60-integration.json)
 содержит original implementation hashes, фактические команды и оставшиеся
 границы. Ниже сохранено описание дефектов в момент их обнаружения.
 
@@ -134,18 +135,20 @@ retention без изменения Audit revision. Spec 19:1571–1576 треб
 сравнение корректно фиксируемых ревизий в V60-003 не может обнаружить мутацию,
 которая сама не продвигает ревизию.
 
-[V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml) оставлена pending
-следующей задачей. Нужно охватить managed execution, нативные receipts и все
-destination Audit holds, согласовать порядок блокировок с import/purge, затем
-проверить rollback и report finalization. Нельзя автоматически приравнивать
-`Attempt.RunDeleted` к `Origin.RunDeleted`: эти поля могут относиться к разным Run.
+[V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml) завершена:
+managed execution, нативные receipts и все destination Audit holds включены
+в атомарную invalidation. Порядок блокировок согласован с import/purge; rollback,
+HTTP pins/cursor и report retry проверены на PostgreSQL. `Attempt.RunDeleted`
+не приравнивается к `Origin.RunDeleted`: эти поля могут относиться к разным Run.
 
 Причина отдельной задачи конкретна: report importer записывает immutable
 `report.json`/`report.md` до revision CAS, а байты содержат `Audit.UpdatedAt`.
 По коду `auditimport/report.go:223,262–325` и `auditimport/artifacts.go:166–167`,
 наивный revision/timestamp bump между записью и CAS способен оставить прежнее
 immutable имя с несовместимыми байтами при повторе. Это вывод из пути кода,
-не выполненная fault-проба; V60-012 требует её до выбора исправления.
+на момент первого прохода ещё не проверенный fault-пробой. В V60-012 проба
+воспроизвела immutable collision. Принято и проверено правило: deletion в
+`finalizing` повышает revision, сохраняя report timestamp и bytes для retry.
 Pending report review сравнивает subject с сохранённым candidate, поэтому
 нельзя вводить для него новую проверку равенства текущей Audit revision.
 
@@ -194,7 +197,7 @@ regressions записываются в task-файлах V60-002–004 и evide
 | V60-003 | Завершена: optional internal pins передаются из HTTP, before/after revisions читаются owner-scoped JOIN; rows закрываются до batch hydration. PostgreSQL pool=1 проверяет 201 уникальный receipt, повторные records, missing receipt и concurrent revision changes. |
 | V60-004 | Завершена: Go event identity/status сохраняются, diagnostics редактируются после JSON parsing, arbitrary extra fields не сохраняются. 14 subprocess composition regressions дополняют существующие required tests. |
 | V60-011 | Завершена: mandatory Runtime test обновлён без ослабления assertions/minimum, offline declaration check выявляет stale names. Полный gate прошёл с PostgreSQL password, совпадающим с CI. |
-| V60-012 | Pending: атомарная invalidation при Run deletion и её согласование с import/purge/report finalization. Подтверждённый дефект не объявлен исправленным. |
+| V60-012 | Завершена: Run→Audit lock order и атомарный revision bump; finalizing timestamp сохраняет immutable retry. Проверены concurrent import/purge, rollback, terminal Audit, pending review и реальные HTTP stale pins/cursors. |
 
 На объединённом коде прошли `go test -count=1 ./...`, `go vet ./...`, affected
 Go packages с настоящим PostgreSQL и `-race`, public API gate и обязательный
@@ -207,3 +210,24 @@ V60 не меняет UI или generated OpenAPI clients. Результаты 
 typecheck/lint/build и byte-reproducible generation относятся к отдельно
 зафиксированной V59-проверке. Локальные PostgreSQL-прогоны используют собственный
 disposable контейнер и уникальные схемы; live-сервисы и модели не затрагиваются.
+
+Дополнительный прогон V60-012: **173 Go cases и 331 Runtime tests без selected
+skips** в Audit completion gate, пять затронутых пакетов с PostgreSQL и `-race`,
+public pagination gate. [Evidence](../../tasks/evidence/v60-012.json) отделяет
+этот прогон от первоначальных 158 Go cases выше.
+
+## Отдельное наблюдение для V60-008
+
+Во время V60-012 temporary PostgreSQL probe проверила повторный импорт одного
+receipt: в тот же Audit replay успешен, во второй совместимый Audit —
+`audit_findings_pkey`, SQLSTATE `23505`. Транзакция откатывается, holds остаются
+A=1/B=0. Migration 041 строит глобальный `finding_id` только из receipt ID;
+таблица holds при этом имеет ключ `(receipt_id, audit_id)`.
+
+Это подтверждённое ограничение реализации. Явное принятое требование именно
+для одного receipt в нескольких Audit не найдено: существующая множественность
+Audits и compatible import ещё не определяют этот edge case полностью.
+[V60-008](../../tasks/v60-008-audit-product-journeys-review.yml) должна уточнить
+контракт, ожидаемый HTTP outcome и безопасную identity/migration strategy,
+затем оформить correction task. V60-012 проверяет несколько destination Audits
+для разных receipts одного Run и не заявляет исправление этой коллизии.

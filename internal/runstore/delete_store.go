@@ -72,6 +72,14 @@ SELECT EXISTS (
 	if pendingRelease {
 		return &RunNotDeletableError{RunID: runID, Reason: RunAllocationReleasePending}
 	}
+	// ImportIntoAudit holds the source Run FOR KEY SHARE before creating a
+	// destination hold. Our Run lock makes this destination set stable. Take
+	// Audit locks before execution, retention and Artifact locks, matching
+	// import and Audit purge rather than adding an Audit lock at the end.
+	auditIDs, err := lockRunDeletionAudits(ctx, tx, ownerID, runID)
+	if err != nil {
+		return err
+	}
 	if publicationMode == PublicationAuditManaged {
 		if auditExecutionID == nil {
 			return fmt.Errorf("delete WorkflowRun %q: invalid Audit authority", runID)
@@ -149,7 +157,55 @@ WHERE run_id = $1 AND owner_id = $2`, runID, ownerID)
 	if tag.RowsAffected() != 1 {
 		return fmt.Errorf("delete WorkflowRun %q: %w", runID, ErrConflict)
 	}
+	// Only external Run availability changed: finding assessments and pending
+	// review subjects keep their own revisions. The Audit revision invalidates
+	// every enclosing read/cursor, including terminal Audits.
+	// While finalizing, UpdatedAt is also the frozen report's generatedFrom.
+	// Keep it stable so a retry after a failed revision CAS reuses the exact
+	// immutable report bytes; Run availability is absent from that payload.
+	if _, err := tx.Exec(ctx, `
+UPDATE audits
+   SET revision = revision + 1,
+       updated_at = CASE WHEN state = 'finalizing' THEN updated_at
+           ELSE GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') END
+ WHERE audit_id = ANY($1::text[])`, auditIDs); err != nil {
+		return fmt.Errorf("invalidate deleted WorkflowRun %q Audit projections: %w", runID, err)
+	}
 	return nil
+}
+
+func lockRunDeletionAudits(ctx context.Context, tx pgx.Tx, ownerID, runID string) ([]string, error) {
+	rows, err := tx.Query(ctx, `
+SELECT audit.audit_id
+  FROM audits AS audit
+ WHERE audit.owner_id = $1 AND audit.audit_id IN (
+       SELECT execution.audit_id FROM audit_executions AS execution WHERE execution.run_id = $2
+       UNION
+       SELECT receipt.audit_id FROM finding_proposal_receipts AS receipt WHERE receipt.run_id = $2
+       UNION
+       SELECT hold.audit_id
+         FROM finding_proposal_audit_holds AS hold
+         JOIN finding_proposal_receipts AS receipt USING (receipt_id)
+        WHERE receipt.run_id = $2
+   )
+ ORDER BY audit.audit_id
+ FOR UPDATE OF audit`, ownerID, runID)
+	if err != nil {
+		return nil, fmt.Errorf("lock deleted WorkflowRun %q Audit projections: %w", runID, err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("read deleted WorkflowRun %q Audit identity: %w", runID, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read deleted WorkflowRun %q Audit identities: %w", runID, err)
+	}
+	return ids, nil
 }
 
 // RunDeletionBlocker reports the first durable lifecycle gate for an
