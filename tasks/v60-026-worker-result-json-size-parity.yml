@@ -3,8 +3,8 @@ id: V60-026
 title: Align Go result size accounting with the compact UTF-8 Runtime contract
 milestone: project-review-v60
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1388a507e7ab626e20c5896de79a43d4981ab148
 depends_on: [V57-004]
 languages: [go, python, json, markdown]
 goal: Accept the same bounded Worker results in Go and Python without changing numeric limits or completion semantics.
@@ -47,3 +47,9 @@ tests:
 verification_requirements:
 - Record failing pre-fix cases and exact accepted/rejected bytes; no live models or external endpoints.
 - Keep implementation and subsequent completion metadata commits separate; root records the full implementation hash.
+verification:
+  evidence: tasks/evidence/v60-026.json
+  report: docs/research/2026-09-20-v60-026-worker-result-size-parity.md
+  results:
+  - Shared 18-case Go/Python fixtures and 568 Go race-test pass events; no skipped required cases.
+  - Wire and cross-language gates pass; exact numeric caps and transport behavior preserved.
