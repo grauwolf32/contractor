@@ -50,7 +50,9 @@ cancellation, token accounting, redaction and allocation reuse.
 
 Immutable local target and matrix excerpts retain their source line positions
 and SHA256 hashes. The target completed successfully and make advanced to Project
-workspaces; the aggregate release was still running when this report was
-finalized, so this report does not claim its eventual outcome. Exact commands,
+workspaces. That enclosing invocation subsequently exited 2 on an independent
+Project workspace binding assertion after 559.54 s; the later Audit and release
+targets were not reached. This report claims only the completed summarizer target.
+Exact commands,
 overlay files, outcomes and log hashes are in
 [V60-038 evidence](../../tasks/evidence/v60-038.json).

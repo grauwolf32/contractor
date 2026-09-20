@@ -36,4 +36,4 @@ implementation_commit: 9cfd09ccfc5517518b3c7491b55bc4c14b56b950
 verification:
   evidence: tasks/evidence/v60-030.json
   report: docs/research/2026-09-20-v60-030-formatting-review.md
-  result: Required checks passed; executed cases and evidence boundaries are recorded in the linked report.
+  result: Whitespace-only correction and subsequent release lint passed; the full invocation failed later in V60-033, with overall release verification tracked by V60-009.

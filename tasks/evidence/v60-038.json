@@ -211,12 +211,21 @@
     "Cross-language probe uses the real Go fixture and current Python transport but does not replace the full Worker/Scheduler process journey.",
     "The interrupted overlay make is not counted as a completed gate.",
     "No live models, external providers or production data used.",
-    "The later aggregate release was still running when this target completed; this evidence does not claim overall release success."
+    "The enclosing make invocation later exited 2 on the independent Project workspace binding assertion; this does not invalidate the completed summarizer target and no overall release success is claimed."
   ],
   "task_start_commit": "81c415157f40f5c462e7e34686a147ce87f0bc69",
   "verified_source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
   "acceptance": {
     "A1": "Actual production transport probe preserves retryable HTTP504 after one fixture request; unchanged real process assertions also pass.",
     "A2": "Full actual-source summarizer target passed: all process scenarios, Python92 cases, race-enabled Go packages and shared hardening matrix; zero skips in completed required checks."
+  },
+  "aggregate_invocation": {
+    "metadata": ".local/v60-review/v60-release-integrated.json",
+    "metadata_sha256": "da7eda70616375fa59dd1689ad8ae60501a11881b6f2bba3824ee4f170794f9e",
+    "source_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+    "exit_code": 2,
+    "duration_seconds": 559.54,
+    "failure_target": "test-project-workspaces-e2e",
+    "scope_note": "Later failure after this task target completed; Audit and aggregate release targets were not reached."
   }
 }

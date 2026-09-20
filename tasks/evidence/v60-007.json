@@ -99,7 +99,8 @@
       "pass_records": 17,
       "skipped": 0,
       "package_seconds": 31.633,
-      "log": ".local/v60-review/v60-007-focused-initial.log"
+      "log": ".local/v60-review/v60-007-focused-initial.log",
+      "log_sha256": "f09e93bf958c0e694fabc019f2aae8bc36d2140cd5e16ef4199117788492d439"
     },
     {
       "command": "go test -race -count=1 ./internal/persistence/postgres -run ^TestStorageReview",
@@ -107,7 +108,8 @@
       "pass_records": 6,
       "skipped": 0,
       "package_seconds": 10.554,
-      "log": ".local/v60-review/v60-007-migrations-initial.log"
+      "log": ".local/v60-review/v60-007-migrations-initial.log",
+      "log_sha256": "114d4cbc028f90b9de8f9662bbbfcfdba3b44d7e9a8d6dc9cf0fac98744569b5"
     }
   ],
   "controlled_scenarios": [
