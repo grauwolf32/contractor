@@ -8,6 +8,8 @@ Scheduler decisions from these records.
 
 ## Completed experiments and implementation reviews
 
+- [Run deletion and Audit revisions — V60-012](2026-09-20-run-deletion-audit-revisions.md) —
+  atomic invalidation, import/purge lock ordering and immutable report retry.
 - [Project review — first pass, 2026-09-20](2026-09-20-project-review-first-pass.md) —
   reproduced defects, accepted decisions and explicit limits; [detailed V60 plan](../plans/2026-09-20-project-review.md).
 

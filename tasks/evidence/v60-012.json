@@ -110,6 +110,11 @@
     {
       "command": "git diff --check",
       "result": "PASS"
+    },
+    {
+      "command": "Task YAML parse, unique-ID/dependency validation, V60-012 prerequisite/status verification; gofmt -l on all changed Go files; git diff --cached --check",
+      "result": "PASS",
+      "tasks_parsed": 370
     }
   ],
   "acceptance": {
@@ -136,5 +141,6 @@
   "production_source_sha256": {
     "internal/runstore/delete_store.go": "f5ee8c22925621df9faccf0d83e4d4f804e7b8ebe892e6be96b4afb021133493",
     "internal/findingintake/postgres.go": "f6ad499ac3b3b4b9b50ba846d43edf6b69dc0295d102e1bb5ab2983671edfcff"
-  }
+  },
+  "implementation_commit": "dca420ba8e4333707ef1ae3f4ca70a4cb458f2ef"
 }
