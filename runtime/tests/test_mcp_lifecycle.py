@@ -23,6 +23,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.factories import FactoryRegistry, StubADKWorkerRuntimeFactory
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.toolsets.mcp.errors import MCPCleanupError, MCPError
+from contractor_runtime.toolsets.mcp.factory import MCPToolsetFactory
 from contractor_runtime.toolsets.mcp.session import MCPSessionOwner
 from contractor_runtime.workspace import LocalWorkdirFactory
 
@@ -118,7 +119,7 @@ class OwnedTool:
     def __init__(self, name, owner):
         self.name, self.owner = name, owner
 
-    async def prepare(self, *, deadline):
+    async def prepare_allocation(self, *, deadline):
         await self.owner.prepare(deadline=deadline)
 
     async def close_before(self, *, deadline):
@@ -138,6 +139,14 @@ class OwnedFactory(FakeDiscoveryFactory):
         return self.created
 
 
+class RecordingMCPFactory(MCPToolsetFactory):
+    async def create_selected(self, **kwargs):
+        self.created = await super().create_selected(**kwargs)
+        self.owner = next(iter(self.created.values()))._owner
+        assert self.owner._task is None
+        return self.created
+
+
 @pytest.mark.parametrize("operation", ["finalize", "lease", "cancel_prepare", "failed_prepare"])
 def test_allocation_owns_session_before_prepare_and_closes_it_on_every_exit(
     tmp_path: Path, operation
@@ -145,7 +154,7 @@ def test_allocation_owns_session_before_prepare_and_closes_it_on_every_exit(
     async def scenario() -> None:
         # Distinct loopback address from Runtime's forbidden private listener.
         async with MCPFixture(host="127.0.0.2") as server:
-            factory = OwnedFactory()
+            factory = RecordingMCPFactory()
             registry = FactoryRegistry(
                 worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
                 sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},

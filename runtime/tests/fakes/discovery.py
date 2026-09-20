@@ -21,6 +21,16 @@ class DiscoveredTool:
         self.close_calls += 1
 
 
+def declared_toolsets(factories):
+    """Full fixture inventory for tests deliberately bypassing startup probes."""
+    return {
+        ref: ToolsetDiscovery("allocation")
+        if getattr(factory, "tool_discovery", "static") == "allocation"
+        else factory.exported_tools
+        for ref, factory in factories.toolsets.items()
+    }
+
+
 class FakeDiscoveryFactory:
     ref = "mcp@1"
     tool_discovery = "allocation"

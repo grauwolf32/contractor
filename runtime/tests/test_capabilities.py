@@ -56,18 +56,14 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     from contractor_runtime.sandbox.contracts import EXECUTION_CHANNELS, EXECUTION_TOOLSET
 
     assert EXECUTION_TOOLSET not in factories
-    # The MCP contract is registered before its production factory (V61-006).
-    assert "mcp@1" not in factories
-    actual["mcp@1"] = {}
+    assert "mcp@1" in factories
     actual[EXECUTION_TOOLSET] = {
         name: sorted(channels) for name, channels in EXECUTION_CHANNELS.items()
     }
     # V39-005 installs the factory; positive advertisement also requires its probe.
     assert "audit-results@2" in factories
     assert actual == fixture["toolsets"]
-    from fakes.discovery import FakeDiscoveryFactory
-
-    discovery = FakeDiscoveryFactory()
+    discovery = factories["mcp@1"]
     assert fixture["allocationToolsets"][discovery.ref] == {
         "workerRuntimes": sorted(discovery.supported_worker_runtimes),
         "commonInfrastructureChannels": sorted(discovery.common_infrastructure_channels),

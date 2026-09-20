@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from fakes.discovery import declared_toolsets
 from starlette.exceptions import StarletteDeprecationWarning
 
 if TYPE_CHECKING:
@@ -71,6 +72,6 @@ def runtime_capabilities(tmp_path: Path) -> CapabilitySnapshot:
     factories = built_in_factories(tmp_path)
     return CapabilitySnapshot.create(
         runtimes=factories.worker_runtimes,
-        toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+        toolsets=declared_toolsets(factories),
         sandbox_profiles=factories.sandbox_profiles,
     )

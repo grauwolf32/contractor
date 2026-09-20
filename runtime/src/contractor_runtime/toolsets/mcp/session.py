@@ -39,7 +39,7 @@ class _Call:
     name: str
     arguments: dict[str, Any]
     deadline: float
-    result: asyncio.Future[types.CallToolResult]
+    result: asyncio.Future[types.Result]
     dispatched: bool = False
 
 
@@ -57,6 +57,7 @@ class MCPSessionOwner:
         proxy: ProxyHTTPClient | None = None,
         forbidden_hosts: Sequence[str] = (),
         transport: httpx.AsyncBaseTransport | None = None,
+        private_values: Sequence[str] = (),
     ) -> None:
         if not valid_allocation_tool_names(selected):
             raise MCPError("invalid_selection")
@@ -65,6 +66,14 @@ class MCPSessionOwner:
         self._proxy = proxy
         self._forbidden_hosts = tuple(forbidden_hosts)
         self._transport = transport
+        values = [settings.endpoint, settings.ca_bundle_pem or "", *private_values]
+        for name, value in settings.headers.items():
+            secret = value.get_secret_value()
+            values.append(secret)
+            if name.lower() == "authorization" and " " in secret:
+                values.append(secret.split(" ", 1)[1])
+        self._private_values = tuple(dict.fromkeys(value for value in values if value))
+        self._session_id = None
         self._task: asyncio.Task[None] | None = None
         self._started = False
         self._client: httpx.AsyncClient | None = None
@@ -109,9 +118,7 @@ class MCPSessionOwner:
             self._request_close()
             raise MCPError("prepare_timeout", retryable=True) from None
 
-    async def call(
-        self, name: str, arguments: dict[str, Any], *, deadline: float
-    ) -> types.CallToolResult:
+    async def call(self, name: str, arguments: dict[str, Any], *, deadline: float) -> types.Result:
         if self._closing or self.schema_digest is None:
             raise MCPError("session_closed")
         if name not in self._definitions:
@@ -119,7 +126,7 @@ class MCPSessionOwner:
         bounded_json(arguments, 64 * 1024, code="invalid_arguments")
         loop = asyncio.get_running_loop()
         deadline = min(deadline, loop.time() + self._request_timeout)
-        future: asyncio.Future[types.CallToolResult] = loop.create_future()
+        future: asyncio.Future[types.Result] = loop.create_future()
         future.add_done_callback(_consume_future)
         call = _Call(name, copy.deepcopy(arguments), deadline, future)
         try:
@@ -199,6 +206,7 @@ class MCPSessionOwner:
                         if tool.outputSchema is not None
                         else None,
                     )
+                    self.reject_private_content(selected[tool.name].declaration())
             cursor = page.nextCursor
             if cursor is None:
                 if set(selected) != set(self._selected):
@@ -235,11 +243,17 @@ class MCPSessionOwner:
                                 )
                             )
                         ),
-                        types.CallToolResult,
+                        # SDK validates the JSON-RPC result; Contractor then
+                        # checks its closed content contract without SDK
+                        # coercion or hiding unknown content behind a timeout.
+                        types.Result,
                         request_read_timeout_seconds=timedelta(
                             seconds=max(0.001, call.deadline - asyncio.get_running_loop().time())
                         ),
                     )
+                raw = result.model_dump(mode="json", by_alias=True, exclude_unset=True)
+                bounded_json(raw, 256 * 1024, code="result_too_large")
+                self.reject_private_content(raw)
                 if not call.result.done():
                     call.result.set_result(result)
                 self._active = None
@@ -264,7 +278,7 @@ class MCPSessionOwner:
                 transport=self._transport,
             )
             self._client = client
-            read, write, _ = await stack.enter_async_context(
+            read, write, self._session_id = await stack.enter_async_context(
                 streamable_http_client(
                     self._settings.endpoint,
                     http_client=client,
@@ -339,6 +353,26 @@ class MCPSessionOwner:
         self._proxy = None
         self._transport = None
         self._definitions.clear()
+        self._private_values = ()
+        self._session_id = None
+
+    def reject_private_content(self, value: Any) -> None:
+        secrets = self._private_values
+        if self._session_id is not None:
+            session_id = self._session_id()
+            if session_id:
+                secrets += (session_id,)
+        pending = [value]
+        while pending:
+            item = pending.pop()
+            if isinstance(item, str):
+                if any(secret in item for secret in secrets):
+                    raise MCPError("private_content")
+            elif isinstance(item, dict):
+                pending.extend(item.keys())
+                pending.extend(item.values())
+            elif isinstance(item, list):
+                pending.extend(item)
 
     def __repr__(self) -> str:
         return f"MCPSessionOwner(ready={self.schema_digest is not None!r}, closed={self._closed!r})"

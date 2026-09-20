@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from fakes.discovery import declared_toolsets
 from fakes.spec import allocation_spec
 from test_agent_skill_toolset import resolved_value, skill_package
 
@@ -28,7 +29,7 @@ def test_non_skill_runtime_rejects_selected_skills_before_workspace(tmp_path: Pa
         )
         capabilities = CapabilitySnapshot.create(
             runtimes=["adk@1"],
-            toolsets={ref: item.exported_tools for ref, item in factories.toolsets.items()},
+            toolsets=declared_toolsets(factories),
             sandbox_profiles=factories.sandbox_profiles,
         )
         state = RuntimeState(instance_id="runtime-no-skills", capabilities=capabilities)

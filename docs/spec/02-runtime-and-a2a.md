@@ -965,7 +965,7 @@ installed. It introduces no RuntimeAdapter.
 
 Factory construction returns all selected ToolInstances into the allocation's
 existing cleanup ownership **before any remote connection**. A narrow optional
-`prepare(deadline)` hook then initializes/discovers the owned resources. Worker
+`prepare_allocation(deadline)` hook then initializes/discovers the owned resources. Worker
 construction follows successful preparation. If one preparation fails, cleanup
 covers every already owned resource, including partially opened sessions.
 A shared owner provides one MCP session for the tools of one ref in an

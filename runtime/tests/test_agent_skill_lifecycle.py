@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.discovery import declared_toolsets
 from fakes.model import scripted_model
 from fakes.spec import allocation_spec
 from test_agent_skill_toolset import FakeSkillClient, resolved_value, skill_package
@@ -175,10 +176,7 @@ async def skilled_service(
 def capabilities_for(factories: object) -> CapabilitySnapshot:
     return CapabilitySnapshot.create(
         runtimes=factories.worker_runtimes,  # type: ignore[attr-defined]
-        toolsets={
-            ref: factory.exported_tools
-            for ref, factory in factories.toolsets.items()  # type: ignore[attr-defined]
-        },
+        toolsets=declared_toolsets(factories),
         sandbox_profiles=factories.sandbox_profiles,  # type: ignore[attr-defined]
         runtime_adapters=factories.runtime_adapters,  # type: ignore[attr-defined]
     )

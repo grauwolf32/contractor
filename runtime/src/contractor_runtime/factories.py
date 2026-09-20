@@ -50,6 +50,7 @@ from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.toolsets.likec4.tools import LikeC4ToolsetFactory
+from contractor_runtime.toolsets.mcp.factory import MCPToolsetFactory
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi.tools import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
@@ -228,6 +229,7 @@ def built_in_factories(
     security_findings_v2_toolset = SecurityFindingsV2ToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
+    mcp_toolset = MCPToolsetFactory()
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
     scan_toolset = ScanToolsetFactory()
@@ -281,6 +283,7 @@ def built_in_factories(
             http_toolset.ref: http_toolset,
             likec4_toolset.ref: likec4_toolset,
             memory_toolset.ref: memory_toolset,
+            mcp_toolset.ref: mcp_toolset,
             openapi_toolset.ref: openapi_toolset,
             source_toolset.ref: source_toolset,
             scan_toolset.ref: scan_toolset,

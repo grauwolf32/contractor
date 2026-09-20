@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from fakes.discovery import declared_toolsets
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_text_artifacts_toolset import MemoryArtifactClient
@@ -130,7 +131,7 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
         )
         capabilities = CapabilitySnapshot.create(
             runtimes=factories.worker_runtimes,
-            toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+            toolsets=declared_toolsets(factories),
             sandbox_profiles=factories.sandbox_profiles,
             runtime_adapters=factories.runtime_adapters,
         )

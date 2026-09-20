@@ -109,7 +109,7 @@ ref; существующие production native toolsets в этой серии 
 имеет своего владельца; настройка MCP не продлевает deadline Scheduler.
 Долгоживущий входящий stream не считается бесконечным бюджетом tools/call.
 
-Карта toolsets ограничена 128 refs и существующим общим пределом RuntimeConfig
+Карта toolsets ограничена 32 refs и существующим общим пределом RuntimeConfig
 128 KiB. Объекты нормализуются до сравнения и вычисления digest; optional
 defaults материализуются одинаково во всех слоях. Нормализация URL сохраняет
 значимую семантику пути и не переписывает произвольно пользовательский endpoint.
@@ -216,7 +216,7 @@ MCP-клиент получает отдельные HTTP state/headers/cookies.
 
 Фабрика создаёт ToolInstance и общего владельца сессии без сетевых ожиданий.
 Сначала allocation принимает ownership через текущий rollback/cleanup path,
-затем выполняется необязательная `prepare(deadline)` фаза, и только после неё
+затем выполняется необязательная `prepare_allocation(deadline)` фаза, и только после неё
 создаётся Worker. Эквивалентный дизайн допустим при доказанном ownership до
 первого cancellable await; отдельный resource supervisor не требуется.
 

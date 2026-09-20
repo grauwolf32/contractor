@@ -708,6 +708,7 @@ def _safe_error_code(error: Exception | None) -> str:
 def _result_is_failure(result: Any) -> bool:
     return isinstance(result, Mapping) and (
         result.get("ok") is False
+        or result.get("isError") is True
         or isinstance(result.get("error_code"), str)
         or isinstance(result.get("error"), str | Mapping)
     )

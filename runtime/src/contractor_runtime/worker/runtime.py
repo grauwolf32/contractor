@@ -20,6 +20,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.tools import FunctionTool
+from google.adk.tools.base_tool import BaseTool
 from google.genai import types
 from pydantic import ValidationError
 from starlette.types import ASGIApp
@@ -61,6 +62,7 @@ from contractor_runtime.projectfs import (
     WorkspaceExportError,
 )
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.common.deadlines import invocation_deadline
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.completion import (
     ContinueCompletion,
@@ -151,7 +153,7 @@ class AdkWorkerRuntime:
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
         if policy.temperature is not None:
             generation.temperature = policy.temperature
-        adk_tools = [FunctionTool(tool) for tool in context.tools.values()]
+        adk_tools = [_adk_tool(tool) for tool in context.tools.values()]
         if self._agent_skills is not None:
             adk_tools.append(
                 self._agent_skills.build_adapter(
@@ -578,6 +580,7 @@ class AdkWorkerRuntime:
             asyncio.get_running_loop().time()
             + self._context.runtime_settings.request_timeout_seconds
         )
+        deadline_token = invocation_deadline.set(deadline)
         try:
             if completion is not None:
                 failure = completion.validate_request(request)
@@ -667,6 +670,7 @@ class AdkWorkerRuntime:
                 raise
             return completion.failure(error), False
         finally:
+            invocation_deadline.reset(deadline_token)
             if completion is not None:
                 await completion.end()
             self._invocation_observed_refs.clear()
@@ -1448,6 +1452,16 @@ def _empty_invocation_metrics() -> dict[str, Any]:
         "tools": {},
         "truncated": False,
     }
+
+
+def _adk_tool(tool: Any) -> BaseTool:
+    prepared = getattr(tool, "as_adk_tool", None)
+    if callable(prepared):
+        adapted = prepared()
+        if not isinstance(adapted, BaseTool) or adapted.name != tool.name:
+            raise TypeError("prepared ADK tool must preserve its selected name")
+        return adapted
+    return FunctionTool(tool)
 
 
 def _lean_observations(

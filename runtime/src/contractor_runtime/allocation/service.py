@@ -770,7 +770,7 @@ class AllocationService:
             0.0, (deadline - self._now()).total_seconds()
         )
         for tool in tools.values():
-            prepare = getattr(tool, "prepare", None)
+            prepare = getattr(tool, "prepare_allocation", None)
             if callable(prepare):
                 await _await_before_deadline(
                     lambda prepare=prepare: prepare(deadline=monotonic_deadline),

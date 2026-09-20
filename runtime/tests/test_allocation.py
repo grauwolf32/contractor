@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.discovery import declared_toolsets
 from fakes.spec import allocation_spec, runtime_provenance
 
 from contractor_runtime.allocation import AllocationError, AllocationService
@@ -263,7 +264,7 @@ def test_partial_tool_preparation_retains_cleanup_ownership(
         )
         capabilities = CapabilitySnapshot.create(
             runtimes=factories.worker_runtimes,
-            toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+            toolsets=declared_toolsets(factories),
             sandbox_profiles=factories.sandbox_profiles,
         )
         exit_codes: list[int] = []

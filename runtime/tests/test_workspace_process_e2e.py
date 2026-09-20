@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.discovery import declared_toolsets
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_projectfs_zip import REVISION, archive, settings
@@ -304,7 +305,7 @@ async def make_service(
     assert provider is not None
     capabilities = CapabilitySnapshot.create(
         runtimes=factories.worker_runtimes,
-        toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+        toolsets=declared_toolsets(factories),
         sandbox_profiles=factories.sandbox_profiles,
         workspace=provider.capability,
     )
