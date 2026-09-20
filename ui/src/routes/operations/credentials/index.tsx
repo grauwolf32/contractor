@@ -29,12 +29,18 @@ export function CredentialListRoute() {
       <div className="panel operations-library">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Secret-free metadata</p>
-            <h3>Active credentials</h3>
+            <p className="eyebrow">LLM gateway access</p>
+            <h3>Managed LLM credentials</h3>
             <p className="muted-copy">
-              Access to LLM providers and their budgets. Runtime service
-              credentials are configured with Runtime defaults; repository SSH
-              keys are in Settings.
+              Gateway credentials created in Contractor, with their budgets and
+              usage. Development tokens configured outside the UI are not listed
+              here.
+            </p>
+            <p className="muted-copy">
+              <Link to="/runs/configuration">Runtime service credentials</Link>
+              {" are managed with Runtime defaults; "}
+              <Link to="/operations/settings">Git SSH keys</Link>
+              {" are in Settings."}
             </p>
           </div>
         </div>
@@ -46,7 +52,11 @@ export function CredentialListRoute() {
           <ErrorNotice error={query.error} />
         ) : query.data.items.length === 0 ? (
           <div className="compact-empty">
-            No active credential metadata exists.
+            <strong>No managed LLM credentials</strong>
+            <p>
+              Use Create LLM credential below to manage gateway access and
+              budgets here.
+            </p>
           </div>
         ) : (
           <div className="table-scroll">
