@@ -3,7 +3,7 @@ id: V55-006
 title: Deliver simple scan Workflows and artifact upload journey
 milestone: scan-tools-first-slice
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V55-004, V55-005]
 languages: [go, python, typescript, yaml, markdown]
 goal: Let a user select a simple scan Workflow, supply a target/request/list and inspect a report through the existing product.
@@ -33,7 +33,82 @@ tests:
   - command: go test ./internal/config ./tests/e2e
     covers: [A2, A3]
   - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestScanToolsAcrossProductionProcesses$'
+    covers: [A2, A3]
+  - command: CONTRACTOR_SCAN_BROWSER=1 CONTRACTOR_SCAN_UI_PREBUILT=1 CONTRACTOR_SCAN_EVIDENCE_DIR="$PWD/.local/evidence/scan-release" go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestScanToolsAcrossProductionProcesses$'
     covers: [A1, A2, A3]
+  - command: go test ./internal/controlplane ./internal/runstore ./internal/runtimeconfig ./internal/persistence/postgres
+    covers: [A2, A3]
+  - command: cd runtime && PYTHONPATH=src .venv/bin/python -m pytest tests/test_tool_worker.py tests/test_metrics.py -o addopts= -q
+    covers: [A3]
 test_prerequisites:
   - Existing integration database and controlled local target fixtures; scanner binaries preinstalled by the test environment.
   - Browser evidence for upload, input selection and report display is required in addition to automated tests.
+progress:
+  - date: 2026-09-20
+    step: started
+    details: >-
+      User selected V55-006 after V55-008 integration. Started isolated
+      feat/v55-006-scan-release from main 5fad87a3, preserving unrelated dirty
+      workspace changes. Existing nuclei, naabu and SQLMap Workflows and both
+      deterministic plan Workflows are available. Implementing the missing ffuf
+      catalog, semantic wordlist upload/preview support, real Server/Runtime
+      integration against controlled local fixtures, and browser journey evidence.
+  - date: 2026-09-20
+    step: catalog_and_ui_verified
+    details: >-
+      Added ffuf-wordlist@1 and ffuf-scan@1, example wordlist and usage docs.
+      Shared User/Project upload now preserves an explicitly selected Wordlist
+      media type; literal previews/downloads support .txt. Scanner reports show
+      technical completion/incomplete/failure/unavailability without claiming
+      target safety. Required UI typecheck, 475 tests, 11 server tests and build
+      passed with Node 24.20.0. Config and ordinary e2e tests passed.
+  - date: 2026-09-20
+    step: production_placement_blocker_fixed
+    details: >-
+      Real-process integration exposed PostgreSQL constraint
+      stage_allocation_runtime_configuration_shape still requiring modelPolicy
+      and llmGatewayConfig for tool Workers. Added forward migration 000061;
+      model-free allocations omit model routing while model-bearing allocations
+      retain their existing shape. A PostgreSQL placement regression reproduced
+      SQLSTATE 23514 before the migration and passed afterwards. Re-running all
+      four real scanners and the prepared browser journey against local fixtures.
+  - date: 2026-09-20
+    step: backend_and_migration_regressions
+    details: >-
+      Real nuclei, SQLMap and ffuf completed through production processes with
+      trusted zero-model-call metrics. Exact wordlist revision reuse and running
+      scanner cancellation passed. Naabu reached the expected local port; its
+      test now accepts duplicate discovery/final records while validating every
+      returned address and port. Updated the shared test Run DTO for optional
+      resumeStageExecutionId on failed Runs. PostgreSQL controlplane, runstore,
+      runtimeconfig and persistence suites passed, as did forward migration
+      60-to-61, legacy model-bearing configurations and malformed-JSON rejection.
+      Browser reached Project upload; correcting an unnamed-dialog selector
+      before repeating the complete browser and negative-case gate.
+  - date: 2026-09-20
+    step: browser_verified_and_failure_diagnostics_fixed
+    details: >-
+      Real Chromium journey passed against production Server/Runtime and ffuf:
+      Project wordlist upload preserves exact bytes and semantic media type,
+      preview is literal, Run pins the reviewed revision, and the report shows
+      Completed with two attempted payloads, zero request errors and 200/404
+      results. Four screenshots and browser-evidence.json are retained locally.
+      Screenshot review prompted a scoped metadata wrapping fix for long Project
+      IDs and wordlist MIME. Report-publication fault injection also exposed
+      missing trusted error diagnostics despite correct failed Run outcome;
+      Runtime now records a bounded fixed tool_report_failed ExecutionError,
+      including durable replay, without changing successful scanner counters or
+      leaking transport exception text. Targeted Runtime regressions passed;
+      final combined process/browser gate is running with rebuilt UI.
+  - date: 2026-09-20
+    step: complete_release_gate_passed
+    details: >-
+      All nine production process/browser scenarios passed together in 169.710s.
+      Chromium confirmed the final CSS build; screenshots were reviewed.
+      Runtime Worker/metrics tests passed 27 cases; Ruff and formatting passed.
+      Final config and ordinary e2e checks plus Go vet passed. Main advanced
+      concurrently with managed Evals UI changes; rebase and integration checks
+      remain before closing the task.
+remaining:
+  - Rebase onto current main and verify the combined UI/process state.
+  - Record validation evidence and integrate into main.

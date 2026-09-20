@@ -205,6 +205,34 @@ describe("Artifact API", () => {
       "projects-architecture-revision-2.diff",
     );
   });
+
+  it("previews an exact wordlist revision with a .txt download filename", async () => {
+    const mediaType = "text/vnd.contractor.wordlist";
+    const content = "first\nsecond\n";
+    const wordlistMetadata = { ...metadata, mediaType, size: content.length };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        expect(new URL(request.url).searchParams.get("revision")).toBe(
+          "revision-2",
+        );
+        expect(request.headers.get("Accept")).toBe(mediaType);
+        return response(content, { headers: { "Content-Type": mediaType } });
+      }),
+    );
+    expect(canPreviewArtifact(wordlistMetadata)).toBe(true);
+    expect(
+      canPreviewArtifact({
+        ...wordlistMetadata,
+        size: MAXIMUM_PREVIEW_BYTES + 1,
+      }),
+    ).toBe(false);
+    expect(suggestedArtifactFilename(metadata.artifact, mediaType)).toBe(
+      "projects-architecture-revision-2.txt",
+    );
+    await expect(previewArtifact(api, wordlistMetadata)).resolves.toBe(content);
+  });
 });
 
 describe("portable Artifact names", () => {

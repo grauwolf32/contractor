@@ -383,6 +383,17 @@ class MetricsState:
         self.final_outcome = normalized
         self._increment(f"outcomes.{normalized}")
 
+    def record_tool_report_failure(self) -> None:
+        # Publishing is a Worker operation, separate from the scanner's outcome.
+        # Never attach transport exception text, paths, or report payloads here.
+        self._append_error(
+            ExecutionError(
+                code="tool_report_failed",
+                message="Tool report publication failed",
+                retryable=False,
+            )
+        )
+
     def snapshot(self) -> dict[str, Any]:
         """Return the ADK State projection; it intentionally contains no raw results."""
 

@@ -25,6 +25,7 @@ import {
   artifactFileStem,
   inferredArtifactMediaType,
 } from "../artifacts/artifact-file";
+import { ArtifactMediaTypeField } from "../artifacts/media-type-field";
 import { ArtifactFileDrop, ErrorNotice } from "../artifacts/common";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import {
@@ -309,16 +310,11 @@ export function ProjectArtifactWriteForm({
             onChange={(event) => setName(event.target.value)}
           />
         </label>
-        <label>
-          Media type
-          <input
-            name="mediaType"
-            required
-            disabled={fixedMediaType !== undefined}
-            value={fixedMediaType ?? mediaType}
-            onChange={(event) => setMediaType(event.target.value)}
-          />
-        </label>
+        <ArtifactMediaTypeField
+          disabled={fixedMediaType !== undefined}
+          value={fixedMediaType ?? mediaType}
+          onChange={setMediaType}
+        />
       </div>
       {validationError === null ? null : (
         <p className="form-error" role="alert">

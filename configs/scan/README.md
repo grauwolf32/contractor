@@ -1,7 +1,8 @@
 # Model-free scan fixtures
 
-This standalone catalog contains `nuclei-target@1`, `naabu-host@1` and
-`sqlmap-request@1` with `passthrough@1` planning and one `tool@1` Worker each.
+This standalone catalog contains `nuclei-target@1`, `naabu-host@1`,
+`sqlmap-request@1` and `ffuf-wordlist@1` with `passthrough@1` planning and
+one `tool@1` Worker each.
 It also includes `request-set-scan@1` and `target-scan-plan@1` using the
 deterministic `scan-plan@1` Planner; see [scan plan configuration](SCAN_PLAN.md).
 Select `configs/scan` as the Server configuration directory, or copy the
@@ -10,7 +11,7 @@ templates, workflows and
 directories are required by the configuration loader; no model configuration
 or model credentials are needed.
 
-All five workflows publish the `report` output as `application/json`.
+All six workflows publish the `report` output as `application/json`.
 Nuclei and naabu accept one required string parameter, `target`.
 Nuclei expects an HTTP(S) URL;
 naabu expects a hostname or IP. Ports and rate limits are explicit literals
@@ -88,38 +89,109 @@ with no technique labels does not mean the target is free of SQL injection.
 
 ## Reusable ffuf wordlists
 
-`scan_ffuf` accepts an uploaded list as an exact artifact ref. A custom Workflow
-declares a required `wordlist` input with
-`mediaTypes: [text/vnd.contractor.wordlist, text/plain]` and passes it to its
-Stage context. A `tool@1` AgentTemplate selects `scan@1` / `scan_ffuf` and binds
-`wordlist_ref: {source: artifact, name: wordlist}` and
-`url: {source: parameter, name: target}`. The target URL must contain the `FUZZ`
-replacement marker in its path or query, not its authority. The binary is
-independently probed with `ffuf -V`; the other scanners need not be installed
-for this operation.
+`ffuf-wordlist@1` requires a `target` URL and one uploaded `wordlist` Artifact.
+The input accepts `text/vnd.contractor.wordlist` or `text/plain` and is pinned
+at an exact revision when the Run starts. `ffuf-scan@1` binds `url` to the
+`target` parameter and `wordlist_ref` to that Artifact; no host file path is
+accepted. The target must contain `FUZZ` in its path or query, never its
+hostname. Literal settings schedule at most 10 payloads per second, match all
+HTTP status codes, and allow 240 seconds for the tool; the Worker deadline is
+300 seconds to leave time for cleanup and report publication. FFUF uses one
+thread and may retry a failed request once outside its payload rate limiter.
 
-Upload the list with the existing Artifact CLI:
+Runtime must advertise `scan_ffuf`, independently probed with `ffuf -V`; other
+scanner binaries are not required for this Workflow. Provision the executable
+on the Runtime service's `PATH` and restart the Runtime after installation.
+The same direct-routing limitation applies: a configured subprocess proxy
+returns `scan_proxy_unsupported`, without silently bypassing the proxy. Runtime
+never installs scanners during a Run.
+
+A small example list is available at [examples/paths.txt](examples/paths.txt).
+Upload it once, then bind the returned exact revision to the Workflow:
 
 ```shell
-contractor --output name artifact put lists/paths \
-  --file paths.txt --type text/vnd.contractor.wordlist --create
+WORDLIST_REF="$(contractor --output name artifact put lists/paths \
+  --file configs/scan/examples/paths.txt --type text/vnd.contractor.wordlist --create)"
+RUN_ID="$(contractor --output name run create ffuf-wordlist@1 \
+  --param 'target=https://app.example.test/FUZZ' \
+  --artifact "wordlist=$WORDLIST_REF")"
+contractor run watch "$RUN_ID" --wait-timeout 10m
+contractor run output "$RUN_ID" report --to report.json
 ```
 
-Use the returned exact ref for the custom Workflow's `wordlist` input. Runtime
-accepts at most 1 MiB, 10,000 payloads and 4096 UTF-8 bytes per payload. LF/CRLF
-line endings are supported; spaces, `#`, duplicates and empty payloads are
-preserved. See the
+Replace the example target with the intended target. `--create` requires a new
+Artifact binding; update an existing binding with `--if-match` or choose another
+name. Uploading a new revision does not change a Run that has already pinned
+its input. The same list can be reused by later Runs or Project input bindings.
+
+In the UI, upload the file in Artifacts or Project artifacts and select its
+wordlist type. Open `ffuf-wordlist@1`, supply the `target`, and choose the list's
+exact revision in the required `wordlist` input, or upload directly in that
+input slot. Start the Run and open its `report` output when available. The
+wordlist preview and report are ordinary Artifact views; the report includes
+`inputArtifacts.wordlist` and `observation.wordlistArtifact` so the actual Run
+input revision remains visible.
+
+Runtime accepts at most 1 MiB, 10,000 payloads and 4096 UTF-8 bytes per payload.
+LF/CRLF line endings are supported; spaces, `#`, duplicates and empty payloads
+are preserved. See the
 [wordlist contract](../../docs/spec/03-artifact-plane.md#scanner-wordlist-artifacts)
-for byte validation and final-line semantics. Runtime creates a private
-temporary wordlist and removes it after completion, timeout or cancellation;
-the scanner report retains its exact input revision. Optional literal argument
-bindings set `rate` (default 10), `timeout_seconds` (default 300),
-`match_status` (default `all`) and numeric exclusion filters `filter_status`,
-`filter_size`, `filter_words` and `filter_lines`.
+for byte validation and final-line semantics. Runtime privately materializes
+the list and removes temporary files after completion, timeout or cancellation.
+For different matching or filtering policies, publish another template version
+with literal `match_status`, `filter_status`, `filter_size`, `filter_words` or
+`filter_lines` settings; these are not free-form command arguments.
 
-Reports expose bounded matched responses, including their payloads, and
-separate scan completion from result truncation. HTTP transport errors fail the
-scan even when ffuf exits zero; an empty match list never means a target is clean.
+Reports expose bounded matched responses, including payloads, with
+`wordlistEntries`, `payloadsAttempted`, `requestErrors`, `scanComplete` and
+`resultsTruncated`. Check `status`, `errorCode` and `exitCode` alongside those
+fields: transport errors or missing final progress fail the scan even when ffuf
+exits zero. An empty match list does not establish that a target is clean, and
+truncated matches are not a complete result set. Raw stdout/stderr are redacted.
 
-This catalog contains three focused workflows and two scan-plan workflows. The ffuf
-Workflow and combined user journey are part of V55-006.
+Missing binaries prevent Worker placement and are visible in Runtime capability
+and Operations diagnostics. Invalid wordlists/targets fail before scanner
+launch. Cancellation interrupts the Run and cleans up the process and scratch
+files; output limits and report-publication errors remain technical failures.
+A failed or interrupted Run may have no published `report` output: inspect its
+Stage/Operations diagnostics and any retained scanner report Artifact instead
+of treating a missing report as an empty successful scan.
+
+## Release verification
+
+Apply Server migrations before using these Workflows. Migration `000061` permits
+the model-free allocation provenance emitted by `tool@1`; without it the older
+database constraint rejects placement even when Runtime advertises the scanner.
+
+The real-process gate requires a disposable PostgreSQL database in
+`CONTRACTOR_TEST_DATABASE_URL`, installed Runtime dependencies (`cd runtime &&
+uv sync --locked`), and all four scanner executables on `PATH`. It starts the
+production Server and Runtime with local TLS identities, an isolated database,
+a private nuclei template and loopback HTTP/TCP targets. It does not require a
+model service or scan an external target.
+
+```shell
+go test ./internal/config ./tests/e2e
+go test -tags=e2e -count=1 -timeout=6m ./tests/e2e \
+  -run '^TestScanToolsAcrossProductionProcesses$'
+```
+
+For the browser gate, install UI dependencies and Chromium with `make ui-install
+ui-browser-install`, then use the repository's pinned Node version:
+
+```shell
+make ui-typecheck ui-test ui-build
+CONTRACTOR_SCAN_BROWSER=1 \
+CONTRACTOR_SCAN_UI_PREBUILT=1 \
+CONTRACTOR_SCAN_EVIDENCE_DIR="$PWD/.local/evidence/scan-release" \
+go test -tags=e2e -count=1 -timeout=6m ./tests/e2e \
+  -run '^TestScanToolsAcrossProductionProcesses$'
+```
+
+The browser logs in through the real session API, creates a Project, uploads and
+previews a wordlist, confirms its exact revision, starts ffuf and opens the report.
+It saves four screenshots and `browser-evidence.json` with the selected/input/output
+refs and observed execution outcome. Set the evidence directory explicitly to keep
+these files after the temporary stack is removed. Backend scenarios also verify
+missing capabilities, revision reuse after an upload update, invalid input,
+cancellation and report-publication failure.

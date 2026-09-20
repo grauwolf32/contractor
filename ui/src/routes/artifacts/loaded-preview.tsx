@@ -11,6 +11,7 @@ import {
   createArtifactPreviewPlan,
   type ArtifactPreviewPlan,
 } from "./preview-plan";
+import { ScanReportSummary } from "./scan-report-summary";
 
 const MarkdownArtifactPreview = lazy(() => import("./previews/markdown"));
 const OpenApiArtifactPreview = lazy(() => import("./previews/openapi"));
@@ -102,9 +103,14 @@ export function LoadedArtifactPreview({
   }
   if (plan.kind === "source") {
     return (
-      <pre className="artifact-preview" tabIndex={0}>
-        {source}
-      </pre>
+      <>
+        {mediaType === "application/json" ? (
+          <ScanReportSummary source={source} />
+        ) : null}
+        <pre className="artifact-preview" tabIndex={0}>
+          {source}
+        </pre>
+      </>
     );
   }
 

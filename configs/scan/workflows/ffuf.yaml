@@ -1,0 +1,31 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: ffuf-wordlist, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+  inputs:
+    wordlist:
+      required: true
+      mediaTypes: [text/vnd.contractor.wordlist, text/plain]
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Fuzz the supplied HTTP target using the uploaded wordlist
+      instructions: {ref: instructions/scan.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: ffuf-scan@1}
+      context:
+        artifacts:
+          wordlist: {namespace: inputs, name: wordlist, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

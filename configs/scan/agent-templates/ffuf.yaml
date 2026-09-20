@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: ffuf-scan, version: "1"}
+spec:
+  description: Fuzz one HTTP target with an exact uploaded wordlist revision.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_ffuf]
+  execution:
+    tool: scan_ffuf
+    arguments:
+      url: {source: parameter, name: target}
+      wordlist_ref: {source: artifact, name: wordlist}
+      rate: {source: literal, value: 10}
+      timeout_seconds: {source: literal, value: 240}
+      match_status: {source: literal, value: all}
+    resultArtifact: report
+    timeoutSeconds: 300

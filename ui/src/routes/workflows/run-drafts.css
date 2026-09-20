@@ -218,8 +218,13 @@
 }
 
 .run-input-review-facts div {
+  min-width: 0;
   display: grid;
   gap: 0.15rem;
+}
+
+.run-input-review-facts dd {
+  overflow-wrap: anywhere;
 }
 
 .run-input-review-facts dt {

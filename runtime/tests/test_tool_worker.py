@@ -262,6 +262,52 @@ def test_artifact_failures_never_rescan(tmp_path, failure, expected, calls):
     asyncio.run(scenario())
 
 
+def test_report_failure_diagnostics_preserve_scanner_success_and_replay(tmp_path):
+    secret = "report-transport-secret-canary"
+
+    class FailingReportStore(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            if method == "PUT" and urlsplit(path).path.endswith("/report"):
+                raise ArtifactTransportError(secret)
+            return await super().request(method, path, **kwargs)
+
+    class MeasuredTool(FixtureTool):
+        async def __call__(self, url: str, rate_limit: int = 10) -> dict:
+            result = await super().__call__(url, rate_limit)
+            self.metrics.record_tool_call(self.name, arguments={}, result={"status": "completed"})
+            return result
+
+    async def scenario():
+        store, tool, spec = FailingReportStore(), MeasuredTool(), tool_spec()
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        tool.metrics = runtime._state.metrics
+        completion = await runtime.invoke(request(spec))
+        assert completion.failure.code == "tool_report_failed"
+        report = runtime._state.metrics.build_report(
+            report_id="worker-failed-report", duration_ms=1
+        )
+        assert report.metrics.tools[tool.name].calls == 1
+        assert report.metrics.tools[tool.name].succeeded == 1
+        assert report.metrics.tools[tool.name].failed == 0
+        assert [(error.code, error.message, error.retryable) for error in report.errors] == [
+            ("tool_report_failed", "Tool report publication failed", False)
+        ]
+        assert secret not in report.model_dump_json()
+        assert "fixture.invalid" not in report.model_dump_json()
+        assert (spec.namespace, "report") not in store.values
+
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(request(spec))).failure.code == "tool_report_failed"
+        replay = recreated._state.metrics.build_report(
+            report_id="worker-replayed-report", duration_ms=1
+        )
+        assert [error.code for error in replay.errors] == ["tool_report_failed"]
+        assert replay.metrics.tools == {}
+        assert len(tool.calls) == 1
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("mode", ["deadline", "cancel", "abort"])
 def test_tool_deadline_cancel_abort_and_replay(tmp_path, mode):
     async def scenario():

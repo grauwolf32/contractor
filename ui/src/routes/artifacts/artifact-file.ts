@@ -16,6 +16,11 @@ export function inferredArtifactMediaType(
   file: File,
   fallback: string,
 ): string {
+  // A filename or browser MIME guess cannot identify the user's intended use
+  // of a text file. Keep an explicitly selected scanner wordlist semantic type.
+  if (fallback === "text/vnd.contractor.wordlist") {
+    return fallback;
+  }
   if (MEDIA_TYPE_PATTERN.test(file.type)) {
     return file.type;
   }
@@ -37,6 +42,9 @@ export function inferredArtifactMediaType(
   }
   if (lower.endsWith(".zip")) {
     return "application/zip";
+  }
+  if (lower.endsWith(".txt")) {
+    return "text/plain";
   }
   return fallback;
 }

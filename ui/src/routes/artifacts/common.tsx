@@ -21,6 +21,7 @@ import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
 import { queryKeys } from "../../api/query-keys";
 import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
+import { ArtifactMediaTypeField } from "./media-type-field";
 
 export function formatBytes(size: number): string {
   if (size < 1024) {
@@ -404,16 +405,11 @@ export function ArtifactWriteForm({
             onChange={(event) => setName(event.target.value)}
           />
         </label>
-        <label>
-          Media type
-          <input
-            name="mediaType"
-            required
-            disabled={fixedMediaType !== undefined}
-            value={fixedMediaType ?? mediaType}
-            onChange={(event) => setMediaType(event.target.value)}
-          />
-        </label>
+        <ArtifactMediaTypeField
+          disabled={fixedMediaType !== undefined}
+          value={fixedMediaType ?? mediaType}
+          onChange={setMediaType}
+        />
       </div>
       {validationError === null ? null : (
         <p className="form-error" role="alert">

@@ -380,6 +380,8 @@ class ToolWorkerRuntime:
                     error, cancelled = "tool_cancelled", True
                 except Exception:
                     error = "tool_outcome_unknown"
+            if error == "tool_report_failed":
+                self._state.metrics.record_tool_report_failure()
             self._state.metrics.record_outcome("failed" if error else "succeeded")
             finishing = asyncio.create_task(
                 self._state.complete_invocation(
