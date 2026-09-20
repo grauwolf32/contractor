@@ -142,7 +142,7 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
   const origin = new URL(baseURL).origin;
   await installAPI(page, origin);
 
-  await page.goto("/evals");
+  await page.goto("/evals/legacy");
   await expect(page.getByRole("heading", { name: "Evals" })).toBeVisible();
   await page.getByRole("link", { name: "Browser evaluation" }).click();
   await expect(page.getByRole("heading", { name: "Eval Runs" })).toBeVisible();
@@ -160,6 +160,6 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
     "/artifacts/skills/architecture-review",
   );
   await expect(
-    page.getByText(/never become Project-owned copies/i),
+    page.getByText("UserScope / skills", { exact: true }),
   ).toBeVisible();
 });

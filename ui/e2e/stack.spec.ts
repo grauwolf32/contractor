@@ -647,9 +647,14 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto("/operations/allocations/completed");
   await page.getByLabel("Exact Run ID (optional)").fill(streamlineRunID);
   await page.getByRole("button", { name: "Apply filter" }).click();
-  const retainedResource = page
-    .locator("article.allocation-resource-card")
+  const retainedRow = page
+    .getByRole("row")
     .filter({ has: page.getByRole("link", { name: streamlineRunID }) });
+  await expect(retainedRow).toHaveCount(1);
+  await retainedRow.getByRole("button", { name: /^Metrics for / }).click();
+  const retainedResource = page
+    .getByRole("region", { name: /^Metrics for / })
+    .locator("article.allocation-resource-card");
   await expect(retainedResource).toHaveCount(1);
   await expect(
     retainedResource.getByText("available", { exact: true }),
@@ -764,7 +769,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   );
   await workflowDialog.getByLabel("Include optional objective").check();
   await workflowDialog
-    .locator('input[name="parameter-objective"]')
+    .locator('[name="parameter-objective"]')
     .fill("Model the browser fixture API and trust boundary");
   await workflowDialog
     .getByRole("button", { name: "Start Project Workflow Run" })
@@ -853,6 +858,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("row")
     .filter({ has: page.getByText("worker@2", { exact: true }) });
   await workerRow.getByRole("link", { name: "Inspect / clone" }).click();
+  await page.getByRole("button", { name: "Clone to new version" }).click();
   await page.getByLabel("New immutable version").fill("ui-stack-1");
   await page.getByRole("button", { name: "Publish immutable version" }).click();
   await expect(page.getByText("Published worker@ui-stack-1")).toBeVisible();
@@ -862,6 +868,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     0,
   );
   await page.getByRole("link", { name: "Credentials" }).click();
+  await openDetails(page.locator("details.configuration-clone"));
   const credentialForm = page.locator("form.credential-create-form");
   await credentialForm.getByLabel("Credential ID").fill("ui-stack-key");
   await credentialForm
@@ -918,7 +925,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("button", { name: "Delete from LiteLLM and Contractor" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Active credentials" }),
+    page.getByRole("heading", { name: "Managed LLM credentials" }),
   ).toBeVisible();
   await expect(page.getByText("ui-stack-key", { exact: true })).toHaveCount(0);
 

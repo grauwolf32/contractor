@@ -2191,6 +2191,9 @@
             "current",
             "stale"
           ]
+        },
+        "readiness": {
+          "$ref": "#/$defs/Readiness"
         }
       },
       "required": [
@@ -2332,6 +2335,15 @@
         },
         "page": {
           "$ref": "#/$defs/Page"
+        },
+        "schemas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 128
         }
       },
       "required": [
@@ -2471,6 +2483,9 @@
           "type": "boolean"
         },
         "intentId": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "projectId": {
           "$ref": "#/$defs/Opaque"
         }
       },
@@ -3448,6 +3463,57 @@
         },
         "updatedAt": {
           "$ref": "#/$defs/Timestamp"
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Id"
+              },
+              "selector": {
+                "$ref": "#/$defs/Selector"
+              }
+            },
+            "required": [
+              "id",
+              "selector"
+            ]
+          }
+        },
+        "datasetId": {
+          "$ref": "#/$defs/Id"
+        },
+        "caseCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Summary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "freshness": {
+          "enum": [
+            "pending",
+            "current",
+            "stale"
+          ]
         }
       },
       "required": [
@@ -3628,6 +3694,106 @@
         "experimentSummary",
         "pair",
         "records"
+      ],
+      "additionalProperties": false
+    },
+    "ReadinessPin": {
+      "type": "object",
+      "properties": {
+        "dimension": {
+          "$ref": "#/$defs/Id"
+        },
+        "requiredEqual": {
+          "type": "boolean"
+        },
+        "baselineOrigin": {
+          "enum": [
+            "observed",
+            "producer-supplied",
+            "unavailable"
+          ]
+        },
+        "candidateOrigin": {
+          "enum": [
+            "observed",
+            "producer-supplied",
+            "unavailable"
+          ]
+        },
+        "status": {
+          "enum": [
+            "equal",
+            "different",
+            "unavailable"
+          ]
+        }
+      },
+      "required": [
+        "dimension",
+        "requiredEqual",
+        "baselineOrigin",
+        "candidateOrigin",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ReadinessArm": {
+      "type": "object",
+      "properties": {
+        "variantId": {
+          "$ref": "#/$defs/Id"
+        },
+        "expected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "unsupported": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "variantId",
+        "expected",
+        "eligible",
+        "unsupported",
+        "blocked"
+      ],
+      "additionalProperties": false
+    },
+    "Readiness": {
+      "type": "object",
+      "properties": {
+        "pins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReadinessPin"
+          },
+          "maxItems": 2048
+        },
+        "arms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReadinessArm"
+          },
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "pins",
+        "arms"
       ],
       "additionalProperties": false
     }

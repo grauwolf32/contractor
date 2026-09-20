@@ -8782,6 +8782,9 @@ components:
             "EvalExperimentPropertiesFreshnessCurrent",
             "EvalExperimentPropertiesFreshnessStale"
           ]
+        },
+        "readiness": {
+          "$ref": "#/components/schemas/EvalReadiness"
         }
       },
       "required": [
@@ -8938,6 +8941,15 @@ components:
         },
         "page": {
           "$ref": "#/components/schemas/EvalPage"
+        },
+        "schemas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 128
         }
       },
       "required": [
@@ -9095,6 +9107,9 @@ components:
           "type": "boolean"
         },
         "intentId": {
+          "$ref": "#/components/schemas/EvalOpaque"
+        },
+        "projectId": {
           "$ref": "#/components/schemas/EvalOpaque"
         }
       },
@@ -10160,6 +10175,63 @@ components:
         },
         "updatedAt": {
           "$ref": "#/components/schemas/EvalTimestamp"
+        },
+        "variants": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/EvalId"
+              },
+              "selector": {
+                "$ref": "#/components/schemas/EvalSelector"
+              }
+            },
+            "required": [
+              "id",
+              "selector"
+            ]
+          }
+        },
+        "datasetId": {
+          "$ref": "#/components/schemas/EvalId"
+        },
+        "caseCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "repetitions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/EvalSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "freshness": {
+          "enum": [
+            "pending",
+            "current",
+            "stale"
+          ],
+          "type": "string",
+          "x-enum-varnames": [
+            "EvalExperimentSummaryPropertiesFreshnessPending",
+            "EvalExperimentSummaryPropertiesFreshnessCurrent",
+            "EvalExperimentSummaryPropertiesFreshnessStale"
+          ]
         }
       },
       "required": [
@@ -10368,6 +10440,124 @@ components:
         "experimentSummary",
         "pair",
         "records"
+      ],
+      "additionalProperties": false
+    }
+    EvalReadinessPin: {
+      "type": "object",
+      "properties": {
+        "dimension": {
+          "$ref": "#/components/schemas/EvalId"
+        },
+        "requiredEqual": {
+          "type": "boolean"
+        },
+        "baselineOrigin": {
+          "enum": [
+            "observed",
+            "producer-supplied",
+            "unavailable"
+          ],
+          "type": "string",
+          "x-enum-varnames": [
+            "EvalReadinessPinPropertiesBaselineoriginObserved",
+            "EvalReadinessPinPropertiesBaselineoriginProducerSupplied",
+            "EvalReadinessPinPropertiesBaselineoriginUnavailable"
+          ]
+        },
+        "candidateOrigin": {
+          "enum": [
+            "observed",
+            "producer-supplied",
+            "unavailable"
+          ],
+          "type": "string",
+          "x-enum-varnames": [
+            "EvalReadinessPinPropertiesCandidateoriginObserved",
+            "EvalReadinessPinPropertiesCandidateoriginProducerSupplied",
+            "EvalReadinessPinPropertiesCandidateoriginUnavailable"
+          ]
+        },
+        "status": {
+          "enum": [
+            "equal",
+            "different",
+            "unavailable"
+          ],
+          "type": "string",
+          "x-enum-varnames": [
+            "EvalReadinessPinPropertiesStatusEqual",
+            "EvalReadinessPinPropertiesStatusDifferent",
+            "EvalReadinessPinPropertiesStatusUnavailable"
+          ]
+        }
+      },
+      "required": [
+        "dimension",
+        "requiredEqual",
+        "baselineOrigin",
+        "candidateOrigin",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+    EvalReadinessArm: {
+      "type": "object",
+      "properties": {
+        "variantId": {
+          "$ref": "#/components/schemas/EvalId"
+        },
+        "expected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "eligible": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "unsupported": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "variantId",
+        "expected",
+        "eligible",
+        "unsupported",
+        "blocked"
+      ],
+      "additionalProperties": false
+    }
+    EvalReadiness: {
+      "type": "object",
+      "properties": {
+        "pins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/EvalReadinessPin"
+          },
+          "maxItems": 2048
+        },
+        "arms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/EvalReadinessArm"
+          },
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "pins",
+        "arms"
       ],
       "additionalProperties": false
     }

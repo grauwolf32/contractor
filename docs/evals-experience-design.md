@@ -1,6 +1,6 @@
 # Evals: experiment setup, execution and comparison
 
-Status: **V38-001 design and V38-002–006 contracts, persistence, coordination, public APIs and selected comparisons implemented. Browser UI, Playground client and release acceptance remain V38-007–010.**
+Status: **V38-001–010 implemented and deterministically verified: native setup, comparison/review, optional Playground client and independent process acceptance.**
 The user selected the complete browser journey and explicitly required Contractor
 to remain independent of Playground. The managed Playground service proposed in
 the earlier draft is superseded.
@@ -300,6 +300,23 @@ V40-002 live metadata/mapping/normalization gaps and V40-003 quality experiments
 remain separate. First V38 delivery uses one binding per arm and does not silently
 solve the six-program pilot, launch its targets, publish candidate defaults or
 change an existing frozen Playground experiment.
+
+### Implementation verification — 2026-09-20
+
+V38-002–010 are complete. The [implementation record](plans/2026-09-20-managed-evals-ui.md)
+contains exact commits, commands, environment and evidence. Real native and
+independent external Workflow/Audit journeys each retain eight members, with
+restart, response-loss replay, review, comparison and owner isolation. The
+required PostgreSQL and process gates pass without skips; mocked browser and
+optional Playground client checks are recorded separately.
+
+At 390px Overview selects one chart with keyboard access; at 1280px both charts
+remain side by side. All five chart views retain complete server cohorts and
+equivalent tables. The [user guide](guides/evals.md) describes setup and review;
+the [release gate](testing/evals-release-gate.md) provides reproduction commands.
+
+The following dated sections retain the original design-time status. Their
+pending-task statements describe 2026-09-19, before this implementation.
 
 ### Design verification — 2026-09-19
 

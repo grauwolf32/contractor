@@ -129,7 +129,7 @@ describe("Evals and global Skills routes", () => {
         throw new Error(`unexpected ${request.method} ${url.pathname}`);
       }),
     );
-    const view = renderApplication(api, "/evals");
+    const view = renderApplication(api, "/evals/legacy");
 
     const evalLink = await screen.findByRole("link", {
       name: "OpenAPI regression",

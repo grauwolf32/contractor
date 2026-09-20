@@ -4,5 +4,5 @@
     "lib": ["ES2023", "DOM"],
     "types": ["node", "@playwright/test"]
   },
-  "include": ["e2e", "playwright.config.ts"]
+  "include": ["e2e", "playwright.config.ts", "src/vite-env.d.ts"]
 }

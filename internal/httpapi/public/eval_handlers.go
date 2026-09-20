@@ -105,6 +105,7 @@ func (h *handler) evalCapabilities(w http.ResponseWriter, r *http.Request) {
 		"controlModes":   []string{"server", "external"},
 		"executionKinds": []string{"workflow", "audit"},
 		"checks":         evalCheckCapabilities(),
+		"schemas":        evalservice.RegisteredSchemas(),
 		"importVersions": []string{"dataset@1", "contractor.eval-registration@1"},
 		"bindings":       items,
 		"page":           page,

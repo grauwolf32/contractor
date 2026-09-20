@@ -3,8 +3,8 @@ id: "V38-008"
 title: "Show complete experiment comparisons, evidence and review in Evals"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
-implementation_commit: null
+status: "completed"
+implementation_commit: "a5aaa119d99b842ab84e2a3a41923f3cd4078d47"
 implementation_repository: "contractor"
 depends_on: ["V38-007"]
 languages: ["typescript"]
@@ -131,3 +131,14 @@ tests:
       cd ui && corepack pnpm exec playwright test e2e/evals-comparison.spec.ts
       e2e/evals-skills.spec.ts
     covers: ["A1", "A2", "A3", "A4"]
+
+verification_result:
+  date: "2026-09-20"
+  evidence: "docs/plans/2026-09-20-managed-evals-ui.md"
+  rebase_evidence: "docs/plans/2026-09-20-v38-rebase-verification.md"
+  result: >-
+    Complete comparison, chart/table parity, selected evidence, attributed review and
+    legacy navigation pass at 390px and 1280px. Mobile Overview switches one chart at
+    a time; desktop keeps both. Full UI suite: 446 tests; mocked browser: 10 tests.
+    Real native/external Workflow and Audit inspection and owner isolation pass. The
+    10,000-member PostgreSQL fixture verifies 50 bounded pair pages and exact cohorts.

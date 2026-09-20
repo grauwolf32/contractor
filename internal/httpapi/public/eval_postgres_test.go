@@ -530,6 +530,8 @@ func TestEvalPostgresNativeAuthoringCommandsAndPublicViews(t *testing.T) {
 			h := newEvalAPIHarness(t)
 			h.request(t, "GET", "/v1/eval-capabilities", nil, "", "", 200)
 			draft, _ := h.dataset(t, kind)
+			// Display A/B follows comparison identity, not producer array order.
+			draft.Variants[0], draft.Variants[1] = draft.Variants[1], draft.Variants[0]
 			h.request(t, "GET", "/v1/projects/evaluation/eval-datasets", nil, "", "", 200)
 			casesPath := "/v1/projects/evaluation/eval-datasets/" + draft.Dataset.ID + "/revisions/" + draft.Dataset.Revision + "/cases?limit=1"
 			first := apiDecode[struct {
@@ -549,7 +551,18 @@ func TestEvalPostgresNativeAuthoringCommandsAndPublicViews(t *testing.T) {
 			if e.State != "draft" || e.Expected != 8 {
 				t.Fatal("draft projection", e.State, e.Expected)
 			}
-			h.request(t, "GET", "/v1/eval-experiments?projectId=evaluation&limit=1", nil, "", "", 200)
+			list := apiDecode[struct {
+				Items []evalstore.PublicSummary `json:"items"`
+			}](t, h.request(t, "GET", "/v1/eval-experiments?projectId=evaluation&limit=1", nil, "", "", 200))
+			if len(list.Items) != 1 {
+				t.Fatal("experiment summary missing")
+			}
+			summary := list.Items[0]
+			if len(summary.Variants) != 2 || summary.Variants[0].ID != draft.Comparison.Baseline ||
+				summary.DatasetID != draft.Dataset.ID || summary.CaseCount == nil || *summary.CaseCount != 2 ||
+				summary.Repetitions == nil || *summary.Repetitions != 2 {
+				t.Fatalf("experiment discovery lost exact setup: %+v", summary)
+			}
 			h.request(t, "PATCH", "/v1/eval-experiments/"+e.ID, evaldomain.DraftUpdate{Name: "Edited", Draft: draft}, "patch", `"1"`, 200)
 			prepared := h.command(t, e.ID, "prepare")
 			command := apiDecode[struct {
@@ -559,6 +572,9 @@ func TestEvalPostgresNativeAuthoringCommandsAndPublicViews(t *testing.T) {
 			e = h.get(t, e.ID)
 			if e.State != "ready" || e.PlanSHA256 == nil {
 				t.Fatalf("prepare state=%s diagnostic=%s", e.State, e.Diagnostics)
+			}
+			if e.Readiness == nil || len(e.Readiness.Arms) != 2 || e.Readiness.Arms[0].Expected != 4 {
+				t.Fatal("prepared readiness is missing exact member coverage")
 			}
 			h.request(t, "GET", "/v1/eval-experiments/"+e.ID+"/commands/"+command.ID, nil, "", "", 200)
 			members := h.request(t, "GET", "/v1/eval-experiments/"+e.ID+"/members?limit=1", nil, "", "", 200)

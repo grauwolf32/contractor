@@ -96,6 +96,19 @@ type uiStack struct {
 }
 
 func TestBrowserOperationsStack(t *testing.T) {
+	runBrowserStack(t, "")
+}
+
+func TestManagedEvalsNativeStack(t *testing.T) {
+	runBrowserStack(t, "native")
+}
+
+func TestManagedEvalsExternalStack(t *testing.T) {
+	runBrowserStack(t, "external")
+}
+
+func runBrowserStack(t *testing.T, evalMode string) {
+	managedEvals := evalMode != ""
 	if testing.Short() {
 		t.Skip("browser end-to-end process test")
 	}
@@ -105,7 +118,13 @@ func TestBrowserOperationsStack(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	timeout := 5 * time.Minute
+	if managedEvals {
+		// Each serial mode exercises 24 ordinary Workers with production
+		// heartbeat/release timing, including two children for every Audit.
+		timeout = 12 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -116,6 +135,7 @@ func TestBrowserOperationsStack(t *testing.T) {
 	}), serverBinary, "migrate")
 
 	modelGateway := newModelGateway(modelGatewayCanary)
+	modelGateway.managedEvals = managedEvals
 	credentialManager := newCredentialManagerFixture(managerAdminCanary, generatedKeyCanary)
 	t.Cleanup(modelGateway.close)
 	t.Cleanup(credentialManager.close)
@@ -124,6 +144,9 @@ func TestBrowserOperationsStack(t *testing.T) {
 		t, repositoryRoot, filepath.Join(temporaryRoot, "configs"),
 		modelGateway.URL(), credentialManager.URL(),
 	)
+	if managedEvals {
+		stageManagedEvalConfiguration(t, repositoryRoot, configRoot)
+	}
 	managedConfigRoot := filepath.Join(temporaryRoot, "managed-configs")
 	if err := os.MkdirAll(managedConfigRoot, 0o750); err != nil {
 		t.Fatal(err)
@@ -171,12 +194,9 @@ func TestBrowserOperationsStack(t *testing.T) {
 		t.Fatalf("issue browser proxy certificate: %v", err)
 	}
 
-	publicAddress := freeAddress(t, "127.0.0.1")
-	privateAddress := freeAddress(t, "127.0.0.1")
-	runtimeAddress := freeAddress(t, "127.0.0.1")
-	uiAddress := freeAddress(t, "127.0.0.1")
-	apiProxyAddress := freeAddress(t, "127.0.0.1")
-	uiProxyAddress := freeAddress(t, "127.0.0.1")
+	addresses := freeAddresses(t, "127.0.0.1", 6)
+	publicAddress, privateAddress, runtimeAddress := addresses[0], addresses[1], addresses[2]
+	uiAddress, apiProxyAddress, uiProxyAddress := addresses[3], addresses[4], addresses[5]
 	_, apiProxyPort, _ := net.SplitHostPort(apiProxyAddress)
 	_, uiProxyPort, _ := net.SplitHostPort(uiProxyAddress)
 	serverInternalURL := "http://" + publicAddress
@@ -276,6 +296,10 @@ func TestBrowserOperationsStack(t *testing.T) {
 	runChecked(t, filepath.Join(repositoryRoot, "ui"), uiBuildEnvironment, "corepack", "pnpm", "build")
 	stack.startUIOrFatal()
 	stack.startControlServer()
+	if managedEvals {
+		stack.runManagedEvals(userID, uiURL, serverURL, uiDirectURL, apiDirectURL, evalMode)
+		return
+	}
 
 	sourceArchive := filepath.Join(temporaryRoot, "project-source.zip")
 	if err := os.WriteFile(sourceArchive, projectSourceArchive(t), 0o600); err != nil {
@@ -913,15 +937,23 @@ func writeLocalAuth(t *testing.T, root, userID string) string {
 
 func freeAddress(t *testing.T, host string) string {
 	t.Helper()
-	listener, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
-	if err != nil {
-		t.Fatal(err)
+	return freeAddresses(t, host, 1)[0]
+}
+
+// Keep all listeners open while allocating, so the OS cannot hand two stack
+// processes the same ephemeral port before either process has started.
+func freeAddresses(t *testing.T, host string, count int) []string {
+	t.Helper()
+	addresses := make([]string, 0, count)
+	for range count {
+		listener, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer listener.Close()
+		addresses = append(addresses, listener.Addr().String())
 	}
-	address := listener.Addr().String()
-	if err := listener.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return address
+	return addresses
 }
 
 func waitForHTTP(

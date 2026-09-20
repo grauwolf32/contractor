@@ -1,9 +1,15 @@
 # Managed evaluation data contract
 
-V38-002 introduces data codecs and fixtures; it does **not** expose HTTP routes.
+V38-002 introduced data codecs and fixtures; V38-005/006 added the public routes.
 [Spec 30](../../../docs/spec/30-managed-evals.md) owns the managed behavior and
 [spec 26](../../../docs/spec/26-portable-evaluation-format.md) owns the portable
-format. Public OpenAPI and generated clients land with the V38-005/006 handlers.
+format. Public OpenAPI and generated clients describe the same closed DTOs.
+
+The V38-007/008 UI additions expose registered check schemas, native readiness
+coverage, experiment-list setup/summary metadata and the exact Project identity
+of execution inventory entries. Readiness reports equality status and pin origin,
+not private binding contents or expected values. List variants are ordered by
+the frozen baseline/candidate identity, independent of producer array order.
 
 `managed.schema.json` is the closed Draft 2020-12 catalog. A DTO is selected by
 `urn:contractor:eval:v1#/$defs/<name>`. The embedded local catalog is validated by

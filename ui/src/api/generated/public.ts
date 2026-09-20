@@ -2568,6 +2568,7 @@ export interface components {
             observedTokens?: number;
             /** @enum {string} */
             freshness?: "pending" | "current" | "stale";
+            readiness?: components["schemas"]["EvalReadiness"];
         } & unknown;
         EvalCapabilities: {
             controlModes: ("server" | "external")[];
@@ -2581,6 +2582,7 @@ export interface components {
             importVersions: components["schemas"]["EvalSelector"][];
             bindings?: components["schemas"]["EvalBindingCapability"][];
             page?: components["schemas"]["EvalPage"];
+            schemas?: string[];
         };
         EvalMemberView: {
             member: components["schemas"]["EvalMember"];
@@ -2601,6 +2603,7 @@ export interface components {
             state: "not_submitted" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "unknown";
             available: boolean;
             intentId?: components["schemas"]["EvalOpaque"];
+            projectId?: components["schemas"]["EvalOpaque"];
         };
         EvalExecutionPage: {
             inventoryRevision: number;
@@ -2793,6 +2796,16 @@ export interface components {
             revision: number;
             expectedMembers: number;
             updatedAt: components["schemas"]["EvalTimestamp"];
+            variants?: {
+                id: components["schemas"]["EvalId"];
+                selector: components["schemas"]["EvalSelector"];
+            }[];
+            datasetId?: components["schemas"]["EvalId"];
+            caseCount?: number;
+            repetitions?: number;
+            summary?: components["schemas"]["EvalSummary"] | null;
+            /** @enum {string} */
+            freshness?: "pending" | "current" | "stale";
         };
         EvalExperimentReceipt: {
             experimentId: components["schemas"]["EvalOpaque"];
@@ -2825,6 +2838,27 @@ export interface components {
             experimentSummary: components["schemas"]["EvalSummary"];
             pair: components["schemas"]["EvalPair"];
             records: components["schemas"]["EvalAttributedRecord"][];
+        };
+        EvalReadinessPin: {
+            dimension: components["schemas"]["EvalId"];
+            requiredEqual: boolean;
+            /** @enum {string} */
+            baselineOrigin: "observed" | "producer-supplied" | "unavailable";
+            /** @enum {string} */
+            candidateOrigin: "observed" | "producer-supplied" | "unavailable";
+            /** @enum {string} */
+            status: "equal" | "different" | "unavailable";
+        };
+        EvalReadinessArm: {
+            variantId: components["schemas"]["EvalId"];
+            expected: number;
+            eligible: number;
+            unsupported: number;
+            blocked: number;
+        };
+        EvalReadiness: {
+            pins: components["schemas"]["EvalReadinessPin"][];
+            arms: components["schemas"]["EvalReadinessArm"][];
         };
         EvalErrorDetails: {
             /** @constant */

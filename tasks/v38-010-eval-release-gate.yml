@@ -3,8 +3,8 @@ id: "V38-010"
 title: "Verify native Evals independence and the full external producer journey"
 milestone: "managed-evals-ui"
 priority: "P2"
-status: "pending"
-implementation_commit: null
+status: "completed"
+implementation_commit: "f3d00ccda97df0a33bfc13764ae8b68d6b868564"
 implementation_repository: "contractor"
 depends_on: ["V38-008", "V38-009"]
 languages: ["go", "typescript", "python", "markdown"]
@@ -120,3 +120,15 @@ tests:
     command: >-
       test -n "$CONTRACTOR_TEST_DATABASE_URL" && make test-ui-stack
     covers: ["A1", "A2"]
+
+verification_result:
+  date: "2026-09-20"
+  evidence: "docs/plans/2026-09-20-managed-evals-ui.md"
+  rebase_evidence: "docs/plans/2026-09-20-v38-rebase-verification.md"
+  result: >-
+    make test-evals passed: 213 domain/store/service/coordinator and 13 public API
+    tests/subtests with race detection; 5 process-package tests, including Operations
+    plus native and external Workflow/Audit journeys. No required skips. Four
+    experiments retain 8 members each; 52 external lost-response replays preserve
+    receipts. Foreign owner reads fail on 12 routes per mode. UI, generated-contract
+    and independent Playground gates pass; no live model quality claim.
