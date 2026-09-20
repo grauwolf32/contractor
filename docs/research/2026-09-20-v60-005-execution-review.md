@@ -20,8 +20,8 @@ Control Plane/Runtime; она не является заявлением о ко
   `TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext` с самого
   введения функции проверяет `finalizing` вместе с `ReleaseCompletedAt`.
 - `7ca8daa6` отделил владение claim от отмены Planner и запретил дальнейшие
-  записи после обнаружения `ErrClaimLost`. [Предыдущее архитектурное ревью](../reviews/architecture-orchestration.md)
-  явно не обещает SQL fencing до обнаружения потери claim.
+  записи после обнаружения `ErrClaimLost`. Эта защита действует после
+  обнаружения потери claim; SQL fencing до обнаружения не добавлен.
 - `9ef3eec6` выделил lifecycle/Planner части Scheduler без изменения этого
   поведения; `74d3ede3` сохранил escalation history при ручном продолжении.
   Эти изменения учтены, прежние исправления не объявляются новыми находками.
