@@ -67,9 +67,10 @@ rules live in `common/artifact_visibility.py`. Package initializers remain free
 of eager imports so the codec and isolated child processes load independently.
 
 Audit result handling lives in `src/contractor_runtime/toolsets/audit_results/`.
-`v1.py` and `v2.py` implement `audit-results@1` and `audit-results@2`; `contracts.py`,
-`packages.py`, `collector.py`, `encoding.py`, and `publication.py` hold their
-internal result handling. `completion.py` implements the trusted completion
+`v2.py` implements the only registered Audit toolset, `audit-results@2`.
+`arguments.py` defines its model-facing argument schemas; `contracts.py`,
+`packages.py`, `collector.py`, `encoding.py`, and `publication.py` handle validation,
+collection and canonical result publication. `completion.py` implements the trusted completion
 lifecycle invoked by the Runtime after model output, including completeness
 checks and publication of the final artifact. It implements the shared
 `worker/completion.py` boundary; the ADK runner binds a trusted completion

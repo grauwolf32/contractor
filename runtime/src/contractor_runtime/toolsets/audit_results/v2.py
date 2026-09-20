@@ -10,6 +10,8 @@ from google.adk.tools.tool_context import ToolContext
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.audit_results.arguments import (
     AuditArgumentError,
+    BatchResultArgument,
+    EvidenceArgument,
     array_argument,
     identifier_list,
 )
@@ -28,7 +30,6 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.packages import MAX_BATCH_ITEMS
-from contractor_runtime.toolsets.audit_results.v1 import BatchResultArgument, EvidenceArgument
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 
 

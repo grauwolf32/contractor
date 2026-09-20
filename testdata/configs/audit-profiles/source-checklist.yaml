@@ -23,6 +23,7 @@ spec:
     check:
       kind: check
       ref: audit-source-check@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
       inputs:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}

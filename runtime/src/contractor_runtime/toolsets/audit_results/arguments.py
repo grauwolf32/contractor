@@ -1,10 +1,24 @@
 """Validate model arguments before constructing canonical Audit results."""
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 from contractor_runtime.toolsets.audit_results.contracts import IDENTIFIER, MAX_VALUES
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+
+
+class EvidenceArgument(TypedDict):
+    kind: str
+    summary: str
+
+
+class BatchResultArgument(TypedDict):
+    assessment: str
+    summary: str
+    completed: list[str]
+    gaps: list[str]
+    evidence: NotRequired[list[EvidenceArgument]]
+    proposal_keys: NotRequired[list[str]]
 
 
 class AuditArgumentError(ToolInputError):

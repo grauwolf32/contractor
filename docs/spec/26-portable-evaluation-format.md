@@ -443,8 +443,10 @@ do not replicate Contractor's canonical operation-key algorithm in a scorer.
 If child eval labels are unavailable, use receipt membership; label propagation
 is not a prerequisite. Existing Audit runner Project-kind behavior is retained
 where required; an evaluation Project may index its references without pretending
-the child Runs have a different membership. `audit-results@1` and the opt-in V39
-completion versions are different bindings/experiments, not mixed samples.
+the child Runs have a different membership. Historical `audit-results@1` samples
+and current `audit-results@2` completion samples belong to separate experiments.
+The former toolset has been removed; new live experiments must use the current
+completion contract and repin both comparison arms.
 
 Publisher takes an explicit allowlisted projection, not a raw `asdict` of private
 records. It writes schema-versioned JSON/Markdown to non-reserved namespaces such

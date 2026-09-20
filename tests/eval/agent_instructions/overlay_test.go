@@ -92,7 +92,7 @@ func TestInstructionVariantsPreserveExecutionContracts(t *testing.T) {
 					}
 				}
 			}
-			snapshot, err := config.Load(directory, config.MVPDescriptors())
+			snapshot, err := config.Load(directory, archivedExperimentDescriptors())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,4 +161,23 @@ func readJSON(t *testing.T, path string, result any) {
 	if err := json.Unmarshal(data, result); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// archivedExperimentDescriptors describes the frozen V40 experiment for offline
+// contract comparisons only. Historical Audit/Findings capabilities must not
+// depend on current Runtime registrations; none of these descriptors builds tools.
+func archivedExperimentDescriptors() config.Descriptors {
+	descriptors := config.MVPDescriptors()
+	for selector, descriptor := range map[string]config.ToolsetDescriptor{
+		"audit-results@1": {Tools: []string{"read_audit_task", "submit_check_result"}},
+		"security-findings@1": {
+			Tools: []string{"finding"}, FindingProposalTools: []string{"finding"},
+		},
+		"security-findings@2": {
+			Tools: []string{"finding", "list_findings"}, FindingProposalTools: []string{"finding"},
+		},
+	} {
+		descriptors.Toolsets[selector] = descriptor
+	}
+	return descriptors
 }

@@ -476,7 +476,7 @@ records or rewriting immutable artifact bytes.
 
 | Apparent legacy surface | Why it is not proven compatibility-only |
 | --- | --- |
-| `audit-results@1` and [audit_results/v1.py](../../runtime/src/contractor_runtime/toolsets/audit_results/v1.py) | The follow-up workflow refresh migrated all bundled Audit templates and their owning profiles to `audit-results@2`. Runtime retirement can follow separately: v2 still imports shared argument types from `v1.py`, and frozen test catalogs retain independent definitions. Extract shared code before deleting the v1 factory. |
+| `audit-results@1` | Removed after the workflow migration: Runtime implementation/factory, Server descriptor and discovery parity entry. Current argument types live in `arguments.py`; tests exercise trusted `audit-results@2` completion. Frozen V40 catalogs retain original bytes and use a test-only descriptor for offline historical comparisons. |
 | [audit_results/packages.py](../../runtime/src/contractor_runtime/toolsets/audit_results/packages.py), despite its “legacy” docstring | Shared package codecs also support current trusted completion through `encoding.py`. Deleting the whole module with v1 would break current behavior. |
 | `/evals/legacy`, old evaluation workspace pages and Project kind `evaluation` | These render/access actual retained work. Current managed Evals setup also creates `evaluation` Projects. Direct/portable evaluation remains an explicit contract in specs 26/30; it is not replaced automatically by a native experiment. |
 | SQLMap's URL input mode in [scan/tools.py](../../runtime/src/contractor_runtime/toolsets/scan/tools.py) | It remains an executable input mode alongside `request_ref` under the same `scan@1` surface. Removing it reduces that tool API; establish consumer/version retirement separately. |
@@ -1031,3 +1031,43 @@ Verification:
 No live model, target traffic, demo deployment, database reset or remote push was
 needed. Frozen wire/tool versions are unchanged; Runtime v1 retirement is a
 separate follow-up now that default workflow consumers have been migrated.
+
+## Follow-up — retire `audit-results@1`
+
+Removed the 565-line Runtime v1 implementation, its factory registration, the
+Server descriptor and the infrastructure-channel parity entry. `audit-results@2`
+now imports its argument schemas from `arguments.py`; task/result codecs remain
+part of the current trusted completion path. Selecting the removed toolset fails
+catalog loading, and Runtime discovery no longer advertises it.
+
+The shared test catalog now selects `audit-results@2` with a trusted completion
+binding and current instructions. Model argument tests cover only the current
+toolset. Publication tests now exercise local collection followed by Runtime
+completion, including canonical package contents, identity, ordering, incomplete
+batches and forged-manifest rejection before tools become available. The mandatory
+completion matrix retains those checks and adds the retired-toolset rejection.
+
+Frozen V40 experiment files and hashes remain historical evidence. Their offline
+contract comparisons use explicitly historical Audit/Findings descriptors in
+`_test.go` only; those descriptors provide no Runtime implementation or production
+registration. The archived Audit variants require a newly pinned experiment before
+live use with the current completion contract.
+
+Verification:
+
+- `make lint test-go build test-config` passed: Go formatting/vet/unit tests,
+  Python lint/format, Server builds, bytecode compilation and default catalog validation.
+- Full Runtime suite with warnings treated as errors: **2448 passed**, with
+  **39 optional environment-dependent skips**. Twenty removed cases were the
+  duplicate v1 parameterizations of current argument-validation tests.
+- Mandatory Audit completion gate on disposable PostgreSQL 17: **182 Go cases**
+  with integration/race checks and **331 Runtime cases**, with no selected skips.
+- A snapshot combined with the parallel Findings changes passed config, Audit
+  catalog and archived-experiment tests, plus **61 Runtime tests** for registry
+  parity, model-facing arguments and production ADK completion. The initial
+  archive check exposed a retired Findings selector; pinning its historical
+  descriptor in the offline test resolved it without restoring production code.
+- `TestAuditProgramsAcrossProductionProcesses` passed with production Server and
+  Python Runtime processes and a deterministic model gateway: 18 Worker
+  allocations, retained evidence after source deletion, catalog removal and restart.
+- `git diff --check` passed. No demo deployment or database reset was required.

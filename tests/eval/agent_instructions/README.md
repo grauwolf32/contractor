@@ -1,6 +1,9 @@
 # Agent instruction experiment
 
-Status: **candidate authored; compatibility checked; V40-001 fixture gate implemented; LLM comparison planned**.
+Status: **archived execution contracts; V40-001 offline fixture gate retained**.
+The pinned Audit variants select removed `audit-results@1` and cannot run on the
+current Server/Runtime. A live comparison requires a new, separately pinned
+experiment using `audit-results@2` and trusted Worker completion in both arms.
 No quality or token-efficiency improvement has been measured yet.
 
 Normative contract: [portable evaluation format](../../../docs/spec/26-portable-evaluation-format.md).
@@ -22,13 +25,16 @@ unchanged. This is an opt-in evaluation overlay, not a published default catalog
 - `baseline.json`: exact pre-change bytes of all 27 current instructions and their
   SHA-256 digests. The recorded Git commit does not imply a clean working tree.
 - `variants.json`: baseline/candidate paths, file digests, and explicit selectors.
-- `candidate/configs`: loadable overlay containing new immutable versions.
-- `overlay_test.go`: loads A and B through the real config loader and checks that
+- `candidate/configs`: archived overlay with exact pinned variant bytes.
+- `overlay_test.go`: loads A and B through the real config loader with an
+  offline-only descriptors for historical Audit/Findings toolsets, and checks that
   capabilities, policies, scope, retries, stages, and result contracts match.
 
 For the offline compatibility test, materialize `catalog-baseline.json` into a
 temporary root, then merge `candidate/configs/` into it. The snapshot preserves
 the original config closure and pinned bytes while the working catalog evolves.
+The test-only descriptors do not register executable toolsets or make this
+overlay loadable in a production Server.
 Its `capture_commit` records provenance; baseline hashes in `variants.json` remain
 unchanged. In A only, replace each candidate
 instruction with its mapped baseline text. Thus A and B use the **same evaluation
@@ -311,9 +317,8 @@ agent family; the candidate need not be accepted or rejected as one bundle.
 
 Publishing selected versions and updating the default catalog/profile bindings is
 a subsequent rollout decision supported by results, not part of the offline gate.
-Do not mix the proposed V39 `audit-results@2` collector/finalizer with this prompt
-experiment: current candidates still use `audit-results@1`. Evaluate the new
-completion contract in a distinct experiment after V39 is implemented. V38 Evals
+The archived candidates use removed `audit-results@1`. Evaluate current
+`audit-results@2` completion in a distinct experiment with newly pinned variants. V38 Evals
 UI design may reuse the comparison record, but is not a prerequisite for this CLI
 experiment; avoid building a second experiment service here.
 

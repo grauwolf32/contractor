@@ -7,11 +7,11 @@ import json
 import stat
 import zipfile
 from datetime import UTC, datetime
-from pathlib import Path
 
 import jcs
 import pytest
 from google.adk.tools.function_tool import FunctionTool
+from test_adk_runtime import stage_request
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
@@ -20,21 +20,18 @@ from contractor_runtime.contracts import (
     ArtifactRef,
     ArtifactWriteResult,
     RuntimeSettings,
+    WorkerCompletionContract,
 )
 from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
 from contractor_runtime.toolsets.audit_results.contracts import (
     AuditInvocationOwner,
     AuditTrustedInputs,
 )
-from contractor_runtime.toolsets.audit_results.v1 import (
+from contractor_runtime.toolsets.audit_results.v2 import (
     AuditResultsToolsetFactory,
+    ReadAuditTaskTool,
     SubmitCheckResultTool,
 )
-from contractor_runtime.toolsets.audit_results.v2 import ReadAuditTaskTool as ReadAuditTaskToolV2
-from contractor_runtime.toolsets.audit_results.v2 import (
-    SubmitCheckResultTool as SubmitCheckResultToolV2,
-)
-from contractor_runtime.workspace import AllocationWorkspace
 
 
 def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None:
@@ -42,7 +39,7 @@ def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None
     owner = AuditInvocationOwner("allocation-1", "invocation-1", digest(task), ("check-authz",))
     collector = InvocationAuditCollector(AuditTrustedInputs(owner, task, execution))
     metrics = WorkerState().metrics
-    submit = SubmitCheckResultToolV2(collector, metrics)
+    submit = SubmitCheckResultTool(collector, metrics)
     declaration = FunctionTool(submit)._get_declaration().model_dump(mode="json", by_alias=True)
     schema = declaration["parametersJsonSchema"]
     assert "tool_context" not in schema["properties"]
@@ -53,7 +50,7 @@ def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None
         "completed",
         "gaps",
     ]
-    read = ReadAuditTaskToolV2(
+    read = ReadAuditTaskTool(
         collector,
         ArtifactRef(namespace="inputs", name="task", revision="r1"),
         metrics,
@@ -62,12 +59,10 @@ def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None
 
 
 def test_submit_check_result_advertises_bounded_batch_member_schema() -> None:
-    tool = SubmitCheckResultTool(
-        FakeAuditArtifactClient(b"", b""),
-        WorkerState().metrics,
-        (),
-        "audit-check",
-    )
+    task, execution = fixture_inputs()
+    owner = AuditInvocationOwner("allocation-1", "invocation-1", digest(task), ("check-authz",))
+    collector = InvocationAuditCollector(AuditTrustedInputs(owner, task, execution))
+    tool = SubmitCheckResultTool(collector, WorkerState().metrics)
     declaration = FunctionTool(tool)._get_declaration().model_dump(mode="json", by_alias=True)
     schema = declaration["parametersJsonSchema"]
     batch = schema["$defs"]["BatchResultArgument"]
@@ -84,18 +79,9 @@ def test_read_audit_task_returns_validated_json_without_raw_package_bytes() -> N
         task_package, execution_manifest = fixture_inputs()
         client = FakeAuditArtifactClient(task_package, execution_manifest)
         state = WorkerState()
-        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
-        tools = await factory.create_selected(
-            selected=["read_audit_task"],
-            allocation_id="allocation-1",
-            run_id="run-1",
-            namespace="audit-check",
-            runtime_settings=runtime_settings(),
-            workspace=workspace(),
-            state=state,
-        )
+        tools = await prepared_tools(client, state)
 
-        result = await tools["read_audit_task"]()
+        result = await tools["read_audit_task"](FakeToolContext("worker-invocation-1"))
 
         assert result["task"]["item_key"] == "check-authz"
         assert result["task"]["checklist"]["statement"] == (
@@ -116,21 +102,12 @@ def test_read_audit_task_returns_validated_json_without_raw_package_bytes() -> N
     asyncio.run(scenario())
 
 
-def test_submit_check_result_derives_identity_and_builds_canonical_package() -> None:
+def test_completion_derives_identity_and_builds_canonical_package() -> None:
     async def scenario() -> None:
         task_package, execution_manifest = fixture_inputs()
         client = FakeAuditArtifactClient(task_package, execution_manifest)
         state = WorkerState()
-        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
-        tools = await factory.create_selected(
-            selected=["submit_check_result"],
-            allocation_id="allocation-1",
-            run_id="run-1",
-            namespace="audit-check",
-            runtime_settings=runtime_settings(),
-            workspace=workspace(),
-            state=state,
-        )
+        tools = await prepared_tools(client, state)
 
         result = await tools["submit_check_result"](
             assessment="satisfied",
@@ -142,11 +119,14 @@ def test_submit_check_result_derives_identity_and_builds_canonical_package() -> 
             proposal_keys=["candidate-authz"],
         )
 
-        assert result["artifact"] == {
-            "namespace": "audit-check",
-            "name": "result",
-            "revision": "result-r1",
-        }
+        assert result["status"] == "recorded" and result["complete"]
+        assert "artifact" not in result
+        assert client.written_payload == b""
+        completion = await finish(tools)
+        assert completion.kind == "complete"
+        assert completion.result.artifacts["result"] == ArtifactRef(
+            namespace="audit-check", name="result", revision="result-r1"
+        )
         assert client.written_media_type == "application/zip"
         result_document, evidence_document, package_manifest = decode_result_package(
             client.written_payload
@@ -191,69 +171,35 @@ def test_submit_check_result_derives_identity_and_builds_canonical_package() -> 
         ]
         assert state.metrics.counters["tool_calls"] == 1
         metric = state.metrics.tool_calls[0]
-        assert metric.arguments == {
-            "assessment": "satisfied",
-            "content_bytes": 31,
-            "completed_count": 1,
-            "gap_count": 0,
-            "evidence_count": 1,
-            "proposal_count": 1,
-        }
+        assert metric.arguments == {}
         assert "Guard at app.py" not in repr(metric)
 
     asyncio.run(scenario())
 
 
-def test_submit_check_result_rejects_forged_manifest_before_write() -> None:
+def test_preparation_rejects_forged_manifest_before_tools_exist() -> None:
     async def scenario() -> None:
         task_package, execution_manifest = fixture_inputs()
         forged = json.loads(execution_manifest)
         forged["items"][0]["subject_key"] = "different-subject"
         client = FakeAuditArtifactClient(task_package, jcs.canonicalize(forged))
         state = WorkerState()
-        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
-        tools = await factory.create_selected(
-            selected=["submit_check_result"],
-            allocation_id="allocation-1",
-            run_id="run-1",
-            namespace="audit-check",
-            runtime_settings=runtime_settings(),
-            workspace=workspace(),
-            state=state,
-        )
-
-        with pytest.raises(ValueError, match="identities differ"):
-            await tools["submit_check_result"](
-                assessment="inconclusive",
-                summary="A bounded gap remains.",
-                completed=[],
-                gaps=["missing-source"],
-                tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
-                evidence=[],
-            )
+        with pytest.raises(ValueError, match="audit_result_invalid"):
+            await prepared_tools(client, state)
         assert client.written_payload == b""
-        assert state.metrics.counters["tool_errors"] == 1
+        assert not state.metrics.counters.get("tool_calls", 0)
 
     asyncio.run(scenario())
 
 
-def test_submit_check_result_publishes_one_complete_ordered_batch() -> None:
+def test_completion_publishes_one_complete_ordered_batch() -> None:
     async def scenario() -> None:
         task_set, execution_manifest = fixture_batch_inputs()
         client = FakeAuditArtifactClient(task_set, execution_manifest)
         state = WorkerState()
-        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
-        tools = await factory.create_selected(
-            selected=["read_audit_task", "submit_check_result"],
-            allocation_id="allocation-1",
-            run_id="run-1",
-            namespace="audit-check",
-            runtime_settings=runtime_settings(),
-            workspace=workspace(),
-            state=state,
-        )
+        tools = await prepared_tools(client, state)
 
-        assigned = await tools["read_audit_task"]()
+        assigned = await tools["read_audit_task"](FakeToolContext("worker-invocation-1"))
         assert assigned["batchSize"] == 2
         assert [task["item_key"] for task in assigned["tasks"]] == [
             "check-authz",
@@ -281,6 +227,8 @@ def test_submit_check_result_publishes_one_complete_ordered_batch() -> None:
             ],
         )
 
+        assert client.written_payload == b""
+        assert (await finish(tools)).kind == "complete"
         result_document, evidence_document, _ = decode_result_package(client.written_payload)
         assert [item["item_key"] for item in result_document["results"]] == [
             "check-authz",
@@ -296,8 +244,8 @@ def test_submit_check_result_publishes_one_complete_ordered_batch() -> None:
             }
         ]
         metric = state.metrics.tool_calls[-1]
-        assert metric.arguments["mode"] == "batch"
-        assert metric.arguments["item_count"] == 2
+        assert metric.arguments == {}
+        assert "Guard at app.py" not in repr(metric)
 
     asyncio.run(scenario())
 
@@ -307,16 +255,7 @@ def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
         task_set, execution_manifest = fixture_batch_inputs()
         client = FakeAuditArtifactClient(task_set, execution_manifest)
         state = WorkerState()
-        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
-        tools = await factory.create_selected(
-            selected=["submit_check_result"],
-            allocation_id="allocation-1",
-            run_id="run-1",
-            namespace="audit-check",
-            runtime_settings=runtime_settings(),
-            workspace=workspace(),
-            state=state,
-        )
+        tools = await prepared_tools(client, state)
 
         result = await tools["submit_check_result"](
             tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
@@ -329,10 +268,12 @@ def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
                 }
             ],
         )
-        assert result["ok"] is False
+        assert result["status"] == "error"
         assert result["error"]["field"] == "results"
-        assert result["error"]["expectedCount"] == 2
-        assert result["error"]["actualCount"] == 1
+        assert not (
+            await tools["submit_check_result"].completion_binding.current().snapshot()
+        ).items
+        assert (await finish(tools)).kind == "continue"
         assert client.written_payload == b""
 
     asyncio.run(scenario())
@@ -492,31 +433,26 @@ def runtime_settings() -> RuntimeSettings:
     )
 
 
-def workspace() -> AllocationWorkspace:
-    path = Path("/tmp/contractor-audit-result-test/allocation-1")
-    return AllocationWorkspace(root=path.parent, path=path)
-
-
 def digest(payload: bytes) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
 class FakeAuditArtifactClient:
+    allocation_id = "allocation-1"
+
     def __init__(self, task_package: bytes, execution_manifest: bytes) -> None:
         self.task_package = task_package
         self.execution_manifest = execution_manifest
         self.written_payload = b""
         self.written_media_type = ""
 
-    @property
-    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
-        return ()
-
-    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+    async def read_artifact(self, ref: ArtifactRef, *, max_bytes: int) -> ArtifactValue:
         now = datetime.now(UTC)
-        if ref == ArtifactRef(namespace="inputs", name="task"):
+        if ref == ArtifactRef(namespace="inputs", name="task", revision="task-r1"):
             payload, media_type, revision = self.task_package, "application/zip", "task-r1"
-        elif ref == ArtifactRef(namespace="inputs", name="execution_manifest"):
+        elif ref == ArtifactRef(
+            namespace="inputs", name="execution_manifest", revision="execution-r1"
+        ):
             payload, media_type, revision = (
                 self.execution_manifest,
                 "application/json",
@@ -524,6 +460,7 @@ class FakeAuditArtifactClient:
             )
         else:
             raise AssertionError(f"unexpected read {ref}")
+        assert len(payload) <= max_bytes
         return ArtifactValue(
             artifact=ArtifactRef(namespace=ref.namespace, name=ref.name, revision=revision),
             media_type=media_type,
@@ -552,3 +489,35 @@ class FakeAuditArtifactClient:
             mediaType=media_type,
             size=len(data),
         )
+
+
+async def prepared_tools(client, state):
+    contract = WorkerCompletionContract(
+        kind="audit-check-results@1",
+        task=ArtifactRef(namespace="inputs", name="task", revision="task-r1"),
+        executionManifest=ArtifactRef(
+            namespace="inputs", name="execution_manifest", revision="execution-r1"
+        ),
+        resultArtifact=ArtifactRef(namespace="audit-check", name="result"),
+    )
+    tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
+        selected=["read_audit_task", "submit_check_result"],
+        allocation_id=client.allocation_id,
+        namespace="audit-check",
+        runtime_settings=runtime_settings(),
+        state=state,
+        completion_contract=contract,
+    )
+    tools["submit_check_result"].completion_binding.begin("worker-invocation-1")
+    return tools
+
+
+async def finish(tools):
+    binding = tools["submit_check_result"].completion_binding
+    return await binding.finish(
+        request=stage_request().model_copy(
+            update={"result_artifacts": {"result": binding.contract.result_artifact}}
+        ),
+        deadline=asyncio.get_running_loop().time() + 5,
+        check_active=lambda: None,
+    )

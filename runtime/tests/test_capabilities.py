@@ -61,6 +61,7 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     }
     # V39-005 installs the factory; positive advertisement also requires its probe.
     assert "audit-results@2" in factories
+    assert "audit-results@1" not in factories
     assert actual == fixture["toolsets"]
 
 

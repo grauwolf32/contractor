@@ -74,9 +74,6 @@ func MVPDescriptors() Descriptors {
 			"audit-results@2": {
 				Tools: []string{"read_audit_task", "submit_check_result"},
 			},
-			"audit-results@1": {
-				Tools: []string{"read_audit_task", "submit_check_result"},
-			},
 			"security-findings@1": {
 				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},

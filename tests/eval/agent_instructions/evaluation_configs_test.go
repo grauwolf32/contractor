@@ -52,7 +52,7 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := config.Load(directory, config.MVPDescriptors())
+	snapshot, err := config.Load(directory, archivedExperimentDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

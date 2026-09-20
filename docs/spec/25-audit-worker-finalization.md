@@ -121,10 +121,11 @@ contract and selected toolset capability; direct prepare also rejects unknown
 or unsupported contracts. Retry/placement preserves the pinned choice and must
 never downgrade silently to ordinary completion on an older Runtime.
 
-`audit-results@1`, omitted contracts and old snapshots retain their existing
-behavior. New toolset, Workflow, AgentTemplate and AuditProfile versions opt in
-together after capable Server/Runtime deployment. Do not mutate existing
-versions, bindings or running Audits as part of implementing this feature.
+`audit-results@1` has been removed from Server descriptors and Runtime factories.
+Catalogs selecting it are rejected; retained snapshots selecting it cannot be
+placed on current Runtime. Recreate those demo Audits with the current catalog.
+Ordinary Workers without an Audit toolset retain ordinary completion behavior.
+Selecting `audit-results@2` requires the trusted contract even during direct prepare.
 
 ## 3. Invocation-local result collection
 

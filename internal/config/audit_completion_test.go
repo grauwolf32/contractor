@@ -213,3 +213,16 @@ func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testi
 		t.Fatal(err)
 	}
 }
+
+func TestAuditCompletionRejectsRetiredToolset(t *testing.T) {
+	root := copyConfigTree(t)
+	path := filepath.Join(root, "agent-templates/audit_source_checker.yaml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, path, []byte(strings.Replace(string(raw), "audit-results@2", "audit-results@1", 1)))
+	if _, err := Load(root, MVPDescriptors()); err == nil || !strings.Contains(err.Error(), `unknown Toolset "audit-results@1"`) {
+		t.Fatalf("retired Audit toolset must be rejected during catalog loading: %v", err)
+	}
+}

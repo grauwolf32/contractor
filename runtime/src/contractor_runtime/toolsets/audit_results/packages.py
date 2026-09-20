@@ -1,7 +1,7 @@
-"""Pure legacy Audit package codecs shared by tools and trusted completion.
+"""Pure Audit package codecs for trusted task validation and result publication.
 
-This module has no model, collector or artifact transport dependencies. The @1
-entry points retain their original validation and byte encoding behavior.
+This module has no model, collector or artifact transport dependencies. The
+package schema and canonical byte encoding are independent of the toolset version.
 """
 
 import hashlib

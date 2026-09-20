@@ -33,10 +33,7 @@ from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
 from contractor_runtime.settings import WorkspaceSettings
-from contractor_runtime.toolsets.audit_results.v1 import AuditResultsToolsetFactory
-from contractor_runtime.toolsets.audit_results.v2 import (
-    AuditResultsToolsetFactory as AuditResultsV2Factory,
-)
+from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
@@ -217,7 +214,6 @@ def built_in_factories(
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     audit_results_toolset = AuditResultsToolsetFactory(artifact_client_factory)
-    audit_results_v2_toolset = AuditResultsV2Factory(artifact_client_factory)
     security_findings_toolset = SecurityFindingsToolsetFactory(artifact_client_factory)
     security_findings_v2_toolset = SecurityFindingsV2ToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
@@ -265,7 +261,6 @@ def built_in_factories(
             ),
             artifact_toolset.ref: artifact_toolset,
             audit_results_toolset.ref: audit_results_toolset,
-            audit_results_v2_toolset.ref: audit_results_v2_toolset,
             security_findings_toolset.ref: security_findings_toolset,
             security_findings_v2_toolset.ref: security_findings_v2_toolset,
             caido_toolset.ref: caido_toolset,

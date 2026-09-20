@@ -640,20 +640,16 @@ to one receipt retained by the same Audit execution and validates item
 membership. Proposals are never silently ignored or associated merely because
 they share a Run.
 
-The legacy Runtime exposes the optional `audit-results@1` Toolset only when an
-AgentTemplate selects it. `read_audit_task` reads the exact `inputs/task` and
-`inputs/execution_manifest`, validates their identity, and returns one ordered
-`tasks` array instead of exposing opaque base64 ZIPs for the model to interpret.
-For a one-item assignment it also returns the legacy singular `task` fields.
-`submit_check_result` independently repeats those checks and derives every item
-key, subject key, requested coverage and manifest digest. For one item it
-accepts the legacy scalar arguments; for several it requires one complete
-ordered `results` array and rejects scalar mixing, missing entries, and extra
-entries before writing. The model supplies only assessments, summaries,
-completed coverage, explicit gaps, bounded evidence summaries, and proposal
-receipt keys. The tool creates one canonical package in the selected agent
-namespace; neither tool identifies an Audit, selects or reorders items, accepts
-evidence, or bypasses the trusted importer.
+Runtime exposes `audit-results@2` only with a trusted Worker completion contract.
+`read_audit_task` returns the validated, ordered tasks and requested coverage
+without exposing opaque base64 ZIPs. For a one-item assignment it also returns
+singular `task` and `taskPackageId` fields. `submit_check_result` records one item
+or a complete ordered batch locally. The model supplies assessments, summaries,
+completed coverage, explicit gaps, bounded evidence summaries and proposal receipt
+keys; Runtime derives item identities and the execution-manifest digest from the
+pinned inputs. Neither tool identifies an Audit, changes its assignment, accepts
+evidence or bypasses the trusted importer. The removed `audit-results@1` toolset
+is unavailable in both Server configuration and Runtime discovery.
 
 The current trusted completion strategy is specified by
 [25](25-audit-worker-finalization.md) and implemented by V39-001–007.
