@@ -21,7 +21,7 @@
     "post_fix_log": ".local/v60-review/worker-completion-go-probe-fixed.log"
   },
   "implementation": [
-    "ResultJSONSize uses json.Encoder with HTML escaping disabled and subtracts only the optional three-byte overhead of each real U+2028/U+2029 escape; escaped backslashes are skipped. No number decoding or float64 conversion.",
+    "For supported typed WorkerCompletion/WorkerResult and StageContentResult boundaries, ResultJSONSize uses json.Encoder with HTML escaping disabled and subtracts only the optional three-byte overhead of each real U+2028/U+2029 escape; escaped backslashes are skipped. No number decoding or float64 conversion.",
     "Three consumers: WorkerCompletion.Validate, Streamline WorkerResult validation, Planner mapped StageResult validation.",
     "Numeric caps, finalizer/model-output bounds, request limits, private encoders/digests and A2A transport remain unchanged."
   ],
@@ -155,6 +155,16 @@
     "Go pass-event counts include parent tests and subtests, not distinct leaf cases.",
     "The initial post-fix focused command caught a test-only typo (undefined AsError); corrected to FailureFrom before the complete race suite passed.",
     "Literal fixture parameters compactly construct large wire documents; all readers receive real expanded JSON.",
-    "Completion metadata and implementation hash are recorded in a subsequent root-owned commit."
-  ]
+    "Completion metadata and implementation hash are recorded in a subsequent root-owned commit.",
+    "Parity evidence is scoped to supported typed result schemas with integer counters; it is not a generic JSON serializer parity guarantee for arbitrary floating-point values."
+  ],
+  "supported_result_scope": {
+    "models": [
+      "WorkerCompletion",
+      "WorkerResult",
+      "StageContentResult"
+    ],
+    "guarantee": "Verified encoded-size accounting at the current typed result boundaries, including HTML/Unicode escaping and exact uint64 counters.",
+    "excluded": "Generic cross-language JSON byte/size parity, arbitrary floating-point payloads, and provider/model-specific transport limits. Arbitrary float fields are outside these supported result schemas."
+  }
 }

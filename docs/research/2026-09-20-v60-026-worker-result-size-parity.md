@@ -1,4 +1,4 @@
-# V60-026 — одинаковый размер Worker result в Go и Python
+# V60-026 — размер типизированных Worker results в Go и Python
 
 Проверено 20.09.2026 в изолированном worktree от
 `8edeabf21194f5bba8dd258d53a072af713c630e`. Найденный в V60-006 дефект
@@ -24,6 +24,12 @@ ASCII и кириллица той же UTF-8 длины принимаются 
 text/result/wire bounds. Разница необязательного escaping двух стандартных
 serializers не должна менять допустимость одного Worker result.
 
+Совпадение учёта размера проверено для поддерживаемых типизированных
+`WorkerCompletion`/`WorkerResult` и `StageContentResult`. Их числовые поля —
+целочисленные счётчики; произвольные JSON payloads с float-полями не входят в
+этот контракт. Результат не является гарантией одинаковой сериализации или
+размера любого Go/Python JSON-объекта.
+
 ## Исправление
 
 `contracts.ResultJSONSize` использует обычный `json.Encoder` с
@@ -41,8 +47,8 @@ request bounds, private-wire encoders/digests и transport остаются пр
 
 ## Проверка
 
-- Общая матрица из 18 случаев выполняется обоими языками: HTML, Unicode,
-  настоящие и буквальные escapes, quotes/backslashes, uint64 max, текст
+- Общая матрица из 18 типизированных WorkerCompletion выполняется обоими
+  языками: HTML, Unicode, настоящие и буквальные escapes, quotes/backslashes, uint64 max, текст
   65 536/65 537 bytes и envelope 262 144/262 145 bytes.
 - Реальный loopback HTTP с официальным Go A2A SDK передаёт HTML result из
   63 000 bytes с точным сохранением текста и invocation ID.

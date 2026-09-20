@@ -11,6 +11,7 @@
     "V60-028: stale post-deletion Audit revision in controller hardening fixture",
     "V60-031: restore omitted browser journey selection and reject skipped/missing browser report cases",
     "V60-032: three stale browser fixture selectors exposed by restoring the required journey selection",
+    "V60-034: keep shared instructions and remove profiles depending on removed current standards so the actual catalog-replacement restart journey can execute unchanged history assertions",
     "V60-035: validate per-read asOf separately while comparing every durable Findings page field"
   ],
   "environment": {
@@ -158,12 +159,49 @@
       "go_passing_events": 13,
       "python_passing_cases": 48,
       "required_skips": []
+    },
+    {
+      "phase": "supplemental-audit-program-restart",
+      "command": [
+        "make",
+        "test-audits-process"
+      ],
+      "execution": "Complete target recipe in the fail-fast integrated invocation; the following release lint target started only after this target passed.",
+      "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+      "exit_code": 0,
+      "go_package_seconds": 474.894,
+      "go_pass_events": 3,
+      "go_fail_events": 0,
+      "go_skip_events": 0,
+      "tests": [
+        {
+          "name": "TestAuditProgramsAcrossProductionProcesses",
+          "seconds": 363.73,
+          "status": "PASS"
+        },
+        {
+          "name": "TestHeterogeneousRuntimeCapabilityPlacement",
+          "seconds": 46.02,
+          "status": "PASS"
+        },
+        {
+          "name": "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "seconds": 65.13,
+          "status": "PASS"
+        }
+      ],
+      "log": ".local/v60-review/v60-034-full-target.log",
+      "log_sha256": "6d0d07e92789dafa9e6b55919244e0be565e33c5b4b7e3038261a6490817652b",
+      "source_log": ".local/v60-review/v60-release-complete.log",
+      "source_line_start": 14,
+      "source_line_end": 27,
+      "evidence_reference": "tasks/evidence/v60-034.json"
     }
   ],
   "required_remaining": [],
   "evidence_limits": [
     "Audit and repeat/lifecycle browser route fixtures test UI behavior, not backend execution. Real-stack browser Project/Run path and separate production Audit process tests demonstrate backend wiring.",
-    "Multiround SQL admission/replay and Controller replacement are complementary checks. The separate Audit-program Server-restart gate was inspected as source and is not claimed as executed in this review.",
+    "Multiround SQL admission/replay and Controller replacement are complementary checks. The separate Audit-program catalog-replacement/Server-restart gate passed at e49c6523 under V60-034; this does not claim a process kill at a round boundary or overall release success.",
     "No live-model output quality claim and no completion claim for separately planned scan/SARIF/Evals/toolset work."
   ],
   "history": [
@@ -203,7 +241,14 @@
     },
     "old_browser_note": "No Go test skipped. Optional screenshot OCR substep logged an unavailable tool; this is separate from required browser execution. Old browser success does not prove omitted fixture coverage.",
     "findings_gate_source": "7100eb4171f8009cc7fe0591bb4fff8504313c14",
-    "findings_correction": "Only V60-035 read-snapshot comparison changes this gate; intermediate V60-033/034 fixes affect separate process fixtures. Production code is unchanged since the dedicated Audit/browser gates."
+    "findings_correction": "Only V60-035 read-snapshot comparison changes the historical 7100eb41 Findings gate relative to the dedicated45b31abf Audit/browser gates; intermediate V60-033/034 fixes affect separate process fixtures. The unchanged-production attribution applies only to those historical sources.",
+    "audit_program_restart": {
+      "source_commit": "e49c65230b185c0daf575a202a22e4508bb7ed4b",
+      "initial_implementation_commit": "020156fab8043a2dfe5c43188cd96dca547020ae",
+      "followup_implementation_commit": "747839c255fc3eef800281d837b1c57ab87f892d",
+      "report": "docs/research/2026-09-20-v60-034-audit-catalog-fixture-review.md",
+      "attribution": "Supplemental complete target after the previously recorded dedicated review gates and later main integration; no general release success claim."
+    }
   },
   "corrected_browser_cases": {
     "report": ".local/v60-review/v60-031-browser/run-1215948544/browser-report.json",

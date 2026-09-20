@@ -146,6 +146,23 @@ fixture corrections to delivered UI behavior; application code is unchanged.
 Its preflight and the corrected full browser prerequisite supply execution
 proof in [evidence V60-032](../../tasks/evidence/v60-032.json).
 
+### V60-034 — replacement catalog prerequisites for the restart journey (P2)
+
+The later full Audit-program process run exposed two stale replacement-fixture
+assumptions: deleting instructions still used by version-3 Workflows, then
+retaining version-2 profiles that depended on the removed current standards.
+[V60-034](2026-09-20-v60-034-audit-catalog-fixture-review.md) preserves the shared
+instructions and removes both generations of dependent profiles. Current
+standard deletion and every historical Audit assertion remain intact.
+
+The complete `make test-audits-process` target subsequently passed at
+`e49c65230b185c0daf575a202a22e4508bb7ed4b`: the Audit restart journey took
+363.73 s, heterogeneous placement 46.02 s, and scheduler concurrency 65.13 s.
+The package passed in 474.894 s with three Go PASS events and zero skips.
+Its actual restart now verifies retained baselines, coverage, reports and
+finding backtraces while current profiles and standards are unavailable.
+Original failed attempts remain in [V60-034 evidence](../../tasks/evidence/v60-034.json).
+
 ### V60-035 — per-read snapshot time compared as durable review state (P2)
 
 The required Findings process gate completed producer and reader execution, then
@@ -167,7 +184,7 @@ Gateway defect was observed. Full required gate results are recorded below.
 | --- | --- |
 | Review TTL and decision replay | `TestAuditFindingReviewHistoryAndDeletedRunProvenance`: injected time crosses TTL; expiry persists despite rejected decision. Same key replays immutable decision; changed subject and stale revision fail. |
 | Frozen report review | `TestAuditReportAcceptanceUsesFrozenCandidate` and importer report-deletion regressions: exact candidate survives source deletion, acceptance publishes its original links, later finding review does not rewrite the report. |
-| Multiple rounds and recovery | `TestPostgresAcceptNextRoundIsAtomicReplaySafeAndConsumeOnce` races next-round acceptance in real SQL; one insertion/consume fence survives replay and rejects reuse. Controller replacement reconstructs the durable dispatch window in `TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts`. The separate `test-audits-process` restart journey was inspected as source; its execution is not claimed by this row. |
+| Multiple rounds and recovery | `TestPostgresAcceptNextRoundIsAtomicReplaySafeAndConsumeOnce` races next-round acceptance in real SQL; one insertion/consume fence survives replay and rejects reuse. Controller replacement reconstructs the durable dispatch window in `TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts`. The separate `test-audits-process` restart journey subsequently passed under [V60-034](2026-09-20-v60-034-audit-catalog-fixture-review.md), preserving pinned history after catalog replacement. This is not a process kill at a round boundary. |
 | Retained findings and collections | Intake/deletion regressions plus `TestFindingCollectionPublicationRunRetentionAndReplay` and `TestFindingCollectionAuditContributionsAndPinnedReview`: exact bytes, contributing receipts, pinned review revisions, missing/foreign sources and source deletion retain their distinct outcomes. |
 | Provenance and complete pages | `TestFindingProvenanceConsistentReadsWithSingleConnection`, `TestPublicAuditPaginationBoundary`, `TestPublicAuditSourceRunDeletionInvalidatesReadContexts`: 199/200 boundaries, stale cursors and one-connection hydration; deletion invalidates the enclosing Audit revision. |
 | Programmatic Worker completion | Dedicated Audit completion gate checks its required Go/Python matrix, real Artifact API, deterministic sealed result publication and incomplete/invalid/transport cases; absent or skipped mandatory cases fail the gate. |
@@ -200,6 +217,7 @@ cross-command scenarios.
 | `make test-audit-completion-e2e` | 173 Go cases and 331 Runtime cases passed; the gate verifies required cases and rejects skips. |
 | `make test-audits-hardening` | 193 Go pass events and 34 UI tests/3 files; its separate matrix prerequisite passed 139 Go events. |
 | `make test-findings-e2e` | 13 required process cases and 48 Runtime cases, 190.699 s, exit 0. |
+| Supplemental `make test-audits-process` / V60-034 | 3 process tests, 474.894 s Go package time, exit 0 and zero skips; actual catalog replacement/restart and retained history. |
 | `make test-audits-browser test-lifecycle-controls-browser` through corrected `test-ui-stack` | 21 Go pass events, 20 validated Chromium cases/7 files, plus real native/external Evals; 1107.48 s, exit 0. |
 
 The dedicated Audit completion/hardening targets ran on `45b31abf` and finished
@@ -208,7 +226,10 @@ log sections are retained. No individual target wall time is invented for that
 shared 298.83 s invocation. The corrected full browser gate also ran on
 `45b31abf`. The full Findings rerun passed on `7100eb41`; its only relevant delta
 is V60-035's test assertion. Intervening V60-033/034 changes affect separate
-process fixtures. Production code is identical across these final gate sources.
+process fixtures. Production code is identical between those historical
+`45b31abf` and `7100eb41` gate sources. The supplemental restart target is
+separately attributed to integrated source `e49c6523`; no unchanged-production
+claim is made across that later main integration.
 
 The V60-035 rerun retained all producer/reader assertions and all five retention
 and five reader-boundary subcases. The original failure and diagnostic timestamp
@@ -219,8 +240,10 @@ hashes are retained in [V60-008 evidence](../../tasks/evidence/v60-008.json).
 `test-audits-browser` and `test-lifecycle-controls-browser` share `test-ui-stack`;
 a single invocation runs that prerequisite once and satisfies both aliases.
 `test-audit-completion-e2e` is executed explicitly in the dedicated Audit run.
-The broader `release-verify` additionally includes real Audit program journeys;
-its initial run stopped before those targets, so they are not counted here.
+The initial review checkpoint did not execute the broader Audit-program
+restart target. The later complete target is now recorded separately under
+V60-034 above; this target does not itself establish overall release success,
+which is recorded separately under V60-009.
 Shared prerequisites are not counted as repeated independent proof.
 
 ## Remaining boundaries
@@ -229,8 +252,10 @@ This is representative verification of the specified journeys, not exhaustive
 crash injection at every SQL boundary or evidence of live-model quality.
 Multiround SQL acceptance and Controller reconstruction are separate
 complementary checks; this review does not claim a Server process kill at a
-round boundary or execution of the separate Audit-program restart gate. Browser route fixtures demonstrate UI
-behavior; only explicitly real-stack/process cases demonstrate backend wiring.
+round boundary. The separately executed Audit-program restart gate proves its
+specified catalog replacement and historical-read journey. Browser route
+fixtures demonstrate UI behavior; only explicitly real-stack/process cases
+demonstrate backend wiring.
 
 Task records and the [V60-010 delivery snapshot](2026-09-20-v60-010-configuration-evaluation-review.md)
 distinguish, at that snapshot's reviewed commit, delivered V38/V55 work from
