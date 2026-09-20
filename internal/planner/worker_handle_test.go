@@ -9,7 +9,7 @@ import (
 
 func TestCloneWorkerHandleDetachesAgentCard(t *testing.T) {
 	original := contracts.WorkerHandle{AgentCard: map[string]any{
-		"name": "worker",
+		"name":                "worker",
 		"supportedInterfaces": []any{map[string]any{"url": "https://original.example/a2a"}},
 	}}
 	cloned := CloneWorkerHandle(original)
@@ -50,7 +50,7 @@ func TestCloneWorkerHandleConcurrentReads(t *testing.T) {
 func TestCloneWorkerHandleRejectsNonJSONCardWithoutSharingIt(t *testing.T) {
 	original := contracts.WorkerHandle{
 		AllocationID: "allocation-1",
-		AgentCard: map[string]any{"unsupported": make(chan struct{})},
+		AgentCard:    map[string]any{"unsupported": make(chan struct{})},
 	}
 	cloned := CloneWorkerHandle(original)
 	if cloned.AgentCard != nil || cloned.AllocationID != original.AllocationID {

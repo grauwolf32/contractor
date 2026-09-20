@@ -1,0 +1,33 @@
+schema_version: "1.0"
+id: V60-030
+title: Restore release lint for the WorkerHandle regression test
+milestone: project-review-v60
+priority: P2
+status: in_progress
+depends_on: [V60-009]
+languages: [go, markdown]
+goal: Remove the reproduced gofmt failure without changing test behavior.
+context:
+  authority: User requested completion of open V60 reviews; final release verification found this formatting failure.
+  design: docs/plans/2026-09-20-project-review.md
+  finding: The existing internal/planner/worker_handle_test.go contains two unaligned composite literal fields and fails the release lint prerequisite.
+scope:
+  in:
+    - Apply gofmt to this one test file and record the exact before/after diff.
+  out:
+    - Change production behavior, test assertions or unrelated files.
+acceptance_criteria:
+  - id: A1
+    text: gofmt reports no changes and the diff ignoring whitespace is empty.
+  - id: A2
+    text: The subsequent final release invocation passes its lint prerequisite.
+tests:
+  - command: gofmt -d internal/planner/worker_handle_test.go
+    covers: [A1]
+  - command: git diff --ignore-all-space --exit-code -- internal/planner/worker_handle_test.go
+    covers: [A1]
+  - command: make release-verify
+    covers: [A2]
+verification_requirements:
+  - Record the original formatting mismatch and delegate the full release rerun to V60-009.
+  - Keep implementation and completion metadata commits separate.
