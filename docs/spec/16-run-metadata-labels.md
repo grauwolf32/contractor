@@ -31,7 +31,11 @@ The pre-feature public `labels` array is renamed to `runtimeLabels`. The first
 metadata-label version is a strict contract cutover: Server does not accept the
 old array and the new map under one overloaded field. Server, UI and bundled
 clients are upgraded together. Durable RuntimeConfig snapshot tables and refs
-need no semantic migration merely because their public field is renamed.
+need no semantic migration merely because their public field is renamed. That
+rename preceded the first external client and was accepted as a one-time
+pre-release cutover, not a precedent; later incompatible public changes follow
+the API-version rule in
+[06](06-server-ui-and-operations.md#frontend-implementation-contract).
 
 ## Public Run contract
 

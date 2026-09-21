@@ -325,7 +325,9 @@ without a new valid ack, the agent:
 1. rejects new A2A Tasks and enters `draining`;
 2. asks its active in-process Worker runtime to abort and snapshots the
    accumulated report without further semantic work;
-3. stops and destroys that Worker instance within the configured shutdown grace;
+3. stops and destroys that Worker instance within the configured shutdown grace
+   (`CONTRACTOR_SHUTDOWN_GRACE_SECONDS`, default 10 seconds), which is also the
+   bound before forced termination after lease loss;
 4. if in-process termination cannot be guaranteed, exits the Runtime Agent
    process instead of reusing the slot;
 5. otherwise deactivates the allocation's A2A identity, secrets and access

@@ -452,6 +452,12 @@ deterministic Planner adapter delivers the complete immutable StageContext with
 each A2A subtask request. They are never model-selected execution-tool
 arguments.
 
+`v1alpha1` sets no separate count, name-length, value-length or total-size
+limit for string parameters. The Run request as a whole is bounded by the
+public JSON request limit in
+[06](06-server-ui-and-operations.md#frontend-implementation-contract), and the
+validated mapping is stored as ordinary Run data within that bound.
+
 Parameters are ordinary persisted Run data, not a secret channel. Callers must
 not place credentials or provider tokens in them; deployment and
 allocation-scoped secrets enter Runtime Agent only through `RuntimeSettings`.
@@ -622,7 +628,10 @@ The instruction digest is SHA-256 over the exact source bytes and is encoded as
 as strict UTF-8 and that the decoded text is not whitespace-only. It performs
 no Unicode, line-ending, BOM or trailing-newline normalization before hashing.
 Consequently the stored text and digest identify exactly the bytes loaded from
-the configuration resource.
+the configuration resource. No separate maximum size applies to an instruction
+resource: it is an operator-authored file under the configuration root, loaded
+once at startup, and its only content rule is non-empty strict UTF-8. Its
+practical bound is the Planner budget that must carry the rendered text.
 
 WorkflowCatalog resolves the ref while loading the Workflow, requires non-empty
 text, and records the normalized ref, content digest and resolved text. It does

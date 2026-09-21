@@ -113,8 +113,10 @@ This slice must demonstrate:
   objective and instructions into one deterministic Worker task while keeping
   parameters and artifact refs structured;
 - every Stage accepts only `session: isolated|shared`; new omission resolves to
-  explicit `isolated`, pre-feature persisted snapshots alone decode omission as
-  `shared`, and retry or escalation retains the pinned mode;
+  explicit `isolated` before persistence, persisted snapshots without an
+  explicit value are unsupported under
+  [00](00-workflow-and-planner.md#stage-worker-session-policy), and retry or
+  escalation retains the pinned mode;
 - every AgentTemplate has a mandatory configuration-root-relative Worker
   `instructions.ref`; its resolved text contributes to the template digest and
   reaches Runtime Agent inside AllocationSpec rather than through
@@ -504,9 +506,6 @@ implicitly:
 
 - remaining Workflow YAML details outside the transition, Agent-binding,
   artifact-slot and output-mapping contracts;
-- exact count, name-length, value-length and total-size limits for string Run
-  parameters;
-- exact maximum size for a resolved UTF-8 instruction resource;
 - Planner authority for generic artifacts and domain Toolsets other than the
   explicitly specified MemoryTools mirror;
 - optional incremental Worker metric delivery for retaining detail across a
@@ -514,8 +513,6 @@ implicitly:
 - S3 blob backend (deferral recorded in [23](23-artifact-blob-backends.md)),
   streaming uploads, and longer-term Artifact retention;
 - explicit Run-output publication endpoint;
-- concrete graceful-drain timeout before forced Worker termination after lease
-  loss;
 - shared Runtime Agent Registry and coordination for multiple active Control
   Plane replicas;
 - Contractor credential-encryption master-key rotation/re-encryption and

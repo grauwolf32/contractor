@@ -244,7 +244,9 @@ mutation headers used by browser and non-UI clients. Private Control Plane,
 Runtime Agent and A2A wire contracts remain separate and are not made public by
 including them in this document. Incompatible changes require a new public API
 version; regenerating a client from an incompatible document does not make the
-change backward compatible.
+change backward compatible. Every public JSON request body is bounded at 1 MiB
+unless a resource declares a smaller bound, such as the login body below;
+larger bodies are rejected as invalid requests.
 
 The UI build pins the exact public contract and a deterministic TypeScript
 client generator. Generated DTO/client files are not hand-edited, and CI fails
