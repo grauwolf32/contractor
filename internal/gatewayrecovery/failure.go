@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // Failure stores a safe classification, never provider response content.
@@ -14,7 +16,18 @@ type Failure struct {
 
 const maximumClassificationBytes = 16 * 1024
 
-func Classify(status int, header http.Header, body []byte) Failure {
+// LiteLLM wraps the upstream OpenAI-compatible error as a Python dict repr.
+// Only this observed wrapper is recognized; the wrapped text itself still has
+// to be declared as a signature.
+const (
+	litellmWrapperPrefix = "litellm.BadRequestError: OpenAIException - Error code: 400 - "
+	litellmWrapperSuffix = ". Received Model Group="
+)
+
+// Classify applies the openai-compatible@1 status rules plus the Gateway's
+// declared failure signatures. Signature text is matched exactly so arbitrary
+// 4xx bodies can never become a transient availability failure.
+func Classify(status int, header http.Header, body []byte, signatures contracts.GatewayFailureSignatures) Failure {
 	var response struct {
 		Error json.RawMessage `json:"error"`
 	}
@@ -30,11 +43,12 @@ func Classify(status int, header http.Header, body []byte) Failure {
 			_ = json.Unmarshal(response.Error, &message)
 		}
 	}
-	switch detail.Code {
-	case "insufficient_quota", "budget_exceeded", "context_length_exceeded":
-		return Failure{detail.Code, false}
+	for _, code := range signatures.PermanentCodes {
+		if detail.Code == code {
+			return Failure{code, false}
+		}
 	}
-	if status == http.StatusBadRequest && isModelUnloaded(message) {
+	if modelUnavailable(status, message, signatures) {
 		return Failure{"model_unavailable", true}
 	}
 	switch status {
@@ -53,18 +67,44 @@ func Classify(status int, header http.Header, body []byte) Failure {
 	return Failure{"gateway_request_rejected", false}
 }
 
-func isModelUnloaded(message string) bool {
-	// Exact LM Studio signatures from the 2026-09-20 incident, including LiteLLM's
-	// observed wrapper. Arbitrary 400 messages never become availability errors.
-	const prefix = "litellm.BadRequestError: OpenAIException - Error code: 400 - "
-	for _, text := range []string{"Model is unloaded.", "Model unloaded by user or API request."} {
-		if message == text {
+func modelUnavailable(status int, message string, signatures contracts.GatewayFailureSignatures) bool {
+	for _, signature := range signatures.ModelUnavailable {
+		if signature.Status != status {
+			continue
+		}
+		if signature.MessageEquals != "" && message == signature.MessageEquals {
 			return true
 		}
-		wrapped := prefix + "{'error': '" + text + "'}"
-		if message == wrapped || strings.HasPrefix(message, wrapped+". Received Model Group=") {
+		if signature.LiteLLMWrapped != "" && litellmWrapped(message, signature.LiteLLMWrapped) {
 			return true
 		}
 	}
 	return false
+}
+
+// litellmWrapped compares against Python's repr of {"error": text}, which is
+// how LiteLLM renders the upstream body; single quotes unless the text itself
+// contains one and no double quote.
+func litellmWrapped(message, upstreamText string) bool {
+	if !strings.HasPrefix(message, litellmWrapperPrefix) {
+		return false
+	}
+	upstream := strings.TrimPrefix(message, litellmWrapperPrefix)
+	wrapped := "{'error': " + pythonRepr(upstreamText) + "}"
+	return upstream == wrapped || strings.HasPrefix(upstream, wrapped+litellmWrapperSuffix)
+}
+
+// pythonRepr mirrors CPython's str repr quoting for the printable text that
+// signature validation admits: no control characters, so no escaping beyond
+// quote selection and backslashes is needed.
+func pythonRepr(text string) string {
+	quote := "'"
+	if strings.Contains(text, "'") && !strings.Contains(text, `"`) {
+		quote = `"`
+	}
+	escaped := strings.ReplaceAll(text, `\`, `\\`)
+	if quote == "'" {
+		escaped = strings.ReplaceAll(escaped, "'", `\'`)
+	}
+	return quote + escaped + quote
 }

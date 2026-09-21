@@ -235,8 +235,14 @@ wall-clock deadline starts at resource admission and continues during recovery;
 queue residence does not consume it. Runtime process loss does not preserve the
 in-memory conversation.
 
-Transient failures include transport errors, HTTP 408/409/429/5xx and the exact
-observed LM Studio model-unloaded HTTP 400 messages. An ordinary HTTP 400,
-authentication failure, exhausted quota or context limit is a permanent error.
-Only safe error codes and timing are retained; provider response bodies are not
-published in recovery status.
+Transient failures include transport errors, HTTP 408/409/429/5xx and the
+Gateway's declared `failureSignatures`; the `openai-compatible@1` default
+covers the exact LM Studio model-unloaded HTTP 400 messages observed through
+LiteLLM. An ordinary HTTP 400, authentication failure, exhausted quota or
+context limit is a permanent error. A provider that reports availability with
+another exact message (an Ollama `404 model not found`, for example) is
+declared on a new Gateway version, as the commented example in
+[`configs/llm-gateways/local_litellm.yaml`](../../configs/llm-gateways/local_litellm.yaml)
+shows; declaring the block changes that Gateway's digest. Only safe error codes
+and timing are retained; provider response bodies are not published in
+recovery status.

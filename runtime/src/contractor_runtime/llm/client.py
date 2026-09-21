@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from asyncio import sleep
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from email.utils import mktime_tz, parsedate_tz
 from math import isfinite
 from random import random
@@ -15,6 +15,10 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
+from contractor_runtime.contracts.settings import (
+    GatewayFailureSignatures,
+    default_gateway_failure_signatures,
+)
 from contractor_runtime.llm.errors import GatewayFailure, classify_response
 from contractor_runtime.llm.recovery import GatewayRecoveryClient
 
@@ -70,6 +74,9 @@ class GatewayClientHandle:
     operation_timeout_seconds: float
     max_retries: int = GATEWAY_MAX_RETRIES
     recovery: GatewayRecoveryClient | None = None
+    failure_signatures: GatewayFailureSignatures = field(
+        default_factory=default_gateway_failure_signatures
+    )
 
     @property
     def closed(self) -> bool:
@@ -140,9 +147,9 @@ class GatewayClientHandle:
                             error = GatewayRequestError("InvalidGatewayResponse", retryable=False)
                         should_retry = False
                     else:
-                        error = _status_error(response)
+                        error = _status_error(response, self.failure_signatures)
                         retry_after = _retry_after_seconds(response.headers)
-                        should_retry = _should_retry(response, retry_after)
+                        should_retry = _should_retry(response, retry_after, self.failure_signatures)
                         if response.headers.get("x-should-retry") == "false":
                             error.transport_retry_allowed = False
                         if retry_after is not None and isfinite(retry_after):
@@ -218,6 +225,7 @@ def new_gateway_client(
     timeout_seconds: float,
     http_client: httpx.AsyncClient | None = None,
     recovery: GatewayRecoveryClient | None = None,
+    failure_signatures: GatewayFailureSignatures | None = None,
 ) -> GatewayClientHandle:
     """Construct a bounded-retry client for one immutable allocation route."""
 
@@ -234,6 +242,11 @@ def new_gateway_client(
         http_client = httpx.AsyncClient(timeout=timeout_seconds, trust_env=False)
     return GatewayClientHandle(
         recovery=recovery,
+        failure_signatures=(
+            failure_signatures
+            if failure_signatures is not None
+            else default_gateway_failure_signatures()
+        ),
         _client=http_client,
         _completion_url=completion_url,
         _api_key=api_key or "contractor-no-token",
@@ -243,8 +256,10 @@ def new_gateway_client(
     )
 
 
-def _status_error(response: httpx.Response) -> GatewayRequestError:
-    failure = classify_response(response)
+def _status_error(
+    response: httpx.Response, signatures: GatewayFailureSignatures
+) -> GatewayRequestError:
+    failure = classify_response(response, signatures)
     provider_error_type = _STATUS_ERROR_TYPES.get(
         response.status_code,
         "InternalServerError" if response.status_code >= 500 else "APIStatusError",
@@ -269,15 +284,18 @@ def _retry_after_seconds(headers: httpx.Headers) -> float | None:
         return None
 
 
-def _should_retry(response: httpx.Response, retry_after: float | None) -> bool:
-    if not classify_response(response).retryable:
+def _should_retry(
+    response: httpx.Response, retry_after: float | None, signatures: GatewayFailureSignatures
+) -> bool:
+    failure = classify_response(response, signatures)
+    if not failure.retryable:
         return False
     if retry_after is not None and isfinite(retry_after) and retry_after > _MAX_RETRY_AFTER_SECONDS:
         return False
     override = response.headers.get("x-should-retry")
     if override in {"true", "false"}:
         return override == "true"
-    return classify_response(response).retryable
+    return failure.retryable
 
 
 def _retry_delay(attempt: int, retry_after: float | None) -> float:
@@ -297,6 +315,7 @@ def build_gateway_client(context: WorkerBuildContext) -> GatewayClientHandle:
     token = settings.llm_gateway_token
     token_value = token.get_secret_value() if token is not None else None
     timeout = float(settings.request_timeout_seconds)
+    signatures = settings.llm_gateway_failure_signatures
     adapter_handle = context.adapter_handles.model_http
     if adapter_handle is None:
         return new_gateway_client(
@@ -304,6 +323,7 @@ def build_gateway_client(context: WorkerBuildContext) -> GatewayClientHandle:
             api_key=token_value,
             timeout_seconds=timeout,
             recovery=context.gateway_recovery,
+            failure_signatures=signatures,
         )
     if not isinstance(adapter_handle, ProxyHTTPClient):
         raise TypeError("llm-gateway proxy handle has an invalid type")
@@ -313,4 +333,5 @@ def build_gateway_client(context: WorkerBuildContext) -> GatewayClientHandle:
         timeout_seconds=timeout,
         http_client=adapter_handle.async_client,
         recovery=context.gateway_recovery,
+        failure_signatures=signatures,
     )

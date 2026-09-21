@@ -365,6 +365,29 @@ create a credential for it. The declaration contains no LiteLLM master key:
 Server deployment separately binds the exact digest-bearing Gateway ref to an
 operator-owned admin-key file as specified by [06](06-server-ui-and-operations.md).
 
+`failureSignatures` is optional and declares the provider-specific part of
+model recovery classification ([04](04-execution-lifecycle-and-metrics.md)):
+
+```yaml
+  failureSignatures:
+    modelUnavailable:
+      - {status: 400, messageEquals: "Model is unloaded."}
+      - {status: 400, litellmWrapped: "Model is unloaded."}
+      - {status: 404, messageEquals: "model 'worker' not found"}
+    permanentCodes: [insufficient_quota, budget_exceeded, context_length_exceeded]
+```
+
+Each `modelUnavailable` entry names one `status` from 400, 404, 409 or 422 and
+exactly one of `messageEquals` or `litellmWrapped`: trimmed UTF-8 of at most
+512 bytes without control characters, matched exactly against the provider's
+error message or bare error string. `permanentCodes` are snake_case provider
+error codes. Each list holds at most 32 distinct entries. When the block is
+omitted, the `openai-compatible@1` default (the LM Studio unload messages
+observed through LiteLLM) applies and the manifest digest is unchanged; a
+declared block joins the digest, so it is added on a new Gateway version.
+Server forwards the declared block to allocations as
+`runtimeSettings.llmGatewayFailureSignatures`.
+
 Resolving model access for a Run produces an exact `LLMGatewayConfigRef` and,
 when selected, an `LLMCredentialRef(credential_id)` bound to that Gateway. A
 credential is immutable: its token is never replaced in place. The immutable

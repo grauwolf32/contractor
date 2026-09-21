@@ -48,7 +48,7 @@ func (f recoveryFixture) run(t *testing.T, id string, routes ...gatewayrecovery.
 			t.Fatal(err)
 		}
 	}
-	return f.service.Planner(id, id, routes[0])
+	return f.service.Planner(id, id, routes[0], contracts.DefaultGatewayFailureSignatures())
 }
 func (f recoveryFixture) due(t *testing.T) {
 	t.Helper()

@@ -21,7 +21,9 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 	}
 	if modelAccess != nil && s.options.GatewayRecovery != nil {
 		route := plannerModelRoute(run.OwnerID, workflow.stage)
-		modelAccess.Recovery = s.options.GatewayRecovery.Planner(run.RunID, execution.StageExecutionID, *route)
+		modelAccess.Recovery = s.options.GatewayRecovery.Planner(
+			run.RunID, execution.StageExecutionID, *route, modelAccess.LLMGateway.EffectiveFailureSignatures(),
+		)
 	}
 	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
 	plannerTelemetry := s.newPlannerTelemetry(

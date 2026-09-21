@@ -1,19 +1,24 @@
-"""Normalize provider failures without retaining response bodies or credentials."""
+"""Normalize provider failures without retaining response bodies or credentials.
+
+Status-based rules belong to the openai-compatible@1 protocol and live here.
+Provider-specific text lives in the Gateway's declared failure signatures (or
+the protocol default) and is matched exactly, never by substring or pattern.
+"""
 
 from contextlib import suppress
 from dataclasses import dataclass
 
 import httpx
 
-# LM Studio responses observed through LiteLLM during the 2026-09-20 outage.
-# These exact messages describe dependency availability, despite HTTP 400.
-MODEL_UNLOADED_MESSAGES = frozenset(
-    {"Model unloaded by user or API request.", "Model is unloaded."}
-)
-PERMANENT_PROVIDER_CODES = frozenset(
-    {"insufficient_quota", "budget_exceeded", "context_length_exceeded"}
-)
+from contractor_runtime.contracts import GatewayFailureSignatures
+
 MAX_ERROR_CLASSIFICATION_BYTES = 16 * 1024
+
+# LiteLLM wraps the upstream OpenAI-compatible error as a Python dict repr.
+# Only this observed wrapper is recognized; the wrapped text still has to be
+# declared as a signature.
+_LITELLM_WRAPPER_PREFIX = "litellm.BadRequestError: OpenAIException - Error code: 400 - "
+_LITELLM_WRAPPER_SUFFIX = ". Received Model Group="
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +28,9 @@ class GatewayFailure:
     status: int | None = None
 
 
-def classify_response(response: httpx.Response) -> GatewayFailure:
+def classify_response(
+    response: httpx.Response, signatures: GatewayFailureSignatures
+) -> GatewayFailure:
     status = response.status_code
     body = None
     if len(response.content) <= MAX_ERROR_CLASSIFICATION_BYTES:
@@ -31,10 +38,10 @@ def classify_response(response: httpx.Response) -> GatewayFailure:
             body = response.json()
     error = body.get("error", body) if isinstance(body, dict) else None
     code = error.get("code") if isinstance(error, dict) else None
-    if isinstance(code, str) and code in PERMANENT_PROVIDER_CODES:
+    if isinstance(code, str) and code in signatures.permanent_codes:
         return GatewayFailure(code, False, status)
     message = error.get("message") if isinstance(error, dict) else error
-    if status == 400 and _model_unloaded(message):
+    if _model_unavailable(status, message, signatures):
         return GatewayFailure("model_unavailable", True, status)
     if status in {401, 403}:
         return GatewayFailure("gateway_access_denied", False, status)
@@ -52,19 +59,24 @@ def classify_response(response: httpx.Response) -> GatewayFailure:
     )
 
 
-def _model_unloaded(message: object) -> bool:
+def _model_unavailable(status: int, message: object, signatures: GatewayFailureSignatures) -> bool:
     if not isinstance(message, str):
         return False
-    if message in MODEL_UNLOADED_MESSAGES:
-        return True
-    # LiteLLM wraps the upstream OpenAI-compatible error as a Python dict repr.
-    # Accept its observed wrapper only; never scan arbitrary request error text.
-    prefix = "litellm.BadRequestError: OpenAIException - Error code: 400 - "
-    if not message.startswith(prefix):
+    for signature in signatures.model_unavailable:
+        if signature.status != status:
+            continue
+        if signature.message_equals is not None and message == signature.message_equals:
+            return True
+        if signature.litellm_wrapped is not None and _litellm_wrapped(
+            message, signature.litellm_wrapped
+        ):
+            return True
+    return False
+
+
+def _litellm_wrapped(message: str, upstream_text: str) -> bool:
+    if not message.startswith(_LITELLM_WRAPPER_PREFIX):
         return False
-    upstream = message.removeprefix(prefix)
-    return any(
-        upstream == repr({"error": text})
-        or upstream.startswith(repr({"error": text}) + ". Received Model Group=")
-        for text in MODEL_UNLOADED_MESSAGES
-    )
+    upstream = message.removeprefix(_LITELLM_WRAPPER_PREFIX)
+    wrapped = repr({"error": upstream_text})
+    return upstream == wrapped or upstream.startswith(wrapped + _LITELLM_WRAPPER_SUFFIX)

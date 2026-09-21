@@ -1,63 +1,61 @@
-"""Regression fixtures from LM Studio unload responses observed via LiteLLM."""
+"""Gateway failure classification against the shared cross-language fixture."""
 
 import asyncio
+import json
+from pathlib import Path
 
 import httpx
 import pytest
 from google.adk.models.llm_request import LlmRequest
 
+from contractor_runtime.contracts import GatewayFailureSignatures
+from contractor_runtime.contracts.settings import default_gateway_failure_signatures
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.errors import classify_response
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
 from contractor_runtime.telemetry.metrics import MetricsState
 
-
-@pytest.mark.parametrize(
-    "message", ["Model is unloaded.", "Model unloaded by user or API request."]
+FIXTURE = json.loads(
+    (
+        Path(__file__).parents[2]
+        / "api/testdata/v1alpha1/gateway-failure-classification-cases.json"
+    ).read_text(encoding="utf-8")
 )
-@pytest.mark.parametrize("wrapped", [False, True])
-def test_model_unload_is_transient_even_when_provider_uses_http_400(message, wrapped):
-    body = {"error": message}
-    if wrapped:
-        body = {
-            "error": {
-                "message": (
-                    "litellm.BadRequestError: OpenAIException - Error code: 400 - "
-                    + repr(body)
-                    + ". Received Model Group=worker-model"
-                ),
-                "code": "400",
-            }
-        }
-    failure = classify_response(httpx.Response(400, json=body))
-    assert (failure.code, failure.retryable, failure.status) == ("model_unavailable", True, 400)
+SIGNATURE_SETS = {
+    "declared": GatewayFailureSignatures.model_validate(FIXTURE["declared"]),
+    "default": default_gateway_failure_signatures(),
+    "empty": GatewayFailureSignatures(),
+}
 
 
-@pytest.mark.parametrize(
-    "status,body",
-    [
-        (400, {"error": "Invalid tools: Model is unloaded."}),
-        (400, {"error": {"code": "context_length_exceeded"}}),
-        (429, {"error": {"code": "insufficient_quota"}}),
-        (429, {"error": {"code": "budget_exceeded"}}),
-        (401, {"error": "Model is unloaded."}),
-        (403, {"error": "Model is unloaded."}),
-    ],
-)
-def test_semantic_failures_cannot_be_overridden_by_retry_hint(status, body):
-    failure = classify_response(httpx.Response(status, json=body))
-    assert not failure.retryable
-    if isinstance(body["error"], dict) or status in {401, 403}:
-        hinted = classify_response(
-            httpx.Response(status, json=body, headers={"x-should-retry": "true"})
-        )
-        assert not hinted.retryable
+def _response(case: dict) -> httpx.Response:
+    headers = case.get("headers", {})
+    if "bodyText" in case:
+        return httpx.Response(case["status"], text=case["bodyText"], headers=headers)
+    return httpx.Response(case["status"], json=case["body"], headers=headers)
+
+
+@pytest.mark.parametrize("case", FIXTURE["cases"], ids=[case["name"] for case in FIXTURE["cases"]])
+def test_classification_matches_shared_fixture(case: dict) -> None:
+    failure = classify_response(_response(case), SIGNATURE_SETS[case["signatures"]])
+    assert (failure.code, failure.retryable, failure.status) == (
+        case["code"],
+        case["retryable"],
+        case["status"],
+    )
+
+
+def test_fixture_exercises_every_signature_set_and_both_verdicts() -> None:
+    sets = {case["signatures"] for case in FIXTURE["cases"]}
+    assert sets == set(SIGNATURE_SETS)
+    verdicts = {(case["signatures"], case["retryable"]) for case in FIXTURE["cases"]}
+    assert all((name, True) in verdicts and (name, False) in verdicts for name in SIGNATURE_SETS)
 
 
 def test_classification_reaches_adapter_and_metrics_without_provider_body():
     async def scenario():
         async def gateway(request):
-            return httpx.Response(400, json={"error": "Model is unloaded."})
+            return httpx.Response(404, json={"error": "model 'worker' not found"})
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
             client = new_gateway_client(
@@ -65,6 +63,7 @@ def test_classification_reaches_adapter_and_metrics_without_provider_body():
                 api_key="secret-canary",
                 timeout_seconds=1,
                 http_client=http,
+                failure_signatures=SIGNATURE_SETS["declared"],
             )
             client.max_retries = 0
             model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=client)
@@ -76,12 +75,27 @@ def test_classification_reaches_adapter_and_metrics_without_provider_body():
             assert failure.failure.code == "model_unavailable"
             assert failure.__context__ is None
             assert "secret-canary" not in repr(vars(failure))
-            assert "Model is unloaded" not in repr(vars(failure))
+            assert "not found" not in repr(vars(failure))
             metrics = MetricsState()
             metrics.record_model_error(failure)
             assert "model_unavailable" in repr(metrics.snapshot())
             permanent = GatewayModelError("BadRequestError", retryable=False)
             metrics.record_model_error(permanent)
             assert metrics.errors[-1].retryable is False
+
+            # The same response under the protocol default is a permanent rejection.
+            plain = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key="secret-canary",
+                timeout_seconds=1,
+                http_client=http,
+            )
+            plain.max_retries = 0
+            model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=plain)
+            with pytest.raises(GatewayModelError) as rejected:
+                async for _ in model.generate_content_async(LlmRequest()):
+                    pass
+            assert not rejected.value.retryable
+            assert rejected.value.failure.code == "gateway_request_rejected"
 
     asyncio.run(scenario())

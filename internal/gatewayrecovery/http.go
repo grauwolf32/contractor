@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // Do retries the same serialized model request inside a planner invocation.
@@ -34,7 +36,7 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 			return nil, fmt.Errorf("copy model request")
 		}
 		response, sendErr := client.Do(attempt)
-		body, failure, delay := readResponse(response, sendErr, maxResponseBytes)
+		body, failure, delay := readResponse(response, sendErr, maxResponseBytes, p.signatures)
 		cancel()
 		action := "succeeded"
 		if failure != nil {
@@ -75,7 +77,7 @@ func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, 
 	}
 }
 
-func readResponse(response *http.Response, sendErr error, limit int64) ([]byte, *Failure, float64) {
+func readResponse(response *http.Response, sendErr error, limit int64, signatures contracts.GatewayFailureSignatures) ([]byte, *Failure, float64) {
 	if sendErr != nil {
 		var netError net.Error
 		if errors.Is(sendErr, context.DeadlineExceeded) || errors.As(sendErr, &netError) && netError.Timeout() {
@@ -94,7 +96,7 @@ func readResponse(response *http.Response, sendErr error, limit int64) ([]byte, 
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		return body, nil, 0
 	}
-	failure := Classify(response.StatusCode, response.Header, body)
+	failure := Classify(response.StatusCode, response.Header, body, signatures)
 	if response.Header.Get("x-should-retry") == "false" {
 		failure.Retryable = false
 	}

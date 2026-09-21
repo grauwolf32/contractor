@@ -1,0 +1,397 @@
+{
+  "declared": {
+    "modelUnavailable": [
+      {
+        "status": 400,
+        "messageEquals": "Model is unloaded."
+      },
+      {
+        "status": 400,
+        "litellmWrapped": "Model is unloaded."
+      },
+      {
+        "status": 404,
+        "messageEquals": "model 'worker' not found"
+      },
+      {
+        "status": 409,
+        "messageEquals": "Model is loading"
+      }
+    ],
+    "permanentCodes": [
+      "insufficient_quota",
+      "context_length_exceeded"
+    ]
+  },
+  "cases": [
+    {
+      "name": "bare message matches declared 400",
+      "status": 400,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "Model is unloaded."
+      }
+    },
+    {
+      "name": "nested message matches declared 400",
+      "status": 400,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "Model is unloaded."
+        }
+      }
+    },
+    {
+      "name": "litellm wrapper without suffix",
+      "status": 400,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'Model is unloaded.'}",
+          "code": "400"
+        }
+      }
+    },
+    {
+      "name": "litellm wrapper with model group suffix",
+      "status": 400,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'Model is unloaded.'}. Received Model Group=worker-model"
+        }
+      }
+    },
+    {
+      "name": "litellm wrapper with foreign suffix is not a match",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'Model is unloaded.'} extra"
+        }
+      }
+    },
+    {
+      "name": "declared 404 provider message",
+      "status": 404,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "model 'worker' not found"
+      }
+    },
+    {
+      "name": "declared 409 beats generic conflict",
+      "status": 409,
+      "signatures": "declared",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "Model is loading"
+      }
+    },
+    {
+      "name": "undeclared 409 stays conflict unavailable",
+      "status": 409,
+      "signatures": "declared",
+      "code": "gateway_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "busy"
+      }
+    },
+    {
+      "name": "signature text on the wrong status",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "model 'worker' not found"
+      }
+    },
+    {
+      "name": "substring never matches",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "Invalid tools: Model is unloaded."
+      }
+    },
+    {
+      "name": "prefix never matches",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "Model is unloaded. Please reload."
+      }
+    },
+    {
+      "name": "case differs never matches",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "model is unloaded."
+      }
+    },
+    {
+      "name": "message only in litellm wrapper needs its own entry",
+      "status": 404,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': \"model 'worker' not found\"}"
+        }
+      }
+    },
+    {
+      "name": "declared permanent code wins over status",
+      "status": 429,
+      "signatures": "declared",
+      "code": "insufficient_quota",
+      "retryable": false,
+      "body": {
+        "error": {
+          "code": "insufficient_quota"
+        }
+      }
+    },
+    {
+      "name": "declared permanent code wins over retry hint",
+      "status": 400,
+      "signatures": "declared",
+      "code": "context_length_exceeded",
+      "retryable": false,
+      "body": {
+        "error": {
+          "code": "context_length_exceeded"
+        }
+      },
+      "headers": {
+        "x-should-retry": "true"
+      }
+    },
+    {
+      "name": "undeclared code falls through to status",
+      "status": 429,
+      "signatures": "declared",
+      "code": "gateway_rate_limited",
+      "retryable": true,
+      "body": {
+        "error": {
+          "code": "budget_exceeded"
+        }
+      }
+    },
+    {
+      "name": "permanent code wins over unavailable signature",
+      "status": 400,
+      "signatures": "declared",
+      "code": "context_length_exceeded",
+      "retryable": false,
+      "body": {
+        "error": {
+          "code": "context_length_exceeded",
+          "message": "Model is unloaded."
+        }
+      }
+    },
+    {
+      "name": "access denied ignores signature text",
+      "status": 401,
+      "signatures": "declared",
+      "code": "gateway_access_denied",
+      "retryable": false,
+      "body": {
+        "error": "Model is unloaded."
+      }
+    },
+    {
+      "name": "access denied ignores retry hint",
+      "status": 403,
+      "signatures": "declared",
+      "code": "gateway_access_denied",
+      "retryable": false,
+      "body": {
+        "error": "nope"
+      },
+      "headers": {
+        "x-should-retry": "true"
+      }
+    },
+    {
+      "name": "default matches lm studio unload",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "Model unloaded by user or API request."
+      }
+    },
+    {
+      "name": "default matches litellm wrapped unload",
+      "status": 400,
+      "signatures": "default",
+      "code": "model_unavailable",
+      "retryable": true,
+      "body": {
+        "error": {
+          "message": "litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': 'Model unloaded by user or API request.'}. Received Model Group=worker-model"
+        }
+      }
+    },
+    {
+      "name": "default includes budget_exceeded",
+      "status": 429,
+      "signatures": "default",
+      "code": "budget_exceeded",
+      "retryable": false,
+      "body": {
+        "error": {
+          "code": "budget_exceeded"
+        }
+      }
+    },
+    {
+      "name": "default does not know provider 404",
+      "status": 404,
+      "signatures": "default",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "model 'worker' not found"
+      }
+    },
+    {
+      "name": "empty set keeps every 400 permanent",
+      "status": 400,
+      "signatures": "empty",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "body": {
+        "error": "Model is unloaded."
+      }
+    },
+    {
+      "name": "empty set keeps quota code on status",
+      "status": 429,
+      "signatures": "empty",
+      "code": "gateway_rate_limited",
+      "retryable": true,
+      "body": {
+        "error": {
+          "code": "insufficient_quota"
+        }
+      }
+    },
+    {
+      "name": "rate limited",
+      "status": 429,
+      "signatures": "empty",
+      "code": "gateway_rate_limited",
+      "retryable": true,
+      "body": {
+        "error": "slow down"
+      }
+    },
+    {
+      "name": "request timeout",
+      "status": 408,
+      "signatures": "empty",
+      "code": "gateway_timeout",
+      "retryable": true,
+      "body": {
+        "error": "slow"
+      }
+    },
+    {
+      "name": "gateway timeout",
+      "status": 504,
+      "signatures": "empty",
+      "code": "gateway_timeout",
+      "retryable": true,
+      "body": {
+        "error": "upstream timed out"
+      }
+    },
+    {
+      "name": "server error",
+      "status": 500,
+      "signatures": "empty",
+      "code": "gateway_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "boom"
+      }
+    },
+    {
+      "name": "service unavailable",
+      "status": 503,
+      "signatures": "empty",
+      "code": "gateway_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "unavailable"
+      }
+    },
+    {
+      "name": "retry hint makes rejection retryable",
+      "status": 400,
+      "signatures": "empty",
+      "code": "gateway_unavailable",
+      "retryable": true,
+      "body": {
+        "error": "try later"
+      },
+      "headers": {
+        "x-should-retry": "true"
+      }
+    },
+    {
+      "name": "non json body is a rejection",
+      "status": 400,
+      "signatures": "empty",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "bodyText": "<html>bad request</html>"
+    },
+    {
+      "name": "non json body keeps status rules",
+      "status": 502,
+      "signatures": "empty",
+      "code": "gateway_unavailable",
+      "retryable": true,
+      "bodyText": "<html>bad gateway</html>"
+    },
+    {
+      "name": "oversized body is classified by status only",
+      "status": 400,
+      "signatures": "declared",
+      "code": "gateway_request_rejected",
+      "retryable": false,
+      "bodyText": "{\"error\": \"Model is unloaded.\"}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                "
+    }
+  ]
+}

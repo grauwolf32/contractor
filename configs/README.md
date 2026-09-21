@@ -229,7 +229,12 @@ paths relative to this directory.
 `llm-gateways/` contains immutable, non-secret endpoint descriptions. The
 shipped `local-litellm@1` config uses the OpenAI-compatible `/v1` inference
 path and a loopback-only HTTP LiteLLM management origin. Tokens and LiteLLM
-admin keys are never valid fields in these manifests.
+admin keys are never valid fields in these manifests. An optional
+`spec.failureSignatures` block declares the provider's exact
+model-unavailable responses and permanent error codes for model recovery;
+when omitted, the `openai-compatible@1` default (LM Studio unloads observed
+through LiteLLM) applies, and the block joins the Gateway digest only when
+declared.
 
 Managed credentials bind that exact digest-bearing Gateway ref to an
 owner-only admin-key file through the separate process bootstrap document

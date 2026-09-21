@@ -36,6 +36,22 @@ manual retry reopens it, while cancellation and the admitted Stage wall-clock
 limit remain effective. Terminated invocations relinquish their recovery waits.
 This does not persist or restore an ADK session after Runtime process loss.
 
+Failure classification has two layers. Status rules belong to the
+`openai-compatible@1` protocol and are fixed in code: transport errors, HTTP
+408/409/429/5xx and an explicit `x-should-retry: true` hint are transient;
+401/403 and every other 4xx are permanent. Provider-specific text belongs to
+the selected Gateway's `failureSignatures` (see [00](00-workflow-and-planner.md)):
+`modelUnavailable` entries name an exact `status` plus either `messageEquals`
+or `litellmWrapped` (the same text inside LiteLLM's observed BadRequest
+wrapper) and classify that response as transient `model_unavailable`;
+`permanentCodes` name provider error codes that fail the invocation without
+blocking the route whatever status or hint accompanies them. Matching is
+exact; substrings, prefixes and patterns are never accepted, so arbitrary
+provider text cannot become an availability failure. Server-side Planners and
+Runtime Workers apply the same effective set, and one shared fixture
+(`api/testdata/v1alpha1/gateway-failure-classification-cases.json`) keeps the
+two classifiers identical.
+
 Public `RunStatus.recovery` contains safe cause/timing and whether a manual retry
 is required. `POST /v1/runs/{runId}/retry-gateway` is owner-scoped and preserves the
 current invocation. See [local recovery settings](../guides/local-stack.md#model-availability-and-queued-runs).
