@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import quote, urlsplit
 
+from contractor_runtime.backoff import bounded_backoff
 from contractor_runtime.contracts import (
     AgentRegistrationResponse,
     HeartbeatResponse,
@@ -292,8 +293,7 @@ class ControlClient:
 
     def _backoff(self, failures: int) -> float:
         ceiling = min(5.0, self._timing.heartbeat_interval_seconds)
-        base = min(ceiling, 0.5 * (2 ** min(failures - 1, 10)))
-        return min(ceiling, base * (0.75 + 0.5 * self._jitter()))
+        return bounded_backoff(failures, ceiling, self._jitter)
 
 
 def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:
