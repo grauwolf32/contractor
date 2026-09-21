@@ -10,6 +10,8 @@ import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../artifacts/common";
 import { useOperationsSnapshot } from "../context";
 import { AgentCard } from "./agent-card";
+import { compareByName, isOfflineIdentity } from "./identity";
+import { OfflineIdentities } from "./offline-identities";
 import { ProcessInventory } from "./process-inventory";
 import "./styles.css";
 
@@ -30,19 +32,17 @@ export function RuntimeAgentListRoute() {
     queryKey: queryKeys.operations.runtimeLabels.list(),
     queryFn: () => listRuntimeLabels(api),
   });
-  const visible = [...(principals.data?.items ?? [])]
-    .filter(
-      (principal) =>
-        connection === "all" ||
-        (connection === "online"
-          ? principal.live !== undefined
-          : principal.live === undefined),
-    )
-    .sort(
-      (a, b) =>
-        Number(b.live !== undefined) - Number(a.live !== undefined) ||
-        a.runtimeAgentId.localeCompare(b.runtimeAgentId),
-    );
+  const items = principals.data?.items ?? [];
+  const online =
+    connection === "offline"
+      ? []
+      : items
+          .filter((principal) => !isOfflineIdentity(principal))
+          .sort(compareByName);
+  const offline =
+    connection === "online"
+      ? []
+      : items.filter(isOfflineIdentity).sort(compareByName);
   return (
     <>
       <div className="operations-library runtime-agent-library">
@@ -79,22 +79,32 @@ export function RuntimeAgentListRoute() {
           <p className="loading-copy" role="status">
             Loading Runtime Agents…
           </p>
-        ) : visible.length === 0 ? (
+        ) : online.length === 0 && offline.length === 0 ? (
           <p className="compact-empty">
             No agents match this connection filter.
           </p>
         ) : (
-          <div className="runtime-principal-grid">
-            {visible.map((principal) => (
-              <AgentCard
-                key={principal.runtimeAgentId}
-                principal={principal}
-                bindings={bindings.data?.items}
-                allocations={snapshot.allocations}
-                now={now}
-              />
-            ))}
-          </div>
+          <>
+            {online.length === 0 ? null : (
+              <div className="runtime-principal-grid">
+                {online.map((principal) => (
+                  <AgentCard
+                    key={principal.runtimeAgentId}
+                    principal={principal}
+                    bindings={bindings.data?.items}
+                    allocations={snapshot.allocations}
+                    now={now}
+                  />
+                ))}
+              </div>
+            )}
+            <OfflineIdentities
+              principals={offline}
+              bindings={bindings.data?.items}
+              now={now}
+              open={connection === "offline"}
+            />
+          </>
         )}
         <p className="runtime-agent-availability-note">
           Availability is reported by Server. Each Workflow still requires

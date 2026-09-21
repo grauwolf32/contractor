@@ -921,30 +921,141 @@ describe("Operations routes", () => {
       }),
     );
     renderOperations(api, "/operations/runtime-agents");
-    expect(
-      await screen.findByText(
-        "Offline · saved labels are retained for the next registration.",
-      ),
-    ).toBeInTheDocument();
+    const incompatible = await screen.findByRole("article", { name: "debug" });
+    expect(within(incompatible).getByText("bbbbbb…bbbb")).toBeVisible();
     expect(screen.getByText("Missing otlp-http@1")).toBeInTheDocument();
     expect(screen.getByText("runtime-incompatible")).toBeInTheDocument();
-    const incompatible = screen.getByRole("article", {
-      name: "Agent · bbbbbb…bbbb",
-    });
     expect(within(incompatible).getByText("Missing adapter")).toBeVisible();
     expect(within(incompatible).getByText(/Online/)).toBeVisible();
     expect(within(incompatible).queryByText("Available")).toBeNull();
     expect(within(incompatible).queryByRole("checkbox")).toBeNull();
-    await userEvent
-      .setup()
-      .selectOptions(screen.getByLabelText("Agent connection"), "online");
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+    const offline = screen.getByRole("group", {
+      name: "Offline identities (1)",
+    });
+    expect(offline).not.toHaveAttribute("open");
+    expect(within(offline).getByText("aaaaaa…aaaa")).toBeInTheDocument();
+    expect(within(offline).getByText("1 label")).toBeInTheDocument();
+    expect(within(offline).getByText(/Last seen/)).toBeInTheDocument();
     expect(
-      screen.queryByText(
-        "Offline · saved labels are retained for the next registration.",
-      ),
+      within(offline).getByRole("button", { name: "Forget debug" }),
+    ).toBeDisabled();
+    expect(
+      within(offline).getByRole("button", { name: "Edit labels for debug" }),
+    ).toBeEnabled();
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByLabelText("Agent connection"),
+      "online",
+    );
+    expect(
+      screen.queryByRole("group", { name: /Offline identities/ }),
     ).toBeNull();
+    expect(screen.getByRole("article", { name: "debug" })).toBeVisible();
+    await user.selectOptions(
+      screen.getByLabelText("Agent connection"),
+      "offline",
+    );
+    expect(screen.queryByRole("article")).toBeNull();
     expect(
-      screen.getByRole("article", { name: "Agent · bbbbbb…bbbb" }),
+      screen.getByRole("group", { name: "Offline identities (1)" }),
+    ).toHaveAttribute("open");
+  });
+
+  it("names agents by label, then process ID, then short Agent ID and forgets unlabeled offline identities", async () => {
+    const base = {
+      revision: "2",
+      requiredRuntimeAdapters: [],
+      missingRuntimeAdapters: [],
+      createdBy: "system",
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedBy: "user_local",
+      updatedAt: "2026-08-31T12:01:00Z",
+    };
+    const live = {
+      softwareVersion: "0.1.0",
+      supportedRuntimes: ["adk@1"],
+      supportedToolsets: [],
+      supportedSandboxProfiles: ["none@1"],
+      supportedRuntimeAdapters: [],
+      observedState: "idle",
+      slotState: "idle",
+    };
+    let items: unknown[] = [
+      {
+        ...base,
+        runtimeAgentId: "c".repeat(64),
+        labels: [],
+        availability: "available",
+        live: { ...live, instanceId: "runtime-host-c" },
+      },
+      {
+        ...base,
+        runtimeAgentId: "d".repeat(64),
+        labels: [],
+        availability: "offline",
+      },
+    ];
+    const deletes: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+        if (path === "/v1/operations/runtime-labels")
+          return apiResponse({ items: [], page: { hasMore: false } });
+        if (
+          request.method === "DELETE" &&
+          path === `/v1/operations/runtime-agent-principals/${"d".repeat(64)}`
+        ) {
+          deletes.push(request.clone());
+          items = items.slice(0, 1);
+          return new Response(null, { status: 204 });
+        }
+        if (path === "/v1/operations/runtime-agent-principals")
+          return apiResponse({ items, page: { hasMore: false } });
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    const card = await screen.findByRole("article", { name: "runtime-host-c" });
+    expect(within(card).getByText("cccccc…cccc")).toBeVisible();
+    expect(within(card).getByText(/v0\.1\.0/)).toBeVisible();
+    const offline = screen.getByRole("group", {
+      name: "Offline identities (1)",
+    });
+    expect(within(offline).getByText("Agent dddddd…dddd")).toBeInTheDocument();
+    expect(within(offline).getByText("0 labels")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      within(offline).getByRole("button", { name: "Forget Agent dddddd…dddd" }),
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Forget Agent dddddd…dddd?",
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Forget identity" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(deletes).toHaveLength(1);
+    expect(deletes[0]?.headers.get("If-Match")).toBe('"2"');
+    expect(deletes[0]?.headers.get("Idempotency-Key")).toMatch(
+      /^delete-runtime-principal-ui-/,
+    );
+    expect(deletes[0]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: /Offline identities/ }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.getByRole("article", { name: "runtime-host-c" }),
     ).toBeVisible();
   });
 });
@@ -1016,9 +1127,8 @@ describe("Runtime Agent cards", () => {
       }),
     );
     renderOperations(api, "/operations/runtime-agents");
-    const card = await screen.findByRole("article", {
-      name: "Agent · aaaaaa…aaaa",
-    });
+    const card = await screen.findByRole("article", { name: "debug" });
+    expect(within(card).getByText("aaaaaa…aaaa")).toBeVisible();
     expect(within(card).queryByRole("checkbox")).toBeNull();
     expect(card.querySelector("details")).not.toHaveAttribute("open");
     expect(within(card).getAllByText("Not observed")).toHaveLength(4);
@@ -1136,9 +1246,7 @@ describe("Runtime Agent cards", () => {
       }),
     );
     renderOperations(api, "/operations/runtime-agents");
-    const card = await screen.findByRole("article", {
-      name: "Agent · aaaaaa…aaaa",
-    });
+    const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Available")).toBeVisible();
     principal = {
       ...principalBase,
@@ -1173,9 +1281,7 @@ describe("Runtime Agent cards", () => {
       }),
     );
     renderOperations(api, "/operations/runtime-agents");
-    const card = await screen.findByRole("article", {
-      name: "Agent · aaaaaa…aaaa",
-    });
+    const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Slot unavailable")).toBeVisible();
     expect(
       within(card).getByText("State reconciliation pending"),

@@ -1,47 +1,27 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 
-import { usePublicAPI } from "../../../api/context";
-import {
-  deleteRuntimeAgentPrincipal,
-  type AllocationObservation,
-  type RuntimeAgentPrincipal,
-  type RuntimeLabelBinding,
+import type {
+  AllocationObservation,
+  RuntimeAgentPrincipal,
+  RuntimeLabelBinding,
 } from "../../../api/operations";
-import { queryKeys } from "../../../api/query-keys";
 import { Icon } from "../../../app/icon";
-import {
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { formatBytes, formatTimestamp } from "../../artifacts/common";
 import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
+import {
+  agentDisplayName,
+  availabilityCopy,
+  relativeAge,
+  shortAgentId,
+} from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
 
-const availabilityCopy = {
-  available: { label: "Available", symbol: "✓" },
-  busy: { label: "Busy", symbol: "◷" },
-  offline: { label: "Offline", symbol: "○" },
-  slot_unavailable: { label: "Slot unavailable", symbol: "!" },
-  adapter_capability_mismatch: { label: "Missing adapter", symbol: "!" },
-} as const;
 const adapterNames: Record<string, string> = {
   "caido-graphql@1": "Caido",
   "otlp-http@1": "Telemetry",
   "http-proxy@1": "HTTP proxy",
 };
-
-function heartbeatAge(value: string | undefined, now: number): string {
-  if (value === undefined) return "Not observed";
-  const seconds = Math.max(0, Math.floor((now - Date.parse(value)) / 1000));
-  if (!Number.isFinite(seconds)) return "Not observed";
-  if (seconds < 5) return "Just now";
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
 
 function CapabilityRefs({ values }: { values: string[] }) {
   return values.length === 0 ? (
@@ -66,15 +46,13 @@ export function AgentCard({
   allocations: AllocationObservation[];
   now: number;
 }) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
   const heading = useId();
   const diagnostics = useRef<HTMLDetailsElement>(null);
   const [editing, setEditing] = useState(false);
   const [copyStatus, setCopyStatus] = useState<string>();
   const live = principal.live;
   const availability = availabilityCopy[principal.availability];
-  const shortId = `${principal.runtimeAgentId.slice(0, 6)}…${principal.runtimeAgentId.slice(-4)}`;
+  const shortId = shortAgentId(principal.runtimeAgentId);
   const allocation =
     live === undefined
       ? undefined
@@ -87,29 +65,6 @@ export function AgentCard({
     live !== undefined &&
     (live.currentAllocationId !== live.authoritativeAllocationId ||
       live.reconciliationReason !== undefined);
-  const deletion = useMutation({
-    mutationFn: () =>
-      deleteRuntimeAgentPrincipal(
-        api,
-        principal.runtimeAgentId,
-        principal.revision,
-        `delete-runtime-principal-ui-${crypto.randomUUID()}`,
-      ),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.snapshot,
-        }),
-      ]);
-    },
-    onError: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
-      }),
-  });
   async function copyId() {
     try {
       await navigator.clipboard.writeText(principal.runtimeAgentId);
@@ -130,9 +85,13 @@ export function AgentCard({
           </span>
           <div className="runtime-agent-identity">
             <div className="runtime-agent-name">
-              <h4 id={heading} title={principal.runtimeAgentId}>
-                Agent · {shortId}
-              </h4>
+              <h4 id={heading}>{agentDisplayName(principal)}</h4>
+              <code
+                className="runtime-agent-short-id"
+                title={principal.runtimeAgentId}
+              >
+                {shortId}
+              </code>
               <button
                 className="runtime-agent-copy"
                 type="button"
@@ -149,7 +108,7 @@ export function AgentCard({
                 aria-hidden="true"
               />
               {live === undefined ? (
-                "No live process"
+                "No live process observed"
               ) : (
                 <>
                   Online <span aria-hidden="true">·</span> v
@@ -170,56 +129,60 @@ export function AgentCard({
             {copyStatus}
           </p>
         )}
-        <dl className="runtime-agent-metrics">
-          <div>
-            <dt>Slot</dt>
-            <dd>
-              {live === undefined ? (
-                "No process"
-              ) : live.slotState === "idle" ? (
-                <>
-                  0 / 1 <small>occupied</small>
-                </>
-              ) : live.slotState === "fenced" ? (
-                "Fenced"
-              ) : (
-                <>
-                  1 / 1 <small>{live.slotState}</small>
-                </>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Last heartbeat</dt>
-            <dd>
-              {live?.lastAcceptedHeartbeat === undefined ? (
-                "Not observed"
-              ) : (
-                <time
-                  dateTime={live.lastAcceptedHeartbeat}
-                  title={formatTimestamp(live.lastAcceptedHeartbeat)}
-                >
-                  {heartbeatAge(live.lastAcceptedHeartbeat, now)}
-                </time>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Workspace</dt>
-            <dd>
-              {live?.workspaceCapabilities === undefined ? (
-                "Not observed"
-              ) : (
-                <>
-                  <span className="runtime-agent-storage">
-                    {live.workspaceCapabilities.storage}
-                  </span>
-                  <small>{live.workspaceCapabilities.modes.join(" · ")}</small>
-                </>
-              )}
-            </dd>
-          </div>
-        </dl>
+        {live === undefined ? (
+          <p className="runtime-agent-no-process">No live process observed</p>
+        ) : (
+          <dl className="runtime-agent-metrics">
+            <div>
+              <dt>Slot</dt>
+              <dd>
+                {live.slotState === "idle" ? (
+                  <>
+                    0 / 1 <small>occupied</small>
+                  </>
+                ) : live.slotState === "fenced" ? (
+                  "Fenced"
+                ) : (
+                  <>
+                    1 / 1 <small>{live.slotState}</small>
+                  </>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Last heartbeat</dt>
+              <dd>
+                {live.lastAcceptedHeartbeat === undefined ? (
+                  "Not observed"
+                ) : (
+                  <time
+                    dateTime={live.lastAcceptedHeartbeat}
+                    title={formatTimestamp(live.lastAcceptedHeartbeat)}
+                  >
+                    {relativeAge(live.lastAcceptedHeartbeat, now)}
+                  </time>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Workspace</dt>
+              <dd>
+                {live.workspaceCapabilities === undefined ? (
+                  "Not observed"
+                ) : (
+                  <>
+                    <span className="runtime-agent-storage">
+                      {live.workspaceCapabilities.storage}
+                    </span>
+                    <small>
+                      {live.workspaceCapabilities.modes.join(" · ")}
+                    </small>
+                  </>
+                )}
+              </dd>
+            </div>
+          </dl>
+        )}
         {live?.authoritativeAllocationId === undefined ? null : (
           <div className="runtime-agent-allocation">
             <Icon name="runs" />
@@ -279,7 +242,7 @@ export function AgentCard({
           <button
             className="runtime-agent-edit"
             type="button"
-            disabled={bindings === undefined || deletion.isPending}
+            disabled={bindings === undefined}
             aria-haspopup="dialog"
             onClick={() => setEditing(true)}
           >
@@ -427,18 +390,7 @@ export function AgentCard({
             </>
           )}
         </dl>
-        {live === undefined && principal.labels.length === 0 ? (
-          <button
-            className="danger-button runtime-agent-remove"
-            type="button"
-            disabled={deletion.isPending}
-            onClick={() => deletion.mutate()}
-          >
-            {deletion.isPending ? "Removing…" : "Remove offline principal"}
-          </button>
-        ) : null}
       </details>
-      {deletion.error === null ? null : <ErrorNotice error={deletion.error} />}
       {editing && bindings !== undefined ? (
         <AgentLabelsDialog
           principal={principal}

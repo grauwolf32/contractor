@@ -315,8 +315,116 @@
   color: inherit;
 }
 
-.runtime-agent-remove {
-  margin-top: 1rem;
+.runtime-agent-short-id {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.runtime-agent-no-process {
+  margin: 1.15rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.runtime-offline-identities {
+  margin-top: 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.7rem;
+  color: var(--muted);
+}
+
+.runtime-offline-identities > summary {
+  min-height: 1.5rem;
+  cursor: pointer;
+  color: #b6c2d0;
+  font-size: 0.85rem;
+}
+
+.runtime-offline-identities > summary:hover {
+  color: var(--text);
+}
+
+.runtime-offline-identities > .runtime-agent-offline-note {
+  margin: 0.6rem 0 0;
+}
+
+.runtime-offline-identity-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runtime-offline-identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  background: #161d27;
+  font-size: 0.8rem;
+}
+
+.runtime-offline-identity-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-width: 0;
+  color: #c2cad5;
+  overflow-wrap: anywhere;
+}
+
+.runtime-offline-identity-name .runtime-agent-copy-status {
+  margin: 0;
+}
+
+.runtime-offline-identity-fact {
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.runtime-offline-identity-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.runtime-agent-forget {
+  min-height: 2rem;
+  border: 0;
+  padding: 0.25rem 0.1rem;
+  background: transparent;
+  color: #e79aa0;
+  font-size: 0.75rem;
+}
+
+.runtime-agent-forget:not(:disabled):hover {
+  background: transparent;
+  color: #ffc4c8;
+  text-decoration: underline;
+}
+
+.runtime-agent-forget:disabled {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.runtime-agent-forget-dialog {
+  width: min(100%, 38rem);
+  border-color: #753f42;
+}
+
+.runtime-agent-forget-dialog > p {
+  margin-bottom: 0;
+  color: var(--muted-strong);
+  line-height: 1.65;
 }
 
 .runtime-agent-label-dialog {
@@ -393,6 +501,15 @@
   .runtime-agent-metrics {
     gap: 0.6rem;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .runtime-offline-identity {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .runtime-offline-identity-name,
+  .runtime-offline-identity-actions {
+    grid-column: 1 / -1;
   }
 
   .runtime-agent-metrics > div:last-child {
