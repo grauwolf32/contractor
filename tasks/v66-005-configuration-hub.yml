@@ -3,8 +3,8 @@ id: V66-005
 title: Gather execution configuration under one Operations section
 milestone: ui-design-review-2
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 84bfe696ce7e3fa67ab8c24a2896d90ffbce0cd6
 depends_on: []
 languages:
 - typescript
@@ -48,3 +48,9 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: full vitest 78 files / 618 tests pass; eslint, prettier, tsc (app and e2e) clean.
+  routes: /operations/configuration (+ :name/:version) replaces /runs/configuration; legacy paths redirect with replace and keep search and hash.
+  scope_badges: Server-wide on configuration, LLM configurations and managed credentials; Project on Project Settings with a link to the hub.
+  shared_files: runtime-configs/index.tsx and credentials/form.tsx landed in the V66-009 commit d0ed5985.
+  browser: Playwright run owned by V66-011.

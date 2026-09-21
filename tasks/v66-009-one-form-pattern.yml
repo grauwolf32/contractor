@@ -3,8 +3,8 @@ id: V66-009
 title: Use one pattern for create flows
 milestone: ui-design-review-2
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: d0ed598505bf222ba26d6f6ede8e21281b650ed5
 depends_on: []
 languages:
 - typescript
@@ -44,3 +44,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: full vitest 78 files / 618 tests pass; eslint, prettier, tsc (app and e2e) clean; vite build ok.
+  dialogs: New Project, New Audit, Upload Artifact, project Add artifact; Configure Run remains a page.
+  optional_settings: New Audit tiles, objective/target/authorization, runtime labels; Publish RuntimeConfig telemetry tuning and proxy CA; credential label, spend and rate limits.
+  e2e_edits: stack.spec.ts, scan-tools.spec.ts; Playwright run owned by V66-011.
