@@ -20,7 +20,7 @@ from contractor_runtime.contracts.settings import (
     default_gateway_failure_signatures,
 )
 from contractor_runtime.llm.errors import GatewayFailure, classify_response
-from contractor_runtime.llm.recovery import GatewayRecoveryClient
+from contractor_runtime.llm.recovery import GatewayRecoveryClient, RecoveryStoppedError
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
@@ -169,39 +169,50 @@ class GatewayClientHandle:
 
     async def _complete_with_recovery(self, payload: dict[str, Any]) -> Any:
         """Keep one logical model call alive; previously executed tools never replay."""
-        assert self.recovery is not None
+        recovery = self.recovery
+        if recovery is None:
+            raise RuntimeError("model recovery requires an authority client")
         model = payload["model"]
         request_id = uuid.uuid4().hex
-        while True:
-            decision = await self.recovery.update(model, request_id, "acquire")
-            if not decision.allowed:
-                await sleep(decision.retry_after_seconds)
-                continue
-            error = None
-            try:
-                async with asyncio.timeout(decision.request_timeout_seconds):
-                    result = await self._complete_transport(
-                        payload, 0, decision.request_timeout_seconds
+        try:
+            while True:
+                decision = await recovery.update(model, request_id, "acquire")
+                if not decision.allowed:
+                    await sleep(decision.retry_after_seconds)
+                    continue
+                error = None
+                try:
+                    async with asyncio.timeout(decision.request_timeout_seconds):
+                        result = await self._complete_transport(
+                            payload, 0, decision.request_timeout_seconds
+                        )
+                except GatewayRequestError as caught:
+                    error = caught
+                except TimeoutError:
+                    error = GatewayRequestError(
+                        "APITimeoutError",
+                        retryable=True,
+                        failure=GatewayFailure("gateway_timeout", True),
                     )
-            except GatewayRequestError as caught:
-                error = caught
-            except TimeoutError:
-                error = GatewayRequestError(
-                    "APITimeoutError",
-                    retryable=True,
-                    failure=GatewayFailure("gateway_timeout", True),
+                if error is None:
+                    await recovery.update(model, request_id, "succeeded")
+                    return result
+                if not error.retryable or not error.transport_retry_allowed:
+                    await recovery.update(model, request_id, "finished")
+                    raise error from None
+                failure = error.failure or GatewayFailure("gateway_unavailable", True)
+                await recovery.update(
+                    model, request_id, "failed", failure.code, error.retry_after_seconds
                 )
-            if error is None:
-                await self.recovery.update(model, request_id, "succeeded")
-                return result
-            if not error.retryable or not error.transport_retry_allowed:
-                await self.recovery.update(model, request_id, "finished")
-                raise error from None
-            failure = error.failure or GatewayFailure("gateway_unavailable", True)
-            await self.recovery.update(
-                model, request_id, "failed", failure.code, error.retry_after_seconds
-            )
-            request_id = uuid.uuid4().hex
+                request_id = uuid.uuid4().hex
+        except RecoveryStoppedError:
+            # Losing the authority is not a provider failure: report it under
+            # its own permanent code instead of the exception's class name.
+            raise GatewayRequestError(
+                "RecoveryAuthorityUnavailable",
+                retryable=False,
+                failure=GatewayFailure("recovery_authority_unavailable", False),
+            ) from None
 
     async def close(self) -> None:
         """Erase the credential and close only a directly owned HTTP client."""

@@ -332,6 +332,12 @@ class MetricsState:
             if value is not None:
                 self._increment(counter, value)
 
+    def record_recovery_authority_retry(self, cause: str) -> None:
+        """Count one reconnect to the model recovery authority; cause is a safe token."""
+        self._increment("llm_recovery_authority_retries")
+        if re.fullmatch(r"[a-z0-9_]{1,32}", cause):
+            self._increment(f"llm_recovery_authority_retries.{cause}")
+
     def record_model_error(self, error: Exception) -> None:
         error_type = getattr(error, "provider_error_type", type(error).__name__)
         if (

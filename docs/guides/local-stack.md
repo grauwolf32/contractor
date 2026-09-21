@@ -230,7 +230,13 @@ CLI flags use the corresponding `--llm-recovery-...` names.
 After the automatic window expires, restore the model and choose **Retry model
 connection** on the Run page, or POST `{}` to `/v1/runs/{runId}/retry-gateway`.
 This retries the existing model call; it does not create a new Stage attempt or
-replay tools. Cancellation remains available while waiting. The configured Stage
+replay tools. Cancellation remains available while waiting. While Server is
+unreachable, a waiting Runtime keeps reconnecting with jittered backoff (at most
+5s apart) until its allocation lease expires; a Server that stays reachable but
+keeps answering the recovery endpoint with 5xx for 120s fails the model call
+with `recovery_authority_unavailable`. Reconnects appear in the Runtime log as
+`Model recovery authority unavailable (...)` at most every 30s and in the
+allocation metrics as `llm_recovery_authority_retries` counters. The configured Stage
 wall-clock deadline starts at resource admission and continues during recovery;
 queue residence does not consume it. Runtime process loss does not preserve the
 in-memory conversation.

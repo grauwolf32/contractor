@@ -7,7 +7,7 @@ import json
 import re
 import ssl
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
@@ -116,11 +116,11 @@ class ArtifactClient:
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
         self._observed_exact_refs: list[ArtifactRef] = []
 
-    def gateway_recovery_client(self):
+    def gateway_recovery_client(self, *, on_retry: Callable[[str], None] | None = None):
         """Share the existing allocation mTLS transport with model coordination."""
         from contractor_runtime.llm.recovery import GatewayRecoveryClient
 
-        return GatewayRecoveryClient(self._allocation_id, self._transport)
+        return GatewayRecoveryClient(self._allocation_id, self._transport, on_retry=on_retry)
 
     @property
     def allocation_id(self) -> str:
