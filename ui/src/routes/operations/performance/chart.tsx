@@ -1,6 +1,7 @@
 import { useId } from "react";
 
 import { metricSeriesSegments } from "./series";
+import { formatTimestamp } from "../../artifacts/common";
 
 export interface ChartDatum {
   observedAt: string;
@@ -192,7 +193,7 @@ export function MetricSeriesChart({
               >
                 <title>
                   {showLegend ? `${item.label} · ` : ""}
-                  {new Date(value.observedAt).toLocaleString()} ·{" "}
+                  {formatTimestamp(value.observedAt)} ·{" "}
                   {numeric(value.value, unit)}
                 </title>
               </circle>
@@ -214,7 +215,7 @@ export function MetricSeriesChart({
               />
               <span title={item.id}>{item.label}</span>
               <strong
-                title={`Last observed ${new Date(item.latest!.observedAt).toLocaleString()}`}
+                title={`Last observed ${formatTimestamp(item.latest!.observedAt)}`}
               >
                 {numeric(item.latest!.value, unit)}
               </strong>

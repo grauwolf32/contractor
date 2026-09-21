@@ -27,10 +27,10 @@ import {
   CursorControls,
   ErrorNotice,
   formatBytes,
-  formatTimestamp,
 } from "./common";
 import { ArtifactPreviewPanel } from "./preview";
 import { RefreshButton } from "../../app/refresh-button";
+import { RecordedTime } from "../../app/recorded-time";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -177,7 +177,7 @@ function ArtifactHistory({ metadata }: { metadata: ArtifactMetadata }) {
                 >
                   <code>{item.artifact.revision}</code>
                   <span>{formatBytes(item.size)}</span>
-                  <span>{formatTimestamp(item.createdAt)}</span>
+                  <RecordedTime value={item.createdAt} />
                   {item.current ? <strong>current</strong> : null}
                 </Link>
               </li>

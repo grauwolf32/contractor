@@ -27,12 +27,7 @@ import {
   type RunStatus,
 } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "../artifacts/common";
+import { CursorControls, ErrorNotice, formatBytes } from "../artifacts/common";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { type RunDisclosureProps, RunDisclosureSummary } from "./components";
 import {
@@ -45,6 +40,7 @@ import {
 } from "./output-model";
 import "./outputs.css";
 import { RefreshButton } from "../../app/refresh-button";
+import { RecordedTime } from "../../app/recorded-time";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -390,7 +386,9 @@ export function RunArtifactLibrary({
                     <td>{metadata.mediaType}</td>
                     <td>{formatBytes(metadata.size)}</td>
                     <td>{metadata.frozen ? "yes" : "no"}</td>
-                    <td>{formatTimestamp(metadata.createdAt)}</td>
+                    <td>
+                      <RecordedTime value={metadata.createdAt} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -532,7 +530,7 @@ function RunArtifactHistory({
                 >
                   <code>{item.artifact.revision}</code>
                   <span>{formatBytes(item.size)}</span>
-                  <span>{formatTimestamp(item.createdAt)}</span>
+                  <RecordedTime value={item.createdAt} />
                   {item.current ? <strong>current</strong> : null}
                 </Link>
               </li>

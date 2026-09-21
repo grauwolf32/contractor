@@ -27,7 +27,6 @@
   border-radius: var(--control-radius);
   margin: 0.75rem 0 0;
 }
-.artifact-actions-grid,
 .artifact-actions-grid.run-artifact-actions {
   display: flex;
   flex-direction: column;

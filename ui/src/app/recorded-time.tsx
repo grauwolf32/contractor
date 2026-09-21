@@ -1,7 +1,18 @@
 import { formatTimestamp } from "../routes/artifacts/common";
 import { useEffect, useState } from "react";
 
-export function RecordedTime({ value }: { value: string }) {
+/**
+ * Relative timestamp for list rows and cards. Renders a `<time>` element whose
+ * `dateTime` carries the source value and whose `title` holds the absolute
+ * timestamp, so the exact moment is one hover away and tests can match on it.
+ */
+export function RecordedTime({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
@@ -14,7 +25,7 @@ export function RecordedTime({ value }: { value: string }) {
   const divisor = unit === "day" ? 86400 : unit === "hour" ? 3600 : 60;
   const exact = `${formatTimestamp(value)} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
   return (
-    <time dateTime={value} title={exact}>
+    <time className={className} dateTime={value} title={exact}>
       {Number.isFinite(seconds)
         ? new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
             Math.round(seconds / divisor),

@@ -19,6 +19,29 @@ export default defineConfig({
       "contractor.public.v1",
     ]),
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              // Stable vendor chunk: framework code that every route shares and
+              // that changes only on dependency bumps, so it caches across
+              // application releases.
+              name: "vendor",
+              test: (id: string) =>
+                /[\\/]node_modules[\\/](react|react-dom|react-router|scheduler|@tanstack[\\/](?:query-core|react-query))[\\/]/.test(
+                  id,
+                ) &&
+                // react-dom's server renderers are only reached from the lazy
+                // LikeC4 preview; keep them out of the eager payload.
+                !/react-dom[\\/](server|cjs[\\/]react-dom-server)/.test(id),
+            },
+          ],
+        },
+      },
+    },
+  },
   server: {
     host: "127.0.0.1",
     port: 5173,

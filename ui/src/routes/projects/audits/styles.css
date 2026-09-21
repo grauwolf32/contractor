@@ -1246,20 +1246,6 @@
 .audit-report-markdown .markdown-artifact-preview {
   overflow-wrap: anywhere;
 }
-.audit-report-markdown .markdown-artifact-preview h1 {
-  font-size: 1.15rem;
-}
-.audit-report-markdown .markdown-artifact-preview h2 {
-  font-size: 1.05rem;
-}
-.audit-report-markdown .markdown-artifact-preview h3 {
-  font-size: 1rem;
-}
-.audit-report-markdown .markdown-artifact-preview h4,
-.audit-report-markdown .markdown-artifact-preview h5,
-.audit-report-markdown .markdown-artifact-preview h6 {
-  font-size: 0.95rem;
-}
 .audit-report-markdown .markdown-artifact-preview h1,
 .audit-report-markdown .markdown-artifact-preview h2 {
   margin-top: 1.2em;

@@ -146,7 +146,7 @@ describe("Evals and global Skills routes", () => {
     expect(
       await screen.findByRole("heading", { name: "Eval Runs" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("eval-2026-09-05")).toBeInTheDocument();
+    expect(await screen.findByText("eval-2026-09-05")).toBeInTheDocument();
     expect(screen.getByText("Runs without eval.id")).toBeInTheDocument();
     const grouped =
       view.container.querySelector<HTMLElement>(".eval-run-group");

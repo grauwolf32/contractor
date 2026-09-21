@@ -22,7 +22,7 @@ import { useWorkflowInventory } from "./workflows/inventory";
 import { groupWorkflowVersions } from "./workflows/families";
 import { workflowDisplayName } from "./workflows/presentation";
 import { useSession } from "../auth/session";
-import { ErrorNotice, formatTimestamp } from "./artifacts/common";
+import { ErrorNotice } from "./artifacts/common";
 import { StateBadge } from "./runs/components";
 import { formatRunDuration } from "./runs/triage";
 import { RefreshButton } from "../app/refresh-button";
@@ -480,9 +480,14 @@ export function HomeRoute() {
         </div>
         <div className="action-refresh">
           <small>
-            {updatedAt === 0
-              ? "Waiting for snapshots"
-              : `Updated ${formatTimestamp(new Date(updatedAt).toISOString())}`}
+            {updatedAt === 0 ? (
+              "Waiting for snapshots"
+            ) : (
+              <>
+                Updated{" "}
+                <RecordedTime value={new Date(updatedAt).toISOString()} />
+              </>
+            )}
           </small>
           <RefreshButton isFetching={fetching} onRefresh={refresh} />
         </div>

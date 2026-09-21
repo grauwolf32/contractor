@@ -1332,6 +1332,28 @@ code {
   padding-bottom: 0.35em;
 }
 
+/* Document headings never outgrow the page's own section heading. */
+.markdown-artifact-preview h1 {
+  font-size: 1.25rem;
+}
+
+.markdown-artifact-preview h2 {
+  font-size: 1.1rem;
+}
+
+.markdown-artifact-preview h3 {
+  font-size: 1rem;
+}
+
+.markdown-artifact-preview h4,
+.markdown-artifact-preview h5,
+.markdown-artifact-preview h6 {
+  margin: 1.5em 0 0.55em;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
 .markdown-artifact-preview blockquote {
   margin-inline: 0;
   border-left: 3px solid #71843f;

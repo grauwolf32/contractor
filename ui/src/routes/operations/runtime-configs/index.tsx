@@ -27,11 +27,8 @@ import { Dialog } from "../../../app/dialog";
 import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { CursorControls, ErrorNotice } from "../../artifacts/common";
+import { RecordedTime } from "../../../app/recorded-time";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -1344,7 +1341,9 @@ function RuntimeCredentialList({
                     <code>{credential.credentialId}</code>
                   </td>
                   <td>{credential.kind}</td>
-                  <td>{formatTimestamp(credential.createdAt)}</td>
+                  <td>
+                    <RecordedTime value={credential.createdAt} />
+                  </td>
                   <td>
                     <button
                       className="danger-button delete-icon-button"
@@ -1513,9 +1512,11 @@ export function RuntimeConfigurationRoute() {
                       {resource.builtIn ? "built-in" : resource.createdBy}
                     </td>
                     <td>
-                      {resource.builtIn
-                        ? "Built-in"
-                        : formatTimestamp(resource.createdAt)}
+                      {resource.builtIn ? (
+                        "Built-in"
+                      ) : (
+                        <RecordedTime value={resource.createdAt} />
+                      )}
                     </td>
                     <td>
                       <div className="runtime-inline-bindings">

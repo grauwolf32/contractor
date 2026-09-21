@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import type { AllocationResourceSummary } from "../../../api/performance";
 import { formatBytes, formatTimestamp } from "../../artifacts/common";
 import { OperationsState } from "../common";
+import { RecordedTime } from "../../../app/recorded-time";
 
 function unavailable(
   value: number | undefined,
@@ -92,7 +93,9 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
         <td data-label="Measurements">
           <span>{item.status.replaceAll("_", " ")}</span>
         </td>
-        <td data-label="Finished">{formatTimestamp(item.finishedAt)}</td>
+        <td data-label="Finished">
+          <RecordedTime value={item.finishedAt} />
+        </td>
       </tr>
       {expanded ? (
         <tr className="allocation-metrics-row">

@@ -33,6 +33,7 @@ import { RunResumeControl } from "./resume";
 import { useLiveRunProjection } from "./live";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
 import { RefreshButton } from "../../app/refresh-button";
+import { RecordedTime } from "../../app/recorded-time";
 
 function compactMetric(value: number): string {
   if (value < 1_000) {
@@ -541,7 +542,9 @@ function RunOutputPublications({ run }: { run: RunStatus }) {
                   {publication.errorMessage}
                 </p>
               )}
-              <small>{formatTimestamp(publication.createdAt)}</small>
+              <small>
+                <RecordedTime value={publication.createdAt} />
+              </small>
             </li>
           ))}
         </ul>

@@ -26,6 +26,7 @@ import {
 } from "../artifacts/common";
 import { RunMetadataLabelChips, StateBadge } from "./components";
 import { RefreshButton } from "../../app/refresh-button";
+import { RecordedTime } from "../../app/recorded-time";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
 
@@ -399,9 +400,7 @@ function CompletedRunRow({
           {run.finishedAt === undefined ? (
             "—"
           ) : (
-            <time dateTime={run.finishedAt}>
-              {formatTimestamp(run.finishedAt)}
-            </time>
+            <RecordedTime value={run.finishedAt} />
           )}
         </td>
         <td className="run-list-actions-cell" data-label="Actions">

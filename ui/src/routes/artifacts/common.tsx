@@ -35,9 +35,21 @@ export function formatBytes(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+const absoluteTimestamp = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "medium",
+});
+
+/**
+ * Absolute timestamp for detail metadata. Every absolute date in the UI goes
+ * through this formatter so the shape is stable across call sites and
+ * browser locales; lists and cards use RecordedTime (relative) instead.
+ */
 export function formatTimestamp(value: string): string {
   const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString();
+  return Number.isNaN(parsed.valueOf())
+    ? value
+    : absoluteTimestamp.format(parsed);
 }
 
 export function ArtifactFileDrop({

@@ -6,12 +6,9 @@ import { Link } from "react-router";
 import { usePublicAPI } from "../../../api/context";
 import { listCredentials } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "../../artifacts/common";
+import { CursorControls, ErrorNotice } from "../../artifacts/common";
 import { CredentialCreateForm } from "./form";
+import { RecordedTime } from "../../../app/recorded-time";
 
 export function CredentialListRoute() {
   const api = usePublicAPI();
@@ -91,7 +88,9 @@ export function CredentialListRoute() {
                     </td>
                     <td>{credential.effectivePolicy.modelPolicies.length}</td>
                     <td>{credential.consumption?.spend ?? "not observed"}</td>
-                    <td>{formatTimestamp(credential.createdAt)}</td>
+                    <td>
+                      <RecordedTime value={credential.createdAt} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

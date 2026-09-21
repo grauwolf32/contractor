@@ -5,17 +5,13 @@ import { useState } from "react";
 import { listArtifacts, type ArtifactWriteResponse } from "../api/artifacts";
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatBytes,
-  formatTimestamp,
-} from "./artifacts/common";
+import { CursorControls, ErrorNotice, formatBytes } from "./artifacts/common";
 import { SkillUploadDialog } from "./skill-upload-dialog";
 import { SkillDescription } from "./skill-description";
 
 import "./skills.css";
 import { RefreshButton } from "../app/refresh-button";
+import { RecordedTime } from "../app/recorded-time";
 
 const SKILL_NAMESPACE = "skills";
 
@@ -138,7 +134,9 @@ export function SkillsRoute() {
                       <details>
                         <summary>Current revision</summary>
                         <code>{item.artifact.revision}</code>
-                        <small>{formatTimestamp(item.createdAt)}</small>
+                        <small>
+                          <RecordedTime value={item.createdAt} />
+                        </small>
                       </details>
                     </td>
                   </tr>

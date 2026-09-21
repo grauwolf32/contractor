@@ -14,3 +14,13 @@ export function NotFoundRoute() {
     </main>
   );
 }
+
+/** Shown in place of the shell until the first route chunk has loaded. */
+export function RouteChunkLoading() {
+  return (
+    <main className="centered-state" aria-live="polite">
+      <span className="spinner" aria-hidden="true" />
+      <p>Loading workspace…</p>
+    </main>
+  );
+}

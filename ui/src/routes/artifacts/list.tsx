@@ -16,9 +16,9 @@ import {
   CursorControls,
   ErrorNotice,
   formatBytes,
-  formatTimestamp,
 } from "./common";
 import { RefreshButton } from "../../app/refresh-button";
+import { RecordedTime } from "../../app/recorded-time";
 
 const EXCLUDED_SKILL_NAMESPACE = "skills";
 
@@ -204,7 +204,7 @@ export function ArtifactListRoute() {
                     <td data-label="Media type">{item.mediaType}</td>
                     <td data-label="Size">{formatBytes(item.size)}</td>
                     <td data-label="Created">
-                      {formatTimestamp(item.createdAt)}
+                      <RecordedTime value={item.createdAt} />
                     </td>
                   </tr>
                 ))}

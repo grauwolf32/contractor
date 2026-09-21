@@ -16,13 +16,10 @@ import {
 } from "../api/queue";
 import { queryKeys } from "../api/query-keys";
 import { useRunEvents } from "../events/context";
-import {
-  CursorControls,
-  ErrorNotice,
-  formatTimestamp,
-} from "./artifacts/common";
+import { CursorControls, ErrorNotice } from "./artifacts/common";
 import { RunMetadataLabelChips, StateBadge } from "./runs/components";
 import { RefreshButton } from "../app/refresh-button";
+import { RecordedTime } from "../app/recorded-time";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 
@@ -323,15 +320,11 @@ export function QueuePanel() {
                     <RunMetadataLabelChips labels={item.labels} />
                   </td>
                   <td className="run-list-created-cell" data-label="Created">
-                    <time dateTime={item.createdAt}>
-                      {formatTimestamp(item.createdAt)}
-                    </time>
+                    <RecordedTime value={item.createdAt} />
                   </td>
                   <td className="run-list-updated-cell" data-label="Updated">
                     <span className="run-list-mobile-label">Updated</span>
-                    <time dateTime={item.updatedAt}>
-                      {formatTimestamp(item.updatedAt)}
-                    </time>
+                    <RecordedTime value={item.updatedAt} />
                   </td>
                 </tr>
               ))}
