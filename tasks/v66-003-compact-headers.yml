@@ -3,8 +3,8 @@ id: V66-003
 title: Compact project and audit headers and move delete into the overflow menu
 milestone: ui-design-review-2
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 64735aca59478d2cd15e86a29f3842c3f2251f82
 depends_on: []
 languages:
 - typescript
@@ -50,3 +50,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest 77 files / 597 tests pass; eslint, prettier and tsc clean.
+  heights_1440: Project overview 338 -> 216 px; Project audits 398 -> 216 px; Audit overview 388/501 -> 234 px (content start, measured with vite + Playwright on mocked data).
+  heights_390: project content at 354 px, audit at 373 px (section picker retained).
+  e2e_edits: project-workspace.spec.ts and audits.spec.ts selectors updated; Playwright not executed (V66-011).

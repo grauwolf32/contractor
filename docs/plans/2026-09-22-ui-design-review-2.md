@@ -1,6 +1,6 @@
 # UI design review follow-up implementation — September 22, 2026
 
-The user approved recording the ten findings of the [follow-up review](../research/2026-09-22-ui-design-review-2.md) as tasks and starting with the copy and layout wave. Work happens on `main`; each task is a separate commit. Set `in_progress` before changing code; set `completed` after meeting the criteria and passing checks, with the full `implementation_commit`. V66-011 owns combined verification, screenshot comparison and the demo release.
+The user approved recording the ten findings of the [follow-up review](../research/2026-09-22-ui-design-review-2.md) as tasks and starting with the copy and layout wave. Work happens on `main`; a wave may land in one commit that closes several tasks, each recording that commit. Set `in_progress` before changing code; set `completed` after meeting the criteria and passing checks, with the full `implementation_commit`. V66-011 owns combined verification, screenshot comparison and the demo release.
 
 | Task | Area | Findings |
 | --- | --- | --- |

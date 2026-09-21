@@ -3,8 +3,8 @@ id: V66-002
 title: Demote manual refresh controls where data refreshes itself
 milestone: ui-design-review-2
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 64735aca59478d2cd15e86a29f3842c3f2251f82
 depends_on: []
 languages:
 - typescript
@@ -48,3 +48,7 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest 77 files / 597 tests pass; eslint, prettier and tsc clean.
+  controls: Shared RefreshButton (ui/src/app/refresh-button.tsx); icon-only on Home, Runs, Run detail, Operations, Project overview/audits/runs/findings, Audit coverage; labelled Refresh on Performance, configuration lists, Artifacts, Catalog, Evals.
+  e2e_edits: performance.spec.ts label updated; Playwright not executed (V66-011).
