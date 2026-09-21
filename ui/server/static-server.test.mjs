@@ -155,6 +155,8 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/operations/runtime-agents",
     "/runs/configuration",
     "/runs/configuration/debug/1",
+    "/operations/configuration",
+    "/operations/configuration/debug/1",
     "/operations/allocations",
     "/operations/allocations/completed",
     "/operations/performance",

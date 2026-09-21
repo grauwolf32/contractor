@@ -20,6 +20,7 @@ const CLIENT_ROUTES = new Set([
   "/catalog/agents",
   "/catalog/skills",
   "/operations",
+  "/operations/configuration",
   "/operations/performance",
   "/operations/allocations/completed",
 ]);
@@ -40,6 +41,7 @@ const CLIENT_ROUTE_PATTERNS = [
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/operations\/(?:runtime-agents|allocations|configurations|credentials|settings)$/,
   /^\/runs\/configuration\/[a-z][a-z0-9_-]{0,62}\/[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/,
+  /^\/operations\/configuration\/[a-z][a-z0-9_-]{0,62}\/[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/,
   /^\/operations\/configurations\/(?:agent-templates|execution-configs|model-policies|llm-gateways)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
   /^\/operations\/credentials\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
 ];
