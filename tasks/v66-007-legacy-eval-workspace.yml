@@ -3,8 +3,8 @@ id: V66-007
 title: Simplify legacy evaluation workspaces
 milestone: ui-design-review-2
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 218146f9652be680190fdeb98c4ebec0a3b91bf8
 depends_on: []
 languages:
 - typescript
@@ -42,3 +42,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest projects.test.tsx + evals suites 7 files / 44 tests pass; eslint, prettier, tsc (app and e2e) clean.
+  removed: Workflows tab and launch region, artifact shortcut cards and upload actions on kind=evaluation pages; /v1/workflows no longer fetched there.
+  kept: Eval Runs history grouped by eval.id, read-only bindings table, Workspace settings, legacy list link from Experiments.
+  browser: Playwright run owned by V66-011.
