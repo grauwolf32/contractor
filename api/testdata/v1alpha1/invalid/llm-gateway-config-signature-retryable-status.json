@@ -1,0 +1,1 @@
+{"failureSignatures":{"modelUnavailable":[{"messageEquals":"Model is unloaded.","status":503}]},"protocol":"openai-compatible@1","ref":{"digest":"sha256:97f0f00d0df645eb9d249fe1b56634324e135c7b6b7b8f4062209cc6d7c6f7a1","gatewayId":"local-litellm","version":"1"},"url":"http://127.0.0.1:4000/v1"}

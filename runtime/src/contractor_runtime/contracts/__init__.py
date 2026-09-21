@@ -178,6 +178,12 @@ from contractor_runtime.contracts.reports import WorkerSummarizerMetrics as Work
 from contractor_runtime.contracts.settings import AgentTemplateRef as AgentTemplateRef
 from contractor_runtime.contracts.settings import CaidoSettings as CaidoSettings
 from contractor_runtime.contracts.settings import (
+    GatewayFailureSignature as GatewayFailureSignature,
+)
+from contractor_runtime.contracts.settings import (
+    GatewayFailureSignatures as GatewayFailureSignatures,
+)
+from contractor_runtime.contracts.settings import (
     HTTPOriginTargetSettings as HTTPOriginTargetSettings,
 )
 from contractor_runtime.contracts.settings import HTTPProxyBasicAuth as HTTPProxyBasicAuth

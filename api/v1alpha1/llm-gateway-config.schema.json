@@ -2,6 +2,34 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schema/v1alpha1/llm-gateway-config.schema.json",
   "$defs": {
+    "failureSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "oneOf": [{"required": ["messageEquals"]}, {"required": ["litellmWrapped"]}],
+      "properties": {
+        "status": {"type": "integer", "enum": [400, 404, 409, 422]},
+        "messageEquals": {"type": "string", "minLength": 1, "maxLength": 512},
+        "litellmWrapped": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    },
+    "failureSignatures": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelUnavailable": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {"$ref": "#/$defs/failureSignature"}
+        },
+        "permanentCodes": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+        }
+      }
+    },
     "ref": {
       "type": "object",
       "additionalProperties": false,
@@ -39,7 +67,8 @@
           "format": "uri",
           "pattern": "^https?://[^/?#@]+/[^?#]*$"
         },
-        "credentialManager": {"$ref": "#/$defs/credentialManager"}
+        "credentialManager": {"$ref": "#/$defs/credentialManager"},
+        "failureSignatures": {"$ref": "#/$defs/failureSignatures"}
       }
     }
   },

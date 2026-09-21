@@ -141,6 +141,13 @@ func (s *Scheduler) materializeRuntimeSettings(
 		ArtifactAPIURL:        s.options.RuntimeSettings.ArtifactAPIURL,
 		RequestTimeoutSeconds: s.options.RuntimeSettings.RequestTimeoutSeconds,
 	}
+	if signatures := resolved.LLMGateway.FailureSignatures; signatures != nil {
+		copied := contracts.GatewayFailureSignatures{
+			ModelUnavailable: append([]contracts.GatewayFailureSignature(nil), signatures.ModelUnavailable...),
+			PermanentCodes:   append([]string(nil), signatures.PermanentCodes...),
+		}
+		result.LLMGatewayFailureSignatures = &copied
+	}
 	if resolved.LLMCredential != nil {
 		if s.options.Credentials == nil {
 			return contracts.RuntimeSettings{}, fmt.Errorf("selected LLM credential is unavailable")

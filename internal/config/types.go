@@ -286,9 +286,21 @@ type llmGatewayConfigDocument struct {
 }
 
 type llmGatewayConfigSpecSource struct {
-	Protocol          string                          `yaml:"protocol"`
-	URL               string                          `yaml:"url"`
-	CredentialManager *llmCredentialManagerSpecSource `yaml:"credentialManager,omitempty"`
+	Protocol          string                             `yaml:"protocol"`
+	URL               string                             `yaml:"url"`
+	CredentialManager *llmCredentialManagerSpecSource    `yaml:"credentialManager,omitempty"`
+	FailureSignatures *llmGatewayFailureSignaturesSource `yaml:"failureSignatures,omitempty"`
+}
+
+type llmGatewayFailureSignaturesSource struct {
+	ModelUnavailable []llmGatewayFailureSignatureSource `yaml:"modelUnavailable,omitempty"`
+	PermanentCodes   []string                           `yaml:"permanentCodes,omitempty"`
+}
+
+type llmGatewayFailureSignatureSource struct {
+	Status         int    `yaml:"status"`
+	MessageEquals  string `yaml:"messageEquals,omitempty"`
+	LiteLLMWrapped string `yaml:"litellmWrapped,omitempty"`
 }
 
 type llmCredentialManagerSpecSource struct {

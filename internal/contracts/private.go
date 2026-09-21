@@ -541,15 +541,18 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
-	LLMRecovery           bool                      `json:"llmRecovery,omitempty"`
-	LLMGatewayURL         string                    `json:"llmGatewayUrl,omitempty"`
-	LLMGatewayToken       *SecretString             `json:"llmGatewayToken,omitempty"`
-	ArtifactAPIURL        string                    `json:"artifactApiUrl"`
-	Telemetry             *TelemetrySettings        `json:"telemetry,omitempty"`
-	HTTPProxy             *HTTPProxySettings        `json:"httpProxy,omitempty"`
-	Caido                 *CaidoSettings            `json:"caido,omitempty"`
-	HTTPOriginTarget      *HTTPOriginTargetSettings `json:"httpOriginTarget,omitempty"`
-	RequestTimeoutSeconds int                       `json:"requestTimeoutSeconds"`
+	LLMRecovery     bool          `json:"llmRecovery,omitempty"`
+	LLMGatewayURL   string        `json:"llmGatewayUrl,omitempty"`
+	LLMGatewayToken *SecretString `json:"llmGatewayToken,omitempty"`
+	// LLMGatewayFailureSignatures carries the selected Gateway's declared set;
+	// absent means the protocol default, exactly as on the Gateway body.
+	LLMGatewayFailureSignatures *GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty"`
+	ArtifactAPIURL              string                    `json:"artifactApiUrl"`
+	Telemetry                   *TelemetrySettings        `json:"telemetry,omitempty"`
+	HTTPProxy                   *HTTPProxySettings        `json:"httpProxy,omitempty"`
+	Caido                       *CaidoSettings            `json:"caido,omitempty"`
+	HTTPOriginTarget            *HTTPOriginTargetSettings `json:"httpOriginTarget,omitempty"`
+	RequestTimeoutSeconds       int                       `json:"requestTimeoutSeconds"`
 }
 
 // HTTPOriginTargetRef is the immutable, non-secret target provenance pinned
@@ -621,8 +624,13 @@ func (s RuntimeSettings) Validate() error {
 		if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
 			return err
 		}
-	} else if s.LLMGatewayToken != nil {
-		return invalidf("LLM token requires a Gateway URL")
+	} else if s.LLMGatewayToken != nil || s.LLMGatewayFailureSignatures != nil {
+		return invalidf("LLM token and failure signatures require a Gateway URL")
+	}
+	if s.LLMGatewayFailureSignatures != nil {
+		if err := s.LLMGatewayFailureSignatures.Validate(); err != nil {
+			return err
+		}
 	}
 	if err := validateURL("runtimeSettings.artifactApiUrl", s.ArtifactAPIURL); err != nil || len(s.ArtifactAPIURL) > 2048 {
 		return invalidf("runtimeSettings.artifactApiUrl is invalid")

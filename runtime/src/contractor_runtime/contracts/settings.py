@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+import re
 import ssl
+import unicodedata
 from typing import Literal, Self
 
 from pydantic import (
@@ -126,6 +128,96 @@ class LLMGatewayCredentialManager(WireModel):
     @classmethod
     def validate_management_url(cls, value: str) -> str:
         return _require_management_gateway_origin(value)
+
+
+GATEWAY_FAILURE_SIGNATURE_STATUSES = frozenset({400, 404, 409, 422})
+MAX_GATEWAY_FAILURE_SIGNATURES = 32
+MAX_GATEWAY_FAILURE_SIGNATURE_TEXT = 512
+_GATEWAY_FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+class GatewayFailureSignature(WireModel):
+    """One exact provider response meaning the model is temporarily unavailable.
+
+    Exactly one of ``message_equals`` (whole error message or bare error string)
+    or ``litellm_wrapped`` (the same upstream message inside LiteLLM's observed
+    BadRequest wrapper) is set. Only exact matches exist so arbitrary 4xx text can
+    never become a transient availability failure.
+    """
+
+    status: int
+    message_equals: str | None = None
+    litellm_wrapped: str | None = None
+
+    @model_validator(mode="after")
+    def validate_signature(self) -> Self:
+        if self.status not in GATEWAY_FAILURE_SIGNATURE_STATUSES:
+            raise ValueError(
+                "failureSignatures.modelUnavailable status must be 400, 404, 409, or 422"
+            )
+        if (self.message_equals is None) == (self.litellm_wrapped is None):
+            raise ValueError(
+                "failureSignatures.modelUnavailable needs exactly one of "
+                "messageEquals or litellmWrapped"
+            )
+        text = self.message_equals if self.message_equals is not None else self.litellm_wrapped
+        if (
+            text is None
+            or not text
+            or len(text.encode("utf-8")) > MAX_GATEWAY_FAILURE_SIGNATURE_TEXT
+            or text.strip() != text
+            or any(unicodedata.category(char).startswith("C") for char in text)
+        ):
+            raise ValueError("failureSignatures.modelUnavailable text is invalid")
+        return self
+
+
+class GatewayFailureSignatures(WireModel):
+    """Provider-specific failure classification; status rules stay in code."""
+
+    model_unavailable: list[GatewayFailureSignature] = Field(
+        default_factory=list, max_length=MAX_GATEWAY_FAILURE_SIGNATURES
+    )
+    permanent_codes: list[str] = Field(
+        default_factory=list, max_length=MAX_GATEWAY_FAILURE_SIGNATURES
+    )
+
+    @model_validator(mode="after")
+    def validate_signatures(self) -> Self:
+        seen = {
+            (item.status, item.message_equals, item.litellm_wrapped)
+            for item in self.model_unavailable
+        }
+        if len(seen) != len(self.model_unavailable):
+            raise ValueError("failureSignatures.modelUnavailable repeats a signature")
+        for code in self.permanent_codes:
+            if not _GATEWAY_FAILURE_CODE.match(code):
+                raise ValueError(
+                    "failureSignatures.permanentCodes must be snake_case provider codes"
+                )
+        if len(set(self.permanent_codes)) != len(self.permanent_codes):
+            raise ValueError("failureSignatures.permanentCodes repeats a code")
+        return self
+
+
+def default_gateway_failure_signatures() -> GatewayFailureSignatures:
+    """The openai-compatible@1 baseline: LM Studio unloads observed through LiteLLM.
+
+    Mirrors contracts.DefaultGatewayFailureSignatures on the Go side.
+    """
+    return GatewayFailureSignatures(
+        model_unavailable=[
+            GatewayFailureSignature(status=400, message_equals="Model is unloaded."),
+            GatewayFailureSignature(
+                status=400, message_equals="Model unloaded by user or API request."
+            ),
+            GatewayFailureSignature(status=400, litellm_wrapped="Model is unloaded."),
+            GatewayFailureSignature(
+                status=400, litellm_wrapped="Model unloaded by user or API request."
+            ),
+        ],
+        permanent_codes=["insufficient_quota", "budget_exceeded", "context_length_exceeded"],
+    )
 
 
 class ResolvedSkill(WireModel):
@@ -283,6 +375,14 @@ class ResolvedLLMGatewayConfig(WireModel):
     protocol: Literal["openai-compatible@1"]
     url: str
     credential_manager: LLMGatewayCredentialManager | None = None
+    # Present only when the Gateway declares its own set, keeping existing
+    # digests stable; readers use effective_failure_signatures().
+    failure_signatures: GatewayFailureSignatures | None = None
+
+    def effective_failure_signatures(self) -> GatewayFailureSignatures:
+        if self.failure_signatures is not None:
+            return self.failure_signatures
+        return default_gateway_failure_signatures()
 
     @field_validator("url")
     @classmethod
@@ -439,6 +539,7 @@ class RuntimeSettings(WireModel):
     llm_recovery: bool = Field(default=False, strict=True, exclude_if=lambda value: not value)
     llm_gateway_url: str | None = Field(default=None, exclude_if=lambda value: value is None)
     llm_gateway_token: SecretStr | None = None
+    llm_gateway_failure_signatures: GatewayFailureSignatures | None = None
     artifact_api_url: str
     telemetry: TelemetrySettings | None = None
     http_proxy: HTTPProxySettings | None = None
@@ -450,8 +551,8 @@ class RuntimeSettings(WireModel):
     def validate_settings(self) -> Self:
         if self.llm_gateway_url is not None:
             _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
-        elif self.llm_gateway_token is not None:
-            raise ValueError("LLM token requires a Gateway URL")
+        elif self.llm_gateway_token is not None or self.llm_gateway_failure_signatures is not None:
+            raise ValueError("LLM token and failure signatures require a Gateway URL")
         if len(self.artifact_api_url.encode("utf-8")) > 2048:
             raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
         _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)

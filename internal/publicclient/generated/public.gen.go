@@ -1500,6 +1500,30 @@ func (e FindingProposalDocumentSchema) Valid() bool {
 	}
 }
 
+// Defines values for GatewayFailureSignatureStatus.
+const (
+	N400 GatewayFailureSignatureStatus = 400
+	N404 GatewayFailureSignatureStatus = 404
+	N409 GatewayFailureSignatureStatus = 409
+	N422 GatewayFailureSignatureStatus = 422
+)
+
+// Valid indicates whether the value is a known member of the GatewayFailureSignatureStatus enum.
+func (e GatewayFailureSignatureStatus) Valid() bool {
+	switch e {
+	case N400:
+		return true
+	case N404:
+		return true
+	case N409:
+		return true
+	case N422:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GitImportResultMediaType.
 const (
 	Applicationzip GitImportResultMediaType = "application/zip"
@@ -5148,6 +5172,29 @@ type FindingWorkflowOrigin struct {
 	Version          ConfigVersion `json:"version"`
 }
 
+// GatewayFailureSignature One exact provider response that means the model is temporarily unavailable although its HTTP status alone reads as a permanent rejection. Exactly one of messageEquals or litellmWrapped is set.
+type GatewayFailureSignature struct {
+	LitellmWrapped *string                       `json:"litellmWrapped,omitempty"`
+	MessageEquals  *string                       `json:"messageEquals,omitempty"`
+	Status         GatewayFailureSignatureStatus `json:"status"`
+	union          json.RawMessage
+}
+
+// GatewayFailureSignatureStatus defines model for GatewayFailureSignature.Status.
+type GatewayFailureSignatureStatus int
+
+// GatewayFailureSignature0 defines model for GatewayFailureSignature.0.
+type GatewayFailureSignature0 = interface{}
+
+// GatewayFailureSignature1 defines model for GatewayFailureSignature.1.
+type GatewayFailureSignature1 = interface{}
+
+// GatewayFailureSignatures Provider-specific failure classification for one Gateway. Absent on a Gateway body means the openai-compatible@1 protocol default applies.
+type GatewayFailureSignatures struct {
+	ModelUnavailable *[]GatewayFailureSignature `json:"modelUnavailable,omitempty"`
+	PermanentCodes   *[]string                  `json:"permanentCodes,omitempty"`
+}
+
 // GatewayPolicy defines model for GatewayPolicy.
 type GatewayPolicy struct {
 	BudgetDuration      *string          `json:"budgetDuration,omitempty"`
@@ -5243,8 +5290,11 @@ type InstructionsRef struct {
 // LLMGatewayBody defines model for LLMGatewayBody.
 type LLMGatewayBody struct {
 	CredentialManager *CredentialManagerDescriptor `json:"credentialManager,omitempty"`
-	Protocol          LLMGatewayBodyProtocol       `json:"protocol"`
-	Url               string                       `json:"url"`
+
+	// FailureSignatures Provider-specific failure classification for one Gateway. Absent on a Gateway body means the openai-compatible@1 protocol default applies.
+	FailureSignatures *GatewayFailureSignatures `json:"failureSignatures,omitempty"`
+	Protocol          LLMGatewayBodyProtocol    `json:"protocol"`
+	Url               string                    `json:"url"`
 }
 
 // LLMGatewayBodyProtocol defines model for LLMGatewayBody.Protocol.
@@ -10907,6 +10957,129 @@ func (t FindingLocation) MarshalJSON() ([]byte, error) {
 
 func (t *FindingLocation) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsGatewayFailureSignature0 returns the union data inside the GatewayFailureSignature as a GatewayFailureSignature0
+func (t GatewayFailureSignature) AsGatewayFailureSignature0() (GatewayFailureSignature0, error) {
+	var body GatewayFailureSignature0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGatewayFailureSignature0 overwrites any union data inside the GatewayFailureSignature as the provided GatewayFailureSignature0
+func (t *GatewayFailureSignature) FromGatewayFailureSignature0(v GatewayFailureSignature0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGatewayFailureSignature0 performs a merge with any union data inside the GatewayFailureSignature, using the provided GatewayFailureSignature0
+func (t *GatewayFailureSignature) MergeGatewayFailureSignature0(v GatewayFailureSignature0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGatewayFailureSignature1 returns the union data inside the GatewayFailureSignature as a GatewayFailureSignature1
+func (t GatewayFailureSignature) AsGatewayFailureSignature1() (GatewayFailureSignature1, error) {
+	var body GatewayFailureSignature1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGatewayFailureSignature1 overwrites any union data inside the GatewayFailureSignature as the provided GatewayFailureSignature1
+func (t *GatewayFailureSignature) FromGatewayFailureSignature1(v GatewayFailureSignature1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGatewayFailureSignature1 performs a merge with any union data inside the GatewayFailureSignature, using the provided GatewayFailureSignature1
+func (t *GatewayFailureSignature) MergeGatewayFailureSignature1(v GatewayFailureSignature1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t GatewayFailureSignature) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.LitellmWrapped != nil {
+		object["litellmWrapped"], err = json.Marshal(t.LitellmWrapped)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'litellmWrapped': %w", err)
+		}
+	}
+
+	if t.MessageEquals != nil {
+		object["messageEquals"], err = json.Marshal(t.MessageEquals)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'messageEquals': %w", err)
+		}
+	}
+
+	object["status"], err = json.Marshal(t.Status)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'status': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *GatewayFailureSignature) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["litellmWrapped"]; found {
+		err = json.Unmarshal(raw, &t.LitellmWrapped)
+		if err != nil {
+			return fmt.Errorf("error reading 'litellmWrapped': %w", err)
+		}
+	}
+
+	if raw, found := object["messageEquals"]; found {
+		err = json.Unmarshal(raw, &t.MessageEquals)
+		if err != nil {
+			return fmt.Errorf("error reading 'messageEquals': %w", err)
+		}
+	}
+
+	if raw, found := object["status"]; found {
+		err = json.Unmarshal(raw, &t.Status)
+		if err != nil {
+			return fmt.Errorf("error reading 'status': %w", err)
+		}
+	}
+
 	return err
 }
 

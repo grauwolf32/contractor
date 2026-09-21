@@ -5007,12 +5007,25 @@ export interface components {
             /** Format: uri */
             managementUrl: string;
         };
+        /** @description One exact provider response that means the model is temporarily unavailable although its HTTP status alone reads as a permanent rejection. Exactly one of messageEquals or litellmWrapped is set. */
+        GatewayFailureSignature: {
+            /** @enum {integer} */
+            status: 400 | 404 | 409 | 422;
+            messageEquals?: string;
+            litellmWrapped?: string;
+        } & (unknown | unknown);
+        /** @description Provider-specific failure classification for one Gateway. Absent on a Gateway body means the openai-compatible@1 protocol default applies. */
+        GatewayFailureSignatures: {
+            modelUnavailable?: components["schemas"]["GatewayFailureSignature"][];
+            permanentCodes?: string[];
+        };
         LLMGatewayBody: {
             /** @constant */
             protocol: "openai-compatible@1";
             /** Format: uri */
             url: string;
             credentialManager?: components["schemas"]["CredentialManagerDescriptor"];
+            failureSignatures?: components["schemas"]["GatewayFailureSignatures"];
         };
         ToolsetSelection: {
             ref: components["schemas"]["Selector"];

@@ -43,6 +43,9 @@ func llmGatewayConfigDigest(
 			"managementUrl":  gateway.CredentialManager.ManagementURL,
 		}
 	}
+	if gateway.FailureSignatures != nil {
+		spec["failureSignatures"] = failureSignaturesDocument(*gateway.FailureSignatures)
+	}
 	return digestJCS(map[string]any{
 		"apiVersion": contracts.APIVersion,
 		"kind":       llmGatewayConfigKind,

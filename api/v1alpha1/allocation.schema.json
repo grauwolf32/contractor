@@ -1049,6 +1049,46 @@
       "title": "RuntimeLabelBindingProvenance",
       "type": "object"
     },
+    "GatewayFailureSignature": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {"enum": [400, 404, 409, 422], "title": "Status", "type": "integer"},
+        "messageEquals": {
+          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}],
+          "default": null,
+          "title": "Messageequals"
+        },
+        "litellmWrapped": {
+          "anyOf": [{"maxLength": 512, "minLength": 1, "type": "string"}, {"type": "null"}],
+          "default": null,
+          "title": "Litellmwrapped"
+        }
+      },
+      "required": ["status"],
+      "title": "GatewayFailureSignature",
+      "type": "object"
+    },
+    "GatewayFailureSignatures": {
+      "additionalProperties": false,
+      "properties": {
+        "modelUnavailable": {
+          "default": [],
+          "items": {"$ref": "#/$defs/GatewayFailureSignature"},
+          "maxItems": 32,
+          "title": "Modelunavailable",
+          "type": "array"
+        },
+        "permanentCodes": {
+          "default": [],
+          "items": {"pattern": "^[a-z][a-z0-9_]{0,63}$", "type": "string"},
+          "maxItems": 32,
+          "title": "Permanentcodes",
+          "type": "array"
+        }
+      },
+      "title": "GatewayFailureSignatures",
+      "type": "object"
+    },
     "RuntimeSettings": {
       "additionalProperties": false,
       "properties": {
@@ -1069,6 +1109,10 @@
           ],
           "default": null,
           "title": "Llmgatewaytoken"
+        },
+        "llmGatewayFailureSignatures": {
+          "anyOf": [{"$ref": "#/$defs/GatewayFailureSignatures"}, {"type": "null"}],
+          "default": null
         },
         "artifactApiUrl": {
           "title": "Artifactapiurl",

@@ -153,3 +153,75 @@ func duplicateGateway(t *testing.T, root string) {
 	content := readFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"))
 	writeFile(t, filepath.Join(root, "llm-gateways/nested/duplicate.yaml"), content)
 }
+
+const signedGatewayManifest = `apiVersion: contractor/v1alpha1
+kind: LLMGatewayConfig
+metadata: {name: local-litellm, version: "1"}
+spec:
+  protocol: openai-compatible@1
+  url: http://127.0.0.1:4000/v1
+  credentialManager:
+    implementation: litellm-virtual-keys@1
+    managementUrl: http://127.0.0.1:4000
+  failureSignatures:
+    modelUnavailable:
+      - {status: 404, messageEquals: "model 'worker' not found"}
+      - {status: 400, litellmWrapped: "Model is unloaded."}
+    permanentCodes: [insufficient_quota, context_length_exceeded]
+`
+
+func TestLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *testing.T) {
+	baseline := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	baselineGateway, _ := baseline.LLMGateway("local-litellm@1")
+	if baselineGateway.FailureSignatures != nil {
+		t.Fatalf("undeclared signatures were materialized on the body: %+v", baselineGateway.FailureSignatures)
+	}
+	if effective := baselineGateway.EffectiveFailureSignatures(); len(effective.ModelUnavailable) != 4 || len(effective.PermanentCodes) != 3 {
+		t.Fatalf("protocol default = %+v", effective)
+	}
+
+	root := copyConfigTree(t)
+	writeFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"), []byte(signedGatewayManifest))
+	declared := mustLoad(t, root, MVPDescriptors())
+	gateway, err := declared.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.FailureSignatures == nil || len(gateway.FailureSignatures.ModelUnavailable) != 2 ||
+		gateway.FailureSignatures.ModelUnavailable[0] != (contracts.GatewayFailureSignature{Status: 404, MessageEquals: "model 'worker' not found"}) ||
+		gateway.FailureSignatures.ModelUnavailable[1] != (contracts.GatewayFailureSignature{Status: 400, LiteLLMWrapped: "Model is unloaded."}) ||
+		strings.Join(gateway.FailureSignatures.PermanentCodes, ",") != "insufficient_quota,context_length_exceeded" {
+		t.Fatalf("declared signatures = %+v", gateway.FailureSignatures)
+	}
+	if gateway.Ref.Digest == baselineGateway.Ref.Digest {
+		t.Fatal("declared signatures did not change the LLMGatewayConfig digest")
+	}
+	// The cross-language fixture pins this Go digest for the Python verifier.
+	fixture, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "llm-gateway-config-signatures.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := contracts.DecodeStrict[contracts.ResolvedLLMGatewayConfig](fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pinned.Ref != gateway.Ref {
+		t.Fatalf("fixture ref %+v does not match the resolved ref %+v", pinned.Ref, gateway.Ref)
+	}
+
+	for name, manifest := range map[string]string{
+		"regex-like substring":    strings.Replace(signedGatewayManifest, `messageEquals: "model 'worker' not found"`, `messageEquals: " .*not found"`, 1),
+		"retryable status":        strings.Replace(signedGatewayManifest, "status: 404", "status: 503", 1),
+		"both matchers":           strings.Replace(signedGatewayManifest, `litellmWrapped: "Model is unloaded."`, `litellmWrapped: "Model is unloaded.", messageEquals: "x"`, 1),
+		"control character":       strings.Replace(signedGatewayManifest, `messageEquals: "model 'worker' not found"`, "messageEquals: \"model\\tnot found\"", 1),
+		"non snake_case code":     strings.Replace(signedGatewayManifest, "insufficient_quota", "Insufficient-Quota", 1),
+		"duplicate signature":     strings.Replace(signedGatewayManifest, `{status: 404, messageEquals: "model 'worker' not found"}`, `{status: 400, litellmWrapped: "Model is unloaded."}`, 1),
+		"unknown signature field": strings.Replace(signedGatewayManifest, "status: 404,", "status: 404, pattern: x,", 1),
+	} {
+		invalidRoot := copyConfigTree(t)
+		writeFile(t, filepath.Join(invalidRoot, "llm-gateways/local_litellm.yaml"), []byte(manifest))
+		if _, err := Load(invalidRoot, MVPDescriptors()); err == nil {
+			t.Errorf("%s: invalid failure signature manifest was accepted", name)
+		}
+	}
+}

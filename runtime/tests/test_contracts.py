@@ -85,6 +85,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-heartbeat.json": AgentHeartbeat,
     "heartbeat-response.json": HeartbeatResponse,
     "llm-gateway-config.json": ResolvedLLMGatewayConfig,
+    "llm-gateway-config-signatures.json": ResolvedLLMGatewayConfig,
     "allocation-spec.json": AllocationSpec,
     "allocation-spec-tool.json": AllocationSpec,
     "allocation-spec-summarizer.json": AllocationSpec,
@@ -117,6 +118,8 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-heartbeat-missing-allocation.json": AgentHeartbeat,
     "heartbeat-response-unknown-action.json": HeartbeatResponse,
     "llm-gateway-config-secret-field.json": ResolvedLLMGatewayConfig,
+    "llm-gateway-config-signature-two-matchers.json": ResolvedLLMGatewayConfig,
+    "llm-gateway-config-signature-retryable-status.json": ResolvedLLMGatewayConfig,
     "allocation-spec-bad-api-version.json": AllocationSpec,
     "allocation-spec-resolved-skill-versionless.json": AllocationSpec,
     "stage-content-request-unknown-field.json": StageContentRequest,
@@ -163,6 +166,7 @@ FIXTURE_SCHEMAS = {
     "agent-heartbeat": "agent-heartbeat.schema.json",
     "heartbeat-response": "agent-heartbeat.schema.json",
     "llm-gateway-config": "llm-gateway-config.schema.json",
+    "llm-gateway-config-signatures": "llm-gateway-config.schema.json",
     "allocation-spec": "allocation.schema.json",
     "allocation-spec-tool": "allocation.schema.json",
     "allocation-spec-tool-model": "allocation.schema.json",
@@ -189,6 +193,8 @@ FIXTURE_SCHEMAS = {
     "agent-heartbeat-missing-allocation": "agent-heartbeat.schema.json",
     "heartbeat-response-unknown-action": "agent-heartbeat.schema.json",
     "llm-gateway-config-secret-field": "llm-gateway-config.schema.json",
+    "llm-gateway-config-signature-two-matchers": "llm-gateway-config.schema.json",
+    "llm-gateway-config-signature-retryable-status": "llm-gateway-config.schema.json",
     "allocation-spec-bad-api-version": "allocation.schema.json",
     "allocation-spec-resolved-skill-versionless": "allocation.schema.json",
     "stage-content-request-unknown-field": "stage-content.schema.json",
@@ -399,6 +405,48 @@ def test_resolved_gateway_digest_matches_go_fixture() -> None:
     changed = gateway.model_copy(update={"url": "http://127.0.0.1:4001/v1"})
     with pytest.raises(GatewayDigestMismatch):
         verify_gateway_config_digest(changed)
+
+
+def test_declared_failure_signatures_join_the_gateway_digest() -> None:
+    raw = (FIXTURES / "valid" / "llm-gateway-config-signatures.json").read_text(encoding="utf-8")
+    gateway = ResolvedLLMGatewayConfig.model_validate_json(raw)
+    verify_gateway_config_digest(gateway)
+    declared = gateway.effective_failure_signatures()
+    assert [item.status for item in declared.model_unavailable] == [404, 400]
+    assert declared.permanent_codes == ["insufficient_quota", "context_length_exceeded"]
+    # Dropping the declaration reverts to the protocol default and a different digest.
+    undeclared = gateway.model_copy(update={"failure_signatures": None})
+    with pytest.raises(GatewayDigestMismatch):
+        verify_gateway_config_digest(undeclared)
+    default = undeclared.effective_failure_signatures()
+    assert len(default.model_unavailable) == 4
+    assert default.permanent_codes == [
+        "insufficient_quota",
+        "budget_exceeded",
+        "context_length_exceeded",
+    ]
+
+
+def test_runtime_settings_failure_signatures_require_gateway_url() -> None:
+    signatures = {"modelUnavailable": [{"status": 404, "messageEquals": "gone"}]}
+    settings = RuntimeSettings.model_validate(
+        {
+            "llmGatewayUrl": "http://127.0.0.1:4000/v1",
+            "llmGatewayFailureSignatures": signatures,
+            "artifactApiUrl": "https://server.example/private/v1",
+            "requestTimeoutSeconds": 30,
+        }
+    )
+    assert settings.llm_gateway_failure_signatures is not None
+    assert settings.llm_gateway_failure_signatures.model_unavailable[0].message_equals == "gone"
+    with pytest.raises(ValidationError):
+        RuntimeSettings.model_validate(
+            {
+                "llmGatewayFailureSignatures": signatures,
+                "artifactApiUrl": "https://server.example/private/v1",
+                "requestTimeoutSeconds": 30,
+            }
+        )
 
 
 @pytest.mark.parametrize(

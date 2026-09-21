@@ -49,6 +49,9 @@ func resolveLLMGatewayConfig(
 			ManagementURL:  managementURL,
 		}
 	}
+	if spec.FailureSignatures != nil {
+		gateway.FailureSignatures = failureSignaturesFromSource(*spec.FailureSignatures)
+	}
 	digest, err := llmGatewayConfigDigest(selector, gateway)
 	if err != nil {
 		return contracts.ResolvedLLMGatewayConfig{}, err
@@ -58,6 +61,60 @@ func resolveLLMGatewayConfig(
 		return contracts.ResolvedLLMGatewayConfig{}, fmt.Errorf("resolved Gateway is invalid: %w", err)
 	}
 	return gateway, nil
+}
+
+func failureSignaturesFromSource(source llmGatewayFailureSignaturesSource) *contracts.GatewayFailureSignatures {
+	result := &contracts.GatewayFailureSignatures{
+		ModelUnavailable: make([]contracts.GatewayFailureSignature, 0, len(source.ModelUnavailable)),
+		PermanentCodes:   append([]string(nil), source.PermanentCodes...),
+	}
+	for _, signature := range source.ModelUnavailable {
+		result.ModelUnavailable = append(result.ModelUnavailable, contracts.GatewayFailureSignature{
+			Status: signature.Status, MessageEquals: signature.MessageEquals, LiteLLMWrapped: signature.LiteLLMWrapped,
+		})
+	}
+	return result
+}
+
+func failureSignaturesToSource(signatures contracts.GatewayFailureSignatures) *llmGatewayFailureSignaturesSource {
+	result := &llmGatewayFailureSignaturesSource{
+		ModelUnavailable: make([]llmGatewayFailureSignatureSource, 0, len(signatures.ModelUnavailable)),
+		PermanentCodes:   append([]string(nil), signatures.PermanentCodes...),
+	}
+	for _, signature := range signatures.ModelUnavailable {
+		result.ModelUnavailable = append(result.ModelUnavailable, llmGatewayFailureSignatureSource{
+			Status: signature.Status, MessageEquals: signature.MessageEquals, LiteLLMWrapped: signature.LiteLLMWrapped,
+		})
+	}
+	return result
+}
+
+// failureSignaturesDocument is the canonical JSON shape shared by the digest
+// and the public resource body; omitted fields never appear.
+func failureSignaturesDocument(signatures contracts.GatewayFailureSignatures) map[string]any {
+	result := map[string]any{}
+	if len(signatures.ModelUnavailable) != 0 {
+		entries := make([]any, 0, len(signatures.ModelUnavailable))
+		for _, signature := range signatures.ModelUnavailable {
+			entry := map[string]any{"status": signature.Status}
+			if signature.MessageEquals != "" {
+				entry["messageEquals"] = signature.MessageEquals
+			}
+			if signature.LiteLLMWrapped != "" {
+				entry["litellmWrapped"] = signature.LiteLLMWrapped
+			}
+			entries = append(entries, entry)
+		}
+		result["modelUnavailable"] = entries
+	}
+	if len(signatures.PermanentCodes) != 0 {
+		codes := make([]any, 0, len(signatures.PermanentCodes))
+		for _, code := range signatures.PermanentCodes {
+			codes = append(codes, code)
+		}
+		result["permanentCodes"] = codes
+	}
+	return result
 }
 
 func normalizeInferenceGatewayURL(raw string) (string, error) {

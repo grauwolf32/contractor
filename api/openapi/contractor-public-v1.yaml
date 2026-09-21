@@ -13611,6 +13611,37 @@ components:
       properties:
         implementation: {type: string, const: litellm-virtual-keys@1}
         managementUrl: {type: string, format: uri, maxLength: 2048}
+    GatewayFailureSignature:
+      type: object
+      description: >-
+        One exact provider response that means the model is temporarily
+        unavailable although its HTTP status alone reads as a permanent
+        rejection. Exactly one of messageEquals or litellmWrapped is set.
+      additionalProperties: false
+      required: [status]
+      oneOf:
+        - required: [messageEquals]
+        - required: [litellmWrapped]
+      properties:
+        status: {type: integer, enum: [400, 404, 409, 422]}
+        messageEquals: {type: string, minLength: 1, maxLength: 512}
+        litellmWrapped: {type: string, minLength: 1, maxLength: 512}
+    GatewayFailureSignatures:
+      type: object
+      description: >-
+        Provider-specific failure classification for one Gateway. Absent on a
+        Gateway body means the openai-compatible@1 protocol default applies.
+      additionalProperties: false
+      properties:
+        modelUnavailable:
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/GatewayFailureSignature'}
+        permanentCodes:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {type: string, pattern: '^[a-z][a-z0-9_]{0,63}$'}
     LLMGatewayBody:
       type: object
       additionalProperties: false
@@ -13619,6 +13650,7 @@ components:
         protocol: {type: string, const: openai-compatible@1}
         url: {type: string, format: uri, maxLength: 2048}
         credentialManager: {$ref: '#/components/schemas/CredentialManagerDescriptor'}
+        failureSignatures: {$ref: '#/components/schemas/GatewayFailureSignatures'}
     ToolsetSelection:
       type: object
       additionalProperties: false

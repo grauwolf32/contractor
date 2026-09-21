@@ -56,9 +56,10 @@ type CredentialManagerPublication struct {
 }
 
 type LLMGatewayPublication struct {
-	Protocol          string                        `json:"protocol"`
-	URL               string                        `json:"url"`
-	CredentialManager *CredentialManagerPublication `json:"credentialManager,omitempty"`
+	Protocol          string                              `json:"protocol"`
+	URL               string                              `json:"url"`
+	CredentialManager *CredentialManagerPublication       `json:"credentialManager,omitempty"`
+	FailureSignatures *contracts.GatewayFailureSignatures `json:"failureSignatures,omitempty"`
 }
 
 type PublicationRequest struct {
@@ -366,6 +367,9 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 				Implementation: request.LLMGateway.CredentialManager.Implementation,
 				ManagementURL:  request.LLMGateway.CredentialManager.ManagementURL,
 			}
+		}
+		if request.LLMGateway.FailureSignatures != nil {
+			spec.FailureSignatures = failureSignaturesToSource(*request.LLMGateway.FailureSignatures)
 		}
 		gateway, resolveErr := resolveLLMGatewayConfig(selector, &spec)
 		if resolveErr != nil {

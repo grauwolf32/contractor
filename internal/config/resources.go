@@ -186,6 +186,9 @@ func llmGatewayResourceBody(gateway contracts.ResolvedLLMGatewayConfig) map[stri
 			"managementUrl":  gateway.CredentialManager.ManagementURL,
 		}
 	}
+	if gateway.FailureSignatures != nil {
+		result["failureSignatures"] = failureSignaturesDocument(*gateway.FailureSignatures)
+	}
 	return result
 }
 

@@ -9,6 +9,7 @@ import jcs
 
 from contractor_runtime.contracts import (
     API_VERSION,
+    GatewayFailureSignatures,
     ResolvedAgentTemplate,
     ResolvedLLMGatewayConfig,
     ResolvedModelPolicy,
@@ -78,6 +79,8 @@ def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
             "implementation": gateway.credential_manager.implementation,
             "managementUrl": gateway.credential_manager.management_url,
         }
+    if gateway.failure_signatures is not None:
+        spec["failureSignatures"] = _failure_signatures_document(gateway.failure_signatures)
     return _digest_jcs(
         {
             "apiVersion": API_VERSION,
@@ -86,6 +89,24 @@ def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
             "spec": spec,
         }
     )
+
+
+def _failure_signatures_document(signatures: GatewayFailureSignatures) -> dict[str, Any]:
+    """Canonical shape shared with the Go digest; omitted fields never appear."""
+    document: dict[str, Any] = {}
+    if signatures.model_unavailable:
+        entries: list[dict[str, Any]] = []
+        for signature in signatures.model_unavailable:
+            entry: dict[str, Any] = {"status": signature.status}
+            if signature.message_equals is not None:
+                entry["messageEquals"] = signature.message_equals
+            if signature.litellm_wrapped is not None:
+                entry["litellmWrapped"] = signature.litellm_wrapped
+            entries.append(entry)
+        document["modelUnavailable"] = entries
+    if signatures.permanent_codes:
+        document["permanentCodes"] = list(signatures.permanent_codes)
+    return document
 
 
 def _agent_template_digest(template: ResolvedAgentTemplate) -> str:

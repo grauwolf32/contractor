@@ -12,3 +12,17 @@ spec:
     implementation: litellm-virtual-keys@1
     managementUrl: http://127.0.0.1:4000
 
+
+  # Provider-specific failure classification. Omitted here on purpose: the
+  # openai-compatible@1 default already covers LM Studio unload responses seen
+  # through LiteLLM, and declaring the block changes this Gateway's digest,
+  # which credentials and pinned RuntimeConfigs are bound to. Declare it on a
+  # new Gateway version when a provider reports availability with another
+  # exact message; only exact matches are supported.
+  #
+  # failureSignatures:
+  #   modelUnavailable:
+  #     - {status: 400, messageEquals: "Model is unloaded."}
+  #     - {status: 400, litellmWrapped: "Model is unloaded."}
+  #     - {status: 404, messageEquals: "model 'worker' not found"}
+  #   permanentCodes: [insufficient_quota, budget_exceeded, context_length_exceeded]
