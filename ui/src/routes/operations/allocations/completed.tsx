@@ -34,7 +34,7 @@ export function CompletedAllocationListRoute() {
     event.preventDefault();
     const value = draftRunId.trim();
     if (value !== "" && !RUN_ID_PATTERN.test(value)) {
-      setValidationError("Run ID must be an exact public resource identity.");
+      setValidationError("Run ID must be a valid Run identifier.");
       return;
     }
     setRunId(value === "" ? undefined : value);
@@ -48,11 +48,11 @@ export function CompletedAllocationListRoute() {
       <section className="panel completed-allocation-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Terminal StageExecution history</p>
+            <p className="eyebrow">Allocation history</p>
             <h3>Completed allocation resources</h3>
             <p className="muted-copy">
               Historical allocation measurements. Open metrics to inspect their
-              scope, collection policy and exact identity.
+              scope, collection policy and identity.
             </p>
           </div>
           <RefreshButton
@@ -63,7 +63,7 @@ export function CompletedAllocationListRoute() {
         </div>
         <form className="allocation-history-filter" onSubmit={applyFilter}>
           <label>
-            <span>Exact Run ID (optional)</span>
+            <span>Run ID (optional)</span>
             <input
               value={draftRunId}
               aria-invalid={validationError !== undefined}

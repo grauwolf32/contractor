@@ -1195,10 +1195,10 @@ for (const viewport of [
       .click();
     await page.getByRole("link", { name: "Review report →" }).click();
     await expect(
-      page.getByRole("button", { name: "Approve exact subject" }),
+      page.getByRole("button", { name: "Approve subject" }),
     ).toBeDisabled();
     await expect(
-      page.getByText("This exact report is awaiting owner acceptance."),
+      page.getByText("This report is awaiting owner acceptance."),
     ).toBeVisible();
     await expect(page.getByText(/not a certification/u)).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();

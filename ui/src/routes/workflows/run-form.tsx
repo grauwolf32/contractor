@@ -530,7 +530,7 @@ function RepeatRunReview({
       </p>
       {repeat.notices.length === 0 ? (
         <p className="compact-empty">
-          Exact source revisions and caller-controlled settings were retained.
+          Source revisions and settings were retained.
         </p>
       ) : (
         <ul className="run-repeat-notices">
@@ -580,7 +580,7 @@ interface WorkflowRunFormProps {
 
 function draftScopeLabel(draft: RunDraftSummary): string {
   return draft.projectId === undefined
-    ? "standalone UserScope"
+    ? "your library"
     : `Project ${draft.projectId}`;
 }
 
@@ -711,8 +711,8 @@ function DiscardRunDraftDialog({
         </button>
       </div>
       <p>
-        Parameters, exact Artifact selections, labels, overrides and any
-        ambiguous submission identity in this tab will be removed.
+        Parameters, Artifact selections, labels, overrides and any ambiguous
+        submission identity in this tab will be removed.
       </p>
       <div className="run-draft-actions">
         <button
@@ -1292,7 +1292,7 @@ function WorkflowRunFormBody({
         ? "Defaults"
         : `${completedRequiredFieldCount}/${requiredFieldCount}`;
   const readinessCopy = draftReady
-    ? "Fields complete · exact inputs reviewed"
+    ? "Fields complete · inputs reviewed"
     : repeatReviewPending
       ? "Review retained values for this new Run"
       : artifactInventory.isPending && requiredArtifactNames.length > 0
@@ -1514,8 +1514,7 @@ function WorkflowRunFormBody({
 
       <fieldset className="run-draft-section">
         <legend>
-          Exact {projectId === undefined ? "UserScope" : "ProjectScope"}{" "}
-          Artifact inputs
+          {projectId === undefined ? "Library" : "Project"} Artifact inputs
         </legend>
         {artifactInventory.error === null ? null : (
           <ErrorNotice error={artifactInventory.error} />
@@ -1588,7 +1587,7 @@ function WorkflowRunFormBody({
                       >
                         <option value="">
                           {slot.required
-                            ? "Select an exact revision"
+                            ? "Select a revision"
                             : "No Artifact supplied"}
                         </option>
                         {compatible.map((metadata) => (
@@ -1609,7 +1608,7 @@ function WorkflowRunFormBody({
                     {selectedMetadata === undefined ? null : (
                       <section
                         className={`run-input-review${needsReview ? " needs-review" : " is-reviewed"}`}
-                        aria-label={`Exact input review for ${name}`}
+                        aria-label={`Input review for ${name}`}
                       >
                         <div className="run-input-review-heading">
                           <span>
@@ -1618,7 +1617,7 @@ function WorkflowRunFormBody({
                                 ? "Format-compatible suggestion"
                                 : reviewed
                                   ? "Reviewed selection"
-                                  : "Exact selection"}
+                                  : "Selection"}
                             </small>
                             <code>{selected}</code>
                           </span>
@@ -1631,8 +1630,8 @@ function WorkflowRunFormBody({
                             <dt>Scope</dt>
                             <dd>
                               {projectId === undefined
-                                ? "UserScope"
-                                : `ProjectScope · ${projectId}`}
+                                ? "Your library"
+                                : `Project · ${projectId}`}
                             </dd>
                           </div>
                           <div>
@@ -1654,10 +1653,10 @@ function WorkflowRunFormBody({
                         </dl>
                         <p>
                           {needsReview && suggested
-                            ? `Suggested only because ${selectedMetadata.mediaType} matches this slot. Confirm that this exact revision is the intended ${name} input.`
+                            ? `Suggested only because ${selectedMetadata.mediaType} matches this slot. Confirm that this revision is the intended ${name} input.`
                             : reviewed
-                              ? `Confirmed for ${name}. This records your exact selection, not a semantic validation of its contents.`
-                              : `Review this exact revision before using it as ${name}.`}
+                              ? `Confirmed for ${name}. This records your selection, not a validation of its contents.`
+                              : `Review this revision before using it as ${name}.`}
                         </p>
                         <div className="run-input-review-actions">
                           {needsReview ? (
@@ -1666,13 +1665,13 @@ function WorkflowRunFormBody({
                               type="button"
                               onClick={() => confirmArtifact(name)}
                             >
-                              Confirm exact input for {name}
+                              Confirm input for {name}
                             </button>
                           ) : null}
                           <Link
                             to={artifactDetailPath(selectedMetadata, projectId)}
                           >
-                            Preview exact Artifact details
+                            Preview Artifact details
                           </Link>
                         </div>
                       </section>
@@ -1821,8 +1820,7 @@ function WorkflowRunFormBody({
           aria-label="Runtime infrastructure labels"
         >
           <p className="muted-copy">
-            Default is always pinned and is not selectable. Explicit labels are
-            a sorted immutable set for this Run; they configure infrastructure,
+            Default is always applied; explicit labels configure infrastructure,
             not Workflow behavior or model budgets.
           </p>
           {runtimeLabelInventory.error === null ? null : (
@@ -1831,7 +1829,7 @@ function WorkflowRunFormBody({
           <div className="runtime-default-preview">
             <strong>Default · always applied</strong>
             {defaultRuntimeConfig === undefined ? (
-              <span className="muted-copy">Loading exact binding…</span>
+              <span className="muted-copy">Loading binding…</span>
             ) : (
               <RuntimeLabelPreview binding={defaultRuntimeConfig} />
             )}
@@ -1961,8 +1959,8 @@ function WorkflowRunFormBody({
         <div className="run-draft-disclosure-body">
           <p className="muted-copy">
             Empty fields retain the Workflow's resolved defaults. Values below
-            are exact published refs or active credential IDs; this form accepts
-            no free-form model, Gateway URL, budget, provider, or token.
+            are published refs or active credential IDs; this form accepts no
+            free-form model, Gateway URL, budget, provider, or token.
           </p>
           {inventoryErrors.map((error, index) => (
             <ErrorNotice key={index} error={error} />
@@ -2010,7 +2008,7 @@ function WorkflowRunFormBody({
             >
               <div className="section-heading">
                 <div>
-                  <p className="eyebrow">Retained exact patch</p>
+                  <p className="eyebrow">Configuration</p>
                   <h4 id="retained-stage-overrides-title">
                     Stage-specific overrides
                   </h4>
@@ -2078,7 +2076,7 @@ function WorkflowRunFormBody({
           <strong>The Run may already exist.</strong>
           {exactRetry ? (
             <p>
-              The draft is unchanged. “Retry exact request” reuses the same
+              The draft is unchanged. “Retry same request” reuses the same
               idempotency key and cannot create a second Run for this request.
             </p>
           ) : (
@@ -2120,7 +2118,7 @@ function WorkflowRunFormBody({
                 ? "Submitting…"
                 : "Starting Project Run…"
               : responseLost && exactRetry
-                ? "Retry exact request"
+                ? "Retry same request"
                 : responseLost
                   ? "Start changed draft with a new key"
                   : projectId === undefined

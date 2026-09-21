@@ -15,7 +15,7 @@ export function CredentialPolicyView({ policy }: { policy: EffectivePolicy }) {
   return (
     <div className="credential-policy-grid">
       <div>
-        <h4>Allowed exact ModelPolicies</h4>
+        <h4>Allowed ModelPolicies</h4>
         <ul className="compact-value-list">
           {policy.modelPolicies.map((ref) => (
             <li key={`${ref.policyId}@${ref.version}:${ref.digest}`}>

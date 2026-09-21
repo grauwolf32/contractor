@@ -2,7 +2,7 @@ import type { EvalExperiment } from "../../api/evals";
 
 const MESSAGES: Record<string, string> = {
   eval_pin_mismatch:
-    "The selected versions, inputs or required-equal settings do not match. Review the exact versions and equality policy before preparing again.",
+    "The selected versions, inputs or required-equal settings do not match. Review the versions and equality policy before preparing again.",
   eval_invalid:
     "Some setup values are invalid. Review the variants, cases and assessment checks, then save the corrected draft.",
   eval_not_ready:

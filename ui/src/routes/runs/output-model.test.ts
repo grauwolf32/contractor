@@ -85,7 +85,7 @@ describe("Run output presentation model", () => {
         name: "review-source",
         version: "older",
       }),
-    ).toThrow("invalid exact Workflow contract");
+    ).toThrow("invalid Workflow contract");
     expect(missingOutputCopy(declarations.report!, "running")).toContain(
       "not available yet",
     );

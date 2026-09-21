@@ -201,8 +201,7 @@ export function EvalControls({
             <>
               <p>
                 {confirm.experiment.expectedMembers} expected members. Start
-                uses the prepared A/B variants and frozen budgets shown in
-                Setup.
+                uses the prepared A/B variants and budgets shown in Setup.
               </p>
               <p>Closing this browser will not stop execution.</p>
             </>

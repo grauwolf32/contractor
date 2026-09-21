@@ -137,7 +137,7 @@ describe("Managed Eval comparisons", () => {
     );
     await waitFor(() =>
       expect(
-        screen.queryByRole("heading", { name: "Review exact result" }),
+        screen.queryByRole("heading", { name: "Review result" }),
       ).not.toBeInTheDocument(),
     );
     const submissions = fixture.state.requests.filter((r) =>

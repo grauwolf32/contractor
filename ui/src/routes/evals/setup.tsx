@@ -357,7 +357,7 @@ export function EvalSetupForm({
                         });
                       }}
                     >
-                      <option value="">Choose an immutable revision</option>
+                      <option value="">Choose a revision</option>
                       {datasets.data?.map((d) => (
                         <option key={d.revision} value={d.revision}>
                           {d.name} · {d.revision} · {d.caseCount} cases

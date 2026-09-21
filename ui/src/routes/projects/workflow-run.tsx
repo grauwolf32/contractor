@@ -54,14 +54,13 @@ export function ProjectWorkflowRunRoute() {
           <p className="eyebrow">Project Workflow</p>
           <h2>Configure Run</h2>
           <p className="lede">
-            Inputs remain in this Project; the Server creates immutable RunScope
-            copies only after explicit submission.
+            Inputs stay in this Project until you submit the Run.
           </p>
         </div>
       </header>
       {project.isPending || workflow.isPending ? (
         <p className="loading-copy" role="status">
-          Loading exact Project and Workflow contracts…
+          Loading Project and Workflow contracts…
         </p>
       ) : project.error !== null || workflow.error !== null ? (
         <ErrorNotice error={project.error ?? workflow.error} />

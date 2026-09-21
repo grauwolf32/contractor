@@ -40,9 +40,9 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole("alert")).toContainText(
       "Preparation needs attention",
     );
-    await expect(
-      page.getByLabel("A exact version", { exact: true }),
-    ).toHaveValue("trace-a@1");
+    await expect(page.getByLabel("A version", { exact: true })).toHaveValue(
+      "trace-a@1",
+    );
     const sections = page.getByLabel("Experiment section", { exact: true });
     if (width === 390) {
       await expect(sections).toBeVisible();

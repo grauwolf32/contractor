@@ -71,7 +71,7 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
               onClick={() => setExpanded((current) => !current)}
             >
               <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-              <span>Metrics and exact identity</span>
+              <span>Metrics and identity</span>
             </button>
           </div>
         </td>

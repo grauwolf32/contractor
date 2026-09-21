@@ -23,8 +23,8 @@ export function AuditMutationNotice({ error }: { error: unknown }) {
       <ErrorNotice error={error} reconcileWrite />
       {error instanceof PublicAPIError && error.status === 412 ? (
         <p className="muted-copy" role="status">
-          The Audit revision changed. The page has refreshed authoritative
-          state; review it before retrying the action.
+          The Audit revision changed. The page has refreshed current state;
+          review it before retrying the action.
         </p>
       ) : null}
     </>

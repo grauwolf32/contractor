@@ -403,7 +403,7 @@ test("Project recommendation launches an exact Project Run", async ({
     dialog.getByText(/Suggested only because application\/zip/),
   ).toBeVisible();
   await dialog
-    .getByRole("button", { name: "Confirm exact input for source" })
+    .getByRole("button", { name: "Confirm input for source" })
     .click();
   await expect(dialog.getByText("Ready", { exact: true })).toBeVisible();
   await dialog
@@ -480,7 +480,7 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
   const setup = page.getByRole("dialog", { name: "Configure Run" });
   await expect(setup).toBeVisible();
   await expect(
-    setup.getByText("Inputs come from this project (ProjectScope).", {
+    setup.getByText("Inputs come from this Project.", {
       exact: false,
     }),
   ).toBeVisible();

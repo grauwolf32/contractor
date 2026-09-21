@@ -92,7 +92,7 @@ function CaseEditor({
       />
       <EvalField
         label="Required capabilities"
-        hint="Optional exact capability names, separated by commas."
+        hint="Optional capability names, separated by commas."
       >
         <CommaSeparatedInput
           value={value.requires}
@@ -104,7 +104,7 @@ function CaseEditor({
           }
         />
       </EvalField>
-      <h4>Exact input artifacts</h4>
+      <h4>Input artifacts</h4>
       {Object.entries(value.inputs).map(([role, ref]) => (
         <p key={role}>
           {role}: {ref.namespace}/{ref.name} · {ref.revision}{" "}
@@ -139,7 +139,7 @@ function CaseEditor({
           disabled={!inputRole.trim()}
           onClick={() => setPick(!pick)}
         >
-          Choose exact input
+          Choose input
         </button>
       </div>
       {pick ? (
@@ -304,10 +304,7 @@ export function DatasetAuthor({
   return (
     <section className="panel eval-panel">
       <h2>Create dataset revision</h2>
-      <p>
-        Revisions are immutable. Import retains source provenance; changing
-        visible cases requires a new revision.
-      </p>
+      <p>Changing visible cases requires a new revision.</p>
       <EvalField label="Import dataset JSON">
         <input
           type="file"

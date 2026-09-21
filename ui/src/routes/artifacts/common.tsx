@@ -363,9 +363,7 @@ export function ArtifactWriteForm({
     <form className="artifact-form" onSubmit={submit} aria-labelledby={formId}>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">
-            {update ? "Exact CAS write" : "New binding"}
-          </p>
+          <p className="eyebrow">{update ? "New version" : "New Artifact"}</p>
           <h3 id={formId}>
             {update ? "Upload a new version" : "Upload Artifact"}
           </h3>
@@ -431,8 +429,7 @@ export function ArtifactWriteForm({
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending
           ? "Uploading…"
-          : (submitLabel ??
-            (update ? "Upload exact update" : "Create binding"))}
+          : (submitLabel ?? (update ? "Upload new version" : "Create binding"))}
       </button>
     </form>
   );

@@ -181,11 +181,11 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
       selected,
     );
     const inputReview = setup.getByRole("region", {
-      name: "Exact input review for wordlist",
+      name: "Input review for wordlist",
     });
-    await expect(inputReview).toContainText(`ProjectScope · ${projectId}`);
+    await expect(inputReview).toContainText(`Project · ${projectId}`);
     const confirm = setup.getByRole("button", {
-      name: "Confirm exact input for wordlist",
+      name: "Confirm input for wordlist",
     });
     if (await confirm.isVisible()) await confirm.click();
     await expect(inputReview).toContainText("Confirmed");

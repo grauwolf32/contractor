@@ -66,7 +66,7 @@ export function OperationsSettingsRoute() {
       setSaved(undefined);
       if (error instanceof PublicAPIError && error.status === 412) {
         setConflict(
-          "Another operator saved Scheduler settings first. The authoritative value is being reloaded; no overwrite occurred.",
+          "Another operator saved Scheduler settings first. The saved value is being reloaded; no overwrite occurred.",
         );
         void query.refetch();
       }
@@ -91,7 +91,7 @@ export function OperationsSettingsRoute() {
   const conflictMessage =
     conflict ??
     (stale
-      ? "Scheduler settings changed on the Server while this form was being edited. Reset to the saved value before making a new exact update."
+      ? "Scheduler settings changed on the Server while this form was being edited. Reset to the saved value before making a new update."
       : undefined);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -126,7 +126,6 @@ export function OperationsSettingsRoute() {
     <div className="operations-library operations-settings">
       <header className="settings-page-header">
         <div>
-          <p className="eyebrow">Control Plane configuration</p>
           <h3>Settings</h3>
           <p className="lede">
             {canManageScheduler
@@ -228,7 +227,7 @@ export function OperationsSettingsRoute() {
                 <form className="settings-form" onSubmit={submit}>
                   <div className="settings-editor-heading">
                     <div>
-                      <p className="eyebrow">Authoritative value</p>
+                      <p className="eyebrow">Current value</p>
                       <h4>Concurrency limit</h4>
                     </div>
                     <span className="settings-state-badge settings-state-active">

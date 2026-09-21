@@ -222,7 +222,7 @@ export function OperationsLayoutRoute() {
         <Outlet />
       ) : query.isPending ? (
         <p className="loading-copy" role="status">
-          Loading authoritative Operations snapshot…
+          Loading Operations snapshot…
         </p>
       ) : query.error !== null ? (
         <ErrorNotice
@@ -274,9 +274,7 @@ export function OperationsLayoutRoute() {
             {liveError === undefined ? null : (
               <div className="notice notice-warning" role="alert">
                 <strong>{liveError}</strong>
-                <p>
-                  Manual snapshot refresh remains available and authoritative.
-                </p>
+                <p>Use Refresh to reload the snapshot.</p>
               </div>
             )}
             <p className="muted-copy">

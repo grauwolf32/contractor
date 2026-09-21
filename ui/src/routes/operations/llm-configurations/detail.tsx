@@ -57,7 +57,7 @@ function LoadedConfiguration({
             </dd>
           </div>
           <div>
-            <dt>Immutable digest</dt>
+            <dt>Digest</dt>
             <dd>
               <code>{resource.ref.digest}</code>
             </dd>
@@ -65,7 +65,6 @@ function LoadedConfiguration({
         </dl>
       </details>
       <div className="panel configuration-inspector">
-        <p className="eyebrow">Safe typed body</p>
         <h3>Published values</h3>
         <ConfigurationBodyView resource={resource} />
       </div>
@@ -75,12 +74,12 @@ function LoadedConfiguration({
             Published {published.ref.name}@{published.ref.version}
           </strong>
           <span>
-            Server assigned exact digest <code>{published.ref.digest}</code>.
+            Server assigned digest <code>{published.ref.digest}</code>.
           </span>
           <Link
             to={`/operations/configurations/${published.ref.kind}/${encodeURIComponent(published.ref.name)}/${encodeURIComponent(published.ref.version)}`}
           >
-            Open the new immutable version
+            Open the new version
           </Link>
         </div>
       )}
@@ -142,7 +141,7 @@ export function ConfigurationDetailRoute() {
       <Link className="back-link" to="/operations/configurations">
         ← All configurations
       </Link>
-      <p className="eyebrow">Exact published configuration</p>
+      <p className="eyebrow">Configuration</p>
       <h3>
         {name}@{version}
       </h3>
@@ -150,7 +149,7 @@ export function ConfigurationDetailRoute() {
         <ErrorNotice error={new Error("Configuration route is invalid")} />
       ) : query.isPending ? (
         <p className="loading-copy" role="status">
-          Loading exact configuration…
+          Loading configuration…
         </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />

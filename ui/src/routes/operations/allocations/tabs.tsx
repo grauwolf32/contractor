@@ -5,11 +5,11 @@ export function AllocationViewTabs() {
     <nav className="allocation-view-tabs" aria-label="Allocation views">
       <NavLink to="/operations/allocations" end>
         <strong>Current</strong>
-        <small>Authoritative live slots</small>
+        <small>Live slots</small>
       </NavLink>
       <NavLink to="/operations/allocations/completed">
         <strong>Completed</strong>
-        <small>Durable resource history</small>
+        <small>Resource history</small>
       </NavLink>
     </nav>
   );

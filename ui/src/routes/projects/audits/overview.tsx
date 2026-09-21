@@ -54,7 +54,7 @@ export function AuditOverview({ audit }: { audit: Audit }) {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Audit setup</p>
-            <h3>Exact setup</h3>
+            <h3>Setup</h3>
           </div>
           <Link
             className="audit-open-link"
@@ -184,7 +184,7 @@ export function AuditOverview({ audit }: { audit: Audit }) {
         </section>
       ) : (
         <details className="panel audit-section-panel audit-setup-details">
-          <summary>Baseline and exact standards</summary>
+          <summary>Baseline and standards</summary>
           <dl className="metadata-grid">
             <div>
               <dt>Source content</dt>
@@ -196,7 +196,7 @@ export function AuditOverview({ audit }: { audit: Audit }) {
               </dd>
             </div>
             <div>
-              <dt>Canonical inventory</dt>
+              <dt>Inventory</dt>
               <dd>
                 <code>
                   {baseline.inventory?.canonicalInventoryDigest ??
@@ -235,7 +235,7 @@ export function AuditOverview({ audit }: { audit: Audit }) {
               className="audit-gap-block"
               data-testid="audit-baseline-standards"
             >
-              <h4>Exact standards</h4>
+              <h4>Standards</h4>
               <ul className="audit-string-list">
                 {baseline.standards.map((standard) => (
                   <li
@@ -268,7 +268,7 @@ export function AuditOverview({ audit }: { audit: Audit }) {
               <p>{baseline.inventory.standardSelection.scope}</p>
               <p>
                 Level {baseline.inventory.standardSelection.levels.join(", ")} ·{" "}
-                {baseline.inventory.standardSelection.entryIds.length} exact
+                {baseline.inventory.standardSelection.entryIds.length}{" "}
                 requirements
               </p>
               <StringList

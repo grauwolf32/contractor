@@ -26,7 +26,7 @@ export function WorkflowListRoute() {
         <div>
           <h2>Workflows</h2>
           <p className="lede">
-            Explore required materials, results and exact published versions.
+            Explore required materials, results and published versions.
           </p>
         </div>
       </header>

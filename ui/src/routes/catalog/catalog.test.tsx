@@ -287,7 +287,7 @@ describe("Catalog", () => {
     await user.click(await screen.findByRole("button", { name: "Next" }));
     await screen.findByText("Page 3");
     await user.click(
-      await screen.findByRole("link", { name: /Inspect exact version/ }),
+      await screen.findByRole("link", { name: /Inspect version/ }),
     );
     await user.click(await screen.findByRole("link", { name: /Agent search/ }));
     await screen.findByText("Page 3");
@@ -399,7 +399,7 @@ describe("Catalog", () => {
   it("groups Agent versions and preserves a deliberate older choice for ordinary users", async () => {
     setup("/catalog/agents");
     const links = await screen.findAllByRole("link", {
-      name: /researcher.*Inspect exact version/,
+      name: /researcher.*Inspect version/,
     });
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/catalog/agents/researcher/2",
@@ -408,7 +408,7 @@ describe("Catalog", () => {
       .setup()
       .selectOptions(screen.getByLabelText("Version of researcher"), "1");
     expect(
-      screen.getByRole("link", { name: /researcher.*Inspect exact version/ }),
+      screen.getByRole("link", { name: /researcher.*Inspect version/ }),
     ).toHaveAttribute("href", "/catalog/agents/researcher/1");
     const primary = screen.getByRole("navigation", {
       name: "Primary navigation",
@@ -441,10 +441,10 @@ describe("Catalog", () => {
       ).toBe(true),
     );
     const result = await screen.findByRole("link", {
-      name: /researcher.*2.*Inspect exact version/,
+      name: /researcher.*2.*Inspect version/,
     });
     expect(
-      screen.getAllByRole("link", { name: /Inspect exact version/ }),
+      screen.getAllByRole("link", { name: /Inspect version/ }),
     ).toHaveLength(1);
     expect(result).toHaveAttribute("href", "/catalog/agents/researcher/2");
     await user.click(result);
@@ -476,7 +476,7 @@ describe("Catalog", () => {
     await user.clear(search);
     await user.type(search, "2");
     await screen.findByRole("link", {
-      name: /researcher.*2.*Inspect exact version/,
+      name: /researcher.*2.*Inspect version/,
     });
     await waitFor(() => expect(abortedSearches).toEqual(["slow"]));
   });

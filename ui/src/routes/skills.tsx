@@ -83,7 +83,7 @@ export function SkillsRoute() {
       <div className="panel skill-library">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">UserScope / skills</p>
+            <p className="eyebrow">Skills</p>
             <h3>Current packages</h3>
           </div>
           <span className="skill-scope-badge">Global</span>

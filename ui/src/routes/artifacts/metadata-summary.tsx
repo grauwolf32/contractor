@@ -26,7 +26,7 @@ export function ArtifactMetadataSummary({
         </summary>
         <dl className="metadata-grid">
           <div>
-            <dt>Exact revision</dt>
+            <dt>Revision</dt>
             <dd>
               <code>{revision}</code>
             </dd>
@@ -40,7 +40,7 @@ export function ArtifactMetadataSummary({
             <dd>{formatTimestamp(metadata.createdAt)}</dd>
           </div>
           <div>
-            <dt>Frozen</dt>
+            <dt>Locked</dt>
             <dd>{metadata.frozen ? "yes" : "no"}</dd>
           </div>
         </dl>

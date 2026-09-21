@@ -166,7 +166,7 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
           ) : null}
           {details?.taskDocument ? (
             <details className="audit-record-details">
-              <summary>Exact task document</summary>
+              <summary>Task document</summary>
               <pre className="audit-task-document">
                 {JSON.stringify(details.taskDocument, null, 2)}
               </pre>

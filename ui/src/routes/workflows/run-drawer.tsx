@@ -48,8 +48,8 @@ export function WorkflowRunDrawer({
       </header>
       <p className="workflow-drawer-description" id={description}>
         {projectId
-          ? "Inputs come from this project (ProjectScope)."
-          : "Inputs come from your library (UserScope)."}{" "}
+          ? "Inputs come from this Project."
+          : "Inputs come from your library."}{" "}
         Your draft is kept in this tab when you close this panel.
       </p>
       <div id="workflow-run-setup" className="workflow-drawer-body">

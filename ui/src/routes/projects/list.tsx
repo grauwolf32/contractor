@@ -142,7 +142,7 @@ function ProjectCollectionRoute({
       {createOpen ? (
         <form className="panel project-create-form" onSubmit={submit}>
           <div>
-            <p className="eyebrow">Owner-scoped workspace</p>
+            <p className="eyebrow">Workspace</p>
             <h3>{presentation.createHeading}</h3>
           </div>
           <div className="form-grid">
@@ -344,7 +344,7 @@ export function ProjectListRoute() {
         detailRoot: "/projects",
         emptyHeading: "Create your first Project",
         emptyCopy:
-          "Upload sources or other inputs once, then run multiple compatible Workflows against their exact revisions.",
+          "Upload sources or other inputs once, then run multiple compatible Workflows against them.",
       }}
     />
   );

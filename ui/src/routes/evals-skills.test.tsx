@@ -157,9 +157,9 @@ describe("Evals and global Skills routes", () => {
     expect(within(grouped!).getAllByText("routes")).toHaveLength(2);
     expect(within(grouped!).getByText("a")).toBeInTheDocument();
     expect(within(grouped!).getByText("b")).toBeInTheDocument();
-    expect(screen.getByText(/ordinary isolated Workflow Run/i)).toBeVisible();
+    expect(screen.getByText(/ordinary Workflow Run/i)).toBeVisible();
     expect(
-      screen.getByText(/succeeded only describes execution/u),
+      screen.getByText(/Succeeded describes execution only/u),
     ).toBeVisible();
     expect(
       screen

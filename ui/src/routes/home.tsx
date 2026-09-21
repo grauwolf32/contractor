@@ -366,9 +366,7 @@ function QuickStartPanel({
       ) : workflows.length === 0 ? (
         <div className="action-empty">
           <strong>No published Workflows</strong>
-          <span>
-            Publish an immutable Workflow version before starting work.
-          </span>
+          <span>Publish a Workflow version before starting work.</span>
         </div>
       ) : (
         <div className="quick-workflow-grid">
@@ -477,8 +475,7 @@ export function HomeRoute() {
           <p className="eyebrow">Operator workspace</p>
           <h2>Action center</h2>
           <p className="lede">
-            Current work, recent outcomes, Runtime capacity, and the shortest
-            path to the next Workflow Run.
+            Current work, recent results and the next Run to start.
           </p>
         </div>
         <div className="action-refresh">

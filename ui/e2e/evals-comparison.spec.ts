@@ -74,7 +74,7 @@ for (const width of [390, 1280]) {
       .getByRole("button", { name: "Save and select assessment", exact: true })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Review exact result", exact: true }),
+      page.getByRole("heading", { name: "Review result", exact: true }),
     ).toHaveCount(0);
     await page.getByRole("link", { name: "← Comparison", exact: true }).click();
     await expect(page).toHaveURL(/filter=all/);

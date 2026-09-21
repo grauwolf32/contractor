@@ -83,9 +83,7 @@ export function EvalArtifactPicker({
       </EvalField>
       <EvalError error={inventory.error} />
       <EvalError error={select.error} />
-      {select.isPending ? (
-        <p role="status">Pinning exact input bytes…</p>
-      ) : null}
+      {select.isPending ? <p role="status">Pinning input…</p> : null}
       <ul className="eval-choice-list">
         {inventory.data?.items.map((item) => (
           <li key={item.artifact.revision}>

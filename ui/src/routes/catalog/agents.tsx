@@ -46,8 +46,8 @@ export function AgentListRoute() {
         <div>
           <h2>Agents</h2>
           <p className="lede">
-            Explore exact Agent versions, instructions, Skills, tools and
-            Workflow usage.
+            Explore Agent versions, instructions, Skills, tools and Workflow
+            usage.
           </p>
         </div>
         <label className="catalog-search">
@@ -150,9 +150,7 @@ export function AgentListRoute() {
                   <code className="catalog-exact-selector">
                     {item.ref.name}@{item.ref.version}
                   </code>
-                  <span className="catalog-agent-open">
-                    Inspect exact version →
-                  </span>
+                  <span className="catalog-agent-open">Inspect version →</span>
                 </Link>
               </article>
             );

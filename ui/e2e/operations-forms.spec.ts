@@ -171,7 +171,7 @@ for (const viewport of [
       page.getByRole("heading", { name: "Execution readiness" }),
     ).toBeVisible();
     await expect(
-      page.getByText(/Idle slots do not establish compatible capacity/),
+      page.getByText(/Idle slots do not guarantee capacity/),
     ).toBeVisible();
     await expect(
       page.getByText("operations-form-fixture", { exact: true }),
@@ -212,9 +212,7 @@ for (const viewport of [
       .getByRole("group", { name: "Worker telemetry" })
       .getByLabel("OTLP traces endpoint", { exact: true })
       .fill("http://collector.test/v1/traces");
-    await dialog
-      .getByRole("button", { name: "Publish immutable RuntimeConfig" })
-      .click();
+    await dialog.getByRole("button", { name: "Publish RuntimeConfig" }).click();
     await expect(
       dialog.getByText(/This immutable version already exists/),
     ).toBeVisible();
@@ -249,9 +247,7 @@ for (const viewport of [
     await expect(
       dialog.getByRole("button", { name: "Rebind with current revision" }),
     ).toBeDisabled();
-    await dialog
-      .getByRole("button", { name: "Reload authoritative binding" })
-      .click();
+    await dialog.getByRole("button", { name: "Reload binding" }).click();
     await expect(dialog.getByText("Current binding revision 2")).toBeVisible();
     await expect(proposal).toHaveValue(`proposed@1:${proposed.ref.digest}`);
     await expect(

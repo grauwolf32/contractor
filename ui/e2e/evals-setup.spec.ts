@@ -23,9 +23,9 @@ for (const width of [390, 1280]) {
       await page
         .getByLabel(`B ${label} family`, { exact: true })
         .selectOption(`${prefix}-b`);
-      await expect(
-        page.getByLabel("A exact version", { exact: true }),
-      ).toHaveValue(`${prefix}-a@2`);
+      await expect(page.getByLabel("A version", { exact: true })).toHaveValue(
+        `${prefix}-a@2`,
+      );
       await page
         .getByRole("button", { name: "Next step", exact: true })
         .click();

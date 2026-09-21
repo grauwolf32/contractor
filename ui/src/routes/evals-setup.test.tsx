@@ -64,7 +64,7 @@ describe("Managed Evals setup", () => {
         screen.getByLabelText("B Workflow family"),
         "trace-b",
       );
-      expect(screen.getByLabelText("A exact version")).toHaveValue("trace-a@2");
+      expect(screen.getByLabelText("A version")).toHaveValue("trace-a@2");
       await user.click(screen.getByRole("button", { name: "Next step" }));
       await screen.findByRole("option", { name: /Trace examples/ });
       await user.selectOptions(screen.getByLabelText("Dataset revision"), "r1");

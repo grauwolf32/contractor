@@ -35,7 +35,6 @@ export function ConfigurationListRoute() {
     <div className="panel operations-library">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Immutable published configuration</p>
           <h3>LLM configurations</h3>
           <p className="muted-copy">
             Model policies define LLM behavior and limits; gateways route model
@@ -82,7 +81,7 @@ export function ConfigurationListRoute() {
           <table>
             <thead>
               <tr>
-                <th>Exact version</th>
+                <th>Version</th>
                 <th>Source</th>
                 <th>Digest</th>
                 <th>Action</th>

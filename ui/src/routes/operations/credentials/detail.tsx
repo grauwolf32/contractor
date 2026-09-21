@@ -48,7 +48,7 @@ function CredentialDeletion({ credentialId }: { credentialId: string }) {
       : undefined;
   return (
     <div className="panel credential-delete-panel">
-      <p className="eyebrow">Irreversible remote + local removal</p>
+      <p className="eyebrow">Permanent action</p>
       <h3>Delete credential</h3>
       <p className="muted-copy">
         Deletion is rejected while a non-terminal Run pins this credential. No
@@ -104,7 +104,7 @@ export function CredentialDetailRoute() {
       <Link className="back-link" to="/operations/credentials">
         ← Active credentials
       </Link>
-      <p className="eyebrow">Immutable secret-free record</p>
+      <p className="eyebrow">Credential</p>
       <h3>{credentialId}</h3>
       {!valid ? (
         <ErrorNotice error={new Error("Credential route is invalid")} />
@@ -132,7 +132,7 @@ export function CredentialDetailRoute() {
               <dd>{formatTimestamp(query.data.createdAt)}</dd>
             </div>
             <div>
-              <dt>Exact Gateway</dt>
+              <dt>Gateway</dt>
               <dd>
                 <ConfigurationRefLink
                   value={exactConfigurationRef(query.data.llmGateway)}
@@ -141,7 +141,7 @@ export function CredentialDetailRoute() {
             </div>
           </dl>
           <div className="panel credential-policy-panel">
-            <p className="eyebrow">Immutable effective policy</p>
+            <p className="eyebrow">Policy</p>
             <h3>LiteLLM-enforced limits</h3>
             <CredentialPolicyView policy={query.data.effectivePolicy} />
           </div>

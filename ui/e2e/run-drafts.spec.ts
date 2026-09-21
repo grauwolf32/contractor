@@ -314,7 +314,7 @@ for (const viewport of [
         .selectOption("sources/existing@revision-existing");
       await page.getByRole("button", { name: "Start Workflow Run" }).click();
       await expect(
-        page.getByRole("button", { name: "Retry exact request" }),
+        page.getByRole("button", { name: "Retry same request" }),
       ).toBeVisible();
       expect(submissions).toHaveLength(1);
       await page.getByRole("button", { name: "Close Run setup" }).click();
@@ -329,7 +329,7 @@ for (const viewport of [
         "Retain exact submission",
       );
       expect(submissions).toHaveLength(1);
-      await page.getByRole("button", { name: "Retry exact request" }).click();
+      await page.getByRole("button", { name: "Retry same request" }).click();
       await expect(page).toHaveURL(/\/runs\/run-recovered-draft$/);
       expect(submissions).toHaveLength(2);
       expect(submissions[1]).toEqual(submissions[0]);
@@ -359,7 +359,7 @@ for (const viewport of [
       );
       await expect(
         runDialog.getByRole("button", {
-          name: "Confirm exact input for source",
+          name: "Confirm input for source",
         }),
       ).toBeVisible();
       await runDialog.getByRole("button", { name: "Close Run setup" }).click();
@@ -424,7 +424,7 @@ for (const viewport of [
         uploadDialog.getByLabel("Namespace", { exact: true }),
       ).toBeDisabled();
       await uploadDialog
-        .getByRole("button", { name: "Upload and select exact revision" })
+        .getByRole("button", { name: "Upload and select" })
         .click();
 
       await expect(uploadDialog).toBeHidden();
@@ -433,7 +433,7 @@ for (const viewport of [
       );
       await expect(
         runDialog.getByRole("region", {
-          name: "Exact input review for source",
+          name: "Input review for source",
         }),
       ).toContainText("Confirmed");
       await expect(
@@ -452,7 +452,7 @@ for (const viewport of [
       );
       await expect(
         runDialog.getByRole("region", {
-          name: "Exact input review for source",
+          name: "Input review for source",
         }),
       ).toContainText("Confirmed");
     });

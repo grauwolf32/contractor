@@ -75,7 +75,7 @@ function ProjectArtifactActions({
           disabled={download.isPending}
           onClick={() => download.mutate()}
         >
-          {download.isPending ? "Downloading…" : "Download exact revision"}
+          {download.isPending ? "Downloading…" : "Download this revision"}
         </button>
         <ArtifactHistoryButton />
       </div>
@@ -102,7 +102,7 @@ function ProjectArtifactActions({
         </details>
       ) : (
         <div className="panel compact-empty">
-          <strong>Historical revision is immutable.</strong>
+          <strong>Historical revisions are read-only.</strong>
           <p>Select the current revision to upload a new version.</p>
         </div>
       )}
@@ -164,7 +164,7 @@ function ProjectArtifactHistory({
   return (
     <div className="artifact-history-grid">
       <div className="panel">
-        <p className="eyebrow">Immutable history</p>
+        <p className="eyebrow">History</p>
         <h3>Versions</h3>
         {versions.isPending ? (
           <p className="loading-copy" role="status">
@@ -322,7 +322,7 @@ function ProjectArtifactDetailRouteView({
               detailRoot === "/evals" ? "Eval Artifacts" : "Project Artifacts"
             }
           />
-          <p className="eyebrow">ProjectScope binding</p>
+          <p className="eyebrow">Project artifact</p>
           <h2>
             {namespace}/{name}
           </h2>

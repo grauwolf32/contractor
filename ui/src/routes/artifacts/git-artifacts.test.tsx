@@ -285,7 +285,7 @@ describe("Git artifacts", () => {
     expect(
       requests.filter((request) => request.method === "POST"),
     ).toHaveLength(0);
-    await userEvent.click(screen.getByLabelText("Replace this exact revision"));
+    await userEvent.click(screen.getByLabelText("Replace this revision"));
     await userEvent.click(
       screen.getByRole("button", { name: "Import snapshot" }),
     );

@@ -313,7 +313,7 @@ function PlannerPlanView({ projection }: { projection: PlannerProjection }) {
   if (plan === undefined) {
     return (
       <div className="compact-empty">
-        No durable subtask plan is present for this attempt.
+        No subtask plan is present for this attempt.
       </div>
     );
   }
@@ -360,7 +360,7 @@ function PlannerPlanView({ projection }: { projection: PlannerProjection }) {
       </ol>
       {projection.lastEventKind === undefined ? null : (
         <small className="live-event-note">
-          Last typed fact: {projection.lastEventKind}
+          Last event: {projection.lastEventKind}
           {projection.lastOccurredAt === undefined
             ? ""
             : ` · ${formatTimestamp(projection.lastOccurredAt)}`}
@@ -594,7 +594,7 @@ export function StageAttemptView({
       </summary>
       <div className="run-attempt-body">
         <div className="attempt-block global-task">
-          <p className="eyebrow">Immutable Stage objective · global task</p>
+          <p className="eyebrow">Stage objective</p>
           <h4>{attempt.objective ?? "Unavailable before Stage preparation"}</h4>
           {attempt.previousExecutionId === undefined ? null : (
             <p className="compact-copy">

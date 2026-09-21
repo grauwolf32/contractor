@@ -31,7 +31,7 @@ describe("Credential policy validation", () => {
     delete value.gatewayPolicy.maxBudget;
     value.gatewayPolicy.tpmLimit = 0;
     expect(validateCredentialRequest(value)).toEqual([
-      "Select at least one exact ModelPolicy.",
+      "Select at least one ModelPolicy.",
       "Budget reset requires a maximum spend.",
       "TPM limit must be an integer from 1 through 2,147,483,647.",
     ]);

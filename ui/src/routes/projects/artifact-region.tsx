@@ -159,7 +159,7 @@ export const ProjectArtifactRegion = forwardRef<
 
   return (
     <ProjectRegion
-      eyebrow="Reusable ProjectScope"
+      eyebrow="Project artifacts"
       title="Artifacts"
       id="project-artifacts"
       compact={compact}
@@ -288,7 +288,7 @@ export const ProjectArtifactRegion = forwardRef<
             <p>
               {compact
                 ? "Add an artifact to prepare the inputs for your next analysis."
-                : "Use a shortcut above to add an exact Project input."}
+                : "Use a shortcut above to add a Project input."}
             </p>
           </div>
         ) : (

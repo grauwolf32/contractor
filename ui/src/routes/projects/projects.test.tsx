@@ -430,7 +430,7 @@ describe("Project routes", () => {
       expect(screen.getByLabelText(label)).toHaveValue(draft);
       await user.click(
         screen.getByRole("button", {
-          name: operation === "metadata" ? "Save exact update" : "Save target",
+          name: operation === "metadata" ? "Save changes" : "Save target",
         }),
       );
       await screen.findByText("resource revision precondition failed");
@@ -958,7 +958,7 @@ describe("Project routes", () => {
       screen.getByText("Upload a new version", { selector: "summary" }),
     );
     expect(
-      screen.getByRole("button", { name: "Upload exact update" }),
+      screen.getByRole("button", { name: "Upload new version" }),
     ).toBeEnabled();
   });
 
@@ -1127,7 +1127,7 @@ describe("Project routes", () => {
     ).toBeVisible();
     await user.click(
       within(dialog).getByRole("button", {
-        name: "Confirm exact input for source",
+        name: "Confirm input for source",
       }),
     );
     expect(within(dialog).getByText("Ready", { exact: true })).toBeVisible();

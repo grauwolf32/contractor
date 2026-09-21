@@ -68,7 +68,7 @@ function ProjectWorkflowLauncher({
   function renderForm(onSubmittingChange?: (pending: boolean) => void) {
     return workflow.isPending ? (
       <p className="loading-copy" role="status">
-        Loading exact Workflow contract…
+        Loading Workflow contract…
       </p>
     ) : workflow.error !== null ? (
       <ErrorNotice error={workflow.error} />
@@ -273,7 +273,7 @@ export function ProjectWorkflowRecommendations({
           <div>
             <h3>Workflows</h3>
             <p className="muted-copy">
-              Choose a Workflow and review its exact inputs before launching.
+              Choose a Workflow and review its inputs before launching.
             </p>
           </div>
           <span className="muted-copy">

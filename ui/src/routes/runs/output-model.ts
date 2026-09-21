@@ -46,7 +46,7 @@ export function requireWorkflowOutputs(
     workflow.outputs === null ||
     Array.isArray(workflow.outputs)
   ) {
-    throw new Error("Server returned an invalid exact Workflow contract");
+    throw new Error("Server returned an invalid Workflow contract");
   }
   for (const [slot, declaration] of Object.entries(workflow.outputs)) {
     if (
@@ -61,7 +61,7 @@ export function requireWorkflowOutputs(
       (declaration.primary !== undefined &&
         typeof declaration.primary !== "boolean")
     ) {
-      throw new Error("Server returned an invalid exact Workflow contract");
+      throw new Error("Server returned an invalid Workflow contract");
     }
   }
   return workflow.outputs;

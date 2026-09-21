@@ -127,9 +127,8 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
       action={<Link to="/runs">All Runs →</Link>}
     >
       <p className="muted-copy">
-        Evaluation verdicts are not available in this workspace view. Open
-        recorded outputs to assess the result; succeeded only describes
-        execution.
+        Succeeded describes execution only; open the recorded outputs to assess
+        the result.
       </p>
       {query.isPending ? (
         <p className="loading-copy" role="status">

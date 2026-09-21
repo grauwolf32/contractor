@@ -52,14 +52,14 @@ export function RuntimeConfigDetailRoute() {
       </Link>
       {query.isPending ? (
         <p className="loading-copy" role="status">
-          Loading exact RuntimeConfig…
+          Loading RuntimeConfig…
         </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : (
         <>
           <div className="panel">
-            <p className="eyebrow">Immutable typed infrastructure patch</p>
+            <p className="eyebrow">Runtime configuration</p>
             <h3>
               {query.data.ref.name}@{query.data.ref.version}
             </h3>

@@ -50,7 +50,7 @@ export function RunInputUploadDialog({
         {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
         acceptedMediaTypes={mediaTypes}
         signal={controller.signal}
-        submitLabel="Upload and select exact revision"
+        submitLabel="Upload and select"
         onPendingChange={setPending}
         onWritten={uploaded}
       />
@@ -61,7 +61,7 @@ export function RunInputUploadDialog({
         {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
         acceptedMediaTypes={mediaTypes}
         signal={controller.signal}
-        submitLabel="Upload and select exact revision"
+        submitLabel="Upload and select"
         onPendingChange={setPending}
         onWritten={uploaded}
       />
@@ -77,7 +77,7 @@ export function RunInputUploadDialog({
       <div className="project-dialog-heading">
         <div>
           <p className="eyebrow">
-            {projectId === undefined ? "UserScope" : "ProjectScope"} input
+            {projectId === undefined ? "Library" : "Project"} input
           </p>
           <h2 id={heading}>Upload local file for {slotName}</h2>
         </div>
@@ -91,10 +91,9 @@ export function RunInputUploadDialog({
         </button>
       </div>
       <p id={description} className="muted-copy">
-        A confirmed upload selects only the exact returned revision in this
-        input slot. Closing{pending ? " now" : ""} cancels the client wait;
-        because the Server may already have committed the Artifact, refresh the
-        library before retrying an ambiguous write.
+        A confirmed upload selects the returned revision in this input slot; if
+        you close{pending ? " now" : ""} before it completes, refresh the
+        library before retrying.
       </p>
       {form}
     </Dialog>

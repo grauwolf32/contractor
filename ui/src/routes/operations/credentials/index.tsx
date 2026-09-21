@@ -89,9 +89,7 @@ export function CredentialListRoute() {
                         {credential.llmGateway.version}
                       </code>
                     </td>
-                    <td>
-                      {credential.effectivePolicy.modelPolicies.length} exact
-                    </td>
+                    <td>{credential.effectivePolicy.modelPolicies.length}</td>
                     <td>{credential.consumption?.spend ?? "not observed"}</td>
                     <td>{formatTimestamp(credential.createdAt)}</td>
                   </tr>

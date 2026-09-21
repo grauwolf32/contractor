@@ -97,16 +97,13 @@ it("labels the configured baseline as A regardless of variant array order", asyn
   const baseline = draft.variants.find(
     (v) => v.id === draft.comparison.baseline,
   )!;
-  expect(await screen.findByLabelText("A exact version")).toHaveValue(
+  expect(await screen.findByLabelText("A version")).toHaveValue(
     baseline.selector,
   );
-  await within(screen.getByLabelText("A exact version")).findByRole("option", {
+  await within(screen.getByLabelText("A version")).findByRole("option", {
     name: /trace-a@2/,
   });
-  await user.selectOptions(
-    screen.getByLabelText("A exact version"),
-    "trace-a@2",
-  );
+  await user.selectOptions(screen.getByLabelText("A version"), "trace-a@2");
   await user.click(screen.getByRole("button", { name: "Save draft" }));
   await waitFor(() =>
     expect(
@@ -165,7 +162,7 @@ it("shows persisted diagnostics after preparation returns the experiment to draf
     "Preparation needs attention",
   );
   expect(screen.getByRole("alert")).toHaveTextContent(
-    "Review the exact versions and equality policy",
+    "Review the versions and equality policy",
   );
   await user.click(screen.getByRole("button", { name: "4. Readiness" }));
   await user.click(screen.getByText("Diagnostic details"));

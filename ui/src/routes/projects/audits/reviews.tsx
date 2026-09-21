@@ -100,7 +100,7 @@ export function ActionReviewControls({
             disabled={unavailable}
             onClick={() => decision.mutate("approve")}
           >
-            Approve exact subject
+            Approve subject
           </button>
         ) : null}
         {review.requestedActions.includes("reject") ? (

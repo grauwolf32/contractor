@@ -125,7 +125,7 @@ function ExecutionOverrides({
       {value.stages && Object.keys(value.stages).length ? (
         <p>
           Per-stage overrides from the saved draft are retained. Review them in
-          the exact setup before Prepare.
+          Setup before Prepare.
         </p>
       ) : null}
     </>
@@ -197,8 +197,8 @@ export function VariantEditor({
         </select>
       </EvalField>
       <EvalField
-        label={`${label} exact version`}
-        hint="A new family selection proposes its latest compatible version; Prepare pins the exact choice."
+        label={`${label} version`}
+        hint="A new family selection proposes its latest compatible version; Prepare pins the choice."
       >
         <select
           value={value.selector}
@@ -224,8 +224,7 @@ export function VariantEditor({
       {contract.data ? (
         <div className="eval-contract">
           <p>
-            Exact definition: {contract.data.ref.name}@
-            {contract.data.ref.version}
+            Definition: {contract.data.ref.name}@{contract.data.ref.version}
           </p>
           {Object.entries(inputs).map(([key, slot]) => (
             <p key={key}>

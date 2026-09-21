@@ -19,9 +19,6 @@ export function AllocationListRoute() {
       <section className="panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">
-              Authoritative ownership + Runtime observation
-            </p>
             <h3>Current allocations</h3>
             <p className="muted-copy">
               Allocated means the temporary Worker role was prepared; it does

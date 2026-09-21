@@ -24,8 +24,7 @@ const deletionPhaseCopy: Record<
   },
   purging_artifacts: {
     label: "Removing Project Artifacts",
-    detail:
-      "The remaining ProjectScope history is being purged with reference-safe content cleanup.",
+    detail: "Remaining Project history is being removed.",
   },
 };
 
@@ -118,8 +117,8 @@ export function ProjectDeletionProgress({ project }: { project: Project }) {
         <small>Requested {formatTimestamp(deletion.requestedAt)}</small>
       </div>
       <p className="project-deletion-durability">
-        You can leave this page. Cleanup is durable and resumes automatically
-        after a Server restart.
+        You can leave this page; cleanup resumes automatically after a Server
+        restart.
       </p>
     </div>
   );

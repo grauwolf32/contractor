@@ -5,10 +5,10 @@ export function validateCredentialRequest(
 ): string[] {
   const errors: string[] = [];
   if (request.gatewayPolicy.modelPolicies.length === 0) {
-    errors.push("Select at least one exact ModelPolicy.");
+    errors.push("Select at least one ModelPolicy.");
   }
   if (request.gatewayPolicy.modelPolicies.length > 128) {
-    errors.push("At most 128 exact ModelPolicies can be selected.");
+    errors.push("At most 128 ModelPolicies can be selected.");
   }
   if (
     request.label !== undefined &&

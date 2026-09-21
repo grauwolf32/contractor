@@ -472,11 +472,11 @@ describe("Workflow overview and Run drawer", () => {
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog", { name: "Configure Run" })).toBeVisible();
     rejectSubmission(new TypeError("response lost"));
-    await screen.findByRole("button", { name: "Retry exact request" });
+    await screen.findByRole("button", { name: "Retry same request" });
     await user.keyboard("{Escape}");
     await openRunSetup();
     await user.click(
-      screen.getByRole("button", { name: "Retry exact request" }),
+      screen.getByRole("button", { name: "Retry same request" }),
     );
     await waitFor(() => expect(keys).toHaveLength(2));
     expect(keys[0]).toMatch(/^run-ui-/);
@@ -642,7 +642,7 @@ describe("Workflow routes", () => {
       await user.click(
         screen.getByRole("button", { name: /^Start (Project )?Workflow Run$/ }),
       );
-      await screen.findByRole("button", { name: "Retry exact request" });
+      await screen.findByRole("button", { name: "Retry same request" });
       const acquisition = store.acquire(
         {
           workflowName: workflow.ref.name,
@@ -675,7 +675,7 @@ describe("Workflow routes", () => {
         "projects/source@revision-7",
       );
       await user.click(
-        screen.getByRole("button", { name: "Retry exact request" }),
+        screen.getByRole("button", { name: "Retry same request" }),
       );
       await waitFor(() => expect(submissions).toHaveLength(3));
       expect(submissions[2]!.headers.get("Idempotency-Key")).toBe(
@@ -758,19 +758,19 @@ describe("Workflow routes", () => {
       screen.getAllByText(/Suggested only because text\/markdown/),
     ).toHaveLength(2);
     expect(
-      screen.getAllByRole("link", { name: "Preview exact Artifact details" }),
+      screen.getAllByRole("link", { name: "Preview Artifact details" }),
     ).toHaveLength(2);
 
     const user = userEvent.setup();
     await user.click(
       screen.getByRole("button", {
-        name: "Confirm exact input for dependency_report",
+        name: "Confirm input for dependency_report",
       }),
     );
     expect(screen.getByText("Review 1")).toBeVisible();
     await user.click(
       screen.getByRole("button", {
-        name: "Confirm exact input for project_report",
+        name: "Confirm input for project_report",
       }),
     );
     expect(screen.getByText("Ready", { exact: true })).toBeVisible();
@@ -1267,7 +1267,7 @@ describe("Workflow routes", () => {
     await user.click(
       screen.getByRole("button", { name: "Start Workflow Run" }),
     );
-    await screen.findByRole("button", { name: "Retry exact request" });
+    await screen.findByRole("button", { name: "Retry same request" });
     await user.type(screen.getByLabelText("Add a label"), "pending:restored");
     await router.navigate("/artifacts");
     await screen.findByRole("heading", { name: "Artifacts" });
@@ -1286,10 +1286,10 @@ describe("Workflow routes", () => {
       "projects/source@revision-7",
     );
     await user.click(
-      await screen.findByRole("button", { name: "Retry exact request" }),
+      await screen.findByRole("button", { name: "Retry same request" }),
     );
     expect(
-      await screen.findByRole("button", { name: "Retry exact request" }),
+      await screen.findByRole("button", { name: "Retry same request" }),
     ).toBeInTheDocument();
     expect(keys[0]).toBe(keys[1]);
 
@@ -1378,7 +1378,7 @@ describe("Workflow routes", () => {
     await user.click(
       screen.getByRole("button", { name: "Start Workflow Run" }),
     );
-    await screen.findByRole("button", { name: "Retry exact request" });
+    await screen.findByRole("button", { name: "Retry same request" });
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({
       labels: { team: "infra", debug: "", release: "next" },
@@ -1460,7 +1460,7 @@ describe("Workflow routes", () => {
     expect(within(dialog).getByLabelText("Name")).toHaveValue("service-source");
     await user.click(
       within(dialog).getByRole("button", {
-        name: "Upload and select exact revision",
+        name: "Upload and select",
       }),
     );
 
@@ -1546,7 +1546,7 @@ describe("Workflow routes", () => {
     );
     await user.click(
       within(dialog).getByRole("button", {
-        name: "Upload and select exact revision",
+        name: "Upload and select",
       }),
     );
     await started;

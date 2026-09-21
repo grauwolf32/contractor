@@ -98,9 +98,7 @@ export function CredentialCreateForm() {
       );
     }
     if (selectedGateway === undefined) {
-      nextErrors.push(
-        "Select an exact Gateway with LiteLLM credential management.",
-      );
+      nextErrors.push("Select a Gateway with LiteLLM credential management.");
     }
     if (selectedPolicies.length !== policyKeys.length) {
       nextErrors.push(
@@ -172,7 +170,6 @@ export function CredentialCreateForm() {
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Create-only remote key lifecycle</p>
           <h3>Create credential</h3>
         </div>
         <span className="state-badge">active when created</span>
@@ -210,7 +207,7 @@ export function CredentialCreateForm() {
           />
         </label>
         <label>
-          Exact managed LLM Gateway
+          Managed LLM Gateway
           <select
             required
             value={gatewayKey}
@@ -296,7 +293,7 @@ export function CredentialCreateForm() {
         </label>
       </div>
       <fieldset className="policy-selection">
-        <legend>Allowed exact ModelPolicies</legend>
+        <legend>Allowed ModelPolicies</legend>
         {modelPolicies.length === 0 ? (
           <p className="compact-empty">
             No ModelPolicy is available on this page.

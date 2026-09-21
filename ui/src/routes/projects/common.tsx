@@ -269,7 +269,7 @@ export function ProjectArtifactWriteForm({
       <div className="section-heading">
         <div>
           <p className="eyebrow">
-            {update ? "Exact CAS update" : "ProjectScope"}
+            {update ? "New version" : "Project artifact"}
           </p>
           <h3 id={formHeading}>
             {update
@@ -328,8 +328,7 @@ export function ProjectArtifactWriteForm({
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending
           ? "Uploading…"
-          : (submitLabel ??
-            (update ? "Upload exact update" : "Create binding"))}
+          : (submitLabel ?? (update ? "Upload new version" : "Create binding"))}
       </button>
     </form>
   );
@@ -372,8 +371,7 @@ export function ProjectArtifactDialog({
         </button>
       </div>
       <p className="muted-copy">
-        The category only suggests editable Artifact metadata. The Server stores
-        the same arbitrary ProjectScope binding as every other upload.
+        The category only suggests editable Artifact metadata.
       </p>
       <ProjectArtifactWriteForm
         projectId={projectId}

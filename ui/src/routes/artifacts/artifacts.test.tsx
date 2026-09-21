@@ -404,7 +404,7 @@ describe("Artifact routes", () => {
     expect(await screen.findByText(preview)).toBeInTheDocument();
     expect(document.querySelector("script")).toBeNull();
     expect(
-      screen.getByText("Historical revision is immutable."),
+      screen.getByText("Historical revisions are read-only."),
     ).toBeInTheDocument();
   });
 

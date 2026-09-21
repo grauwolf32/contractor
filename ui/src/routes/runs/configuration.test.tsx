@@ -129,7 +129,7 @@ describe("Run configuration navigation", () => {
     expect(
       screen.getByRole("dialog", { name: "Runtime label bindings" }),
     ).toBeVisible();
-    expect(screen.getByLabelText("Exact RuntimeConfig")).toHaveDisplayValue(
+    expect(screen.getByLabelText("RuntimeConfig")).toHaveDisplayValue(
       "debug@1",
     );
   });

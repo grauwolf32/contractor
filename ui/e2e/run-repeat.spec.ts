@@ -402,7 +402,7 @@ for (const viewport of [
         )
         .check();
       await page
-        .getByRole("button", { name: "Confirm exact input for source" })
+        .getByRole("button", { name: "Confirm input for source" })
         .click();
       await page.getByRole("button", { name: "Start Workflow Run" }).click();
       await expect.poll(() => created.length).toBe(1);

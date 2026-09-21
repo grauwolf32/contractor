@@ -249,7 +249,7 @@ export function EvalDetailRoute() {
                   <Link
                     to={`/evals/experiments/${encodeURIComponent(experimentId)}/setup`}
                   >
-                    Review exact setup and readiness
+                    Review setup and readiness
                   </Link>
                 </>
               )}

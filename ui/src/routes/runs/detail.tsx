@@ -303,7 +303,7 @@ function RunRepeatControl({ run }: { run: RunStatus }) {
         setOutcome({
           kind: "conflict",
           message:
-            "An edited draft already exists for this exact Workflow and scope. It was not overwritten.",
+            "An edited draft already exists for this Workflow and scope. It was not overwritten.",
           destination: prepared.destination,
         });
         return;
@@ -405,7 +405,6 @@ function CancellationControl({ run }: { run: RunStatus }) {
   }
   return (
     <form className="panel cancellation-panel" onSubmit={submit} noValidate>
-      <p className="eyebrow">Bounded lifecycle command</p>
       <h3>Cancel Run</h3>
       <label>
         Explicit reason
@@ -432,8 +431,8 @@ function CancellationControl({ run }: { run: RunStatus }) {
         <>
           <ErrorNotice error={mutation.error} />
           <p className="muted-copy">
-            The Run snapshot was refreshed; a concurrent terminal transition
-            remains authoritative.
+            The Run snapshot was refreshed; the Run had already reached a final
+            state.
           </p>
         </>
       )}
@@ -496,7 +495,7 @@ function RunOutputPublications({ run }: { run: RunStatus }) {
     <section className="panel run-output-publications">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">ProjectScope publication</p>
+          <p className="eyebrow">Project outputs</p>
           <h3>Reusable output status</h3>
         </div>
         <Link to={`/projects/${encodeURIComponent(projectId)}/artifacts`}>
@@ -570,7 +569,7 @@ function RunBindings({ run }: { run: RunStatus }) {
           </dl>
         )}
       </DefinitionList>
-      <DefinitionList title="Exact input forks">
+      <DefinitionList title="Input revisions">
         {Object.entries(run.inputs ?? {}).length === 0 ? (
           <div className="compact-empty">No inputs.</div>
         ) : (
@@ -631,8 +630,8 @@ function RunRuntimeConfiguration({
       </summary>
       <div className="run-runtime-configuration-body">
         <p className="muted-copy">
-          Default and explicit Runtime labels below are immutable for this Run.
-          Later Runtime-label rebinding cannot change these exact refs.
+          Runtime labels below are pinned for this Run and cannot be rebound
+          later.
         </p>
         <div className="runtime-provenance-grid">
           {entries.map((pin) => (
@@ -687,7 +686,7 @@ function LiveAttempts({
       {live.error === undefined ? null : (
         <div className="notice notice-warning" role="alert">
           <strong>{live.error}</strong>
-          <p>Manual refresh remains available and authoritative.</p>
+          <p>Use Refresh to reload the Run.</p>
         </div>
       )}
       <details

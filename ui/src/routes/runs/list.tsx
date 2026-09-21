@@ -277,11 +277,11 @@ function RunLabelFilters({
         </form>
         <form className="run-exact-label-filter" onSubmit={addExact}>
           <label>
-            Exact label key
+            Label key
             <input name="labelKey" type="text" autoComplete="off" />
           </label>
           <label>
-            Exact label value
+            Label value
             <input name="labelValue" type="text" autoComplete="off" />
           </label>
           <button
@@ -289,7 +289,7 @@ function RunLabelFilters({
             type="submit"
             disabled={selectors.length >= RUN_METADATA_LABEL_LIMIT}
           >
-            Add exact filter
+            Add filter
           </button>
         </form>
         {parseError === undefined && validationError === undefined ? null : (

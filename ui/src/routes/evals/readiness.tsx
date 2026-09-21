@@ -14,7 +14,7 @@ export function EvalReadiness({
     : experiment?.expectedMembers;
   return (
     <section className="eval-readiness">
-      <h2>Readiness and exact setup</h2>
+      <h2>Readiness and setup</h2>
       <p>
         <strong>{expected} expected members</strong>
         {setup.caseIds && setup.repetitions
@@ -61,7 +61,7 @@ export function EvalReadiness({
               </dl>
               {Object.keys(v.executionConfig).length ? (
                 <details>
-                  <summary>Exact execution overrides</summary>
+                  <summary>Execution overrides</summary>
                   <pre>{JSON.stringify(v.executionConfig, null, 2)}</pre>
                 </details>
               ) : null}

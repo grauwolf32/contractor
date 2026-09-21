@@ -221,7 +221,7 @@ export function GitImportDialog({
               This binding exists at <code>{baseline.artifact.revision}</code>.
             </p>
             {baseline.frozen ? (
-              <p>This binding is frozen. Choose another name.</p>
+              <p>This binding is locked. Choose another name.</p>
             ) : (
               <label>
                 <input
@@ -230,7 +230,7 @@ export function GitImportDialog({
                   onChange={(event) => setReplace(event.target.checked)}
                   disabled={pending}
                 />
-                Replace this exact revision
+                Replace this revision
               </label>
             )}
           </div>

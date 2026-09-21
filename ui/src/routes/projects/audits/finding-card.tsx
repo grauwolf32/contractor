@@ -105,7 +105,7 @@ function FindingReviewControls({
   const decide = useMutation({
     mutationFn: () => {
       if (pendingReview === undefined) {
-        throw new Error("The exact finding review is no longer pending");
+        throw new Error("The finding review is no longer pending");
       }
       const decision: DecideAuditFindingRequest =
         verdict === "true_positive"
@@ -152,7 +152,7 @@ function FindingReviewControls({
           onClick={() => createReview.mutate()}
         >
           {createReview.isPending
-            ? "Opening exact review…"
+            ? "Opening review…"
             : finding.analystVerdict === undefined
               ? "Review finding"
               : "Correct analyst rating"}
@@ -212,9 +212,9 @@ function FindingReviewControls({
         ) : null}
         {verdict === "duplicate" ? (
           <label>
-            Canonical finding
+            Linked finding
             <select
-              aria-label="Canonical finding"
+              aria-label="Linked finding"
               value={duplicateTargetId}
               onChange={(event) => setDuplicateTargetId(event.target.value)}
             >
@@ -228,11 +228,9 @@ function FindingReviewControls({
                 </option>
               ))}
             </select>
-            <span>
-              Or enter an exact finding ID from another page in this Audit
-            </span>
+            <span>Or enter a finding ID from another page in this Audit</span>
             <input
-              aria-label="Canonical finding ID"
+              aria-label="Linked finding ID"
               value={duplicateTargetId}
               onChange={(event) => setDuplicateTargetId(event.target.value)}
             />
@@ -475,7 +473,7 @@ export function AuditFindingCard({
                   returnLabel="Finding"
                   returnHash={`#finding-${audit.auditId}-${finding.findingId}`}
                   to={exactArtifactLink(audit.projectId, artifact)}
-                  title={`Exact revision ${artifact.ref.revision}`}
+                  title={`Revision ${artifact.ref.revision}`}
                 >
                   {artifact.ref.namespace}/{artifact.ref.name}
                 </ContextLink>
@@ -483,7 +481,7 @@ export function AuditFindingCard({
                   {artifact.sizeBytes === undefined
                     ? null
                     : `${formatBytes(artifact.sizeBytes)} · `}
-                  Exact source revision
+                  Source revision
                 </small>
               </li>
             ))}

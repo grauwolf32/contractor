@@ -179,8 +179,8 @@ export function WorkflowOverview({
       {error ? <ErrorNotice error={error} /> : null}
       {inventory.isError ? (
         <p className="notice notice-warning" role="status">
-          Other published versions could not be loaded. This exact version
-          remains available.{" "}
+          Other published versions could not be loaded. This version remains
+          available.{" "}
           <button
             type="button"
             className="secondary-button"
@@ -195,7 +195,7 @@ export function WorkflowOverview({
           <section className="panel workflow-overview-contract">
             <div className="section-heading">
               <h3>Inputs and results</h3>
-              <span>Exact contract</span>
+              <span>Contract</span>
             </div>
             <div
               className={`workflow-overview-io${stages.length === 1 ? " is-single-stage" : ""}`}
@@ -305,7 +305,7 @@ export function WorkflowOverview({
           >
             Configure Run <span aria-hidden="true">→</span>
           </button>
-          <small>Review the exact input revisions before starting.</small>
+          <small>Review the input revisions before starting.</small>
         </aside>
       </div>
       {open ? (

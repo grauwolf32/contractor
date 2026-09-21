@@ -12,12 +12,9 @@ export function ProcessInventory() {
       </summary>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Observed process inventory</p>
           <h3>Registered processes</h3>
           <p className="muted-copy">
             A Runtime Agent is one deployed, long-running single-slot process.
-            Worker is the temporary role it assumes for an allocation, not a
-            second service.
           </p>
         </div>
         <span>{snapshot.runtimeAgents.length} current</span>
@@ -25,9 +22,7 @@ export function ProcessInventory() {
       {snapshot.runtimeAgents.length === 0 ? (
         <div className="compact-empty">
           <strong>No Runtime Agent is currently registered.</strong>
-          <p>
-            The snapshot contains current process state, not durable history.
-          </p>
+          <p>The snapshot shows current process state only.</p>
         </div>
       ) : (
         <div className="table-scroll">
@@ -36,7 +31,7 @@ export function ProcessInventory() {
               <tr>
                 <th>Runtime Agent</th>
                 <th>Observed</th>
-                <th>Authoritative slot</th>
+                <th>Assigned slot</th>
                 <th>Last accepted heartbeat</th>
                 <th>Confirmed lease</th>
                 <th>Allocation binding</th>

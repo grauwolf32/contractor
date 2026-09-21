@@ -144,10 +144,10 @@ export function EvalHumanReview({
     review.data && review.data.resultSha256 !== member.resultSha256;
   return (
     <section className="panel eval-panel">
-      <h3>Review exact result</h3>
+      <h3>Review result</h3>
       <p>
-        This decision is attributed to your authenticated account and retained
-        as an immutable assessment.
+        This decision is recorded under your account and cannot be changed
+        later.
       </p>
       <EvalError error={review.error ?? save.error} />
       {changed ? (

@@ -85,8 +85,7 @@ function AgentVersionSelector({
       </label>
       <div>
         <span className="muted-copy">
-          {versions.length} exact version{versions.length === 1 ? "" : "s"}{" "}
-          loaded
+          {versions.length} version{versions.length === 1 ? "" : "s"} loaded
         </span>
         {query.hasNextPage ? (
           <button
@@ -250,7 +249,6 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Exact reverse references</p>
           <h3 id="agent-usage-title">Where used</h3>
         </div>
         <span>Page {page}</span>
@@ -261,7 +259,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
         <ErrorNotice error={query.error} />
       ) : query.data.items.length === 0 ? (
         <p className="compact-empty">
-          This exact Agent version is not referenced by a published Workflow.
+          This Agent version is not referenced by a published Workflow.
         </p>
       ) : (
         <ul className="catalog-usage-list">
@@ -329,7 +327,7 @@ export function AgentDetailRoute() {
         ← {back.returnLabel}
       </Link>
       <header>
-        <p className="eyebrow">Exact Agent template</p>
+        <p className="eyebrow">Agent template</p>
         <h2>
           {name}
           <span className="catalog-version-label">@{version}</span>
@@ -338,7 +336,7 @@ export function AgentDetailRoute() {
       {!valid ? (
         <ErrorNotice error={new Error("Agent version is invalid")} />
       ) : query.isPending ? (
-        <p role="status">Loading exact Agent version…</p>
+        <p role="status">Loading Agent version…</p>
       ) : query.error ? (
         <ErrorNotice error={query.error} />
       ) : (

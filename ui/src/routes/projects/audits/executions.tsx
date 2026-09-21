@@ -96,7 +96,7 @@ export function AuditChecks({
             className="audit-record-details"
             open={hash === `#check-${item.itemId}`}
           >
-            <summary>Attempts, artifacts and exact identity</summary>
+            <summary>Attempts, artifacts and identity</summary>
             <dl className="metadata-grid">
               <div>
                 <dt>Item key</dt>

@@ -156,7 +156,7 @@ function buildDocument(
     );
   }
   if (!RUNTIME_VERSION.test(draft.version)) {
-    errors.push("Version must be a non-empty immutable selector component.");
+    errors.push("Version must not be empty.");
   }
   if (
     !draft.gateway &&
@@ -164,13 +164,13 @@ function buildDocument(
     !draft.plannerTelemetry &&
     !draft.httpProxy
   ) {
-    errors.push("Select at least one typed RuntimeConfig block.");
+    errors.push("Select at least one RuntimeConfig block.");
   }
   const selectedGateway = gateways.find(
     (resource) => gatewayKey(resource) === draft.gatewayKey,
   );
   if (draft.gateway && selectedGateway === undefined) {
-    errors.push("Select one exact published LLM Gateway.");
+    errors.push("Select one published LLM Gateway.");
   }
   for (const [enabled, endpoint, label] of [
     [draft.workerTelemetry, draft.workerTelemetryEndpoint, "Worker telemetry"],
@@ -374,9 +374,7 @@ function RuntimeConfigPublishForm({
       <form className="configuration-draft" onSubmit={submit} noValidate>
         <div className="project-dialog-heading">
           <div>
-            <p className="eyebrow">
-              Unpublished proposal · Immutable infrastructure version
-            </p>
+            <p className="eyebrow">New version</p>
             <h2 id={heading}>Publish RuntimeConfig</h2>
             <small>{configs.length} loaded versions</small>
           </div>
@@ -407,7 +405,7 @@ function RuntimeConfigPublishForm({
             />
           </label>
           <label>
-            Immutable version
+            Version
             <input
               aria-label="RuntimeConfig version"
               required
@@ -431,13 +429,13 @@ function RuntimeConfigPublishForm({
           </legend>
           <div className="form-grid">
             <label>
-              Exact LLM Gateway
+              LLM Gateway
               <select
                 disabled={!draft.gateway}
                 value={draft.gatewayKey}
                 onChange={(event) => update("gatewayKey", event.target.value)}
               >
-                <option value="">Select exact Gateway</option>
+                <option value="">Select Gateway</option>
                 {gateways.map((resource) => (
                   <option
                     key={gatewayKey(resource)}
@@ -667,15 +665,10 @@ function RuntimeConfigPublishForm({
             Proposed new version: {draft.name || "Choose a name"}@
             {draft.version || "Choose a version"}
           </strong>
-          <p>
-            Publishing adds an immutable version to the library. Current label
-            bindings remain in effect until you explicitly rebind them.
-          </p>
+          <p>Current label bindings remain in effect until you rebind them.</p>
         </div>
         <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending
-            ? "Publishing…"
-            : "Publish immutable RuntimeConfig"}
+          {mutation.isPending ? "Publishing…" : "Publish RuntimeConfig"}
         </button>
       </form>
     </Dialog>
@@ -790,7 +783,7 @@ function BindingEditor({
           <dt>Proposed version</dt>
           <dd>
             {selectedResource === undefined ? (
-              "Choose a loaded exact version"
+              "Choose a loaded version"
             ) : (
               <>
                 <strong>
@@ -851,9 +844,7 @@ function BindingEditor({
       {stale ? (
         <div className="notice notice-warning" role="alert">
           <strong>Binding changed in another view.</strong>
-          <p>
-            Reload the authoritative revision and review it before retrying.
-          </p>
+          <p>Reload the saved revision and review it before retrying.</p>
           <button
             className="secondary-button"
             type="button"
@@ -865,7 +856,7 @@ function BindingEditor({
               });
             }}
           >
-            Reload authoritative binding
+            Reload binding
           </button>
         </div>
       ) : mutation.error === null && deletion.error === null ? null : (
@@ -933,7 +924,7 @@ function RuntimeBindings({
       return;
     }
     if (resource === undefined) {
-      setError("Select an exact RuntimeConfig version.");
+      setError("Select a RuntimeConfig version.");
       return;
     }
     setError(undefined);
@@ -952,8 +943,7 @@ function RuntimeBindings({
       ) : null}
       <h3>Current label bindings</h3>
       <p className="muted-copy">
-        Review current and proposed exact versions before rebinding. Reloading a
-        conflicting binding preserves your proposal.
+        Review current and proposed versions before rebinding.
       </p>
       <div className="runtime-binding-list">
         {ordered.map((binding) => (
@@ -980,7 +970,7 @@ function RuntimeBindings({
           />
         </label>
         <label>
-          Exact RuntimeConfig
+          RuntimeConfig
           <select
             value={selected}
             onChange={(event) => {
@@ -1124,7 +1114,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       >
         <div className="project-dialog-heading">
           <div>
-            <p className="eyebrow">Write-only encrypted material</p>
+            <p className="eyebrow">Secret</p>
             <h2 id={heading}>Create Runtime credential</h2>
           </div>
           <button
@@ -1318,7 +1308,6 @@ function RuntimeCredentialList({
     <div className="panel operations-library">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Secret-free active inventory</p>
           <h3>Runtime credentials</h3>
         </div>
         <div className="runtime-library-actions">

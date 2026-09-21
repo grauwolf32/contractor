@@ -421,16 +421,14 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     mimeType: "text/plain",
     buffer: Buffer.from("browser-driven streamline input\n"),
   });
-  await localUpload
-    .getByRole("button", { name: "Upload and select exact revision" })
-    .click();
+  await localUpload.getByRole("button", { name: "Upload and select" }).click();
   await expect(localUpload).toBeHidden();
   const exactInput = await runSetup
     .locator('[name="artifact-source"]')
     .inputValue();
   expect(exactInput).toMatch(/^inputs\/ui-stack-text@.+/);
   await expect(
-    runSetup.getByRole("region", { name: "Exact input review for source" }),
+    runSetup.getByRole("region", { name: "Input review for source" }),
   ).toContainText("Confirmed");
   await openDetails(
     runSetup
@@ -645,7 +643,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   ).toBeVisible();
 
   await page.goto("/operations/allocations/completed");
-  await page.getByLabel("Exact Run ID (optional)").fill(streamlineRunID);
+  await page.getByLabel("Run ID (optional)").fill(streamlineRunID);
   await page.getByRole("button", { name: "Apply filter" }).click();
   const retainedRow = page
     .getByRole("row")
@@ -680,7 +678,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("link", { name: /^Open outputs\/result@/ })
     .click();
   const streamlineDownloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download exact revision" }).click();
+  await page.getByRole("button", { name: "Download this revision" }).click();
   const streamlineDownload = await streamlineDownloadPromise;
   expect((await readFile(await streamlineDownload.path())).toString()).toBe(
     "browser-driven streamline input\n",
@@ -701,7 +699,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     runSetup.getByRole("button", { name: "Start Workflow Run" }),
   ).toBeDisabled();
   await expect(
-    runSetup.getByRole("button", { name: "Confirm exact input for source" }),
+    runSetup.getByRole("button", { name: "Confirm input for source" }),
   ).toBeVisible();
   await runSetup.getByRole("button", { name: "Close Run setup" }).click();
 
@@ -759,10 +757,10 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     workflowDialog.locator(".workflow-drawer-heading code"),
   ).toHaveText("openapi-from-workspace@7");
   await workflowDialog
-    .getByRole("button", { name: "Confirm exact input for source" })
+    .getByRole("button", { name: "Confirm input for source" })
     .click();
   await workflowDialog
-    .getByRole("button", { name: "Confirm exact input for existing_openapi" })
+    .getByRole("button", { name: "Confirm input for existing_openapi" })
     .click();
   await openDetails(
     workflowDialog.locator("details.workflow-optional-parameters"),
@@ -829,7 +827,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("link", { name: /^Open outputs\/openapi@/ })
     .click();
   const openAPIDownloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download exact revision" }).click();
+  await page.getByRole("button", { name: "Download this revision" }).click();
   const openAPIDownload = await openAPIDownloadPromise;
   const openAPIBytes = await readFile(await openAPIDownload.path());
   expect(openAPIBytes.toString()).toContain("/widgets/{widget_id}");
@@ -859,8 +857,8 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .filter({ has: page.getByText("worker@2", { exact: true }) });
   await workerRow.getByRole("link", { name: "Inspect / clone" }).click();
   await page.getByRole("button", { name: "Clone to new version" }).click();
-  await page.getByLabel("New immutable version").fill("ui-stack-1");
-  await page.getByRole("button", { name: "Publish immutable version" }).click();
+  await page.getByLabel("New version").fill("ui-stack-1");
+  await page.getByRole("button", { name: "Publish version" }).click();
   await expect(page.getByText("Published worker@ui-stack-1")).toBeVisible();
 
   await page.goto("/operations/configurations");
@@ -875,7 +873,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByLabel("Safe label (optional)")
     .fill("Browser E2E key");
   await selectOptionContaining(
-    credentialForm.getByLabel("Exact managed LLM Gateway"),
+    credentialForm.getByLabel("Managed LLM Gateway"),
     "local-litellm@1",
   );
   await credentialForm.getByLabel(/Maximum spend/).fill("3.5");
@@ -975,9 +973,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await workerTelemetry
     .getByLabel("Runtime credential ID (optional)")
     .fill("ui-stack-otel");
-  await page
-    .getByRole("button", { name: "Publish immutable RuntimeConfig" })
-    .click();
+  await page.getByRole("button", { name: "Publish RuntimeConfig" }).click();
   await expect(page.getByText(/Published ui-stack-debug@1/)).toBeVisible();
   await page.getByRole("button", { name: "Close RuntimeConfig form" }).click();
   await page
@@ -986,7 +982,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   const runtimeLabelForm = page.locator("form.runtime-label-create");
   await runtimeLabelForm.getByLabel("New label").fill("ui-stack-debug");
   await selectOptionContaining(
-    runtimeLabelForm.getByLabel("Exact RuntimeConfig"),
+    runtimeLabelForm.getByLabel("RuntimeConfig"),
     "ui-stack-debug@1",
   );
   await runtimeLabelForm

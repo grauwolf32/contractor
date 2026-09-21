@@ -278,7 +278,7 @@ describe("Run primary output preview", () => {
     expect(requests).toHaveLength(2);
     expect(
       within(resultCard("report")).getByRole("link", {
-        name: /Open outputs\/report@report-r1 exact details/,
+        name: /Open outputs\/report@report-r1 details/,
       }),
     ).toHaveAttribute(
       "href",
@@ -332,7 +332,7 @@ describe("Run primary output preview", () => {
     );
 
     expect(
-      await screen.findByText(/did not match the selected exact Run output/),
+      await screen.findByText(/did not match the selected Run output/),
     ).toBeInTheDocument();
     expect(requests).toHaveLength(2);
     expect(screen.queryByText("stale-r0")).toBeNull();

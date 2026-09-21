@@ -268,7 +268,7 @@ function ProgressPlot({ data }: { data: EvalChart }) {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="A and B observed execution progress; exact observations follow in the data table"
+          aria-label="A and B observed execution progress; observations follow in the data table"
         >
           <g className="eval-chart-axis" aria-hidden="true">
             {[...new Set([0, Math.floor(expected / 2), expected])].map(

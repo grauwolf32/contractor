@@ -173,9 +173,7 @@ export function validateLLMGateway(value: LLMGatewayBody): string[] {
       value.credentialManager.managementUrl.length > 2048 ||
       management.pathname !== "/"
     ) {
-      errors.push(
-        "LiteLLM management URL must be a canonical HTTP(S) root origin.",
-      );
+      errors.push("LiteLLM management URL must be an HTTP(S) root origin.");
     } else if (
       management.protocol === "http:" &&
       !isLoopbackIP(management.hostname)

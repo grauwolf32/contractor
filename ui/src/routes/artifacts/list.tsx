@@ -82,11 +82,9 @@ export function ArtifactListRoute() {
     <section className="route-page artifact-page">
       <header className="route-header-row">
         <div>
-          <p className="eyebrow">Exact input library</p>
           <h2>Artifacts</h2>
           <p className="lede">
-            User-scoped inputs stay mutable here. Workflow Runs bind one exact
-            immutable revision.
+            Inputs uploaded here can be updated; each Run pins one revision.
           </p>
         </div>
         <RefreshButton
@@ -134,7 +132,7 @@ export function ArtifactListRoute() {
       <div className="panel artifact-library">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">UserScope</p>
+            <p className="eyebrow">Your library</p>
             <h3>Current bindings</h3>
             <small className="muted-copy">
               Skill packages live in the{" "}
@@ -175,7 +173,7 @@ export function ArtifactListRoute() {
         ) : query.data.items.length === 0 ? (
           <div className="compact-empty">
             <strong>No Artifact bindings found.</strong>
-            <p>Upload the first exact Workflow input above.</p>
+            <p>Upload the first Workflow input above.</p>
           </div>
         ) : (
           <div className="table-scroll">

@@ -96,7 +96,7 @@ function RunOutputPreview({
         exact.artifact.revision !== artifact.revision
       ) {
         throw new Error(
-          "Artifact metadata did not match the selected exact Run output",
+          "Artifact metadata did not match the selected Run output",
         );
       }
       return exact;
@@ -162,14 +162,14 @@ function RunOutputPreview({
           className="run-output-detail-link"
           to={detailPath}
         >
-          Open {artifact.namespace}/{artifact.name}@{artifact.revision} exact
-          details →
+          Open {artifact.namespace}/{artifact.name}@{artifact.revision} details
+          →
         </ContextLink>
       </div>
       {requested ? (
         <div className="run-output-preview-body">
           {!requested || metadata.isPending ? (
-            <p className="loading-copy">Loading exact output metadata…</p>
+            <p className="loading-copy">Loading output metadata…</p>
           ) : metadata.error !== null ? (
             <ErrorNotice error={metadata.error} />
           ) : (
@@ -177,7 +177,7 @@ function RunOutputPreview({
               archiveScope={{ kind: "run", id: runId }}
               key={metadata.data.artifact.revision}
               metadata={metadata.data}
-              unavailableCopy="Inline preview is unavailable; exact original bytes remain available from artifact details."
+              unavailableCopy="Inline preview is unavailable; the original file remains available from artifact details."
               loadPreview={() => previewRunArtifact(api, runId, metadata.data)}
               loadOnMountKey={[
                 "run-output-preview",
@@ -208,13 +208,13 @@ export function RunOutputGallery({
         : queryKeys.workflows.detail(identity.name, identity.version),
     queryFn: async ({ signal }) => {
       if (identity === undefined) {
-        throw new Error("Run has an invalid exact Workflow selector");
+        throw new Error("Run has an invalid Workflow selector");
       }
       return getWorkflow(api, identity.name, identity.version, signal);
     },
     select: (workflow) => {
       if (identity === undefined) {
-        throw new Error("Run has an invalid exact Workflow selector");
+        throw new Error("Run has an invalid Workflow selector");
       }
       return requireWorkflowOutputs(workflow, identity);
     },
@@ -223,7 +223,7 @@ export function RunOutputGallery({
   });
   const contractError =
     identity === undefined
-      ? new Error("Run has an invalid exact Workflow selector")
+      ? new Error("Run has an invalid Workflow selector")
       : contract.error;
   const entries = organizeRunOutputs(run.outputs, contract.data);
   const declaredCount = contract.data
@@ -233,7 +233,6 @@ export function RunOutputGallery({
     <section className="run-output-gallery" id="run-outputs">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Frozen Workflow outputs</p>
           <h3>Results</h3>
         </div>
         <span>
@@ -242,12 +241,12 @@ export function RunOutputGallery({
         </span>
       </div>
       {contract.isPending && identity !== undefined ? (
-        <p className="loading-copy">Loading exact Workflow output contract…</p>
+        <p className="loading-copy">Loading Workflow output contract…</p>
       ) : null}
       {contract.data === undefined ? null : (
         <p className="run-output-intent">
-          Primary marks the Workflow&apos;s intended presentation order, not the
-          quality or success of a result.
+          Primary is the Workflow&apos;s intended display order, not a quality
+          mark.
         </p>
       )}
       {contractError === null ? null : (
@@ -326,8 +325,8 @@ export function RunArtifactLibrary({
       {...disclosure}
     >
       <RunDisclosureSummary
-        eyebrow="RunScope"
-        title="Inputs, intermediate Artifacts, and frozen outputs"
+        eyebrow="Run artifacts"
+        title="Inputs, intermediate Artifacts and outputs"
         aside={
           count === undefined
             ? undefined
@@ -354,7 +353,7 @@ export function RunArtifactLibrary({
           </p>
         )}
         {query.isPending ? (
-          <p className="loading-copy">Loading RunScope Artifacts…</p>
+          <p className="loading-copy">Loading Run Artifacts…</p>
         ) : query.error !== null ? (
           <ErrorNotice error={query.error} />
         ) : query.data.items.length === 0 ? (
@@ -365,10 +364,10 @@ export function RunArtifactLibrary({
               <thead>
                 <tr>
                   <th>Binding</th>
-                  <th>Exact revision</th>
+                  <th>Revision</th>
                   <th>Media type</th>
                   <th>Size</th>
-                  <th>Frozen</th>
+                  <th>Locked</th>
                   <th>Created</th>
                 </tr>
               </thead>
@@ -441,14 +440,14 @@ function RunArtifactActions({
           disabled={download.isPending}
           onClick={() => download.mutate()}
         >
-          {download.isPending ? "Downloading…" : "Download exact revision"}
+          {download.isPending ? "Downloading…" : "Download this revision"}
         </button>
         <ArtifactHistoryButton />
       </div>
       <ArtifactPreviewPanel
         archiveScope={{ kind: "run", id: runId }}
         metadata={metadata}
-        unavailableCopy="Inline preview is unavailable; exact original bytes remain downloadable."
+        unavailableCopy="Inline preview is unavailable; the original file remains downloadable."
         loadPreview={() => previewRunArtifact(api, runId, metadata)}
       />
     </div>
@@ -508,7 +507,7 @@ function RunArtifactHistory({
   return (
     <div className="artifact-history-grid">
       <div className="panel">
-        <p className="eyebrow">Immutable history</p>
+        <p className="eyebrow">History</p>
         <h3>Versions</h3>
         {versions.isPending ? (
           <p className="loading-copy">Loading versions…</p>
@@ -564,7 +563,7 @@ function RunArtifactHistory({
           <ErrorNotice error={lineage.error} />
         ) : lineage.data.items.length === 0 ? (
           <div className="compact-empty">
-            No lineage edges reference this exact revision.
+            No lineage edges reference this revision.
           </div>
         ) : (
           <ol className="lineage-list">
@@ -645,7 +644,7 @@ export function RunArtifactDetailRoute() {
       <header className="route-header-row">
         <div>
           <ReturnLink to={`/runs/${encodeURIComponent(runId)}`} label="Run" />
-          <p className="eyebrow">Exact RunScope binding</p>
+          <p className="eyebrow">Run inputs</p>
           <h2>
             {namespace}/{name}
           </h2>

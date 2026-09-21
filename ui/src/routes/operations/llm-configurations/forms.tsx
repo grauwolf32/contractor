@@ -52,7 +52,7 @@ function IdentityFields({
         />
       </label>
       <label>
-        New immutable version
+        New version
         <input
           name="version"
           required
@@ -116,7 +116,7 @@ function cloneIdentityErrors(
     identity.name === source.ref.name &&
     identity.version === source.ref.version
   ) {
-    errors.push("Clone must use a new name or immutable version.");
+    errors.push("Clone must use a new name or version.");
   }
   return errors;
 }
@@ -367,7 +367,7 @@ export function ModelPolicyPublicationForm({
       <PublicationFeedback errors={errors} mutationError={mutation.error} />
       <div className="run-submit-row">
         <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Publishing…" : "Publish immutable version"}
+          {mutation.isPending ? "Publishing…" : "Publish version"}
         </button>
         <small>The existing version and digest are never edited.</small>
       </div>
@@ -529,7 +529,7 @@ export function LLMGatewayPublicationForm({
       <PublicationFeedback errors={errors} mutationError={mutation.error} />
       <div className="run-submit-row">
         <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Publishing…" : "Publish immutable version"}
+          {mutation.isPending ? "Publishing…" : "Publish version"}
         </button>
         <small>
           The Server validates the complete configuration union before

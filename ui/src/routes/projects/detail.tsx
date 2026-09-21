@@ -56,7 +56,7 @@ function ProjectWorkspaceRoute({
   );
   const description =
     expectedKind === "evaluation"
-      ? "Each sample remains an ordinary isolated Workflow Run; eval labels group it without changing execution semantics."
+      ? "Each sample is an ordinary Workflow Run grouped by its eval labels."
       : project.data?.description ||
         "Sources, audits and results in one workspace.";
   useDocumentTitle(

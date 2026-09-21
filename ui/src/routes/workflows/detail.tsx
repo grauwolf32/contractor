@@ -158,7 +158,7 @@ function StageContract({
       </summary>
       <div className="stage-contract-body">
         <div>
-          <h4>Immutable objective</h4>
+          <h4>Objective</h4>
           <p>{stage.objective}</p>
         </div>
         <dl className="stage-reference-grid">
@@ -275,7 +275,7 @@ export function WorkflowDetailRoute() {
   if (query.isPending)
     return (
       <p className="loading-copy" role="status">
-        Loading exact Workflow contract…
+        Loading Workflow contract…
       </p>
     );
   if (!query.data)

@@ -215,7 +215,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
     setValidationError(null);
     create.reset();
     if (exactProfile === undefined || !exactProfile.serverCompatible) {
-      setValidationError("Select a Server-compatible exact profile version.");
+      setValidationError("Select a profile version supported by the Server.");
       return;
     }
     const selectedInputs = Object.fromEntries(
@@ -226,7 +226,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
     );
     if (missingRequired.length > 0) {
       setValidationError(
-        `Select exact Project Artifacts for: ${missingRequired.map(({ name }) => name).join(", ")}.`,
+        `Select Project Artifacts for: ${missingRequired.map(({ name }) => name).join(", ")}.`,
       );
       return;
     }
@@ -274,7 +274,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
         </div>
       ) : (
         <label>
-          Exact Audit profile
+          Audit profile
           <select
             value={effectiveProfileSelection}
             onChange={(event) => selectProfile(event.currentTarget.value)}
@@ -309,7 +309,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
         </button>
       ) : null}
       {profile.isPending && selectedSummary !== undefined ? (
-        <p className="loading-copy">Loading exact profile contract…</p>
+        <p className="loading-copy">Loading profile contract…</p>
       ) : profile.error !== null ? (
         <ErrorNotice error={profile.error} />
       ) : exactProfile === undefined ? null : (
@@ -345,7 +345,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
           </div>
           {exactProfile.standards.length === 0 ? null : (
             <p className="notice" data-testid="audit-profile-standards">
-              Exact standards pinned at start:{" "}
+              Standards pinned at start:{" "}
               {exactProfile.standards
                 .map((standard) => `${standard.scheme}@${standard.version}`)
                 .join(", ")}
@@ -360,14 +360,14 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
               <p>
                 Levels{" "}
                 {exactProfile.inventory.standardSelection.levels.join(", ")} ·{" "}
-                {exactProfile.inventory.standardSelection.entryIds.length} exact
+                {exactProfile.inventory.standardSelection.entryIds.length}{" "}
                 requirements
               </p>
             </div>
           )}
           {exactProfile.serverCompatible ? (
             <p className="notice notice-success" role="status">
-              This exact profile version is supported by the Server.
+              This profile version is supported by the Server.
               {exactProfile.requiresInputValidation
                 ? " Inputs are validated when the Audit starts."
                 : ""}
@@ -383,7 +383,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
             </div>
           )}
           <fieldset className="audit-input-fields">
-            <legend>Exact Project inputs</legend>
+            <legend>Project inputs</legend>
             {artifacts.isPending ||
             (artifacts.hasNextPage && !artifacts.isError) ? (
               <p className="loading-copy" role="status">
@@ -429,7 +429,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
                     <option value="">
                       {compatible.length === 0
                         ? "No compatible current Artifact"
-                        : "Select an exact revision"}
+                        : "Select a revision"}
                     </option>
                     {compatible.map((artifact) => (
                       <option

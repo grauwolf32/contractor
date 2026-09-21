@@ -264,7 +264,7 @@ function guidance(
   }
   return {
     kind: "inspect",
-    title: "Use the durable Run record",
+    title: "Use the Run record",
     message:
       "Inspect the focused attempt and recorded diagnostics. Contractor does not infer an operator action from an unknown or incomplete cause.",
   };

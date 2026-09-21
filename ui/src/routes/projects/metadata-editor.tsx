@@ -126,7 +126,7 @@ export function ProjectMetadataEditor({ project }: { project: Project }) {
       )}
       <div className="project-form-actions">
         <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Saving…" : "Save exact update"}
+          {mutation.isPending ? "Saving…" : "Save changes"}
         </button>
         <button
           className="secondary-button"

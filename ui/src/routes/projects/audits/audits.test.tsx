@@ -486,7 +486,7 @@ describe("Project Audit routes", () => {
           await screen.findByText("Server returned an invalid Audit response"),
         ).toBeVisible();
         expect(
-          screen.queryByRole("button", { name: "Download exact summary" }),
+          screen.queryByRole("button", { name: "Download summary" }),
         ).not.toBeInTheDocument();
         expect(
           screen.queryByRole("heading", { name: "Coverage summary" }),
@@ -494,7 +494,7 @@ describe("Project Audit routes", () => {
         return;
       }
       const button = await screen.findByRole("button", {
-        name: "Download exact summary",
+        name: "Download summary",
       });
       expect(
         await screen.findByRole("heading", { name: "Coverage summary" }),
@@ -596,7 +596,7 @@ describe("Project Audit routes", () => {
     });
     expect(
       await screen.findByText(
-        "Exact standards pinned at start: owasp-web-top10@2025",
+        "Standards pinned at start: owasp-web-top10@2025",
       ),
     ).toBeVisible();
     expect(
@@ -604,7 +604,7 @@ describe("Project Audit routes", () => {
     ).toHaveTextContent("ASVS 5.0 Level 1 source pilot");
     expect(
       screen.getByTestId("audit-profile-standard-selection"),
-    ).toHaveTextContent("2 exact requirements");
+    ).toHaveTextContent("2 requirements");
     await waitFor(() =>
       expect(screen.getByLabelText("Input source")).toHaveValue(
         JSON.stringify(sourceArtifact.artifact),
@@ -648,7 +648,7 @@ describe("Project Audit routes", () => {
       loadArtifacts: () =>
         jsonResponse({ items: [sourceArtifact], page: { hasMore: false } }),
     });
-    const select = screen.getByLabelText("Exact Audit profile");
+    const select = screen.getByLabelText("Audit profile");
     expect(select).toHaveValue(JSON.stringify([profile.ref.name, "10"]));
     await user.selectOptions(select, JSON.stringify([profile.ref.name, "2"]));
     await user.type(
@@ -746,7 +746,7 @@ describe("Project Audit routes", () => {
       ),
     );
     await user.selectOptions(
-      screen.getByLabelText("Exact Audit profile"),
+      screen.getByLabelText("Audit profile"),
       JSON.stringify([otherProfile.ref.name, otherProfile.ref.version]),
     );
     await waitFor(() =>
@@ -831,7 +831,7 @@ describe("Project Audit routes", () => {
 
     await userEvent
       .setup()
-      .click(await screen.findByText("Baseline and exact standards"));
+      .click(await screen.findByText("Baseline and standards"));
     const standards = await screen.findByTestId("audit-baseline-standards");
     expect(within(standards).getByText("OWASP Top 10:2025")).toBeVisible();
     expect(within(standards).getByText("owasp-web-top10@2025")).toBeVisible();
@@ -1217,7 +1217,7 @@ describe("Project Audit routes", () => {
       "duplicate",
     );
     expect(
-      within(firstCard.getByLabelText("Canonical finding"))
+      within(firstCard.getByLabelText("Linked finding"))
         .getAllByRole("option")
         .map((option) => option.textContent),
     ).toEqual(["Missing rate limit · finding_sibling"]);
@@ -1743,9 +1743,7 @@ describe("Project Audit routes", () => {
       screen.getByLabelText("Rationale"),
       "The target and exact active request are **approved**.",
     );
-    await user.click(
-      screen.getByRole("button", { name: "Approve exact subject" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Approve subject" }));
     expect(
       await screen.findByText("approve", { exact: false, selector: "span" }),
     ).toBeVisible();
@@ -2681,7 +2679,7 @@ describe("Audit workspace snapshot navigation", () => {
       await screen.findByText("Exact retained evidence for owner acceptance."),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Approve exact subject" }),
+      screen.getByRole("button", { name: "Approve subject" }),
     ).toBeDisabled();
     await user.click(screen.getByRole("link", { name: "← Audit reviews" }));
     expect(router.state.location.pathname + router.state.location.search).toBe(
@@ -2694,7 +2692,7 @@ describe("Audit workspace snapshot navigation", () => {
       await screen.findByText(/requested report review is unavailable/),
     ).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Approve exact subject" }),
+      screen.queryByRole("button", { name: "Approve subject" }),
     ).not.toBeInTheDocument();
     expect(mutations).toEqual([]);
   });

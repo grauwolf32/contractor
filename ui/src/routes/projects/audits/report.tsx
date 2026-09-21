@@ -94,10 +94,8 @@ export function AuditReportView({
         <>
           {report.data.status === "proposed" ? (
             <div className="notice">
-              <strong>This exact report is awaiting owner acceptance.</strong>
-              <p>
-                Review the exact frozen contents below before making a decision.
-              </p>
+              <strong>This report is awaiting owner acceptance.</strong>
+              <p>Review the contents below before making a decision.</p>
             </div>
           ) : null}
           {report.data.summary === undefined ? null : (
@@ -130,7 +128,7 @@ export function AuditReportView({
                       )
                     }
                   >
-                    Download exact JSON
+                    Download JSON
                   </button>
                 )}
               </div>
@@ -154,7 +152,7 @@ export function AuditReportView({
                       )
                     }
                   >
-                    Download exact summary
+                    Download summary
                   </button>
                 )}
               </div>

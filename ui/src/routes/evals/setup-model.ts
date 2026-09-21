@@ -121,7 +121,7 @@ export function sortedBindings(
 export function draftProblem(name: string, draft: EvalDraft): string | null {
   if (!name.trim()) return "Name the experiment.";
   if (draft.variants.some((v) => !v.selector))
-    return "Choose both exact A/B versions.";
+    return "Choose both A/B versions.";
   if (!draft.dataset.id || !draft.dataset.revision || !draft.caseIds.length)
     return "Select a dataset revision and at least one case.";
   if (

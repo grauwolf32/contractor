@@ -67,7 +67,7 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
           disabled={download.isPending}
           onClick={() => download.mutate()}
         >
-          {download.isPending ? "Downloading…" : "Download exact revision"}
+          {download.isPending ? "Downloading…" : "Download this revision"}
         </button>
         <ArtifactHistoryButton />
       </div>
@@ -94,7 +94,7 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
         </details>
       ) : (
         <div className="panel compact-empty">
-          <strong>Historical revision is immutable.</strong>
+          <strong>Historical revisions are read-only.</strong>
           <p>Select the current revision to upload a new version.</p>
         </div>
       )}
@@ -148,7 +148,7 @@ function ArtifactHistory({ metadata }: { metadata: ArtifactMetadata }) {
       <div className="panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Immutable history</p>
+            <p className="eyebrow">History</p>
             <h3>Versions</h3>
           </div>
         </div>

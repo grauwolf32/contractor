@@ -244,9 +244,7 @@ export function useLiveRunProjection(run: RunStatus): LiveRunProjection {
             }
             resyncing.current = false;
             setConnection("error");
-            setError(
-              "Authoritative REST resynchronization failed; use Refresh to retry.",
-            );
+            setError("Resynchronization failed; use Refresh to retry.");
           });
       },
       onStateChange: (state) => {

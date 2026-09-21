@@ -16,7 +16,6 @@ export function OperationsOverviewRoute() {
         className="panel operations-readiness"
         aria-labelledby="operations-readiness-heading"
       >
-        <p className="eyebrow">Authoritative process snapshot</p>
         <h3 id="operations-readiness-heading">Execution readiness</h3>
         <dl className="metadata-grid">
           <div>
@@ -54,11 +53,7 @@ export function OperationsOverviewRoute() {
             </dd>
           </div>
         </dl>
-        <p>
-          Idle slots do not establish compatible capacity for a particular Run.
-          Placement depends on its requirements and each Runtime Agent’s
-          capabilities and resolved settings.
-        </p>
+        <p>Idle slots do not guarantee capacity for a particular Run.</p>
         {snapshot.runtimeAgents.length === 0 ? (
           <p className="notice">
             No Runtime processes are present in this snapshot. Inspect agent
@@ -107,7 +102,9 @@ export function OperationsOverviewRoute() {
         <p className="eyebrow">Reconciliation</p>
         <strong>{mismatches}</strong>
         <h3>Visible mismatches</h3>
-        <p>Observed and authoritative facts remain deliberately separate.</p>
+        <p>
+          Runtime Agents whose observed state differs from their assignment.
+        </p>
       </Link>
     </div>
   );

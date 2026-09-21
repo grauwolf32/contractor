@@ -105,7 +105,7 @@ function ExactFinding({
       />
     );
   if (finding.isPending || (reviewId !== null && review.isPending))
-    return <p role="status">Loading exact finding and review…</p>;
+    return <p role="status">Loading finding and review…</p>;
   const stale =
     review.data !== undefined &&
     (review.data.subjectKind !== "finding" ||

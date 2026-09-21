@@ -581,8 +581,7 @@ export function OperationsPerformanceRoute() {
         >
           <strong>Performance collection is disabled.</strong>
           <p>
-            No current values are manufactured. Retained durable history remains
-            available below until its seven-day expiry.
+            Retained history remains available below until its seven-day expiry.
           </p>
         </div>
       ) : current.data.current === undefined ? (
@@ -608,7 +607,6 @@ export function OperationsPerformanceRoute() {
       >
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Volatile + seven-day retained series</p>
             <h3 id="performance-history-heading">History</h3>
           </div>
           <label className="performance-range-control">

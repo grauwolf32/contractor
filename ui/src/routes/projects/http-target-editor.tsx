@@ -46,7 +46,6 @@ export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
   return (
     <div className="project-target-card">
       <div>
-        <p className="eyebrow">Allocation-only HTTP configuration</p>
         <h4>Application target</h4>
         {project.httpTarget === undefined ? (
           <p className="muted-copy">

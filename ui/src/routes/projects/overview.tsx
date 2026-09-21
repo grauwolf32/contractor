@@ -73,7 +73,7 @@ function RecentRunResults({
       </small>
       {run.isPending ? (
         <p className="loading-copy" role="status">
-          Loading exact outputs…
+          Loading outputs…
         </p>
       ) : run.error ? (
         <>

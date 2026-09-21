@@ -173,10 +173,7 @@ export function QueuePanel() {
         <div>
           <p className="eyebrow">Display order</p>
           <h3>Active queue · oldest first</h3>
-          <p className="muted-copy">
-            This stable display order is not Scheduler priority, rank, or an
-            estimated start position.
-          </p>
+          <p className="muted-copy">Position here is not Scheduler priority.</p>
         </div>
         <div className="queue-filters run-view-controls">
           <div

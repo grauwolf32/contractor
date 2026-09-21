@@ -326,10 +326,8 @@ describe("Operations routes", () => {
     await user.click(
       screen.getByRole("button", { name: "Clone to new version" }),
     );
-    await user.type(screen.getByLabelText("New immutable version"), "2");
-    await user.click(
-      screen.getByRole("button", { name: "Publish immutable version" }),
-    );
+    await user.type(screen.getByLabelText("New version"), "2");
+    await user.click(screen.getByRole("button", { name: "Publish version" }));
     expect(await screen.findByText("Published worker@2")).toBeInTheDocument();
     expect(screen.getByText("worker@1")).toBeInTheDocument();
     expect(publishedBodies).toEqual([
@@ -433,7 +431,7 @@ describe("Operations routes", () => {
       "Worker budget",
     );
     await user.selectOptions(
-      screen.getByLabelText("Exact managed LLM Gateway"),
+      screen.getByLabelText("Managed LLM Gateway"),
       screen.getByRole("option", { name: /local-litellm@1/ }),
     );
     await user.click(screen.getByLabelText(/worker@1/));
@@ -744,7 +742,7 @@ describe("Operations routes", () => {
     await user.type(screen.getByLabelText("RuntimeConfig name"), "debug");
     await user.click(screen.getByLabelText("Worker LLM Gateway route"));
     await user.selectOptions(
-      screen.getByLabelText("Exact LLM Gateway"),
+      screen.getByLabelText("LLM Gateway"),
       screen.getByRole("option", { name: /local-litellm@1/ }),
     );
     const telemetryGroup = screen.getByRole("group", {
@@ -778,7 +776,7 @@ describe("Operations routes", () => {
     );
     await user.click(
       screen.getByRole("button", {
-        name: "Publish immutable RuntimeConfig",
+        name: "Publish RuntimeConfig",
       }),
     );
     expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
@@ -816,7 +814,7 @@ describe("Operations routes", () => {
       .querySelector("form.runtime-label-create") as HTMLFormElement;
     await user.type(within(labelForm).getByLabelText("New label"), "debug");
     await user.selectOptions(
-      within(labelForm).getByLabelText("Exact RuntimeConfig"),
+      within(labelForm).getByLabelText("RuntimeConfig"),
       `${publishedResource!.ref.name}@${publishedResource!.ref.version}:${publishedResource!.ref.digest}`,
     );
     await user.click(
@@ -845,7 +843,7 @@ describe("Operations routes", () => {
     ).toBeInTheDocument();
     expect(
       within(debugCard).getByRole("button", {
-        name: "Reload authoritative binding",
+        name: "Reload binding",
       }),
     ).toBeInTheDocument();
     await user.click(
