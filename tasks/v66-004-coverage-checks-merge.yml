@@ -3,7 +3,7 @@ id: V66-004
 title: Fold audit Checks into Coverage rows
 milestone: ui-design-review-2
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: []
 languages:
