@@ -42,6 +42,7 @@ type serverConfigValues struct {
 	localAuthFile               string
 	browserOrigins              []string
 	insecureLoopbackCookie      bool
+	trustedProxies              []string
 	caFile                      string
 	certificateFile             string
 	privateKeyFile              string
@@ -79,6 +80,7 @@ type serverConfigSpec struct {
 	LocalAuthFile               *string   `yaml:"localAuthFile"`
 	BrowserOrigins              *[]string `yaml:"browserOrigins"`
 	InsecureLoopbackCookie      *bool     `yaml:"insecureLoopbackCookie"`
+	TrustedProxies              *[]string `yaml:"trustedProxies"`
 	CAFile                      *string   `yaml:"caFile"`
 	CertificateFile             *string   `yaml:"certificateFile"`
 	PrivateKeyFile              *string   `yaml:"privateKeyFile"`
@@ -214,6 +216,9 @@ func applyServerConfigSpec(values *serverConfigValues, spec serverConfigSpec, ba
 	}
 	if spec.InsecureLoopbackCookie != nil {
 		values.insecureLoopbackCookie = *spec.InsecureLoopbackCookie
+	}
+	if spec.TrustedProxies != nil {
+		values.trustedProxies = append([]string(nil), (*spec.TrustedProxies)...)
 	}
 	setConfigPath(&values.caFile, spec.CAFile, base)
 	setConfigPath(&values.certificateFile, spec.CertificateFile, base)

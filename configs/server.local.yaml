@@ -52,6 +52,9 @@ spec:
   browserOrigins:
     - http://127.0.0.1:4173
   insecureLoopbackCookie: true
+  # Browsers reach this demo listener directly; list the reverse proxy's
+  # source address here when one fronts the public API.
+  trustedProxies: []
 
   caFile: ../.local/pki/ca.crt
   certificateFile: ../.local/pki/control-plane.crt

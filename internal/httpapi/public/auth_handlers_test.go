@@ -179,6 +179,60 @@ func TestLoginFailuresAreGenericAndRateLimitedBySocketPeer(t *testing.T) {
 	}
 }
 
+func TestLoginRateLimitFollowsForwardedClientBehindTrustedProxies(t *testing.T) {
+	trustedPeers, err := auth.NewPeerPolicy([]string{"10.0.0.0/8"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := newHandlerFixtureWithAuth(
+		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		func(dependencies *Dependencies) { dependencies.TrustedPeers = trustedPeers },
+	)
+	attempt := func(remote, forwardedFor string) *httptest.ResponseRecorder {
+		t.Helper()
+		request := newLoginRequest("admin", "incorrect password", testBrowserOrigin)
+		request.RemoteAddr = remote
+		if forwardedFor != "" {
+			request.Header.Set("X-Forwarded-For", forwardedFor)
+		}
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+	const proxy = "10.1.2.3:44000"
+	// Five failures from one forwarded client exhaust only that client's window.
+	for range 5 {
+		if response := attempt(proxy, "203.0.113.9"); response.Code != http.StatusUnauthorized {
+			t.Fatalf("forwarded client failure = %d: %s", response.Code, response.Body.String())
+		}
+	}
+	if response := attempt(proxy, "192.0.2.250, 203.0.113.9"); response.Code != http.StatusTooManyRequests {
+		t.Fatalf("forwarded client with a spoofed prefix was not limited: %d", response.Code)
+	}
+	if response := attempt(proxy, "203.0.113.10"); response.Code != http.StatusUnauthorized {
+		t.Fatalf("a different forwarded client shares the limited bucket: %d", response.Code)
+	}
+	// A peer outside the trusted proxies cannot choose its bucket by forwarding.
+	direct := "198.51.100.4:51000"
+	for range 5 {
+		if response := attempt(direct, "203.0.113.11"); response.Code != http.StatusUnauthorized {
+			t.Fatalf("direct failure = %d", response.Code)
+		}
+	}
+	if response := attempt(direct, "203.0.113.12"); response.Code != http.StatusTooManyRequests {
+		t.Fatalf("untrusted peer escaped its socket bucket through X-Forwarded-For: %d", response.Code)
+	}
+	// A successful login from the proxy is still accepted for an unlimited client.
+	success := newLoginRequest("admin", testAuthPassword, testBrowserOrigin)
+	success.RemoteAddr = proxy
+	success.Header.Set("X-Forwarded-For", "203.0.113.13")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, success)
+	if response.Code != http.StatusOK {
+		t.Fatalf("proxied login = %d: %s", response.Code, response.Body.String())
+	}
+}
+
 func TestCredentialedCORSPreflightIsExactAndBounded(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	unauthorized := httptest.NewRequest(http.MethodGet, "/v1/runs", nil)

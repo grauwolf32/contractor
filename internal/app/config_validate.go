@@ -69,6 +69,9 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 			return Config{}, fmt.Errorf("invalid browser origins: %w", err)
 		}
 	}
+	if _, err := auth.NewPeerPolicy(c.trustedProxies.values); err != nil {
+		return Config{}, fmt.Errorf("invalid trusted proxies: %w", err)
+	}
 	if _, err := workflowconfig.ParseSelector(c.developmentLLMGateway); err != nil {
 		return Config{}, errors.New("development-llm-gateway must be an exact name@version selector")
 	}
@@ -103,6 +106,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 		PublicBearerToken: c.publicBearerToken,
 		LocalAuthFile:     c.localAuthFile, BrowserOrigins: append([]string(nil), c.browserOrigins.values...),
 		InsecureLoopbackCookie: c.insecureLoopbackCookie,
+		TrustedProxies:         append([]string(nil), c.trustedProxies.values...),
 		PerformanceMetrics:     metricsEnabled, Pprof: pprofEnabled, PprofListen: c.pprofListen,
 	}, nil
 }

@@ -44,7 +44,7 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	peerIP, err := auth.PeerIP(r.RemoteAddr)
+	peerIP, err := h.dependencies.TrustedPeers.ClientIP(r.RemoteAddr, r.Header.Values("X-Forwarded-For"))
 	if err != nil {
 		h.handleError(w, errInvalidRequest)
 		return

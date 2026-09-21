@@ -212,14 +212,17 @@ type FindingProposalManagement interface {
 }
 
 type Dependencies struct {
-	GatewayRecovery         *gatewayrecovery.Service
-	Evals                   EvalManagement
-	EvalNotifier            interface{ Wake() }
-	GitImports              GitImportService
-	GitKeys                 GitKeySettings
-	Authentication          *auth.Service
-	BrowserOrigins          auth.OriginPolicy
-	InsecureLoopbackCookie  bool
+	GatewayRecovery        *gatewayrecovery.Service
+	Evals                  EvalManagement
+	EvalNotifier           interface{ Wake() }
+	GitImports             GitImportService
+	GitKeys                GitKeySettings
+	Authentication         *auth.Service
+	BrowserOrigins         auth.OriginPolicy
+	InsecureLoopbackCookie bool
+	// TrustedPeers resolves the login rate-limit client behind reverse proxies;
+	// its zero value attributes every failure to the socket peer.
+	TrustedPeers            auth.PeerPolicy
 	Config                  ConfigurationCatalog
 	ConfigurationPublisher  ConfigurationPublisher
 	Credentials             config.CredentialLookup

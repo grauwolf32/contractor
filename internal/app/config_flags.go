@@ -63,6 +63,11 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 		c.insecureLoopbackCookie,
 		"use the separately named insecure cookie on an IP-literal loopback listener",
 	)
+	flags.Var(
+		&c.trustedProxies,
+		"trusted-proxy",
+		"reverse proxy IP or CIDR whose X-Forwarded-For identifies login clients; repeat for multiple proxies",
+	)
 	flags.StringVar(&c.caFile, "ca-file", c.caFile, "deployment CA certificate")
 	flags.StringVar(&c.certificateFile, "certificate-file", c.certificateFile, "Control Plane certificate")
 	flags.StringVar(&c.privateKeyFile, "private-key-file", c.privateKeyFile, "Control Plane private key")

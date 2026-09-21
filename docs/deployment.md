@@ -78,13 +78,18 @@ spec:
   browserOrigins:
     - https://ui.contractor.example
   insecureLoopbackCookie: false
+  trustedProxies:
+    - 127.0.0.1
   caFile: pki/ca.crt
   certificateFile: pki/control-plane.crt
   privateKeyFile: pki/control-plane.key
   artifactBlobBackend: postgresql
 ```
 
-Replace the example origin with the real proxy origin. The
+Replace the example origin with the real proxy origin, and list the reverse
+proxy's own source address in `trustedProxies` so failed logins are throttled
+per browser client from `X-Forwarded-For` rather than per proxy; leave the list
+empty when clients connect to Server directly. The
 [local configuration](../configs/server.local.yaml) shows additional timeout
 and diagnostics settings, with an explicitly insecure loopback browser mode.
 Process settings follow `defaults < YAML < environment < flags` and require a

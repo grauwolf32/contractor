@@ -33,6 +33,7 @@ spec:
   localAuthFile: secrets/local-auth.yaml
   browserOrigins: [http://127.0.0.1:4173]
   insecureLoopbackCookie: true
+  trustedProxies: [10.0.0.0/8, 192.0.2.7]
   caFile: pki/ca.crt
   certificateFile: pki/control-plane.crt
   privateKeyFile: pki/control-plane.key
@@ -73,6 +74,7 @@ spec:
 	}
 	if len(cfg.BrowserOrigins) != 1 ||
 		cfg.BrowserOrigins[0] != "http://127.0.0.1:4173" || !cfg.InsecureLoopbackCookie ||
+		len(cfg.TrustedProxies) != 2 || cfg.TrustedProxies[0] != "10.0.0.0/8" || cfg.TrustedProxies[1] != "192.0.2.7" ||
 		cfg.PerformanceMetrics || !cfg.Pprof || cfg.PprofListen != "127.0.0.1:6061" {
 		t.Fatalf("remaining ServerConfig settings = %+v", cfg)
 	}
@@ -107,6 +109,7 @@ spec:
 		"CONTRACTOR_PERFORMANCE_METRICS":  "true",
 		"CONTRACTOR_PPROF":                "false",
 		"CONTRACTOR_BROWSER_ORIGINS":      "https://environment.example",
+		"CONTRACTOR_TRUSTED_PROXIES":      "10.0.0.0/8,10.1.0.0/16",
 	}
 	cfg, err := ParseConfig([]string{
 		"--server-config=" + flagPath,
@@ -116,6 +119,7 @@ spec:
 		"--pprof=true",
 		"--browser-origin=https://flag-one.example",
 		"--browser-origin=https://flag-two.example",
+		"--trusted-proxy=192.0.2.0/24",
 	}, func(name string) string { return environment[name] })
 	if err != nil {
 		t.Fatal(err)
@@ -130,6 +134,15 @@ spec:
 	if len(cfg.BrowserOrigins) != 2 || cfg.BrowserOrigins[0] != "https://flag-one.example" ||
 		cfg.BrowserOrigins[1] != "https://flag-two.example" {
 		t.Fatalf("browser origins = %v", cfg.BrowserOrigins)
+	}
+	if len(cfg.TrustedProxies) != 1 || cfg.TrustedProxies[0] != "192.0.2.0/24" {
+		t.Fatalf("trusted proxies = %v", cfg.TrustedProxies)
+	}
+	if _, err := ParseConfig(
+		[]string{"--trusted-proxy=0.0.0.0/0"},
+		func(name string) string { return environment[name] },
+	); err == nil || !strings.Contains(err.Error(), "trusted proxies") {
+		t.Fatalf("catch-all trusted proxy was accepted: %v", err)
 	}
 }
 

@@ -53,6 +53,7 @@ type Config struct {
 	LocalAuthFile               string
 	BrowserOrigins              []string
 	InsecureLoopbackCookie      bool
+	TrustedProxies              []string
 	PerformanceMetrics          bool
 	Pprof                       bool
 	PprofListen                 string
@@ -106,6 +107,10 @@ func RunCLI(
 	browserOrigins, err := auth.NewOriginPolicy(cfg.BrowserOrigins, cfg.InsecureLoopbackCookie)
 	if err != nil {
 		return fmt.Errorf("configure browser origins: %w", err)
+	}
+	trustedPeers, err := auth.NewPeerPolicy(cfg.TrustedProxies)
+	if err != nil {
+		return fmt.Errorf("configure trusted proxies: %w", err)
 	}
 	if strings.TrimSpace(cfg.CAFile) == "" || strings.TrimSpace(cfg.CertificateFile) == "" ||
 		strings.TrimSpace(cfg.PrivateKeyFile) == "" {
@@ -190,7 +195,7 @@ func RunCLI(
 		return fmt.Errorf("configure Evals: %w", err)
 	}
 	handlers, err := configureHTTP(
-		pool, configurationManager, cfg, authentication, browserOrigins, eventHub,
+		pool, configurationManager, cfg, authentication, browserOrigins, trustedPeers, eventHub,
 		credentialSet, control, catalogs, workflows, audits, evals, logger,
 	)
 	if err != nil {

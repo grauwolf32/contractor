@@ -32,6 +32,7 @@ type serveConfigInputs struct {
 	localAuthFile               string
 	browserOrigins              repeatedStringFlag
 	insecureLoopbackCookie      bool
+	trustedProxies              repeatedStringFlag
 	caFile                      string
 	certificateFile             string
 	privateKeyFile              string
@@ -123,6 +124,13 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		}
 		insecureLoopbackCookie = parsed
 	}
+	trustedProxies := repeatedStringFlag{
+		values:          append([]string(nil), settings.trustedProxies...),
+		clearOnFirstSet: true,
+	}
+	if encoded := getenv("CONTRACTOR_TRUSTED_PROXIES"); encoded != "" {
+		trustedProxies.values = strings.Split(encoded, ",")
+	}
 	caFile := settings.caFile
 	if value := getenv("CONTRACTOR_CA_FILE"); value != "" {
 		caFile = value
@@ -182,6 +190,7 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		localAuthFile:               localAuthFile,
 		browserOrigins:              browserOrigins,
 		insecureLoopbackCookie:      insecureLoopbackCookie,
+		trustedProxies:              trustedProxies,
 		caFile:                      caFile,
 		certificateFile:             certificateFile,
 		privateKeyFile:              privateKeyFile,

@@ -1130,9 +1130,21 @@ before password verification, including when Content-Length is absent.
 Login uses `Cache-Control: no-store` and one generic failure response for unknown
 username and bad password. Before Argon2 verification, an
 in-memory limiter permits at most five failed attempts per rolling minute for
-one socket-peer IP and 30 process-wide; it does not trust forwarded-IP headers
-in the first slice. Excess returns `429` plus bounded `Retry-After` without
-creating an account lockout.
+one client IP and 30 process-wide. Excess returns `429` plus bounded
+`Retry-After` without creating an account lockout.
+
+The client IP is the socket peer unless that peer is listed in the optional
+`trustedProxies` setting (exact IPs or CIDR prefixes; repeatable
+`--trusted-proxy`; comma-separated `CONTRACTOR_TRUSTED_PROXIES`). Behind a
+trusted proxy, Server walks `X-Forwarded-For` from the proxy-appended end
+toward the client and attributes the failure to the first hop that is not
+itself a trusted proxy, so a client cannot choose its limiter bucket by
+forwarding headers of its own. A peer outside the list is always the client,
+whatever it forwards. A chain the proxy did not populate, or one containing an
+unparseable hop, degrades to the proxy address rather than failing login.
+Catch-all prefixes are rejected at startup, and the default trusts nothing,
+which makes every client behind an unlisted reverse proxy share one per-IP
+window: production deployments behind a proxy must list it.
 
 The browser auth API is:
 
@@ -1153,10 +1165,11 @@ cookie is permitted only behind an explicit loopback-development mode and is
 never accepted on a non-loopback listener.
 
 The concrete bootstrap settings are the required absolute
-`--local-auth-file`, repeatable exact `--browser-origin`, and optional
-`--insecure-loopback-cookie`. Their environment equivalents are
-`CONTRACTOR_LOCAL_AUTH_FILE`, comma-separated `CONTRACTOR_BROWSER_ORIGINS`, and
-`CONTRACTOR_INSECURE_LOOPBACK_COOKIE`. The insecure mode uses only
+`--local-auth-file`, repeatable exact `--browser-origin`, optional
+`--insecure-loopback-cookie`, and repeatable `--trusted-proxy`. Their
+environment equivalents are `CONTRACTOR_LOCAL_AUTH_FILE`, comma-separated
+`CONTRACTOR_BROWSER_ORIGINS`, `CONTRACTOR_INSECURE_LOOPBACK_COOKIE`, and
+comma-separated `CONTRACTOR_TRUSTED_PROXIES`. The insecure mode uses only
 `contractor_loopback_session` and requires an IP-literal loopback Server
 listener. It permits exact HTTP browser origins only on loopback or RFC 1918
 private IPv4 literals, allowing an explicitly trusted local-network demo proxy;
