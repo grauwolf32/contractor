@@ -3,7 +3,7 @@ id: V66-008
 title: Bound audit collection loading and stop polling terminal audits
 milestone: ui-design-review-2
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: []
 languages:
