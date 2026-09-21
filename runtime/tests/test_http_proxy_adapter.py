@@ -63,6 +63,7 @@ def test_llm_gateway_target_routes_only_model_traffic_and_changes_no_globals() -
                     request_timeout_seconds=2,
                 ),
                 adapter_handles=adapter.handles,
+                gateway_recovery=None,
             )
             model = gateway_model(context)
             assert isinstance(model, OpenAICompatibleGatewayLlm)
@@ -299,6 +300,7 @@ async def assert_safe_model_proxy_failure(proxy_url: str, backend_url: str) -> N
             request_timeout_seconds=2,
         ),
         adapter_handles=adapter.handles,
+        gateway_recovery=None,
     )
     model = gateway_model(context)
     request = LlmRequest(

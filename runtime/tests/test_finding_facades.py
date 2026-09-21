@@ -29,9 +29,7 @@ from contractor_runtime.toolsets.security_findings.facades import (
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
 LOCATION_CASES = json.loads(
-    (
-        Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-locations.json"
-    ).read_text()
+    (Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-locations.json").read_text()
 )
 
 
