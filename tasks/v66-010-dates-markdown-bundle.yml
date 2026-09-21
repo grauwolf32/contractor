@@ -3,8 +3,8 @@ id: V66-010
 title: Relative dates, scaled Markdown headings and smaller main bundle
 milestone: ui-design-review-2
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 9e5d19dcdd3f2662135eea3dd28dfb428db07a98
 depends_on: []
 languages:
 - typescript
@@ -48,3 +48,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest 78 files / 615 tests pass twice in a row; test:server 11/11; eslint, prettier, tsc (app and e2e) clean; vite build ok.
+  bundle: eager index 1,194,209 B -> index 72 KB + vendor 314 KB; lazy chunks (likec4, Scalar, openapi) unchanged.
+  dates: RecordedTime in queue, runs list, run artifacts, artifacts, allocations, credentials, runtime configs, home, skills; formatTimestamp fixed to en-US medium format for detail blocks.
+  leftovers: evals/pair.tsx and settings/git-key.tsx still call toLocaleString; .result-summary keeps 0.95rem headings by design.

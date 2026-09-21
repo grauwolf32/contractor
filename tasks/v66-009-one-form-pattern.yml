@@ -3,7 +3,7 @@ id: V66-009
 title: Use one pattern for create flows
 milestone: ui-design-review-2
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: []
 languages:

@@ -3,7 +3,7 @@ id: V66-005
 title: Gather execution configuration under one Operations section
 milestone: ui-design-review-2
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: []
 languages:
