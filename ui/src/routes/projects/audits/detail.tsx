@@ -1,6 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router";
 
 import {
   AUDIT_ID_PATTERN,
@@ -20,7 +26,7 @@ import { StateBadge } from "../../runs/components";
 import { AuditFindings } from "./audit-findings";
 import { AuditControls } from "./controls";
 import { AuditCoverage } from "./coverage";
-import { AuditChecks, AuditRuns } from "./executions";
+import { AuditRuns } from "./executions";
 import { auditProfileLabel } from "./labels";
 import { AuditOverview } from "./overview";
 import { AuditReportView } from "./report";
@@ -31,19 +37,12 @@ export { AuditFindingCard } from "./finding-card";
 import "./styles.css";
 
 type AuditSection =
-  | "overview"
-  | "coverage"
-  | "findings"
-  | "checks"
-  | "reviews"
-  | "runs"
-  | "report";
+  "overview" | "coverage" | "findings" | "reviews" | "runs" | "report";
 
 const SECTIONS: readonly { id: AuditSection; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "coverage", label: "Coverage" },
   { id: "findings", label: "Findings" },
-  { id: "checks", label: "Checks" },
   { id: "reviews", label: "Reviews" },
   { id: "runs", label: "Runs" },
   { id: "report", label: "Report" },
@@ -65,8 +64,6 @@ function AuditSectionContent({
       return <AuditCoverage audit={audit} />;
     case "findings":
       return <AuditFindings audit={audit} />;
-    case "checks":
-      return <AuditChecks audit={audit} api={api} />;
     case "reviews":
       return <AuditReviews audit={audit} />;
     case "runs":
@@ -145,6 +142,20 @@ export function ProjectAuditDetailRoute() {
       });
     }
   }, [audit.error, navigate, projectId, queryClient]);
+
+  // The Checks tab was folded into Coverage rows; keep old links working.
+  if (rawSection === "checks" && validRoute)
+    return (
+      <Navigate
+        to={{
+          pathname: `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/coverage`,
+          search: location.search,
+          hash: location.hash,
+        }}
+        replace
+        state={location.state}
+      />
+    );
 
   let content: ReactNode;
   if (!validRoute)

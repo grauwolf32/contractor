@@ -97,7 +97,7 @@
 }
 
 .audit-finding-card,
-.audit-check-card {
+.audit-check-row {
   scroll-margin-top: 5rem;
 }
 
@@ -125,8 +125,7 @@
 }
 
 .audit-create-form,
-.audit-section-panel,
-.audit-check-card {
+.audit-section-panel {
   display: grid;
   gap: 1rem;
 }
@@ -295,7 +294,6 @@
 }
 
 .audit-detail-stack,
-.audit-check-list,
 .audit-finding-list {
   display: grid;
   gap: 1rem;
@@ -579,10 +577,6 @@
   padding-left: 1.1rem;
 }
 
-.audit-check-card h4 {
-  margin: 0.25rem 0 0;
-}
-
 .audit-attempt-list {
   display: grid;
   gap: 0.55rem;
@@ -805,6 +799,24 @@
   display: grid;
   gap: 1rem;
   padding: 1rem 0.9rem 1rem 1.2rem;
+}
+
+.audit-check-attempts {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.audit-item-details {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.audit-item-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
 }
 
 .audit-check-links {
@@ -1182,12 +1194,6 @@
   display: inline-flex;
   gap: 0.5rem;
   align-items: center;
-}
-.audit-check-card:target {
-  scroll-margin-top: 1rem;
-}
-.audit-check-card .audit-record-details > summary {
-  cursor: pointer;
 }
 .audit-result-excerpt {
   color: var(--muted-strong);

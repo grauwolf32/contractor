@@ -1,194 +1,123 @@
 import { useMemo } from "react";
-import { Link, useLocation } from "react-router";
+import { Link } from "react-router";
 
-import { collectAuditPages } from "../../../api/audit-collections";
-import {
-  auditNeedsPolling,
-  listAuditItems,
-  type Audit,
-} from "../../../api/audits";
+import { type Audit, type AuditItem } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
-import { queryKeys } from "../../../api/query-keys";
 import { ContextLink } from "../../../app/context-navigation";
 import { ErrorNotice } from "../../artifacts/common";
 import { StateBadge } from "../../runs/components";
 import { auditCheckTitle } from "./check-title";
 import { useAuditCoverage } from "./coverage-data";
-import { useAuditCollection } from "./collections";
+import { useAuditItems } from "./items-data";
 import { LoadMoreControl } from "./load-more";
-import { useAuditProjectionRefresh } from "./projection-refresh";
-import { AuditAnchor, ExactArtifactLink } from "./shared";
+import { ExactArtifactLink } from "./shared";
 
-function useAuditItems(
-  audit: Audit,
-  api: ReturnType<typeof usePublicAPI>,
-  enabled: boolean,
-) {
-  const queryKey = queryKeys.audits.allItems(audit.auditId);
-  const query = useAuditCollection({
-    queryKey,
-    loadBatch: (cursor) =>
-      collectAuditPages(
-        (pageCursor) =>
-          listAuditItems(
-            api,
-            audit.auditId,
-            pageCursor === undefined ? {} : { cursor: pageCursor },
-          ),
-        cursor === undefined ? {} : { cursor },
-      ),
-    enabled,
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
-  });
-  useAuditProjectionRefresh(audit, queryKey, enabled);
-  return query;
-}
-
-export function AuditChecks({
+/**
+ * Attempts, produced artifacts and exact identity of one check, as read from
+ * the item collection. Rendered inside the opened Coverage row.
+ */
+export function AuditItemDetails({
   audit,
-  api,
+  item,
 }: {
   audit: Audit;
-  api: ReturnType<typeof usePublicAPI>;
+  item: AuditItem;
 }) {
-  const items = useAuditItems(audit, api, true);
-  const { hash } = useLocation();
-  const coverage = useAuditCoverage(audit);
-  if (items.isPending) return <p className="loading-copy">Loading checks…</p>;
-  if (items.error !== null) return <ErrorNotice error={items.error} />;
-  if (items.items.length === 0) {
-    return (
-      <div className="empty-state panel">
-        <h3>No checks materialized</h3>
-        <p>Start the Audit to pin its worklist.</p>
-      </div>
-    );
-  }
   return (
-    <div className="audit-check-list">
-      <AuditAnchor />
-      {items.items.map((item) => (
-        <article
-          className="panel audit-check-card"
-          key={item.itemId}
-          id={`check-${item.itemId}`}
-        >
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">
-                {item.kind} · #{item.ordinal + 1}
-              </p>
-              <h3 title={item.subjectKey}>
-                {auditCheckTitle(
-                  coverage.items.find((row) => row.itemId === item.itemId) ??
-                    item,
-                )}
-              </h3>
-            </div>
-            <StateBadge state={item.state} />
-          </div>
-          <p className="muted-copy">
-            {item.workflowRole} ·{" "}
-            {item.finalDisposition ?? "Pending assessment"} ·{" "}
-            {item.attempts.length} attempts
-          </p>
-          <details
-            className="audit-record-details"
-            open={hash === `#check-${item.itemId}`}
-          >
-            <summary>Attempts, artifacts and identity</summary>
-            <dl className="metadata-grid">
-              <div>
-                <dt>Item key</dt>
-                <dd>
-                  <code>{item.itemKey}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Workflow role</dt>
-                <dd>{item.workflowRole}</dd>
-              </div>
-              <div>
-                <dt>Disposition</dt>
-                <dd>{item.finalDisposition ?? "pending"}</dd>
-              </div>
-              <div>
-                <dt>Origin</dt>
-                <dd>
-                  {item.origin.entryKey}
-                  {item.origin.entryVersion === undefined
-                    ? ""
-                    : `@${item.origin.entryVersion}`}
-                </dd>
-              </div>
-              {item.origin.standard === undefined ? null : (
-                <div>
-                  <dt>Causal standard mapping</dt>
-                  <dd>
-                    <code>
-                      {item.origin.standard.scheme}@
-                      {item.origin.standard.version}/
-                      {item.origin.standard.mappingKey}
-                    </code>
-                  </dd>
-                </div>
+    <div className="audit-item-details" id={`check-${item.itemId}-attempts`}>
+      <p className="audit-item-status">
+        <StateBadge state={item.state} />
+        <span className="muted-copy">
+          {item.workflowRole} · {item.finalDisposition ?? "Pending assessment"}{" "}
+          · {item.attempts.length} attempts
+        </span>
+      </p>
+      {item.attempts.length === 0 ? (
+        <p className="muted-copy">No Run submitted.</p>
+      ) : (
+        <ol className="audit-attempt-list">
+          {item.attempts.map((attempt) => (
+            <li key={attempt.executionItemId}>
+              <span>
+                Attempt {attempt.itemAttempt} · {attempt.state}
+              </span>
+              <span>
+                {attempt.terminalOutcome ?? "not terminal"} ·{" "}
+                {attempt.collectionDisposition ?? "not collected"}
+              </span>
+              {attempt.runId === undefined ? (
+                <span>No child Run</span>
+              ) : (
+                <ContextLink
+                  returnLabel="Audit"
+                  to={`/runs/${encodeURIComponent(attempt.runId)}`}
+                >
+                  {attempt.runDeleted
+                    ? "Deleted Run provenance"
+                    : attempt.runId}
+                </ContextLink>
               )}
-            </dl>
-            <div className="audit-artifact-list">
-              <ExactArtifactLink
-                projectId={audit.projectId}
-                artifact={item.task}
-                label="Task package"
-              />
-              {item.acceptedResult === undefined ? null : (
+              {attempt.result === undefined ? null : (
                 <ExactArtifactLink
                   projectId={audit.projectId}
-                  artifact={item.acceptedResult}
-                  label="Accepted result"
+                  artifact={attempt.result}
+                  label="Produced result"
                 />
               )}
-            </div>
-            <h4>Attempts</h4>
-            {item.attempts.length === 0 ? (
-              <p className="muted-copy">No Run submitted.</p>
-            ) : (
-              <ol className="audit-attempt-list">
-                {item.attempts.map((attempt) => (
-                  <li key={attempt.executionItemId}>
-                    <span>
-                      Attempt {attempt.itemAttempt} · {attempt.state}
-                    </span>
-                    <span>
-                      {attempt.terminalOutcome ?? "not terminal"} ·{" "}
-                      {attempt.collectionDisposition ?? "not collected"}
-                    </span>
-                    {attempt.runId === undefined ? (
-                      <span>No child Run</span>
-                    ) : (
-                      <ContextLink
-                        returnLabel="Audit"
-                        to={`/runs/${encodeURIComponent(attempt.runId)}`}
-                      >
-                        {attempt.runDeleted
-                          ? "Deleted Run provenance"
-                          : attempt.runId}
-                      </ContextLink>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </details>
-        </article>
-      ))}
-      <LoadMoreControl
-        shown={items.items.length}
-        noun="checks"
-        truncated={items.truncated}
-        loading={items.isLoadingMore}
-        error={items.moreError}
-        onLoadMore={items.loadMore}
-      />
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="audit-artifact-list">
+        <ExactArtifactLink
+          projectId={audit.projectId}
+          artifact={item.task}
+          label="Task package"
+        />
+        {item.acceptedResult === undefined ? null : (
+          <ExactArtifactLink
+            projectId={audit.projectId}
+            artifact={item.acceptedResult}
+            label="Accepted result"
+          />
+        )}
+      </div>
+      <dl className="metadata-grid">
+        <div>
+          <dt>Item key</dt>
+          <dd>
+            <code>{item.itemKey}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Workflow role</dt>
+          <dd>{item.workflowRole}</dd>
+        </div>
+        <div>
+          <dt>Disposition</dt>
+          <dd>{item.finalDisposition ?? "pending"}</dd>
+        </div>
+        <div>
+          <dt>Origin</dt>
+          <dd>
+            {item.origin.entryKey}
+            {item.origin.entryVersion === undefined
+              ? ""
+              : `@${item.origin.entryVersion}`}
+          </dd>
+        </div>
+        {item.origin.standard === undefined ? null : (
+          <div>
+            <dt>Causal standard mapping</dt>
+            <dd>
+              <code>
+                {item.origin.standard.scheme}@{item.origin.standard.version}/
+                {item.origin.standard.mappingKey}
+              </code>
+            </dd>
+          </div>
+        )}
+      </dl>
     </div>
   );
 }
@@ -243,7 +172,7 @@ export function AuditRuns({
                   <td data-label="Check">
                     <ContextLink
                       returnLabel="Audit Runs"
-                      to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${encodeURIComponent(item.itemId)}`}
+                      to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/coverage#check-${encodeURIComponent(item.itemId)}`}
                       title={item.subjectKey}
                     >
                       {auditCheckTitle(

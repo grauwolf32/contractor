@@ -249,6 +249,53 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
       await fulfillJSON(route, audit, 200, { etag: `"${audit.revision}"` });
       return;
     }
+    if (path === "/v1/audits/audit_browser/items") {
+      // Attempts, artifacts and identity shown inside the opened Coverage row.
+      await fulfillJSON(route, {
+        items: [
+          {
+            itemId: "item_browser",
+            roundId: "round_browser",
+            itemKey: "check-authz",
+            ordinal: 0,
+            kind: "check",
+            subjectKey: "Authorization controls",
+            task: exactArtifact,
+            origin: {
+              schema: "contractor.audit.item-origin.v1",
+              entryKey: "check-authz",
+              sourceRef: exactArtifact.ref,
+              sourceContentDigest: exactArtifact.digest,
+              sourceMediaType: "application/zip",
+              canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
+            },
+            workflowRole: "check",
+            state: "settled",
+            approvalKind: "none",
+            finalDisposition: "accepted-result",
+            attempts: [
+              {
+                executionItemId: "execution_item_browser",
+                executionId: "execution_browser",
+                itemId: "item_browser",
+                itemAttempt: 1,
+                role: "check",
+                state: "settled",
+                collectionDisposition: "accepted-result",
+                terminalOutcome: "succeeded",
+                runId: "run_browser",
+                runDeleted: false,
+                createdAt: audit.createdAt,
+              },
+            ],
+            createdAt: audit.createdAt,
+            updatedAt: audit.updatedAt,
+          },
+        ],
+        page: { hasMore: false },
+      });
+      return;
+    }
     if (path === "/v1/audits/audit_browser/coverage") {
       await fulfillJSON(route, {
         items: [
@@ -338,6 +385,21 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   await expect(
     taskAndResult.getByText(/The service checks ownership/u),
   ).toBeVisible();
+  // The former Checks tab lives inside the row: attempts, Run and identity.
+  await expect(page.getByRole("link", { name: "Checks" })).toHaveCount(0);
+  const attempts = taskAndResult.getByRole("region", { name: "Attempts" });
+  await expect(
+    attempts.getByText("check · accepted-result · 1 attempts"),
+  ).toBeVisible();
+  await expect(attempts.getByText("Attempt 1 · settled")).toBeVisible();
+  await expect(attempts.getByText("succeeded · accepted-result")).toBeVisible();
+  await expect(
+    attempts.getByRole("link", { name: "run_browser" }),
+  ).toHaveAttribute("href", "/runs/run_browser");
+  await expect(attempts.getByText("Task package")).toBeVisible();
+  await expect(
+    attempts.getByText("check-authz", { exact: true }),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("audit-coverage-desktop.png"),
     fullPage: true,
@@ -377,6 +439,19 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   }));
   expect(JSON.stringify(storage)).not.toContain("PROFILE_PACKAGE");
   expect(storage.search).toBe("?q=cross-account");
+
+  // The old Checks route redirects to Coverage and keeps the check anchor.
+  await page.goto(
+    `/projects/${PROJECT_ID}/audits/audit_browser/checks#check-item_browser`,
+  );
+  await expect(page).toHaveURL(
+    /\/audits\/audit_browser\/coverage#check-item_browser$/u,
+  );
+  await expect(
+    page
+      .locator("article#check-item_browser details.audit-result-reading")
+      .getByText("Attempt 1 · settled"),
+  ).toBeVisible();
 });
 
 test("audit program library renders exact Top 10 and ASVS evidence boundaries", async ({

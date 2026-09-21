@@ -275,7 +275,7 @@ export function AuditReviews({ audit }: { audit: Audit }) {
               {subjects.has(review.subjectId) ? (
                 <ContextLink
                   returnLabel="Audit reviews"
-                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${encodeURIComponent(review.subjectId)}`}
+                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/coverage#check-${encodeURIComponent(review.subjectId)}`}
                 >
                   View check →
                 </ContextLink>

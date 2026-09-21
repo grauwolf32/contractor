@@ -341,9 +341,11 @@ async function openAuditCreateForm({
 }
 
 describe("Project Audit routes", () => {
-  it.each(["checks", "report"] as const)(
+  it.each(["coverage", "report"] as const)(
     "refreshes the final %s projection when the parent stops polling",
     async (section) => {
+      const previousScroll = HTMLElement.prototype.scrollIntoView;
+      HTMLElement.prototype.scrollIntoView = vi.fn();
       let current = auditAt("active", 2);
       const queryClient = queryClientFactory.createApplicationQueryClient();
       vi.spyOn(
@@ -373,6 +375,20 @@ describe("Project Audit routes", () => {
         createdAt: current.createdAt,
         updatedAt: current.updatedAt,
       };
+      const coverageRow: AuditCoverageRow = {
+        roundId: item.roundId,
+        itemId: item.itemId,
+        ordinal: item.ordinal,
+        itemKey: item.itemKey,
+        subjectKey: item.subjectKey,
+        coverage: {
+          status: "satisfied",
+          requested: [],
+          completed: [],
+          gaps: [],
+        },
+        updatedAt: current.updatedAt,
+      };
       const reads = vi.fn();
       const api = new PublicAPI(
         runtimeConfig,
@@ -384,6 +400,11 @@ describe("Project Audit routes", () => {
           if (path === "/v1/audits/audit_example")
             return jsonResponse(current, {
               headers: { ETag: `"${current.revision}"` },
+            });
+          if (path.endsWith("/coverage"))
+            return jsonResponse({
+              items: [coverageRow],
+              page: { hasMore: false },
             });
           if (path.endsWith("/items")) {
             reads();
@@ -416,13 +437,14 @@ describe("Project Audit routes", () => {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }),
       );
+      // The opened Coverage row reads the item collection lazily.
       renderApplication(
         api,
-        `/projects/project_example/audits/audit_example/${section}`,
+        `/projects/project_example/audits/audit_example/${section}${section === "coverage" ? "#check-item_final" : ""}`,
       );
       await screen.findByText(
-        section === "checks"
-          ? "No checks materialized"
+        section === "coverage"
+          ? "No attempts are recorded for this check yet."
           : /The Audit has not reached report generation/,
       );
       current = auditAt("completed", 3);
@@ -433,9 +455,14 @@ describe("Project Audit routes", () => {
         ),
       );
       await screen.findByText(
-        section === "checks" ? "Final retained check" : "Final retained report",
+        section === "coverage" ? "No Run submitted." : "Final retained report",
       );
+      if (section === "coverage")
+        expect(
+          screen.getByText("check_final", { selector: "code" }),
+        ).toBeVisible();
       expect(reads).toHaveBeenCalledTimes(2);
+      HTMLElement.prototype.scrollIntoView = previousScroll;
     },
   );
 
@@ -800,6 +827,188 @@ describe("Project Audit routes", () => {
       ),
     );
     expect(loadArtifacts).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows attempts, artifacts and identity inside an opened Coverage row and redirects the old Checks route", async () => {
+    const previousScroll = HTMLElement.prototype.scrollIntoView;
+    const scroll = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scroll;
+    const current = auditAt("completed", 3);
+    const row = (
+      itemId: string,
+      itemKey: string,
+      ordinal: number,
+      subjectKey: string,
+    ): AuditCoverageRow => ({
+      roundId: "round_example",
+      itemId,
+      ordinal,
+      itemKey,
+      subjectKey,
+      coverage: { status: "satisfied", requested: [], completed: [], gaps: [] },
+      updatedAt: current.updatedAt,
+    });
+    const item: AuditItem = {
+      itemId: "item_attempted",
+      roundId: "round_example",
+      itemKey: "check_attempted",
+      ordinal: 0,
+      kind: "check",
+      subjectKey: "Attempted check",
+      task: current.inputs.source!,
+      origin: {
+        schema: "contractor.audit.item-origin.v1",
+        entryKey: "check_attempted",
+        entryVersion: "2",
+        sourceRef: current.inputs.source!.ref,
+        sourceContentDigest: current.inputs.source!.digest,
+        sourceMediaType: "application/zip",
+        canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
+      },
+      workflowRole: "check",
+      state: "settled",
+      approvalKind: "none",
+      finalDisposition: "accepted-result",
+      acceptedResult: {
+        ref: {
+          namespace: "audit-results",
+          name: "check_attempted",
+          revision: "result-r1",
+        },
+        digest: `sha256:${"8".repeat(64)}`,
+      },
+      attempts: [
+        {
+          executionItemId: "execution_item_failed",
+          executionId: "execution_example",
+          itemId: "item_attempted",
+          itemAttempt: 1,
+          role: "check",
+          state: "settled",
+          collectionDisposition: "execution-failed",
+          terminalOutcome: "failed",
+          runId: "run_failed",
+          runDeleted: true,
+          createdAt: current.createdAt,
+        },
+        {
+          executionItemId: "execution_item_accepted",
+          executionId: "execution_example",
+          itemId: "item_attempted",
+          itemAttempt: 2,
+          role: "check",
+          state: "settled",
+          collectionDisposition: "accepted-result",
+          terminalOutcome: "succeeded",
+          runId: "run_accepted",
+          runDeleted: false,
+          result: {
+            ref: {
+              namespace: "audit-results",
+              name: "check_attempted",
+              revision: "result-r1",
+            },
+            digest: `sha256:${"8".repeat(64)}`,
+          },
+          createdAt: current.createdAt,
+        },
+      ],
+      createdAt: current.createdAt,
+      updatedAt: current.updatedAt,
+    };
+    const itemReads = vi.fn();
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/audits/audit_example")
+          return jsonResponse(current, { headers: { ETag: '"3"' } });
+        if (path === "/v1/audits/audit_example/coverage")
+          return jsonResponse({
+            items: [
+              row("item_attempted", "check_attempted", 0, "Attempted check"),
+              row("item_pending", "check_pending", 1, "Pending check"),
+            ],
+            page: { hasMore: false },
+          });
+        if (path === "/v1/audits/audit_example/items") {
+          itemReads();
+          return jsonResponse({ items: [item], page: { hasMore: false } });
+        }
+        if (path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    const { router } = renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/checks#check-item_attempted",
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Coverage and results" }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe(
+      "/projects/project_example/audits/audit_example/coverage",
+    );
+    expect(router.state.location.hash).toBe("#check-item_attempted");
+    expect(
+      screen.queryByRole("link", { name: "Checks" }),
+    ).not.toBeInTheDocument();
+    const opened = screen.getByRole("article", { name: "Attempted check" });
+    expect(opened).toHaveAttribute("id", "check-item_attempted");
+    expect(opened.querySelector("details")).toHaveAttribute("open");
+    const attempts = await within(opened).findByRole("region", {
+      name: "Attempts",
+    });
+    expect(
+      within(attempts).getByText("check · accepted-result · 2 attempts"),
+    ).toBeVisible();
+    expect(within(attempts).getByText("Attempt 1 · settled")).toBeVisible();
+    expect(
+      within(attempts).getByText("failed · execution-failed"),
+    ).toBeVisible();
+    expect(
+      within(attempts).getByRole("link", { name: "Deleted Run provenance" }),
+    ).toHaveAttribute("href", "/runs/run_failed");
+    expect(
+      within(attempts).getByText("succeeded · accepted-result"),
+    ).toBeVisible();
+    expect(
+      within(attempts).getByRole("link", { name: "run_accepted" }),
+    ).toHaveAttribute("href", "/runs/run_accepted");
+    expect(within(attempts).getByText("Task package")).toBeVisible();
+    expect(within(attempts).getByText("Accepted result")).toBeVisible();
+    expect(within(attempts).getByText("Produced result")).toBeVisible();
+    expect(
+      within(attempts).getByText("check_attempted", { selector: "code" }),
+    ).toBeVisible();
+    expect(within(attempts).getByText("check_attempted@2")).toBeVisible();
+    // The other row stays closed and reads nothing extra.
+    const closed = screen.getByRole("article", { name: "Pending check" });
+    expect(closed.querySelector("details")).not.toHaveAttribute("open");
+    expect(
+      within(closed).getByRole("region", { name: "Attempts" }),
+    ).toHaveTextContent(/^Attempts$/u);
+    expect(itemReads).toHaveBeenCalledTimes(1);
+    // Search covers attempt outcomes.
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search checks" }),
+      "execution-failed",
+    );
+    expect(await screen.findByText("Showing 1 of 2 checks")).toBeVisible();
+    expect(
+      screen.getByRole("article", { name: "Attempted check" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("article", { name: "Pending check" }),
+    ).not.toBeInTheDocument();
+    expect(scroll).toHaveBeenCalled();
+    HTMLElement.prototype.scrollIntoView = previousScroll;
   });
 
   it("shows the exact retained standard identity on the Audit baseline", async () => {
@@ -1737,7 +1946,7 @@ describe("Project Audit routes", () => {
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "View check →" })).toHaveAttribute(
       "href",
-      "/projects/project_example/audits/audit_example/checks#check-item_active_check",
+      "/projects/project_example/audits/audit_example/coverage#check-item_active_check",
     );
     await user.type(
       screen.getByLabelText("Rationale"),

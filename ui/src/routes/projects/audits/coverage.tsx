@@ -1,15 +1,49 @@
-import { ContextLink } from "../../../app/context-navigation";
 import { ASSESSMENTS, GROUPS } from "./assessments";
 import { useAuditCoverage } from "./coverage-data";
 import { auditCheckTitle } from "./check-title";
-import { useMemo } from "react";
-import { useSearchParams } from "react-router";
+import { useMemo, useState } from "react";
+import { useLocation, useSearchParams } from "react-router";
 
-import { type Audit, type AuditCoverageRow } from "../../../api/audits";
+import {
+  type Audit,
+  type AuditCoverageRow,
+  type AuditItem,
+} from "../../../api/audits";
+import { usePublicAPI } from "../../../api/context";
 import { ErrorNotice } from "../../artifacts/common";
+import type { AuditCollectionQuery } from "./collections";
+import { AuditItemDetails } from "./executions";
+import { useAuditItems } from "./items-data";
 import { LoadMoreControl } from "./load-more";
-import { AuditMarkdown } from "./shared";
+import { AuditAnchor, AuditMarkdown } from "./shared";
 import { RefreshButton } from "../../../app/refresh-button";
+
+const CHECK_HASH_PREFIX = "#check-";
+
+function hashedCheck(hash: string): string | undefined {
+  if (!hash.startsWith(CHECK_HASH_PREFIX)) return undefined;
+  try {
+    return decodeURIComponent(hash.slice(CHECK_HASH_PREFIX.length));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Search text of a check's attempts (outcomes, states, Runs). */
+function attemptSearchText(item: AuditItem | undefined): string[] {
+  if (item === undefined) return [];
+  return [
+    item.state,
+    item.workflowRole,
+    item.finalDisposition,
+    ...item.attempts.flatMap((attempt) => [
+      attempt.state,
+      attempt.terminalOutcome,
+      attempt.collectionDisposition,
+      attempt.runId,
+    ]),
+  ].filter((value): value is string => typeof value === "string");
+}
 
 const EVIDENCE_LABELS: Record<string, string> = {
   artifact: "Artifact",
@@ -39,7 +73,55 @@ function firstLine(text: string, limit = 200): string {
   return line.length > limit ? `${line.slice(0, limit)}…` : line;
 }
 
-function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
+function CheckAttempts({
+  audit,
+  item,
+  items,
+}: {
+  audit: Audit;
+  item: AuditItem | undefined;
+  items: AuditCollectionQuery<AuditItem>;
+}) {
+  if (item !== undefined) return <AuditItemDetails audit={audit} item={item} />;
+  if (items.isPending)
+    return (
+      <p className="loading-copy" role="status">
+        Loading attempts…
+      </p>
+    );
+  if (items.error !== null) return <ErrorNotice error={items.error} />;
+  if (items.truncated || items.isLoadingMore || items.moreError !== null)
+    return (
+      <LoadMoreControl
+        shown={items.items.length}
+        noun="checks"
+        truncated={items.truncated}
+        loading={items.isLoadingMore}
+        error={items.moreError}
+        onLoadMore={items.loadMore}
+        label="Load more checks"
+      />
+    );
+  return (
+    <p className="muted-copy">No attempts are recorded for this check yet.</p>
+  );
+}
+
+function CheckRow({
+  audit,
+  row,
+  item,
+  items,
+  open,
+  onToggle,
+}: {
+  audit: Audit;
+  row: AuditCoverageRow;
+  item: AuditItem | undefined;
+  items: AuditCollectionQuery<AuditItem>;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+}) {
   const assessment = ASSESSMENTS[row.coverage.status];
   const details = row.details;
   const conclusion = details?.resultSummary || row.coverage.rationale;
@@ -54,8 +136,13 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
     <article
       className={`audit-result-card audit-check-row audit-result-${assessment.group}`}
       aria-label={row.subjectKey}
+      id={`check-${row.itemId}`}
     >
-      <details className="audit-result-reading">
+      <details
+        className="audit-result-reading"
+        open={open}
+        onToggle={(event) => onToggle(event.currentTarget.open)}
+      >
         <summary className="audit-check-summary">
           <span
             className="audit-check-ordinal"
@@ -172,13 +259,13 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
               </pre>
             </details>
           ) : null}
+          <section className="audit-check-attempts" aria-label="Attempts">
+            <h5>Attempts</h5>
+            {open ? (
+              <CheckAttempts audit={audit} item={item} items={items} />
+            ) : null}
+          </section>
           <div className="audit-check-links">
-            <ContextLink
-              returnLabel="Coverage and results"
-              to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${row.itemId}`}
-            >
-              View attempts & execution details →
-            </ContextLink>
             <small className="muted-copy">Check ID: {row.itemKey}</small>
           </div>
         </div>
@@ -188,6 +275,8 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
 }
 
 export function AuditCoverage({ audit }: { audit: Audit }) {
+  const api = usePublicAPI();
+  const { hash } = useLocation();
   const [params, setParams] = useSearchParams();
   const search = params.get("q") ?? "";
   const group =
@@ -195,6 +284,31 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
     "all";
   const coverage = useAuditCoverage(audit);
   const rows = coverage.items;
+  // Rows opened by the reader (or addressed by a `#check-<itemId>` link).
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => {
+    const target = hashedCheck(hash);
+    return new Set(target === undefined ? [] : [target]);
+  });
+  // A later `#check-<itemId>` link opens its row once (state adjusted during
+  // render, so the closed row is not forced open again on re-render).
+  const [seenHash, setSeenHash] = useState(hash);
+  if (hash !== seenHash) {
+    setSeenHash(hash);
+    const target = hashedCheck(hash);
+    if (target !== undefined && !opened.has(target))
+      setOpened(new Set([...opened, target]));
+  }
+  // Attempts come from the item collection; read it only once a row is open
+  // or a search needs attempt outcomes, under the same cap and polling rules.
+  const items = useAuditItems(
+    audit,
+    api,
+    opened.size > 0 || search.trim() !== "",
+  );
+  const itemsById = useMemo(
+    () => new Map(items.items.map((item) => [item.itemId, item])),
+    [items.items],
+  );
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     return rows.filter(
@@ -209,13 +323,14 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
           ...row.coverage.gaps,
           ...row.coverage.requested,
           ...(row.details?.evidence.map((entry) => entry.summary) ?? []),
+          ...attemptSearchText(itemsById.get(row.itemId)),
         ]
           .filter(Boolean)
           .join(" ")
           .toLocaleLowerCase()
           .includes(needle),
     );
-  }, [rows, group, search]);
+  }, [rows, group, search, itemsById]);
 
   function filter(key: string, value: string) {
     setParams(
@@ -275,12 +390,14 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
       className="audit-coverage-workspace"
       aria-label="Coverage and results"
     >
+      <AuditAnchor ready={!coverage.isPending} />
       <div className="section-heading">
         <div>
           <p className="eyebrow">Current round · Tasks and outcomes</p>
           <h3>Coverage and results</h3>
           <p className="muted-copy">
-            Open a check to read the task, the conclusion and the evidence.
+            Open a check to read the task, the conclusion, the evidence and its
+            attempts.
           </p>
         </div>
         <RefreshButton
@@ -331,7 +448,7 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
           Search checks
           <input
             type="search"
-            placeholder="Task, result, evidence or check ID…"
+            placeholder="Task, result, evidence, attempt outcome or check ID…"
             value={search}
             onChange={(event) => filter("q", event.currentTarget.value)}
           />
@@ -362,7 +479,23 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
       {filtered.length ? (
         <div className="audit-check-rows">
           {filtered.map((row) => (
-            <CheckRow key={row.itemId} audit={audit} row={row} />
+            <CheckRow
+              key={row.itemId}
+              audit={audit}
+              row={row}
+              item={itemsById.get(row.itemId)}
+              items={items}
+              open={opened.has(row.itemId)}
+              onToggle={(isOpen) =>
+                setOpened((current) => {
+                  if (current.has(row.itemId) === isOpen) return current;
+                  const next = new Set(current);
+                  if (isOpen) next.add(row.itemId);
+                  else next.delete(row.itemId);
+                  return next;
+                })
+              }
+            />
           ))}
         </div>
       ) : (
