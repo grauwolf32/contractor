@@ -3,8 +3,8 @@ id: V66-001
 title: Replace internal-model vocabulary and explanatory copy with plain labels
 milestone: ui-design-review-2
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 670763bd065e772b2517f29618168052fca23b4e
 depends_on: []
 languages:
 - typescript
@@ -51,3 +51,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest 77 files / 610 tests pass; eslint, prettier, tsc (app and e2e projects) clean.
+  jargon_counts: 260 visible occurrences before; after the pass only identifiers, API fields (metadata.frozen), query options such as exact=true and comments remain.
+  eyebrows: ~40 renamed or removed (see commit message and docs/research finding E01).
+  browser_specs: 12 Playwright specs updated for new labels; Playwright not executed (V66-011).

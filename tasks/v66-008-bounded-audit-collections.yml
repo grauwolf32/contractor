@@ -3,8 +3,8 @@ id: V66-008
 title: Bound audit collection loading and stop polling terminal audits
 milestone: ui-design-review-2
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8cc9c222
 depends_on: []
 languages:
 - typescript
@@ -46,3 +46,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest src/api + src/routes/projects/audits 24 files / 277 tests pass; full suite 610 pass; tsc, eslint, prettier clean.
+  cap: AUDIT_COLLECTION_MAX_PAGES = 5 (250 records per batch) with cursor continuation via Load more.
+  polling: auditPollInterval returns false unless an audit is active, waiting_review, finalizing, cancelling, deleting or has outstanding Runs.
+  follow_up: projects/overview.tsx still polls unconditionally every 10-15 s; audit detail keeps 1 s for active audits.
