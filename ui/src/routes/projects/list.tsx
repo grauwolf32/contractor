@@ -3,7 +3,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { EvaluationActivity } from "./evaluation-activity";
 import "./collection.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
@@ -20,6 +20,7 @@ import {
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { DeleteIcon } from "../../app/delete-icon";
+import { Dialog } from "../../app/dialog";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import { CursorControls, ErrorNotice } from "../artifacts/common";
 import { DeleteProjectDialog } from "./deletion";
@@ -31,7 +32,6 @@ interface ProjectCollectionPresentation {
   pageEyebrow: string;
   lede: string;
   createLabel: string;
-  createHeading: string;
   collectionHeading: string;
   cardEyebrow: string;
   cardMark: string;
@@ -52,6 +52,8 @@ function ProjectCollectionRoute({
     undefined,
   ]);
   const [createOpen, setCreateOpen] = useState(false);
+  const createHeading = useId();
+  const createNameField = useRef<HTMLInputElement>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project>();
   const [validationError, setValidationError] = useState<string | null>(null);
   const cursor = cursors.at(-1);
@@ -104,6 +106,13 @@ function ProjectCollectionRoute({
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all }),
   });
 
+  function closeCreate(): void {
+    if (create.isPending) return;
+    setCreateOpen(false);
+    setValidationError(null);
+    create.reset();
+  }
+
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setValidationError(null);
@@ -134,48 +143,78 @@ function ProjectCollectionRoute({
           <h2>{presentation.heading}</h2>
           <p className="lede">{presentation.lede}</p>
         </div>
-        <button type="button" onClick={() => setCreateOpen((open) => !open)}>
-          {createOpen ? "Close form" : presentation.createLabel}
+        <button type="button" onClick={() => setCreateOpen(true)}>
+          {presentation.createLabel}
         </button>
       </header>
 
       {createOpen ? (
-        <form className="panel project-create-form" onSubmit={submit}>
-          <div>
-            <p className="eyebrow">Workspace</p>
-            <h3>{presentation.createHeading}</h3>
+        <Dialog
+          className="project-dialog panel"
+          labelledBy={createHeading}
+          initialFocusRef={createNameField}
+          onRequestClose={closeCreate}
+        >
+          <div className="project-dialog-heading">
+            <div>
+              <p className="eyebrow">Workspace</p>
+              <h2 id={createHeading}>{presentation.createLabel}</h2>
+            </div>
+            <button
+              className="project-dialog-close"
+              type="button"
+              aria-label={`Close ${presentation.createLabel} form`}
+              disabled={create.isPending}
+              onClick={closeCreate}
+            >
+              ×
+            </button>
           </div>
-          <div className="form-grid">
-            <label>
-              Name
-              <input
-                name="name"
-                required
-                maxLength={MAXIMUM_PROJECT_NAME_LENGTH}
-                autoFocus
-              />
-            </label>
-            <label className="project-description-field">
-              Description
-              <textarea
-                name="description"
-                maxLength={MAXIMUM_PROJECT_DESCRIPTION_LENGTH}
-                rows={3}
-              />
-            </label>
-          </div>
-          {validationError === null ? null : (
-            <p className="form-error" role="alert">
-              {validationError}
-            </p>
-          )}
-          {create.error === null ? null : <ErrorNotice error={create.error} />}
-          <button type="submit" disabled={create.isPending}>
-            {create.isPending
-              ? "Creating…"
-              : `Create ${presentation.cardEyebrow}`}
-          </button>
-        </form>
+          <form className="project-dialog-form" onSubmit={submit}>
+            <div className="form-grid">
+              <label>
+                Name
+                <input
+                  ref={createNameField}
+                  name="name"
+                  required
+                  maxLength={MAXIMUM_PROJECT_NAME_LENGTH}
+                />
+              </label>
+              <label className="project-description-field">
+                Description
+                <textarea
+                  name="description"
+                  maxLength={MAXIMUM_PROJECT_DESCRIPTION_LENGTH}
+                  rows={3}
+                />
+              </label>
+            </div>
+            {validationError === null ? null : (
+              <p className="form-error" role="alert">
+                {validationError}
+              </p>
+            )}
+            {create.error === null ? null : (
+              <ErrorNotice error={create.error} />
+            )}
+            <div className="project-dialog-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={create.isPending}
+                onClick={closeCreate}
+              >
+                Cancel
+              </button>
+              <button type="submit" disabled={create.isPending}>
+                {create.isPending
+                  ? "Creating…"
+                  : `Create ${presentation.cardEyebrow}`}
+              </button>
+            </div>
+          </form>
+        </Dialog>
       ) : null}
 
       <div className="project-list-heading">
@@ -337,7 +376,6 @@ export function ProjectListRoute() {
         pageEyebrow: "Reusable workspaces",
         lede: "Keep source materials, analysis results and related Runs in one workspace.",
         createLabel: "New Project",
-        createHeading: "Create Project",
         collectionHeading: "Workspaces",
         cardEyebrow: "Project",
         cardMark: "P",
@@ -360,7 +398,6 @@ export function EvaluationListRoute() {
         pageEyebrow: "Evaluation workspaces",
         lede: "Compare execution history across evaluation workspaces. A succeeded Run is an execution status; review outputs for the evaluation result.",
         createLabel: "New Eval",
-        createHeading: "Create Eval workspace",
         collectionHeading: "Evaluation workspaces",
         cardEyebrow: "Eval",
         cardMark: "E",

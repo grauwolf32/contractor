@@ -96,7 +96,7 @@ test("uploads a Project wordlist, pins its revision and opens a real ffuf report
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).first().click();
-    const projectForm = page.locator("form.project-create-form");
+    const projectForm = page.getByRole("dialog", { name: "New Project" });
     await projectForm
       .getByLabel("Name", { exact: true })
       .fill("Scan browser fixture");

@@ -6,7 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useId, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
@@ -23,6 +23,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { listProjectArtifacts } from "../../../api/project-artifacts";
 import { queryKeys } from "../../../api/query-keys";
+import { Dialog } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import {
   CursorControls,
@@ -77,10 +78,17 @@ function selectedArtifact(
     ?.artifact;
 }
 
-function AuditCreateForm({ projectId }: { projectId: string }) {
+function AuditCreateForm({
+  projectId,
+  onClose,
+}: {
+  projectId: string;
+  onClose: () => void;
+}) {
   const api = usePublicAPI();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const heading = useId();
   const [profileSelection, setProfileSelection] = useState("");
   const [artifactSelections, setArtifactSelections] = useState<
     Record<string, string>
@@ -210,6 +218,10 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
     create.reset();
   }
 
+  function close(): void {
+    if (!create.isPending) onClose();
+  }
+
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setValidationError(null);
@@ -256,242 +268,279 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
   }
 
   return (
-    <form className="panel audit-create-form" onSubmit={submit}>
-      <div className="section-heading">
+    <Dialog
+      className="project-dialog panel audit-create-dialog"
+      labelledBy={heading}
+      onRequestClose={close}
+    >
+      <div className="project-dialog-heading">
         <div>
           <p className="eyebrow">Pinned program and inputs</p>
-          <h3>New Audit</h3>
+          <h2 id={heading}>New Audit</h2>
         </div>
-        <span className="audit-policy-mark">New draft</span>
-      </div>
-      {profiles.isPending ? (
-        <p className="loading-copy">Loading Audit profiles…</p>
-      ) : profiles.error !== null ? (
-        <ErrorNotice error={profiles.error} />
-      ) : profileItems.length === 0 ? (
-        <div className="compact-empty">
-          <strong>No Audit profiles are published.</strong>
-        </div>
-      ) : (
-        <label>
-          Audit profile
-          <select
-            value={effectiveProfileSelection}
-            onChange={(event) => selectProfile(event.currentTarget.value)}
-          >
-            {profileItems.map((candidate) => (
-              <option
-                key={profileOption(candidate)}
-                value={profileOption(candidate)}
-              >
-                {candidate.ref.name}@{candidate.ref.version}
-                {candidate.serverCompatible
-                  ? profileItems.find(
-                      (p) =>
-                        p.ref.name === candidate.ref.name && p.serverCompatible,
-                    ) === candidate
-                    ? " · latest loaded version"
-                    : ""
-                  : " — unsupported"}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {profiles.hasNextPage ? (
         <button
-          className="secondary-button"
+          className="project-dialog-close"
           type="button"
-          disabled={profiles.isFetchingNextPage}
-          onClick={() => void profiles.fetchNextPage()}
+          aria-label="Close New Audit form"
+          disabled={create.isPending}
+          onClick={close}
         >
-          {profiles.isFetchingNextPage ? "Loading…" : "Load more profiles"}
+          ×
         </button>
-      ) : null}
-      {profile.isPending && selectedSummary !== undefined ? (
-        <p className="loading-copy">Loading profile contract…</p>
-      ) : profile.error !== null ? (
-        <ErrorNotice error={profile.error} />
-      ) : exactProfile === undefined ? null : (
-        <div className="audit-profile-contract">
-          <ContextLink
-            to={auditPresetPath(
-              exactProfile.ref.name,
-              exactProfile.ref.version,
-            )}
-            returnLabel="Project audits"
-          >
-            Browse preset checks →
-          </ContextLink>
-          <div className="audit-profile-summary">
-            <div>
-              <span>Mode</span>
-              <strong>{exactProfile.mode}</strong>
-            </div>
-            <div>
-              <span>Digest</span>
-              <code title={exactProfile.ref.digest}>
-                {compactDigest(exactProfile.ref.digest)}
-              </code>
-            </div>
-            <div>
-              <span>Limit</span>
-              <strong>{exactProfile.execution.maxItemsTotal} items</strong>
-            </div>
-            <div>
-              <span>Attempts</span>
-              <strong>{exactProfile.execution.maxItemRunAttempts}</strong>
-            </div>
+      </div>
+      <form className="audit-create-form" onSubmit={submit}>
+        {profiles.isPending ? (
+          <p className="loading-copy">Loading Audit profiles…</p>
+        ) : profiles.error !== null ? (
+          <ErrorNotice error={profiles.error} />
+        ) : profileItems.length === 0 ? (
+          <div className="compact-empty">
+            <strong>No Audit profiles are published.</strong>
           </div>
-          {exactProfile.standards.length === 0 ? null : (
-            <p className="notice" data-testid="audit-profile-standards">
-              Standards pinned at start:{" "}
-              {exactProfile.standards
-                .map((standard) => `${standard.scheme}@${standard.version}`)
-                .join(", ")}
-            </p>
-          )}
-          {exactProfile.inventory.standardSelection === undefined ? null : (
-            <div
-              className="notice"
-              data-testid="audit-profile-standard-selection"
+        ) : (
+          <label>
+            Audit profile
+            <select
+              value={effectiveProfileSelection}
+              onChange={(event) => selectProfile(event.currentTarget.value)}
             >
-              <strong>{exactProfile.inventory.standardSelection.scope}</strong>
-              <p>
-                Levels{" "}
-                {exactProfile.inventory.standardSelection.levels.join(", ")} ·{" "}
-                {exactProfile.inventory.standardSelection.entryIds.length}{" "}
-                requirements
-              </p>
-            </div>
-          )}
-          {exactProfile.serverCompatible ? (
-            <p className="notice notice-success" role="status">
-              This profile version is supported by the Server.
-              {exactProfile.requiresInputValidation
-                ? " Inputs are validated when the Audit starts."
-                : ""}
-            </p>
-          ) : (
-            <div className="notice notice-error" role="alert">
-              <strong>This profile cannot run on this Server.</strong>
-              <ul>
-                {exactProfile.compatibilityReasons.map((reason) => (
-                  <li key={reason}>{reason.replaceAll("_", " ")}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <fieldset className="audit-input-fields">
-            <legend>Project inputs</legend>
-            {artifacts.isPending ||
-            (artifacts.hasNextPage && !artifacts.isError) ? (
-              <p className="loading-copy" role="status">
-                Loading Project Artifacts…
-              </p>
-            ) : null}
-            {artifacts.error === null ? null : (
-              <>
-                <ErrorNotice error={artifacts.error} />
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={artifacts.isFetching}
-                  onClick={() =>
-                    void (artifacts.hasNextPage
-                      ? artifacts.fetchNextPage()
-                      : artifacts.refetch())
-                  }
+              {profileItems.map((candidate) => (
+                <option
+                  key={profileOption(candidate)}
+                  value={profileOption(candidate)}
                 >
-                  Retry loading Project Artifacts
-                </button>
-              </>
+                  {candidate.ref.name}@{candidate.ref.version}
+                  {candidate.serverCompatible
+                    ? profileItems.find(
+                        (p) =>
+                          p.ref.name === candidate.ref.name &&
+                          p.serverCompatible,
+                      ) === candidate
+                      ? " · latest loaded version"
+                      : ""
+                    : " — unsupported"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {profiles.hasNextPage ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={profiles.isFetchingNextPage}
+            onClick={() => void profiles.fetchNextPage()}
+          >
+            {profiles.isFetchingNextPage ? "Loading…" : "Load more profiles"}
+          </button>
+        ) : null}
+        {profile.isPending && selectedSummary !== undefined ? (
+          <p className="loading-copy">Loading profile contract…</p>
+        ) : profile.error !== null ? (
+          <ErrorNotice error={profile.error} />
+        ) : exactProfile === undefined ? null : (
+          <div className="audit-profile-contract">
+            <ContextLink
+              to={auditPresetPath(
+                exactProfile.ref.name,
+                exactProfile.ref.version,
+              )}
+              returnLabel="Project audits"
+            >
+              Browse preset checks →
+            </ContextLink>
+            {exactProfile.serverCompatible ? (
+              <p className="notice notice-success" role="status">
+                This profile version is supported by the Server.
+                {exactProfile.requiresInputValidation
+                  ? " Inputs are validated when the Audit starts."
+                  : ""}
+              </p>
+            ) : (
+              <div className="notice notice-error" role="alert">
+                <strong>This profile cannot run on this Server.</strong>
+                <ul>
+                  {exactProfile.compatibilityReasons.map((reason) => (
+                    <li key={reason}>{reason.replaceAll("_", " ")}</li>
+                  ))}
+                </ul>
+              </div>
             )}
-            {inputs.map(({ name, contract, compatible, selection }) => {
-              return (
-                <label key={name}>
-                  <span>
-                    {name} {contract.required ? "(required)" : "(optional)"}
-                  </span>
-                  <small>{contract.mediaTypes.join(", ")}</small>
-                  <select
-                    aria-label={`Input ${name}`}
-                    value={selection}
-                    required={contract.required}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setArtifactSelections((current) => ({
-                        ...current,
-                        [name]: value,
-                      }));
-                    }}
+            <fieldset className="audit-input-fields">
+              <legend>Project inputs</legend>
+              {artifacts.isPending ||
+              (artifacts.hasNextPage && !artifacts.isError) ? (
+                <p className="loading-copy" role="status">
+                  Loading Project Artifacts…
+                </p>
+              ) : null}
+              {artifacts.error === null ? null : (
+                <>
+                  <ErrorNotice error={artifacts.error} />
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={artifacts.isFetching}
+                    onClick={() =>
+                      void (artifacts.hasNextPage
+                        ? artifacts.fetchNextPage()
+                        : artifacts.refetch())
+                    }
                   >
-                    <option value="">
-                      {compatible.length === 0
-                        ? "No compatible current Artifact"
-                        : "Select a revision"}
-                    </option>
-                    {compatible.map((artifact) => (
-                      <option
-                        key={artifactOption(artifact)}
-                        value={artifactOption(artifact)}
-                      >
-                        {artifact.artifact.namespace}/{artifact.artifact.name}@
-                        {artifact.artifact.revision} · {artifact.mediaType}
+                    Retry loading Project Artifacts
+                  </button>
+                </>
+              )}
+              {inputs.map(({ name, contract, compatible, selection }) => {
+                return (
+                  <label key={name}>
+                    <span>
+                      {name} {contract.required ? "(required)" : "(optional)"}
+                    </span>
+                    <small>{contract.mediaTypes.join(", ")}</small>
+                    <select
+                      aria-label={`Input ${name}`}
+                      value={selection}
+                      required={contract.required}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setArtifactSelections((current) => ({
+                          ...current,
+                          [name]: value,
+                        }));
+                      }}
+                    >
+                      <option value="">
+                        {compatible.length === 0
+                          ? "No compatible current Artifact"
+                          : "Select a revision"}
                       </option>
-                    ))}
-                  </select>
-                </label>
-              );
-            })}
-          </fieldset>
-          <details>
-            <summary>Optional scope and Runtime labels</summary>
-            <div className="form-grid audit-scope-fields">
-              <label>
-                Objective
-                <input name="objective" maxLength={4096} />
-              </label>
-              <label>
-                Target
-                <input name="target" maxLength={4096} />
-              </label>
-              <label>
-                Authorization scope
-                <input name="authorizationScope" maxLength={4096} />
-              </label>
-              <label>
-                Runtime labels
-                <input
-                  name="runtimeLabels"
-                  placeholder="debug, caido"
-                  autoComplete="off"
-                />
-              </label>
-            </div>
-          </details>
+                      {compatible.map((artifact) => (
+                        <option
+                          key={artifactOption(artifact)}
+                          value={artifactOption(artifact)}
+                        >
+                          {artifact.artifact.namespace}/{artifact.artifact.name}
+                          @{artifact.artifact.revision} · {artifact.mediaType}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </fieldset>
+            <details className="optional-settings">
+              <summary>Optional settings</summary>
+              <div>
+                <div className="audit-profile-summary">
+                  <div>
+                    <span>Mode</span>
+                    <strong>{exactProfile.mode}</strong>
+                  </div>
+                  <div>
+                    <span>Digest</span>
+                    <code title={exactProfile.ref.digest}>
+                      {compactDigest(exactProfile.ref.digest)}
+                    </code>
+                  </div>
+                  <div>
+                    <span>Limit</span>
+                    <strong>
+                      {exactProfile.execution.maxItemsTotal} items
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Attempts</span>
+                    <strong>{exactProfile.execution.maxItemRunAttempts}</strong>
+                  </div>
+                </div>
+                {exactProfile.standards.length === 0 ? null : (
+                  <p className="notice" data-testid="audit-profile-standards">
+                    Standards pinned at start:{" "}
+                    {exactProfile.standards
+                      .map(
+                        (standard) => `${standard.scheme}@${standard.version}`,
+                      )
+                      .join(", ")}
+                  </p>
+                )}
+                {exactProfile.inventory.standardSelection ===
+                undefined ? null : (
+                  <div
+                    className="notice"
+                    data-testid="audit-profile-standard-selection"
+                  >
+                    <strong>
+                      {exactProfile.inventory.standardSelection.scope}
+                    </strong>
+                    <p>
+                      Levels{" "}
+                      {exactProfile.inventory.standardSelection.levels.join(
+                        ", ",
+                      )}{" "}
+                      ·{" "}
+                      {exactProfile.inventory.standardSelection.entryIds.length}{" "}
+                      requirements
+                    </p>
+                  </div>
+                )}
+                <div className="form-grid audit-scope-fields">
+                  <label>
+                    Objective
+                    <input name="objective" maxLength={4096} />
+                  </label>
+                  <label>
+                    Target
+                    <input name="target" maxLength={4096} />
+                  </label>
+                  <label>
+                    Authorization scope
+                    <input name="authorizationScope" maxLength={4096} />
+                  </label>
+                  <label>
+                    Runtime labels
+                    <input
+                      name="runtimeLabels"
+                      placeholder="debug, caido"
+                      autoComplete="off"
+                    />
+                  </label>
+                </div>
+              </div>
+            </details>
+          </div>
+        )}
+        {validationError === null ? null : (
+          <p className="form-error" role="alert">
+            {validationError}
+          </p>
+        )}
+        {create.error === null ? null : (
+          <ErrorNotice error={create.error} reconcileWrite />
+        )}
+        <div className="project-dialog-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={create.isPending}
+            onClick={close}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={
+              create.isPending ||
+              exactProfile === undefined ||
+              !exactProfile.serverCompatible ||
+              missingRequired.length > 0
+            }
+          >
+            {create.isPending ? "Creating draft…" : "Create Audit draft"}
+          </button>
         </div>
-      )}
-      {validationError === null ? null : (
-        <p className="form-error" role="alert">
-          {validationError}
-        </p>
-      )}
-      {create.error === null ? null : (
-        <ErrorNotice error={create.error} reconcileWrite />
-      )}
-      <button
-        type="submit"
-        disabled={
-          create.isPending ||
-          exactProfile === undefined ||
-          !exactProfile.serverCompatible ||
-          missingRequired.length > 0
-        }
-      >
-        {create.isPending ? "Creating draft…" : "Create Audit draft"}
-      </button>
-    </form>
+      </form>
+    </Dialog>
   );
 }
 
@@ -534,19 +583,15 @@ export function ProjectAuditWorkspace({
           isFetching={audits.isFetching}
           onRefresh={() => void audits.refetch()}
         />
-        <button
-          type="button"
-          aria-expanded={showCreate}
-          aria-controls="audit-create-form"
-          onClick={() => setShowCreate((value) => !value)}
-        >
-          {showCreate ? "Close new audit" : "New Audit"}
+        <button type="button" onClick={() => setShowCreate(true)}>
+          New Audit
         </button>
       </ProjectSectionActions>
       {showCreate ? (
-        <div id="audit-create-form">
-          <AuditCreateForm projectId={projectId} />
-        </div>
+        <AuditCreateForm
+          projectId={projectId}
+          onClose={() => setShowCreate(false)}
+        />
       ) : null}
       {audits.isPending ? (
         <p className="loading-copy">Loading Audits…</p>

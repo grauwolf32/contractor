@@ -193,7 +193,7 @@ describe("Artifact routes", () => {
       await screen.findByRole("link", { name: "projects/existing" }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByText("Create a new binding"));
+    await user.click(screen.getByRole("button", { name: "Upload Artifact" }));
     const file = new File(["zip"], "source.zip", {
       type: "application/zip",
     });
@@ -250,7 +250,7 @@ describe("Artifact routes", () => {
     renderArtifactApplication(api, "/artifacts");
     await screen.findByText("No Artifact bindings found.");
     const user = userEvent.setup();
-    await user.click(screen.getByText("Create a new binding"));
+    await user.click(screen.getByRole("button", { name: "Upload Artifact" }));
     await user.type(screen.getByLabelText("Name"), "source");
     await user.upload(
       screen.getByLabelText("Drop a file here"),
@@ -291,22 +291,19 @@ describe("Artifact routes", () => {
     await screen.findByText("No Artifact bindings found.");
 
     const user = userEvent.setup();
-    await user.click(screen.getByText("Create a new binding"));
-    const uploadForm = screen
-      .getByRole("heading", { name: "Upload Artifact" })
-      .closest("form");
-    expect(uploadForm).not.toBeNull();
-    const namespace = within(uploadForm!).getByLabelText("Namespace");
+    await user.click(screen.getByRole("button", { name: "Upload Artifact" }));
+    const uploadForm = screen.getByRole("dialog", { name: "Upload Artifact" });
+    const namespace = within(uploadForm).getByLabelText("Namespace");
     await user.clear(namespace);
     await user.type(namespace, "skills");
     await user.upload(
-      within(uploadForm!).getByLabelText("Drop a file here"),
+      within(uploadForm).getByLabelText("Drop a file here"),
       new File(["zip"], "reviewed-skill.zip", {
         type: "application/vnd.contractor.agent-skill+zip",
       }),
     );
     await user.click(
-      within(uploadForm!).getByRole("button", { name: "Create binding" }),
+      within(uploadForm).getByRole("button", { name: "Create binding" }),
     );
 
     const alert = await screen.findByRole("alert");

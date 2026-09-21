@@ -426,6 +426,7 @@ describe("Operations routes", () => {
       screen.getByText("Create LLM credential", { selector: "summary" }),
     );
     await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
+    await user.click(screen.getByText("Optional settings"));
     await user.type(
       screen.getByLabelText("Safe label (optional)"),
       "Worker budget",
@@ -693,7 +694,7 @@ describe("Operations routes", () => {
         throw new Error(`unexpected ${request.method} ${request.url}`);
       }),
     );
-    renderOperations(api, "/runs/configuration");
+    renderOperations(api, "/operations/configuration");
     expect(
       await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
     ).toBeInTheDocument();
@@ -757,11 +758,12 @@ describe("Operations routes", () => {
       name: /Capture content/,
     });
     expect(captureContent).not.toBeChecked();
+    await user.click(screen.getByText("Optional settings"));
     expect(
-      within(telemetryGroup).getByLabelText("Flush timeout seconds"),
+      screen.getByLabelText("Worker telemetry flush timeout (seconds)"),
     ).toHaveValue(10);
-    const attempts = within(telemetryGroup).getByLabelText(
-      "Maximum attempts per batch",
+    const attempts = screen.getByLabelText(
+      "Worker telemetry maximum attempts per batch",
     );
     await user.clear(attempts);
     await user.type(attempts, "3");

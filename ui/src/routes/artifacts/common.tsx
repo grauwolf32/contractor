@@ -240,7 +240,9 @@ export function ArtifactWriteForm({
   acceptedMediaTypes,
   signal,
   submitLabel,
+  headingId,
   onPendingChange,
+  onCancel,
   onWritten,
 }: {
   fixedIdentity?: { namespace: string; name: string };
@@ -255,12 +257,17 @@ export function ArtifactWriteForm({
   acceptedMediaTypes?: readonly string[];
   signal?: AbortSignal;
   submitLabel?: string;
+  /** Labels the form by an outer (dialog) heading instead of its own. */
+  headingId?: string;
   onPendingChange?: (pending: boolean) => void;
+  /** Renders a Cancel button next to the submit button. */
+  onCancel?: () => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  const formId = useId();
+  const ownHeadingId = useId();
+  const formId = headingId ?? ownHeadingId;
   const [namespace, setNamespace] = useState(
     fixedIdentity?.namespace ?? fixedNamespace ?? "projects",
   );
@@ -373,15 +380,19 @@ export function ArtifactWriteForm({
   const update = expectedRevision !== undefined;
   return (
     <form className="artifact-form" onSubmit={submit} aria-labelledby={formId}>
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">{update ? "New version" : "New Artifact"}</p>
-          <h3 id={formId}>
-            {update ? "Upload a new version" : "Upload Artifact"}
-          </h3>
+      {headingId === undefined ? (
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">{update ? "New version" : "New Artifact"}</p>
+            <h3 id={formId}>
+              {update ? "Upload a new version" : "Upload Artifact"}
+            </h3>
+          </div>
+          {update ? (
+            <code>If-Match: &quot;{expectedRevision}&quot;</code>
+          ) : null}
         </div>
-        {update ? <code>If-Match: &quot;{expectedRevision}&quot;</code> : null}
-      </div>
+      ) : null}
       <ArtifactFileDrop
         file={file}
         inputRevision={inputRevision}
@@ -438,11 +449,28 @@ export function ArtifactWriteForm({
       {mutation.error === null ? null : (
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending
-          ? "Uploading…"
-          : (submitLabel ?? (update ? "Upload new version" : "Create binding"))}
-      </button>
+      <div
+        className={
+          onCancel === undefined ? undefined : "project-dialog-actions"
+        }
+      >
+        {onCancel === undefined ? null : (
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={mutation.isPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        )}
+        <button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending
+            ? "Uploading…"
+            : (submitLabel ??
+              (update ? "Upload new version" : "Create binding"))}
+        </button>
+      </div>
     </form>
   );
 }

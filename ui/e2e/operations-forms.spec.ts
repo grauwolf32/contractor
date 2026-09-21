@@ -313,16 +313,15 @@ test("Operations forms are unavailable without the actual session capability", a
   page,
 }) => {
   const writes = await installOperations(page, false);
-  await page.goto("/runs/configuration");
+  await page.goto("/operations/configuration");
   await expect(
-    page.getByText(
-      "Operations capability is required to manage Runtime configurations.",
-    ),
+    page.getByText(/not authorized to observe or manage Operations/),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Publish RuntimeConfig" }),
   ).toHaveCount(0);
-  await page.goto("/operations");
+  await page.goto("/runs/configuration");
+  await expect(page).toHaveURL(/\/operations\/configuration$/);
   await expect(
     page.getByText(/not authorized to observe or manage Operations/),
   ).toBeVisible();

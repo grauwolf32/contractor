@@ -1,7 +1,7 @@
 import { useDocumentTitle } from "../../app/document-title";
 import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import {
@@ -17,6 +17,7 @@ import {
   ErrorNotice,
   formatBytes,
 } from "./common";
+import { Dialog } from "../../app/dialog";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 
@@ -46,6 +47,7 @@ export function ArtifactListRoute() {
   const [filterError, setFilterError] = useState<string | null>(null);
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const uploadHeading = useId();
   const cursor = cursors.at(-1);
   const query = useQuery({
     queryKey: queryKeys.artifacts.list(
@@ -87,35 +89,54 @@ export function ArtifactListRoute() {
             Inputs uploaded here can be updated; each Run pins one revision.
           </p>
         </div>
-        <RefreshButton
-          isFetching={query.isFetching}
-          onRefresh={() => void query.refetch()}
-          label="Refresh"
-        />
+        <div className="inline-actions">
+          <button type="button" onClick={() => setUploadOpen(true)}>
+            Upload Artifact
+          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
+            label="Refresh"
+          />
+        </div>
       </header>
 
-      <details
-        className="artifact-create-disclosure"
-        open={uploadOpen}
-        onToggle={(event) => setUploadOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <span>Upload Artifact</span>
-          <small>{uploadOpen ? "Close form" : "Create a new binding"}</small>
-        </summary>
-        <ArtifactWriteForm
-          excludedNamespace={{
-            namespace: EXCLUDED_SKILL_NAMESPACE,
-            destination: "/catalog/skills",
-            label: "Skills",
-          }}
-          onWritten={(result) => {
-            setWritten(result);
-            setCursors([undefined]);
-            setUploadOpen(false);
-          }}
-        />
-      </details>
+      {uploadOpen ? (
+        <Dialog
+          className="project-dialog panel"
+          labelledBy={uploadHeading}
+          onRequestClose={() => setUploadOpen(false)}
+        >
+          <div className="project-dialog-heading">
+            <div>
+              <p className="eyebrow">New Artifact</p>
+              <h2 id={uploadHeading}>Upload Artifact</h2>
+            </div>
+            <button
+              className="project-dialog-close"
+              type="button"
+              aria-label="Close Upload Artifact form"
+              onClick={() => setUploadOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+          <ArtifactWriteForm
+            excludedNamespace={{
+              namespace: EXCLUDED_SKILL_NAMESPACE,
+              destination: "/catalog/skills",
+              label: "Skills",
+            }}
+            headingId={uploadHeading}
+            onCancel={() => setUploadOpen(false)}
+            onWritten={(result) => {
+              setWritten(result);
+              setCursors([undefined]);
+              setUploadOpen(false);
+            }}
+          />
+        </Dialog>
+      ) : null}
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Artifact revision stored.</strong>

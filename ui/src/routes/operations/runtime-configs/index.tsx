@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { runtimeConfigVersionPath } from "../../../app/navigation";
+
 import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError } from "../../../api/error";
 import {
@@ -44,9 +46,7 @@ function gatewayKey(resource: ConfigurationResource): string {
 function RuntimeRef({ resource }: { resource: RuntimeConfigResource }) {
   return (
     <span className="exact-config-ref">
-      <Link
-        to={`/runs/configuration/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
-      >
+      <Link to={runtimeConfigVersionPath(resource.ref)}>
         {resource.ref.name}@{resource.ref.version}
       </Link>
       <code title={resource.ref.digest}>
@@ -464,7 +464,6 @@ function RuntimeConfigPublishForm({
               "Worker telemetry",
               "workerTelemetryEndpoint",
               "workerTelemetryCredential",
-              "workerTelemetryTimeout",
               "workerTelemetryCaptureContent",
             ],
             [
@@ -472,107 +471,58 @@ function RuntimeConfigPublishForm({
               "Planner telemetry",
               "plannerTelemetryEndpoint",
               "plannerTelemetryCredential",
-              "plannerTelemetryTimeout",
               "plannerTelemetryCaptureContent",
             ],
           ] as const
-        ).map(
-          ([enabled, title, endpoint, credential, timeout, captureContent]) => (
-            <fieldset
-              className="runtime-config-block"
-              key={enabled}
-              aria-label={title}
-            >
-              <legend>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={draft[enabled]}
-                    onChange={(event) => update(enabled, event.target.checked)}
-                  />
-                  {title} · otlp-http@1
-                </label>
-              </legend>
+        ).map(([enabled, title, endpoint, credential, captureContent]) => (
+          <fieldset
+            className="runtime-config-block"
+            key={enabled}
+            aria-label={title}
+          >
+            <legend>
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  disabled={!draft[enabled]}
-                  checked={draft[captureContent]}
-                  onChange={(event) =>
-                    update(captureContent, event.target.checked)
-                  }
+                  checked={draft[enabled]}
+                  onChange={(event) => update(enabled, event.target.checked)}
                 />
-                Capture content — trust this sink with unredacted prompts,
-                responses and tool content, including any secrets they contain.
+                {title} · otlp-http@1
               </label>
-              <div className="form-grid">
-                <label>
-                  OTLP traces endpoint
-                  <input
-                    disabled={!draft[enabled]}
-                    placeholder="https://otel.example/v1/traces"
-                    value={draft[endpoint]}
-                    onChange={(event) => update(endpoint, event.target.value)}
-                  />
-                </label>
-                <label>
-                  Runtime credential ID (optional)
-                  <input
-                    disabled={!draft[enabled]}
-                    value={draft[credential]}
-                    onChange={(event) => update(credential, event.target.value)}
-                  />
-                </label>
-                <label>
-                  Flush timeout seconds
-                  <input
-                    disabled={!draft[enabled]}
-                    type="number"
-                    min={1}
-                    max={10}
-                    step={1}
-                    value={draft[timeout]}
-                    onChange={(event) => update(timeout, event.target.value)}
-                  />
-                </label>
-                {enabled === "workerTelemetry" &&
-                  (
-                    [
-                      ["workerTelemetryBatchSize", "Batch size (MiB)", 64],
-                      [
-                        "workerTelemetryMaxAttempts",
-                        "Maximum attempts per batch",
-                        10,
-                      ],
-                      [
-                        "workerTelemetryMaxPendingSpans",
-                        "Maximum pending spans",
-                        2048,
-                      ],
-                      [
-                        "workerTelemetryMaxPendingSize",
-                        "Maximum pending size (MiB)",
-                        64,
-                      ],
-                    ] as const
-                  ).map(([field, label, maximum]) => (
-                    <label key={field}>
-                      {label}
-                      <input
-                        disabled={!draft.workerTelemetry}
-                        type="number"
-                        min={1}
-                        max={maximum}
-                        step={1}
-                        value={draft[field]}
-                        onChange={(event) => update(field, event.target.value)}
-                      />
-                    </label>
-                  ))}
-              </div>
-            </fieldset>
-          ),
-        )}
+            </legend>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                disabled={!draft[enabled]}
+                checked={draft[captureContent]}
+                onChange={(event) =>
+                  update(captureContent, event.target.checked)
+                }
+              />
+              Capture content — trust this sink with unredacted prompts,
+              responses and tool content, including any secrets they contain.
+            </label>
+            <div className="form-grid">
+              <label>
+                OTLP traces endpoint
+                <input
+                  disabled={!draft[enabled]}
+                  placeholder="https://otel.example/v1/traces"
+                  value={draft[endpoint]}
+                  onChange={(event) => update(endpoint, event.target.value)}
+                />
+              </label>
+              <label>
+                Runtime credential ID (optional)
+                <input
+                  disabled={!draft[enabled]}
+                  value={draft[credential]}
+                  onChange={(event) => update(credential, event.target.value)}
+                />
+              </label>
+            </div>
+          </fieldset>
+        ))}
 
         <fieldset className="runtime-config-block">
           <legend>
@@ -605,14 +555,6 @@ function RuntimeConfigPublishForm({
                 }
               />
             </label>
-            <label className="runtime-ca-field">
-              Additional CA bundle PEM (optional)
-              <textarea
-                disabled={!draft.httpProxy}
-                value={draft.proxyCA}
-                onChange={(event) => update("proxyCA", event.target.value)}
-              />
-            </label>
           </div>
           <div className="runtime-targets">
             {targetOptions.map(([target, label]) => (
@@ -637,6 +579,79 @@ function RuntimeConfigPublishForm({
             ))}
           </div>
         </fieldset>
+
+        <details className="optional-settings">
+          <summary>Optional settings</summary>
+          <div>
+            <p className="muted-copy">
+              Telemetry delivery limits and proxy trust. Each field applies only
+              while its block above is enabled.
+            </p>
+            <div className="form-grid">
+              {(
+                [
+                  [
+                    "workerTelemetryTimeout",
+                    "Worker telemetry flush timeout (seconds)",
+                    "workerTelemetry",
+                    10,
+                  ],
+                  [
+                    "workerTelemetryBatchSize",
+                    "Worker telemetry batch size (MiB)",
+                    "workerTelemetry",
+                    64,
+                  ],
+                  [
+                    "workerTelemetryMaxAttempts",
+                    "Worker telemetry maximum attempts per batch",
+                    "workerTelemetry",
+                    10,
+                  ],
+                  [
+                    "workerTelemetryMaxPendingSpans",
+                    "Worker telemetry maximum pending spans",
+                    "workerTelemetry",
+                    2048,
+                  ],
+                  [
+                    "workerTelemetryMaxPendingSize",
+                    "Worker telemetry maximum pending size (MiB)",
+                    "workerTelemetry",
+                    64,
+                  ],
+                  [
+                    "plannerTelemetryTimeout",
+                    "Planner telemetry flush timeout (seconds)",
+                    "plannerTelemetry",
+                    10,
+                  ],
+                ] as const
+              ).map(([field, label, block, maximum]) => (
+                <label key={field}>
+                  {label}
+                  <input
+                    disabled={!draft[block]}
+                    type="number"
+                    min={1}
+                    max={maximum}
+                    step={1}
+                    value={draft[field]}
+                    onChange={(event) => update(field, event.target.value)}
+                  />
+                </label>
+              ))}
+            </div>
+            <label className="runtime-ca-field">
+              HTTP proxy additional CA bundle PEM (optional)
+              <textarea
+                disabled={!draft.httpProxy}
+                value={draft.proxyCA}
+                onChange={(event) => update("proxyCA", event.target.value)}
+              />
+            </label>
+          </div>
+        </details>
 
         {errors.length === 0 ? null : (
           <div className="notice notice-error" role="alert">
@@ -664,9 +679,19 @@ function RuntimeConfigPublishForm({
           </strong>
           <p>Current label bindings remain in effect until you rebind them.</p>
         </div>
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Publishing…" : "Publish RuntimeConfig"}
-        </button>
+        <div className="project-dialog-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={mutation.isPending}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Publishing…" : "Publish RuntimeConfig"}
+          </button>
+        </div>
       </form>
     </Dialog>
   );
@@ -1272,9 +1297,19 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
             cannot be read back.
           </div>
         )}
-        <button type="submit" disabled={pending}>
-          {pending ? "Creating…" : "Create active Runtime credential"}
-        </button>
+        <div className="project-dialog-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={pending}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button type="submit" disabled={pending}>
+            {pending ? "Creating…" : "Create active Runtime credential"}
+          </button>
+        </div>
       </form>
     </Dialog>
   );

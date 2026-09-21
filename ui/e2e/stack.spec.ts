@@ -705,7 +705,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).first().click();
-  const projectForm = page.locator("form.project-create-form");
+  const projectForm = page.getByRole("dialog", { name: "New Project" });
   await projectForm
     .getByLabel("Name", { exact: true })
     .fill("UI Stack Workspace");
@@ -869,6 +869,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await openDetails(page.locator("details.configuration-clone"));
   const credentialForm = page.locator("form.credential-create-form");
   await credentialForm.getByLabel("Credential ID").fill("ui-stack-key");
+  await openDetails(credentialForm.locator("details.optional-settings"));
   await credentialForm
     .getByLabel("Safe label (optional)")
     .fill("Browser E2E key");
@@ -928,6 +929,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(page.getByText("ui-stack-key", { exact: true })).toHaveCount(0);
 
   await page.goto("/runs/configuration");
+  await expect(page).toHaveURL(/\/operations\/configuration$/);
   await expect(
     page.getByRole("heading", { name: "RuntimeConfig versions" }),
   ).toBeVisible();

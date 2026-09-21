@@ -621,6 +621,7 @@ describe("Project Audit routes", () => {
     const createButton = screen.getByRole("button", {
       name: "Create Audit draft",
     });
+    await user.click(await screen.findByText("Optional settings"));
     expect(
       await screen.findByText(
         "Standards pinned at start: owasp-web-top10@2025",

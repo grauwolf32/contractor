@@ -154,7 +154,9 @@ export function ProjectArtifactWriteForm({
   expectedRevision,
   submitLabel,
   signal,
+  headingId,
   onPendingChange,
+  onCancel,
   onWritten,
 }: {
   projectId: string;
@@ -166,12 +168,17 @@ export function ProjectArtifactWriteForm({
   expectedRevision?: string;
   submitLabel?: string;
   signal?: AbortSignal;
+  /** Labels the form by an outer (dialog) heading instead of its own. */
+  headingId?: string;
   onPendingChange?: (pending: boolean) => void;
+  /** Renders a Cancel button next to the submit button. */
+  onCancel?: () => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
-  const formHeading = useId();
+  const ownHeading = useId();
+  const formHeading = headingId ?? ownHeading;
   const [namespace, setNamespace] = useState(
     fixedIdentity?.namespace ??
       fixedNamespace ??
@@ -273,20 +280,28 @@ export function ProjectArtifactWriteForm({
 
   const update = expectedRevision !== undefined;
   return (
-    <form className="project-artifact-form" onSubmit={submit}>
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">
-            {update ? "New version" : "Project artifact"}
-          </p>
-          <h3 id={formHeading}>
-            {update
-              ? "Upload a new version"
-              : `Add ${suggested?.label ?? "Artifact"}`}
-          </h3>
+    <form
+      className="project-artifact-form"
+      onSubmit={submit}
+      aria-labelledby={formHeading}
+    >
+      {headingId === undefined ? (
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">
+              {update ? "New version" : "Project artifact"}
+            </p>
+            <h3 id={formHeading}>
+              {update
+                ? "Upload a new version"
+                : `Add ${suggested?.label ?? "Artifact"}`}
+            </h3>
+          </div>
+          {update ? (
+            <code>If-Match: &quot;{expectedRevision}&quot;</code>
+          ) : null}
         </div>
-        {update ? <code>If-Match: &quot;{expectedRevision}&quot;</code> : null}
-      </div>
+      ) : null}
 
       <ArtifactFileDrop file={file} onSelect={selectFile} />
 
@@ -333,11 +348,28 @@ export function ProjectArtifactWriteForm({
       {mutation.error === null ? null : (
         <ErrorNotice error={mutation.error} reconcileWrite />
       )}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending
-          ? "Uploading…"
-          : (submitLabel ?? (update ? "Upload new version" : "Create binding"))}
-      </button>
+      <div
+        className={
+          onCancel === undefined ? undefined : "project-dialog-actions"
+        }
+      >
+        {onCancel === undefined ? null : (
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={mutation.isPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        )}
+        <button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending
+            ? "Uploading…"
+            : (submitLabel ??
+              (update ? "Upload new version" : "Create binding"))}
+        </button>
+      </div>
     </form>
   );
 }
@@ -384,6 +416,8 @@ export function ProjectArtifactDialog({
       <ProjectArtifactWriteForm
         projectId={projectId}
         suggested={shortcut}
+        headingId={heading}
+        onCancel={onClose}
         onWritten={onWritten}
       />
     </Dialog>

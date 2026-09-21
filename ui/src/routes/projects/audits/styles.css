@@ -130,6 +130,10 @@
   gap: 1rem;
 }
 
+.project-dialog.audit-create-dialog {
+  width: min(100%, 56rem);
+}
+
 .audit-create-form,
 .audit-profile-contract,
 .audit-input-fields {

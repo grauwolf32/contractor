@@ -105,6 +105,57 @@ summary:focus-visible,
   gap: 0.65rem;
 }
 
+/* Create dialogs: required fields first, one optional disclosure, actions
+   bottom right with the primary button last. */
+.project-dialog-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-dialog > .artifact-form {
+  margin: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.project-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.optional-settings {
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: #0c1016aa;
+}
+
+.optional-settings > summary {
+  padding: 0.75rem 0.9rem;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.optional-settings > summary:hover {
+  background: var(--surface-raised);
+}
+
+.optional-settings[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.optional-settings > div {
+  display: grid;
+  gap: 1rem;
+  padding: 0.9rem;
+}
+
 .button-link {
   display: inline-flex;
   align-items: center;

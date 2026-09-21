@@ -195,18 +195,6 @@ export function CredentialCreateForm() {
           />
         </label>
         <label>
-          Safe label (optional)
-          <input
-            name="label"
-            maxLength={256}
-            value={label}
-            onChange={(event) => {
-              setLabel(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
-        <label>
           Managed LLM Gateway
           <select
             required
@@ -223,73 +211,6 @@ export function CredentialCreateForm() {
               </option>
             ))}
           </select>
-        </label>
-        <label>
-          Maximum spend · Gateway-enforced (LiteLLM)
-          <input
-            type="number"
-            min={0}
-            step="any"
-            value={maxBudget}
-            onChange={(event) => {
-              setMaxBudget(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
-        <label>
-          Budget reset · Gateway-enforced (LiteLLM)
-          <input
-            placeholder="1d"
-            maxLength={32}
-            value={budgetDuration}
-            onChange={(event) => {
-              setBudgetDuration(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
-        <label>
-          TPM limit · Gateway-enforced (LiteLLM)
-          <input
-            type="number"
-            min={1}
-            max={2_147_483_647}
-            step={1}
-            value={tpmLimit}
-            onChange={(event) => {
-              setTPMLimit(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
-        <label>
-          RPM limit · Gateway-enforced (LiteLLM)
-          <input
-            type="number"
-            min={1}
-            max={2_147_483_647}
-            step={1}
-            value={rpmLimit}
-            onChange={(event) => {
-              setRPMLimit(event.target.value);
-              setErrors([]);
-            }}
-          />
-        </label>
-        <label>
-          Parallel requests · Gateway-enforced (LiteLLM)
-          <input
-            type="number"
-            min={1}
-            max={2_147_483_647}
-            step={1}
-            value={parallelLimit}
-            onChange={(event) => {
-              setParallelLimit(event.target.value);
-              setErrors([]);
-            }}
-          />
         </label>
       </div>
       <fieldset className="policy-selection">
@@ -317,6 +238,92 @@ export function CredentialCreateForm() {
           })
         )}
       </fieldset>
+      <details className="optional-settings">
+        <summary>Optional settings</summary>
+        <div>
+          <div className="form-grid">
+            <label>
+              Safe label (optional)
+              <input
+                name="label"
+                maxLength={256}
+                value={label}
+                onChange={(event) => {
+                  setLabel(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            </label>
+            <label>
+              Maximum spend · Gateway-enforced (LiteLLM)
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={maxBudget}
+                onChange={(event) => {
+                  setMaxBudget(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            </label>
+            <label>
+              Budget reset · Gateway-enforced (LiteLLM)
+              <input
+                placeholder="1d"
+                maxLength={32}
+                value={budgetDuration}
+                onChange={(event) => {
+                  setBudgetDuration(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            </label>
+            <label>
+              TPM limit · Gateway-enforced (LiteLLM)
+              <input
+                type="number"
+                min={1}
+                max={2_147_483_647}
+                step={1}
+                value={tpmLimit}
+                onChange={(event) => {
+                  setTPMLimit(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            </label>
+            <label>
+              RPM limit · Gateway-enforced (LiteLLM)
+              <input
+                type="number"
+                min={1}
+                max={2_147_483_647}
+                step={1}
+                value={rpmLimit}
+                onChange={(event) => {
+                  setRPMLimit(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            </label>
+            <label>
+              Parallel requests · Gateway-enforced (LiteLLM)
+              <input
+                type="number"
+                min={1}
+                max={2_147_483_647}
+                step={1}
+                value={parallelLimit}
+                onChange={(event) => {
+                  setParallelLimit(event.target.value);
+                  setErrors([]);
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </details>
       {errors.length === 0 ? null : (
         <div className="notice notice-error" role="alert">
           <strong>Credential request is not valid</strong>
