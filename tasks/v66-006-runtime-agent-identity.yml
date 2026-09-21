@@ -3,8 +3,8 @@ id: V66-006
 title: Name Runtime Agents and de-emphasise offline identities
 milestone: ui-design-review-2
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 2f87023df4a38920e7a0bb11aa973089ffa087e2
 depends_on: []
 languages:
 - typescript
@@ -50,3 +50,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest src/routes/operations 6 files / 33 tests pass; eslint, prettier, tsc (app and e2e) clean.
+  naming: first saved label, else live instanceId, else Agent plus short id; short id and copy control remain.
+  forget: DELETE /v1/operations/runtime-agent-principals/{id} with If-Match revision; offered only for offline identities without saved labels (server returns 409 otherwise).
+  browser: not checked against demo data; owned by V66-011.
