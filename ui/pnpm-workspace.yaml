@@ -1,2 +1,6 @@
 allowBuilds:
   vue-demi: false
+# Security overrides for transitive dependencies (pnpm audit); remove once
+# upstream (@likec4/* via chevrotain/langium) picks up the patched ranges.
+overrides:
+  lodash-es: ">=4.18.1"
