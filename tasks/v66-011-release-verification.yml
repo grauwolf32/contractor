@@ -3,7 +3,7 @@ id: V66-011
 title: Verify and release the second design review implementation
 milestone: ui-design-review-2
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V66-001
