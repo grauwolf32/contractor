@@ -163,7 +163,7 @@ This slice must demonstrate:
 - Workflow defaults plus reference-only Run overrides resolve an exact
   ModelPolicy for every modeled consumer and a complete Gateway route for every
   model-backed Planner; a Worker route may be completed or physically
-  overridden by the pinned Run/Agent-label boundary in [07]. Control Plane
+  overridden by the pinned Run/Agent-label boundary in [07](07-runtime-labels-and-infrastructure-config.md). Control Plane
   supplies the resulting allocation URL and optional token in RuntimeSettings
   over mTLS, and Agent clears secrets on release;
 - Workflow Scheduler records `preparing -> running -> finalizing -> terminal`;
@@ -511,7 +511,8 @@ implicitly:
   explicitly specified MemoryTools mirror;
 - optional incremental Worker metric delivery for retaining detail across a
   hard process crash;
-- S3 blob backend, streaming uploads, and longer-term Artifact retention;
+- S3 blob backend (deferral recorded in [23](23-artifact-blob-backends.md)),
+  streaming uploads, and longer-term Artifact retention;
 - explicit Run-output publication endpoint;
 - concrete graceful-drain timeout before forced Worker termination after lease
   loss;
@@ -523,7 +524,13 @@ implicitly:
   explicit first-slice model, spend/reset, TPM, RPM and concurrency allowlist;
 - concrete CA bootstrap, certificate delivery, lifetime, rotation and
   revocation procedures;
-- multi-tenant authorization and quota policy.
+- future OIDC authentication, multiple users, user/Operations RBAC and
+  multi-tenant authorization and quota policy;
+- Web UI component library/design system and whether the initial editor
+  covers Workflow and AgentTemplate or only ModelPolicy, LLMGatewayConfig and
+  credentials;
+- artifact preview size limits, whether OpenAPI/LikeC4 receive specialized
+  renderers, and the list retention window.
 
 Each decision should be added to its owning spec only when a concrete first-
 slice implementation needs it.

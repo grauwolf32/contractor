@@ -428,7 +428,7 @@ being inferred from Runtime installation or a label. When `skills` is
 non-empty, AgentTemplateCatalog rejects any selected Contractor Toolset
 operation named `list_skills`, `load_skill` or `load_skill_resource`; the
 model-visible function namespace remains unambiguous. Contractor filters ADK's
-`run_skill_script` and its script-bearing prompt under [09], so that function
+`run_skill_script` and its script-bearing prompt under [09](09-agent-skills.md), so that function
 is not part of the reserved visible set.
 It also validates the Worker ModelPolicy as tool-using even when the ordinary
 `toolsets` list is empty. Native Skill calls consume the same `maxToolCalls`
@@ -512,7 +512,7 @@ code metadata under the exact Toolset version, not an AgentTemplate option. A
 selected tool declaring a channel uses only the allocation-owned handle
 supplied by Runtime; a tool declaring none remains local/artifact-only. Generic
 HTTP may use its optional proxy channel or a bounded direct client; Caido's
-channel is mandatory. HTTP-proxy targeting is owned by [07], and the HTTP/Caido
+channel is mandatory. HTTP-proxy targeting is owned by [07](07-runtime-labels-and-infrastructure-config.md), and the HTTP/Caido
 tool boundary by [11](11-http-and-caido-tools.md).
 
 A Toolset capability contains the exact ref and the subset of its exported
@@ -843,7 +843,7 @@ After Stage preparation begins, Planner, Control Plane recovery, Runtime Agent
 and Worker do not consult a mutable template alias. Changing or removing the
 catalog entry cannot retarget an already prepared or recorded StageExecution.
 Likewise, they never re-resolve a current owner skill binding: exact skill
-artifacts come from the immutable WorkflowRun snapshot defined by [09].
+artifacts come from the immutable WorkflowRun snapshot defined by [09](09-agent-skills.md).
 
 `AgentTemplateCatalog` is an in-process Server configuration boundary in the
 single-VM baseline. It loads through the shared all-or-nothing configuration
@@ -939,9 +939,9 @@ model policy, optional resolved summarizer policy, instantiated tools and
 prepared skills. `WorkerBuildContext` does not
 contain an `AgentTemplate`; neither the ADK implementation nor its model sees a
 template ref, digest, manifest or allocation projection. Stage objective/instructions
-remain separate per-task semantic input under [00]. Its explicit Toolset selections
+remain separate per-task semantic input under [00](00-workflow-and-planner.md). Its explicit Toolset selections
 own domain tools and its explicit `skills` refs
-own the bounded native ADK SkillToolset described by [09]. A Runtime label may
+own the bounded native ADK SkillToolset described by [09](09-agent-skills.md). A Runtime label may
 configure a proxy, telemetry exporter or an already selected Toolset adapter,
 but cannot add a tool, Toolset, skill, instruction or Worker behavior. Runtime
 Agent receives typed settings and never interprets label names.
@@ -988,4 +988,4 @@ incompatible runtime/card fails preparation before Planner starts.
     template and never change its model-visible instructions or selected tools.
 11. AgentTemplate declares versionless Agent Skill ArtifactRefs; WorkflowRun,
     not Runtime, resolves them in owner UserScope and pins exact immutable
-    revisions under [09].
+    revisions under [09](09-agent-skills.md).

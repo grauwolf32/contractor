@@ -480,7 +480,7 @@ Worker. The Worker implementation returns a framework-neutral
 
 The endpoint:
 
-- accepts only a Control Plane mTLS peer under [02];
+- accepts only a Control Plane mTLS peer under [02](02-runtime-and-a2a.md);
 - has no request body and no model/user-provided state key;
 - returns the whole exportable Contractor State and the strong ETag
   `"contractor-agent-state-v1-<stateRevision>"` derived only from its positive

@@ -31,7 +31,7 @@ v2 ownership model:
 
 The Toolset mutates only the effective allocation workspace. It does not mutate
 Trailmark or any persistent graph. A later `code-analysis@1` call observes the
-new workspace digest and rebuilds its derived state under [12]. No Server-side
+new workspace digest and rebuilds its derived state under [12](12-code-analysis-tools.md). No Server-side
 annotation service, database table, Artifact endpoint or infrastructure
 channel is introduced.
 
@@ -81,7 +81,7 @@ no infrastructure channels. Selecting any operation therefore requires
 mode the mutation lives only in the disposable allocation copy. A Workflow
 that needs durable annotation output selects overlay mode and ordinary
 workspace `state`/`diff` result slots; the pre-terminal auto-export contract in
-[10] remains the only persistence path.
+[10](10-runtime-filesystems-and-edit-tools.md) remains the only persistence path.
 
 `taint-annotations@1` is independent of `code-analysis@1`. A template may
 select either or both. The annotation resolver uses Tree-sitter internally but
@@ -307,7 +307,7 @@ Workflow outputs.
 The Worker uses `changed_paths` and `diff` to verify intended edits. It never
 calls a materialize operation. When its Workflow selects overlay export, the
 resulting cumulative state can be applied by a later Stage and the text diff can
-be analyzed as an ordinary artifact, as defined in [10].
+be analyzed as an ordinary artifact, as defined in [10](10-runtime-filesystems-and-edit-tools.md).
 
 ## Port boundary and acceptance
 

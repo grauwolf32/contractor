@@ -65,7 +65,7 @@ summarizer model or use of a different Gateway/credential is deferred.
 The resolved summarizer block and exact ModelPolicy are included in the
 AgentTemplate digest, immutable Run snapshot and AllocationSpec. Runtime
 verifies both digests before Worker construction. Labels may select the same
-physical Worker Gateway route under [07], but cannot enable summarization or
+physical Worker Gateway route under [07](07-runtime-labels-and-infrastructure-config.md), but cannot enable summarization or
 change its policy/soft limits.
 
 Configured summarizer instructions must contain non-blank text and at most

@@ -334,7 +334,7 @@ automatically secret-free.
 
 ## 6. Frozen selection, presentation and identity
 
-Reuse [27]'s owner checks, exact resolution, contribution expansion,
+Reuse [27](27-findings-tools-and-collections.md)'s owner checks, exact resolution, contribution expansion,
 repeatable-read capture and atomic artifact publication mechanisms. A v1
 collection alone is not a reviewed export snapshot: decision IDs do not contain
 analyst severity/rationale, and one receipt can have reviews in several Audits.
@@ -403,7 +403,7 @@ bound repository and keeps the original source identities in properties.
 Generated/annotated archives do not inherit a commit by sharing a Run or paths.
 First release requires verified exact-version Git origin for repository
 attribution; edited workspace attribution and source maps are deferred.
-Repository identity uses [24]'s normalized URL; SSH/HTTPS aliases do not become
+Repository identity uses [24](24-git-artifacts.md)'s normalized URL; SSH/HTTPS aliases do not become
 equal by guessing. Any future alias mapping must be explicit and versioned.
 
 Native result IDs, grouping hints and consumer fingerprints have distinct jobs.
@@ -690,7 +690,6 @@ Implementation acceptance includes:
 - GitHub target/cross-repository mismatch, absent locations, fingerprint
   compatibility and zero silent consumer truncation.
 
-[27]: 27-findings-tools-and-collections.md
 [sarif]: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html
 [sarif-schema]: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json
 [github-sarif]: https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support

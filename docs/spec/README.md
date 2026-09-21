@@ -33,6 +33,9 @@ Reviewable built-in Agent Skill sources live in the additional non-YAML
 `SkillCatalog` population of the local owner's ordinary `skills/*` UserScope
 artifacts, not live desired state; restart never overwrites a binding advanced
 through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
+Curated Audit standard packages live in the additional non-YAML
+`configs/audit-standards` subtree, one `standard.json` per package directory;
+[19](19-audits.md#42-curated-standard-package-catalog) owns that catalog.
 
 ## Reading order
 
@@ -68,7 +71,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
 | [28](28-finding-analysis-and-sarif.md) | Draft; not implemented: structured finding analysis, exact-evidence resolution and deterministic SARIF export |
 | [29](29-tool-workers.md) | Implemented: deterministic model-free tool Workers, typed execution bindings and durable invocation receipts |
-| [30](30-managed-evals.md) | Implemented: native Evals execution, assessments and comparison APIs; browser UI and optional independent Playground client planned |
+| [30](30-managed-evals.md) | Implemented: native Evals execution, assessments, comparison APIs, browser UI and optional independent Playground client |
 | [31](31-scan-request-preparation.md) | Implemented: bounded deterministic OpenAPI request preparation, RequestSet identities and coverage gaps |
 | [32](32-scan-planning.md) | Implemented: bounded model-free scan plans, fixed Worker routing, durable job intent and conservative recovery |
 | [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |

@@ -191,7 +191,7 @@ preparing / running -> aborting -> cancelled
 The owner may explicitly continue an ordinary failed Run from its latest
 `failed` or `interrupted` StageExecution after every allocation is released.
 This is not a mutation of a terminal StageExecution or a replay of its Planner
-session. One transaction changes the Run from `failed` to `running`, clears its
+session. One transaction changes the Run from `failed` to `pending`, clears its
 finish time, creates a new `preparing` attempt of the same Stage, and records a
 durable manual-continuation receipt. The new attempt increments `attempt`, links
 `previousExecutionId`, and copies the failed attempt's exact StageSpec,
@@ -551,7 +551,7 @@ immutable ResolvedExecutionConfig. Planner LLMGatewayConfig/LLMCredential refs
 also come from that Run snapshot. For a logical Worker, the final
 LLMGatewayConfig/LLMCredential refs come from the Server-pinned allocation
 config provenance because the default/Run/Agent infrastructure layers may
-override the Workflow route under [07]. None of these refs is accepted from a
+override the Workflow route under [07](07-runtime-labels-and-infrastructure-config.md). None of these refs is accepted from a
 Runtime report. They let Operations aggregate calls/tokens by policy, route and
 credential without persisting or exposing the secret value.
 
@@ -588,7 +588,7 @@ map without exposing it to either model.
 - Agent Skill tools apply a similar stricter projection: only validated logical
   skill name, bounded normalized reference/asset path, outcome, duration,
   result size and stable error code may remain. Instructions, resource/package
-  bytes, extracted paths and generated context are always dropped under [09].
+  bytes, extracted paths and generated context are always dropped under [09](09-agent-skills.md).
 - RuntimeSettings tokens and other known deployment secrets are always removed,
   even if a tool argument or error accidentally contains them.
 - Runtime adapter metrics are keyed by the exact RuntimeAdapter ref selected by
@@ -829,7 +829,7 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
 9. Planner Session persistence does not imply Planner resume.
 10. Runtime Agent has no PostgreSQL or long-lived external telemetry
     credential. It may receive an allocation-scoped exporter credential only
-    inside RuntimeSettings under [07], holds it in memory and erases it during
+    inside RuntimeSettings under [07](07-runtime-labels-and-infrastructure-config.md), holds it in memory and erases it during
     release.
 11. Allocations are released after StageExecution is terminal, except when
     Queue Pause defers atomic next/retry/escalation admission as specified

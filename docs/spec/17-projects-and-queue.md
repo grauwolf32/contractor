@@ -141,7 +141,7 @@ Workflow contracts and the Project's current Artifact bindings. They never
 replace Server validation.
 
 For each required Workflow input slot, the UI finds Project artifacts whose
-stored media type satisfies the strict slot matching rules in [00]. The
+stored media type satisfies the strict slot matching rules in [00](00-workflow-and-planner.md). The
 Workflow is runnable when every required artifact slot has at least one
 candidate. A unique candidate may be prepopulated as a format-compatible
 suggestion; it is not a reviewed input. Multiple candidates require an
@@ -346,7 +346,7 @@ Workflow read-only, but cannot own, copy or override them.
 9. Secret target auth uses RuntimeCredential and appears in plaintext only in
    allocation-private RuntimeSettings after placement.
 10. Queue is a read model over WorkflowRun lifecycle, not a second Scheduler;
-    its pause control is only a durable admission gate under [18].
+    its pause control is only a durable admission gate under [18](18-run-and-workspace-lifecycle-controls.md).
 
 ## First-release conformance
 

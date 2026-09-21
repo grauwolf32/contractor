@@ -19,7 +19,7 @@ There are two deliberately separate label domains:
 
 | Field | Shape | Meaning |
 |---|---|---|
-| `runtimeLabels` | sorted unique array of names | Selects and pins RuntimeConfig bindings such as `debug` or `caido` under [07] |
+| `runtimeLabels` | sorted unique array of names | Selects and pins RuntimeConfig bindings such as `debug` or `caido` under [07](07-runtime-labels-and-infrastructure-config.md) |
 | `labels` | key/value string map | Immutable metadata describing one WorkflowRun |
 
 Runtime labels may change infrastructure resolution. WorkflowRun metadata

@@ -102,7 +102,7 @@ replacing the previous value. Encrypted/passphrase-protected keys return an
 explicit unsupported-format response in this slice; never prompt a background
 process for a passphrase.
 
-Reuse the Server credential master-key mechanism from [06]. Store the key
+Reuse the Server credential master-key mechanism from [06](06-server-ui-and-operations.md). Store the key
 only as authenticated ciphertext in PostgreSQL, with authenticated owner,
 purpose and key-generation identity. Include Git-key rows in startup master-key
 requirements and integrity checks. Do not reuse LLM credential records or send

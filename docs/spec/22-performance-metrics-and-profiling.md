@@ -38,7 +38,7 @@ response. Go profiling is a separate, opt-in diagnostic facility.
 
 This document owns performance collection and profiling. Execution reports,
 model/tool/token accounting, execution budgets, finalization and report retention
-remain owned by [04]. Performance telemetry cannot affect placement eligibility,
+remain owned by [04](04-execution-lifecycle-and-metrics.md). Performance telemetry cannot affect placement eligibility,
 semantic outcomes, lease confirmation, write fencing or release eligibility.
 
 The first implementation targets Linux, including the existing single-host
@@ -400,7 +400,7 @@ policy. Resource history rejects missing or invalid stored policy instead of
 inventing a legacy projection. Report ingestion likewise rejects an absent or
 unsupported envelope policy before persisting or replaying a report. A valid
 policy with missing or partial observations remains a supported resource state.
-Late reports follow [04]'s existing related-telemetry rules; no frozen Stage
+Late reports follow [04](04-execution-lifecycle-and-metrics.md)'s existing related-telemetry rules; no frozen Stage
 outcome or StageMetrics is rewritten to populate history.
 
 ## Operations presentation

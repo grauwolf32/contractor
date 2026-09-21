@@ -529,7 +529,7 @@ stable ADK error code. It never retains instructions, resource/archive bytes,
 owner refs, revisions, extracted paths or generated context. Aggregate counts
 flow through ordinary `ExecutionReport`; no Skill telemetry service exists.
 This content-free retained projection is distinct from opt-in external
-model/tool content capture under [07], which may include disclosed skill text.
+model/tool content capture under [07](07-runtime-labels-and-infrastructure-config.md), which may include disclosed skill text.
 
 ## Initial increment acceptance
 

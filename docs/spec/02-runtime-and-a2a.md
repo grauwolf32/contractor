@@ -213,7 +213,7 @@ programs are invoked directly without a shell, with closed stdin, bounded
 output and the same effective executable search/configuration that the real
 tool will use.
 
-Runtime workspace-provider initialization under [10] is shared preparation
+Runtime workspace-provider initialization under [10](10-runtime-filesystems-and-edit-tools.md) is shared preparation
 inside that same complete thirty-second phase. It validates private local or
 memory storage and cleanup primitives but does not download Run artifacts or
 hydrate a tree before an allocation. Filesystem factory probes reuse the
@@ -400,7 +400,7 @@ This design permits one active Control Plane instance in the first slice.
 Shared fleet coordination, durable liveness state and multiple active Control
 Plane replicas are deferred together; they must not be approximated by sharing
 an unfenced `runtime_agents` table. Durable certificate principals and their
-label assignments under [07] are configuration records only; they never imply
+label assignments under [07](07-runtime-labels-and-infrastructure-config.md) are configuration records only; they never imply
 that a process is live, leased or eligible.
 
 The in-memory Registry is a current live/reconciliation index, not process
@@ -672,7 +672,7 @@ Placement never requires a Run label name to appear in the candidate's Agent
 label set. A Run `debug` configuration applies to an unlabeled Runtime Agent
 when that process advertises the resulting required adapter; Agent labels are
 only the higher-precedence candidate-specific configuration layer defined by
-[07].
+[07](07-runtime-labels-and-infrastructure-config.md).
 
 For a multi-Agent Stage, Control Plane must find a complete injective matching
 between logical bindings and eligible single-slot Runtime Agents before
@@ -708,7 +708,7 @@ After reserving the full set, Control Plane creates one globally unique
 `allocation_id` and one complete AllocationSpec per logical Stage Agent binding,
 including that binding's effective ModelPolicy and resolved RuntimeSettings
 plus exact label/config provenance and the exact Run-pinned `resolvedSkills`
-manifest from [09] and the Stage's pinned `workerSessionMode`, then may initialize
+manifest from [09](09-agent-skills.md) and the Stage's pinned `workerSessionMode`, then may initialize
 those Runtime Agents concurrently. The mode participates in reservation replay
 identity: a retry of the same `stage_execution_id` cannot reinterpret it. Planner
 starts only after every Runtime Agent reports ready and Control Plane can return
@@ -818,7 +818,7 @@ Runtime Agent active slot
 
 The MVP card exposes one strict Contractor stage-content skill. Its input mode
 is `application/vnd.contractor.stage-content+json` and its output mode is
-`application/vnd.contractor.worker-completion+json`, as owned by [14]. The
+`application/vnd.contractor.worker-completion+json`, as owned by [14](14-worker-results-and-live-state.md). The
 AgentTemplate's selected tools remain internal model capabilities and are not
 advertised as independent A2A skills.
 

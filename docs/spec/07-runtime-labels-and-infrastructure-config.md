@@ -72,7 +72,7 @@ Runtime labels are configuration selection, not authorization roles,
 scheduling scores, arbitrary user tags or Workflow graph conditions.
 Independent immutable WorkflowRun metadata labels are owned by
 [16](16-run-metadata-labels.md). All valid Runtime
-Agent certificates have the same Runtime role eligibility under [02]; access
+Agent certificates have the same Runtime role eligibility under [02](02-runtime-and-a2a.md); access
 to one allocation's settings, A2A route and Artifact scope remains bound to
 that allocation's authenticated principal and instance grant.
 
@@ -111,10 +111,10 @@ schema implementation. Its exact JCS bytes and digest are:
 sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f
 ```
 
-A RuntimeConfig uses the exact `<id>@<version>` selector grammar from [00]. A
+A RuntimeConfig uses the exact `<id>@<version>` selector grammar from [00](00-workflow-and-planner.md). A
 published version is immutable and has a SHA-256 digest over its normalized
 document, encoded as lowercase `sha256:<64 hex>`. RuntimeConfig versions and
-label bindings are stored in PostgreSQL; they do not add a seventh YAML
+label bindings are stored in PostgreSQL; they do not add another YAML
 configuration subtree. A binding contains:
 
 ```text
@@ -525,7 +525,7 @@ RuntimeConfig ref. It validates the Run-level configuration, pins every
 binding revision/config digest and non-secret credential ref, and stores that
 snapshot in the same transaction as the Run. The canonical idempotency digest
 includes the sorted explicit `runtimeLabels` list independently of the
-metadata-label map defined by [16]; the pinned default is a resolved dependency
+metadata-label map defined by [16](16-run-metadata-labels.md); the pinned default is a resolved dependency
 rather than caller input. Exact replay returns the existing Run before
 consulting current bindings, including `default`.
 
@@ -749,7 +749,7 @@ all marked fields.
 
 ## Adapter capabilities and placement
 
-Startup capability discovery in [02] adds one fourth composable dimension:
+Startup capability discovery in [02](02-runtime-and-a2a.md) adds one fourth composable dimension:
 
 ```text
 supported_runtime_adapters: sorted set of exact RuntimeAdapter refs
@@ -763,7 +763,7 @@ The snapshot remains immutable for `instance_id`; changing adapter code or
 local dependencies requires a Runtime Agent restart.
 
 For each candidate slot, Control Plane first resolves Run-selected plus Agent Runtime labels and
-derives the required adapter set. Capability-aware placement from [02] then
+derives the required adapter set. Capability-aware placement from [02](02-runtime-and-a2a.md) then
 requires set containment in addition to the AgentTemplate's runtime, sandbox
 and selected Toolset tools. Extra adapter capabilities do not activate an
 adapter and do not become model-visible.
@@ -895,7 +895,7 @@ temporary proxy trust material before the slot can become idle.
 
 Local confirmed-lease loss invokes the same bounded adapter teardown while
 self-terminating Worker. It never waits for an exporter beyond the remaining
-local grace deadline and remains fenced under [02] even when telemetry cannot
+local grace deadline and remains fenced under [02](02-runtime-and-a2a.md) even when telemetry cannot
 be delivered.
 
 Planner telemetry uses the same pinned Run configuration but is constructed in
@@ -992,7 +992,7 @@ MAC is never returned, logged or used as a credential.
 
 `POST /v1/runs` adds `runtimeLabels`, a sorted-unique array in the canonical
 request; responses expose both explicit Runtime labels and the pinned
-default/label config refs. The independent `labels` map belongs to [16].
+default/label config refs. The independent `labels` map belongs to [16](16-run-metadata-labels.md).
 Run detail exposes final Agent-label/config provenance only after an allocation
 snapshot commits. The public `StageAttempt.runtimeConfiguration` is omitted
 before that boundary. Once present, its per-logical-Worker entries contain

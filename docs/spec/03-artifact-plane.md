@@ -66,7 +66,7 @@ RunScope reserves three model/data Namespaces:
 - `outputs` contains declared Workflow results and is managed by Workflow
   Scheduler;
 - `skills` contains exact read-only Agent Skill packages pinned/forked by
-  Workflow Scheduler under [09].
+  Workflow Scheduler under [09](09-agent-skills.md).
 
 All other Namespaces hold intermediate artifacts. They normally use the Stage
 Agent Namespace selected by its binding. For display and authoring,
@@ -306,7 +306,7 @@ is bound to its authenticated `UserScope`; a Project client is owner-bound to
 one `ProjectScope`; a Worker client is bound to the `RunScope` in its
 allocation. Only purpose-specific trusted Server operations may perform a
 controlled source-to-RunScope or successful-Run-to-ProjectScope fork, including
-Workflow input/output forks in [17] and Agent Skill forks in [09]; there is no
+Workflow input/output forks in [17](17-projects-and-queue.md) and Agent Skill forks in [09](09-agent-skills.md); there is no
 generic client operation that accepts arbitrary source and target scopes.
 
 ## Scanner wordlist artifacts
@@ -438,7 +438,7 @@ definition.
 A source tree, repository archive, OpenAPI document or other domain input is an
 ordinary artifact selected for a declared slot. A standalone Run selects it
 from UserScope; a Project Run selects it from its owner-authorized ProjectScope
-as defined in [17]. Contractor core has no `ProjectSnapshot` or
+as defined in [17](17-projects-and-queue.md). Contractor core has no `ProjectSnapshot` or
 `ProjectSnapshotManifest` domain type. Generic digest, streaming, retention and
 size behavior belongs to ArtifactStore; safe unpacking or interpretation
 belongs to the selected Worker tools and sandbox policy.
@@ -515,7 +515,7 @@ output version to a caller-selected versionless `ArtifactRef` in UserScope.
 Creating a new user binding is create-only; replacing an existing one requires
 its current opaque revision as a separate CAS precondition. Publication records
 lineage and may reuse the existing blob. A successful Project Run additionally
-performs the create-only `outputs/<slot>` publication contract in [17]; it never
+performs the create-only `outputs/<slot>` publication contract in [17](17-projects-and-queue.md); it never
 silently replaces an existing Project binding or changes semantic Run outcome.
 The successful cross-scope lineage edge has kind
 `project_output_publish`, distinct from the Run-internal `output_bind` edge.

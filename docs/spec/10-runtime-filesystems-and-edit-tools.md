@@ -409,7 +409,7 @@ contract. Scope-limited reads can remain available within their own bounds
 without constructing a complete snapshot.
 
 Workspace API limits do not impose disk quotas on external processes. Capacity
-controls for command writes belong to the executor deployment under [21].
+controls for command writes belong to the executor deployment under [21](21-podman-sandbox.md).
 
 For local direct mode, text replacement is an atomic rename relative to opened
 directory descriptors. Parent traversal does not follow symlinks, a replaced

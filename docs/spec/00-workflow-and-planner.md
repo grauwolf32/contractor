@@ -97,6 +97,10 @@ configs/
   instructions/       # UTF-8 instruction resources
 ```
 
+The operator root may also hold the non-YAML `configs/skills` and
+`configs/audit-standards` source subtrees; [09](09-agent-skills.md) and
+[19](19-audits.md#42-curated-standard-package-catalog) own those catalogs.
+
 The local loader recursively discovers regular files ending in `.yaml` below
 the first six subtrees in either root. AuditProfile manifests are initially
 accepted only from the operator root; their managed subtree remains empty and
@@ -135,7 +139,7 @@ Toolsets, SandboxProfiles, WorkerRuntime factories and Planner factories are
 registered code plus Server-visible descriptors, not additional configuration
 subtrees.
 
-A future S3-backed loader maps the same six logical manifest/resource
+A future S3-backed loader maps the same seven logical manifest/resource
 subtrees to prefixes and preserves the same document keys and relative
 instruction refs. No YAML
 manifest may depend on a local absolute path, inode or file name for its
@@ -236,7 +240,7 @@ WorkflowRun snapshot. That snapshot, rather than later configuration edits or
 UI state, is authoritative for every selected executionConfig value; pinned
 Run-selected Runtime labels and allocation-time Agent Runtime labels may
 complete or override only the physical Worker route/adapters under the
-explicit precedence in [07]. They
+explicit precedence in [07](07-runtime-labels-and-infrastructure-config.md). They
 cannot reinterpret ModelPolicy, budgets or Planner access. Secret bytes are
 never stored in the Run snapshot; Control Plane resolves the pinned credential
 only when constructing RuntimeSettings or the Planner model client.
@@ -275,6 +279,8 @@ idempotency, may be attached to traces, and never affects Workflow semantics,
 configuration resolution, placement or authorization. The complete contract
 and the `eval.*` convention are owned by
 [16](16-run-metadata-labels.md).
+
+### Workflow state-machine schema
 
 The first schema is an explicit state-machine graph with a versioned document
 envelope, one entry Stage, a mapping of stable Stage names and Stage-local typed
@@ -407,7 +413,7 @@ Agent Skill ArtifactRefs inside those AgentTemplates are the exception to
 configuration-time exact-version selection. They are versionless logical refs
 in the Run owner's ordinary UserScope. Run initialization resolves their union
 to current exact revisions, validates and forks them once into RunScope, then
-stores source/fork provenance and package digests under [09]. Missing or invalid
+stores source/fork provenance and package digests under [09](09-agent-skills.md). Missing or invalid
 current packages fail that Run's initialization rather than making Server
 configuration loading depend on ArtifactStore content.
 

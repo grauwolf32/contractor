@@ -144,7 +144,7 @@ Regular Linux container isolation shares the host kernel; this is not a VM
 profile. CPU, memory, process and tmpfs limits are enforced by the runtime/OS,
 not by model instructions. The first version does not provide a per-allocation
 hard disk quota for the `/workspace` bind mount. Workspace acquisition limits
-in [10] do not stop an executing process from filling that filesystem; operators
+in [10](10-runtime-filesystems-and-edit-tools.md) do not stop an executing process from filling that filesystem; operators
 own dedicated workspace capacity and any filesystem quotas. This limitation
 must be explicit in deployment documentation and capability diagnostics must
 not claim a disk limit that is not enforced.
@@ -156,7 +156,7 @@ Preparation follows this order:
 1. Validate exact profile/tool/workspace compatibility and remaining deadlines.
 2. Acquire the Runtime's allocation slot and prepare its ordinary private
    scratch and local project provider resources.
-3. Hydrate exact source artifacts and optional state onto disk under [10].
+3. Hydrate exact source artifacts and optional state onto disk under [10](10-runtime-filesystems-and-edit-tools.md).
 4. Create and start the owned container with `/workspace` bound to that content
    directory; verify the supervisor, effective limits and mount access.
 5. Construct selected Toolsets with narrow filesystem and execution handles,
@@ -294,7 +294,7 @@ failure/termination path; an interrupted command's partial filesystem effects
 are not rolled back or labelled as a completed result.
 
 After any command outcome, current project files remain authoritative under
-[10]. Any retained snapshot is invalid for a subsequent call until reacquired.
+[10](10-runtime-filesystems-and-edit-tools.md). Any retained snapshot is invalid for a subsequent call until reacquired.
 The filesystem contract also works for completed external changes that did
 not originate from `exec_command`.
 
@@ -320,7 +320,7 @@ Normal result artifacts are published before Contractor's existing write fence,
 not after entering finalizing/aborting. Stopping the container retains the
 project bind contents until allocation release; shutdown does not introduce a
 late export window. Abort and lease-loss cleanup may remove resources earlier
-according to [02]/[04], but must preserve container-before-files ordering.
+according to [02](02-runtime-and-a2a.md)/[04](04-execution-lifecycle-and-metrics.md), but must preserve container-before-files ordering.
 
 Release is idempotent and owns one cleanup task: close tool entry points,
 confirm container stopped/removed, dispose mounted project files, then release
@@ -397,7 +397,7 @@ No global skill directory or mutable catalog is mounted.
 
 Current packages deliberately exclude scripts. Enabling script members,
 validation, disclosure, interpreter requirements, invocation and capability
-checks needs a separate amendment to [09]. Merely selecting `podman@1`,
+checks needs a separate amendment to [09](09-agent-skills.md). Merely selecting `podman@1`,
 installing ADK or loading SKILL.md does not enable script execution. A skill
 cannot add tools, images, mounts, privileges or network authority.
 

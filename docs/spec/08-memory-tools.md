@@ -432,7 +432,7 @@ do not create an additional diagnostic copy of the note payload.
    return a candidate and enter finalizing.
 10. Memory adapters never automatically retain note bodies or descriptive
     metadata in durable diagnostics. External telemetry is content-free unless
-    explicitly opted into trusted-sink capture under [07]. The LLM invocation
+    explicitly opted into trusted-sink capture under [07](07-runtime-labels-and-infrastructure-config.md). The LLM invocation
     and an explicit model-authored semantic copy remain separate intentional
     content destinations.
 11. Memory is Run-scoped and observed only through explicit tools; there is no

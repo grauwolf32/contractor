@@ -413,7 +413,7 @@ read-only for execution state and shows at least:
 - the certificate-derived Runtime Agent principal and its authoritative durable
   label set, without exposing certificate bytes or label-supplied secrets;
 - `idle`, `reserved`, `busy`, `draining` and `fenced` slot state using the
-  authoritative/observed reconciliation vocabulary from [02];
+  authoritative/observed reconciliation vocabulary from [02](02-runtime-and-a2a.md);
 - allocation ID, WorkflowRun, StageExecution, logical Worker binding,
   AgentTemplate, effective ModelPolicy and LLMGatewayConfig refs;
 - allocation prepare/finalize/abort/release state and bounded failure reason;
@@ -450,7 +450,7 @@ it does not extend the live registry's retention or advance its revisions on
 periodic samples. Go profiling is separately enabled at Server startup and is
 not exposed through the Operations browser API.
 
-The durable Runtime Agent principal/label configuration in [07] is a separate
+The durable Runtime Agent principal/label configuration in [07](07-runtime-labels-and-infrastructure-config.md) is a separate
 Operations resource. It remains listable while no process for that certificate
 principal is connected and does not claim liveness. When an instance is live,
 the current-state projection links it to that principal and its pinned active
@@ -697,7 +697,7 @@ snapshot, just in time. The token is never
 copied into WorkflowRun, StageExecution, Planner Session, audit rows or metrics.
 A YAML default naming a deleted or missing credential remains inspectable but
 is not runnable unless a valid higher-precedence Run/Agent infrastructure layer
-under [07] replaces that physical Worker credential before prepare.
+under [07](07-runtime-labels-and-infrastructure-config.md) replaces that physical Worker credential before prepare.
 
 There is no disable operation. Credential deletion is idempotent and allowed
 only when no non-terminal WorkflowRun, active RuntimeConfig label binding or
@@ -872,7 +872,7 @@ Before returning a successful Run-create response, Server expands defaults and
 overrides into immutable base and escalation-variant per-consumer
 ResolvedExecutionConfigs. Planner selections are complete; a Worker's physical
 Gateway route may remain incomplete until the default/Run/Agent configuration
-layers in [07] are resolved for placement. The Run detail page shows the
+layers in [07](07-runtime-labels-and-infrastructure-config.md) are resolved for placement. The Run detail page shows the
 selected refs and their origin (`workflow`, `run override`, inline escalation
 or exact ExecutionConfig ref), but never reconstructs authority from browser
 state.
@@ -1215,7 +1215,7 @@ Artifact use so later RBAC does not require changing domain semantics.
    URL, token or provider parameter is accepted.
 3. Immutable base and escalation-variant ResolvedExecutionConfigs are
    authoritative after Run creation; an ExecutionConfig ref is never resolved
-   during an attempt. The default/Run/Agent infrastructure layers in [07] may
+   during an attempt. The default/Run/Agent infrastructure layers in [07](07-runtime-labels-and-infrastructure-config.md) may
    complete or override only a Worker's physical connection settings under
    their separately pinned provenance.
 4. Planner and every logical Worker resolve their model policy, Gateway and
@@ -1226,7 +1226,7 @@ Artifact use so later RBAC does not require changing domain semantics.
    persistence; only generated virtual keys are encrypted in the LLM
    credential store. Adapter-specific runtime credentials may be submitted
    once through the authenticated write-only Operations boundary defined by
-   [07], then are likewise encrypted and never readable.
+   [07](07-runtime-labels-and-infrastructure-config.md), then are likewise encrypted and never readable.
 7. Operations reflects both observed Runtime state and authoritative Control
    Plane state without conflating them.
 8. LiteLLM, not Contractor, is authoritative for Gateway-wide model access,
@@ -1244,20 +1244,11 @@ Artifact use so later RBAC does not require changing domain semantics.
     durable execution/storage; Go Server derives the sole local principal from
     its authenticated in-memory session.
 
-## Open decisions for the next dialogue steps
+## Open decisions
 
-- LiteLLM key TTL/automatic rotation and policy fields beyond the explicit
-  first-slice allowlist; LiteLLM remains their enforcement authority;
-- Contractor credential-encryption master-key rotation/re-encryption and a
-  future Vault/KMS adapter;
-- component library/design system and the production Node static-server
-  implementation;
-- future OIDC authentication, multiple users and user/Operations RBAC;
-- exact list/filter/pagination contracts and retention window;
-- whether the initial editor covers Workflow and AgentTemplate or only
-  ModelPolicy, LLMGatewayConfig and credentials;
-- artifact preview size limits and whether OpenAPI/LikeC4 receive specialized
-  renderers in the first UI increment.
+Unresolved UI and Operations behavior is listed only in
+[05](05-first-slice-and-open-decisions.md#deliberately-deferred); this document
+does not keep a second list.
 
 
 ## Shared Workflow discovery cards
