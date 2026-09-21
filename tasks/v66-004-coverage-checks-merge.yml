@@ -3,8 +3,8 @@ id: V66-004
 title: Fold audit Checks into Coverage rows
 milestone: ui-design-review-2
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b0ad37f8dfb6e7f5fea5a045d12405207133a5de
 depends_on: []
 languages:
 - typescript
@@ -42,3 +42,8 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  focused_tests: vitest src/routes/projects/audits 3 files / 74 tests pass; eslint, prettier, tsc (app and e2e) clean.
+  join: coverage rows and audit items share itemId; items load lazily when a row is open or a search is typed.
+  redirect: /audits/{id}/checks navigates to /coverage preserving hash, search and state.
+  browser: e2e edits type-checked only; Playwright run owned by V66-011.
