@@ -43,6 +43,17 @@ FROM gateway_recovery_routes WHERE route_key=$1 FOR UPDATE`, key).Scan(
 	return state, err
 }
 
+// transactionNow reads the database clock so route deadlines written here
+// compare consistently with the clock_timestamp() predicates in Status and
+// Admit, whatever skew exists between Server and PostgreSQL hosts.
+func transactionNow(ctx context.Context, tx pgx.Tx) (time.Time, error) {
+	var now time.Time
+	if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		return time.Time{}, err
+	}
+	return now, nil
+}
+
 func lockRun(ctx context.Context, tx pgx.Tx, runID string) error {
 	var state string
 	if err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id=$1 FOR UPDATE`, runID).Scan(&state); err != nil {

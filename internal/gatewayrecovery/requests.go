@@ -81,7 +81,10 @@ func (s *Service) update(ctx context.Context, runID, participantID, key string, 
 		if err != nil {
 			return err
 		}
-		now := time.Now()
+		now, err := transactionNow(ctx, tx)
+		if err != nil {
+			return err
+		}
 		switch request.Action {
 		case "failed":
 			receipt, err := tx.Exec(ctx, `INSERT INTO gateway_recovery_failures(route_key,request_id,run_id)

@@ -94,8 +94,8 @@ ORDER BY g.route_key FOR UPDATE OF g`, runID, ownerID)
 			return ErrUnavailable
 		}
 		_, err = tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET automatic_until=$2,next_probe_at=clock_timestamp()
-WHERE route_key=ANY($1)`, keys, time.Now().Add(s.policy.AutomaticWindow))
+UPDATE gateway_recovery_routes SET automatic_until=clock_timestamp()+$2,next_probe_at=clock_timestamp()
+WHERE route_key=ANY($1)`, keys, s.policy.AutomaticWindow)
 		return err
 	})
 }

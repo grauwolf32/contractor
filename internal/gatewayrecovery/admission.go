@@ -3,7 +3,6 @@ package gatewayrecovery
 import (
 	"context"
 	"sort"
-	"time"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -19,7 +18,10 @@ func (s *Service) Admit(ctx context.Context, runID string, routes []Route) (bool
 		if err := lockRun(ctx, tx, runID); err != nil {
 			return err
 		}
-		now := time.Now()
+		now, err := transactionNow(ctx, tx)
+		if err != nil {
+			return err
+		}
 		probes := map[string]bool{}
 		for _, route := range ordered {
 			key := route.Key()
