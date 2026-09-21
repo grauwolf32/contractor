@@ -1,0 +1,25 @@
+/* Setup group marker inside the Operations section tabs. */
+.operations-navigation-group {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.35rem;
+  padding: 0 0.35rem 0 0.75rem;
+  border-left: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.configuration-scope-heading {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.configuration-scope-heading .muted-copy {
+  margin: 0.35rem 0 0;
+}

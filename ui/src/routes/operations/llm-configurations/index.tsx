@@ -36,6 +36,7 @@ export function ConfigurationListRoute() {
       <div className="section-heading">
         <div>
           <h3>LLM configurations</h3>
+          <span className="state-badge">Server-wide</span>
           <p className="muted-copy">
             Model policies define LLM behavior and limits; gateways route model
             requests. New versions take effect when selected for future

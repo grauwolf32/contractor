@@ -1,6 +1,7 @@
+import "./layout.css";
 import { useDocumentTitle } from "../../app/document-title";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
@@ -26,10 +27,18 @@ const navigation = [
   { to: "/operations/runtime-agents", label: "Runtime Agents" },
   { to: "/operations/allocations", label: "Allocations" },
   { to: "/operations/performance", label: "Performance" },
-  { to: "/operations/configurations", label: "LLM configurations" },
-  { to: "/operations/credentials", label: "Credentials" },
-  { to: "/operations/settings", label: "Settings" },
+  { to: "/operations/configuration", label: "Configuration", setup: true },
+  {
+    to: "/operations/configurations",
+    label: "LLM configurations",
+    setup: true,
+  },
+  { to: "/operations/credentials", label: "Credentials", setup: true },
+  { to: "/operations/settings", label: "Settings", setup: true },
 ] as const;
+
+/** First tab of the Setup group; a divider and label precede it. */
+const SETUP_GROUP_START = navigation.find((item) => "setup" in item)?.to;
 
 function OperationsLiveSubscription({
   snapshot,
@@ -155,9 +164,15 @@ export function OperationsLayoutRoute() {
   });
   const refresh = () => {
     void query.refetch();
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
-    });
+    for (const queryKey of [
+      queryKeys.operations.runtimeAgentPrincipals.all,
+      queryKeys.operations.runtimeConfigs.all,
+      queryKeys.operations.runtimeLabels.all,
+      queryKeys.operations.runtimeCredentials.all,
+      queryKeys.configurations.all,
+      queryKeys.credentials.all,
+    ])
+      void queryClient.invalidateQueries({ queryKey });
   };
 
   if (!authorized && !personalSettings) {
@@ -199,14 +214,23 @@ export function OperationsLayoutRoute() {
         {navigation
           .filter((item) => authorized || item.to === "/operations/settings")
           .map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={"end" in item ? item.end : false}
-              className={({ isActive }) => (isActive ? "active" : undefined)}
-            >
-              {item.label}
-            </NavLink>
+            <Fragment key={item.to}>
+              {authorized && item.to === SETUP_GROUP_START ? (
+                <span
+                  className="operations-navigation-group"
+                  aria-hidden="true"
+                >
+                  Setup
+                </span>
+              ) : null}
+              <NavLink
+                to={item.to}
+                end={"end" in item ? item.end : false}
+                className={({ isActive }) => (isActive ? "active" : undefined)}
+              >
+                {item.label}
+              </NavLink>
+            </Fragment>
           ))}
       </nav>
       <MobileSectionPicker

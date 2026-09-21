@@ -1,14 +1,11 @@
-import { Link, Outlet, useLocation, useSearchParams } from "react-router";
+import { Link, Navigate, useLocation, useSearchParams } from "react-router";
 
 import { TERMINAL_RUN_STATES } from "../../api/runs";
-import { useSession } from "../../auth/session";
+import { legacyRunConfigurationDestination } from "../../app/navigation";
 import { QueuePanel } from "../queue";
 import { CompletedRunsPanel } from "./list";
 
 export function RunsRoute() {
-  const { pathname } = useLocation();
-  const { session } = useSession();
-  const configuration = pathname.startsWith("/runs/configuration");
   const [searchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
   const requestedState = searchParams.get("state");
@@ -37,36 +34,30 @@ export function RunsRoute() {
       >
         <Link
           to="/runs"
-          className={completed || configuration ? undefined : "active"}
-          aria-current={completed || configuration ? undefined : "page"}
+          className={completed ? undefined : "active"}
+          aria-current={completed ? undefined : "page"}
         >
           Queue
         </Link>
         <Link
           to="/runs?view=completed"
-          className={completed && !configuration ? "active" : undefined}
-          aria-current={completed && !configuration ? "page" : undefined}
+          className={completed ? "active" : undefined}
+          aria-current={completed ? "page" : undefined}
         >
           Completed
         </Link>
-        {session?.principal.capabilities.includes("operations") ? (
-          <Link
-            to="/runs/configuration"
-            className={configuration ? "active" : undefined}
-            aria-current={configuration ? "page" : undefined}
-          >
-            Configuration
-          </Link>
-        ) : null}
       </nav>
 
-      {configuration ? (
-        <Outlet />
-      ) : completed ? (
-        <CompletedRunsPanel />
-      ) : (
-        <QueuePanel />
-      )}
+      {completed ? <CompletedRunsPanel /> : <QueuePanel />}
     </section>
   );
+}
+
+/**
+ * `/runs/configuration…` moved to Operations → Configuration; old links and
+ * bookmarks land on the same version with query and fragment preserved.
+ */
+export function LegacyRunConfigurationRedirect() {
+  const location = useLocation();
+  return <Navigate replace to={legacyRunConfigurationDestination(location)} />;
 }

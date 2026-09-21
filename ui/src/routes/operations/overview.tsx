@@ -70,7 +70,7 @@ export function OperationsOverviewRoute() {
             </Link>
           </li>
           <li>
-            <Link to="/runs/configuration">Runtime configuration →</Link>
+            <Link to="/operations/configuration">Runtime configuration →</Link>
           </li>
           <li>
             <Link to="/runs">Inspect Run wait reasons →</Link>

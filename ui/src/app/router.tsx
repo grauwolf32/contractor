@@ -190,32 +190,13 @@ export function applicationRoutes(): RouteObject[] {
             {
               path: "/runs",
               lazy: lazyRoute(() => import("../routes/runs"), "RunsRoute"),
-              children: [
-                {
-                  path: "configuration",
-                  lazy: lazyRoute(
-                    () => import("../routes/runs/configuration"),
-                    "RunConfigurationLayout",
-                  ),
-                  children: [
-                    {
-                      index: true,
-                      lazy: lazyRoute(
-                        () => import("../routes/operations/runtime-configs"),
-                        "RuntimeConfigurationRoute",
-                      ),
-                    },
-                    {
-                      path: ":name/:version",
-                      lazy: lazyRoute(
-                        () =>
-                          import("../routes/operations/runtime-configs/detail"),
-                        "RuntimeConfigDetailRoute",
-                      ),
-                    },
-                  ],
-                },
-              ],
+            },
+            {
+              path: "/runs/configuration/*",
+              lazy: lazyRoute(
+                () => import("../routes/runs"),
+                "LegacyRunConfigurationRedirect",
+              ),
             },
             {
               path: "/runs/:runId",
@@ -337,6 +318,30 @@ export function applicationRoutes(): RouteObject[] {
                     () => import("../routes/operations/performance"),
                     "OperationsPerformanceRoute",
                   ),
+                },
+                {
+                  path: "configuration",
+                  lazy: lazyRoute(
+                    () => import("../routes/operations/runtime-configs/layout"),
+                    "RuntimeConfigurationLayout",
+                  ),
+                  children: [
+                    {
+                      index: true,
+                      lazy: lazyRoute(
+                        () => import("../routes/operations/runtime-configs"),
+                        "RuntimeConfigurationRoute",
+                      ),
+                    },
+                    {
+                      path: ":name/:version",
+                      lazy: lazyRoute(
+                        () =>
+                          import("../routes/operations/runtime-configs/detail"),
+                        "RuntimeConfigDetailRoute",
+                      ),
+                    },
+                  ],
                 },
                 {
                   path: "configurations",

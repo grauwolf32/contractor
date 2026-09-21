@@ -15,6 +15,7 @@ import {
   type RunStatus,
 } from "../../api/runs";
 import { useSession } from "../../auth/session";
+import { runtimeConfigVersionPath } from "../../app/navigation";
 import { useRunDraftStore } from "../../run-drafts/context";
 import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
 import { ErrorNotice, formatTimestamp } from "../artifacts/common";
@@ -622,6 +623,9 @@ function RunRuntimeConfiguration({
     run.runtimeConfiguration.default,
     ...run.runtimeConfiguration.labels,
   ];
+  const { session } = useSession();
+  const operator =
+    session?.principal.capabilities.includes("operations") === true;
   return (
     <details className="panel run-runtime-configuration" {...disclosure}>
       <summary>
@@ -649,9 +653,20 @@ function RunRuntimeConfiguration({
                 {pin.label === "default" ? " · always applied" : ""}
               </strong>
               <span>binding revision {pin.bindingRevision}</span>
-              <code>
-                {pin.config.name}@{pin.config.version}
-              </code>
+              {operator ? (
+                <Link
+                  className="runtime-pin-link"
+                  to={runtimeConfigVersionPath(pin.config)}
+                >
+                  <code>
+                    {pin.config.name}@{pin.config.version}
+                  </code>
+                </Link>
+              ) : (
+                <code>
+                  {pin.config.name}@{pin.config.version}
+                </code>
+              )}
               <code title={pin.config.digest}>
                 {pin.config.digest.slice(0, 18)}…
               </code>

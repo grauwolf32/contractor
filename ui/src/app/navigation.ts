@@ -35,3 +35,23 @@ export function catalogReturnState(
     ...("returnState" in value ? { returnState: value.returnState } : {}),
   };
 }
+
+/** Runtime configuration hub under Operations (RuntimeConfig versions, bindings, credentials). */
+export const RUNTIME_CONFIGURATION_PATH = "/operations/configuration";
+
+/** Exact RuntimeConfig version page under the Operations configuration hub. */
+export function runtimeConfigVersionPath(ref: {
+  name: string;
+  version: string;
+}): string {
+  return `${RUNTIME_CONFIGURATION_PATH}/${encodeURIComponent(ref.name)}/${encodeURIComponent(ref.version)}`;
+}
+
+/**
+ * Legacy `/runs/configuration…` locations map onto the Operations hub with the
+ * rest of the path, the query and the fragment preserved.
+ */
+export function legacyRunConfigurationDestination(location: Location): string {
+  const rest = location.pathname.replace(/^\/runs\/configuration(?=\/|$)/, "");
+  return `${RUNTIME_CONFIGURATION_PATH}${rest}${location.search}${location.hash}`;
+}

@@ -6,6 +6,7 @@ import { Link } from "react-router";
 import { usePublicAPI } from "../../../api/context";
 import { listCredentials } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
+import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { CursorControls, ErrorNotice } from "../../artifacts/common";
 import { CredentialCreateForm } from "./form";
 import { RecordedTime } from "../../../app/recorded-time";
@@ -27,14 +28,17 @@ export function CredentialListRoute() {
           <div>
             <p className="eyebrow">LLM gateway access</p>
             <h3>Managed LLM credentials</h3>
+            <span className="state-badge">Server-wide</span>
             <p className="muted-copy">
               Gateway credentials created in Contractor, with their budgets and
               usage. Development tokens configured outside the UI are not listed
               here.
             </p>
             <p className="muted-copy">
-              <Link to="/runs/configuration">Runtime service credentials</Link>
-              {" are managed with Runtime defaults; "}
+              <Link to={RUNTIME_CONFIGURATION_PATH}>
+                Runtime service credentials
+              </Link>
+              {" are managed under Configuration; "}
               <Link to="/operations/settings">Git SSH keys</Link>
               {" are in Settings."}
             </p>

@@ -2,9 +2,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import { PublicAPI } from "../../api/client";
-import { Application } from "../../app/application";
-import { applicationRoutes } from "../../app/router";
+import { PublicAPI } from "../../../api/client";
+import { Application } from "../../../app/application";
+import { applicationRoutes } from "../../../app/router";
 
 function setup(path: string, authorized = true) {
   const requests: string[] = [];
@@ -80,9 +80,9 @@ function setup(path: string, authorized = true) {
   return { router, requests };
 }
 
-describe("Run configuration navigation", () => {
+describe("Runtime configuration hub navigation", () => {
   it("opens creation forms from icons and clears a closed credential draft", async () => {
-    setup("/runs/configuration");
+    setup("/operations/configuration");
     const user = userEvent.setup();
     const addCredential = await screen.findByRole("button", {
       name: "Add Runtime credential",
@@ -134,27 +134,45 @@ describe("Run configuration navigation", () => {
     );
   });
 
-  it("opens Runtime configuration under Runs and supports refresh", async () => {
-    const { router, requests } = setup("/runs/configuration");
+  it("opens Runtime configuration as an Operations section with a scope label and refresh", async () => {
+    const { router, requests } = setup("/operations/configuration");
     await screen.findByRole("heading", { name: "RuntimeConfig versions" });
     expect(await screen.findByRole("link", { name: "debug@1" })).toBeVisible();
-    expect(router.state.location.pathname).toBe("/runs/configuration");
-    const tabs = screen.getByRole("navigation", { name: "Run views" });
-    expect(tabs).toHaveClass("operations-navigation");
+    expect(router.state.location.pathname).toBe("/operations/configuration");
+    expect(
+      screen.getByRole("heading", { name: "Runtime configuration" }),
+    ).toBeVisible();
+    expect(screen.getByText("Server-wide")).toHaveClass("state-badge");
+    const tabs = screen.getByRole("navigation", {
+      name: "Operations sections",
+    });
     expect(
       within(tabs)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Queue", "Completed", "Configuration"]);
+    ).toEqual([
+      "Overview",
+      "Runtime Agents",
+      "Allocations",
+      "Performance",
+      "Configuration",
+      "LLM configurations",
+      "Credentials",
+      "Settings",
+    ]);
+    expect(tabs).toHaveTextContent("Setup");
     expect(
-      within(tabs).getByRole("link", { name: /Configuration/ }),
+      within(tabs).getByRole("link", { name: "Configuration" }),
     ).toHaveAttribute("aria-current", "page");
     expect(
-      within(tabs).getByRole("link", { name: /Queue/ }),
+      within(tabs).getByRole("link", { name: "LLM configurations" }),
     ).not.toHaveAttribute("aria-current");
     expect(
-      screen.queryByRole("navigation", { name: "Operations sections" }),
-    ).toBeNull();
+      within(
+        screen.getByRole("combobox", { name: "Operations section" }),
+      ).getByRole("option", { name: "Configuration" }),
+    ).toHaveValue("/operations/configuration");
+    expect(screen.queryByRole("navigation", { name: "Run views" })).toBeNull();
     const reads = requests.filter(
       (p) => p === "/v1/operations/runtime-configs",
     ).length;
@@ -170,27 +188,61 @@ describe("Run configuration navigation", () => {
 
   it("opens exact versions with query and fragment", async () => {
     const { router } = setup(
-      "/runs/configuration/debug/1?from=bookmark#worker",
+      "/operations/configuration/debug/1?from=bookmark#worker",
     );
     await screen.findByRole("heading", { name: "debug@1" });
     expect(screen.getByRole("heading", { name: "Worker Caido" })).toBeVisible();
     expect(screen.getByText("https://caido.example/graphql")).toBeVisible();
     expect(router.state.location).toMatchObject({
-      pathname: "/runs/configuration/debug/1",
+      pathname: "/operations/configuration/debug/1",
       search: "?from=bookmark",
       hash: "#worker",
     });
     expect(
       screen.getByRole("link", { name: /← Runtime configuration/ }),
-    ).toHaveAttribute("href", "/runs/configuration");
+    ).toHaveAttribute("href", "/operations/configuration");
   });
 
-  it.each(["/runs/configuration", "/runs/configuration/debug/1"])(
+  it.each([
+    ["/runs/configuration", "/operations/configuration", "", ""],
+    [
+      "/runs/configuration/debug/1?from=bookmark#worker",
+      "/operations/configuration/debug/1",
+      "?from=bookmark",
+      "#worker",
+    ],
+  ])(
+    "redirects the legacy Runs location %s",
+    async (path, pathname, search, hash) => {
+      const { router } = setup(path);
+      await waitFor(() =>
+        expect(router.state.location).toMatchObject({
+          pathname,
+          search,
+          hash,
+        }),
+      );
+      expect(router.state.historyAction).toBe("REPLACE");
+      await screen.findByRole("heading", { name: "Runtime configuration" });
+    },
+  );
+
+  it("drops the Configuration tab from Runs", async () => {
+    setup("/runs");
+    const tabs = await screen.findByRole("navigation", { name: "Run views" });
+    expect(
+      within(tabs)
+        .getAllByRole("link")
+        .map((link) => link.textContent?.trim()),
+    ).toEqual(["Queue", "Completed"]);
+  });
+
+  it.each(["/operations/configuration", "/operations/configuration/debug/1"])(
     "keeps operator authorization on %s",
     async (path) => {
       const { requests } = setup(path, false);
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Operations capability is required",
+        "not authorized to observe or manage Operations",
       );
       expect(screen.queryByRole("link", { name: /Configuration/ })).toBeNull();
       expect(requests).toEqual(["/v1/auth/session"]);

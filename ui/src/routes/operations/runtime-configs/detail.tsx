@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router";
 import { usePublicAPI } from "../../../api/context";
 import { getRuntimeConfig } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
+import { RUNTIME_CONFIGURATION_PATH } from "../../../app/navigation";
 import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
 
 function OptionalBlock({ title, value }: { title: string; value: unknown }) {
@@ -47,7 +48,7 @@ export function RuntimeConfigDetailRoute() {
   });
   return (
     <div className="configuration-detail">
-      <Link className="back-link" to="/runs/configuration">
+      <Link className="back-link" to={RUNTIME_CONFIGURATION_PATH}>
         ← Runtime configuration
       </Link>
       {query.isPending ? (
