@@ -552,7 +552,7 @@ async def _close_hosted(
 async def _bounded_call(operation: Awaitable[None], *, timeout: float) -> str:
     if timeout <= 0:
         if hasattr(operation, "close"):
-            operation.close()  # type: ignore[union-attr]
+            operation.close()
         return "timeout"
     task = asyncio.create_task(operation)
     try:

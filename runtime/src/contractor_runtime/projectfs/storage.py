@@ -124,13 +124,13 @@ class WorkspaceWriterView:
         self.__writer = writer
 
     async def snapshot(self) -> WorkspaceSnapshot:
-        return await self.__writer.snapshot()  # type: ignore[attr-defined]
+        return await self.__writer.snapshot()
 
     async def read_text(self, path: str) -> str:
-        return await self.__writer.read_text(path)  # type: ignore[attr-defined]
+        return await self.__writer.read_text(path)
 
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
-        return await self.__writer.observation_metadata()  # type: ignore[attr-defined]
+        return await self.__writer.observation_metadata()
 
     async def write_text(self, path: str, text: str) -> None:
         await self.__writer.write_text(path, text)

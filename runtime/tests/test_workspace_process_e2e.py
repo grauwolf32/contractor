@@ -182,9 +182,7 @@ def test_exact_source_edit_export_import_and_slot_reuse(tmp_path: Path, storage:
 
         # A later allocation consumes only the exact exported state revision.
         second_model = edit_model("source.txt", "after", "after again", "second")
-        service._factories.worker_runtimes["adk@1"]._model_factory = (  # type: ignore[attr-defined,index]
-            lambda _: second_model
-        )
+        service._factories.worker_runtimes["adk@1"]._model_factory = lambda _: second_model
         second_spec = workspace_spec("allocation-second", "stage-second", state=state_ref)
         second = await invoke(service, second_spec)
         assert second.result is not None
@@ -195,9 +193,7 @@ def test_exact_source_edit_export_import_and_slot_reuse(tmp_path: Path, storage:
         # Reusing the same single slot without an imported state starts from the
         # source archive again; prior allocation data is not observable.
         third_model = edit_model("source.txt", "before", "clean reuse", "third")
-        service._factories.worker_runtimes["adk@1"]._model_factory = (  # type: ignore[attr-defined,index]
-            lambda _: third_model
-        )
+        service._factories.worker_runtimes["adk@1"]._model_factory = lambda _: third_model
         third_spec = workspace_spec("allocation-third", "stage-third")
         third = await invoke(service, third_spec)
         assert third.result is not None
@@ -296,8 +292,8 @@ async def make_service(
     )
     factories = built_in_factories(
         root / "scratch",
-        artifact_client_factory=lambda *_: artifacts,  # type: ignore[arg-type,return-value]
-        model_factory=lambda _: model,  # type: ignore[arg-type,return-value]
+        artifact_client_factory=lambda *_: artifacts,
+        model_factory=lambda _: model,
         workspace_settings=workspace_settings,
     )
     provider = factories.workspace_provider

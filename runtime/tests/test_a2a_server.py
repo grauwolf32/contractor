@@ -266,7 +266,7 @@ async def allocation_service(
     await state.mark_registered()
     factories = built_in_factories(
         tmp_path,
-        model_factory=lambda _: model,  # type: ignore[arg-type,return-value]
+        model_factory=lambda _: model,
     )
     service = AllocationService(
         state,

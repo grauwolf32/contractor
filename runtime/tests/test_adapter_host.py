@@ -594,7 +594,7 @@ class FakeAdapter:
         close_error: Exception | None,
         hang_flush: bool,
     ) -> None:
-        self.ref: RuntimeAdapterRef = ref  # type: ignore[assignment]
+        self.ref: RuntimeAdapterRef = ref
         self.handles = handles
         self.metrics = RuntimeAdapterMetricsState()
         self._events = events

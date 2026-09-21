@@ -114,7 +114,7 @@ def test_completion_derives_identity_and_builds_canonical_package() -> None:
             summary="The checked control is present.",
             completed=["source-trace"],
             gaps=[],
-            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+            tool_context=FakeToolContext("worker-invocation-1"),
             evidence=[{"kind": "source-trace", "summary": "Guard at app.py:12."}],
             proposal_keys=["candidate-authz"],
         )
@@ -208,7 +208,7 @@ def test_completion_publishes_one_complete_ordered_batch() -> None:
         assert "task" not in assigned
 
         await tools["submit_check_result"](
-            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+            tool_context=FakeToolContext("worker-invocation-1"),
             results=[
                 {
                     "assessment": "satisfied",
@@ -258,7 +258,7 @@ def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
         tools = await prepared_tools(client, state)
 
         result = await tools["submit_check_result"](
-            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+            tool_context=FakeToolContext("worker-invocation-1"),
             results=[
                 {
                     "assessment": "inconclusive",

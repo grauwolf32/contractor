@@ -220,7 +220,7 @@ class RecordingSessionService(InMemorySessionService):
         self.deleted: list[str] = []
         self._failed = False
 
-    async def create_session(self, **kwargs: Any):  # type: ignore[no-untyped-def]
+    async def create_session(self, **kwargs: Any):
         session = await super().create_session(**kwargs)
         self.created.append(session.id)
         if self.failure == "create_cancel" and not self._failed:
@@ -231,7 +231,7 @@ class RecordingSessionService(InMemorySessionService):
             raise RuntimeError("create failed after commit")
         return session
 
-    async def get_session(self, **kwargs: Any):  # type: ignore[no-untyped-def]
+    async def get_session(self, **kwargs: Any):
         if self.failure == "snapshot" and not self._failed:
             self._failed = True
             raise RuntimeError("snapshot failed")

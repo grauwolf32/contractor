@@ -128,7 +128,7 @@ class CorrelationIDMiddleware:
                 ]
                 headers.append((REQUEST_ID_HEADER, request_id.encode("ascii")))
                 message = {**message, "headers": headers}
-            await send(message)  # type: ignore[arg-type]
+            await send(message)
 
         try:
             await self._app(copied, receive, send_with_request_id)

@@ -228,7 +228,7 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
 
         loaded = await tools["load_skill"].run_async(
             args={"skill_name": "demo"},
-            tool_context=context,  # type: ignore[arg-type]
+            tool_context=context,
         )
         assert loaded["skill_name"] == "demo"
         assert prepared.disclosure.used == MAXIMUM_DISCLOSURE_BYTES
@@ -236,7 +236,7 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
 
         rejected = await tools["load_skill"].run_async(
             args={"skill_name": "demo"},
-            tool_context=context,  # type: ignore[arg-type]
+            tool_context=context,
         )
         assert rejected["error_code"] == "SKILL_DISCLOSURE_LIMIT"
         assert context.state["_adk_activated_skill_contractor_worker"] == activated
@@ -244,11 +244,11 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
         # A native failure happens after reservation and therefore cannot refund it.
         prepared.disclosure = DisclosureBudget()
         failing = ExplodingNativeTool()
-        tools["list_skills"]._native = failing  # type: ignore[attr-defined]
+        tools["list_skills"]._native = failing
         list_charge = prepared.charge_for("list_skills")
         failed = await tools["list_skills"].run_async(
             args={},
-            tool_context=context,  # type: ignore[arg-type]
+            tool_context=context,
         )
         assert failed["error_code"] == "SKILL_TOOL_ERROR"
         assert failing.calls == 1
@@ -283,7 +283,7 @@ def test_concurrent_disclosure_reservations_stop_at_the_exact_allocation_limit(
             *(
                 tools["list_skills"].run_async(
                     args={},
-                    tool_context=FakeToolContext(f"invocation-{index}"),  # type: ignore[arg-type]
+                    tool_context=FakeToolContext(f"invocation-{index}"),
                 )
                 for index in range(12)
             )
@@ -332,7 +332,7 @@ def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path, 
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         result = await tools["load_skill_resource"].run_async(
             args={"skill_name": "demo", "file_path": raw},
-            tool_context=FakeToolContext(),  # type: ignore[arg-type]
+            tool_context=FakeToolContext(),
         )
         assert result["error_code"] == "INVALID_ARGUMENTS"
         snapshot = json.dumps(state.metrics.snapshot(), sort_keys=True)
@@ -364,7 +364,7 @@ def test_binary_resource_authorization_is_single_use_and_invocation_local(
         context = FakeToolContext("invocation-binary")
         result = await tools["load_skill_resource"].run_async(
             args={"skill_name": "demo", "file_path": "assets/pixel.bin"},
-            tool_context=context,  # type: ignore[arg-type]
+            tool_context=context,
         )
         assert isinstance(result, dict) and isinstance(result.get("status"), str)
         assert prepared.consume_binary("invocation-foreign", "demo", "assets/pixel.bin") is None
@@ -396,11 +396,11 @@ def test_oversized_native_result_is_suppressed_without_binary_authorization(
         adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         charge = prepared.charge_for("load_skill_resource", "demo", "assets/pixel.bin")
-        tools["load_skill_resource"]._native = OversizedBinaryNativeTool(charge)  # type: ignore[attr-defined]
+        tools["load_skill_resource"]._native = OversizedBinaryNativeTool(charge)
         context = FakeToolContext("invocation-oversized")
         result = await tools["load_skill_resource"].run_async(
             args={"skill_name": "demo", "file_path": "assets/pixel.bin"},
-            tool_context=context,  # type: ignore[arg-type]
+            tool_context=context,
         )
         assert result["error_code"] == "SKILL_DISCLOSURE_ESTIMATE_INVALID"
         assert prepared.consume_binary("invocation-oversized", "demo", "assets/pixel.bin") is None

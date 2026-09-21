@@ -121,7 +121,7 @@ def test_skill_deletion_failure_fences_and_forces_process_exit(tmp_path: Path) -
         context = service._context
         assert context is not None
         runtime = context.worker
-        owner = runtime._agent_skills  # type: ignore[attr-defined]
+        owner = runtime._agent_skills
         assert owner is not None
         extraction = owner.extraction_root
 

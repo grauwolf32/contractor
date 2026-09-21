@@ -86,7 +86,7 @@ def test_real_workspace_cross_toolset_race_preserves_the_edit_winner(
                 )
             ]
         )
-        spec.mode = "overlay"  # type: ignore[assignment]
+        spec.mode = "overlay"
         provider = MemoryWorkspaceProvider(settings("memory"))
         workspace = await hydrate_workspace(
             provider=provider,

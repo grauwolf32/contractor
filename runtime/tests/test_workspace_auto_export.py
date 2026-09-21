@@ -106,7 +106,7 @@ def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
         reconstructed = decode_workspace_state(
             state.data,
             session._source,
-            session.limits,  # type: ignore[attr-defined]
+            session.limits,
         )
         assert reconstructed.snapshot() == await session.snapshot()
         assert await session.changed_paths() == ()
@@ -122,7 +122,7 @@ def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
         reconstructed = decode_workspace_state(
             cumulative,
             session._source,
-            session.limits,  # type: ignore[attr-defined]
+            session.limits,
         )
         assert reconstructed.snapshot() == await session.snapshot()
         assert await session.changed_paths() == ()
@@ -336,7 +336,7 @@ def test_adk_factory_attaches_runtime_owned_exporter(tmp_path: Path) -> None:
         model = scripted_model([structured_response("Factory result")])
         factory = AdkWorkerRuntimeFactory(
             model_factory=lambda _: model,
-            artifact_client_factory=lambda *_: client,  # type: ignore[arg-type,return-value]
+            artifact_client_factory=lambda *_: client,
         )
         runtime = await factory.create(build_context(tmp_path, session, state))
         await session.write_text("source.txt", "factory export\n")

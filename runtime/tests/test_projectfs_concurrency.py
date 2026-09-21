@@ -73,11 +73,11 @@ def test_cancelled_waiter_and_rollback_races_leave_complete_snapshots(tmp_path: 
         session, provider = await hydrated_workspace(tmp_path, "memory", "overlay", "cancel-race")
         assert isinstance(session, OverlayWorkspaceSession)
 
-        await session._lock.acquire()  # type: ignore[attr-defined]
+        await session._lock.acquire()
         blocked = asyncio.create_task(session.write_text("lf.txt", "cancelled\n"))
         await asyncio.sleep(0)
         blocked.cancel()
-        session._lock.release()  # type: ignore[attr-defined]
+        session._lock.release()
         with pytest.raises(asyncio.CancelledError):
             await blocked
         assert "cancelled" not in await session.read_text("lf.txt")

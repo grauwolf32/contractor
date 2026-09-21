@@ -132,7 +132,7 @@ def test_overlay_rolls_back_to_checkpoint_and_bounds_diff(tmp_path: Path) -> Non
             await session.rollback_changes("missing")
 
         await session.close()
-        assert session._source.text_files == {}  # type: ignore[attr-defined]
+        assert session._source.text_files == {}
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())

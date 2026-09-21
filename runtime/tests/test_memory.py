@@ -107,7 +107,7 @@ def _note_from_input(raw: dict[str, object]) -> StoredMemoryNote:
         name=str(raw["name"]),
         content=str(raw["content"]),
         description=str(raw["description"]),
-        tags=tuple(str(tag) for tag in raw["tags"]),  # type: ignore[union-attr]
+        tags=tuple(str(tag) for tag in raw["tags"]),
         ordinal=int(raw["ordinal"]),
     )
 
@@ -122,8 +122,8 @@ def _generated_note(raw: dict[str, object]) -> StoredMemoryNote:
         assert isinstance(repeat, dict)
         return str(repeat["value"]) * int(repeat["count"])
 
-    tags = [str(tag) for tag in raw.get("tags", [])]  # type: ignore[union-attr]
-    for repeat in raw.get("tagRepeats", []):  # type: ignore[union-attr]
+    tags = [str(tag) for tag in raw.get("tags", [])]
+    for repeat in raw.get("tagRepeats", []):
         assert isinstance(repeat, dict)
         tags.append(str(repeat["value"]) * int(repeat["count"]))
     return StoredMemoryNote(

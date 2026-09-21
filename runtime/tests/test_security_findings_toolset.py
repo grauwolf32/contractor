@@ -39,7 +39,7 @@ def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
                 ExactEvidenceRef(namespace="worker", name="trace", revision="rev-2"),
                 ExactEvidenceRef(namespace="worker", name="source", revision="rev-1"),
             ],
-            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+            tool_context=FakeToolContext("worker-invocation-1"),
         )
         assert result["proposal_id"] == "proposal-1" and result["receipt_id"] == "receipt-1"
         assert result["client_key"].startswith("call-")

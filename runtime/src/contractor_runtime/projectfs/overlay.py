@@ -424,7 +424,7 @@ def _parse_operation(value: Any) -> OverlayOperation:
             _validate_text(text, None)
         except WorkspaceStorageError:
             raise WorkspaceStateError("workspace_state_invalid") from None
-    return OverlayOperation(op=op, path=path, text=text)  # type: ignore[arg-type]
+    return OverlayOperation(op=op, path=path, text=text)
 
 
 def _apply_operation(tree: ManagedWorkspaceTree, operation: OverlayOperation) -> None:
