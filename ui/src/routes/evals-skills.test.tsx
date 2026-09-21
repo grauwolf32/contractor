@@ -157,16 +157,54 @@ describe("Evals and global Skills routes", () => {
     expect(within(grouped!).getAllByText("routes")).toHaveLength(2);
     expect(within(grouped!).getByText("a")).toBeInTheDocument();
     expect(within(grouped!).getByText("b")).toBeInTheDocument();
-    expect(screen.getByText(/ordinary Workflow Run/i)).toBeVisible();
+    expect(screen.queryByText(/ordinary Workflow Run/i)).toBeNull();
     expect(
       screen.getByText(/Succeeded describes execution only/u),
     ).toBeVisible();
+    expect(screen.getByRole("link", { name: "All Runs →" })).toHaveAttribute(
+      "href",
+      "/runs",
+    );
+
+    // The legacy workspace keeps execution history and a read-only artifact
+    // list; project-only regions (shortcuts, uploads, workflow launch) are gone.
+    const sections = screen.getByRole("navigation", {
+      name: "Project sections",
+    });
     expect(
-      screen
-        .getByRole("heading", { name: "Eval Runs" })
-        .compareDocumentPosition(
-          screen.getByText("Workspace settings", { selector: "summary" }),
-        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      within(sections)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Runs", "Artifacts", "Workspace settings"]);
+    expect(
+      screen.getByRole("heading", { name: "Artifacts" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No Artifact bindings in this workspace."),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add sources" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add artifact" })).toBeNull();
+    expect(screen.queryByText("Artifact library")).toBeNull();
+    expect(screen.queryByText("Format matches")).toBeNull();
+    expect(screen.queryByText("All workflows")).toBeNull();
+    expect(screen.queryByText("Missing inputs")).toBeNull();
+    expect(
+      requests.some(
+        (request) => new URL(request.url).pathname === "/v1/workflows",
+      ),
+    ).toBe(false);
+    const runsHeading = screen.getByRole("heading", { name: "Eval Runs" });
+    const artifactsHeading = screen.getByRole("heading", { name: "Artifacts" });
+    const settings = screen.getByText("Workspace settings", {
+      selector: "summary",
+    });
+    expect(
+      runsHeading.compareDocumentPosition(artifactsHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      artifactsHeading.compareDocumentPosition(settings) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 

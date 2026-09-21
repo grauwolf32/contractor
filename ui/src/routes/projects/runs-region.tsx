@@ -139,7 +139,7 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
       ) : query.data.items.length === 0 ? (
         <div className="compact-empty">
           <strong>No Workflow Runs belong to this Eval.</strong>
-          <p>Launch one compatible Workflow when inputs are ready.</p>
+          <p>Runs labelled with this workspace appear here once launched.</p>
         </div>
       ) : (
         <EvaluationRuns runs={query.data.items} />

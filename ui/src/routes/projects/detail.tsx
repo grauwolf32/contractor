@@ -8,14 +8,12 @@ import { PublicAPIError } from "../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../artifacts/common";
-import { ProjectRegion } from "./common";
+import { ProjectArtifactBindings, ProjectRegion } from "./common";
 import { ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";
-import { ProjectArtifactRegion } from "./artifact-region";
 import { ProjectRunsRegion } from "./runs-region";
 import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { useProjectDeletion } from "./use-project-deletion";
-import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
 import { ProjectNavigation } from "./navigation";
 import { ProjectSectionActionsContext } from "./section-actions-context";
@@ -56,7 +54,8 @@ function ProjectWorkspaceRoute({
   );
   const description =
     expectedKind === "evaluation"
-      ? "Each sample is an ordinary Workflow Run grouped by its eval labels."
+      ? project.data?.description ||
+        "Legacy evaluation workspace: execution history and recorded inputs."
       : project.data?.description ||
         "Sources, audits and results in one workspace.";
   useDocumentTitle(
@@ -169,11 +168,14 @@ function ProjectWorkspaceRoute({
           >
             <a href="#project-runs">Runs</a>
             <a href="#project-artifacts">Artifacts</a>
-            <a href="#project-workflows">Workflows</a>
             <a href="#project-overview">Workspace settings</a>
           </nav>
           <AuditAnchor />
           <ProjectRunsRegion projectId={project.data.projectId} evaluation />
+          <ProjectArtifactBindings
+            projectId={project.data.projectId}
+            detailRoot="/evals"
+          />
           <details className="eval-workspace-settings" id="project-overview">
             <summary>Workspace settings</summary>
             <ProjectRegion
@@ -191,11 +193,6 @@ function ProjectWorkspaceRoute({
               />
             </ProjectRegion>
           </details>
-          <ProjectArtifactRegion
-            projectId={project.data.projectId}
-            detailRoot="/evals"
-          />
-          <ProjectWorkflowRecommendations projectId={project.data.projectId} />
         </>
       )}
       {deleteOpen && activeProject !== undefined ? (

@@ -150,6 +150,18 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
   await expect(
     page.getByRole("link", { name: "run-browser-leg-a" }),
   ).toBeVisible();
+  // Legacy workspaces keep history and a read-only artifact list only.
+  const sections = page.getByRole("navigation", { name: "Project sections" });
+  await expect(sections.getByRole("link")).toHaveText([
+    "Runs",
+    "Artifacts",
+    "Workspace settings",
+  ]);
+  await expect(page.getByRole("heading", { name: "Artifacts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add sources" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("Format matches")).toHaveCount(0);
 
   await page.getByRole("link", { name: "Catalog", exact: true }).click();
   await page.getByRole("link", { name: "Skills", exact: true }).click();
