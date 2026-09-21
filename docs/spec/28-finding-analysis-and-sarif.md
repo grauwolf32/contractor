@@ -1,7 +1,6 @@
 # 28 — Structured finding analysis and SARIF export
 
-Status: **Draft; Specified target; not implemented.** Existing findings, collections,
-code-analysis, annotation and HTTP tools retain their published contracts.
+Status: **Draft; Specified target; not implemented.**
 
 Depends on: [03](03-artifact-plane.md), [10](10-runtime-filesystems-and-edit-tools.md),
 [11](11-http-and-caido-tools.md), [12](12-code-analysis-tools.md),
@@ -13,7 +12,9 @@ Depends on: [03](03-artifact-plane.md), [10](10-runtime-filesystems-and-edit-too
 This document owns portable structured analysis attached to a finding,
 resolution against exact evidence, and deterministic SARIF 2.1.0 export.
 Audit admission, review, duplicate decisions, coverage, Workflow execution and
-Runtime placement remain owned by their existing contracts.
+Runtime placement remain owned by their existing contracts. Existing findings,
+collections, code-analysis, annotation and HTTP tools retain their published
+contracts.
 
 The design has three boundaries:
 
@@ -64,9 +65,12 @@ graph IDs never create durable relationships.
 
 ## 3. Compatible typed analysis evidence
 
-Keep `contractor.audit.finding-proposal.v1`, `security-findings@1/@2` and
-`contractor.findings.collection.v1` byte contracts unchanged. Introduce an
-ordinary evidence document:
+Keep the `contractor.audit.finding-proposal.v1` proposal schema, the
+`security-findings@1` Toolset with its `security-findings-code@1` and
+`security-findings-http@1` creation facades, and the
+`contractor.findings.collection.v1` collection format unchanged, as defined in
+[27](27-findings-tools-and-collections.md#finding-proposal-and-selected-authoring-interfaces).
+Introduce an ordinary evidence document:
 
 ```text
 media type: application/vnd.contractor.finding-analysis+json
@@ -334,8 +338,9 @@ automatically secret-free.
 
 ## 6. Frozen selection, presentation and identity
 
-Reuse [27](27-findings-tools-and-collections.md)'s owner checks, exact resolution, contribution expansion,
-repeatable-read capture and atomic artifact publication mechanisms. A v1
+Reuse the owner checks, exact resolution, contribution expansion,
+repeatable-read capture and atomic artifact publication mechanisms of
+[27](27-findings-tools-and-collections.md#server-publication-and-reader-preparation). A v1
 collection alone is not a reviewed export snapshot: decision IDs do not contain
 analyst severity/rationale, and one receipt can have reviews in several Audits.
 
@@ -542,11 +547,10 @@ browser Origin/CSRF controls. The target public shape is:
 }
 ```
 
-`sources` follows collection selection semantics. `presentationReceiptId` is
-optional for Audit findings only. Run sources have empty `findings`. Both arrays
-are explicit: empty means none. There is no implicit all-pages query or current
-state filter. UI/CLI can enumerate confirmed findings before submitting exact
-IDs/revisions. GitHub additionally requires
+`sources` follows the collection selection semantics in
+[27](27-findings-tools-and-collections.md#server-publication-and-reader-preparation);
+`presentationReceiptId` is optional for Audit findings only. UI/CLI can
+enumerate confirmed findings before submitting exact IDs/revisions. GitHub additionally requires
 `target: {repositoryUri, commit, category}`; generic requests reject `target`.
 OpenAPI and generated clients will be updated during implementation.
 
@@ -580,11 +584,11 @@ renderer/profile produce identical bytes on Linux and macOS.
 
 ## 10. Bounds and diagnostics
 
-First release reuses collection selection/evidence bounds: 64 sources, 256
-selectors/expanded receipts, 1,023 documents and 16 MiB selected document bytes.
-Source archives selected as evidence count; they cannot be fetched outside the
-budget. Existing expansion/file limits also apply. Oversized selections require
-explicitly smaller evidence packages or a separately specified limit increase.
+First release reuses the collection selection and evidence bounds defined in
+[27](27-findings-tools-and-collections.md#document-identity-and-bounds). Source
+archives selected as evidence count toward those bounds; they cannot be fetched
+outside the budget. Oversized selections require explicitly smaller evidence
+packages or a separately specified limit increase.
 
 Per analysis: at most 1 MiB, 32 sources, 256 locations, 32 flows, 128 steps per
 flow, 32 HTTP exchanges, 16 KiB per text field and nesting depth 32. Snapshot

@@ -1,6 +1,6 @@
 # 21 — Allocation-scoped Podman execution sandbox
 
-Status: **Implemented and verified through V31-008; execution remains opt-in**
+Status: **Implemented; execution remains opt-in** (verified by [V31-008](../../tasks/v31-008-podman-release-gate.yml))
 
 Depends on: [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -346,11 +346,11 @@ removing stopped orphan resources. No workload can renew or disable the
 supervisor's liveness deadline or forge command-completion acknowledgements.
 The control channel and supervisor authority must be separated from workload
 processes, not merely hidden in a file readable by the same execution user.
-The implemented host guardian owns this boundary independently of the Runtime
+The host guardian owns this boundary independently of the Runtime
 process; startup probes verify it before advertising the profile. This is a
 Contractor lifecycle guarantee, not one supplied automatically by `podman exec`.
 
-V31-003 selects a host guardian with an inherited private socket, an exact pinned
+The host guardian uses an inherited private socket, an exact pinned
 systemd cgroup v2 scope and a PID 1 pidfd. A separate subordinate-UID inert image
 PID 1 reaps orphans; workloads use the nonzero keep-id UID. Completion checks
 freeze and recursively inventory the scope before unfreezing only PID 1.
@@ -403,21 +403,17 @@ cannot add tools, images, mounts, privileges or network authority.
 
 ## Acceptance and implementation sequence
 
-Implementation completed V30-001 through V30-004 and V31-001 through V31-008 in
-the [task catalog](../../tasks/index.yml). The local direct gate V30-004 was the
-prerequisite for Podman work. V31 separates settings/placement, engine ownership,
-the approved image and supervisor, allocation lifecycle, execution tools,
-capability probes, deployment examples and the real-container release gate.
-V31-006 enables advertisement only after the lifecycle and tool implementation
-are present; V31-008 is the feature completion gate. Task files contain their
-own requirements, dependencies and executable acceptance commands.
+The release gate is `make test-podman-release` on a rootless Linux host. The
+[executable matrix](../../tests/e2e/podman_sandbox_matrix.yml) maps all eleven
+cases below to concrete tests. Unsupported host configurations and deferred
+skill/network features are not certified by this gate.
 
-The [executable matrix](../../tests/e2e/podman_sandbox_matrix.yml) maps all eleven
-cases below to concrete tests. Both `make test-podman-release` on the recorded
-rootless Linux host and repository-wide `make verify` passed. See the
+Verification: the local direct prerequisite
+[V30-004](../../tasks/v30-004-local-direct-release-gate.yml), the Podman tasks
+[V31-001](../../tasks/v31-001-podman-contracts-settings-placement.yml) through
+[V31-008](../../tasks/v31-008-podman-release-gate.yml) and the
 [verification record](../../runtime/PODMAN.md#release-verification-v31-008)
-for environment, effective policy and verification scope. Unsupported host
-configurations and deferred skill/network features are not certified by this gate.
+document the environment, effective policy and verification scope.
 
 Required acceptance cases:
 

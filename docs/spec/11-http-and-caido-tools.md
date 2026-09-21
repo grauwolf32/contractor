@@ -3,8 +3,7 @@
 Status: **Working agreement**
 
 [33 — Autonomous pentest Audits](33-autonomous-pentest-audits.md) specifies a
-separate, not-yet-implemented target adapter with enforced scope, identities
-and trusted capture. It does not upgrade the guarantees of `http-tools@1` or
+separate target adapter with enforced scope, identities and trusted capture. It does not upgrade the guarantees of `http-tools@1` or
 `caido@1` described here.
 
 This document owns the Runtime tool contracts used for HTTP exploration and

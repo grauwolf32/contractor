@@ -1,8 +1,6 @@
 # 19 — Audits: checks, findings, and iterative assessment
 
-Status: **Working agreement**
-
-Last implementation review: **2026-09-06**
+Status: **Working agreement; baseline implemented. Prepare-role execution (section 4.4) is specified but not yet delivered, so prepare profiles return `preparation_unsupported` until [V62-002–004](../../tasks/v62-002-audit-preparation-store.yml) complete.**
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
 
@@ -23,9 +21,8 @@ items, evidence, finding proposals, rounds, and authenticated human decisions.
 One ordinary Project may contain multiple independent Audits: an OWASP Top 10
 risk assessment, an ASVS verification, a custom checklist, OpenAPI operation
 tracing, or verification of findings proposed by earlier Runs. An Audit is not
-a new Project kind. In the first release it belongs to an existing Project
-whose `kind` is exactly `project`; `evaluation` Projects and standalone Audits
-are rejected.
+a new Project kind. It belongs to an existing Project whose `kind` is exactly
+`project`; `evaluation` Projects and standalone Audits are rejected.
 
 The Audit Controller owns coordination across Runs. The Workflow Scheduler
 continues to own WorkflowRun and StageExecution progression. A Planner remains
@@ -33,7 +30,7 @@ local to one StageExecution. Workers may produce observations and propose
 findings, but cannot create Runs, select an Audit, approve work, or mutate Audit
 control state.
 
-The implemented baseline supports deterministic inventories, immutable rounds,
+The baseline contract covers deterministic inventories, immutable rounds,
 bounded compatible item batches in ordinary check Runs, PostgreSQL recovery,
 exact result collection, finding intake and triage, exact human decisions,
 pinned discovery/assessment roles, bounded multiple rounds, and automatic or
@@ -80,10 +77,10 @@ arbitrary Run to an Audit.
 
 ## 3. Alignment with the current implementation
 
-The following boundaries already exist and are reused without reinterpretation:
+The following boundaries are owned by other specifications and are reused
+without reinterpretation:
 
-- Project kinds are `project` and `evaluation`; Audit initially accepts only
-  `project`.
+- Project kinds are `project` and `evaluation`; Audit accepts only `project`.
 - Project lifecycle is `active | deleting`; start and dispatch serialize with
   the existing Project deletion fence.
 - ArtifactStore has `UserScope`, `ProjectScope`, and `RunScope`. No
@@ -103,7 +100,7 @@ The following boundaries already exist and are reused without reinterpretation:
 - Queue pause is an owner-wide Stage-admission gate. Audit coordination must
   continue to reconcile terminal Runs and perform cancellation/cleanup while
   that gate is paused.
-- Project output publication currently targets create-only
+- Project output publication targets create-only
   `outputs/<workflow-output>`. Repeated Audit check outputs would collide, so
   trusted Audit child Runs require an internal `audit-managed` publication
   mode. This mode is not accepted from the public Run-create API.
@@ -113,8 +110,13 @@ The following boundaries already exist and are reused without reinterpretation:
   submission intents are resolved; exact evidence/artifact holds have a
   separate lifetime and remain until Audit deletion.
 
-Everything else in this document is an additive contract. Until its owning
-task is complete, it is not a description of current behavior.
+Verification: the baseline release gates are recorded in
+[V25-012](../../tasks/v25-012-audits-release-gate.yml),
+[V26-005](../../tasks/v26-005-audit-program-library-release-gate.yml) and
+[V39-007](../../tasks/v39-007-audit-completion-release-gate.yml); the
+preparation contract in [V62-001](../../tasks/v62-001-audit-composition-contracts.yml)
+and the OpenAPI scan profile in
+[V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml).
 
 ## 4. AuditProfile
 
@@ -137,7 +139,7 @@ without role kinds are unsupported; start and recovery fail validation.
 internal read-only catalog; the Audit API adds a dedicated owner-safe read
 projection for exact versions and Server compatibility. Generic managed
 publication and the existing `/v1/configurations/{kind}` surface do not accept
-AuditProfile until a separate API/versioning decision is implemented.
+AuditProfile; that requires a separate API/versioning decision.
 
 Profile modes compose one mechanism rather than creating Scheduler branches:
 
@@ -158,10 +160,10 @@ exact standard package. Such a profile declares exactly one `standards` entry
 and omits `inventory.source`: the trusted inventory source is the
 Audit-retained package revision, not a user-uploaded copy. Each mapping becomes
 one item and task package carrying the exact scheme, version, mapping key,
-entry IDs, and complete evidence-contract snapshot. The first implementation
-requires every mapping to select `itemWorkflowRole`, rejects unevaluated
-`profile-rule` applicability and `on-inconclusive` review semantics, and does
-not call a model or the network while building the inventory.
+entry IDs, and complete evidence-contract snapshot. Every mapping must select
+`itemWorkflowRole`; unevaluated `profile-rule` applicability and
+`on-inconclusive` review semantics are rejected; building the inventory calls
+neither a model nor the network.
 
 A requirements-verification profile MAY add `inventory.standardSelection` with
 an operator-authored `scope`, a sorted set of `levels`, and a sorted set of
@@ -272,8 +274,7 @@ Workflow:
 All numeric limits, including `batchSize`, are finite positive values and are
 jointly validated. Profiles cannot weaken Server-wide maxima. `batchSize` is a
 maximum, not a required fill level: the Controller may submit a smaller final
-or compatibility-constrained batch. The first schema and Server implementation
-cap it at 64. Model policies, execution budgets, Runtime labels, and credentials
+or compatibility-constrained batch. The Server caps it at 64. Model policies, execution budgets, Runtime labels, and credentials
 are selected by the pinned child execution configuration, not by finding
 content.
 
@@ -333,7 +334,7 @@ catalog ref. `GET /v1/audit-standards/{scheme}/versions/{version}` returns the
 exact package projection. Raw ZIP bytes are never public. Detail disclosure is
 license-policy-aware: `metadata` returns no entry bodies, `identifiers` returns
 only entry identities/kinds, and `full` may include entries, evidence
-contracts, and mappings. The initial license allowlist is explicit; an unknown
+contracts, and mappings. The license allowlist is explicit; an unknown
 license or a disclosure level not allowed for that license is invalid.
 
 ### 4.3 Server capabilities and start compatibility
@@ -345,7 +346,7 @@ of required Audit capabilities for presentation; start enforces that set
 against the same profile snapshot it pins. A stale UI projection cannot bypass
 the start check.
 
-The current Server supports deterministic inventory, bounded compatible check
+The Server supports deterministic inventory, bounded compatible check
 batches, bounded multiple rounds, pinned discovery and assessment Workflow
 roles, exact active-check/manual-item approval, human finding confirmation,
 human applicability decisions, and exact report acceptance. Automatic active
@@ -366,23 +367,23 @@ exact-subject review ledger described in section 14.
 For standard-backed items, package-authored `human-review` applicability or a
 `required` evidence-contract review starts the item in `awaiting_review` and
 uses the same exact-subject applicability decision as manual checklist items.
-The current executable mapping subset rejects standard-package policies it
-cannot yet enforce rather than silently weakening them.
+The executable mapping subset rejects standard-package policies it cannot
+enforce rather than silently weakening them.
 
 The stable start error is `audit_profile_unsupported`; its bounded reason codes
 describe missing Server capabilities rather than transient Worker availability.
-The current implementation emits `automatic_active_checks_unsupported` and
-`assessment_unsupported` for the not-yet-supported finding-candidate inventory
-entry point. `batching_unsupported` remains a closed legacy wire value for
-compatible clients, but current bounded profile batch sizes do not produce it.
-Other older closed reason values likewise are not evidence that the current
-Server lacks discovery, human finding confirmation, human review, report
-acceptance, or multiple-round execution. A successfully started Audit may still
-wait in the ordinary queue for a compatible Runtime Agent.
+The Server emits `automatic_active_checks_unsupported`, `assessment_unsupported`
+for the unsupported finding-candidate inventory entry point, and
+`preparation_unsupported` (section 4.4). `batching_unsupported` and other older
+closed reason values remain reserved wire values for compatible clients; the
+Server does not produce them for bounded profile batch sizes, discovery, human
+finding confirmation, human review, report acceptance, or multiple-round
+execution. A successfully started Audit may still wait in the ordinary queue
+for a compatible Runtime Agent.
 
-### 4.4 Preparation contract (V62-001)
+### 4.4 Preparation contract
 
-This is the current authoring contract. `sourceInput` and `settingsInput` are
+This is the authoring contract. `sourceInput` and `settingsInput` are
 rejected, including in persisted profile snapshots; there is no alternate
 reader or implicit conversion. Repository profiles use the same explicit
 mapping as Workflow inputs. A schema change changes the profile digest.
@@ -455,14 +456,19 @@ Attempts reserve the existing cumulative Run budget atomically and do not
 introduce an Audit concurrency setting. Per-Run execution policies and the
 Scheduler retain their existing authority.
 
-Until V62-002–004 provide storage, controller and inventory acceptance, valid
-prepare profiles return `serverCompatible: false` with
-`preparation_unsupported`; start and input preview reject them before building
-inventory or submitting Runs. The example remains a test fixture, not a
-runnable catalog preset. The first preparation release does not authorize
-classified active-check tools before item approval; profiles requiring such
-preparation remain unsupported until an explicit Audit-scoped approval contract
-exists. The existing scan approval and outcome-aware retry rules are unchanged.
+A Server without preparation storage, controller and inventory acceptance
+returns `serverCompatible: false` with `preparation_unsupported` for valid
+prepare profiles; start and input preview reject them before building
+inventory or submitting Runs, and the example is then a test fixture rather
+than a runnable catalog preset. Preparation does not authorize classified
+active-check tools before item approval; profiles requiring such preparation
+are unsupported until an explicit Audit-scoped approval contract exists. Scan
+approval and outcome-aware retry rules are unchanged.
+
+Verification: preparation execution is delivered by
+[V62-002](../../tasks/v62-002-audit-preparation-store.yml),
+[V62-003](../../tasks/v62-003-audit-preparation-controller.yml) and
+[V62-004](../../tasks/v62-004-audit-prepared-inventory.yml).
 
 ## 5. Baseline and scope
 
@@ -581,10 +587,9 @@ workflow role, and `role_attempt`.
 A succeeded Run never automatically confirms a finding or satisfies a
 requirement. A failed/cancelled Run does not refute a hypothesis. `supported`
 describes evidence; `confirmed` is a policy-authorized triage decision.
-Severity and confidence are distinct fields. The MVP may disable finding
-production; the first finding-capable release requires human confirmation. A
-future profile may allow deterministic auto-confirmation only under an explicit
-evidence contract.
+Severity and confidence are distinct fields. A profile may disable finding
+production; otherwise human confirmation is required. A future profile may
+allow deterministic auto-confirmation only under an explicit evidence contract.
 
 ## 7. Audit packages and schemas
 
@@ -600,7 +605,7 @@ and expanded bytes, bounded file count/path length/depth, strict relative paths,
 no traversal, no special files, no symlink escape, and no execution of package
 content. A dedicated Audit package schema adds tighter per-document limits.
 
-The first package schema is strict canonical JSON:
+The `contractor.audit.package.v1` schema is strict canonical JSON:
 
 ```json
 {
@@ -621,7 +626,7 @@ The first package schema is strict canonical JSON:
 
 `members` is ordered by path and every `id` and `path` is unique. The optional
 `entrypoint` is permitted only for an `openapi-source` package and names one
-declared member. Initial package kinds are `worklist`, `item-task`,
+declared member. Package kinds are `worklist`, `item-task`,
 `item-task-set`, `execution-manifest`, `check-results`, `finding-proposal`,
 `evidence`, `coverage`, and `openapi-source`. An `item-task-set` contains the
 ordered exact `item-task` package bytes at `tasks/000.zip`, `tasks/001.zip`, and
@@ -631,7 +636,7 @@ Canonical export uses stored members, fixed ZIP metadata, and the JCS manifest;
 import may accept stored or deflated members but always checks their declared
 size and SHA-256 digest before exposing bytes.
 
-Initial hard limits are 16 MiB compressed, 32 MiB expanded, 1,024 members,
+Hard limits are 16 MiB compressed, 32 MiB expanded, 1,024 members,
 16 MiB per opaque member, 512 KiB for `manifest.json`, 8 MiB per parsed JSON or
 YAML document, 512 bytes and 16 components per package path, JSON/YAML depth
 64, local-ref depth 32, 4,096 inventory items, and 64 MiB across all generated
@@ -732,23 +737,18 @@ or a complete ordered batch locally. The model supplies assessments, summaries,
 completed coverage, explicit gaps, bounded evidence summaries and proposal receipt
 keys; Runtime derives item identities and the execution-manifest digest from the
 pinned inputs. Neither tool identifies an Audit, changes its assignment, accepts
-evidence or bypasses the trusted importer. The removed `audit-results@1` toolset
-is unavailable in both Server configuration and Runtime discovery.
+evidence or bypasses the trusted importer. `audit-results@1` is unavailable in
+both Server configuration and Runtime discovery.
 
-The current trusted completion strategy is specified by
-[25](25-audit-worker-finalization.md) and implemented by V39-001–007.
-Every bundled Audit profile selects it. An explicit check-binding `workerCompletion` pins
-`audit-check-results@1` to one logical Worker and selects `audit-results@2`.
-The model records validated per-item data in Runtime, can explicitly correct a
-recorded item with revision checks, and receives progress receipts rather than
-artifact receipts. The common completion boundary enforces complete successful
-submission, gives at most two same-budget reminders, then deterministically
-publishes the full canonical ZIP and assembles WorkerResult without an LLM
-serializer. Durable import, atomic batch acceptance and retry ownership remain
-unchanged. Ordinary Workflows do not acquire this completion rule. Bundled Audit
-Workflows require their profile-supplied contract and cannot run as ordinary
-Runs without it. The bundled Audit catalog starts at version 1; this reset is
-independent of toolset and persisted wire versions.
+The trusted completion strategy (an explicit check-binding `workerCompletion`
+pinning `audit-check-results@1` to one logical Worker with `audit-results@2`,
+Runtime-side incremental collection, bounded reminders and deterministic
+publication without an LLM serializer) is owned by
+[25](25-audit-worker-finalization.md#1-one-completion-boundary-two-strategies);
+every bundled Audit profile selects it. Durable import, atomic batch acceptance
+and retry ownership remain unchanged. Ordinary Workflows do not acquire this
+completion rule; bundled Audit Workflows require their profile-supplied
+contract and cannot run as ordinary Runs without it.
 
 ### 7.3 WorklistManifest
 
@@ -809,7 +809,7 @@ rejects the entire inventory before dispatch. Remote refs that occur only in
 unsupported callbacks, webhooks, or other non-selected surfaces are not
 followed and become explicit named coverage gaps.
 
-The first inventory enumerates explicit HTTP operations in `paths`. Callbacks
+`openapi-operations@1` enumerates explicit HTTP operations in `paths`. Callbacks
 and webhooks become named coverage gaps rather than counted checks. Path Item
 refs resolve before enumeration. `operationId` is only a display label: missing
 or duplicate operation IDs do not merge operations. Ordering is UTF-8
@@ -1010,8 +1010,7 @@ AuditExecution/AuditExecutionItem and preserves every earlier receipt. Only
 settled items participate in the round barrier. Zero items yields an explicit
 empty-inventory reason; it never proves compliance.
 
-Collection is atomic at execution granularity in the first batch
-implementation. A technically failed Run, missing output, or invalid/incomplete
+Collection is atomic at execution granularity. A technically failed Run, missing output, or invalid/incomplete
 result set gives every member an explicit attempt disposition. Members that are
 retryable and still within policy return to `ready`; none of the batch's
 intermediate artifact writes is a checkpoint. Members are then eligible for
@@ -1089,8 +1088,8 @@ acceptance waits for resumed admission. Cancellation/deletion never starts
 inventory or dependent preparation. Terminal Audits do not resume. Before a
 Round exists, item/coverage pages are empty and no aggregate report is ready;
 phase, role status and stop reason explain progress. After Round creation,
-existing controls, review, budgets and round barriers apply. V62-010 may add
-richer provenance views without changing these minimal contracts.
+existing controls, review, budgets and round barriers apply. Richer
+provenance views may be added without changing these minimal contracts.
 
 ## 11. Submission, queueing, and fairness
 
@@ -1243,7 +1242,7 @@ and coverage gaps are retained. No work is silently dropped.
 
 ## 14. Human review
 
-The implemented review kinds are `active-check-approval`,
+The review kinds are `active-check-approval`,
 `requirement-applicability`, `finding-triage`, and `report-acceptance`.
 `plan-approval` and `provide-evidence` are reserved extensions and do not become
 effective merely because a model emits those strings.
@@ -1434,8 +1433,8 @@ verification does not create an accepted verification reference. Without a
 valid result contract the finding remains a candidate with no accepted
 verification, eligible for further checks or human evidence review.
 
-The first implementation opts in through exactly one required primary
-Workflow output whose declared media types include
+Opt-in is through exactly one required primary Workflow output whose
+declared media types include
 `application/vnd.contractor.audit.direct-verifications+json`. Multiple matching
 primary outputs are ambiguous and therefore do not verify anything. The frozen
 output uses this bounded, strictly decoded envelope:
@@ -1483,7 +1482,7 @@ verification to the same Workflow while counting one unique finding.
 ## 16. Retention, publication, and deletion
 
 `AuditArtifactLink` retains exact immutable content independently of source Run
-lifetime. In the first increment, trusted import forks accepted packages into
+lifetime. Trusted import forks accepted packages into
 protected create-only ProjectScope bindings under an Audit-specific logical
 namespace and records a receipt. Keys include Audit identity and version; a
 collision never overwrites another result.
@@ -1528,9 +1527,9 @@ Workflow identity/closure digest and its exact configuration reference, item
 and attempt links, checklist origins, proposal links and analyst decision
 history under Audit ownership. Public projections expose `runDeleted` instead
 of requiring a live Run join. Configuration provenance contains no credential
-values or active grants. V25-008 establishes this for child checks; V25-010/011
-extend it to imported ordinary-Run proposals and finding relations before
-releasing source-owned holds. This retention lasts for the Audit lifetime and
+values or active grants. This applies to child checks, imported ordinary-Run
+proposals and finding relations; source-owned holds are released only after
+that retention is durable. This retention lasts for the Audit lifetime and
 does not prevent explicit Audit/Project purge.
 
 The checklist origin is a first-class immutable `AuditItem` projection rather
@@ -1743,7 +1742,7 @@ denominator. Other item and report reviews remain approve/reject. A proposed rep
 is readable before acceptance and links back to that request; it is never
 presented as an accepted result.
 
-The MVP UI uses bounded polling of authoritative Audit/profile reads while an
+The UI uses bounded polling of authoritative Audit/profile reads while an
 Audit is nonterminal or deleting, keyed by Audit revision/ETag, and stops when
 the route is inactive or terminal. It refetches immediately after a mutation
 and after browser reconnect. Audit WebSocket subscriptions, authorization,
@@ -1946,7 +1945,7 @@ receipts and package retention; coverage report; two executable demo profiles;
 polling UI; mandatory ownership, deletion, Skill/credential, idempotency, and
 Run-deletion gates.
 
-**Increment 2 (implemented baseline):** `security-findings@1` for Audit and ordinary Runs; finding
+**Increment 2:** `security-findings@1` for Audit and ordinary Runs; finding
 triage; exact human review; bounded discovery/assessment and multiple rounds;
 analyst TP/FP and severity history; API backtrace from finding through proposals
 and verification attempts to exact Workflow/checklist origins, including after
@@ -1956,7 +1955,7 @@ external-script example.
 **Increment 3:** the curated licensed versioned standard package catalog,
 canonical seeding, exact Audit pins, license-aware read API, bounded OWASP Top
 10:2025 source-risk program, and selected five-requirement ASVS 5.0.0 Level 1
-pilot are implemented. Their release matrix binds exact identity, denominator,
+pilot. Their release matrix binds exact identity, denominator,
 mixed coverage, restart, catalog replacement, lifecycle, production-process and
 independent-browser checks to executable owners. Comparison of Audits for the
 same system, retest of accepted findings against a new baseline, the complete
@@ -1966,6 +1965,16 @@ ASVS corpus, and broader program coverage remain follow-up work.
 deterministic task-set packages; complete atomic result import; per-item
 attempt, evidence, proposal, coverage and provenance retention; and a two-item
 checklist demo while preserving the one-item wire path.
+
+Verification: increments 1–2 are recorded in
+[V25-012](../../tasks/v25-012-audits-release-gate.yml) with
+[V25-010](../../tasks/v25-010-security-findings-intake.yml) and
+[V25-011](../../tasks/v25-011-audit-review-and-multiround.yml); increment 3 in
+[V26-005](../../tasks/v26-005-audit-program-library-release-gate.yml); increment 4
+in [V26-004](../../tasks/v26-004-batched-audit-executions.yml) and
+[V26-006](../../tasks/v26-006-audit-batch-byte-budget.yml); Worker completion in
+[V39-007](../../tasks/v39-007-audit-completion-release-gate.yml); preparation
+in section 4.4.
 
 Deferred: a generic event-driven workflow language, arbitrary nested Audit
 graphs, mutable accepted worklists, semantic auto-merge, cross-Project analysis,
@@ -1994,6 +2003,3 @@ publication.
   and its [official repository](https://github.com/OWASP/ASVS), including stable
   version 5.0.0 and version-qualified requirement identifiers, verified
   2026-09-05.
-
-Audit entities, schemas, APIs, lifecycle, limits, and increments are proposed
-contracts until their owning tasks are completed.

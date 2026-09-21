@@ -206,7 +206,7 @@ This slice must demonstrate:
 - `passthrough@1` and `streamline@1` require exactly one logical Worker;
   `router@1` accepts a fixed non-empty mapping and cannot add or replace a
   binding;
-- `streamline@1` and `router@1` pin Google ADK Go v1.6.0 behind the existing
+- `streamline@1` and `router@1` use the Go ADK behind the existing
   Planner interface and share the bounded subtask-plan and validated
   `finish(StageResult)` operation;
 - Streamline's dispatch function is exactly
@@ -273,9 +273,10 @@ This slice must demonstrate:
 - each Runtime Agent process registers one in-memory `instance_id`; restarting
   it creates a new process identity (while retaining its certificate principal)
   and interrupts rather than adopts its old allocation;
-- Runtime Agent sends a monotonic heartbeat every 10 seconds and echoes the
-  last received ack; both sides advance the confirmed control lease only
-  through that round trip and expire it after 60 seconds;
+- Runtime Agent sends a monotonic heartbeat and echoes the last received ack;
+  both sides advance and expire the confirmed control lease only through that
+  round trip, with the interval and lease duration owned by
+  [02](02-runtime-and-a2a.md#heartbeat-and-confirmed-control-lease);
 - local lease loss drains and ultimately kills Worker, then leaves Runtime
   Agent `fenced` with the old allocation ID until Control Plane explicitly
   acknowledges release; it cannot silently reuse the slot as `idle`;
@@ -501,8 +502,18 @@ surface without adding mutation to `code-analysis@1`:
 
 ## Deliberately deferred
 
-The following decisions remain open; no legacy document defines them
-implicitly:
+The following cross-cutting decisions remain open; no legacy document defines
+them implicitly. Decisions deferred inside one document's scope live in that
+document's own deferred section:
+[07](07-runtime-labels-and-infrastructure-config.md#deferred),
+[09](09-agent-skills.md#deliberately-deferred),
+[10](10-runtime-filesystems-and-edit-tools.md#deliberately-deferred),
+[11](11-http-and-caido-tools.md#deliberately-deferred),
+[14](14-worker-results-and-live-state.md#deliberately-deferred),
+[15](15-worker-summarization.md#deliberately-deferred),
+[19](19-audits.md#21-delivery-increments-and-deferred-work),
+[20](20-scheduler-concurrency-control.md#10-supported-topology-and-non-goals)
+and [25](25-audit-worker-finalization.md#7-non-goals).
 
 - remaining Workflow YAML details outside the transition, Agent-binding,
   artifact-slot and output-mapping contracts;

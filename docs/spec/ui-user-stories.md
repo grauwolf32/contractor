@@ -1,16 +1,13 @@
 # Contractor UI: user stories and improvement plan
 
-Status: **V37 and V38 implemented and verified; separate follow-up scope remains**.
-Updated: 2026-09-20.
+Status: **Implemented for US-01 through US-11; separate follow-up scope
+remains** (verified by [V37-012](../../tasks/v37-012-ui-journey-verification.yml))
 
 This document records user goals and usability criteria. The
 [UI specification](06-server-ui-and-operations.md) describes current behavior
 and protocols. A story's presence here does not mean it is fully implemented.
-Implementation status is tracked in the [tasks](../../tasks/index.yml).
-The [V37 acceptance report](../plans/2026-09-19-v37-journey-verification.md)
-records connected browser journeys and real Server/Runtime/PostgreSQL
-verification. Fixture evidence is separate from real API evidence. No participant
-usability study has been performed; US-10 remains outside V37.
+Implementation status is tracked in the [tasks](../../tasks/index.yml); see
+[Verification](#verification).
 
 ## Users and scope
 
@@ -26,9 +23,9 @@ perform all three functions; Server continues to determine access.
 
 The primary journey is **Project → materials → Workflow → Run setup → execution →
 result → next Run or Audit review**. Starting a Run without a Project remains a
-supported standalone scenario. Catalog groups Workflows, Agents and Skills;
-Runtime Agent processes belong in Operations. No additional main navigation
-items are needed; Evals remains after Artifacts.
+supported standalone scenario. The main navigation is owned by
+[06](06-server-ui-and-operations.md#purpose); the stories add no navigation
+items.
 
 ## User stories
 
@@ -50,14 +47,11 @@ Artifacts, Workflows, Runs, Audits, Findings and Settings are independent screen
 with common navigation. The Run history has Server-backed state filters and
 compact rows; upload and exact Project Run setup open on demand. Filters,
 selected versions and return context survive the corresponding navigation.
-See the [Project section plan](../plans/2026-09-project-section-navigation.md).
 
 Project cards also expose a named Delete icon. Confirmation requires the
 current Project name; pending deletion disables repeat submission and provides
 a link to deletion status. A stale revision requires refreshed data and a new
 confirmation.
-
-Implementation tasks: V37-002, V37-003. Git import: existing V35-004.
 
 ### US-02 — Choose an analysis by its intended result
 
@@ -67,14 +61,9 @@ I can choose an analysis without first learning about Stages and internal names.
 Done when the catalog shows descriptions, required materials and outputs, search
 covers all published entries, and the exact selected version is visible before
 launch. Execution details are available separately. A missing description is not
-replaced by a guess based on the name; the default version follows the explicit shared UI ordering described below.
-Numeric dot-separated versions sort by integer components and default to the
-highest version after the complete inventory loads. Non-numeric labels remain
-selectable in deterministic natural order without a Latest claim. A deliberate
-older selection and an open Run draft never change silently on refresh. This
-policy supersedes the earlier version-order prohibition at the user’s request.
-
-Implementation tasks: V37-003, V37-006, V37-007.
+replaced by a guess based on the name; the default version, Latest marking and
+refresh behavior follow the shared version ordering in
+[06](06-server-ui-and-operations.md#shared-workflow-discovery-cards).
 
 ### US-03 — Configure and start a Run without losing input
 
@@ -92,8 +81,6 @@ MIME-based suggestions are labeled as format matches and require user review.
 The interface must not claim that a document's semantic suitability is proven.
 The form and nested dialogs are fully usable with the keyboard.
 
-Implementation tasks: V37-001, V37-002, V37-004.
-
 ### US-04 — Understand execution progress and waits
 
 As a user, I want to see the current work and the reason for a wait so that I can
@@ -103,9 +90,7 @@ Done when Run and Queue show the reason known to Server, the next available step
 and a link to the relevant diagnostics. An already scheduled Scheduler retry,
 a wait for Runtime capacity and the option to create another Run are distinct.
 An unknown reason remains unknown; an idle Runtime is not presented as a
-guarantee of compatible capacity.
-
-Implementation tasks: V37-008, V37-011. Existing Home, Queue and Run triage remain.
+guarantee of compatible capacity. Existing Home, Queue and Run triage remain.
 
 ### US-05 — Retrieve and use a result
 
@@ -117,8 +102,6 @@ and a supported small file opens through one explicit action on that file.
 Unsupported previews offer an explanation and Download; all outputs and exact
 revisions remain available. A missing primary output is not hidden by selecting
 an arbitrary file. Opening a Run does not require downloading every output.
-
-Implementation task: V37-009.
 
 ### US-06 — Fix the cause and repeat an analysis
 
@@ -133,8 +116,6 @@ a new Run from the Workflow. The old Run and its history remain unchanged;
 repeating creates a new Run only after explicit submission.
 For an Audit-managed Run, new execution goes through the controlling Audit,
 without copying its internal labels into an ordinary user request.
-
-Implementation tasks: V37-002, V37-008.
 
 ### US-07 — Conduct an Audit and make decisions
 
@@ -163,8 +144,6 @@ finishes. Continue is available only for paused Audits; completed, failed and
 cancelled Audits remain final. Dismissing time settings sends no
 mutation; icon actions retain accessible names and explanatory tooltips.
 
-Implementation tasks: V37-001, V37-005, V37-010.
-
 ### US-08 — Inspect an agent and its prompt
 
 As a Workflow author, I want to open an exact agent version, read its base prompt,
@@ -175,9 +154,7 @@ Done when versions are selected from published definitions, search is not limite
 to the current page, and usage links lead to exact Workflow versions. Existing
 Preview / Source / Copy actions remain. The base prompt is clearly distinguished
 from the actual context of an individual invocation. Comparing prompts across
-versions is a later phase, outside V37.
-
-Implementation tasks: V37-006, V37-007. Basic functionality is implemented in V33-001.
+versions is deferred.
 
 ### US-09 — Find and inspect the right file
 
@@ -189,9 +166,6 @@ to a slot, and opened without unnecessary expansion steps. The exact revision
 and Git commit, when present, are available; full history, lineage and diagnostics
 do not obscure the primary actions. An update conflict offers a way to inspect
 the current state or choose a new name and never results in a silent overwrite.
-
-Implementation tasks: V37-002, V37-004, V37-009; existing V34 and V35 preserve the
-storage contract.
 
 ### US-10 — Compare variants through Evals
 
@@ -207,16 +181,11 @@ tables. Missing metrics are not zero; successful execution alone does not imply
 high quality. Quality assessment requires
 an explicitly selected evaluator or a human decision.
 
-**Implemented and deterministically verified by V38-001–010.** The
-[full browser journey](../evals-experience-design.md) supports configure, prepare,
-start, review and compare. Native Contractor execution remains independent of
-Playground; optional external clients use the same [public protocol](30-managed-evals.md).
-The [acceptance record](../plans/2026-09-20-managed-evals-ui.md) covers real native
-and external Workflow/Audit journeys, restart and response loss, complete bounded
-comparisons, private data, owner isolation and accessible 390px/1280px charts.
-Existing grouping of ordinary Runs by `eval.*` labels remains available as legacy
-history. This evidence establishes protocol and UI behavior, not model quality
-or participant usability.
+The [full browser journey](../evals-experience-design.md) supports configure,
+prepare, start, review and compare. Native Contractor execution remains
+independent of Playground; optional external clients use the same
+[public protocol](30-managed-evals.md). Existing grouping of ordinary Runs by
+`eval.*` labels remains available as legacy history.
 
 ### US-11 — Monitor and configure execution
 
@@ -231,11 +200,11 @@ in progress. Revision/snapshot details are available in diagnostics. Permissions
 and the disabled state of metrics reflect Server's state.
 
 The readiness overview distinguishes observed idle/busy/reserved/draining/fenced
-states; idle alone is not a promise of compatible capacity. Binding forms show
-the current exact version beside the proposal. A stale revision blocks saving
-until an explicit authoritative reload, which retains the proposed version for
-review and retry. Scope copy distinguishes new Run snapshots from future
-Agent-label allocation resolution; prepared allocations keep pinned settings.
+states; idle alone is not a promise of compatible capacity. Binding forms
+follow the current-versus-proposed display and stale-revision reload rule in
+[07](07-runtime-labels-and-infrastructure-config.md#operations-and-ui). Scope
+copy distinguishes new Run snapshots from future Agent-label allocation
+resolution; prepared allocations keep pinned settings.
 
 In Runs Configuration, named icon actions open RuntimeConfig publication and
 Runtime credential dialogs. Bindings open for the exact selected version and
@@ -245,21 +214,16 @@ explicit-null overlay semantics under
 [06](06-server-ui-and-operations.md#runtime-labels-and-infrastructure-configuration)
 and [11](11-http-and-caido-tools.md).
 
-Layout task: V37-011. Server/PostgreSQL charts and final allocation metrics were
-implemented by [V32-006](../../tasks/v32-006-operations-performance-ui.yml);
-the 15-second / 60-second / 5-minute intervals,
-disabling metrics and independent Go profiling are defined by the
-[separate specification](22-performance-metrics-and-profiling.md).
-This plan does not add a new pprof toggle to the UI.
+Server/PostgreSQL charts, final allocation metrics, collection intervals,
+disabling metrics and independent Go profiling are defined by
+[22](22-performance-metrics-and-profiling.md). The UI adds no pprof toggle.
 
 ## Implementation order
 
-The original implementation waves below are complete for V37. New tasks start
-with `status: pending`. Their `priority: P2` follows the
-repository policy of "after the first releasable slice". The urgency identified
-in the UX-01…UX-11 study is expressed by the waves below, without overriding
-that policy. Each YAML file contains the exact dependencies, scope, criteria
-and verification commands.
+Verification: the task files below record each story's implementation,
+dependencies, acceptance criteria and verification commands. New follow-up
+tasks start with `status: pending` and `priority: P2` under the repository
+policy of "after the first releasable slice".
 
 | Wave | Task | Outcome | Rationale |
 | --- | --- | --- | --- |
@@ -276,27 +240,26 @@ and verification commands.
 | 3 | [V37-011](../../tasks/v37-011-operations-progressive-forms.yml) | Operations overview, forms opened by action and the impact of changes | UX-10 |
 | V37 acceptance | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
 | Separate design | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Selected native experiment and independent producer contract | UX-11 / US-10 |
-| V38 acceptance | [V38-002–010](../plans/2026-09-20-managed-evals-ui.md) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
+| V38 acceptance | [V38-010](../../tasks/v38-010-eval-release-gate.yml) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
+| Project sections | [Project section plan](../plans/2026-09-project-section-navigation.md) | Project Overview and independent section screens | US-01 |
 
-The implemented sequence began with independent Dialog and Project actions,
-then added draft continuity, confirmations and input review. V37-006 added the
-catalog contract; V37-008 and V37-010 include Server read projections for repeat
-setup and bounded Audit review. The final V37-012 gate verifies these behaviors
-together.
-
-V35-004 already adds Git Settings/import; V37 uses that implementation. V32-006
-continues to own the Performance UI. V37-011 neither depends on charts being
-available nor duplicates them. V37 verification covers the implemented repeat
-and bounded review contracts; it does not establish performance at production
+Git Settings/import ([V35-004](../../tasks/v35-004-git-settings-and-import-ui.yml))
+and the Performance UI ([V32-006](../../tasks/v32-006-operations-performance-ui.yml))
+are owned by their own specifications; the stories reuse them without
+duplication. Journey verification does not establish performance at production
 inventory sizes.
 
 ## Verification
 
-The completed [acceptance report](../plans/2026-09-19-v37-journey-verification.md)
-records 379 UI unit tests, 36 fixture browser scenarios, the real UI-stack test
-and PostgreSQL/API checks. Run drafts, primary previews, repeat setup, nested
-keyboard dialogs, Audit review and Operations forms pass at 1440×1000 and
-390×844. These results verify behavior, not human task-success rates.
+Verification: [V37-012](../../tasks/v37-012-ui-journey-verification.yml) with
+its [acceptance report](../plans/2026-09-19-v37-journey-verification.md), and
+[V38-010](../../tasks/v38-010-eval-release-gate.yml) with its
+[acceptance record](../plans/2026-09-20-managed-evals-ui.md), record connected
+browser journeys, real Server/Runtime/PostgreSQL and API checks, restart and
+response-loss recovery, owner isolation and desktop/mobile viewports. Fixture
+evidence is separate from real API evidence. These results verify behavior,
+not model quality or human task-success rates; no participant usability study
+has been performed.
 
 The repeatable acceptance approach is to verify a connected journey rather than
 only an individual screen:

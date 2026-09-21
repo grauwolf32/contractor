@@ -1,13 +1,10 @@
-# Finding tools and immutable collections
+# 27 — Finding tools and immutable collections
 
-Status: V43-001 specifies the contract and implements the Go codec, package
-validation and deterministic destination mapping. V43-002 implements Server
-publication through `POST /v1/finding-collections`. V43-003 implements Runtime
-preparation and `list_findings` in `security-findings@1`. V43-004 adds explicit
-producer and reader configurations with a production-process integration test.
-V43-005 adds `make test-findings-e2e` with required execution checks.
-The development application uses one current finding schema and interface set;
-old development shapes are not maintained as compatibility variants.
+Status: **Implemented and verified** — see the
+[findings contract gate task](../../tasks/v43-005-findings-contract-gate.yml).
+
+The application uses one current finding schema and interface set; old
+development shapes are not maintained as compatibility variants.
 
 ## Responsibilities
 
@@ -89,9 +86,7 @@ grants read access.
 Optional `audit_holds` contains up to 64 sorted unique Audit IDs with retained
 copies of this receipt. It preserves source membership independently of producer
 origin and review state; it does not create a finding ID or imply confirmation.
-Absent or empty holds encode by omitting the member. V43-002 added this optional
-provenance before Runtime adoption; the original conformance fixture remains
-byte-identical.
+Absent or empty holds encode by omitting the member.
 
 `retention` captures the existing receipt state: `source-held`, `audit-held` or
 `discarded`. It never substitutes for package byte availability. A discarded
@@ -208,7 +203,7 @@ retry validates the requested finding revisions again and either captures them
 or conflicts. Concurrent snapshots use repeatable-read transactions and bounded
 retry on definite PostgreSQL serialization aborts.
 
-V43-002 owns owner-authorized source selection, snapshot capture, assembly and
+Server owns owner-authorized source selection, snapshot capture, assembly and
 publication through the existing Artifact plane. Selection is explicit about
 receipts versus admitted Audit findings and any retention/review filters.
 Selecting an Audit finding includes all its contributing selected-source
@@ -250,7 +245,7 @@ toolsets:
     tools: [read_artifact]
 ```
 
-V43-003 owns allocation-local reader-toolset preparation:
+Runtime owns allocation-local reader-toolset preparation:
 
 1. Resolve the selected declared collection input to an exact current-Run ref.
    Validate the complete package and all proposal/evidence links before writes.
@@ -270,8 +265,8 @@ The toolset may perform this internal materialization even in a reader-only
 configuration. This grants no model-visible creation operation. It uses the
 existing `WriteInputsAndIntermediates` allocation policy and leaves
 `ReadCurrentRun` intact. Source refs stay separate as provenance. No Runtime read
-of a foreign Run is needed. Full cross-process readability is a V43-005 gate;
-V43-001 tests the deterministic mapping, not artifact I/O.
+of a foreign Run is needed. Full cross-process readability is covered by the
+findings process gate below.
 
 ## Reader tool contract
 
@@ -340,28 +335,29 @@ Opt-in configurations:
   `list_findings`, `read_artifact` and text report writing. Its generic analysis
   requires no hypothesis, annotation, OpenAPI input or Audit origin.
 
-Producer guidance lives in a new instruction file; the frozen `trace` Skill and
-instruction-eval baselines retain their bytes. Neither configuration changes
+Producer guidance lives in a separate instruction file; the `trace` Skill and
+instruction-eval baselines are unchanged by it. Neither configuration changes
 default deployment or establishes model-quality improvements.
 
 The [shared fixture](../../internal/auditdomain/testdata/finding-collection-v1.fixture.json)
-contains generic function/configuration subjects, ordinary Run and Audit origins,
-optional hypothesis, a review without decision ID, and identical evidence bindings
-from different Runs. Document and package hashes were independently generated
-using Python; Go codec tests require exact conformance and reject inconsistent
-metadata, byte content and evidence membership.
+is the conformance reference for the Go and Python codecs and for Runtime
+preparation. It contains generic function/configuration subjects, ordinary Run
+and Audit origins, optional hypothesis, a review without decision ID, and
+identical evidence bindings from different Runs. Codec tests require exact
+conformance and reject inconsistent metadata, byte content and evidence
+membership.
 
-V43-002 adds required PostgreSQL publication/retention tests and an HTTP test
-that passes the ZIP into ordinary Run creation. They cover concurrent replay,
-later review changes, all finding contributions, foreign/missing sources, source
-Run deletion and rollback after the ZIP write but before its receipt. They run
-with `-tags=integration` and fail when explicitly selected without a test database.
-V43-003 consumes this same
-fixture for Python decoding, real ArtifactClient preparation behavior, previews,
-pagination and independent tool selection. V43-004 selects new immutable config
-configurations; finding interfaces evolve in place during development. V43-005 proves producer → publication
-→ ordinary input fork → preparation → reader across Server/Runtime processes.
-Model quality evals remain separate and follow the V41 portable-format gate.
+Required integration coverage: PostgreSQL publication/retention tests and an
+HTTP test that passes the ZIP into ordinary Run creation, covering concurrent
+replay, later review changes, all finding contributions, foreign/missing
+sources, source Run deletion and rollback after the ZIP write but before its
+receipt; they run with `-tags=integration` and fail when explicitly selected
+without a test database. Runtime tests cover Python decoding of the same
+fixture, real ArtifactClient preparation behavior, previews, pagination and
+independent tool selection. The findings process gate, `make test-findings-e2e`,
+proves producer → publication → ordinary input fork → preparation → reader
+across Server/Runtime processes. Model quality evals remain separate and follow
+the portable evaluation format in [26](26-portable-evaluation-format.md).
 
 ## Finding proposal and selected authoring interfaces
 
@@ -419,9 +415,9 @@ escaping and fragments; do not fetch, normalize, infer GET or remap paths.
 | Bound | Value and basis |
 | --- | --- |
 | Locations | 256, matching existing per-finding evidence capacity |
-| File | 4096 UTF-8 bytes, the V63 retained path bound |
+| File | 4096 UTF-8 bytes, matching the retained path bound |
 | URL | 8192 UTF-8 bytes, matching the HTTP tool URL bound |
-| Method | 64 ASCII bytes, the V63 bounded method field |
+| Method | 64 ASCII bytes, matching the bounded HTTP method field |
 | Line/range endpoints | 1–9007199254740991, JSON/JavaScript exact integers |
 
 Absent or empty locations encode by omission. Explicit null, unknown fields,
@@ -471,10 +467,11 @@ API and machine reports expose typed coordinates and selected exchange evidence.
 The UI displays authored coordinates without inferred links or web previews.
 SARIF export remains a separate draft.
 
-The ordinary source-findings-review@1 workflow uses the code facade. Existing
-source verifier/tracer templates now select the code facade; the HTTP verifier
-selects the HTTP facade. No duplicate template/workflow versions were introduced
-for compatibility. crAPI consumes the ordinary workflow's retained public receipts.
+The ordinary `source-findings-review@1` workflow uses the code facade. Source
+verifier/tracer templates select the code facade; the HTTP verifier selects the
+HTTP facade. No duplicate template/workflow versions exist for compatibility.
+External benchmark bindings consume the ordinary workflow's retained public
+receipts.
 
 The shared location fixture exercises Go, Python and UI validation. The findings
 process gate includes a real facade→intake→API→collection→reader round trip after

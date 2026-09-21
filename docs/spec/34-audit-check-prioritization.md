@@ -1,12 +1,11 @@
 # 34 — Contextual Audit checklist prioritization
 
-Status: **Draft integration target; pure core implemented in V64-000. Audit capability not enabled.**
+Status: **Draft integration target; pure core implemented ([V64-000](../../tasks/v64-000-audit-priority-core.yml)); Audit capability not enabled.**
 
-Date: 2026-09-20. Implementation series: **V64**. The
-[plan](../plans/2026-09-20-audit-check-prioritization.md) owns task sequencing;
-this document owns the proposed behavior. Existing profiles and
-[Audit contracts](19-audits.md) remain unchanged until the corresponding tasks
-implement and advertise this opt-in capability.
+This document owns the proposed behavior; the
+[plan](../plans/2026-09-20-audit-check-prioritization.md) owns task sequencing.
+Existing profiles and [Audit contracts](19-audits.md) remain unchanged until
+this opt-in capability is implemented and advertised.
 
 ## 1. User outcome and boundary
 
@@ -44,26 +43,35 @@ planner of concrete scanner jobs. The narrower optional scanner ranking in
 | Scheduler | Ranking/check Run admission, global queue, concurrency, deadlines and claims |
 | Existing check Workers | Execute accepted checks and publish ordinary Audit results |
 
-Reuse V62-001–003's shared contracts, persistence foundations and control paths
-for Audit work before a Round exists. V64 adds a `prioritization` execution role
-and phase at the initial and later round boundary; it does not duplicate V62's
-`prepare` producer or redefine its once-per-Audit semantics. Contract work MUST
-name and test these extension points. V64 integration requires those three tasks.
-Their current delivery order includes V62-001's transitive V62-009 prerequisite;
-the prioritization feature itself does not require generated-input, OpenAPI,
-retained-dependency or routing inputs from V62-004–012. A later prepared-checklist bridge must explicitly
-depend on V62-004 instead of implying that it already works.
+Reuse the shared preparation contracts, persistence foundations and control
+paths for Audit work before a Round exists
+([19 §10.1](19-audits.md#101-preparation-inventory-and-controls-before-the-first-round)).
+Prioritization adds a `prioritization` execution role and phase at the initial
+and later round boundary; it does not duplicate the `prepare` producer or
+redefine its once-per-Audit semantics. Contract work MUST name and test these
+extension points. The prioritization feature itself does not require
+generated-input, OpenAPI, retained-dependency or routing inputs. A later
+prepared-checklist bridge must explicitly depend on prepared inventory
+([19 §4.4](19-audits.md#44-preparation-contract)) instead of implying
+that it already works.
+
+Verification: integration depends on the preparation contract, store and
+controller tasks
+([V62-001](../../tasks/v62-001-audit-composition-contracts.yml),
+[V62-002](../../tasks/v62-002-audit-preparation-store.yml),
+[V62-003](../../tasks/v62-003-audit-preparation-controller.yml)).
 
 A new opt-in profile declares a pinned ranking Workflow, its resolved model
 route and finite ranking policy, plus existing check roles, limits and interaction
-policy. Proposed authoring field `prioritization` is reserved by V64-001 and is
-not accepted current syntax. Unknown/incomplete capabilities fail compatibility
+policy. The authoring field `prioritization` is reserved; the current profile
+schema rejects it. Unknown/incomplete capabilities fail compatibility
 checks. No existing profile is opted in by default; current non-priority
 execution and review behavior remains supported.
 
-The 2026-09-21 alignment adopts V62's
-[current schema policy](../plans/2026-09-20-audit-workflow-composition.md#current-schema-policy).
-V64 MUST use current explicit inventory `source`/`settings` mappings and reject
+This specification follows the Audit composition
+[schema policy](../plans/2026-09-20-audit-workflow-composition.md#current-schema-policy).
+Prioritization MUST use the explicit inventory `source`/`settings` mappings of
+[19 §4.4](19-audits.md#44-preparation-contract) and reject
 obsolete fields and persisted profile snapshots without compatibility readers,
 aliases or implicit conversion. Repository profiles, fixtures, public contracts
 and clients move together to that schema. Canonical bytes/digests may change
@@ -158,9 +166,7 @@ review changes are eligible only for a subsequent cycle.
 
 ## 5. Verdict and comparison rubric
 
-Model output is one strict object, not prose surrounding JSON. V64-000 implements
-this exact model-verdict shape and executable fixtures; V64-001 integrates it
-with public/profile and persisted cycle contracts:
+Model output is one strict object, not prose surrounding JSON:
 
 ```json
 {
@@ -203,7 +209,7 @@ same order and selection digest. Model calls themselves are not asserted to be
 deterministic. Tests cover both mechanics and scripted rubric examples; they do
 not claim live-model prioritization quality.
 
-### Implemented pure core boundary (V64-000)
+### Pure core boundary
 
 `internal/auditpriority` has no gateway, storage, Scheduler or Worker access.
 Its schema and fixtures are in `api/audit-priority/v1`. The model object requires
@@ -225,7 +231,7 @@ current checklist version limits are unchanged. Duplicate keys, including two
 versions of the same key, are rejected. The pure pool has schema
 `contractor.audit.priority-candidates.v1`, the source inventory digest and
 candidate-ID-sorted identity rows; its canonical digest binds exact remaining
-membership. This identity pool is not yet the metadata-bearing Run input.
+membership. This identity pool is not the metadata-bearing Run input.
 
 The caller binds each verdict to the cycle ID, inventory/pool/context/policy/
 prompt/model-configuration digests and effective topN. Selection requires exact
@@ -247,11 +253,14 @@ bytes are bounded by 16 MiB. Results detach all mutable slices from inputs;
 confidence and input response order never break priority ties.
 
 `Selection.Validate` and `MarshalSelection` check internal consistency only.
-They are not the future accepted `contractor.audit.priorities.v1` Run output or
-an admission receipt. V64-001/002/005/006 must add the persisted provenance,
-accepted output/journal comparison and atomic budget/selection admission before
-the result can authorize a Round. The pure package registers no planner or
-profile capability and changes no existing API or canonical contract.
+They are not the accepted `contractor.audit.priorities.v1` Run output or an
+admission receipt. Persisted provenance, accepted output/journal comparison and
+atomic budget/selection admission (sections 6–8) are required before the result
+can authorize a Round. The pure package registers no planner or profile
+capability and changes no existing API or canonical contract.
+
+Verification: the pure core is recorded in
+[V64-000](../../tasks/v64-000-audit-priority-core.yml).
 
 ## 6. Evaluation execution, bounds and accounting
 
@@ -391,7 +400,8 @@ be retained. Audit admission deadline is the existing pause gate: it does not
 shorten the ranking Stage deadline or terminate an admitted model call. Existing
 resume may extend or disable that admission deadline. Resume reuses the same cycle, context and outcomes.
 Late output after cancellation/deletion is non-authoritative. These controls
-also work before any Round exists, through the shared V62 lifecycle foundation.
+also work before any Round exists, through the shared preparation-phase
+lifecycle ([19 §10.1](19-audits.md#101-preparation-inventory-and-controls-before-the-first-round)).
 
 ## 8. Selection, readiness and subsequent passes
 

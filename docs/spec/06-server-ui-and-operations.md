@@ -111,39 +111,31 @@ controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).
 
 [UI user stories and roadmap](ui-user-stories.md) records the target journeys
 and their acceptance criteria.
-V37-001 through V37-012 deliver draft continuity, accessible dialogs, primary
-actions, reviewed input suggestions, Catalog discovery, repeat Run drafts and
-primary result preview, contextual Audit review, the Operations layout and the
-connected desktop/mobile/keyboard release gate. Their task files record the
-completed implementation and verification boundaries.
-V46-001–004 deliver generation-safe Run draft completion, overlapping Performance
-history intervals, direct Project Run shell routes and Catalog cursor-based
-Previous navigation. Their task files record focused regressions, real PostgreSQL
-history verification and the complete UI checks independently of V37 delivery.
 
-Implementation tasks own the necessary amendments to focused contracts. A
-media-type recommendation under [17](17-projects-and-queue.md) does not
+A media-type recommendation under [17](17-projects-and-queue.md) does not
 establish semantic input suitability: the retained Run draft requires explicit
 per-slot review of each populated exact suggestion without changing Server
-media-type validation. New Catalog and Audit read projections must filter
-before pagination, and a repeat Run must use authorized exact source refs
-rather than treating RunScope refs as UserScope or ProjectScope inputs.
+media-type validation. Catalog and Audit read projections filter before
+pagination, and a repeat Run uses authorized exact source refs rather than
+treating RunScope refs as UserScope or ProjectScope inputs.
 
-Performance UI and Git Settings/import are implemented and release-verified
-under V32 and V35. V38-001 selects full browser Evals setup, launch and comparison
-in the [experience design](../evals-experience-design.md). The native experiment API/coordinator,
-independent producer boundary and selected comparison APIs in
-[30](30-managed-evals.md) are implemented through V38-006. V38-007 through
-V38-010 deliver browser setup/comparison, the optional Playground client and
-the deterministic release gate. Contractor UI/server delivery is recorded in
-this repository; the independent V38-009 client is implemented in
-`playground-v2` and merged there at `d2ffd39ff4c214cf514225a8fd097824ac676c86`.
-The portable evaluator in [26](26-portable-evaluation-format.md) and managed UI
-have separate verification evidence; neither proves live model quality.
-Existing evaluation Projects and generic Run-label behavior remain valid;
-Contractor will not require Playground to run native Evals. Both Workflow and
-Audit experiments are required. Chart projections and kind-specific evidence navigation follow spec 30 and share the
-comparison tables' exact membership, scope and missing-data semantics.
+Browser Evals setup, launch and comparison follow the
+[experience design](../evals-experience-design.md) and
+[30](30-managed-evals.md). Native Evals do not require Playground; both
+Workflow and Audit experiments are supported. Chart projections and
+kind-specific evidence navigation share the comparison tables' exact
+membership, scope and missing-data semantics. The portable evaluator in
+[26](26-portable-evaluation-format.md) and the managed UI have separate
+verification evidence; neither proves live model quality.
+
+Verification: the UI journey gate
+[V37-012](../../tasks/v37-012-ui-journey-verification.yml), the follow-up
+tasks [V46-001](../../tasks/v46-001-run-draft-submission-generation.yml)
+through [V46-004](../../tasks/v46-004-catalog-previous-page.yml), the
+Performance gate [V32-008](../../tasks/v32-008-performance-release-gate.yml),
+the Git gate [V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml) and
+the Evals gate [V38-010](../../tasks/v38-010-eval-release-gate.yml) record the
+implementation and verification boundaries of this surface.
 
 ## Deployment boundary
 
@@ -175,7 +167,7 @@ defaults < YAML < environment < flags, validated before startup, and require a
 restart to change. Effective-setting diagnostics expose resolved durations and
 bounded counts, not credentials, URLs or secret paths.
 
-V49-001 separates Runtime/A2A request timeouts, Scheduler operation and terminal
+Process settings separate Runtime/A2A request timeouts, Scheduler operation and terminal
 budgets, Runtime batch cleanup, Project lifecycle operations/claims, Audit
 controller polling/claims/operations, database budgets, A2A polling and credential
 management HTTP. Increasing one transport timeout cannot silently enlarge an
@@ -205,7 +197,7 @@ show an explicit incompatible-version error rather than guessing around a
 missing or changed field. Additive API changes within a supported version do
 not require a coordinated release.
 
-The delivered UI is a client-rendered frontend. Node serves its static assets
+The UI is a client-rendered frontend. Node serves its static assets
 and a non-secret `/runtime-config.json`; it performs no SSR, BFF, API proxying,
 session storage or domain operation. Runtime config contains exactly the UI
 version, supported API versions and one absolute `apiBaseUrl`, allowing the same
@@ -443,11 +435,9 @@ stale, causing the UI to fetch a new snapshot. This is a current-state view,
 not durable allocation history: an allocation disappears after authoritative
 release.
 
-The implemented [performance extension](22-performance-metrics-and-profiling.md)
+The [performance extension](22-performance-metrics-and-profiling.md)
 provides a separate Performance page and durable completed-allocation history.
-Collection, history storage, Go profiling, Operations APIs and UI are implemented
-and verified through V32-008. It owns
-their collection switches, bounded read APIs and freshness/retention semantics;
+It owns their collection switches, bounded read APIs and freshness/retention semantics;
 it does not extend the live registry's retention or advance its revisions on
 periodic samples. Go profiling is separately enabled at Server startup and is
 not exposed through the Operations browser API.
@@ -901,14 +891,12 @@ navigation exposes Runtime Agents, configuration and Server-owned Run wait
 reasons. Snapshot generation/revision and live-connection details are disclosed
 under Diagnostics, independently from readiness.
 
-Binding dialogs show current and proposed exact versions, including digests.
-A CAS conflict disables another write until the authoritative binding is
-reloaded. Reload preserves the proposal even when another operator moved the
-binding to a different version; it never silently submits that proposal. The
+Binding dialogs follow the current-versus-proposed display and stale-revision
+reload rule in
+[07](07-runtime-labels-and-infrastructure-config.md#operations-and-ui). The
 dialog lists current bindings independently of the version used to open it.
-Publication errors likewise retain the unpublished proposal. Secret fields are
-cleared on credential submission, kind change and dialog close, including
-rejected submissions.
+Secret fields are cleared on credential submission, kind change and dialog
+close, including rejected submissions.
 
 Effect copy distinguishes new Run snapshots from Agent-label settings resolved
 for future allocations (including allocations of an existing Run). Already
@@ -926,9 +914,9 @@ The Run form submits Runtime label names only through `runtimeLabels`. The
 successful Run response and detail
 surface show the exact pinned binding revision, RuntimeConfig ref/digest and
 safe adapter refs. They never expose resolved secret headers, proxy passwords,
-tokens or allocation RuntimeSettings. Rebinding a label uses an idempotency key
-and `If-Match`; the UI reports a stale revision instead of overwriting another
-operator's update.
+tokens or allocation RuntimeSettings. Rebinding a label uses the idempotency
+key and `If-Match` contract in
+[07](07-runtime-labels-and-infrastructure-config.md#operations-and-ui).
 
 The reserved default binding is displayed separately and is never a checkbox:
 it is pinned for every Run even when the explicit label selection is empty.
@@ -1206,8 +1194,7 @@ RuntimeConfig/label/Agent-label administrative commands require
 their own idempotency keys, revision preconditions where specified and audit
 actor.
 
-Pagination, filter grammar and live-update transport are not selected yet. The
-API keeps configuration/credential mutations distinct from ordinary Run and
+The API keeps configuration/credential mutations distinct from ordinary Run and
 Artifact use so later RBAC does not require changing domain semantics.
 
 ## Invariants
@@ -1248,9 +1235,11 @@ Artifact use so later RBAC does not require changing domain semantics.
 
 ## Open decisions
 
-Unresolved UI and Operations behavior is listed only in
-[05](05-first-slice-and-open-decisions.md#deliberately-deferred); this document
-does not keep a second list.
+Unresolved UI and Operations behavior is listed in
+[05](05-first-slice-and-open-decisions.md#deliberately-deferred) or in the
+deferred section of the owning document, such as
+[07](07-runtime-labels-and-infrastructure-config.md#deferred) for
+infrastructure configuration; this document does not keep a second list.
 
 
 ## Shared Workflow discovery cards
@@ -1277,8 +1266,8 @@ Project navigation leads to Overview, Artifacts, Workflows, Runs, Audits,
 Findings and Settings at independent URLs under `/projects/:projectId`.
 Add artifact is a contextual Artifacts action; Workflow cards open exact Run setup.
 The compact Project actions menu contains metadata refresh and the existing
-confirmed deletion action. The duplicate Audits/Run analysis header shortcuts
-are removed. Cards are content-sized and do not stretch merely to match a larger
+confirmed deletion action. The Project header carries no duplicate Audits/Run
+analysis shortcuts. Cards are content-sized and do not stretch merely to match a larger
 neighboring contract.
 
 ### UI consistency and contextual navigation
@@ -1307,8 +1296,8 @@ used by Coverage, or the URL-backed pending review filter. A sole pending review
 is anchored directly. Unavailable counts remain unknown; refresh errors identify
 retained snapshot counts. Execution state, coverage assessments and human
 acceptance remain separate. Profile/scope remain expanded for drafts; immutable
-baseline details are available through disclosure. No Evals experiment API or
-comparison metrics are added by these UI changes.
+baseline details are available through disclosure. Audit Overview adds no
+Evals experiment API or comparison metrics.
 
 ### Workflow detail overview and Run setup
 

@@ -26,8 +26,7 @@ Agent.
 
 The model-free `tool@1` variant and its explicit `execution` bindings are
 specified in [29 — Deterministic tool Workers](29-tool-workers.md). The model
-fields below describe `adk@1`; they are absent in the tool variant. V55-003 owns
-activation of that variant in catalogs and runtime capabilities.
+fields below describe `adk@1`; they are absent in the tool variant.
 
 ```python
 class AgentTemplateRef(BaseModel):
@@ -271,11 +270,10 @@ before Run execution if the selected policy is incompatible:
   `maxTotalTokens`; it additionally requires `maxToolCalls` when the resolved
   AgentTemplate exposes any model-visible Contractor tool or Agent Skill and
   does not use `maxWorkerCalls`. `maxModelCalls` and `maxTotalTokens` include
-  the mandatory one-shot result-finalizer call after every ordinary terminal
-  Worker response. The explicitly pinned Audit-check strategy in
-  [25](25-audit-worker-finalization.md) instead spends model/tool budget only on
-  main turns and bounded completion reminders; its programmatic ZIP finalizer
-  makes no model call. That strategy is not inferred from AgentTemplate tools;
+  the mandatory result-finalizer call owned by
+  [14](14-worker-results-and-live-state.md#structured-output-and-model-boundary);
+  the explicitly pinned Audit-check strategy in
+  [25](25-audit-worker-finalization.md) instead makes no finalizer model call;
 - a Worker whose AgentTemplate enables terminal summarization additionally
   requires `contextWindowTokens` so Runtime can derive its soft context
   boundary;
@@ -515,10 +513,10 @@ Tool selection controls model-visible interface construction, not
 authorization. Selecting `write_artifact` cannot broaden the allocation's
 Server-side grant, bypass the `outputs` Namespace reservation or cross the
 write fence established when the StageExecution enters `finalizing` or
-`aborting`. Conversely, a grant does not make a tool model-visible unless the
-AgentTemplate selects it. Domain Toolset implementations may use the private
-Artifact client internally within their own contract without exposing the
-generic `run-artifacts@1` operations.
+`aborting` under [03](03-artifact-plane.md#tool-authority). Conversely, a grant
+does not make a tool model-visible unless the AgentTemplate selects it. Domain
+Toolset implementations may use the private Artifact client internally within
+their own contract without exposing the generic `run-artifacts@1` operations.
 
 Server has a lightweight Toolset descriptor registry for authoring-time
 validation. Each Runtime Agent has its own installed and enabled

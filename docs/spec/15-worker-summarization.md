@@ -114,10 +114,9 @@ prompt after new tool results. Its ratio and output reserve are a deterministic
 pre-emptive boundary, not a guarantee that every provider will accept the next
 request. Independent model/tool/hard-token budgets remain mandatory.
 
-These rules apply to the ordinary completion strategy. The implemented opt-in
-`audit-check-results@1` contract in [25](25-audit-worker-finalization.md) rejects
-summarizer configuration in its first version: tool-free summarization cannot
-satisfy missing per-item submissions or bypass the Audit completion gate.
+These rules apply to the ordinary completion strategy; the opt-in
+`audit-check-results@1` contract in [25](25-audit-worker-finalization.md)
+rejects summarizer configuration.
 
 The trigger is checked at a safe boundary:
 
@@ -166,7 +165,7 @@ omission. Tool payloads remain subject to their existing model-visible bounds.
 
 The 512 KiB projection is the only local document-size admission here; it does
 not establish that the complete request fits the summarizer model's context.
-V47-005 removed V47-003's additional byte-to-token estimate, framing reserve and
+There is no additional byte-to-token estimate, framing reserve or
 context-based history trimming. Runtime sends the bounded projection with the
 pinned instructions and output schema; the Gateway decides context acceptance.
 Context failures retain the permanent-error classification in

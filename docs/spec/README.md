@@ -77,7 +77,7 @@ Curated Audit standard packages live in the additional non-YAML
 | [33](33-autonomous-pentest-audits.md) | Draft; not implemented: source-optional web/API pentest Audits, enforced scope, isolated identities, live proof and replay, recovery and release gates |
 | [34](34-audit-check-prioritization.md) | Draft integration target; V64-000 pure verdict/selection core implemented, Audit capability pending |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
-| [OpenAPI Audit scans](openapi-audit-scans.md) | In progress: assigned SQLMap requests and pinned Nuclei URLs; Audit adapter/profiles not released |
+| [OpenAPI Audit scans](openapi-audit-scans.md) | Released: assigned SQLMap requests and pinned Nuclei URLs; prepare-role OpenAPI generation specified but not delivered |
 | [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -151,12 +151,15 @@ The boundaries are deliberately narrow:
 ## Specification rule
 
 Each decision has one owning document. Other documents link to it instead of
-repeating a second normative version. Unresolved behavior stays in
-[05](05-first-slice-and-open-decisions.md) rather than being inferred from
-historical designs.
+repeating a second normative version. Unresolved behavior is recorded
+explicitly rather than inferred from historical designs: cross-cutting
+decisions stay in [05](05-first-slice-and-open-decisions.md), and a document
+may keep its own deferred section for decisions inside its scope; 05 links
+those sections. Implementation status lives only in a document's `Status:`
+line, in the reading-order table above and in task files; normative body text
+describes the accepted target without task identifiers, dates or evidence.
 
-This revision incorporates the V50-001 unified private-contract decision:
 [02](02-runtime-and-a2a.md#one-private-wire-contract) uses one strict
-`contractor/v1alpha1` surface and one schema/fixture catalog. The specification
-describes that accepted target; implementation task files retain their own
-verification status.
+`contractor/v1alpha1` private surface and one schema/fixture catalog. The
+specification describes that accepted target; implementation task files retain
+their own verification status.

@@ -295,16 +295,11 @@ an ordinary Run artifact explicitly.
 
 #### Local direct: disk is authoritative
 
-Design amendment, implemented and release-verified on 2026-09-06 in V30-001
-through V30-004. The filesystem prerequisite for the execution sandbox in
-[21](21-podman-sandbox.md) is satisfied; Podman itself is not enabled by this gate.
-
-Implementation is decomposed into V30-001 through V30-004 in the
-[task catalog](../../tasks/index.yml); V30-004 is the prerequisite release gate.
-Executable acceptance coverage is recorded as LD1 through LD10 in
+For local storage in direct mode, the on-disk tree is the authoritative
+effective state. This rule satisfies the filesystem prerequisite for the
+execution sandbox in [21](21-podman-sandbox.md); it does not by itself enable
+Podman. Executable acceptance coverage lives in
 [`project_workspace_matrix.yml`](../../tests/e2e/project_workspace_matrix.yml).
-`make test-local-direct-workspace` runs the focused gate; V30-004 additionally
-requires workspace process E2E and repository-wide `make verify`.
 
 | Mode | Storage | Authoritative effective state |
 |---|---|---|
@@ -371,13 +366,12 @@ snapshot or lost-update guarantee against them. Observed disappearance,
 replacement or type changes that prevent completing an operation produce a
 bounded safe failure, never a fallback to cached contents or an infinite
 rescan. Coherent multi-file acquisition requires writers to be quiescent or
-explicitly coordinated. The implemented executor in [21](21-podman-sandbox.md)
-uses this same coordination boundary through trusted descendant completion.
+explicitly coordinated. The executor in [21](21-podman-sandbox.md) uses this
+same coordination boundary through trusted descendant completion.
 Cancellation does not hand off the workspace before confirmed stop/removal.
-The real command/edit/snapshot evidence is part of `make test-podman-release`.
 
 Argument/path/type/match/quota validation precedes mutation. Single-file text
-replacement is atomic. This amendment does not introduce crash-atomic
+replacement is atomic. Local direct mode does not provide crash-atomic
 multi-file transactions. Recovery after physical I/O failure is limited to
 the operation's own effects and cannot overwrite unrelated external changes.
 An unconfirmed mutation or cleanup leaves the workspace unavailable/fenced;
@@ -684,7 +678,7 @@ paths, credentials or arbitrary exceptions.
    cancellation, lease loss and cleanup fault suites fail closed with no path
    escape or retained content leak.
 
-### Local direct amendment acceptance (release verified)
+### Local direct amendment acceptance
 
 These cases use actual files modified outside WorkspaceWriter while the same
 allocation remains alive, and cover both narrow handles and Toolset consumers.
@@ -713,8 +707,8 @@ allocation remains alive, and cover both narrow handles and Toolset consumers.
    take precedence. Release removes the private copy. Persistence remains
    explicit ordinary Artifact writes.
 10. Memory/direct and both overlay variants retain existing parity,
-    checkpoint, export and isolation behavior. This amendment alone adds no
-    execution capability or model-visible tool.
+    checkpoint, export and isolation behavior. The local direct rule alone
+    adds no execution capability or model-visible tool.
 
 ## Deliberately deferred
 

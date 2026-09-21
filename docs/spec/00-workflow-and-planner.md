@@ -1092,7 +1092,7 @@ boundary. `passthrough@1` is deterministic Go code. `streamline@1` and
 boundary; ADK types do not enter Scheduler, RunStore, A2A, or artifact
 contracts.
 
-`streamline@1` and `router@1` pin `google.golang.org/adk` v1.6.0 and use the
+`streamline@1` and `router@1` share that Go ADK dependency and use the
 same bounded subtask-plan and `finish` operation. Their Worker selection
 contract is deliberately different:
 
@@ -1213,14 +1213,13 @@ error so the model may correct it within the remaining budget. Scheduler
 independently repeats candidate validation before acceptance and alone applies
 the declared outcome policy. There is no model-facing `escalate` operation.
 
-Each prepared ADK Worker independently enforces the cumulative model-call,
+Each prepared Python ADK Worker independently enforces the cumulative model-call,
 tool-call, and provider-reported token ceilings embedded in its exact
 ModelPolicy. Its normal tool-using model loop produces bounded terminal semantic
-text. Every ordinary completion then uses one mandatory tool-free result
-finalizer to serialize the exact text and authoritative subtask ID into the
-strict output defined by [14](14-worker-results-and-live-state.md). This is not
-an invalid-output repair loop: it makes exactly one call and consumes the same
-normal Worker model-call and token budget. Exhaustion stops before the next side
+text, which every ordinary completion then passes through the mandatory
+one-shot result finalizer owned by
+[14](14-worker-results-and-live-state.md#structured-output-and-model-boundary)
+and charged to the same normal Worker budget. Exhaustion stops before the next side
 effect and Runtime returns a retryable `WorkerFailure` code
 `worker_budget_exhausted`; it is not a Planner budget termination and not a
 direct StageExecution write. An explicitly configured one-shot terminal
@@ -1229,11 +1228,10 @@ summarizer has separate soft-limit and accounting semantics under
 result-finalizer phase.
 
 The explicit Audit-check completion contract in
-[25](25-audit-worker-finalization.md) is an implemented opt-in strategy at that same
-completion boundary. It requires validated data for each assigned check and
-uses deterministic ZIP/result publication rather than the ordinary LLM
-serializer. Bounded reminders consume the same invocation budget. Only the
-trusted Audit check binding enables it; ordinary workflow behavior is unchanged.
+[25](25-audit-worker-finalization.md) is an opt-in strategy at that same
+completion boundary, enabled only by the trusted Audit check binding, that
+replaces the ordinary LLM serializer without changing ordinary Workflow
+behavior.
 
 `streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
 `maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
@@ -1274,10 +1272,8 @@ interruption instead uses the bounded `aborting` path.
 
 ### Passthrough baseline
 
-The following describes ordinary completion. The pinned Audit-check strategy
-in [25](25-audit-worker-finalization.md) replaces its text/LLM-serializer steps
-with validated collection and Runtime-owned publication, while preserving the
-same WorkerCompletion, Planner and Scheduler ownership boundaries.
+The following describes ordinary completion; the Audit-check exception above
+applies to its text/LLM-serializer steps.
 
 `PassthroughPlanner` is the baseline integration path. It requires one prepared
 Worker, sends the deterministic Stage input through the direct A2A
@@ -1295,10 +1291,10 @@ StageSpec + StageContext + WorkerHandle
   -> StageResult
 ```
 
-The main Worker model authors only the semantic result text. The isolated
-result finalizer must echo the opaque subtask ID supplied by Runtime and copy
-that text exactly; Runtime rejects a mismatch and always uses the authoritative
-request ID. Runtime then computes observations and matches each declared
+The main Worker model authors only the semantic result text; the isolated
+result finalizer's exact-copy contract is owned by
+[14](14-worker-results-and-live-state.md#structured-output-and-model-boundary).
+Runtime then computes observations and matches each declared
 `resultArtifacts` binding against exact refs actually observed through
 allocation-bound tools. Neither model can select Stage outcome, artifact slot,
 revision, `summarized`, retryability or lifecycle transition. Runtime/tool/

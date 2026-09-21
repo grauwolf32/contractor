@@ -137,7 +137,10 @@ The lower-level private Artifact API stays domain-neutral, so the trusted
 MemoryTools implementation uses it without another endpoint or grant kind.
 [08](08-memory-tools.md) owns the mapping, bounds, hidden CAS and response-loss
 reconciliation. Authenticated Run-owner/operator inspection may still observe
-the underlying Artifact metadata and revisions.
+the underlying Artifact metadata and revisions. The `tool-invocation.` name
+prefix is reserved for the Runtime-owned receipts of model-free tool Workers
+under [29](29-tool-workers.md#receipt-report-and-replay); bindings with that
+prefix cannot be declared result or output targets.
 
 The reserved `skills` Namespace follows the same model/tool separation at
 Namespace granularity. The trusted Runtime loader may read exact package refs
@@ -774,7 +777,10 @@ version.
     purpose-specific MemoryTools bindings: no artifact-backed model Toolset,
     StageContext declaration or StageResult can expose them, while the
     lower-level private client, their bytes and immutable revisions remain
-    ordinary ArtifactStore behavior.
+    ordinary ArtifactStore behavior. RunScope names beginning
+    `tool-invocation.` are likewise reserved for the Runtime-owned receipts of
+    [29](29-tool-workers.md#receipt-report-and-replay) and cannot be declared
+    result or output bindings.
 19. RunScope `skills` bindings are Scheduler-created exact forks from the Run
     owner's UserScope; allocations may read them only through trusted Skill
     loading, can never write them, and generic Artifact tools cannot observe

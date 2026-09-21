@@ -29,8 +29,9 @@ Runs
   Completed   succeeded | failed | cancelled
 ```
 
-Queue keeps the existing oldest-first `/v1/queue` read projection, optional
-Project display context, live invalidation and polling fallback. Completed uses
+Queue renders the owner-scoped `/v1/queue` read projection owned by
+[17](17-projects-and-queue.md#global-queue), including its optional Project
+display context. Completed uses
 the ordinary newest-first `/v1/runs` collection with an additive
 `lifecycle=terminal` filter. The filter is applied by Server before keyset
 pagination; filtering one browser page is incorrect. Exact `state` and metadata

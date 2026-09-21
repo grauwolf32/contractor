@@ -40,7 +40,8 @@ Failure classification has two layers. Status rules belong to the
 `openai-compatible@1` protocol and are fixed in code: transport errors, HTTP
 408/409/429/5xx and an explicit `x-should-retry: true` hint are transient;
 401/403 and every other 4xx are permanent. Provider-specific text belongs to
-the selected Gateway's `failureSignatures` (see [00](00-workflow-and-planner.md)):
+the selected Gateway's `failureSignatures` (see
+[01](01-agent-template.md#llmgatewayconfig-and-credentials)):
 `modelUnavailable` entries name an exact `status` plus either `messageEquals`
 or `litellmWrapped` (the same text inside LiteLLM's observed BadRequest
 wrapper) and classify that response as transient `model_unavailable`;
@@ -142,9 +143,9 @@ StageResult.
 
 A Planner implementation owns the semantic condition that ends its invocation:
 
-- `PassthroughPlanner` waits for its required remote Worker invocation to
-  produce an immediate A2A Message, a terminal Task, or an interrupted Task
-  state that the baseline maps to a stable failed candidate;
+- `PassthroughPlanner` completes on its required remote Worker invocation's
+  immediate A2A Message, terminal Task or interaction-requiring Task state, as
+  specified in [00](00-workflow-and-planner.md#completion-semantics);
 - model-backed `streamline@1` and `router@1` Planners produce either a
   succeeded or failed semantic candidate only through their explicit
   `finish(StageResult)` operation;
@@ -256,7 +257,8 @@ stop:
 - Planner session identity and available Planner report;
 - a unique `finalization_id`, deadline and the allocation set to drain;
 - a Server-side fence that makes Artifact API writes from those allocations
-  fail from this transition onward.
+  fail from this transition onward, as specified in
+  [03](03-artifact-plane.md#tool-authority).
 
 Every candidate ArtifactRef must already contain the revision selected by
 Planner. Scheduler verifies that `(RunScope, namespace, name, revision)` exists
@@ -431,39 +433,26 @@ such as the LLM Gateway adapter and are never a telemetry source.
 ### Worker result and live observation boundary
 
 Worker model, Runtime, Planner and Scheduler own separate result layers. The
-main tool-using Worker model returns bounded terminal semantic text. Runtime
-always passes an ordinary completion through a separate one-shot, tool-free ADK
-result finalizer, which serializes the exact text and Runtime-supplied subtask ID
-as `WorkerModelResult(subtask_id, result)`. Runtime rejects semantic rewrites,
+main tool-using Worker model returns bounded terminal semantic text; Runtime
+completes it through the mandatory one-shot result finalizer specified in
+[14](14-worker-results-and-live-state.md#structured-output-and-model-boundary),
 attaches deterministic observations and trusted exact result artifacts, and
 returns `WorkerResult` or a separate technical `WorkerFailure`. Planner alone
 turns one or more such completions into a StageResult candidate. The complete
-contract, including the read-only live State path and explicit Planner
-projection tools, is owned by
-[14](14-worker-results-and-live-state.md).
+contract, including the optional terminal summarizer exception under
+[15](15-worker-summarization.md), the read-only live State path and explicit
+Planner projection tools, is owned by
+[14](14-worker-results-and-live-state.md). Allocation drain/finalization itself
+performs no model or tool calls.
 
-The mandatory result finalizer is a serializer, not an invalid-output repair
-loop: it makes exactly one call and consumes the normal Worker model-call and
-token budget. Optional terminal summarization is a distinct one-shot model
-consumer under [15](15-worker-summarization.md). A successful terminal
-summarizer already returns the strict schema and is not followed by the ordinary
-result finalizer. Allocation drain/finalization itself still performs no model
-or tool calls.
-
-The implemented explicit Audit-check strategy in
-[25](25-audit-worker-finalization.md) uses the same semantic completion boundary
-but gates on collected valid per-item results, may continue the still-active
-invocation with bounded reminders, and builds its ZIP/WorkerResult in code.
-It does not invoke the ordinary LLM serializer or alter ordinary Workflows.
-This work occurs before terminal WorkerCompletion, not during allocation drain;
-cancellation, hard budgets and write fences keep their existing precedence.
+The explicit Audit-check strategy in [25](25-audit-worker-finalization.md)
+uses the same semantic completion boundary before terminal WorkerCompletion,
+not during allocation drain, and does not invoke the ordinary LLM serializer.
 
 ## Execution reports
 
 [22](22-performance-metrics-and-profiling.md) defines the optional
 `RuntimeReport.resources` extension for process consumption during an allocation.
-Runtime sampling is implemented; end-to-end policy/report API integration and
-release verification remain tracked separately by V32-005 and V32-008.
 It also owns Server/DB performance history and its startup switch. Disabling
 that collection does not disable the execution accounting, safety budgets or
 report lifecycle in this document. Invalid resource measurements are isolated
@@ -815,10 +804,11 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
 - a Runtime Agent process restart never reattaches its old Worker; an affected
   in-process Worker no longer exists, and an affected `preparing` or `running`
   StageExecution follows the same `aborting -> interrupted` path;
-- expiry of either side's 60-second confirmed Runtime Agent control lease
-  follows that same path; the agent independently drains and terminates its
-  Worker after 60 seconds without a new acknowledged heartbeat, then remains
-  fenced with the allocation ID until release is acknowledged;
+- expiry of either side's confirmed Runtime Agent control lease under
+  [02](02-runtime-and-a2a.md#heartbeat-and-confirmed-control-lease) follows
+  that same path; the agent independently drains and terminates its Worker on
+  local lease expiry, then remains fenced with the allocation ID until release
+  is acknowledged;
 - retry always creates a fresh StageExecution and, if preparation succeeds, a
   fresh Planner Session.
 

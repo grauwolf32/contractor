@@ -46,10 +46,10 @@ cancel/drain/purge operation rather than a synchronous foreign-key cascade;
 [18](18-run-and-workspace-lifecycle-controls.md) owns its contract.
 
 `evaluation` is the same storage and execution composition with a distinct UI
-entry point. It does not create an eval-only Scheduler path. The implemented
-legacy Evals view uses Project kind plus the generic `purpose=eval` and `eval.*`
-Run-label convention in [16](16-run-metadata-labels.md). Managed Evals delivered
-through V38 in [30](30-managed-evals.md) add explicit experiments inside evaluation
+entry point. It does not create an eval-only Scheduler path. The legacy Evals
+view uses Project kind plus the generic `purpose=eval` and `eval.*` Run-label
+convention in [16](16-run-metadata-labels.md). Managed Evals in
+[30](30-managed-evals.md) add explicit experiments inside evaluation
 Projects; the Project remains their owner/storage container. Legacy labelled Runs
 remain inspectable and do not acquire verified experiment membership by label matching.
 
@@ -288,34 +288,22 @@ identity/kind. They do not promise an exact numeric position or start time:
 recovery, cancellation priority, claims, Runtime capability placement and
 another Server process can change which Run advances next.
 
-The owner-scoped queue endpoint uses stable keyset pagination and never exposes
-foreign Projects or Runs. Live invalidation may reuse the existing Run event
+The owner-scoped `/v1/queue` endpoint uses stable oldest-first keyset
+pagination and never exposes foreign Projects or Runs. Live invalidation may reuse the existing Run event
 channel; polling remains a correct fallback. The consolidated Runs UI and the
 durable owner pause/resume gate are specified in
 [18](18-run-and-workspace-lifecycle-controls.md).
 
 ## UI information architecture
 
-The target top-level navigation is:
-
-```text
-Projects
-Evals
-Runs
-Workflows
-Artifacts
-Skills
-Operations
-```
-
-Project detail contains Overview, Artifacts and Runs plus Recommended/All
-Workflow launch surfaces. The current Evals view renders evaluation Projects
-and eval-specific label grouping. The planned
+The top-level navigation and Project section navigation are owned by
+[06](06-server-ui-and-operations.md#purpose). Project Workflows offer
+Recommended/All Workflow launch surfaces. Evals renders evaluation Projects and
+eval-specific label grouping; the
 [experiment journey](../evals-experience-design.md) makes experiments the Evals
 entry point while preserving legacy workspace routes and ordinary Run/Audit
-execution. Skills is a global
-owner-level view over `skills/*` UserScope artifacts and the existing
-SkillCatalog rules. A Project may show the Skills required by a candidate
+execution. Skills is a global owner-level view over `skills/*` UserScope
+artifacts and the existing SkillCatalog rules. A Project may show the Skills required by a candidate
 Workflow read-only, but cannot own, copy or override them.
 
 ## Failure behavior

@@ -27,14 +27,11 @@ labels never change Workflow semantics, Scheduler eligibility, queue priority,
 Runtime capabilities, authorization, budgets, tools, Skills, model selection
 or artifact access.
 
-The pre-feature public `labels` array is renamed to `runtimeLabels`. The first
-metadata-label version is a strict contract cutover: Server does not accept the
-old array and the new map under one overloaded field. Server, UI and bundled
-clients are upgraded together. Durable RuntimeConfig snapshot tables and refs
-need no semantic migration merely because their public field is renamed. That
-rename preceded the first external client and was accepted as a one-time
-pre-release cutover, not a precedent; later incompatible public changes follow
-the API-version rule in
+The public Runtime-label field is `runtimeLabels`; Server does not accept a
+Runtime-label array and the metadata map under one overloaded `labels` field.
+Server, UI and bundled clients are upgraded together. Durable RuntimeConfig
+snapshot tables and refs carry no dependency on the public field name.
+Incompatible public changes follow the API-version rule in
 [06](06-server-ui-and-operations.md#frontend-implementation-contract).
 
 ## Public Run contract
@@ -137,7 +134,7 @@ scan and deserialize every historical Run.
 ## Evaluation convention
 
 The eval subsystem owns a convention over generic labels; generic Run label
-validation and Scheduler behavior do not add eval-specific branches. The planned
+validation and Scheduler behavior do not add eval-specific branches. The
 managed experiment domain in [30](30-managed-evals.md) owns explicit member
 registration and verified submission receipts separately. Labels remain useful
 for correlation but never establish membership, dispatch ownership or assessment

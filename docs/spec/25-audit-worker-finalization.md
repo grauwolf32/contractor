@@ -1,15 +1,6 @@
 # Audit Worker completion contracts
 
-Status: **Implemented opt-in; deterministic release gate V39-007 completed.**
-V39-001–006 implement contracts, Server pinning and capability-aware placement,
-incremental collection, deterministic ZIP publication, common Runtime completion,
-bounded diagnostics and versioned examples.
-[V39-007](../../tasks/v39-007-audit-completion-release-gate.yml) records the
-completed PostgreSQL/restart checks and real Runtime-to-importer bridge on
-2026-09-19. The gate uses a scripted model and test-orchestrated Scheduler
-driving; it does not establish live-model quality or a full Server/Planner/A2A
-deployment test. See the [release-gate guide](../testing/release-gates.md#audit-completion-release-gate)
-for its exact verification boundary.
+Status: **Implemented opt-in; deterministic release gate verified ([V39-007](../../tasks/v39-007-audit-completion-release-gate.yml)).**
 
 Existing deployed Runs and immutable snapshots keep their current behavior until
 an explicitly versioned configuration selects this contract.
@@ -121,9 +112,9 @@ contract and selected toolset capability; direct prepare also rejects unknown
 or unsupported contracts. Retry/placement preserves the pinned choice and must
 never downgrade silently to ordinary completion on an older Runtime.
 
-`audit-results@1` has been removed from Server descriptors and Runtime factories.
+`audit-results@1` is not registered in Server descriptors or Runtime factories.
 Catalogs selecting it are rejected; retained snapshots selecting it cannot be
-placed on current Runtime. Recreate those demo Audits with the current catalog.
+placed and must be recreated with the current catalog.
 Ordinary Workers without an Audit toolset retain ordinary completion behavior.
 Selecting `audit-results@2` requires the trusted contract even during direct prepare.
 
@@ -233,15 +224,14 @@ existing task contract permits; Runtime never invents those entries itself.
 Separate one logical Worker invocation from repeated ADK runner turns. A
 continuation must not repeat begin_invocation/prepare_invocation, reset the
 instrumentation reducer or tool ordinals, clear observed refs, or erase the
-collector. Final State and cleanup occur once. The current before_run_callback
+collector. Final State and cleanup occur once. The before_run_callback
 consumes a one-use preparation token; simply wrapping runner.run_async in a
-loop is not sufficient. Before freezing the interfaces in V39-001, demonstrate
-the continuation seam with the pinned real ADK Runner, production
-instrumentation and a scripted model; V39-005 supplies the production integration.
+loop is not sufficient. Release tests demonstrate the continuation seam with
+the pinned real ADK Runner, production instrumentation and a scripted model.
 
 After the reminder allowance is exhausted, return retryable
 `audit_result_incomplete` with safe counts/missing identifiers. Existing hard
-budget, deadline, cancellation and sandbox failures take precedence and do not
+budget, deadline, cancellation, write-fence and sandbox failures take precedence and do not
 grant another reminder or trigger publication. A failed or cancelled main
 invocation cannot be converted into success just because its collection is full.
 Stage/Audit policies, not this flag, decide whether a new attempt is submitted.
@@ -258,7 +248,8 @@ may not return control to the model or modify the sealed contents.
 ## 5. Deterministic publication and trusted result
 
 The common finalizer's Audit strategy, not the model-visible tool, builds the
-existing `check-results` package. Keep the importer/wire package formats:
+existing `check-results` package defined in
+[19 §7.2](19-audits.md#72-checkresultset). Keep the importer/wire package formats:
 manifest.json, check-results.json, optional evidence.json and evidence members.
 Use trusted task order regardless of submission order, stable member/evidence
 IDs, canonical JSON, fixed ZIP timestamps/permissions and stored compression.
@@ -357,8 +348,8 @@ cannot overwrite different bytes or different invocation-owned proposal IDs.
 
 Rollout is capability-first: install compatible Server/Runtime/report readers,
 verify the release gate, then create an Audit from the current catalog.
-All bundled Audit profiles now pin this strategy and use version 1; previous
-bundled versions were removed. Distinct scenarios have separate names. Existing
+All bundled Audit profiles pin this strategy at version 1. Distinct scenarios
+have separate names. Existing
 resolved snapshots are not rewritten by a catalog reload. There is no
 durable recovery of a partially collected invocation, target summarizer, or
 multi-Worker completion strategy in this version. These examples are not live
@@ -387,7 +378,9 @@ validation are documented in the
 [Audit completion release gate](../testing/release-gates.md#audit-completion-release-gate).
 The bridge uses production Run creation, allocation grants, mTLS Artifact API,
 PostgreSQL artifact storage and Audit importer, with a separate pinned ADK
-Runner process and scripted model. Scheduler driving is test orchestration.
+Runner process and scripted model. Scheduler driving is test orchestration; the
+gate does not establish live-model quality or a full Server/Planner/A2A
+deployment test.
 
 ## 7. Non-goals
 

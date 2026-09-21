@@ -500,7 +500,7 @@ its immutable local/memory workspace capability; Workflow selects direct or
 overlay semantics and Scheduler pins exact Run artifacts. The existing
 `local-workdir@1` SandboxProfile continues to own general allocation scratch.
 
-The implemented `podman@1` extension in [21](21-podman-sandbox.md) keeps its
+The `podman@1` extension in [21](21-podman-sandbox.md) keeps its
 image and resource policy in immutable Runtime startup settings. It adds no
 label-selected image, mount or credential. Its execution handle is distinct
 from the existing host `runtime-subprocess-launcher` channel; proxy settings
@@ -948,7 +948,12 @@ Operations surface; the owner Run surface shows labels and exact refs/digests,
 not resolved credentials or physical Runtime Agent configuration.
 
 Binding and Agent-label mutations use independent idempotency keys plus
-revision preconditions. WebSocket Operations notifications remain hints: after
+revision preconditions. Binding and Agent-label dialogs show the current exact
+version and digest beside the proposal. A stale revision blocks another write
+until the authoritative binding is explicitly reloaded; reload preserves the
+proposal for review and retry even when another operator moved the binding to
+a different version, and never silently submits it. Publication errors likewise
+retain the unpublished proposal. WebSocket Operations notifications remain hints: after
 a process-generation/revision gap the UI refetches the authoritative REST
 snapshot. No mutation is sent over WebSocket.
 

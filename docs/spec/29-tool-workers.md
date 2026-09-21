@@ -1,6 +1,6 @@
 # 29 — Deterministic tool Workers
 
-Status: implemented by V55-003; V55-002 defines the contract.
+Status: **Implemented**; [V55-003](../../tasks/v55-003-model-free-tool-worker.yml) records verification.
 
 ## Template and arguments
 
@@ -179,7 +179,7 @@ truncation never imply an absence of vulnerabilities.
 
 ## Verification matrix
 
-V55-003 must exercise valid/invalid bindings and Go/Python/schema/digest parity;
+Release verification must exercise valid/invalid bindings and Go/Python/schema/digest parity;
 no-gateway config resolution and placement with broken irrelevant model routes;
 real A2A invocation with an artifact transport and controlled tool; successful
 publication; missing capabilities; timeout/cancel/close; report/receipt failures;

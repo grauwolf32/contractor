@@ -20,12 +20,10 @@ capability does not constrain placement or change the lifecycle defined here.
 
 ## Control-plane trust and mTLS
 
-The implemented opt-in Audit-check extension in [25](25-audit-worker-finalization.md)
-adds a Server-pinned optional AllocationSpec completion contract and explicit
-Runtime completion capabilities. Unlike resource diagnostics, support for a
-requested completion contract constrains placement and direct preparation.
-Omission retains ordinary behavior; labels, A2A task text and model tool calls
-cannot activate it. Unsupported contracts fail closed without downgrade.
+The opt-in Audit-check extension in [25](25-audit-worker-finalization.md)
+adds a Server-pinned optional AllocationSpec completion contract whose Runtime
+capability support, unlike resource diagnostics, constrains placement and
+direct preparation and fails closed when unsupported.
 
 Server and Runtime Agents form one deployment-owned trust domain rooted in a
 single CA. The private control protocol uses mutual TLS. All Runtime Agents are

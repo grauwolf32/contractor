@@ -1,18 +1,15 @@
 # 26 — Portable evaluation format and execution bindings
 
-Status: **Implemented in playground-v2 and offline-verified through V41-008.**
-The format, compatibility layer, execution bindings, recovery, assessment,
-comparison and safe publication are delivered. V38 managed Evals UX and its
-deterministic release gate are separately delivered under [30](30-managed-evals.md).
-V40 model quality evaluations remain pending; neither delivery proves instruction
-quality or a successful live target campaign.
+Status: **Implemented in playground-v2 and offline-verified ([V41-008](../../tasks/v41-008-eval-format-release-gate.yml)).**
+The managed Evals UX is owned by [30](30-managed-evals.md). Offline conformance
+does not prove instruction quality or a successful live target campaign.
 
 This document owns the portable evaluation contract shared with `playground-v2`.
 It supersedes the original format proposal and the earlier V40 runner outline.
 [16](16-run-metadata-labels.md),
 [17](17-projects-and-queue.md) and [19](19-audits.md) continue to own Contractor
-execution, storage, identity and authorization. [V38](../../tasks/v38-001-evals-experience-contract.yml)
-owns the delivered user-facing experiment/comparison journey; it consumes this
+execution, storage, identity and authorization. [30](30-managed-evals.md)
+owns the user-facing experiment/comparison journey; it consumes this
 format rather than defining a competing identity or result envelope.
 
 ## 1. Ownership and first release
@@ -56,9 +53,8 @@ matching. Native annotated diffs may remain an explicitly required output format
 for annotation-specific suites; ordinary trace-quality suites should consume
 neutral trace evidence rather than require a particular comment syntax.
 
-Implementation paths in V41 tasks refer to sibling `playground-v2` explicitly.
-This specification stays canonical here until deliberately transferred; tasks
-pin/copy it into a cross-repository handoff rather than maintain divergent specs.
+This specification stays canonical here until deliberately transferred; a
+cross-repository handoff pins/copies it rather than maintaining divergent specs.
 
 ## 2. Documents and immutable references
 
@@ -219,7 +215,7 @@ Required `experiment/v1`: `id`, `suites`, `variants`, `repetitions`, `order`,
 - `id` identifies one invocation, not a suite or remote Run. Editing a frozen
   experiment requires a new invocation ID.
 - `suites`: exact Suite refs. `variants`: unique `{id, binding}` entries. A/B
-  comparison requires exactly two variants in the first implementation; collection
+  comparison requires exactly two variants; collection
   may support more but must not silently choose which pair to compare.
 - `repetitions`: integer 1–100. `order`: `{kind: alternating | seeded_shuffle,
   seed}`; seeded_shuffle requires an integer seed. The plan records actual order.
@@ -445,7 +441,7 @@ is not a prerequisite. Existing Audit runner Project-kind behavior is retained
 where required; an evaluation Project may index its references without pretending
 the child Runs have a different membership. Historical `audit-results@1` samples
 and current `audit-results@2` completion samples belong to separate experiments.
-The former toolset has been removed; new live experiments must use the current
+`audit-results@1` is unavailable; new live experiments must use the current
 completion contract and repin both comparison arms.
 
 Publisher takes an explicit allowlisted projection, not a raw `asdict` of private
@@ -465,8 +461,9 @@ blindly retried with a new logical identity. Publication failure leaves valid lo
 results and a pending receipt; resume publication without repeating model execution.
 Publication is not score acceptance or execution completion.
 
-No new Server eval endpoint or global aggregate query is required for the bounded
-first release. Existing owner isolation, deletion and retention rules apply to
+The portable format needs no Server eval endpoint or global aggregate query of
+its own; native Server execution, assessment and comparison are owned by
+[30](30-managed-evals.md). Existing owner isolation, deletion and retention rules apply to
 all published Project artifacts. Deleted/unavailable evidence makes a later
 comparison explicitly incomplete; a cached score cannot silently recreate proof.
 
@@ -547,13 +544,13 @@ bounded explanatory text is not a machine-readable matching contract.
 
 ## 12. Delivery gate before evaluations
 
-V41-001–008 deliver schemas, typed records, converters, adapter separation, frozen plans,
-recovery, scoring/comparison and publication using **offline/recorded fixtures and
-deterministic API conformance tests**. It does not run paid/model quality evals,
+The delivery gate covers schemas, typed records, converters, adapter separation,
+frozen plans, recovery, scoring/comparison and publication using **offline/recorded
+fixtures and deterministic API conformance tests**. It does not run paid/model quality evals,
 launch benchmark campaigns, publish candidate default configurations or change
 running Audits. Ground-truth sentinels and fault fixtures are mandatory.
 
-Delivered commands in `playground-eval experiment`:
+Commands in `playground-eval experiment`:
 
 - `plan --spec FILE --environment FILE --out DIR`: resolve/validate and freeze;
   read-only provider preflight must resolve required pins before execution.
@@ -567,10 +564,9 @@ Delivered commands in `playground-eval experiment`:
   a local publication target. Connections remain environment-local.
 
 Assessment is available through the Python API; a generic assessment CLI is not
-part of this delivery. Contractor and recorded execution adapters and local/
-Contractor publication are implemented. Live target/oracle integrations, complete
-live environment pins and measured instruction adoption remain outside the
-offline evidence.
+part of this contract. Live target/oracle integrations, complete live
+environment pins and measured instruction adoption are outside the offline
+evidence.
 
 An offline conformance report identifies the tested implementation, schemas,
 fixtures and assertions. It does not establish the running model/sampling,
@@ -590,13 +586,18 @@ updating an old report to appear current.
 Invalid plans, missing required live settings and incompatible schemas fail
 explicitly; an explicitly requested execution cannot silently skip and pass.
 
-The completed release gate covers schemas/examples/negative fixtures, old v1 readers,
+The release gate covers schemas/examples/negative fixtures, old v1 readers,
 one unchanged case/scorer across Contractor and recorded providers, complete fault
 walkthroughs, owner-safe publication and stable comparison arithmetic. It records
 exact implementation/schema/scorer build digests in the readiness report. Those
 pins identify the tested revision, including its retained specification bytes.
-V41-008 has passed. V40-001 supplies the pinned instruction fixtures and offline
-scorer controls; V40-002 still owns provider bindings and a frozen pilot plan.
-V40-003 remains the separate future model-evaluation task with its own explicit
-budget and environment. Compatibility passing is not evidence that new
-instructions improve model quality.
+Compatibility passing is not evidence that new instructions improve model
+quality; a model-quality evaluation is a separate task with its own explicit
+budget and environment.
+
+Verification: the gate result is recorded in
+[V41-008](../../tasks/v41-008-eval-format-release-gate.yml); instruction
+fixtures, provider bindings/pilot plan and the adoption decision are tracked by
+[V40-001](../../tasks/v40-001-agent-instruction-eval-fixtures.yml),
+[V40-002](../../tasks/v40-002-agent-instruction-paired-runner.yml) and
+[V40-003](../../tasks/v40-003-agent-instruction-eval-decision.yml).

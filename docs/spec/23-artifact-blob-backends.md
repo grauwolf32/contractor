@@ -1,6 +1,6 @@
 # 23 — Server Artifact blob backends
 
-Status: **Implemented — PostgreSQL/filesystem; S3 deferred**
+Status: **Implemented — PostgreSQL/filesystem; S3 deferred** (verified by [V34-005](../../tasks/v34-005-blob-backends-release-gate.yml))
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [18](18-run-and-workspace-lifecycle-controls.md), [19](19-audits.md).
@@ -55,12 +55,12 @@ implemented backend. Filesystem path relocation requires operator-managed data
 movement if existing bytes should survive; an empty replacement path is allowed
 with the documented missing-content behavior below.
 
-All Server replicas sharing a registry must use the same backend. PostgreSQL
-supports replicas with no shared local volume. Filesystem replicas must see
-the same underlying directory with compatible atomic publication semantics;
-identical path strings in separate pods are insufficient. The initial tested
-filesystem deployment uses one Server replica, and per-pod ephemeral volumes
-must not be used as separate stores behind a shared multi-replica registry.
+The single active Server process uses one backend for its registry; any
+future replicas sharing that registry must use the same backend. `postgresql`
+needs no shared local volume. A `filesystem` deployment is tested with one
+Server process; any process sharing that registry must see the same underlying
+directory with compatible atomic publication semantics, since identical path
+strings on separate hosts or pods are separate stores, not one.
 
 ## Storage boundary and compatibility
 
@@ -86,10 +86,9 @@ Package, model-context and workspace expansion limits remain independent.
 
 Receiving a file and retaining it are separate operations. The download/upload
 path must not require a temporary local file in PostgreSQL mode: process bytes
-through bounded memory or streaming interfaces into the chosen backend. A
-implemented Git importer in [24](24-git-artifacts.md) honors the same boundary:
-in-memory snapshots, owner SSH-key Settings and Workflow/Project import UI
-are separate V35 work, with no local checkout.
+through bounded memory or streaming interfaces into the chosen backend. The
+Git importer in [24](24-git-artifacts.md) honors the same boundary with
+in-memory snapshots and no local checkout.
 
 Check declared sizes early and enforce the actual byte count while reading,
 including unknown Content-Length. Reject 64 MiB + 1 before publishing metadata.
@@ -201,9 +200,13 @@ cleanup to require rerunning the command; no durable cleanup queue is needed.
 - Validate backend mismatch, unsupported S3, unwritable root, traversal/symlink
   attacks, transfer saturation/cancellation and same-digest delete/recreate races.
 
-Tasks V34-001 through V34-005 implement this increment. V34-006 separately fixes
-the existing exporter/overlay limit mismatch after the generic 64 MiB increase;
-it preserves the independent 16 MiB overlay budget. S3, Git import, automatic
-store migration, online orphan sweeping and stronger crash durability remain
-outside those tasks. Git import is specified separately in
-[24](24-git-artifacts.md) and implemented and verified by V35-001 through V35-005.
+The overlay export budget is independent of the generic payload ceiling and
+remains 16 MiB. S3, automatic store migration, online orphan sweeping and
+stronger crash durability remain deferred. Git import is specified separately
+in [24](24-git-artifacts.md).
+
+Verification: the task files
+[V34-001](../../tasks/v34-001-blob-contracts-and-postgres.yml) through
+[V34-005](../../tasks/v34-005-blob-backends-release-gate.yml) record this
+increment; [V34-006](../../tasks/v34-006-overlay-export-size-contract.yml)
+records the overlay export limit contract.

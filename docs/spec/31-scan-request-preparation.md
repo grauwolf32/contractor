@@ -1,15 +1,16 @@
 # Deterministic scan request preparation
 
-V55-007 defines a preparation library, `internal/scanplan`, for ordinary Artifact
-inputs. It performs no network requests, scanner execution, credential lookup or
-model calls. The caller supplies bytes read from an authorized exact ArtifactRef;
-the library validates the ref and records a SHA-256 digest of the supplied bytes.
-The caller remains responsible for matching those bytes to the selected revision.
-Workflow dispatch and scanner selection belong to V55-008.
+The preparation library `internal/scanplan` prepares scan requests from ordinary
+Artifact inputs. It performs no network requests, scanner execution, credential
+lookup or model calls. The caller supplies bytes read from an authorized exact
+ArtifactRef; the library validates the ref and records a SHA-256 digest of the
+supplied bytes. The caller remains responsible for matching those bytes to the
+selected revision. Workflow dispatch and scanner selection belong to
+[scan planning](32-scan-planning.md).
 
-V62 adds opt-in `PrepareOperation` and `PrepareOperationTarget` helpers for an
-assigned operation, described in [OpenAPI Audit scans](openapi-audit-scans.md).
-The whole-document policy and RequestSet v1 below retain their existing behavior.
+The opt-in `PrepareOperation` and `PrepareOperationTarget` helpers for one
+assigned operation are described in [OpenAPI Audit scans](openapi-audit-scans.md#operation-preparation).
+The whole-document policy and RequestSet v1 below are unaffected by them.
 
 ## RequestSet v1
 

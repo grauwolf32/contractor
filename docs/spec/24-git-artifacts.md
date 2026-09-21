@@ -1,6 +1,6 @@
 # 24 — Git repositories as Artifact inputs
 
-Status: **Implemented and verified (V35-001 through V35-005)**
+Status: **Implemented** (verified by [V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml))
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [17](17-projects-and-queue.md), [23](23-artifact-blob-backends.md).
@@ -18,8 +18,8 @@ are deferred.
 The personal **Repository access** editor lives directly at
 `/operations/settings`, linked beside the signed-in user. It remains available
 without the Operations capability; in that case the page omits server-wide
-Scheduler settings and every other Operations section. The old `/settings`
-route is removed without a compatibility redirect. The same Git-import dialog
+Scheduler settings and every other Operations section. There is no separate
+`/settings` route and no compatibility redirect. The same Git-import dialog
 is used by standalone/Project Workflow inputs and the Project artifact library.
 Existing bindings require reviewing and confirming their exact revision before
 replacement. Closing the dialog cancels its request and restores focus without
@@ -144,10 +144,8 @@ there is no production disable-verification flag.
 
 Use an in-process Git reader with in-memory object storage and bounded decode;
 no `git` subprocess, temporary checkout, pack file, SSH key file, shell or
-credential helper is required. V35-002 must prove those properties against a
-real repository before choosing the dependency. Never silently fall back to
-local disk. Read-only operator trust/CA files are configuration, not scratch
-storage. An inability to meet the bounds blocks that task's completion.
+credential helper is required. Never silently fall back to local disk.
+Read-only operator trust/CA files are configuration, not scratch storage.
 
 Initial per-process admission is **one active Git import**, also holding one
 of the existing four Artifact transfer slots from before fetch until
@@ -170,7 +168,7 @@ The last row preserves current source-analysis budgets rather than assuming
 that a 64 MiB transport artifact is always consumable as a workspace. Validate
 existing path and archive rules before publication. Bound ref advertisements,
 object counts, delta depth and parser allocations as well as final output;
-V35-002 records concrete decoder caps and adversarial evidence in this document.
+the concrete decoder caps are listed below.
 Cancel network and decoding on request cancellation/deadline and release both
 admission slots. Report actual process peak memory, including object storage,
 ZIP buffers, driver copies and GC; these limits are not a total RAM guarantee.
@@ -181,9 +179,9 @@ history. Large Git history can therefore hit an import budget even when the
 final tree is small; return the relevant limit without publishing a partial
 artifact.
 
-### Reader implementation and evidence (V35-002)
+### Reader implementation and evidence
 
-The reader uses `go-git/v5 v5.19.2` protocol, pack-scanner and delta primitives.
+The reader uses go-git protocol, pack-scanner and delta primitives.
 It does not use `Clone`, an on-disk repository, the high-level pack parser or
 host Git configuration. The scanner exposes declared object sizes before
 inflation; the importer checks them before allocating fixed buffers. Delta
@@ -202,19 +200,18 @@ bytes. Git internals, special modes, control characters and paths incompatible
 with Runtime source validation are refused. The ZIP uses sorted regular-file
 paths, mode 0644 and a fixed 1980 timestamp.
 
-On 2026-09-06, `go test -race -tags=integration -count=1 ./internal/gitimport`
-passed with native Git fixture servers over verified HTTPS and authenticated
-SSH. The test advances the branch between advertisement and fetch and checks
-the original commit, annotated tags, deterministic ZIP bytes, wrong owner and
-changed host keys. Adversarial tests cover transport refusal, redirects, TLS,
-advertisement/object/delta caps, malformed packs, unsafe content and cancellation.
-A static probe also completed both imports in an unprivileged Podman container
-with `--read-only --read-only-tmpfs=false`, no writable checkout or temporary
-directory, and only read-only fixture mounts. The 13-file fixture contains about
-1.6 MiB expanded content and yields a 5,747-byte ZIP; the probe's measured peak
-RSS was 17,276 KiB. This small transport fixture is not a maximum-size Server
-RAM estimate: publication/driver copies and near-budget imports remain part
-of the V35-005 release measurements.
+Integration tests run against native Git fixture servers over verified HTTPS
+and authenticated SSH, advance the branch between advertisement and fetch, and
+check the original commit, annotated tags, deterministic ZIP bytes, wrong owner
+and changed host keys. Adversarial tests cover transport refusal, redirects,
+TLS, advertisement/object/delta caps, malformed packs, unsafe content and
+cancellation. The importer must also complete in a read-only container with no
+writable checkout or temporary directory.
+
+Verification: [V35-002](../../tasks/v35-002-bounded-memory-git-snapshots.yml)
+and [V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml) record the
+reader evidence and measured memory, together with the
+[Git artifacts guide](../guides/git-artifacts.md).
 
 ## Public API and publication
 
@@ -240,8 +237,9 @@ timeouts with the 120-second operation bound.
 
 After a complete bounded ZIP exists, prepare its selected blob backend before
 taking the short registry transaction; commit its revision and provenance
-atomically while rechecking ownership, Project lifecycle and CAS. Apply V34's
-filesystem orphan/ambiguous-commit rules. A rejected or interrupted import
+atomically while rechecking ownership, Project lifecycle and CAS. Apply the
+filesystem orphan/ambiguous-commit rules in
+[23](23-artifact-blob-backends.md#simple-filesystem-write-and-failure-contract). A rejected or interrupted import
 cannot publish partial content. If cancellation races with a successful commit,
 the complete artifact may remain; a lost response is resolved through metadata
 inspection, not an automatic mutation retry. Duplicate create/CAS retries do
@@ -256,11 +254,13 @@ containing authentication material.
 
 ## Delivery and verification
 
-1. **V35-001:** SSH-key storage, Settings API and strict public/startup contracts.
-2. **V35-002:** Bounded in-memory Git transport and deterministic snapshot ZIP.
-3. **V35-003:** User/Project import API, atomic provenance and Artifact integration.
-4. **V35-004:** Settings key editor and shared Workflow/Project import dialog.
-5. **V35-005:** Real Git/SSH/HTTPS, PostgreSQL, container and browser release gate.
+Verification: the task files
+[V35-001](../../tasks/v35-001-git-key-settings-and-contracts.yml),
+[V35-002](../../tasks/v35-002-bounded-memory-git-snapshots.yml),
+[V35-003](../../tasks/v35-003-git-artifact-publication-and-provenance.yml),
+[V35-004](../../tasks/v35-004-git-settings-and-import-ui.yml) and
+[V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml) record key
+storage, the bounded reader, import API/provenance, the UI and the release gate.
 
 The gate must demonstrate public HTTPS and private SSH imports, key replacement
 and removal, unknown/changed host keys, forbidden destinations/redirects,

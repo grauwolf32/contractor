@@ -18,20 +18,16 @@ This document owns four closely related boundaries:
 - the read-only path by which explicit Server-side Planner tools inspect that
   live State without exposing arbitrary keys to the model.
 
-It supersedes the plain-text Worker completion projection previously described
-by V13. It does **not** move `StageResult` ownership to Worker: a model-backed
+It does **not** move `StageResult` ownership to Worker: a model-backed
 Planner still decides Stage completion through `finish`, and Workflow Scheduler
 still validates and durably accepts that candidate.
 
 ## Four result layers
 
 The following model/serializer path is the default ordinary completion
-strategy. [25](25-audit-worker-finalization.md) defines the implemented explicit
-`audit-check-results@1` strategy at the same Runtime-owned completion boundary:
-validated incremental submissions, bounded continuation for missing items,
-and deterministic package/WorkerResult construction without an LLM serializer.
-It is activated by a trusted AuditProfile binding, never by labels or the mere
-presence of a tool. Ordinary Workflows keep the behavior below.
+strategy; the explicit `audit-check-results@1` strategy in
+[25](25-audit-worker-finalization.md) is the exception described under
+[Structured output and model boundary](#structured-output-and-model-boundary).
 
 The word “result” refers to four different facts. They are separate contracts:
 

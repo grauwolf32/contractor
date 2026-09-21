@@ -1,8 +1,7 @@
 # 30 — Independent managed Evals and external producers
 
-Status: **V38-001–010 implemented and deterministically verified: native setup, comparison/review, optional Playground client and independent process acceptance.**
+Status: **Implemented and deterministically verified ([V38-010](../../tasks/v38-010-eval-release-gate.yml)): native setup, comparison/review, optional Playground client and independent process acceptance.**
 
-[Implementation evidence](../plans/2026-09-20-managed-evals-ui.md) ·
 [User guide](../guides/evals.md) · [Release checks](../testing/evals-release-gate.md)
 
 The [embedded data catalog](../../api/evals/v1/README.md) and
@@ -17,10 +16,10 @@ and optional external clients use the same protocol.
 [Projects](17-projects-and-queue.md) · [Audits](19-audits.md) ·
 [Lifecycle](18-run-and-workspace-lifecycle-controls.md)
 
-This document owns Contractor's later browser-managed experiment service and its
+This document owns Contractor's browser-managed experiment service and its
 public producer API. Spec 26 remains the owner of portable document identities,
 member/pair identity, hidden-truth separation, scoring and comparison semantics.
-Its delivered CLI-only publication/recovery boundary is preserved. This is an
+Its CLI-only publication/recovery boundary is preserved. This is an
 explicit additional server authority for new managed experiments, not an upgrade
 of an old private CLI journal inferred from labels or public projections.
 
@@ -49,7 +48,7 @@ not pretend it can resume an unavailable producer. The driver can finalize or
 cancel remaining submissions through the generic protocol, without a server-to-
 producer request. Another client cannot take over using label matches alone.
 
-First implementation targets the existing single-VM topology. The coordinator
+The service targets the existing single-VM topology. The coordinator
 is a Go Server component with PostgreSQL claims, not a new Worker scheduler. It
 limits its own outstanding submissions according to the frozen experiment and
 uses the ordinary queue/global concurrency gates. No separate Playground daemon
@@ -182,7 +181,7 @@ reported active/service time must have a distinct scope and cannot share the sam
 comparison series. Progress-chart time is experiment wall time and is labelled
 separately from per-member execution duration.
 
-V38-002 fixtures and V38-010 acceptance include all four kind/control combinations,
+Conformance fixtures and the release gate include all four kind/control combinations,
 an Audit with multiple children/rounds/retries, overlapping child durations,
 missing child usage and duplicate observation replay. UI labels and drill-down
 follow the selected kind; they never suggest an Audit is just one child Run.
@@ -298,8 +297,6 @@ protocol controls and UI retains normal individual Run/Audit actions.
 
 ## Public API contract
 
-The V38-005 authoring/control and V38-006 evidence, assessment, selected
-comparison/chart, report and execution-inventory paths below are implemented.
 Endpoints use the same
 public authentication, cookie CSRF, origin, request-ID, error-envelope and method/
 HEAD rejection conventions as existing handlers. No browser-to-Playground calls.
@@ -345,8 +342,7 @@ until the owning Project is purged.
 Dataset revisions are append-only; another POST with the same datasetId and a new
 idempotency key creates a new revision. A missing body/field, unknown key, duplicate
 case/variant/member, invalid digest, invalid role mapping or incompatible media is
-422 before side effects. Schema codecs and examples are delivered in V38-002;
-public OpenAPI/handlers are delivered together in V38-005/006.
+422 before side effects.
 
 ### Native setup and start example
 
@@ -511,14 +507,13 @@ new child execution associations invalidate the cursor for an explicit reload.
 `inventoryComplete` requires a closed/drained parent dispatch inventory and
 resolved accepted child intents; observing one page or a terminal child cannot
 establish completeness. An external collector follows every page before claiming
-complete scope; each HTTP query remains bounded. V38-006 owns this projection and
-V38-009 consumes it through the public API.
+complete scope; each HTTP query remains bounded. The optional Playground client
+consumes this projection only through the public API.
 
 ### Chart projections
 
 Charts are a projection of the same complete selected view, never a browser scan
-or aggregation of the first member page. V38-002 defines the chart DTOs/fixtures,
-V38-006 serves them and V38-008 renders them. GET
+or aggregation of the first member page. GET
 `/v1/eval-experiments/{id}/charts/{chart}?viewSnapshot=...` accepts an optional
 suite filter and a metric/measurement-scope selector appropriate to that chart.
 Unknown chart/options and incompatible combinations fail closed. Responses carry

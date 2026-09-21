@@ -1,6 +1,6 @@
 # 22 — Operations performance metrics and Go profiling
 
-Status: **Implemented and verified (V32-001 through V32-008)**
+Status: **Implemented** (verified by [V32-008](../../tasks/v32-008-performance-release-gate.yml))
 
 Depends on: [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -9,19 +9,13 @@ Depends on: [02](02-runtime-and-a2a.md),
 
 ## Implementation status
 
-As of 2026-09-06, the [task catalog](../../tasks/index.yml) records:
-
-- V32-001 through V32-004 completed: contracts/settings, Server collection,
-  PostgreSQL history storage and Runtime allocation-resource sampling.
-- V32-007 completed: independent opt-in Go profiling.
-- V32-005 and V32-006 completed: allocation policy/report integration,
-  Operations APIs, performance charts and completed-allocation history.
-- V32-008 completed: the branch release gate and measured overhead.
-
-The implementation originated in the v32-performance-ui branch. Integration
-with main preserves the existing Run-resumption migration 000052 and applies
-allocation performance policy as migration 000053. Historical allocation
-resources cannot be reconstructed when they were not collected.
+Verification: the task files
+[V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml) through
+[V32-008](../../tasks/v32-008-performance-release-gate.yml) record the
+implementation and release-gate evidence; see
+[Verification and delivery](#verification-and-delivery). Allocation performance
+policy is a separate forward-only migration from Run resumption. Historical
+allocation resources cannot be reconstructed when they were not collected.
 
 ## Purpose and ownership
 
@@ -203,7 +197,7 @@ The initial DB budgets are: connection/acquisition at most 250 ms per attempt,
 lock timeout 100 ms, statement timeout 750 ms for statistics and 1500 ms for
 size/history maintenance, client query deadline 1 s and 2 s respectively,
 and at most 5 s for a complete minute collection cycle. Earlier caller/shutdown
-deadlines win. Reuse the database budget/cleanup mechanisms from V29-007;
+deadlines win. Reuse the existing database budget/cleanup mechanisms;
 transaction-local overrides cannot leak into the working pool. End every
 transaction before the next cycle so cached PostgreSQL snapshots do not persist.
 Size and maintenance operations are separately scheduled, serial and bounded;
@@ -285,7 +279,7 @@ tested behavior. Restart, writer loss and disabled periods produce gaps. Fine
 history is volatile; minute history survives restart. An unavailable DB still
 allows current/in-memory performance reads.
 
-Proposed read-only endpoints under existing authenticated Operations authority:
+Read-only endpoints under existing authenticated Operations authority:
 
 - `GET /v1/operations/performance`: enabled state, generation, intervals,
   current groups, freshness and collector/writer diagnostics; no SQL on this path.
@@ -372,7 +366,7 @@ was captured. CPU remains a boundary delta despite skipped intermediate samples.
 
 Resource fields cover the entire Runtime process, including its service work
 and retained memory from earlier allocations. They exclude subprocesses and
-containers, including the implemented [21](21-podman-sandbox.md) sandboxes. The UI must
+containers, including [21](21-podman-sandbox.md) sandboxes. The UI must
 label that scope and call the RSS value an observed peak. Do not use the
 process-lifetime RSS high-water mark as an allocation-local peak, trace Python
 object allocations or force garbage collection.
@@ -460,18 +454,16 @@ go tool pprof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
 
 ## Verification and delivery
 
-Implemented through V32-001..V32-008 in [the task index](../../tasks/index.yml):
-
-| Task | Deliverable | Dependencies |
-| --- | --- | --- |
-| [V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml) | Startup and public/private measurement contracts | Existing report, unified v1alpha1 private and Operations contracts |
-| [V32-002](../../tasks/v32-002-server-performance-collection.yml) | Server HTTP/process/pool collectors | V32-001 |
-| [V32-003](../../tasks/v32-003-postgres-performance-history.yml) | PostgreSQL collector and minute storage | V32-002, V29-007 |
-| [V32-004](../../tasks/v32-004-allocation-resource-sampling.yml) | Runtime allocation accumulator and final resources | V32-001, existing lifecycle hardening |
-| [V32-005](../../tasks/v32-005-performance-api-and-allocation-history.yml) | Pinned allocation policy, ingestion and read APIs | V32-003, V32-004 |
-| [V32-006](../../tasks/v32-006-operations-performance-ui.yml) | Operations charts and completed allocation history | V32-005, existing Operations UI |
-| [V32-007](../../tasks/v32-007-opt-in-go-profiling.yml) | Separate bounded Go diagnostic listener | V32-001 |
-| [V32-008](../../tasks/v32-008-performance-release-gate.yml) | Fault/integration/browser gate and overhead evidence | V32-006, V32-007 |
+Verification: the task files
+[V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml),
+[V32-002](../../tasks/v32-002-server-performance-collection.yml),
+[V32-003](../../tasks/v32-003-postgres-performance-history.yml),
+[V32-004](../../tasks/v32-004-allocation-resource-sampling.yml),
+[V32-005](../../tasks/v32-005-performance-api-and-allocation-history.yml),
+[V32-006](../../tasks/v32-006-operations-performance-ui.yml),
+[V32-007](../../tasks/v32-007-opt-in-go-profiling.yml) and
+[V32-008](../../tasks/v32-008-performance-release-gate.yml) record the
+implementation, dependencies and release-gate evidence.
 
 Required acceptance:
 
@@ -495,11 +487,9 @@ Required acceptance:
    workload/repetitions. Measure idle pprof and active profiling separately.
    Establish before/after evidence, not an unmeasured universal overhead percentage.
 
-The V32-008 release gate passed on 2026-09-06.
-The focused gate includes race-enabled Go and PostgreSQL checks, Python Runtime
+The release gate includes race-enabled Go and PostgreSQL checks, Python Runtime
 checks, real cross-language mTLS finalize/abort resource reports and the built
-Node UI against the production browser stack. The recorded aggregate verification
-belongs to that branch snapshot and does not establish current-main readiness.
+Node UI against the production browser stack.
 
 ## Reference behavior
 

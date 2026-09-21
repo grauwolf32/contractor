@@ -1,21 +1,17 @@
 # OpenAPI Audit scan adapter
 
-Status: **V62-009 acceptance passed on 2026-09-21.**
-Operation-specific preparation, immutable settings and inventory, explicit task
-execution contracts, catalog profiles, trusted dispatch, canonical results and
-journal-based recovery are implemented. Real SQLMap/Nuclei process tests exercise
-exact requests, approval, truthful coverage, missing input, lost acknowledgement,
-publication/collection faults with Server restart, bounded cross-Run retries,
-cancellation and retained evidence after Run deletion. See the
-[acceptance evidence](../../tasks/evidence/v62-009.json).
+Status: **Released and verified ([V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml)). Prepare-role execution that would generate the OpenAPI is specified in [19 §4.4](19-audits.md#44-preparation-contract) but not yet delivered, so prepare profiles return `preparation_unsupported`.**
 
 ## Delivery order
 
-Start with a supplied exact OpenAPI and explicit scan settings. Support SQLMap
-request checks and Nuclei URL checks through the existing scanner Workers and
-Scheduler. Only after this slice passes its process gates does V62 add source
-preparation, initially using `openapi-from-workspace@7` as one prepare role.
-V62-005/006/007/008 are deferred; they are not release prerequisites.
+The scan profile takes a supplied exact OpenAPI and explicit scan settings and
+runs SQLMap request checks and Nuclei URL checks through the existing scanner
+Workers and Scheduler. Source preparation (generating the OpenAPI through a
+`prepare` role such as `openapi-from-workspace@7`) is a separate capability
+governed by [19 §4.4](19-audits.md#44-preparation-contract) and is not a
+prerequisite for this profile. Round result snapshots, retained dependencies,
+proposed-check routing and standalone project-analysis preparation are deferred
+and are not release prerequisites.
 
 ## Assigned inputs and authority
 
@@ -40,7 +36,7 @@ spec:
 The catalog validates producer/consumer contract compatibility, then validates
 the selected executor's capabilities and input mappings. `auditTask.stage` need
 not be the entry Stage. Other Workflow Stages and other Audit roles are allowed.
-The current scan executor accepts one assigned item and one scanner Worker; its
+The scan executor accepts one assigned item and one scanner Worker; its
 batch-size, exact-input and approval constraints belong to that executor.
 It uniquely owns the canonical check-result output. Ordinary graph validation
 rejects successful paths without that required output, and no other Stage can
@@ -75,7 +71,8 @@ resolved profile/Worker configuration, not arbitrary strings returned by a model
 
 Concrete values are supplied with operation bindings using the existing
 `scanplan.Options` contract (`path:name`, `query:name`, and for SQLMap also
-header/cookie/body/authentication). Examples/defaults follow preparation policy 2;
+header/cookie/body/authentication). Examples/defaults follow
+[preparation policy 2](31-scan-request-preparation.md#input-and-selection-policy);
 types alone never invent values. Unsupported or missing data produce gaps. The
 settings artifact is strictly validated and pinned before inventory creation.
 Missing values require a corrected new Audit; resume cannot rewrite
@@ -119,7 +116,7 @@ malformed settings reject the inventory atomically.
 The checked-in [local input examples](../../configs/scan/examples/audit-openapi-scan/README.md)
 cover path/query values and an authenticated POST. Library and executor tests
 verify preparation and canonical results without scanner/network calls. The
-registered profiles also pass the mandatory production-process gate below.
+registered profiles must also pass the mandatory production-process gate below.
 
 ## Operation preparation
 
@@ -136,7 +133,8 @@ The preparation identity binds the policy-2 base digest, selected operation and
 Source parsing and size/depth/node bounds still apply to the entire document;
 reference expansion and request preparation only concern the assigned operation.
 
-SQLMap consumes the resulting RequestSet through the existing scan planner. Its
+SQLMap consumes the resulting RequestSet through the existing
+[scan planner](32-scan-planning.md#plan-v1-and-selection). Its
 nonempty `testParameters` must be explicitly selected and available in the
 prepared request. The planner preserves method, URL, headers and body, and pins
 the exact scanner request artifact. Excluded parameters and unsupported request
@@ -185,7 +183,7 @@ Account independently for:
 - Semantic evidence: reported observation, inconclusive or not tested.
 
 A successful process exit is execution completion, not a clean security verdict.
-SQLMap request mode currently reports `reported` or `unknown`; absence of a
+SQLMap request mode reports `reported` or `unknown`; absence of a
 technique cannot establish `refuted`/`satisfied`. Nuclei findings are scanner
 observations. An empty result does not establish that the operation is secure.
 URL-only limitations must reach the Audit report even if scanner execution
@@ -201,9 +199,10 @@ and exact evidence; raw scanner JSON is not itself an Audit result package.
 ## Retry and completion requirements
 
 The existing scan session fence is keyed by Stage execution identity. It protects
-recovery of that execution, not a new Stage or Audit item attempt. Today the Audit
-importer treats a failed Run as retryable. The adapter must address both layers
-before its profiles can run.
+recovery of that execution, not a new Stage or Audit item attempt. The Audit
+importer treats a failed Run as retryable
+([19 §10](19-audits.md#10-audit-and-round-lifecycle)). The adapter must address
+both layers.
 
 Do not impose a blanket one-attempt limit or disable ordinary Workflow retries.
 Failures known to precede scanner invocation and known failed executions may use
@@ -235,3 +234,4 @@ The matrix includes missing path/body/auth values, excluded SQLMap parameters,
 Nuclei POST-derived URLs, credential rejection, unknown outcomes, cancelled
 execution, lost acknowledgements and retained evidence after source Run deletion.
 Scripted tests do not establish model-generated OpenAPI quality or scanner recall.
+The recorded gate result is [`tasks/evidence/v62-009.json`](../../tasks/evidence/v62-009.json).

@@ -1,11 +1,11 @@
 # Deterministic scan planning
 
-V55-008 adds the model-free `scan-plan@1` Planner. It consumes one exact Run
+`scan-plan@1` is the model-free scan Planner. It consumes one exact Run
 Artifact containing prepared HTTP requests or a target list, creates a bounded
 immutable plan, and invokes existing fixed logical `tool@1` Workers. It does
 not discover targets, invent scanner arguments, resolve remote schemas or ask a
 model to rank candidates. Request preparation remains the separate
-[V55-007 library](31-scan-request-preparation.md).
+[preparation library](31-scan-request-preparation.md).
 
 ## Inputs and fixed Workers
 
@@ -84,7 +84,7 @@ Each candidate records its stable ID, logical Worker, scanner, sorted unique
 code and exactly one job. Unselected candidates retain a fixed reason such as
 unsupported input, unavailable selected parameter, or an exceeded budget. The
 codec also reserves `unavailable` for candidates with an explicit diagnostic;
-the current pure builder classifies unsupported candidates as `skipped`.
+the pure builder classifies unsupported candidates as `skipped`.
 
 Each selected job contains semantic parameters or SQLMap request data, exact
 external input refs, resolved execution configuration, template selector and
@@ -118,7 +118,7 @@ records. Create-only Artifact writes use deterministic bindings. A lost write
 acknowledgement can be recovered only when the existing immutable bytes match;
 conflicting content is not overwritten.
 
-The current implementation invokes selected jobs sequentially through the
+The Planner invokes selected jobs sequentially through the
 ordinary Worker invoker. Each job has a stable subtask ID and its own result
 Artifact binding. The journal is fenced by the current durable Scheduler claim.
 A job must transition from `pending` to `started` durably before its Worker call.
