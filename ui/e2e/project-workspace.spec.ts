@@ -450,8 +450,8 @@ test("Project sections open inputs and Run setup, while deletion stays in its me
   const navigation = page.getByRole("navigation", { name: "Project sections" });
   await expect(navigation).toBeInViewport();
   await expect(
-    page.getByRole("heading", { name: "Overview", exact: true }),
-  ).toBeVisible();
+    navigation.getByRole("link", { name: "Overview", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("button", { name: "Delete Project" }),
   ).toBeHidden();

@@ -17,6 +17,72 @@
   margin-bottom: 0.5rem;
 }
 
+.audit-page > .route-header-row.audit-header {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.audit-header .back-link {
+  margin-bottom: 0.4rem;
+}
+
+.audit-header > div:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.audit-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.audit-title-row h2 {
+  margin: 0;
+}
+
+.audit-revision {
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.audit-identity .audit-copy-button {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  min-height: 2rem;
+}
+
+.audit-copy-button .app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.audit-header-actions {
+  flex: none;
+  max-width: min(100%, 26rem);
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.audit-header-actions .audit-control-reason {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.audit-header-actions .additional-actions-menu button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
 .audit-page h2,
 .audit-page h3,
 .audit-page h4,
@@ -39,10 +105,23 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.65rem;
-  margin: 0.6rem 0 0;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.audit-identity code {
+  flex: 1 1 4rem;
+  min-width: 0;
+  max-width: max-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-identity [role="status"]:not(:empty) {
+  flex-basis: 100%;
 }
 
 .audit-create-form,
@@ -157,14 +236,6 @@
 
 .audit-card-stats {
   margin: 0;
-}
-
-.audit-header-state {
-  display: grid;
-  justify-items: end;
-  gap: 0.35rem;
-  color: var(--muted);
-  font-size: 0.75rem;
 }
 
 .audit-controls {
@@ -980,8 +1051,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .audit-header-state {
-    justify-items: start;
+  .audit-page > .route-header-row.audit-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .audit-header-actions {
+    margin-left: auto;
   }
 
   .audit-finding-review-actions .button-row > button {

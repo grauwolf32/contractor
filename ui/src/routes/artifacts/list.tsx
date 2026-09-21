@@ -18,6 +18,7 @@ import {
   formatBytes,
   formatTimestamp,
 } from "./common";
+import { RefreshButton } from "../../app/refresh-button";
 
 const EXCLUDED_SKILL_NAMESPACE = "skills";
 
@@ -88,14 +89,11 @@ export function ArtifactListRoute() {
             immutable revision.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <RefreshButton
+          isFetching={query.isFetching}
+          onRefresh={() => void query.refetch()}
+          label="Refresh"
+        />
       </header>
 
       <details

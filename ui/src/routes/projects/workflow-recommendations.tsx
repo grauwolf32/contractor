@@ -22,6 +22,7 @@ import {
   buildWorkflowCompatibility,
   type WorkflowCompatibility,
 } from "./recommendations";
+import { ProjectSectionActions } from "./navigation";
 
 function selector(item: WorkflowCompatibility): string {
   return workflowSelector(item.workflow);
@@ -261,17 +262,25 @@ export function ProjectWorkflowRecommendations({
       id="project-workflows"
       tabIndex={-1}
     >
-      <div className="section-heading">
-        <div>
-          <h3>Workflows</h3>
-          <p className="muted-copy">
-            Choose a Workflow and review its exact inputs before launching.
-          </p>
+      {drawer ? (
+        <ProjectSectionActions>
+          <span className="muted-copy">
+            {families.length} workflows · {workflows.data?.length ?? 0} versions
+          </span>
+        </ProjectSectionActions>
+      ) : (
+        <div className="section-heading">
+          <div>
+            <h3>Workflows</h3>
+            <p className="muted-copy">
+              Choose a Workflow and review its exact inputs before launching.
+            </p>
+          </div>
+          <span className="muted-copy">
+            {families.length} workflows · {workflows.data?.length ?? 0} versions
+          </span>
         </div>
-        <span className="muted-copy">
-          {families.length} workflows · {workflows.data?.length ?? 0} versions
-        </span>
-      </div>
+      )}
       <div className="workflow-discovery-toolbar">
         <div className="workflow-filter-tabs" aria-label="Workflow filters">
           {[

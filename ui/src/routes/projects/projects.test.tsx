@@ -146,7 +146,7 @@ describe("Project routes", () => {
       "/projects/project_example/runs?view=completed&state=succeeded&cursor=page2",
     );
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: "Runs" });
+    await screen.findByRole("button", { name: "All Runs" });
     expect(router.state.location.pathname).toBe(
       "/projects/project_example/runs",
     );
@@ -856,7 +856,13 @@ describe("Project routes", () => {
     expect(
       await screen.findByText("Artifact storage is temporarily unavailable"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "Project sections" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await userEvent
       .setup()
       .click(screen.getByRole("link", { name: "Add sources →" }));

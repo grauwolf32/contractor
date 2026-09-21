@@ -32,6 +32,7 @@ import { RunRecoveryControl } from "./recovery";
 import { RunResumeControl } from "./resume";
 import { useLiveRunProjection } from "./live";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
+import { RefreshButton } from "../../app/refresh-button";
 
 function compactMetric(value: number): string {
   if (value < 1_000) {
@@ -876,14 +877,10 @@ export function RunDetailRoute() {
             </p>
           )}
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <RefreshButton
+          isFetching={query.isFetching}
+          onRefresh={() => void query.refetch()}
+        />
       </header>
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">

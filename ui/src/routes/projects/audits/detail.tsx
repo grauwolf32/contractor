@@ -13,6 +13,7 @@ import { PublicAPIError } from "../../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
 import { ReturnLink } from "../../../app/context-navigation";
+import { Icon } from "../../../app/icon";
 import { MobileSectionPicker } from "../../../app/mobile-section-picker";
 import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
 import { StateBadge } from "../../runs/components";
@@ -80,10 +81,13 @@ function AuditIdentity({ audit }: { audit: Audit }) {
   return (
     <div className="audit-identity">
       <time dateTime={audit.createdAt}>{formatTimestamp(audit.createdAt)}</time>
-      <code>{audit.auditId}</code>
+      <span aria-hidden="true">·</span>
+      <code title={audit.auditId}>{audit.auditId}</code>
       <button
         type="button"
-        className="secondary-button"
+        className="secondary-button icon-button audit-copy-button"
+        aria-label="Copy Audit ID"
+        title="Copy Audit ID"
         onClick={() => {
           void navigator.clipboard.writeText(audit.auditId).then(
             () => setCopyStatus("Copied Audit ID"),
@@ -94,7 +98,7 @@ function AuditIdentity({ audit }: { audit: Audit }) {
           );
         }}
       >
-        Copy Audit ID
+        <Icon name="copy" />
       </button>
       <span role="status">{copyStatus}</span>
     </div>
@@ -161,16 +165,27 @@ export function ProjectAuditDetailRoute() {
 
   return (
     <section className="route-page audit-page audit-detail-page">
-      <header className="route-header-row">
+      <header className="route-header-row audit-header">
         <div>
           <ReturnLink
             to={`/projects/${encodeURIComponent(projectId)}/audits`}
             label={`${project.data?.name ?? "Project"} Audits`}
           />
-          <p className="eyebrow">{project.data?.name ?? "Audit"}</p>
-          <h2>
-            {audit.data === undefined ? "Audit" : auditProfileLabel(audit.data)}
-          </h2>
+          <div className="audit-title-row">
+            <h2>
+              {audit.data === undefined
+                ? "Audit"
+                : auditProfileLabel(audit.data)}
+            </h2>
+            {audit.data === undefined ? null : (
+              <>
+                <StateBadge state={audit.data.state} />
+                <span className="audit-revision">
+                  revision {audit.data.revision}
+                </span>
+              </>
+            )}
+          </div>
           {audit.data === undefined ? (
             <code>{auditId}</code>
           ) : (
@@ -178,16 +193,14 @@ export function ProjectAuditDetailRoute() {
           )}
         </div>
         {audit.data === undefined ? null : (
-          <div className="audit-header-state">
-            <StateBadge state={audit.data.state} />
-            <span>revision {audit.data.revision}</span>
-          </div>
+          <AuditControls
+            audit={audit.data}
+            projectName={project.data?.name}
+            menu
+          />
         )}
       </header>
       {project.error === null ? null : <ErrorNotice error={project.error} />}
-      {audit.data === undefined ? null : (
-        <AuditControls audit={audit.data} projectName={project.data?.name} />
-      )}
       <nav
         className="audit-section-navigation section-navigation"
         aria-label="Audit sections"

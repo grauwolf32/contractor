@@ -25,6 +25,7 @@ import {
   formatTimestamp,
 } from "../artifacts/common";
 import { RunMetadataLabelChips, StateBadge } from "./components";
+import { RefreshButton } from "../../app/refresh-button";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
 
@@ -546,14 +547,11 @@ export function CompletedRunsPanel() {
               ))}
             </select>
           </label>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching || decoded.error !== undefined}
-            onClick={() => void query.refetch()}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            disabled={decoded.error !== undefined}
+            onRefresh={() => void query.refetch()}
+          />
         </div>
       </div>
       <RunLabelFilters

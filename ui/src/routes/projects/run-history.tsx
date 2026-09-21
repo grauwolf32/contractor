@@ -17,6 +17,8 @@ import {
   formatTimestamp,
 } from "../artifacts/common";
 import { RunMetadataLabelChips, StateBadge } from "../runs/components";
+import { RefreshButton } from "../../app/refresh-button";
+import { ProjectSectionActions } from "./navigation";
 
 export function ProjectRunIdentity({
   run,
@@ -112,18 +114,14 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
   }
   return (
     <section className="project-run-history" id="project-runs">
-      <header className="section-heading">
-        <div>
-          <h2>Runs</h2>
-          <p className="muted-copy">Execution history within this project.</p>
-        </div>
+      <ProjectSectionActions>
         <Link
           className="audit-open-link"
           to={`/projects/${encodeURIComponent(projectId)}/workflows`}
         >
           Choose workflow →
         </Link>
-      </header>
+      </ProjectSectionActions>
       <div className="project-section-toolbar">
         <div className="workflow-filter-tabs" aria-label="Run views">
           {[
@@ -158,14 +156,10 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
             ))}
           </select>
         </label>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={runs.isFetching}
-          onClick={() => void runs.refetch()}
-        >
-          {runs.isFetching ? "Refreshing…" : "Refresh Runs"}
-        </button>
+        <RefreshButton
+          isFetching={runs.isFetching}
+          onRefresh={() => void runs.refetch()}
+        />
       </div>
       {runs.isPending ? (
         <p className="loading-copy" role="status">

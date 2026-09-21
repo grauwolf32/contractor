@@ -27,6 +27,7 @@ import { type ChartDatum, MetricChart } from "./chart";
 import { performanceFreshnessState } from "./freshness";
 import { GPUCurrentMetrics, GPUHistoryCharts } from "./gpu";
 import { historyGPUDevices, useGPUColors, type GPUColors } from "./gpu-colors";
+import { RefreshButton } from "../../../app/refresh-button";
 
 interface HTTPOverview {
   requestRate?: number;
@@ -558,18 +559,13 @@ export function OperationsPerformanceRoute() {
             History preserves collection gaps and Server restarts.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={current.isFetching || history.isFetching}
-          onClick={() =>
+        <RefreshButton
+          isFetching={current.isFetching || history.isFetching}
+          onRefresh={() =>
             void Promise.all([current.refetch(), history.refetch()])
           }
-        >
-          {current.isFetching || history.isFetching
-            ? "Refreshing…"
-            : "Refresh metrics"}
-        </button>
+          label="Refresh"
+        />
       </div>
 
       {current.error !== null ? (

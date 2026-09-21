@@ -32,6 +32,7 @@ import {
 } from "../artifacts/common";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { ProjectArtifactWriteForm } from "./common";
+import { RefreshButton } from "../../app/refresh-button";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -331,14 +332,11 @@ function ProjectArtifactDetailRouteView({
               : "Historical revision"}
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <RefreshButton
+          isFetching={query.isFetching}
+          onRefresh={() => void query.refetch()}
+          label="Refresh"
+        />
       </header>
 
       {query.isPending ? (

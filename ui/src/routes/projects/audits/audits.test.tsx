@@ -1968,6 +1968,9 @@ describe("Project Audit routes", () => {
         }),
       );
       renderApplication(api, "/projects/project_example/audits/audit_example");
+      await userEvent
+        .setup()
+        .click(await screen.findByLabelText("Audit actions"));
       expect(
         await screen.findByRole("button", { name: "Delete Audit" }),
       ).toBeVisible();
@@ -2148,6 +2151,7 @@ describe("Project Audit routes", () => {
       expect(screen.getByText("cancelled", { exact: true })).toBeVisible(),
     );
 
+    await user.click(screen.getByLabelText("Audit actions"));
     await user.click(screen.getByRole("button", { name: "Delete Audit" }));
     dialog = screen.getByRole("alertdialog", {
       name: "Delete this Audit?",

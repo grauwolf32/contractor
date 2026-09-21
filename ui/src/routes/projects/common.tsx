@@ -33,6 +33,7 @@ import {
   type ProjectArtifactShortcut,
   type ShortcutDefinition,
 } from "./shortcuts";
+import { ProjectSectionActions } from "./navigation";
 
 function ArtifactShortcutIcon({
   shortcut,
@@ -389,22 +390,31 @@ export function ProjectRegion({
   action,
   children,
   id,
+  compact = false,
 }: {
   eyebrow: string;
   title: string;
   action?: ReactNode;
   children: ReactNode;
   id?: string;
+  /** Workspace tab: the tab names the section, actions go to the tab bar. */
+  compact?: boolean;
 }) {
   return (
     <section className="panel project-region" id={id}>
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h3>{title}</h3>
+      {compact ? (
+        action === undefined ? null : (
+          <ProjectSectionActions>{action}</ProjectSectionActions>
+        )
+      ) : (
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">{eyebrow}</p>
+            <h3>{title}</h3>
+          </div>
+          {action}
         </div>
-        {action}
-      </div>
+      )}
       {children}
     </section>
   );

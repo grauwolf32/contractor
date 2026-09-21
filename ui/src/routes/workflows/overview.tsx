@@ -13,6 +13,7 @@ import { workflowDisplayName, workflowSelector } from "./presentation";
 import { WorkflowRunForm } from "./run-form";
 import "./cards.css";
 import "./overview.css";
+import { RefreshButton } from "../../app/refresh-button";
 
 function OverviewSlots({
   title,
@@ -165,17 +166,14 @@ export function WorkflowOverview({
           ) : null}
         </div>
         <ActionMenu label="Workflow actions">
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={refreshing || inventory.isFetching}
-            onClick={() => {
+          <RefreshButton
+            isFetching={refreshing || inventory.isFetching}
+            onRefresh={() => {
               refresh();
               void inventory.refetch();
             }}
-          >
-            {refreshing || inventory.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+            label="Refresh"
+          />
         </ActionMenu>
       </header>
       {error ? <ErrorNotice error={error} /> : null}

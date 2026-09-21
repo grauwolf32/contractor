@@ -1,5 +1,15 @@
-import { useEffect } from "react";
+import { useContext, useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, useLocation, useNavigate } from "react-router";
+import { ProjectSectionActionsContext } from "./section-actions-context";
+
+/** Slim toolbar for a project section: rendered on the tab-bar row. */
+export function ProjectSectionActions({ children }: { children: ReactNode }) {
+  const slot = useContext(ProjectSectionActionsContext);
+  if (slot === undefined)
+    return <div className="project-section-actions">{children}</div>;
+  return slot === null ? null : createPortal(children, slot);
+}
 
 const sections = [
   ["", "Overview"],
@@ -11,7 +21,13 @@ const sections = [
   ["settings", "Settings"],
 ] as const;
 
-export function ProjectNavigation({ projectId }: { projectId: string }) {
+export function ProjectNavigation({
+  projectId,
+  actionsRef,
+}: {
+  projectId: string;
+  actionsRef?: (element: HTMLDivElement | null) => void;
+}) {
   const root = `/projects/${encodeURIComponent(projectId)}`;
   const location = useLocation();
   const { pathname } = location;
@@ -49,21 +65,24 @@ export function ProjectNavigation({ projectId }: { projectId: string }) {
   }, [pathname]);
   return (
     <>
-      <nav
-        className="project-section-navigation section-navigation"
-        aria-label="Project sections"
-      >
-        {sections.map(([segment, label]) => (
-          <NavLink
-            key={segment}
-            to={destination(segment)}
-            state={navigationState}
-            end={segment === ""}
-          >
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="project-section-bar">
+        <nav
+          className="project-section-navigation section-navigation"
+          aria-label="Project sections"
+        >
+          {sections.map(([segment, label]) => (
+            <NavLink
+              key={segment}
+              to={destination(segment)}
+              state={navigationState}
+              end={segment === ""}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="project-section-actions" ref={actionsRef} />
+      </div>
       <label className="project-section-picker">
         Project section
         <select

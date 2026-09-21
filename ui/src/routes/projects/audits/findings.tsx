@@ -18,6 +18,8 @@ import { auditProfileLabel } from "./labels";
 import { AuditAnchor, ProjectAuditNavigation } from "./shared";
 
 import "./styles.css";
+import { RefreshButton } from "../../../app/refresh-button";
+import { ProjectSectionActions } from "../navigation";
 
 export function ProjectFindingsRoute({
   embedded = false,
@@ -150,38 +152,39 @@ export function ProjectFindingsRoute({
       </section>
     );
 
+  const refreshControl = (
+    <RefreshButton
+      isFetching={refreshing}
+      onRefresh={() =>
+        void Promise.all([
+          audits.refetch(),
+          ...findings.map((result) => result.refetch()),
+          ...reviews.map((result) => result.refetch()),
+        ])
+      }
+    />
+  );
   return (
     <section className="route-page audit-page project-findings-page">
-      <header className="route-header-row">
-        <div>
-          {embedded ? null : (
+      {embedded ? (
+        <ProjectSectionActions>{refreshControl}</ProjectSectionActions>
+      ) : (
+        <header className="route-header-row">
+          <div>
             <ReturnLink
               to={`/projects/${encodeURIComponent(projectId)}`}
               label={project.data?.name ?? "Project"}
             />
-          )}
-          {embedded ? null : <p className="eyebrow">Project findings</p>}
-          <h2>Findings</h2>
-          <p className="lede">
-            Findings from every audit in this project, with their source,
-            evidence and review status.
-          </p>
-        </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={refreshing}
-          onClick={() =>
-            void Promise.all([
-              audits.refetch(),
-              ...findings.map((result) => result.refetch()),
-              ...reviews.map((result) => result.refetch()),
-            ])
-          }
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
+            <p className="eyebrow">Project findings</p>
+            <h2>Findings</h2>
+            <p className="lede">
+              Findings from every audit in this project, with their source,
+              evidence and review status.
+            </p>
+          </div>
+          {refreshControl}
+        </header>
+      )}
       {embedded ? null : (
         <ProjectAuditNavigation projectId={projectId} current="findings" />
       )}

@@ -22,6 +22,7 @@ import {
   formatTimestamp,
 } from "./artifacts/common";
 import { RunMetadataLabelChips, StateBadge } from "./runs/components";
+import { RefreshButton } from "../app/refresh-button";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 
@@ -246,14 +247,10 @@ export function QueuePanel() {
               ))}
             </select>
           </label>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
+          />
         </div>
       </div>
 

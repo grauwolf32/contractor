@@ -1,5 +1,6 @@
 import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, Outlet, useParams } from "react-router";
 import { ActionMenu } from "../../app/action-menu";
 import { usePublicAPI } from "../../api/context";
@@ -17,6 +18,7 @@ import { useProjectDeletion } from "./use-project-deletion";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
 import { ProjectNavigation } from "./navigation";
+import { ProjectSectionActionsContext } from "./section-actions-context";
 import { AuditAnchor } from "./audits/shared";
 
 import "../primary-actions.css";
@@ -49,6 +51,14 @@ function ProjectWorkspaceRoute({
       : undefined;
   const deleteLabel =
     expectedKind === "evaluation" ? "Delete Eval" : "Delete Project";
+  const [sectionActions, setSectionActions] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const description =
+    expectedKind === "evaluation"
+      ? "Each sample remains an ordinary isolated Workflow Run; eval labels group it without changing execution semantics."
+      : project.data?.description ||
+        "Sources, audits and results in one workspace.";
   useDocumentTitle(
     project.data?.name ?? (expectedKind === "evaluation" ? "Eval" : "Project"),
   );
@@ -81,17 +91,9 @@ function ProjectWorkspaceRoute({
           <Link className="back-link" to={destination}>
             ← All {expectedKind === "evaluation" ? "Evals" : "Projects"}
           </Link>
-          <p className="eyebrow">
-            {expectedKind === "evaluation"
-              ? "Evaluation workspace"
-              : "Project workspace"}
-          </p>
           <h2>{project.data?.name ?? projectId}</h2>
-          <p className="lede">
-            {expectedKind === "evaluation"
-              ? "Each sample remains an ordinary isolated Workflow Run; eval labels group it without changing execution semantics."
-              : project.data?.description ||
-                "Sources, audits and results in one workspace."}
+          <p className="lede" title={description}>
+            {description}
           </p>
         </div>
         <ActionMenu
@@ -152,10 +154,13 @@ function ProjectWorkspaceRoute({
       ) : project.data.lifecycle === "deleting" ? (
         <ProjectDeletionProgress project={project.data} />
       ) : expectedKind === "project" ? (
-        <>
-          <ProjectNavigation projectId={projectId} />
+        <ProjectSectionActionsContext value={sectionActions}>
+          <ProjectNavigation
+            projectId={projectId}
+            actionsRef={setSectionActions}
+          />
           <Outlet context={project.data} />
-        </>
+        </ProjectSectionActionsContext>
       ) : (
         <>
           <nav

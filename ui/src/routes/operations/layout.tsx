@@ -19,6 +19,7 @@ import type {
 } from "../../events/run-events";
 import { ErrorNotice } from "../artifacts/common";
 import type { OperationsOutletContext } from "./context";
+import { RefreshButton } from "../../app/refresh-button";
 
 const navigation = [
   { to: "/operations", label: "Overview", end: true },
@@ -187,14 +188,7 @@ export function OperationsLayoutRoute() {
           </p>
         </div>
         {independentRead || personalSettings ? null : (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching}
-            onClick={refresh}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh snapshot"}
-          </button>
+          <RefreshButton isFetching={query.isFetching} onRefresh={refresh} />
         )}
       </header>
 

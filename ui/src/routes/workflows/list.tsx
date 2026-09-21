@@ -5,6 +5,7 @@ import { useCatalogQueryState } from "../catalog/query-state";
 import { WorkflowCard } from "./card";
 import { useWorkflowFamilies } from "./families";
 import { useWorkflowInventory } from "./inventory";
+import { RefreshButton } from "../../app/refresh-button";
 
 export function WorkflowListRoute() {
   const location = useLocation();
@@ -45,14 +46,11 @@ export function WorkflowListRoute() {
               onChange={(event) => state.changeDraftSearch(event.target.value)}
             />
           </label>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
+            label="Refresh"
+          />
         </div>
       </div>
       {query.error ? (

@@ -8,6 +8,7 @@ import {
   type EvalPairQuery,
 } from "../../api/evals";
 import { ContextLink } from "../../app/context-navigation";
+import { RefreshButton } from "../../app/refresh-button";
 import { EvalChartPanel } from "./charts";
 import { EvalError, EvalField } from "./common";
 import { MemberSummary } from "./member";
@@ -73,13 +74,11 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
   return (
     <>
       <div className="eval-actions">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => void refresh()}
-        >
-          Refresh comparison snapshot
-        </button>
+        <RefreshButton
+          isFetching={false}
+          onRefresh={() => void refresh()}
+          label="Refresh"
+        />
         <button
           type="button"
           className="secondary-button"

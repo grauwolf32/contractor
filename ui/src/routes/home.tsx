@@ -25,6 +25,7 @@ import { useSession } from "../auth/session";
 import { ErrorNotice, formatTimestamp } from "./artifacts/common";
 import { StateBadge } from "./runs/components";
 import { formatRunDuration } from "./runs/triage";
+import { RefreshButton } from "../app/refresh-button";
 
 type ActiveRunState = Extract<
   WorkflowRunState,
@@ -486,14 +487,7 @@ export function HomeRoute() {
               ? "Waiting for snapshots"
               : `Updated ${formatTimestamp(new Date(updatedAt).toISOString())}`}
           </small>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={fetching}
-            onClick={refresh}
-          >
-            {fetching ? "Refreshing…" : "Refresh all"}
-          </button>
+          <RefreshButton isFetching={fetching} onRefresh={refresh} />
         </div>
       </header>
 

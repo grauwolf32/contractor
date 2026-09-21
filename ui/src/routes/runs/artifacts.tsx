@@ -44,6 +44,7 @@ import {
   type OutputEntry,
 } from "./output-model";
 import "./outputs.css";
+import { RefreshButton } from "../../app/refresh-button";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -654,14 +655,11 @@ export function RunArtifactDetailRoute() {
               : "Historical revision"}
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <RefreshButton
+          isFetching={query.isFetching}
+          onRefresh={() => void query.refetch()}
+          label="Refresh"
+        />
       </header>
       {query.isPending ? (
         <p className="loading-copy">Loading Run Artifact metadata…</p>

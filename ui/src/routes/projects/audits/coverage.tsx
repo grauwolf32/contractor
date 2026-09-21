@@ -8,6 +8,7 @@ import { useSearchParams } from "react-router";
 import { type Audit, type AuditCoverageRow } from "../../../api/audits";
 import { ErrorNotice } from "../../artifacts/common";
 import { AuditMarkdown } from "./shared";
+import { RefreshButton } from "../../../app/refresh-button";
 
 const EVIDENCE_LABELS: Record<string, string> = {
   artifact: "Artifact",
@@ -281,10 +282,9 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
             Open a check to read the task, the conclusion and the evidence.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          disabled={coverage.isFetching}
-          onClick={() => {
+        <RefreshButton
+          isFetching={coverage.isFetching}
+          onRefresh={() => {
             setParams(
               (previous) => {
                 const next = new URLSearchParams(previous);
@@ -295,9 +295,7 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
             );
             void coverage.refetch();
           }}
-        >
-          {coverage.isFetching ? "Refreshing…" : "Refresh results"}
-        </button>
+        />
       </div>
       <div
         className="audit-coverage-summary"

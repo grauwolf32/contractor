@@ -145,9 +145,7 @@ it("refreshes execution inventory when the pair evidence is refreshed", async ()
   );
   await screen.findAllByRole("link", { name: "run run-1" });
   deleted = true;
-  await user.click(
-    screen.getByRole("button", { name: "Refresh pair evidence" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() =>
     expect(screen.queryAllByRole("link", { name: "run run-1" })).toHaveLength(
       0,

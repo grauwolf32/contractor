@@ -23,6 +23,7 @@ import { DeleteIcon } from "../../app/delete-icon";
 import { MutationDraftKeyring } from "../../mutations/idempotency";
 import { CursorControls, ErrorNotice } from "../artifacts/common";
 import { DeleteProjectDialog } from "./deletion";
+import { RefreshButton } from "../../app/refresh-button";
 
 interface ProjectCollectionPresentation {
   kind: ProjectKind;
@@ -182,14 +183,11 @@ function ProjectCollectionRoute({
           <p className="eyebrow">Project kind</p>
           <h3>{presentation.collectionHeading}</h3>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <RefreshButton
+          isFetching={query.isFetching}
+          onRefresh={() => void query.refetch()}
+          label="Refresh"
+        />
       </div>
 
       {query.isPending ? (

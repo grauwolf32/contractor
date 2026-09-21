@@ -1223,6 +1223,7 @@ for (const viewport of [
       .getByRole("button", { name: "Confirm cancellation" })
       .click();
     await expect(page.getByText("cancelled", { exact: true })).toBeVisible();
+    await page.getByLabel("Audit actions").click();
     await page.getByRole("button", { name: "Delete Audit" }).click();
     confirmation = page.getByRole("alertdialog", {
       name: "Delete this Audit?",

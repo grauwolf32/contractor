@@ -1148,7 +1148,7 @@ describe("Runtime Agent cards", () => {
       live: { ...principalBase.live!, slotState: "reserved" },
     };
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Refresh snapshot" }));
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
     expect(await within(card).findByText("Busy")).toBeVisible();
     expect(
       within(card).getByText("reserved", { selector: "small" }),

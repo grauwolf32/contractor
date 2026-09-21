@@ -160,7 +160,7 @@ describe("Run configuration navigation", () => {
     ).length;
     await userEvent
       .setup()
-      .click(screen.getByRole("button", { name: "Refresh configuration" }));
+      .click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() =>
       expect(
         requests.filter((p) => p === "/v1/operations/runtime-configs").length,

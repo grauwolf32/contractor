@@ -331,7 +331,7 @@ test("shows only available GPU metrics on desktop and mobile", async ({
       (response) =>
         new URL(response.url()).pathname === "/v1/operations/performance",
     ),
-    page.getByRole("button", { name: "Refresh metrics" }).click(),
+    page.getByRole("button", { name: "Refresh" }).click(),
   ]);
   await expect(lineA).toHaveCSS("stroke", colorA);
   await expect(lineB).toHaveCSS("stroke", colorB);

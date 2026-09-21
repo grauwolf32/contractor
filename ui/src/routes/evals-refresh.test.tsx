@@ -96,9 +96,7 @@ it("preserves comparison filters selected while refreshing to a newer snapshot",
   await screen.findByLabelText("Pair filter");
   context.fixture.state.experiment.viewSnapshot = "view-8";
   context.hold();
-  await user.click(
-    screen.getByRole("button", { name: "Refresh comparison snapshot" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(context.pending).toHaveLength(1));
   await user.selectOptions(
     screen.getByLabelText("Comparison metric"),
@@ -175,9 +173,7 @@ it.each(["section", "experiment"] as const)(
     );
     await screen.findByLabelText("Pair filter");
     context.hold();
-    await user.click(
-      screen.getByRole("button", { name: "Refresh comparison snapshot" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(context.pending).toHaveLength(1));
 
     let target = "/evals/experiments/experiment-1/overview";
@@ -222,15 +218,11 @@ it("lets only the latest overlapping refresh apply its snapshot", async () => {
   await screen.findByLabelText("Pair filter");
   context.hold();
   context.fixture.state.experiment.viewSnapshot = "view-8";
-  await user.click(
-    screen.getByRole("button", { name: "Refresh comparison snapshot" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(context.pending).toHaveLength(1));
   await user.selectOptions(screen.getByLabelText("Pair filter"), "unresolved");
   context.fixture.state.experiment.viewSnapshot = "view-9";
-  await user.click(
-    screen.getByRole("button", { name: "Refresh comparison snapshot" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(context.pending).toHaveLength(2));
   expect(screen.getByLabelText("Pair filter")).toHaveValue("unresolved");
   expect(

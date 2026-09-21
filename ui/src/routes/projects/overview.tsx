@@ -19,6 +19,8 @@ import {
 import { workflowFormats } from "../workflows/formats";
 import { auditProfileLabel } from "./audits/labels";
 import { ProjectRunIdentity } from "./run-history";
+import { RefreshButton } from "../../app/refresh-button";
+import { ProjectSectionActions } from "./navigation";
 
 function RecentRunResults({
   summary,
@@ -224,24 +226,14 @@ export function ProjectOverview({ project }: { project: Project }) {
   ];
   return (
     <section className="project-overview-section">
-      <header className="section-heading">
-        <div>
-          <h2>Overview</h2>
-          <p className="muted-copy">
-            Continue work, review results, or prepare the next analysis.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={queries.some((query) => query.isFetching)}
-          onClick={() =>
+      <ProjectSectionActions>
+        <RefreshButton
+          isFetching={queries.some((query) => query.isFetching)}
+          onRefresh={() =>
             void Promise.all(queries.map((query) => query.refetch()))
           }
-        >
-          Refresh overview
-        </button>
-      </header>
+        />
+      </ProjectSectionActions>
       <div className="project-overview-grid">
         <div className="project-overview-stack">
           <section

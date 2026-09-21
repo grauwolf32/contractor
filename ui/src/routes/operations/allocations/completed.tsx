@@ -8,6 +8,7 @@ import { RUN_ID_PATTERN } from "../../../api/runs";
 import { CursorControls, ErrorNotice } from "../../artifacts/common";
 import { AllocationResourceList } from "../performance/resources";
 import { AllocationViewTabs } from "./tabs";
+import { RefreshButton } from "../../../app/refresh-button";
 
 export function CompletedAllocationListRoute() {
   const api = usePublicAPI();
@@ -54,14 +55,11 @@ export function CompletedAllocationListRoute() {
               scope, collection policy and exact identity.
             </p>
           </div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh history"}
-          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
+            label="Refresh"
+          />
         </div>
         <form className="allocation-history-filter" onSubmit={applyFilter}>
           <label>

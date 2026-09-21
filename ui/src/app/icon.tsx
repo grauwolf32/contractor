@@ -64,6 +64,7 @@ const shapes = {
   binding: (
     <path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" />
   ),
+  refresh: <path d="M20 12a8 8 0 1 1-2.35-5.65M20 4v5h-5" />,
 } satisfies Record<string, ReactNode>;
 
 export function Icon({ name }: { name: keyof typeof shapes }) {

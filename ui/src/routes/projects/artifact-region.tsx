@@ -36,6 +36,7 @@ import {
   PROJECT_ARTIFACT_SHORTCUTS,
   type ShortcutDefinition,
 } from "./shortcuts";
+import { RefreshButton } from "../../app/refresh-button";
 
 function projectSourceShortcut(): ShortcutDefinition {
   const shortcut = PROJECT_ARTIFACT_SHORTCUTS.find(
@@ -161,6 +162,7 @@ export const ProjectArtifactRegion = forwardRef<
       eyebrow="Reusable ProjectScope"
       title="Artifacts"
       id="project-artifacts"
+      compact={compact}
       action={
         <div className="button-row project-region-actions">
           <button
@@ -175,14 +177,11 @@ export const ProjectArtifactRegion = forwardRef<
           >
             {compact ? "Add artifact" : "Add sources"}
           </button>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
+            label="Refresh"
+          />
         </div>
       }
     >

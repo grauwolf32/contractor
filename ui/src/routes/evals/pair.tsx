@@ -9,6 +9,7 @@ import { EvalError, EvalFrame } from "./common";
 import { MemberExecutions, MemberSummary } from "./member";
 import { useEvalExperiment } from "./queries";
 import { EvalHumanReview } from "./review";
+import { RefreshButton } from "../../app/refresh-button";
 
 export function EvalPairRoute() {
   const { experimentId = "", pairId = "" } = useParams();
@@ -57,9 +58,11 @@ export function EvalPairRoute() {
             {pair.data.freshness} snapshot
             {pair.data.pair.regression ? " · Known quality regression" : ""}
           </p>
-          <button type="button" className="secondary-button" onClick={refresh}>
-            Refresh pair evidence
-          </button>
+          <RefreshButton
+            isFetching={pair.isFetching || experiment.isFetching}
+            onRefresh={refresh}
+            label="Refresh"
+          />
           <div className="eval-variants">
             {(
               [

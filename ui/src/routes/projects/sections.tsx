@@ -46,14 +46,6 @@ export function ProjectSectionRoute({
     case "audits":
       return (
         <section className="project-audits-section">
-          <div className="section-heading">
-            <div>
-              <h2>Audits</h2>
-              <p className="muted-copy">
-                Checks, evidence and review decisions for this project.
-              </p>
-            </div>
-          </div>
           <ProjectAuditWorkspace
             key={project.projectId}
             projectId={project.projectId}
@@ -64,9 +56,6 @@ export function ProjectSectionRoute({
     case "settings":
       return (
         <section className="project-settings-section">
-          <div className="section-heading">
-            <h2>Settings</h2>
-          </div>
           <section className="panel">
             <h3>Project details</h3>
             <ProjectMetadataEditor key={project.projectId} project={project} />

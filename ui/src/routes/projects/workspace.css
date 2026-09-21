@@ -1,30 +1,70 @@
 .project-section-layout > .route-header-row {
   align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.project-section-layout > .route-header-row .back-link {
+  margin-bottom: 0.4rem;
 }
 
 .project-section-layout > .route-header-row h2 {
   font-size: clamp(1.45rem, 2.5vw, 2.1rem);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.25rem;
   overflow-wrap: anywhere;
 }
 
 .project-section-layout > .route-header-row .lede {
   display: -webkit-box;
   overflow: hidden;
-  -webkit-line-clamp: 2;
+  margin-top: 0;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   font-size: 0.85rem;
 }
 
-.project-section-navigation.section-navigation {
+/* Tab bar row: section tabs on the left, the section's slim toolbar on the right. */
+.project-section-bar {
   position: sticky;
   top: 0.7rem;
   z-index: 4;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.project-section-navigation.section-navigation {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.3rem;
-  margin: 1.5rem 0;
+  margin: 0;
   padding: 0.3rem;
+}
+
+.project-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-height: calc(var(--control-height) + 0.6rem);
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  padding: 0.3rem;
+  backdrop-filter: blur(0.8rem);
+}
+
+.project-section-actions:empty {
+  display: none;
+}
+
+.project-section-actions > :is(a, span) {
+  padding-inline: 0.5rem;
+  font-size: 0.8rem;
 }
 
 .project-section-picker select,
@@ -359,6 +399,21 @@
 @media (max-width: 760px) {
   .project-section-navigation.section-navigation {
     display: none;
+  }
+
+  .project-section-bar {
+    position: static;
+    margin: 0.75rem 0 0;
+  }
+
+  .project-section-actions {
+    width: 100%;
+    justify-content: flex-start;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    backdrop-filter: none;
+    min-height: 0;
   }
 
   .project-section-picker {

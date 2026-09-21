@@ -35,6 +35,8 @@ import { describeStopReason } from "./stop-reason";
 import { StateBadge } from "../../runs/components";
 
 import "./styles.css";
+import { RefreshButton } from "../../../app/refresh-button";
+import { ProjectSectionActions } from "../navigation";
 
 const INITIAL_CURSOR = null;
 
@@ -527,25 +529,20 @@ export function ProjectAuditWorkspace({
   });
   return (
     <div className="audit-page audit-collection">
-      <div className="section-heading audit-collection-actions">
-        <div className="button-row">
-          <button
-            className="secondary-button"
-            disabled={audits.isFetching}
-            onClick={() => void audits.refetch()}
-          >
-            {audits.isFetching ? "Refreshing…" : "Refresh audits"}
-          </button>
-          <button
-            type="button"
-            aria-expanded={showCreate}
-            aria-controls="audit-create-form"
-            onClick={() => setShowCreate((value) => !value)}
-          >
-            {showCreate ? "Close new audit" : "New Audit"}
-          </button>
-        </div>
-      </div>
+      <ProjectSectionActions>
+        <RefreshButton
+          isFetching={audits.isFetching}
+          onRefresh={() => void audits.refetch()}
+        />
+        <button
+          type="button"
+          aria-expanded={showCreate}
+          aria-controls="audit-create-form"
+          onClick={() => setShowCreate((value) => !value)}
+        >
+          {showCreate ? "Close new audit" : "New Audit"}
+        </button>
+      </ProjectSectionActions>
       {showCreate ? (
         <div id="audit-create-form">
           <AuditCreateForm projectId={projectId} />

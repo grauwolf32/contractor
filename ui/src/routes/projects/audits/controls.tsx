@@ -9,6 +9,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
+import { ActionMenu } from "../../../app/action-menu";
 import { Dialog } from "../../../app/dialog";
 import { Icon } from "../../../app/icon";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
@@ -176,10 +177,13 @@ export function AuditControls({
   audit,
   projectName,
   compact = false,
+  menu = false,
 }: {
   audit: Audit;
   projectName: string | undefined;
   compact?: boolean;
+  /** Header layout: Delete lives in an overflow menu next to the controls. */
+  menu?: boolean;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -299,8 +303,75 @@ export function AuditControls({
   ) {
     buttons.push({ action: "delete", label: "Delete Audit", dangerous: true });
   }
+  function renderButton(button: (typeof buttons)[number], inMenu = false) {
+    return (
+      <button
+        key={button.action}
+        className={
+          button.action === "delete"
+            ? inMenu
+              ? "danger-button"
+              : "danger-button delete-icon-button"
+            : button.dangerous
+              ? `danger-button ${compact ? "icon-button" : ""}`
+              : (button.action === "start" || button.action === "resume") &&
+                  !compact
+                ? "primary-button"
+                : "secondary-button icon-button"
+        }
+        type="button"
+        aria-label={inMenu ? undefined : button.label}
+        title={
+          button.action === "pause"
+            ? "Pause new Audit Runs; running work can finish"
+            : button.label
+        }
+        aria-haspopup={button.action === "pause" ? undefined : "dialog"}
+        disabled={mutation.isPending}
+        onClick={() => {
+          if (button.dangerous) {
+            mutation.reset();
+            setConfirmation(button.action as DestructiveAuditAction);
+          } else if (button.action === "start" || button.action === "resume") {
+            mutation.reset();
+            setTimeAction(button.action);
+          } else {
+            mutation.mutate({ action: button.action });
+          }
+        }}
+      >
+        {button.action === "delete" ? (
+          <>
+            <DeleteIcon />
+            {inMenu ? <span>{button.label}</span> : null}
+          </>
+        ) : button.action === "pause" ? (
+          <Icon name="pause" />
+        ) : button.action === "start" || button.action === "resume" ? (
+          <>
+            <Icon name="play" />
+            {compact ? null : <span>{button.label}</span>}
+          </>
+        ) : compact ? (
+          <Icon name="stop" />
+        ) : (
+          button.label
+        )}
+      </button>
+    );
+  }
+  const deleteButton = buttons.find((button) => button.action === "delete");
+  const deleteHint =
+    audit.state === "deleting"
+      ? "Deleting audit and retained results…"
+      : audit.state === "cancelling"
+        ? "Waiting for cancellation to finish."
+        : "Cancel or finish the audit before deleting it.";
   return (
-    <div className="audit-controls" id={compact ? undefined : "audit-controls"}>
+    <div
+      className={`audit-controls ${menu ? "audit-header-actions" : ""}`.trim()}
+      id={compact ? undefined : "audit-controls"}
+    >
       {!compact &&
       audit.state === "paused" &&
       audit.stopReason?.code === "deadline_exhausted" ? (
@@ -309,60 +380,25 @@ export function AuditControls({
           collected results are retained.
         </p>
       ) : null}
-      {buttons.map((button) => (
-        <button
-          key={button.action}
-          className={
-            button.action === "delete"
-              ? "danger-button delete-icon-button"
-              : button.dangerous
-                ? `danger-button ${compact ? "icon-button" : ""}`
-                : (button.action === "start" || button.action === "resume") &&
-                    !compact
-                  ? "primary-button"
-                  : "secondary-button icon-button"
-          }
-          type="button"
-          aria-label={button.label}
-          title={
-            button.action === "pause"
-              ? "Pause new Audit Runs; running work can finish"
-              : button.label
-          }
-          aria-haspopup={button.action === "pause" ? undefined : "dialog"}
-          disabled={mutation.isPending}
-          onClick={() => {
-            if (button.dangerous) {
-              mutation.reset();
-              setConfirmation(button.action as DestructiveAuditAction);
-            } else if (
-              button.action === "start" ||
-              button.action === "resume"
-            ) {
-              mutation.reset();
-              setTimeAction(button.action);
-            } else {
-              mutation.mutate({ action: button.action });
-            }
-          }}
-        >
-          {button.action === "delete" ? (
-            <DeleteIcon />
-          ) : button.action === "pause" ? (
-            <Icon name="pause" />
-          ) : button.action === "start" || button.action === "resume" ? (
+      {buttons
+        .filter((button) => !(menu && button.action === "delete"))
+        .map((button) => renderButton(button))}
+      {menu ? (
+        <ActionMenu label="Audit actions">
+          {deleteButton === undefined ? (
             <>
-              <Icon name="play" />
-              {compact ? null : <span>{button.label}</span>}
+              <button className="danger-button" type="button" disabled>
+                <DeleteIcon />
+                <span>Delete Audit</span>
+              </button>
+              <small>{deleteHint}</small>
             </>
-          ) : compact ? (
-            <Icon name="stop" />
           ) : (
-            button.label
+            renderButton(deleteButton, true)
           )}
-        </button>
-      ))}
-      {!auditActionAllowed(audit, "delete") ? (
+        </ActionMenu>
+      ) : null}
+      {!menu && !auditActionAllowed(audit, "delete") ? (
         <div className="audit-delete-hint">
           <button
             className="danger-button delete-icon-button"
@@ -373,15 +409,7 @@ export function AuditControls({
           >
             <DeleteIcon />
           </button>
-          {compact ? null : (
-            <small>
-              {audit.state === "deleting"
-                ? "Deleting audit and retained results…"
-                : audit.state === "cancelling"
-                  ? "Waiting for cancellation to finish."
-                  : "Cancel or finish the audit before deleting it."}
-            </small>
-          )}
+          {compact ? null : <small>{deleteHint}</small>}
         </div>
       ) : null}
       {confirmation === undefined &&

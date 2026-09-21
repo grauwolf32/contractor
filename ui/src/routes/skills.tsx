@@ -15,6 +15,7 @@ import { SkillUploadDialog } from "./skill-upload-dialog";
 import { SkillDescription } from "./skill-description";
 
 import "./skills.css";
+import { RefreshButton } from "../app/refresh-button";
 
 const SKILL_NAMESPACE = "skills";
 
@@ -48,14 +49,11 @@ export function SkillsRoute() {
           <button type="button" onClick={() => setUploadOpen(true)}>
             Upload Skills
           </button>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {query.isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+          <RefreshButton
+            isFetching={query.isFetching}
+            onRefresh={() => void query.refetch()}
+            label="Refresh"
+          />
         </div>
       </header>
 

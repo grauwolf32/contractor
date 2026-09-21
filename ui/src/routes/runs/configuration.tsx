@@ -8,6 +8,7 @@ import { queryKeys } from "../../api/query-keys";
 import { useSession } from "../../auth/session";
 import { useRunEvents } from "../../events/context";
 import { ErrorNotice } from "../artifacts/common";
+import { RefreshButton } from "../../app/refresh-button";
 
 export function RunConfigurationLayout() {
   const api = usePublicAPI();
@@ -64,16 +65,14 @@ export function RunConfigurationLayout() {
     <>
       <div className="section-heading">
         <h3>Runtime configuration</h3>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => {
+        <RefreshButton
+          isFetching={snapshot.isFetching}
+          onRefresh={() => {
             refresh();
             void snapshot.refetch();
           }}
-        >
-          Refresh configuration
-        </button>
+          label="Refresh"
+        />
       </div>
       {snapshot.error === null ? null : <ErrorNotice error={snapshot.error} />}
       {liveError === undefined ? null : (
