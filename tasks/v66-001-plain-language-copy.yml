@@ -1,0 +1,53 @@
+schema_version: '1.0'
+id: V66-001
+title: Replace internal-model vocabulary and explanatory copy with plain labels
+milestone: ui-design-review-2
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Replace internal-model vocabulary and explanatory copy with plain labels.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E01
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Rewrite section eyebrows, ledes and inline notices that expose internal terms (immutable, typed, authoritative,
+    exact, frozen, scope names) with plain user-facing wording across ui/src/routes.
+  - Move long explanatory paragraphs into short hints or tooltips; keep at most one lede sentence per
+    section.
+  - Keep entity names (Run, Workflow, Audit, Artifact, Runtime Agent) and existing test ids; update tests
+    that assert changed copy.
+  out:
+  - Changes to API contracts, data or execution semantics.
+  - Renaming routes or URL parameters.
+acceptance_criteria:
+- id: A1
+  text: Rewrite section eyebrows, ledes and inline notices that expose internal terms (immutable, typed,
+    authoritative, exact, frozen, scope names) with plain user-facing wording across ui/src/routes.
+- id: A2
+  text: Move long explanatory paragraphs into short hints or tooltips; keep at most one lede sentence
+    per section.
+- id: A3
+  text: Keep entity names (Run, Workflow, Audit, Artifact, Runtime Agent) and existing test ids; update
+    tests that assert changed copy.
+tests:
+- command: cd ui && corepack pnpm test --run
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

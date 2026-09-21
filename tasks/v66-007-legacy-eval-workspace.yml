@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V66-007
+title: Simplify legacy evaluation workspaces
+milestone: ui-design-review-2
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Simplify legacy evaluation workspaces.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E07
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Reduce the legacy eval workspace view to execution history and artifacts; remove duplicated artifact
+    shortcuts and workflow launch blocks that belong to projects.
+  - Keep the link from Experiments to legacy workspaces and existing eval label filters.
+  out:
+  - The experiments system (V38, V41).
+acceptance_criteria:
+- id: A1
+  text: Reduce the legacy eval workspace view to execution history and artifacts; remove duplicated artifact
+    shortcuts and workflow launch blocks that belong to projects.
+- id: A2
+  text: Keep the link from Experiments to legacy workspaces and existing eval label filters.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/projects src/routes/evals
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

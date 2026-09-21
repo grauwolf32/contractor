@@ -1,0 +1,50 @@
+schema_version: '1.0'
+id: V66-010
+title: Relative dates, scaled Markdown headings and smaller main bundle
+milestone: ui-design-review-2
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Relative dates, scaled Markdown headings and smaller main bundle.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E10
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Use RecordedTime (relative with exact tooltip) for list and card timestamps; keep absolute timestamps
+    in detail metadata.
+  - Scale headings inside the shared Markdown preview so document headings never exceed the page heading.
+  - Split react-markdown and remark-gfm out of the main chunk via lazy routes; record chunk sizes before
+    and after.
+  out:
+  - Changing the LikeC4 or Scalar previews.
+acceptance_criteria:
+- id: A1
+  text: Use RecordedTime (relative with exact tooltip) for list and card timestamps; keep absolute timestamps
+    in detail metadata.
+- id: A2
+  text: Scale headings inside the shared Markdown preview so document headings never exceed the page heading.
+- id: A3
+  text: Split react-markdown and remark-gfm out of the main chunk via lazy routes; record chunk sizes
+    before and after.
+tests:
+- command: cd ui && corepack pnpm test --run && corepack pnpm build
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

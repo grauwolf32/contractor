@@ -1,0 +1,48 @@
+schema_version: '1.0'
+id: V66-008
+title: Bound audit collection loading and stop polling terminal audits
+milestone: ui-design-review-2
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Bound audit collection loading and stop polling terminal audits.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E08
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Replace collectAuditPages drains with cursor pagination or an explicit page cap with a load-more control
+    in Findings, Coverage, Checks and Reviews.
+  - Disable interval polling for audits in terminal states; keep polling for active audits.
+  - Add tests for the cap and for polling being off on completed audits.
+  out:
+  - Server-side pagination changes.
+acceptance_criteria:
+- id: A1
+  text: Replace collectAuditPages drains with cursor pagination or an explicit page cap with a load-more
+    control in Findings, Coverage, Checks and Reviews.
+- id: A2
+  text: Disable interval polling for audits in terminal states; keep polling for active audits.
+- id: A3
+  text: Add tests for the cap and for polling being off on completed audits.
+tests:
+- command: cd ui && corepack pnpm test --run src/api src/routes/projects/audits
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

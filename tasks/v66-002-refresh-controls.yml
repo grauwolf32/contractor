@@ -1,0 +1,50 @@
+schema_version: '1.0'
+id: V66-002
+title: Demote manual refresh controls where data refreshes itself
+milestone: ui-design-review-2
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Demote manual refresh controls where data refreshes itself.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E02
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Replace page-level primary Refresh buttons with one secondary icon control in the page header, or
+    remove them where live events and query refetch already keep the view current.
+  - Keep explicit refresh only for views without live updates (Performance, configuration catalogs) and
+    label it uniformly.
+  - Preserve refetch behaviour and tests that rely on a refresh action by keeping an accessible name.
+  out:
+  - Changing polling intervals or live-event transport (V66-008 owns polling).
+acceptance_criteria:
+- id: A1
+  text: Replace page-level primary Refresh buttons with one secondary icon control in the page header,
+    or remove them where live events and query refetch already keep the view current.
+- id: A2
+  text: Keep explicit refresh only for views without live updates (Performance, configuration catalogs)
+    and label it uniformly.
+- id: A3
+  text: Preserve refetch behaviour and tests that rely on a refresh action by keeping an accessible name.
+tests:
+- command: cd ui && corepack pnpm test --run
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

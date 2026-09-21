@@ -1,0 +1,46 @@
+schema_version: '1.0'
+id: V66-009
+title: Use one pattern for create flows
+milestone: ui-design-review-2
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Use one pattern for create flows.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E09
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Open New Project, New Audit and artifact upload in the shared dialog instead of inline toggles or
+    details accordions; keep Configure Run as a page.
+  - Show required fields first and optional settings behind a single disclosure in publish and credential
+    forms.
+  out:
+  - Form validation rules and draft persistence semantics.
+acceptance_criteria:
+- id: A1
+  text: Open New Project, New Audit and artifact upload in the shared dialog instead of inline toggles
+    or details accordions; keep Configure Run as a page.
+- id: A2
+  text: Show required fields first and optional settings behind a single disclosure in publish and credential
+    forms.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/projects src/routes/artifacts src/routes/operations
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

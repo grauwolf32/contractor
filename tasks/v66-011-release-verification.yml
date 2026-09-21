@@ -1,0 +1,63 @@
+schema_version: '1.0'
+id: V66-011
+title: Verify and release the second design review implementation
+milestone: ui-design-review-2
+priority: P1
+status: pending
+implementation_commit: null
+depends_on:
+- V66-001
+- V66-002
+- V66-003
+- V66-004
+- V66-005
+- V66-006
+- V66-007
+- V66-008
+- V66-009
+- V66-010
+languages:
+- typescript
+- css
+- markdown
+goal: Verify and release the second design review implementation.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E01
+  - E02
+  - E03
+  - E04
+  - E05
+  - E06
+  - E07
+  - E08
+  - E09
+  - E10
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Run ui-verify, the browser journeys affected by V66-001–010 and the screenshot capture on the demo
+    stand; compare page heights and error counts with the 2026-09-21 baseline.
+  - Bump the UI version, deploy the release to the demo stand and record evidence in tasks/evidence/v66-011.json.
+  out:
+  - New features outside V66.
+acceptance_criteria:
+- id: A1
+  text: Run ui-verify, the browser journeys affected by V66-001–010 and the screenshot capture on the
+    demo stand; compare page heights and error counts with the 2026-09-21 baseline.
+- id: A2
+  text: Bump the UI version, deploy the release to the demo stand and record evidence in tasks/evidence/v66-011.json.
+tests:
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V66-004
+title: Fold audit Checks into Coverage rows
+milestone: ui-design-review-2
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Fold audit Checks into Coverage rows.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E04
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Show attempts, artifacts and exact identity of each check inside the opened Coverage row; remove the
+    separate Checks tab and redirect its route to Coverage.
+  - Keep the Coverage summary tiles, search and per-row disclosure from V66 baseline.
+  out:
+  - Changing audit APIs.
+acceptance_criteria:
+- id: A1
+  text: Show attempts, artifacts and exact identity of each check inside the opened Coverage row; remove
+    the separate Checks tab and redirect its route to Coverage.
+- id: A2
+  text: Keep the Coverage summary tiles, search and per-row disclosure from V66 baseline.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/projects/audits
+  covers:
+  - A1
+  - A2
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

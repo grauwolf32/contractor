@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V66-003
+title: Compact project and audit headers and move delete into the overflow menu
+milestone: ui-design-review-2
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages:
+- typescript
+- css
+- markdown
+goal: Compact project and audit headers and move delete into the overflow menu.
+context:
+  authority: User approved the 2026-09-22 follow-up design review and asked to record and start the task
+    list.
+  design: docs/plans/2026-09-22-ui-design-review-2.md
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  finding_ids:
+  - E03
+  baseline: .local audit capture of 2026-09-21 (92 states at 1440 and 25 at 390) and the deployed demo
+    stand at UI 0.5.3.
+scope:
+  in:
+  - Reduce the project workspace header to title, one-line description and tabs; drop the repeated section
+    heading and lede beneath the tabs.
+  - Reduce the audit header to title, state, revision and tabs; place Copy Audit ID, Delete and dates
+    inside the existing overflow menu or a compact meta line.
+  - First content must start within 240 px at 1440 px width and within one viewport at 390 px; record
+    before/after heights.
+  out:
+  - Changing tab sets or routes.
+acceptance_criteria:
+- id: A1
+  text: Reduce the project workspace header to title, one-line description and tabs; drop the repeated
+    section heading and lede beneath the tabs.
+- id: A2
+  text: Reduce the audit header to title, state, revision and tabs; place Copy Audit ID, Delete and dates
+    inside the existing overflow menu or a compact meta line.
+- id: A3
+  text: First content must start within 240 px at 1440 px width and within one viewport at 390 px; record
+    before/after heights.
+tests:
+- command: cd ui && corepack pnpm test --run src/routes/projects
+  covers:
+  - A1
+  - A2
+  - A3
+verification_requirements:
+- Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
+  populated demo data.
+- Record before/after evidence in the task file under verification.

@@ -322,6 +322,13 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: ui-design-review-2
+    exit_task: V66-011
+    outcome: >-
+      Plain-language copy, compact headers, demoted refresh controls, merged
+      audit coverage, one configuration hub, named Runtime Agents, bounded audit
+      collections and one create-flow pattern, verified and released to the
+      demo stand.
   - id: run-admission-gateway-recovery
     exit_task: V65-003
     outcome: >-
@@ -1092,6 +1099,21 @@ ui_usability_planning:
     - V32-006 owns Performance UI and is not duplicated or required by the Operations layout task.
     - V38-001 owns the selected Evals design; V38-002 through V38-010 implement it as a separate milestone.
     - New Catalog, repeat-draft or Audit projections remain bounded and Server-authoritative.
+
+ui_design_review_2_planning:
+  planned_on: "2026-09-22"
+  status: in_progress
+  review: docs/research/2026-09-22-ui-design-review-2.md
+  plan: docs/plans/2026-09-22-ui-design-review-2.md
+  delivery_order:
+    - {wave: 1, tasks: [V66-003, V66-002, V66-001]}
+    - {wave: 2, tasks: [V66-008, V66-004, V66-006]}
+    - {wave: 3, tasks: [V66-005, V66-007, V66-009, V66-010]}
+    - {wave: verification, tasks: [V66-011]}
+  boundaries:
+    - Legacy Runs referencing removed Workflow versions are excluded; old data is deleted or hidden by the user.
+    - V58 remains the record of the first design review; V66 does not reopen its findings except the D21, D22 and D31 carry-overs named in E05, E09 and E06.
+    - No API or execution contract changes; UI-only work with focused tests and browser checks.
 
 performance_metrics_planning:
   specification: docs/spec/22-performance-metrics-and-profiling.md
@@ -3031,3 +3053,14 @@ tasks:
   - {id: V65-001, file: v65-001-gateway-error-classification.yml}
   - {id: V65-002, file: v65-002-run-admission-and-gateway-recovery.yml}
   - {id: V65-003, file: v65-003-run-recovery-ui-and-process-gate.yml}
+  - {id: V66-001, file: v66-001-plain-language-copy.yml}
+  - {id: V66-002, file: v66-002-refresh-controls.yml}
+  - {id: V66-003, file: v66-003-compact-headers.yml}
+  - {id: V66-004, file: v66-004-coverage-checks-merge.yml}
+  - {id: V66-005, file: v66-005-configuration-hub.yml}
+  - {id: V66-006, file: v66-006-runtime-agent-identity.yml}
+  - {id: V66-007, file: v66-007-legacy-eval-workspace.yml}
+  - {id: V66-008, file: v66-008-bounded-audit-collections.yml}
+  - {id: V66-009, file: v66-009-one-form-pattern.yml}
+  - {id: V66-010, file: v66-010-dates-markdown-bundle.yml}
+  - {id: V66-011, file: v66-011-release-verification.yml}
