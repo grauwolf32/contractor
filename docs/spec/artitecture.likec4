@@ -1,10 +1,11 @@
-// Architecture for docs/spec/00–27, reconciled on 2026-09-08.
-// Incorporates V50-001 as completed: one contractor/v1alpha1 private contract.
-// Podman V31, Performance V32, Git V35 and findings V43 are implemented.
-// V39 completion is implemented through 006; its 007 release gate remains.
-// V41 portable evals are offline-verified; V38 UI and V40 quality work remain.
-// V47 summarizer/error rules and V49 operational budgets are implemented.
-// Task files retain delivery evidence; #planned marks actual deferred components.
+// Architecture for docs/spec/00–34 and openapi-audit-scans, reconciled on 2026-09-22.
+// One contractor/v1alpha1 private contract (V50-001). Implemented: Podman (21),
+// performance (22), Git (24), completion (25), findings (27), tool Workers (29),
+// managed Evals (30), scan preparation/planning (31/32), OpenAPI scan adapter,
+// model-gateway recovery (04) and trusted-proxy login attribution (06).
+// #planned marks components whose owning spec is a draft: SARIF export (28),
+// pentest Audits (33) and the Audit prioritization capability (34; pure core
+// exists). Task files retain delivery evidence; README rows own status text.
 specification {
   element actor {
     style {
@@ -72,7 +73,7 @@ model {
     #external
   }
 
-  evaluationHarness = system 'playground-v2 Portable Evaluator — external client, offline-verified V41' {
+  evaluationHarness = system 'playground-v2 Portable Evaluator — optional external producer; drives external-controlMode experiments through the Managed Evals API' {
     #external #optional
 
     planner = component 'Experiment Planner — validate portable definitions, resolve pins, freeze membership' {
@@ -183,7 +184,7 @@ model {
       #contractor
     }
 
-    auditState = storage 'Audits / immutable Rounds + Items / Executions + ExecutionItems / intents / receipts / holds / revisions + events' {
+    auditState = storage 'Audits / immutable Rounds + Items / Executions + ExecutionItems / scan task journals / intents / receipts / holds / revisions + events' {
       #contractor
     }
 
@@ -232,6 +233,14 @@ model {
     }
 
     gitSources = storage 'Artifact version Git provenance — repository / requested ref / exact commit / import time' {
+      #contractor
+    }
+
+    evalState = storage 'Eval datasets / revisions / experiments / durable claims / submissions / assessments / selections' {
+      #contractor
+    }
+
+    gatewayRecoveryState = storage 'Model gateway recovery gates / leased probes / idempotent failure reports on the database clock' {
       #contractor
     }
   }
@@ -297,6 +306,10 @@ model {
       eventApi = component 'Read-only WebSocket Event API' {
         #contractor
       }
+
+      evalApi = component 'Managed Evals API — capabilities, datasets, native/external experiments, commands, submissions, assessments, selections, pairs, charts, reports' {
+        #contractor
+      }
     }
 
     identityConfiguration = component 'Identity and Configuration — immutable execution inputs and secret boundaries' {
@@ -310,7 +323,7 @@ model {
         #contractor
       }
 
-      authService = component 'In-memory Local Session + Principal Boundary' {
+      authService = component 'In-memory Local Session + Principal Boundary — login limiter attributes clients behind listed trusted proxies via X-Forwarded-For' {
         #contractor
       }
 
@@ -320,6 +333,10 @@ model {
 
       runtimeConfigService = component 'Default + Run/Agent Label Resolver / RuntimeAdapter Credential Boundary' {
         #contractor
+      }
+
+      localPki = component 'Local PKI CLI — pki init-ca / issue-control-plane / issue-agent; deployment-local mTLS material, not a certificate-management system' {
+        #contractor #optional
       }
     }
 
@@ -342,7 +359,7 @@ model {
         #contractor
       }
 
-      runService = component 'Trusted Run Service — ordinary creation + atomic pinned AuditExecution association' {
+      runService = component 'Trusted Run Service — ordinary creation, immutable Run metadata labels + atomic pinned AuditExecution association' {
         #contractor
       }
 
@@ -358,7 +375,7 @@ model {
         #contractor
       }
 
-      stagePlanner = component 'Stage-local Planner — Passthrough, Streamline or Router ADK' {
+      stagePlanner = component 'Stage-local ADK Planner — Passthrough, Streamline or Router' {
         #contractor
       }
 
@@ -380,6 +397,18 @@ model {
 
       plannerMemoryTools = component 'Planner MemoryTools — thin bound ArtifactStore wrapper / hidden CAS' {
         #contractor
+      }
+
+      scanPlanner = component 'scan-plan@1 Planner — model-free bounded Plan v1 over one RequestSet / target-list Artifact; fixed tool@1 Workers' {
+        #contractor
+      }
+
+      scanRequestPreparation = component 'Scan Request Preparation (internal/scanplan) — OpenAPI to RequestSet v1; no network, digest-recorded input, explicit coverage gaps' {
+        #contractor
+      }
+
+      priorityPlanner = component 'audit-priority@1 Planner — independent bounded model calls, strict verdict validation, durable evaluation journal' {
+        #contractor #planned
       }
     }
 
@@ -423,6 +452,18 @@ model {
       standardCatalog = component 'Audit Standard Catalog — exact licensed packages; Top 10 2025 / five-requirement ASVS 5.0.0 L1 pilot' {
         #contractor
       }
+
+      scanTaskBuilder = component 'openapi-scans@1 Inventory Builder — operation-assigned SQLMap requests / pinned Nuclei URLs; openapi-scan@1 task contract; journal-based recovery' {
+        #contractor
+      }
+
+      prioritySelector = component 'Audit Prioritization Core (internal/auditpriority) — verdict validation and reproducible selection; Audit capability not enabled' {
+        #contractor
+      }
+
+      pentestProgram = component 'Pentest Engagement Program — engagement baseline, enforced scope, hypotheses, deterministic admission and proof routing' {
+        #contractor #planned
+      }
     }
 
     workspaceLifecycle = component 'Workspace Lifecycle — Projects, owner Queue gate and destructive cleanup' {
@@ -448,7 +489,7 @@ model {
     artifactPlane = component 'Artifact Plane — scoped immutable history, controlled forks and lifecycle purge' {
       #contractor
 
-      artifactService = component 'ArtifactStore Service — UserScope / ProjectScope / RunScope' {
+      artifactService = component 'ArtifactStore Service — UserScope / ProjectScope / RunScope (RunArtifactSpace)' {
         #contractor
       }
 
@@ -478,6 +519,10 @@ model {
 
       findingCollectionPublisher = component 'Finding Collection Publisher — pinned receipts/reviews, exact evidence and ordinary ZIP artifacts' {
         #contractor
+      }
+
+      sarifExporter = component 'Finding Analysis + SARIF Export — frozen selection snapshot, exact-evidence resolution, deterministic SARIF 2.1.0 exporter' {
+        #contractor #planned
       }
     }
 
@@ -521,6 +566,26 @@ model {
       #contractor #optional
     }
 
+    managedEvals = component 'Managed Evals — native EvalStore, durable EvalCoordinator claims and a rebuildable read model' {
+      #contractor
+
+      evalStore = component 'EvalStore — dataset revisions, drafts, frozen plans, expected members and command receipts' {
+        #contractor
+      }
+
+      evalCoordinator = component 'EvalCoordinator — server-controlMode dispatch under durable claims; ordinary queue and concurrency gates' {
+        #contractor
+      }
+
+      evalSubmissionService = component 'Submission Service — replay-safe member submissions, verified Run/Audit association, external results' {
+        #contractor
+      }
+
+      evalReadModel = component 'Eval Read Model — selections, pairs, charts and safe reports over immutable records; complete denominators' {
+        #contractor
+      }
+    }
+
     runtimeOperations = component 'Runtime Fleet and Operations — placement, private control and telemetry' {
       #contractor
 
@@ -541,6 +606,10 @@ model {
       }
 
       telemetry = component 'Execution Report Collector / optional exporters' {
+        #contractor
+      }
+
+      gatewayRecovery = component 'Model Gateway Recovery — durable route gate per owner/gateway/model/credential/proxy; one leased probe; bounded automatic window; manual retry' {
         #contractor
       }
     }
@@ -729,7 +798,11 @@ model {
         #contractor
       }
 
-      workerRuntime = component 'In-process Worker Runtime — generic adk@1 configured by AgentTemplate' {
+      workerRuntime = component 'In-process ADK Worker Runtime — generic adk@1 configured by AgentTemplate' {
+        #contractor
+      }
+
+      toolRuntime = component 'Model-free tool@1 Runtime — one registered callable, tool-invocation receipt, no gateway or credential refs' {
         #contractor
       }
 
@@ -831,6 +904,14 @@ model {
 
       auditResultPublisher = component 'Audit Completion Publisher — sealed result set to deterministic ZIP and verified artifact receipt' {
         #contractor #optional
+      }
+
+      scanTools = component 'Selected scan@1 + local-workdir@1 — SQLMap / Nuclei processes over disposable scanner files; canonical report slot' {
+        #contractor #optional
+      }
+
+      pentestTools = component 'Selected pentest-engagement@1 / pentest-http@1 / pentest-proof@1 — enforced target adapter, isolated identities, trusted capture and replay' {
+        #contractor #planned
       }
 
       namespaceTools = component 'Explicitly selected Namespace-bound domain tools' {
@@ -939,6 +1020,7 @@ model {
   browser -> server.performanceMonitoring.performanceApi 'Operations Performance page; visible-only 15 s polling and bounded range changes'
   browser -> server.performanceMonitoring.allocationResources 'Completed-allocation history and Run-attempt resource projection, separate from live registry'
   browser -> server.productSurface.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
+  browser -> server.productSurface.evalApi 'Evals pages: datasets, experiments, member review, comparison charts and reports'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.productSurface.authApi 'Authenticate through the same local session contract when needed'
   apiClient -> server.productSurface.publicApi 'Manage Projects, Queue and Runs without the UI'
@@ -946,6 +1028,7 @@ model {
   apiClient -> server.productSurface.userArtifactApi 'Upload / read / list UserScope or ProjectScope artifacts'
   apiClient -> server.productSurface.gitKeyApi 'Authenticated owner key management; no private readback'
   apiClient -> server.productSurface.gitImportApi 'Bounded Git import with explicit create/CAS headers'
+  apiClient -> server.productSurface.evalApi 'Push datasets, author/start native experiments or drive external ones through the same public API'
 
   operator -> server.profilingListener 'Local pprof client or SSH tunnel; profiles streamed to client, never Operations or report storage'
   operator -> server.artifactPlane.blobCleanup 'Offline CLI: dry-run report; apply only with all writers stopped'
@@ -1031,7 +1114,7 @@ model {
   runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.findingReaderTools 'Construct list_findings only when selected independently of finding emission'
   runtimeAgent.allocationCapabilities.findingReaderTools -> runtimeAgent.allocationCapabilities.artifactClient 'Validate exact input collection; materialize evidence as ordinary current-Run refs'
 
-  // Portable evaluation remains an external API client, with private recovery state.
+  // Portable evaluation is an optional external producer; native Evals live in server.managedEvals.
   apiClient -> evaluationHarness.planner 'Explicit plan/run/resume/compare/publish commands with local environment bindings'
   evaluationHarness.planner -> evaluationHarness.bundle 'Freeze Case/Suite/Binding pins, variants and complete expected member set'
   evaluationHarness.planner -> evaluationHarness.executionAdapters 'Read-only preflight; fail missing required pins before execution'
@@ -1043,7 +1126,7 @@ model {
   evaluationHarness.assessment -> evaluationHarness.bundle 'Read exact Results and private expected data; write immutable scorer/oracle judgments'
   evaluationHarness.comparison -> evaluationHarness.bundle 'Compare full membership and pinned Assessments; failed/missing members and unknown costs stay visible'
   evaluationHarness.publisher -> evaluationHarness.bundle 'Select allowlisted safe projections; private recovery bundle remains local'
-  evaluationHarness.publisher -> server.productSurface.userArtifactApi 'Existing Project/Artifact publication; create-only replay plus CAS index, no new eval endpoint'
+  evaluationHarness.publisher -> server.productSurface.userArtifactApi 'Publish safe projections as ordinary Project artifacts; create-only replay plus CAS index'
 
   // Independent restart-only budgets preserve enclosing and stored deadlines.
   server.identityConfiguration.processSettings -> server.orchestration.workflowScheduler 'Scheduler operation/finalization/abort budgets; stored terminal deadlines survive retry/restart'
@@ -1060,6 +1143,55 @@ model {
   runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.otlpExporter 'Pin worker.telemetry.export settings; own sender, final flush, cancellation and close'
   runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.allocationCapabilities.otlpExporter 'Enqueue bounded spans without waiting for HTTP; overflow counts failure and wakes sender'
   server.identityConfiguration.runtimeConfigService -> runtimeAgent.allocationCapabilities.otlpExporter 'Resolved RuntimeSettings: default batch 8 MiB, 2 total attempts, 2048 spans/64 MiB queue, flush 10 s'
+
+  // Managed Evals (spec 30)
+  server.productSurface.evalApi -> server.identityConfiguration.authService 'Authenticate session; owner-scoped Project and experiment authority'
+  server.productSurface.evalApi -> server.managedEvals.evalStore 'Datasets, revisions, drafts, frozen plans and command receipts under CAS'
+  server.productSurface.evalApi -> server.managedEvals.evalSubmissionService 'Member submissions, external results and assessments bound to planSha256'
+  server.productSurface.evalApi -> server.managedEvals.evalReadModel 'Members, pairs, charts and safe JSON/Markdown reports from selected snapshots'
+  server.managedEvals.evalCoordinator -> server.managedEvals.evalStore 'Durable claims: prepare / start / pause / resume / cancel / finalize'
+  server.managedEvals.evalCoordinator -> server.orchestration.runService 'Dispatch frozen members as ordinary Runs under queue and global concurrency gates'
+  server.managedEvals.evalCoordinator -> server.auditCoordination.auditService 'Dispatch Audit-kind members; child execution is not accepted coverage'
+  server.managedEvals.evalSubmissionService -> server.workspaceLifecycle.runStore 'Verify exact Run association and observed status'
+  server.managedEvals.evalSubmissionService -> server.auditCoordination.auditStore 'Verify exact Audit association and execution inventory'
+  server.managedEvals.evalReadModel -> server.managedEvals.evalStore 'Rebuildable views over immutable records'
+  server.managedEvals.evalStore -> artifactDatabase.evalState 'Eval authority rows; multi-statement mutations in one transaction'
+  evaluationHarness.runner -> server.productSurface.evalApi 'External controlMode: registered safe manifest, member submissions, results and assessments'
+
+  // Deterministic scan preparation, planning and tool Workers (specs 29, 31, 32, OpenAPI Audit scans)
+  server.orchestration.plannerFactories -> server.orchestration.scanPlanner 'Construct scan-plan@1 when the Stage selects it; no Planner model configuration'
+  server.orchestration.scanPlanner -> server.orchestration.plannerArtifactInspector 'Validate the exact RequestSet v1 / target-list input Artifact'
+  server.orchestration.scanPlanner -> server.orchestration.workerInvokerTools 'Dispatch bounded jobs to fixed tool@1 scanner Workers with durable job intent'
+  server.orchestration.scanPlanner -> server.orchestration.plannerSessionService 'Persist immutable Plan v1 and job outcomes for conservative recovery'
+  server.auditCoordination.packageInventory -> server.auditCoordination.scanTaskBuilder 'inventory.implementation: openapi-scans@1 builds openapi-scan@1 tasks'
+  server.auditCoordination.scanTaskBuilder -> server.orchestration.scanRequestPreparation 'PrepareOperation / PrepareOperationTarget for one assigned operation'
+  server.auditCoordination.auditController -> server.auditCoordination.scanTaskBuilder 'Recover from the scanner journal selected by the retained auditTask declaration'
+  server.auditCoordination.resultImporter -> server.auditCoordination.scanTaskBuilder 'Canonical scan results and truthful coverage from trusted journals'
+  runtimeAgent.workerExecution.a2aServer -> runtimeAgent.workerExecution.toolRuntime 'Deliver one A2A Task to the model-free callable when AllocationSpec selects tool@1'
+  runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.allocationCapabilities.scanTools 'Run the single selected scanner callable with pinned template arguments'
+  runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.allocationCapabilities.artifactClient 'tool-invocation.<key> receipt with If-None-Match; terminal CAS update and exact report ref'
+  runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.workerExecution.completionGate 'Trusted complete / fail without a model'
+
+  // Model gateway recovery (spec 04)
+  server.orchestration.workflowScheduler -> server.runtimeOperations.gatewayRecovery 'Run waiting state; active invocations recover before queued work'
+  server.orchestration.stagePlanner -> server.runtimeOperations.gatewayRecovery 'Retry only the interrupted Planner model request with the same serialized input'
+  runtimeAgent.allocationCapabilities.modelClient -> server.runtimeOperations.gatewayRecovery 'Private gateway-recovery route: classified failure reports and reopen decisions'
+  server.runtimeOperations.gatewayRecovery -> artifactDatabase.gatewayRecoveryState 'Route gates, probe leases and route deadlines on the database clock'
+  server.runtimeOperations.gatewayRecovery -> llmGateway 'One leased probe per blocked route; stale successes cannot reopen it'
+  server.productSurface.publicApi -> server.runtimeOperations.gatewayRecovery 'POST /v1/runs/{runId}/retry-gateway reopens the bounded window; RunStatus.recovery'
+
+  // Deployment-local PKI (internal/localpki)
+  operator -> server.identityConfiguration.localPki 'Offline CLI: init-ca, issue-control-plane, issue-agent'
+  server.identityConfiguration.localPki -> server.runtimeOperations.controlPlane 'Control Plane certificate and key files'
+  server.identityConfiguration.localPki -> runtimeAgent.agentControl 'Per-agent certificate and key files'
+
+  // Draft specs 28, 33, 34 — specified, not available product functionality
+  server.auditCoordination.auditController -> server.auditCoordination.prioritySelector 'Reproducible ordering and selection from complete validated verdicts' #planned
+  server.orchestration.priorityPlanner -> server.auditCoordination.prioritySelector 'Strict verdicts from independent bounded model calls' #planned
+  server.auditCoordination.pentestProgram -> runtimeAgent.allocationCapabilities.pentestTools 'Engagement projection, exact credential holds and proof registration' #planned
+  server.auditCoordination.pentestProgram -> server.auditCoordination.findingIntake 'Machine-assessed findings through the existing intake; no second finding store' #planned
+  server.artifactPlane.sarifExporter -> server.auditCoordination.findingIntake 'Freeze explicit selection, review revisions and exact evidence' #planned
+  server.artifactPlane.sarifExporter -> server.artifactPlane.artifactService 'Publish SARIF and diagnostics artifacts' #planned
 }
 // Focused views select model relationships and shorten their display titles.
 // Existing navigation IDs are preserved. Dashed #planned components describe
@@ -1085,7 +1217,7 @@ views {
     }
     include server with {
       title 'Contractor Server'
-      navigateTo serverOverview
+      navigateTo platformOverview
     }
     include apiClient with {
       title 'API Client'
@@ -1096,12 +1228,14 @@ views {
     }
     include artifactDatabase with {
       title 'PostgreSQL'
+      navigateTo durableState
     }
     include blobBackend with {
       title 'Filesystem Blobs (optional)'
     }
     include llmGateway with {
       title 'LLM Gateway'
+      navigateTo modelRecovery
     }
     include llmProvider with {
       title 'Model Provider'
@@ -1145,11 +1279,19 @@ views {
 
   view platformOverview {
     title '02 / Platform Responsibilities'
-    description 'Server domains collaborate with a collapsed Runtime. Explore each domain for implementation details.'
+    description 'Server domains collaborate with a collapsed Runtime. Explore each domain for implementation details; the Server container opens the full subsystem view.'
 
+    include server with {
+      title 'Contractor Server'
+      navigateTo serverOverview
+    }
     include server.productSurface with {
       title 'Product APIs'
       navigateTo productSurface
+    }
+    include server.managedEvals with {
+      title 'Managed Evals'
+      navigateTo managedEvals
     }
     include server.identityConfiguration with {
       title 'Identity & Configuration'
@@ -1198,6 +1340,12 @@ views {
     }
     include server.productSurface -> server.auditCoordination with {
       title 'Audits / profiles / review'
+    }
+    include server.productSurface -> server.managedEvals with {
+      title 'Datasets / experiments / assessments'
+    }
+    include server.managedEvals -> server.orchestration with {
+      title 'Ordinary member Runs'
     }
     include server.auditCoordination -> server.orchestration with {
       title 'Pinned ordinary child Runs'
@@ -1387,17 +1535,19 @@ views {
   }
 
   view productSurface {
-    title 'Surface / Browser and API'
+    title '05 / Surface / Browser and API'
     description 'The browser calls Go APIs directly. Node serves the SPA bundle only. Operations and events have separate views.'
 
     include browser with {
       title 'User Browser'
+      navigateTo productEvents
     }
     include webUi with {
       title 'Web UI'
     }
     include server.productSurface.authApi with {
       title 'Login & Session API'
+      navigateTo inboundTrust
     }
     include apiClient with {
       title 'API Client'
@@ -1502,7 +1652,7 @@ views {
   }
 
   view productEvents {
-    title 'Surface / Read-only Events'
+    title '06 / Surface / Read-only Events'
     description 'Run events and redacted Planner facts are replayable. Operations settings invalidations are refetch hints; Audit projections use separate bounded polling.'
 
     include browser with {
@@ -1554,7 +1704,7 @@ views {
   }
 
   view workspaceLifecycle {
-    title 'Lifecycle / Projects, Queue and Cleanup'
+    title '07 / Lifecycle / Projects, Queue and Cleanup'
     description 'Owner pause gates normal Stage admission. Project deletion first drains Audits; Audit child Run deletion requires terminal release and a collection receipt.'
 
     include server.productSurface.publicApi with {
@@ -1577,6 +1727,7 @@ views {
     }
     include server.artifactPlane.artifactPurger with {
       title 'Scope Purger'
+      navigateTo artifactCleanup
     }
     include server.auditCoordination.auditService with {
       title 'Audit Lifecycle'
@@ -1633,7 +1784,7 @@ views {
   }
 
   view stageExecution {
-    title 'Execution / Stage Preparation'
+    title '08 / Execution / Stage Preparation'
     description 'Create ordinary Runs through the shared service, then serialize Stage admission and prepare allocations. Global lane limits have a dedicated view.'
 
     include server.productSurface.publicApi with {
@@ -1672,9 +1823,11 @@ views {
     }
     include server.orchestration.plannerFactories with {
       title 'Planner Factories'
+      navigateTo scanPlanning
     }
     include server.orchestration.stagePlanner with {
       title 'Stage Planner'
+      navigateTo plannerAndA2A
     }
 
     // Show only the relationships relevant to this view.
@@ -1724,7 +1877,7 @@ views {
   }
 
   view plannerAndA2A {
-    title 'Execution / Planner and Worker'
+    title '09 / Execution / Planner and Worker'
     description 'Planner owns Stage-local subtasks; Runtime owns Worker completion. Scheduler alone accepts the StageResult; Audit coordination stays outside this boundary.'
 
     include server.orchestration.plannerFactories with {
@@ -1732,6 +1885,7 @@ views {
     }
     include server.orchestration.stagePlanner with {
       title 'Stage Planner'
+      navigateTo plannerArtifacts
     }
     include server.orchestration.workerInvokerTools with {
       title 'Current-Subtask Invoker'
@@ -1799,7 +1953,7 @@ views {
   }
 
   view plannerArtifacts {
-    title 'Execution / Planner Artifacts and Memory'
+    title '10 / Execution / Planner Artifacts and Memory'
     description 'Planner access is bound to the current Stage and exact RunScope. Memory tools hide Artifact revisions.'
 
     include server.orchestration.workflowScheduler with {
@@ -1853,7 +2007,7 @@ views {
   }
 
   view runtimeLifecycle {
-    title 'Runtime / Allocation Lifecycle'
+    title '11 / Runtime / Allocation Lifecycle'
     description 'Exclusive ownership, resource preparation and teardown. Session internals and capabilities have dedicated views.'
 
     include server.runtimeOperations.controlPlane with {
@@ -1873,6 +2027,7 @@ views {
     }
     include runtimeAgent.workerExecution.workerSessionLifecycle with {
       title 'Worker Session Lifecycle'
+      navigateTo workerSessions
     }
     include runtimeAgent.workerExecution.workerState with {
       title 'Canonical Worker State'
@@ -1885,6 +2040,7 @@ views {
     }
     include runtimeAgent.allocationCapabilities.adapterHost with {
       title 'Allocation Adapter Host'
+      navigateTo runtimeAdapters
     }
 
     // Show only the relationships relevant to this view.
@@ -1922,7 +2078,7 @@ views {
   }
 
   view workerSessions {
-    title 'Runtime / Sessions and Result Paths'
+    title '12 / Runtime / Sessions and Result Paths'
     description 'Stage mode applies to the main session. Ordinary completion uses an isolated serializer; optional summarization uses pinned instructions and its own policy. Trusted Audit completion branches before terminal State and publishes deterministically; V39-007 release gate remains.'
 
     include runtimeAgent.workerExecution.a2aServer with {
@@ -2001,7 +2157,7 @@ views {
   }
 
   view runtimeFilesystems {
-    title 'Runtime / Workspaces and File Tools'
+    title '13 / Runtime / Workspaces and File Tools'
     description 'V30 release-verified: local direct disk is authoritative, including external writes; commands/edits/snapshots share workspace ownership. Memory and overlay remain independent; overlay export stays bounded at 16 MiB.'
 
     include runtimeAgent.agentControl.slotManager with {
@@ -2022,6 +2178,7 @@ views {
     }
     include runtimeAgent.allocationCapabilities.filesystemTools with {
       title 'Filesystem & Edit Tools (optional)'
+      navigateTo runtimeCodeAnalysis
     }
     include runtimeAgent.allocationCapabilities.artifactClient with {
       title 'Private Artifact Client'
@@ -2068,7 +2225,7 @@ views {
   }
 
   view runtimeCodeAnalysis {
-    title 'Runtime / Code Analysis and Annotations'
+    title '14 / Runtime / Code Analysis and Annotations'
     description 'Code analysis is read-only. Taint tools perform structured atomic mutations. Trailmark runs as a bounded, killable local child.'
 
     include runtimeAgent.agentControl.capabilityProbe with {
@@ -2119,7 +2276,7 @@ views {
   }
 
   view runtimeAdapters {
-    title 'Runtime / Network Adapters'
+    title '15 / Runtime / Network Adapters'
     description 'Adapters mediate selected external traffic. Private Contractor control and Artifact API traffic bypass Worker HTTP proxies.'
 
     include runtimeAgent.agentControl.slotManager with {
@@ -2196,7 +2353,7 @@ views {
   }
 
   view artifacts {
-    title 'Artifacts / Scopes and Durable Storage'
+    title '16 / Artifacts / Scopes and Durable Storage'
     description 'V34 implemented: PostgreSQL registry and default payloads need no blob directory/PVC; optional filesystem payloads can be ephemeral. Generic transfers allow 64 MiB with four active operations; package/workspace limits remain independent.'
 
     include server.productSurface.userArtifactApi with {
@@ -2210,6 +2367,7 @@ views {
     }
     include runtimeAgent.allocationCapabilities.artifactClient with {
       title 'Private Artifact Client'
+      navigateTo workerArtifacts
     }
     include server.artifactPlane.artifactRegistry with {
       title 'Artifact Registry'
@@ -2257,7 +2415,7 @@ views {
   }
 
   view artifactCleanup {
-    title 'Artifacts / Released Scope Purge'
+    title '17 / Artifacts / Released Scope Purge'
     description 'Drain Runs and Audit holds before scope purge. PostgreSQL blob deletion is transactional; filesystem unlink follows registry commit and may leave orphans for offline cleanup. Missing bytes never authorize deleting referenced metadata.'
 
     include server.workspaceLifecycle.projectDeletionController with {
@@ -2315,7 +2473,7 @@ views {
   }
 
   view workerArtifacts {
-    title 'Artifacts / Worker Tools'
+    title '18 / Artifacts / Worker Tools'
     description 'Tool selection narrows operations; allocation grants remain authoritative. Memory tools hide refs and revisions.'
 
     include runtimeAgent.workerExecution.workerRuntime with {
@@ -2366,11 +2524,12 @@ views {
   }
 
   view controlPlane {
-    title 'Operations / Runtime Fleet'
+    title '19 / Operations / Runtime Fleet'
     description 'Startup capability truth and live availability drive placement. Each Runtime process exposes one exclusive slot.'
 
     include server.runtimeOperations.operationsApi with {
       title 'Operations & Config API'
+      navigateTo operationalBudgets
     }
     include server.runtimeOperations.runtimeRegistry with {
       title 'Agent Registry & Slots'
@@ -2380,6 +2539,7 @@ views {
     }
     include server.runtimeOperations.controlPlane with {
       title 'Control Plane'
+      navigateTo executionTelemetry
     }
     include runtimeAgent.agentControl.capabilityProbe with {
       title 'Startup Capability Probes'
@@ -2429,7 +2589,7 @@ views {
   }
 
   view executionTelemetry {
-    title 'Operations / Reports and Telemetry'
+    title '20 / Operations / Reports and Telemetry'
     description 'Trusted Contractor reports are durable. Optional exporters send bounded telemetry, content-free by default; explicit capture trusts the sink with unredacted content.'
 
     include runtimeAgent.workerExecution.workerInstrumentation with {
@@ -2507,7 +2667,7 @@ views {
   }
 
   view agentSkills {
-    title 'Artifacts / Skill Pinning and Loading'
+    title '21 / Artifacts / Skill Pinning and Loading'
     description 'Bundled sources become owner artifacts. Runs pin exact packages; Worker prepare loads only allocation-selected packages.'
 
     include server.orchestration.skillCatalog with {
@@ -2570,7 +2730,7 @@ views {
   }
 
   view runtimeConfiguration {
-    title 'Operations / Configuration and Labels'
+    title '22 / Operations / Configuration and Labels'
     description 'Immutable configs and revisioned labels are pinned into execution inputs. Bootstrap secrets are shown separately.'
 
     include browser with {
@@ -2645,7 +2805,7 @@ views {
   }
 
   view bootstrapSecrets {
-    title 'Operations / Credentials and Bootstrap'
+    title '23 / Operations / Credentials and Bootstrap'
     description 'Host bootstrap files remain outside product APIs. Managed credentials are encrypted and resolved only within trusted configuration boundaries.'
 
     include server.identityConfiguration.authService with {
@@ -2714,7 +2874,7 @@ views {
   }
 
   view audits {
-    title 'Audits / Coordination and Ordinary Runs'
+    title '24 / Audits / Coordination and Ordinary Runs'
     description 'Spec 19 / V25-V26. One Project-bound coordinator uses ordinary Runs; bounded compatible check items may share a Run without sharing identity or authority.'
 
     include server.productSurface.auditApi with {
@@ -2790,7 +2950,7 @@ views {
   }
 
   view auditBaseline {
-    title 'Audits / Exact Baseline and Catalogs'
+    title '25 / Audits / Exact Baseline and Catalogs'
     description 'V25/V26 implemented. Start pins Workflow/Runtime/Skill and licensed standard packages; later catalog or mutable binding changes cannot alter the baseline.'
 
     include server.productSurface.auditApi with {
@@ -2804,6 +2964,7 @@ views {
     }
     include server.auditCoordination.packageInventory with {
       title 'Packages & Deterministic Inventory'
+      navigateTo scanPlanning
     }
     include server.workspaceLifecycle.projectStore with {
       title 'Project Lifecycle Fence'
@@ -2870,7 +3031,7 @@ views {
   }
 
   view auditCollection {
-    title 'Audits / Results, Retention and Deletion'
+    title '26 / Audits / Results, Retention and Deletion'
     description 'Spec 19 / V25-007–008 and V26-004. Every terminal execution gets a receipt. Full manifest membership is checked before per-item settlement; Run success is independent of assessment.'
 
     include server.auditCoordination.auditController with {
@@ -2878,6 +3039,7 @@ views {
     }
     include server.auditCoordination.resultImporter with {
       title 'Result Import & Coverage'
+      navigateTo auditWorkerCompletion
     }
     include server.auditCoordination.packageInventory with {
       title 'Manifest / Evidence Validation'
@@ -2943,7 +3105,7 @@ views {
   }
 
   view auditReviewAndPrograms {
-    title 'Audits / Finding Proposals, Review and Programs'
+    title '27 / Audits / Finding Proposals, Review and Programs'
     description 'V25/V26 implemented. Workers propose; authenticated decisions bind exact subjects. Top 10 2025 and the five-requirement ASVS 5.0.0 L1 pilot preserve exact denominators, retained evidence and explicit gaps; broader ASVS coverage is deferred.'
 
     include browser with {
@@ -2957,9 +3119,11 @@ views {
     }
     include runtimeAgent.allocationCapabilities.securityFindingsTools with {
       title 'Optional security-findings@1'
+      navigateTo findingsCollections
     }
     include server.auditCoordination.findingIntake with {
       title 'Private Finding Intake'
+      navigateTo plannedCapabilities
     }
     include server.auditCoordination.reviewService with {
       title 'Exact Human Decisions'
@@ -3016,7 +3180,7 @@ views {
   }
 
   view schedulerConcurrency {
-    title 'Execution / Global Concurrency and Audit Backpressure'
+    title '28 / Execution / Global Concurrency and Audit Backpressure'
     description 'Spec 20 / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
 
     include browser with {
@@ -3097,7 +3261,7 @@ views {
   }
 
   view catalog {
-    title 'Surface / Catalog and Agent Base Prompts'
+    title '29 / Surface / Catalog and Agent Base Prompts'
     description 'V33 implemented: /catalog groups Workflows, Agents and Skills. Agent detail shows exact base instructions, not task context or an effective invocation prompt. Runtime processes remain in Operations.'
 
     include browser with {
@@ -3157,7 +3321,7 @@ views {
   }
 
   view artifactBackends {
-    title 'Artifacts / Backend Selection and Offline Cleanup'
+    title '30 / Artifacts / Backend Selection and Offline Cleanup'
     description 'V34 implemented. PostgreSQL is the default payload backend; filesystem is explicit and installation-pinned. Ephemeral file loss is an error, not empty content. Four admitted 64 MiB payloads are not a total process-memory cap. S3 is deferred.'
 
     include operator with {
@@ -3228,7 +3392,7 @@ views {
   }
 
   view gitArtifacts {
-    title 'Artifacts / Git Snapshot Import'
+    title '31 / Artifacts / Git Snapshot Import'
     description 'V35-001–005 implemented and verified with real remotes, both blob backends, memory-workspace Runtime and browser scenarios. One allowlisted HTTPS/SSH snapshot becomes an ordinary exact source ZIP. No clone during execution, local checkout, hooks, automatic refresh or new job queue.'
 
     include browser with {
@@ -3297,7 +3461,7 @@ views {
   }
 
   view gitSettings {
-    title 'Surface / Operations Settings / Owner Git SSH-key'
+    title '32 / Surface / Operations Settings / Owner Git SSH-key'
     description 'The owner key editor is the Repository access section of /operations/settings and remains available without the Operations capability; server-wide settings are omitted for that session. One owner key is write-only, encrypted with owner/purpose/generation identity. Replacement affects later imports; existing snapshots and provenance survive key deletion. The removed /settings route has no redirect.'
 
     include browser with {
@@ -3341,7 +3505,7 @@ views {
   }
 
   view podmanSandbox {
-    title 'Runtime / Podman Ownership and Execution'
+    title '33 / Runtime / Podman Ownership and Execution'
     description 'V30 and V31-001–008 are implemented and release-verified. Podman remains opt-in and advertised only after complete startup probes. ADK/A2A/trusted tools stay in Python; local direct workspace only, without network or skill scripts.'
 
     include runtimeAgent.agentControl.slotManager with {
@@ -3418,7 +3582,7 @@ views {
   }
 
   view serverPerformance {
-    title 'Operations / Server and PostgreSQL Performance'
+    title '34 / Operations / Server and PostgreSQL Performance'
     description 'V32-001–008 collection, history, API and UI are implemented and release-verified. Metrics default on, startup opt-out creates no collector/pool. No external monitoring service required. Rates use observation intervals; stale/partial/disabled periods remain explicit.'
 
     include browser with {
@@ -3426,6 +3590,7 @@ views {
     }
     include server.performanceMonitoring.performanceApi with {
       title 'Current / History Read API'
+      navigateTo allocationPerformance
     }
     include server.performanceMonitoring.httpAccounting with {
       title 'Public + Private HTTP Counters / Histograms'
@@ -3491,7 +3656,7 @@ views {
   }
 
   view allocationPerformance {
-    title 'Operations / Allocation Resource Reports and History'
+    title '35 / Operations / Allocation Resource Reports and History'
     description 'V32 Runtime sampling, Server policy/ingestion/history and UI are implemented and release-verified. CPU and observed RSS peak cover only the Runtime process during ownership, excluding idle/release, children and Podman. No live Runtime polling or per-allocation time series.'
 
     include browser with {
@@ -3570,7 +3735,7 @@ views {
   }
 
   view processBootstrap {
-    title 'Operations / Process Settings and Local Go Profiling'
+    title '36 / Operations / Process Settings and Local Go Profiling'
     description 'V36-001 and V32-007 implemented. Optional ServerConfig is non-secret bootstrap, separate from published execution configs and durable Scheduler settings. Defaults < YAML < environment < CLI; restart-only. pprof defaults off independently of performance collection; no browser profiling API.'
 
     include operator with {
@@ -3625,7 +3790,7 @@ views {
   }
 
   view auditWorkerCompletion {
-    title 'Runtime / Trusted Audit Completion'
+    title '37 / Runtime / Trusted Audit Completion'
     description 'V39-001–006 implemented; required importer/restart release gate V39-007 remains. Trusted Audit binding selects one passthrough Worker with audit-results@2 and no summarizer. Collection, ZIP publication and importer acceptance are distinct facts.'
 
     include server.orchestration.runService with {
@@ -3708,7 +3873,7 @@ views {
   }
 
   view findingsCollections {
-    title 'Artifacts / Finding Collection Handoff'
+    title '38 / Artifacts / Finding Collection Handoff'
     description 'V43 implemented. A collection freezes existing receipts, reviews and exact evidence into an ordinary ZIP input. Independently selected list_findings reads only prepared current-Run artifacts; finding emission and authenticated Audit review retain separate authority.'
 
     include apiClient with {
@@ -3779,8 +3944,8 @@ views {
   }
 
   view portableEvaluations {
-    title 'Evaluation / Portable Plans and Evidence'
-    description 'V41 implemented in external playground-v2 and offline-verified. Contractor and recorded execution share portable Results; private ground truth and connection secrets stay local. No new Server evaluator or Scheduler. V38 UI, live target adapters and V40 model-quality campaigns remain separate work.'
+    title '39 / Evaluation / External Portable Producer'
+    description 'Optional external playground-v2 producer (spec 26). It drives external-controlMode experiments through the Managed Evals API and keeps private ground truth and connection secrets local. Native coordination lives in the Managed Evals view (spec 30).'
 
     include apiClient with {
       title 'Explicit Evaluator CLI'
@@ -3815,8 +3980,15 @@ views {
     include server.productSurface.userArtifactApi with {
       title 'Existing Scoped Artifact API'
     }
+    include server.productSurface.evalApi with {
+      title 'Managed Evals API'
+      navigateTo managedEvals
+    }
 
     exclude * -> *
+    include evaluationHarness.runner -> server.productSurface.evalApi with {
+      title 'External controlMode submissions / assessments'
+    }
     include apiClient -> evaluationHarness.planner with {
       title 'Plan / run / resume / compare / publish'
     }
@@ -3859,7 +4031,7 @@ views {
   }
 
   view operationalBudgets {
-    title 'Operations / Independent Timeout Ownership'
+    title '40 / Operations / Independent Timeout Ownership'
     description 'V49 implemented. ServerConfig uses defaults < YAML < environment < CLI and restart-only validation. HTTP, operation and cleanup budgets are independent. Earlier enclosing deadlines win; saved finalize/abort IDs and deadlines survive retries/restart. Runtime workspace I/O is process-local.'
 
     include serverConfigFile with {
@@ -3924,7 +4096,7 @@ views {
   }
 
   view workerTelemetry {
-    title 'Runtime / Bounded Asynchronous Telemetry'
+    title '41 / Runtime / Bounded Asynchronous Telemetry'
     description 'Worker defaults: 8 MiB whole-span batches, two total HTTP attempts, 2048 spans and 64 MiB pending, flush 10 s. One sequential sender retains in-flight queue accounting. Sub-threshold tail waits for enqueue or final flush. Export failures affect diagnostics, not durable execution truth.'
 
     include server.identityConfiguration.runtimeConfigService with {
@@ -3974,7 +4146,7 @@ views {
   }
 
   view durableState {
-    title 'Storage / Server State'
+    title '42 / Storage / Server State'
     description 'PostgreSQL owns Run/Audit lifecycle, Planner recovery, global Scheduler settings, configuration and reports. Artifact registry internals remain behind its adapter.'
 
     include server.auditCoordination.auditStore with {
@@ -4063,6 +4235,349 @@ views {
     }
     include server.runtimeOperations.telemetry -> artifactDatabase.executionReports with {
       title 'Reports / accepted StageMetrics'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view managedEvals {
+    title '43 / Evaluation / Managed Evals'
+    description 'Spec 30. Native datasets, experiments and assessments run inside Contractor Server: EvalStore authority, EvalCoordinator dispatch under durable claims, a common submission service for native and external producers, and a rebuildable read model for pairs, charts and reports.'
+
+    include browser with {
+      title 'Evals UI'
+    }
+    include apiClient with {
+      title 'External producer / API client'
+    }
+    include server.productSurface.evalApi with {
+      title 'Managed Evals API'
+    }
+    include server.managedEvals.evalStore with {
+      title 'EvalStore'
+    }
+    include server.managedEvals.evalCoordinator with {
+      title 'EvalCoordinator'
+    }
+    include server.managedEvals.evalSubmissionService with {
+      title 'Submission Service'
+    }
+    include server.managedEvals.evalReadModel with {
+      title 'Read Model'
+    }
+    include server.orchestration.runService with {
+      title 'Trusted Run Service'
+      navigateTo stageExecution
+    }
+    include server.auditCoordination.auditService with {
+      title 'Audit Service'
+      navigateTo audits
+    }
+    include artifactDatabase.evalState with {
+      title 'Eval State'
+    }
+    include evaluationHarness with {
+      title 'External Portable Producer (optional)'
+      navigateTo portableEvaluations
+    }
+
+    exclude * -> *
+    include browser -> server.productSurface.evalApi with {
+      title 'Evals pages'
+    }
+    include apiClient -> server.productSurface.evalApi with {
+      title 'Datasets / experiments / submissions'
+    }
+    include server.productSurface.evalApi -> server.managedEvals.evalStore with {
+      title 'Authoring / commands'
+    }
+    include server.productSurface.evalApi -> server.managedEvals.evalSubmissionService with {
+      title 'Submissions / results / assessments'
+    }
+    include server.productSurface.evalApi -> server.managedEvals.evalReadModel with {
+      title 'Members / pairs / charts / reports'
+    }
+    include server.managedEvals.evalCoordinator -> server.managedEvals.evalStore with {
+      title 'Durable claims'
+    }
+    include server.managedEvals.evalCoordinator -> server.orchestration.runService with {
+      title 'Ordinary member Runs'
+    }
+    include server.managedEvals.evalCoordinator -> server.auditCoordination.auditService with {
+      title 'Audit-kind members'
+    }
+    include server.managedEvals.evalReadModel -> server.managedEvals.evalStore with {
+      title 'Immutable records'
+    }
+    include server.managedEvals.evalStore -> artifactDatabase.evalState with {
+      title 'Authority rows'
+    }
+    include evaluationHarness -> server.productSurface.evalApi with {
+      title 'External controlMode'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view scanPlanning {
+    title '44 / Execution / Deterministic Scan Planning and Tool Workers'
+    description 'Specs 29, 31, 32 and OpenAPI Audit scans. Request preparation is a pure library; scan-plan@1 builds a bounded immutable plan without a model; tool@1 Workers run one registered scanner callable with durable invocation receipts.'
+
+    include server.auditCoordination.packageInventory with {
+      title 'Audit Inventory'
+      navigateTo auditBaseline
+    }
+    include server.auditCoordination.scanTaskBuilder with {
+      title 'openapi-scans@1 Builder'
+    }
+    include server.orchestration.scanRequestPreparation with {
+      title 'Scan Request Preparation'
+    }
+    include server.orchestration.plannerFactories with {
+      title 'PlannerFactory Registry'
+    }
+    include server.orchestration.scanPlanner with {
+      title 'scan-plan@1 Planner'
+    }
+    include server.orchestration.plannerArtifactInspector with {
+      title 'Exact Input Artifact'
+    }
+    include server.orchestration.workerInvokerTools with {
+      title 'WorkerInvoker'
+      navigateTo plannerAndA2A
+    }
+    include server.orchestration.plannerSessionService with {
+      title 'Plan v1 / job outcomes'
+    }
+    include runtimeAgent.workerExecution.a2aServer with {
+      title 'A2A Server'
+    }
+    include runtimeAgent.workerExecution.toolRuntime with {
+      title 'tool@1 Runtime'
+    }
+    include runtimeAgent.allocationCapabilities.scanTools with {
+      title 'scan@1 / local-workdir@1'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Invocation Receipts'
+    }
+    include runtimeAgent.workerExecution.completionGate with {
+      title 'Completion Boundary'
+    }
+    include server.auditCoordination.resultImporter with {
+      title 'Result Import + Coverage'
+      navigateTo auditCollection
+    }
+
+    exclude * -> *
+    include server.auditCoordination.packageInventory -> server.auditCoordination.scanTaskBuilder with {
+      title 'openapi-scan@1 tasks'
+    }
+    include server.auditCoordination.scanTaskBuilder -> server.orchestration.scanRequestPreparation with {
+      title 'Assigned operation'
+    }
+    include server.orchestration.plannerFactories -> server.orchestration.scanPlanner with {
+      title 'Stage selects scan-plan@1'
+    }
+    include server.orchestration.scanPlanner -> server.orchestration.plannerArtifactInspector with {
+      title 'RequestSet / target list'
+    }
+    include server.orchestration.scanPlanner -> server.orchestration.workerInvokerTools with {
+      title 'Bounded jobs'
+    }
+    include server.orchestration.scanPlanner -> server.orchestration.plannerSessionService with {
+      title 'Immutable plan'
+    }
+    include server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer with {
+      title 'A2A Task'
+    }
+    include runtimeAgent.workerExecution.a2aServer -> runtimeAgent.workerExecution.toolRuntime with {
+      title 'tool@1 allocation'
+    }
+    include runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.allocationCapabilities.scanTools with {
+      title 'One scanner callable'
+    }
+    include runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Receipt / report'
+    }
+    include runtimeAgent.workerExecution.toolRuntime -> runtimeAgent.workerExecution.completionGate with {
+      title 'Complete / fail'
+    }
+    include server.auditCoordination.resultImporter -> server.auditCoordination.scanTaskBuilder with {
+      title 'Canonical results / coverage'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view modelRecovery {
+    title '45 / Execution / Model Gateway Recovery'
+    description 'Spec 04. A live invocation waiting for model availability sets its Run to waiting. Server keeps one durable route gate per owner/gateway/model/credential/proxy, probes it under a lease, bounds the automatic window and lets the owner reopen it with retry-gateway.'
+
+    include server.productSurface.publicApi with {
+      title 'Runs API'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+      navigateTo stageExecution
+    }
+    include server.orchestration.stagePlanner with {
+      title 'ADK Planner'
+    }
+    include server.runtimeOperations.gatewayRecovery with {
+      title 'Gateway Recovery'
+    }
+    include runtimeAgent.allocationCapabilities.modelClient with {
+      title 'Worker Model Client'
+    }
+    include artifactDatabase.gatewayRecoveryState with {
+      title 'Recovery State'
+    }
+    include llmGateway with {
+      title 'LLM Gateway'
+    }
+
+    exclude * -> *
+    include server.productSurface.publicApi -> server.runtimeOperations.gatewayRecovery with {
+      title 'retry-gateway / RunStatus.recovery'
+    }
+    include server.orchestration.workflowScheduler -> server.runtimeOperations.gatewayRecovery with {
+      title 'waiting Run / admission order'
+    }
+    include server.orchestration.stagePlanner -> server.runtimeOperations.gatewayRecovery with {
+      title 'Retry same request'
+    }
+    include runtimeAgent.allocationCapabilities.modelClient -> server.runtimeOperations.gatewayRecovery with {
+      title 'Classified failures / reopen'
+    }
+    include server.runtimeOperations.gatewayRecovery -> artifactDatabase.gatewayRecoveryState with {
+      title 'Gates / leases'
+    }
+    include server.runtimeOperations.gatewayRecovery -> llmGateway with {
+      title 'Leased probe'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view inboundTrust {
+    title '46 / Operations / Inbound Trust and Private PKI'
+    description 'Specs 02 and 06. Browser and API clients reach Server through sessions, CSRF and a login limiter that attributes clients behind listed trusted proxies. Control Plane and Runtime Agents authenticate with deployment-local mTLS material issued by the offline PKI CLI.'
+
+    include browser with {
+      title 'User Browser'
+    }
+    include apiClient with {
+      title 'API Client'
+    }
+    include operator with {
+      title 'Deployment Operator'
+    }
+    include server.productSurface.authApi with {
+      title 'Login / Session / CSRF API'
+    }
+    include server.identityConfiguration.authService with {
+      title 'Session + Trusted-Proxy Attribution'
+    }
+    include localAuthBootstrap with {
+      title 'Local Auth File'
+    }
+    include server.identityConfiguration.localPki with {
+      title 'Local PKI CLI'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+      navigateTo controlPlane
+    }
+    include runtimeAgent.agentControl with {
+      title 'Agent Control'
+      navigateTo runtimeLifecycle
+    }
+
+    exclude * -> *
+    include browser -> server.productSurface.authApi with {
+      title 'Login, optionally behind a listed proxy'
+    }
+    include apiClient -> server.productSurface.authApi with {
+      title 'Same session contract'
+    }
+    include server.productSurface.authApi -> server.identityConfiguration.authService with {
+      title 'Argon2id login / limiter bucket'
+    }
+    include server.identityConfiguration.authService -> localAuthBootstrap with {
+      title 'One user + password hash'
+    }
+    include operator -> server.identityConfiguration.localPki with {
+      title 'init-ca / issue-*'
+    }
+    include server.identityConfiguration.localPki -> server.runtimeOperations.controlPlane with {
+      title 'Control Plane cert/key'
+    }
+    include server.identityConfiguration.localPki -> runtimeAgent.agentControl with {
+      title 'Agent cert/key'
+    }
+    include server.runtimeOperations.controlPlane -> runtimeAgent.agentControl with {
+      title 'mTLS private control'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view plannedCapabilities {
+    title '47 / Roadmap / Draft Specifications 28, 33 and 34'
+    description 'Dashed components are specified in draft documents and are not available product functionality: structured finding analysis with SARIF export (28), autonomous pentest Audits (33) and contextual Audit checklist prioritization (34; only the pure verdict/selection core exists).'
+
+    include server.artifactPlane.sarifExporter with {
+      title 'Finding Analysis + SARIF (28)'
+    }
+    include server.auditCoordination.findingIntake with {
+      title 'Finding Intake'
+      navigateTo auditReviewAndPrograms
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+      navigateTo artifacts
+    }
+    include server.auditCoordination.pentestProgram with {
+      title 'Pentest Engagement Program (33)'
+    }
+    include runtimeAgent.allocationCapabilities.pentestTools with {
+      title 'pentest-* Toolsets (33)'
+    }
+    include server.orchestration.priorityPlanner with {
+      title 'audit-priority@1 Planner (34)'
+    }
+    include server.auditCoordination.prioritySelector with {
+      title 'Prioritization Core (34, implemented)'
+    }
+    include server.auditCoordination.auditController with {
+      title 'Audit Controller'
+      navigateTo audits
+    }
+
+    exclude * -> *
+    include server.artifactPlane.sarifExporter -> server.auditCoordination.findingIntake with {
+      title 'Frozen selection / evidence'
+    }
+    include server.artifactPlane.sarifExporter -> server.artifactPlane.artifactService with {
+      title 'SARIF + diagnostics'
+    }
+    include server.auditCoordination.pentestProgram -> runtimeAgent.allocationCapabilities.pentestTools with {
+      title 'Engagement / proof'
+    }
+    include server.auditCoordination.pentestProgram -> server.auditCoordination.findingIntake with {
+      title 'Machine-assessed findings'
+    }
+    include server.orchestration.priorityPlanner -> server.auditCoordination.prioritySelector with {
+      title 'Validated verdicts'
+    }
+    include server.auditCoordination.auditController -> server.auditCoordination.prioritySelector with {
+      title 'Selection'
     }
     global predicate withoutContextOnly
 
