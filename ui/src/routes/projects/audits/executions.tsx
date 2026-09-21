@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Link, useLocation } from "react-router";
 
@@ -15,6 +14,8 @@ import { ErrorNotice } from "../../artifacts/common";
 import { StateBadge } from "../../runs/components";
 import { auditCheckTitle } from "./check-title";
 import { useAuditCoverage } from "./coverage-data";
+import { useAuditCollection } from "./collections";
+import { LoadMoreControl } from "./load-more";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 import { AuditAnchor, ExactArtifactLink } from "./shared";
 
@@ -24,19 +25,20 @@ function useAuditItems(
   enabled: boolean,
 ) {
   const queryKey = queryKeys.audits.allItems(audit.auditId);
-  const query = useQuery({
+  const query = useAuditCollection({
     queryKey,
-    queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditItems(
-          api,
-          audit.auditId,
-          cursor === undefined ? {} : { cursor },
-        ),
+    loadBatch: (cursor) =>
+      collectAuditPages(
+        (pageCursor) =>
+          listAuditItems(
+            api,
+            audit.auditId,
+            pageCursor === undefined ? {} : { cursor: pageCursor },
+          ),
+        cursor === undefined ? {} : { cursor },
       ),
     enabled,
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
-    refetchOnReconnect: true,
   });
   useAuditProjectionRefresh(audit, queryKey, enabled);
   return query;
@@ -54,7 +56,7 @@ export function AuditChecks({
   const coverage = useAuditCoverage(audit);
   if (items.isPending) return <p className="loading-copy">Loading checks…</p>;
   if (items.error !== null) return <ErrorNotice error={items.error} />;
-  if (items.data.length === 0) {
+  if (items.items.length === 0) {
     return (
       <div className="empty-state panel">
         <h3>No checks materialized</h3>
@@ -65,7 +67,7 @@ export function AuditChecks({
   return (
     <div className="audit-check-list">
       <AuditAnchor />
-      {items.data.map((item) => (
+      {items.items.map((item) => (
         <article
           className="panel audit-check-card"
           key={item.itemId}
@@ -78,7 +80,7 @@ export function AuditChecks({
               </p>
               <h3 title={item.subjectKey}>
                 {auditCheckTitle(
-                  coverage.data?.find((row) => row.itemId === item.itemId) ??
+                  coverage.items.find((row) => row.itemId === item.itemId) ??
                     item,
                 )}
               </h3>
@@ -179,6 +181,14 @@ export function AuditChecks({
           </details>
         </article>
       ))}
+      <LoadMoreControl
+        shown={items.items.length}
+        noun="checks"
+        truncated={items.truncated}
+        loading={items.isLoadingMore}
+        error={items.moreError}
+        onLoadMore={items.loadMore}
+      />
     </div>
   );
 }
@@ -194,10 +204,10 @@ export function AuditRuns({
   const coverage = useAuditCoverage(audit);
   const attempts = useMemo(
     () =>
-      items.data?.flatMap((item) =>
+      items.items.flatMap((item) =>
         item.attempts.map((attempt) => ({ item, attempt })),
-      ) ?? [],
-    [items.data],
+      ),
+    [items.items],
   );
   if (items.isPending)
     return <p className="loading-copy">Loading child Runs…</p>;
@@ -237,7 +247,7 @@ export function AuditRuns({
                       title={item.subjectKey}
                     >
                       {auditCheckTitle(
-                        coverage.data?.find(
+                        coverage.items.find(
                           (row) => row.itemId === item.itemId,
                         ) ?? item,
                       )}
@@ -272,6 +282,14 @@ export function AuditRuns({
           </table>
         </div>
       )}
+      <LoadMoreControl
+        shown={items.items.length}
+        noun="checks"
+        truncated={items.truncated}
+        loading={items.isLoadingMore}
+        error={items.moreError}
+        onLoadMore={items.loadMore}
+      />
     </section>
   );
 }

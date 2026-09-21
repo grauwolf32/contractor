@@ -1,17 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
-import { collectAuditPages } from "../../../api/audit-collections";
+import {
+  collectAuditPages,
+  type AuditCollection,
+} from "../../../api/audit-collections";
 import {
   auditNeedsPolling,
   listAuditCoverage,
   getAudit,
   type Audit,
+  type AuditCoverageRow,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 
 import { useSearchParams } from "react-router";
 import { PublicAPIError } from "../../../api/error";
+import { useAuditCollection } from "./collections";
 import { useAuditProjectionRefresh } from "./projection-refresh";
+
+interface CoverageBatch extends AuditCollection<AuditCoverageRow> {
+  /** Audit revision every page of this batch was read under. */
+  revision: number;
+}
 
 export function useAuditCoverage(audit: Audit) {
   const api = usePublicAPI();
@@ -22,9 +31,9 @@ export function useAuditCoverage(audit: Audit) {
     audit.currentRoundId ?? null,
     expected,
   ];
-  const query = useQuery({
+  const query = useAuditCollection<CoverageBatch>({
     queryKey,
-    queryFn: async () => {
+    loadBatch: async (cursor, previous) => {
       const before = await getAudit(api, audit.auditId);
       const conflict = () =>
         new PublicAPIError({
@@ -34,20 +43,24 @@ export function useAuditCoverage(audit: Audit) {
         });
       if (expected !== null && String(before.revision) !== expected)
         throw conflict();
-      const rows = await collectAuditPages((cursor) =>
-        listAuditCoverage(api, audit.auditId, {
-          ...(cursor === undefined ? {} : { cursor }),
-          ...(before.currentRoundId === undefined
-            ? {}
-            : { round: before.currentRoundId }),
-        }),
+      // A continuation must read under the revision of the batches before it.
+      if (previous !== undefined && previous.revision !== before.revision)
+        throw conflict();
+      const batch = await collectAuditPages(
+        (pageCursor) =>
+          listAuditCoverage(api, audit.auditId, {
+            ...(pageCursor === undefined ? {} : { cursor: pageCursor }),
+            ...(before.currentRoundId === undefined
+              ? {}
+              : { round: before.currentRoundId }),
+          }),
+        cursor === undefined ? {} : { cursor },
       );
       const after = await getAudit(api, audit.auditId);
       if (before.revision !== after.revision) throw conflict();
-      return rows;
+      return { ...batch, revision: after.revision };
     },
     refetchInterval: auditNeedsPolling(audit.state) ? 5_000 : false,
-    refetchOnReconnect: true,
   });
   useAuditProjectionRefresh(audit, queryKey);
   return query;

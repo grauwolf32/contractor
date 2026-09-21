@@ -1,13 +1,17 @@
 import { ReturnLink } from "../../../app/context-navigation";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link, useParams, useSearchParams } from "react-router";
 
-import { collectAuditPages } from "../../../api/audit-collections";
 import {
-  auditNeedsPolling,
+  collectAuditPages,
+  type AuditCollection,
+} from "../../../api/audit-collections";
+import {
+  auditPollInterval,
   listAuditFindings,
   listAuditReviews,
   listProjectAudits,
+  type Audit,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
@@ -15,6 +19,8 @@ import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../artifacts/common";
 import { AuditFindingCard } from "./finding-card";
 import { auditProfileLabel } from "./labels";
+import { useAuditCollection, useAuditCollections } from "./collections";
+import { LoadMoreControl } from "./load-more";
 import { AuditAnchor, ProjectAuditNavigation } from "./shared";
 
 import "./styles.css";
@@ -36,62 +42,56 @@ export function ProjectFindingsRoute({
     queryFn: () => getProject(api, projectId),
     enabled: validProject,
   });
-  const audits = useQuery({
+  const audits = useAuditCollection<AuditCollection<Audit>>({
     queryKey: queryKeys.projects.audits.inventory(projectId),
-    queryFn: () =>
-      collectAuditPages((cursor) =>
-        listProjectAudits(api, {
-          projectId,
-          ...(cursor === undefined ? {} : { cursor }),
-        }),
+    loadBatch: (cursor) =>
+      collectAuditPages(
+        (pageCursor) =>
+          listProjectAudits(api, {
+            projectId,
+            ...(pageCursor === undefined ? {} : { cursor: pageCursor }),
+          }),
+        cursor === undefined ? {} : { cursor },
       ),
     enabled: validProject && project.data?.kind === "project",
-    refetchInterval: 5_000,
-    refetchOnReconnect: true,
+    // The inventory only changes on its own while some audit is still running.
+    refetchInterval: (loaded) => auditPollInterval(loaded),
   });
-  const sources = audits.data ?? [];
-  const findings = useQueries({
-    queries: sources.map((audit) => ({
-      queryKey: queryKeys.audits.allFindings(audit.auditId),
-      queryFn: () =>
-        collectAuditPages((cursor) =>
-          listAuditFindings(
-            api,
-            audit.auditId,
-            cursor === undefined ? {} : { cursor },
-          ),
-        ),
-      refetchInterval:
-        auditNeedsPolling(audit.state) || audit.outstandingRunCount > 0
-          ? 5_000
-          : (false as const),
-      refetchOnReconnect: true,
-    })),
+  const sources = audits.items;
+  const findings = useAuditCollections(sources, {
+    id: (audit) => audit.auditId,
+    queryKey: (audit) => queryKeys.audits.allFindings(audit.auditId),
+    load: (audit) => (cursor) =>
+      listAuditFindings(
+        api,
+        audit.auditId,
+        cursor === undefined ? {} : { cursor },
+      ),
+    identity: (finding) => finding.findingId,
+    refetchInterval: (audit) => auditPollInterval([audit]),
   });
-  const reviews = useQueries({
-    queries: sources.map((audit) => ({
-      queryKey: queryKeys.audits.allReviews(audit.auditId),
-      queryFn: () =>
-        collectAuditPages((cursor) =>
-          listAuditReviews(
-            api,
-            audit.auditId,
-            cursor === undefined ? {} : { cursor },
-          ),
-        ),
-      refetchInterval:
-        auditNeedsPolling(audit.state) || audit.outstandingRunCount > 0
-          ? 5_000
-          : (false as const),
-      refetchOnReconnect: true,
-    })),
+  const reviews = useAuditCollections(sources, {
+    id: (audit) => audit.auditId,
+    queryKey: (audit) => queryKeys.audits.allReviews(audit.auditId),
+    load: (audit) => (cursor) =>
+      listAuditReviews(
+        api,
+        audit.auditId,
+        cursor === undefined ? {} : { cursor },
+      ),
+    identity: (review) => review.requestId,
+    refetchInterval: (audit) => auditPollInterval([audit]),
   });
   const query = (filters.get("q") ?? "").trim().toLocaleLowerCase();
   const selectedAudit = filters.get("audit") ?? "";
   const severity = filters.get("severity") ?? "";
   const verdict = filters.get("verdict") ?? "";
   const rows = sources.flatMap((audit, index) =>
-    (findings[index]?.data ?? []).map((finding) => ({ audit, finding, index })),
+    (findings.results[index]?.items ?? []).map((finding) => ({
+      audit,
+      finding,
+      index,
+    })),
   );
   const visible = rows
     .filter(({ audit, finding }) => {
@@ -125,12 +125,15 @@ export function ProjectFindingsRoute({
         b.finding.createdAt.localeCompare(a.finding.createdAt) ||
         a.finding.findingId.localeCompare(b.finding.findingId),
     );
-  const loading = findings.some((result) => result.isPending);
+  const loading = findings.results.some((result) => result.isPending);
   const refreshing =
     audits.isFetching ||
-    findings.some((result) => result.isFetching) ||
-    reviews.some((result) => result.isFetching);
-  const failed = sources.filter((_, index) => findings[index]?.isError);
+    findings.results.some((result) => result.isFetching) ||
+    reviews.results.some((result) => result.isFetching);
+  const failed = sources.filter((_, index) => findings.results[index]?.isError);
+  const moreFindings = findings.results.find(
+    (result) => result.moreError !== null,
+  );
 
   function setFilter(name: string, value: string) {
     setFilters(
@@ -158,8 +161,8 @@ export function ProjectFindingsRoute({
       onRefresh={() =>
         void Promise.all([
           audits.refetch(),
-          ...findings.map((result) => result.refetch()),
-          ...reviews.map((result) => result.refetch()),
+          ...findings.results.map((result) => result.refetch()),
+          ...reviews.results.map((result) => result.refetch()),
         ])
       }
     />
@@ -292,14 +295,14 @@ export function ProjectFindingsRoute({
                   {audit.auditId.slice(-8)}
                 </strong>
                 <p>
-                  {findings[index]?.data === undefined
-                    ? "This audit is missing from the results shown below."
-                    : "Showing the last loaded findings for this audit. Refresh failed."}
+                  {findings.results[index]?.isSuccess
+                    ? "Showing the last loaded findings for this audit. Refresh failed."
+                    : "This audit is missing from the results shown below."}
                 </p>
                 <button
                   className="secondary-button"
                   type="button"
-                  onClick={() => void findings[index]?.refetch()}
+                  onClick={() => void findings.results[index]?.refetch()}
                 >
                   Retry findings
                 </button>
@@ -321,8 +324,8 @@ export function ProjectFindingsRoute({
           <div className="audit-finding-list">
             <AuditAnchor ready={!loading} />
             {visible.map(({ audit, finding, index }) => {
-              const reviewQuery = reviews[index]!;
-              const pendingReview = reviewQuery.data?.find(
+              const reviewQuery = reviews.results[index]!;
+              const pendingReview = reviewQuery.items.find(
                 (review) =>
                   review.state === "pending" &&
                   review.findingId === finding.findingId,
@@ -332,7 +335,7 @@ export function ProjectFindingsRoute({
                   key={`${audit.auditId}:${finding.findingId}`}
                   audit={audit}
                   finding={finding}
-                  findings={findings[index]!.data ?? []}
+                  findings={findings.results[index]!.items}
                   showAudit
                   {...(pendingReview === undefined ? {} : { pendingReview })}
                   reviewLoading={reviewQuery.isPending}
@@ -342,6 +345,24 @@ export function ProjectFindingsRoute({
               );
             })}
           </div>
+          <LoadMoreControl
+            shown={rows.length}
+            noun="findings"
+            truncated={findings.truncated}
+            loading={findings.isLoadingMore}
+            error={moreFindings?.moreError ?? null}
+            onLoadMore={findings.loadMore}
+            label="Some audits have more findings — load more"
+          />
+          <LoadMoreControl
+            shown={sources.length}
+            noun="audits"
+            truncated={audits.truncated}
+            loading={audits.isLoadingMore}
+            error={audits.moreError}
+            onLoadMore={audits.loadMore}
+            label="Load more audits"
+          />
         </>
       )}
     </section>

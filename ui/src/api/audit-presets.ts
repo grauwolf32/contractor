@@ -7,19 +7,21 @@ import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export type AuditStandard = components["schemas"]["AuditStandardPackage"];
 
-// The profile endpoint has no search filter. Read every page before searching
-// or grouping versions so presets on later pages remain discoverable.
+// The profile endpoint has no search filter. Read the bounded batch of pages
+// before searching or grouping versions so presets on later pages remain
+// discoverable; the catalog is far smaller than the page cap.
 export async function listAuditPresets(
   api: PublicAPI,
   signal: AbortSignal,
 ): Promise<AuditProfile[]> {
-  return collectAuditPages((cursor) => {
+  const presets = await collectAuditPages((cursor) => {
     signal.throwIfAborted();
     return listAuditProfiles(api, {
       signal,
       ...(cursor === undefined ? {} : { cursor }),
     });
   });
+  return presets.items;
 }
 
 export async function getAuditStandard(

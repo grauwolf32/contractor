@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router";
 
 import { type Audit, type AuditCoverageRow } from "../../../api/audits";
 import { ErrorNotice } from "../../artifacts/common";
+import { LoadMoreControl } from "./load-more";
 import { AuditMarkdown } from "./shared";
 import { RefreshButton } from "../../../app/refresh-button";
 
@@ -193,7 +194,7 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
     GROUPS.find((candidate) => candidate.id === params.get("result"))?.id ??
     "all";
   const coverage = useAuditCoverage(audit);
-  const rows = useMemo(() => coverage.data ?? [], [coverage.data]);
+  const rows = coverage.items;
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     return rows.filter(
@@ -336,7 +337,8 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
           />
         </label>
         <p role="status">
-          Showing {filtered.length} of {rows.length} checks
+          Showing {filtered.length} of {coverage.truncated ? "≥" : ""}
+          {rows.length} checks
         </p>
         {search || group !== "all" ? (
           <button
@@ -369,6 +371,14 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
           <p>Try another search or clear the filters to see every check.</p>
         </div>
       )}
+      <LoadMoreControl
+        shown={rows.length}
+        noun="checks"
+        truncated={coverage.truncated}
+        loading={coverage.isLoadingMore}
+        error={coverage.moreError}
+        onLoadMore={coverage.loadMore}
+      />
     </section>
   );
 }

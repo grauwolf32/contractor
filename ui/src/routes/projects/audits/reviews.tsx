@@ -17,6 +17,8 @@ import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { formatTimestamp } from "../../artifacts/common";
 import { StateBadge } from "../../runs/components";
 import { AuditMutationNotice } from "./controls";
+import { useAuditCollection } from "./collections";
+import { LoadMoreControl } from "./load-more";
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
 import { AuditAnchor, AuditMarkdown } from "./shared";
@@ -154,24 +156,26 @@ export function AuditReviews({ audit }: { audit: Audit }) {
       queryKey: queryKeys.audits.detail(audit.auditId),
     });
   };
-  const items = useQuery({
+  const items = useAuditCollection({
     queryKey: queryKeys.audits.allItems(audit.auditId),
-    queryFn: () =>
-      collectAuditPages((cursor) =>
-        listAuditItems(
-          api,
-          audit.auditId,
-          cursor === undefined ? {} : { cursor },
-        ),
+    loadBatch: (cursor) =>
+      collectAuditPages(
+        (pageCursor) =>
+          listAuditItems(
+            api,
+            audit.auditId,
+            pageCursor === undefined ? {} : { cursor: pageCursor },
+          ),
+        cursor === undefined ? {} : { cursor },
       ),
     enabled:
       reviews.data?.items.some(
         (review) => review.subjectKind === "audit-item-action",
       ) ?? false,
-    refetchOnReconnect: true,
+    refetchInterval: false,
   });
   const subjects = new Map(
-    items.data?.map((item) => [item.itemId, item.subjectKey]),
+    items.items.map((item) => [item.itemId, item.subjectKey]),
   );
   const reviewLabels: Record<string, string> = {
     "requirement-applicability": "Requirement applicability",
@@ -225,6 +229,15 @@ export function AuditReviews({ audit }: { audit: Audit }) {
           </button>
         </div>
       )}
+      <LoadMoreControl
+        shown={items.items.length}
+        noun="check names"
+        truncated={items.truncated}
+        loading={items.isLoadingMore}
+        error={items.moreError}
+        onLoadMore={items.loadMore}
+        label="Load more check names"
+      />
       {visibleReviews.length === 0 ? (
         <p className="muted-copy">
           {pendingOnly

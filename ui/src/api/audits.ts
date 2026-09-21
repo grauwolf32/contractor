@@ -692,6 +692,16 @@ export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
   return "audit" in value ? value.audit : value;
 }
 
+/** Terminal Audits never change again; their projections are read once. */
+export function isTerminalAuditState(state: AuditState): boolean {
+  return state === "completed" || state === "cancelled" || state === "failed";
+}
+
+/**
+ * Only Audits the server is still working on need interval polling. Terminal
+ * Audits and Audits parked by a user (draft, paused) change through explicit
+ * actions, which invalidate their queries.
+ */
 export function auditNeedsPolling(state: AuditState): boolean {
   return (
     state === "active" ||
@@ -700,6 +710,18 @@ export function auditNeedsPolling(state: AuditState): boolean {
     state === "cancelling" ||
     state === "deleting"
   );
+}
+
+/** Polling interval for a set of Audits: off when none of them can change. */
+export function auditPollInterval(
+  audits: Iterable<Pick<Audit, "state" | "outstandingRunCount">>,
+  interval = 5_000,
+): number | false {
+  for (const audit of audits) {
+    if (auditNeedsPolling(audit.state) || audit.outstandingRunCount > 0)
+      return interval;
+  }
+  return false;
 }
 
 export async function getAuditWorkspace(

@@ -128,14 +128,14 @@ describe("Audit coverage completion", () => {
   it("refreshes final same-round revisions without retaining a cache entry per revision", async () => {
     const { result, update, queryClient, loadCoverage } = fixture();
     await waitFor(() =>
-      expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+      expect(result.current.query.items[0]?.coverage.rationale).toBe(
         "revision 1",
       ),
     );
     for (const revision of [2, 3, 4]) {
       update("completed", revision);
       await waitFor(() =>
-        expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+        expect(result.current.query.items[0]?.coverage.rationale).toBe(
           `revision ${revision}`,
         ),
       );
@@ -158,7 +158,7 @@ describe("Audit coverage completion", () => {
     await waitFor(() => expect(loadCoverage).toHaveBeenCalledTimes(1));
     update("completed", 2);
     await waitFor(() =>
-      expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+      expect(result.current.query.items[0]?.coverage.rationale).toBe(
         "revision 2",
       ),
     );
@@ -171,7 +171,7 @@ describe("Audit coverage completion", () => {
       );
       await pending;
     });
-    expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+    expect(result.current.query.items[0]?.coverage.rationale).toBe(
       "revision 2",
     );
   });
@@ -213,7 +213,7 @@ describe("Audit coverage completion", () => {
         code: "revision_conflict",
       }),
     );
-    expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+    expect(result.current.query.items[0]?.coverage.rationale).toBe(
       "revision 1",
     );
   });
@@ -240,7 +240,7 @@ describe("Audit coverage completion", () => {
       await result.current.navigate("/coverage?auditRevision=2");
     });
     await waitFor(() =>
-      expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+      expect(result.current.query.items[0]?.coverage.rationale).toBe(
         "revision 2",
       ),
     );
@@ -249,7 +249,7 @@ describe("Audit coverage completion", () => {
       await pending;
     });
     expect(result.current.query.isSuccess).toBe(true);
-    expect(result.current.query.data?.[0]?.coverage.rationale).toBe(
+    expect(result.current.query.items[0]?.coverage.rationale).toBe(
       "revision 2",
     );
     expect(cancellation).toHaveBeenCalledTimes(1);

@@ -2380,6 +2380,171 @@ describe("Project Audit routes", () => {
   });
 });
 
+describe("Bounded Audit collections", () => {
+  function coverageRowAt(
+    audit: Audit,
+    itemId: string,
+    ordinal: number,
+  ): AuditCoverageRow {
+    return {
+      roundId: "round_example",
+      itemId,
+      ordinal,
+      itemKey: itemId,
+      subjectKey: itemId,
+      coverage: { status: "satisfied", requested: [], completed: [], gaps: [] },
+      updatedAt: audit.updatedAt,
+    };
+  }
+
+  /** Six pages of one record each: five fill the batch, one waits behind it. */
+  function pagedResponse<T>(
+    cursor: string | null,
+    record: (ordinal: number) => T,
+    pages = 6,
+  ): Response {
+    const ordinal = cursor === null ? 0 : Number(cursor.slice("page-".length));
+    return jsonResponse({
+      items: [record(ordinal)],
+      page:
+        ordinal + 1 < pages
+          ? { hasMore: true, nextCursor: `page-${ordinal + 1}` }
+          : { hasMore: false },
+    });
+  }
+
+  it("caps coverage at the page budget and continues from the cursor on Load more", async () => {
+    const completed = auditAt("completed", 4);
+    const cursors: Array<string | null> = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const url = new URL((input as Request).url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/audits/audit_example")
+          return jsonResponse(completed, { headers: { ETag: '"4"' } });
+        if (url.pathname.endsWith("/coverage")) {
+          const cursor = url.searchParams.get("cursor");
+          cursors.push(cursor);
+          return pagedResponse(cursor, (ordinal) =>
+            coverageRowAt(completed, `check-${ordinal + 1}`, ordinal),
+          );
+        }
+        throw new Error(`unexpected ${url.pathname}`);
+      }),
+    );
+    renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/coverage",
+    );
+    const loadMore = await screen.findByRole("button", { name: "Load more" });
+    expect(
+      within(loadMore.parentElement!).getByText("Showing 5 of ≥5 checks"),
+    ).toBeVisible();
+    expect(screen.getAllByRole("article")).toHaveLength(5);
+    expect(cursors).toEqual([null, "page-1", "page-2", "page-3", "page-4"]);
+    const user = userEvent.setup();
+    await user.click(loadMore);
+    expect(await screen.findByText("Showing 6 of 6 checks")).toBeVisible();
+    expect(screen.getAllByRole("article")).toHaveLength(6);
+    expect(cursors.at(-1)).toBe("page-5");
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    expect(screen.getByRole("article", { name: "check-6" })).toBeVisible();
+  });
+
+  it("caps project findings per audit and offers one Load more for the aggregate", async () => {
+    const paused = auditAt("paused", 3);
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const url = new URL((input as Request).url);
+        const path = url.pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/projects/project_example/audits")
+          return jsonResponse({ items: [paused], page: { hasMore: false } });
+        if (path === "/v1/audits/audit_example/findings")
+          return pagedResponse(url.searchParams.get("cursor"), (ordinal) => {
+            const finding = findingAt("proposed", 1);
+            finding.findingId = `finding_${ordinal + 1}`;
+            finding.firstProposal.document.title = `Finding ${ordinal + 1}`;
+            return finding;
+          });
+        if (path === "/v1/audits/audit_example/reviews")
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/findings");
+    expect(await screen.findByText("5 of 5 findings · 1 audits")).toBeVisible();
+    expect(screen.getByText("Showing 5 of ≥5 findings")).toBeVisible();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Some audits have more findings — load more",
+      }),
+    );
+    expect(await screen.findByText("6 of 6 findings · 1 audits")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Finding 6" })).toBeVisible();
+    expect(screen.queryByText(/Showing 5 of/u)).toBeNull();
+    await user.type(screen.getByLabelText("Search findings"), "Finding 6");
+    expect(screen.getByText("1 of 6 findings · 1 audits")).toBeVisible();
+  });
+
+  it.each([
+    ["completed", false],
+    ["active", true],
+  ] as const)(
+    "polls project findings of a %s audit: %s",
+    async (state, polls) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const audit = auditAt(state, 3);
+      const requests = { audits: 0, findings: 0 };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const path = new URL((input as Request).url).pathname;
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (path === "/v1/projects/project_example/audits") {
+            requests.audits += 1;
+            return jsonResponse({ items: [audit], page: { hasMore: false } });
+          }
+          if (path === "/v1/audits/audit_example/findings") {
+            requests.findings += 1;
+            return jsonResponse({
+              items: [findingAt("proposed", 1)],
+              page: { hasMore: false },
+            });
+          }
+          if (path === "/v1/audits/audit_example/reviews")
+            return jsonResponse({ items: [], page: { hasMore: false } });
+          throw new Error(`unexpected ${path}`);
+        }),
+      );
+      renderApplication(api, "/projects/project_example/findings");
+      expect(
+        await screen.findByText("1 of 1 findings · 1 audits"),
+      ).toBeVisible();
+      const before = { ...requests };
+      await vi.advanceTimersByTimeAsync(11_000);
+      if (polls) {
+        await vi.waitFor(() => {
+          expect(requests.audits).toBeGreaterThan(before.audits);
+          expect(requests.findings).toBeGreaterThan(before.findings);
+        });
+      } else {
+        expect(requests).toEqual(before);
+      }
+      vi.useRealTimers();
+    },
+  );
+});
+
 describe("Audit workspace snapshot navigation", () => {
   it("uses whole-filter totals, pins continuations, and resets stale cursors on filter changes", async () => {
     const audit = auditAt("completed", 5);
