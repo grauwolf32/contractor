@@ -273,7 +273,7 @@ export function QueuePanel() {
       ) : null}
 
       {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading Queue…
         </p>
       ) : query.error !== null ? (

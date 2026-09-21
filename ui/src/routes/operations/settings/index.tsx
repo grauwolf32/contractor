@@ -213,20 +213,16 @@ export function OperationsSettingsRoute() {
 
             <div className="settings-editor">
               {query.isPending ? (
-                <p className="loading-copy" aria-live="polite">
+                <p className="loading-copy" role="status">
                   Loading saved scheduling settings…
                 </p>
               ) : query.data === undefined ? (
                 <div className="settings-load-error">
-                  <ErrorNotice error={query.error} />
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={query.isFetching}
-                    onClick={() => void query.refetch()}
-                  >
-                    {query.isFetching ? "Reloading…" : "Retry settings load"}
-                  </button>
+                  <ErrorNotice
+                    error={query.error}
+                    onRetry={() => void query.refetch()}
+                    retryPending={query.isFetching}
+                  />
                 </div>
               ) : (
                 <form className="settings-form" onSubmit={submit}>

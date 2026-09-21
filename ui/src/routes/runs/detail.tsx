@@ -21,6 +21,8 @@ import { ErrorNotice, formatTimestamp } from "../artifacts/common";
 import {
   DefinitionList,
   RunArtifactRef,
+  type RunDisclosureProps,
+  RunDisclosureSummary,
   RunMetadataLabelChips,
   StageAttemptView,
   StateBadge,
@@ -385,15 +387,8 @@ function CancellationControl({ run }: { run: RunStatus }) {
   }
 
   if (isTerminalRunState(run.state)) {
-    return (
-      <div className="panel cancellation-panel">
-        <p className="eyebrow">Cancellation</p>
-        <h3>Run is terminal</h3>
-        <p className="muted-copy">
-          Cancellation is not available for a terminal Run.
-        </p>
-      </div>
-    );
+    // A terminal Run cannot be cancelled; the panel would only add noise.
+    return null;
   }
   if (run.state === "cancelling") {
     return (
@@ -614,13 +609,18 @@ function RunMetadataLabels({ run }: { run: RunStatus }) {
   );
 }
 
-function RunRuntimeConfiguration({ run }: { run: RunStatus }) {
+function RunRuntimeConfiguration({
+  run,
+  ...disclosure
+}: {
+  run: RunStatus;
+} & RunDisclosureProps) {
   const entries = [
     run.runtimeConfiguration.default,
     ...run.runtimeConfiguration.labels,
   ];
   return (
-    <details className="panel run-runtime-configuration">
+    <details className="panel run-runtime-configuration" {...disclosure}>
       <summary>
         <span>
           <span className="eyebrow">Pinned at Run creation</span>
@@ -668,10 +668,11 @@ function RunRuntimeConfiguration({ run }: { run: RunStatus }) {
 function LiveAttempts({
   run,
   focusStageExecutionId,
+  ...disclosure
 }: {
   run: RunStatus;
   focusStageExecutionId: string | undefined;
-}) {
+} & RunDisclosureProps) {
   const live = useLiveRunProjection(run);
   return (
     <>
@@ -688,37 +689,39 @@ function LiveAttempts({
           <p>Manual refresh remains available and authoritative.</p>
         </div>
       )}
-      <section className="run-attempts" id="run-attempts">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Scheduler history</p>
-            <h3>Ordered Stage attempts</h3>
-          </div>
-          <span>
-            {run.attempts.length} attempt{run.attempts.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {run.attempts.length === 0 ? (
-          <div className="panel compact-empty">
-            No Stage attempt has been durably created yet.
-          </div>
-        ) : (
-          run.attempts.map((attempt) => (
-            <StageAttemptView
-              key={attempt.stageExecutionId}
-              runId={run.runId}
-              attempt={attempt}
-              active={run.activeStageExecutionId === attempt.stageExecutionId}
-              focused={focusStageExecutionId === attempt.stageExecutionId}
-              projection={live.planners[attempt.stageExecutionId] ?? {}}
-              transitions={run.transitions.filter(
-                (transition) =>
-                  transition.sourceExecutionId === attempt.stageExecutionId,
-              )}
-            />
-          ))
-        )}
-      </section>
+      <details
+        className="run-disclosure run-attempts-disclosure"
+        id="run-attempts"
+        {...disclosure}
+      >
+        <RunDisclosureSummary
+          eyebrow="Scheduler history"
+          title="Ordered Stage attempts"
+          aside={`${run.attempts.length} attempt${run.attempts.length === 1 ? "" : "s"}`}
+        />
+        <section className="run-attempts" aria-label="Ordered Stage attempts">
+          {run.attempts.length === 0 ? (
+            <div className="panel compact-empty">
+              No Stage attempt has been durably created yet.
+            </div>
+          ) : (
+            run.attempts.map((attempt) => (
+              <StageAttemptView
+                key={attempt.stageExecutionId}
+                runId={run.runId}
+                attempt={attempt}
+                active={run.activeStageExecutionId === attempt.stageExecutionId}
+                focused={focusStageExecutionId === attempt.stageExecutionId}
+                projection={live.planners[attempt.stageExecutionId] ?? {}}
+                transitions={run.transitions.filter(
+                  (transition) =>
+                    transition.sourceExecutionId === attempt.stageExecutionId,
+                )}
+              />
+            ))
+          )}
+        </section>
+      </details>
     </>
   );
 }
@@ -754,6 +757,25 @@ function LoadedRunDetail({
   ]);
   const liveKey = `${run.eventCursor?.generation ?? "none"}:${run.eventCursor?.sequence ?? "none"}`;
   const triage = deriveRunTriage(run);
+  // Heavy sections stay open while a Run is active or failed (diagnostics
+  // matter) and start collapsed once it ended otherwise; the pinned Runtime
+  // configuration is reference material and always starts collapsed. Choices
+  // persist across live remounts because this component is keyed by Run ID.
+  const [disclosures, setDisclosures] = useState(() => {
+    const open = !isTerminalRunState(run.state) || run.state === "failed";
+    return { attempts: open, runtime: false, artifacts: open };
+  });
+  function disclosure(key: keyof typeof disclosures): RunDisclosureProps {
+    return {
+      open: disclosures[key],
+      onToggle: (event) => {
+        const next = event.currentTarget.open;
+        setDisclosures((current) =>
+          current[key] === next ? current : { ...current, [key]: next },
+        );
+      },
+    };
+  }
   return (
     <>
       <RunTriageSummary run={run} triage={triage} />
@@ -783,15 +805,16 @@ function LoadedRunDetail({
         key={`${liveKey}:${snapshotVersion}`}
         run={run}
         focusStageExecutionId={triage.stageExecutionId}
+        {...disclosure("attempts")}
       />
 
       <RunMetadataLabels run={run} />
       <RunTimestamps run={run} />
       <RunBindings run={run} />
 
-      <RunRuntimeConfiguration run={run} />
+      <RunRuntimeConfiguration run={run} {...disclosure("runtime")} />
 
-      <RunArtifactLibrary runId={run.runId} />
+      <RunArtifactLibrary runId={run.runId} {...disclosure("artifacts")} />
       <CancellationControl run={run} />
     </>
   );

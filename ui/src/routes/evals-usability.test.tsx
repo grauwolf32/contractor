@@ -57,7 +57,7 @@ it("retries the current pair page after a transient network failure", async () =
   );
   await screen.findByText("Public API is unavailable");
   fail = false;
-  await user.click(screen.getByRole("button", { name: "Retry" }));
+  await user.click(screen.getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(requests).toBeGreaterThan(1));
   expect(
     await screen.findByRole("link", { name: "unsafe-query / sample 1" }),

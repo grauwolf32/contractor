@@ -51,7 +51,9 @@ export function RuntimeConfigDetailRoute() {
         ← Runtime configuration
       </Link>
       {query.isPending ? (
-        <p className="loading-copy">Loading exact RuntimeConfig…</p>
+        <p className="loading-copy" role="status">
+          Loading exact RuntimeConfig…
+        </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : (

@@ -8,6 +8,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
+import { describeStopReason } from "./stop-reason";
 
 export function AuditProgress({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
@@ -19,6 +20,7 @@ export function AuditProgress({ audit }: { audit: Audit }) {
     refetchOnReconnect: true,
   });
   const value = summary.data;
+  const stop = describeStopReason(audit);
   const root = `/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}`;
   const revision =
     value === undefined ? "" : `auditRevision=${value.auditRevision}`;
@@ -98,6 +100,17 @@ export function AuditProgress({ audit }: { audit: Audit }) {
           </p>
         </div>
       ) : null}
+      {stop === null || !stop.deadline || audit.state === "paused" ? null : (
+        <p
+          className={`notice audit-stop-note ${stop.tone === "error" ? "notice-error" : ""}`}
+          role="status"
+        >
+          <strong>Stopped by time limit.</strong>{" "}
+          {value !== undefined && value.totalChecks > 0
+            ? `${value.completedChecks} of ${value.totalChecks} checks concluded; no further Runs were submitted.`
+            : "No further Runs were submitted."}
+        </p>
+      )}
       <div className="audit-progress-grid">
         {metrics.map((metric) => (
           <Link

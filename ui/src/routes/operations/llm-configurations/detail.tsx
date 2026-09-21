@@ -149,7 +149,7 @@ export function ConfigurationDetailRoute() {
       {!valid ? (
         <ErrorNotice error={new Error("Configuration route is invalid")} />
       ) : query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading exact configuration…
         </p>
       ) : query.error !== null ? (

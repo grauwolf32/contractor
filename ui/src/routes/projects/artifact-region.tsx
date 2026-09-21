@@ -278,7 +278,7 @@ export const ProjectArtifactRegion = forwardRef<
           </p>
         )}
         {query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
+          <p className="loading-copy" role="status">
             Loading Project Artifacts…
           </p>
         ) : query.error !== null ? (

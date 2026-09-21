@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../app/document-title";
 import { type FormEvent, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
@@ -21,6 +22,7 @@ function safeDestination(state: unknown): string {
 }
 
 export function LoginRoute() {
+  useDocumentTitle("Sign in");
   const {
     session,
     error: sessionError,

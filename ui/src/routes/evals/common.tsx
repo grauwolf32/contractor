@@ -97,7 +97,7 @@ export function EvalError({
       ) : null}
       {reload ? (
         <button type="button" className="secondary-button" onClick={reload}>
-          {changed ? "Reload current revision" : "Retry"}
+          {changed ? "Reload current revision" : "Try again"}
         </button>
       ) : null}
     </div>

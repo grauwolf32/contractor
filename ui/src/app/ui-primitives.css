@@ -3,6 +3,18 @@
   --control-radius: 0.55rem;
 }
 
+/* Keyboard focus is always visible; pointer focus keeps the native heuristics. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Form fields share their appearance inside the page and portal dialogs. */
 :is(
     .route-page form,

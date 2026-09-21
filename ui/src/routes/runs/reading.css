@@ -188,3 +188,92 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Collapsible heavy sections of the Run detail page. */
+.run-disclosure {
+  margin-top: 1.5rem;
+}
+.run-disclosure-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+.run-disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+.run-disclosure-summary > span:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.run-disclosure-summary .eyebrow {
+  margin: 0;
+}
+.run-disclosure-summary strong {
+  font-size: 1rem;
+}
+.run-disclosure-summary > span:last-child {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: right;
+}
+.run-disclosure-summary > span:last-child::after,
+.run-disclosure-summary > span:first-child:last-child::after {
+  content: " · Show";
+  color: var(--muted-strong);
+}
+.run-disclosure[open] > .run-disclosure-summary > span:last-child::after,
+.run-disclosure[open]
+  > .run-disclosure-summary
+  > span:first-child:last-child::after {
+  content: " · Hide";
+}
+.run-disclosure-body {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+.run-disclosure-body > .inline-form {
+  margin-bottom: 1rem;
+}
+.run-attempts-disclosure > .run-disclosure-summary {
+  padding: 0.25rem 0 1rem;
+}
+.run-attempts-disclosure > .run-attempts {
+  margin-top: 0.25rem;
+}
+.run-attempts-disclosure > .run-attempts::before {
+  top: 1.35rem;
+}
+
+/* Planner result summaries are Markdown; keep the preview bounded. */
+.result-summary {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0.5rem 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface-raised);
+}
+.result-summary .markdown-artifact-preview {
+  max-height: none;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.result-summary .markdown-artifact-preview h1,
+.result-summary .markdown-artifact-preview h2,
+.result-summary .markdown-artifact-preview h3,
+.result-summary .markdown-artifact-preview h4 {
+  font-size: 0.95rem;
+  margin: 0.75rem 0 0.35rem;
+}
+.result-summary-plain {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  white-space: pre-wrap;
+}

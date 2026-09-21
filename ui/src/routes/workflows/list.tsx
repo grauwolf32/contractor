@@ -58,7 +58,9 @@ export function WorkflowListRoute() {
       {query.error ? (
         <ErrorNotice error={query.error} />
       ) : query.isPending ? (
-        <p className="loading-copy">Loading the complete Workflow inventory…</p>
+        <p className="loading-copy" role="status">
+          Loading the complete Workflow inventory…
+        </p>
       ) : filtered.length === 0 ? (
         <div className="panel compact-empty">
           <strong>

@@ -274,7 +274,7 @@ export function WorkflowDetailRoute() {
 
   if (query.isPending)
     return (
-      <p className="loading-copy" aria-live="polite">
+      <p className="loading-copy" role="status">
         Loading exact Workflow contract…
       </p>
     );

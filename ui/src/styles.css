@@ -29,6 +29,12 @@
   --success: #95e6d9;
   --warning: #ffe9a4;
   --danger: #ff8f86;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
 }
 
 * {
@@ -85,11 +91,6 @@ a {
   color: var(--link);
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.18em;
-}
-
-:where(a, button, input, select, textarea, summary):focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
 }
 
 .eyebrow {
@@ -244,8 +245,7 @@ a {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 0.55rem;
-  outline: none;
-  background: #0c1016;
+  background: var(--surface-subtle);
   color: inherit;
   padding: 0.8rem 0.9rem;
 }
@@ -940,8 +940,7 @@ a {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
-  background: #0c1016;
+  background: var(--surface-subtle);
   color: inherit;
   padding: 0.65rem 0.75rem;
 }
@@ -1002,7 +1001,7 @@ a {
 .notice-warning {
   border-color: #76642d;
   background: #28220f;
-  color: #ffe9a4;
+  color: var(--warning);
 }
 
 .artifact-library {
@@ -1287,7 +1286,6 @@ code {
   max-width: min(28rem, 55vw);
   border: 1px solid var(--line-strong);
   border-radius: 0.45rem;
-  outline: none;
   background: var(--surface-raised);
   color: var(--text);
   padding: 0.45rem 0.65rem;
@@ -1941,7 +1939,6 @@ code {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
   background: #080b0f;
   color: inherit;
   padding: 0.7rem 0.75rem;
@@ -2437,7 +2434,6 @@ code {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
   background: #080b0f;
   color: inherit;
   padding: 0.65rem 0.75rem;
@@ -2487,7 +2483,6 @@ code {
 .cancellation-panel textarea {
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
   background: #080b0f;
   color: inherit;
   padding: 0.65rem 0.75rem;
@@ -2505,7 +2500,7 @@ code {
   align-items: center;
   border: 1px solid #4d5968;
   border-radius: 999px;
-  background: #1a202b;
+  background: var(--surface-raised);
   color: #c9d2dd;
   padding: 0.2rem 0.5rem;
   font-size: 0.75rem;
@@ -2519,7 +2514,12 @@ code {
   position: relative;
   overflow: hidden;
   margin-bottom: 1rem;
-  background: linear-gradient(125deg, #182016 0, #121720 48%, #10151d 100%);
+  background: linear-gradient(
+    125deg,
+    #182016 0,
+    var(--surface) 48%,
+    #10151d 100%
+  );
 }
 
 .run-triage::before {
@@ -2748,7 +2748,7 @@ code {
 .state-interrupted {
   border-color: #76642d;
   background: #28220f;
-  color: #ffe9a4;
+  color: var(--warning);
 }
 
 .state-failed,
@@ -2761,14 +2761,14 @@ code {
 .state-succeeded {
   border-color: #357067;
   background: #102b28;
-  color: #95e6d9;
+  color: var(--success);
 }
 
 .state-ok,
 .state-available {
   border-color: #357067;
   background: #102b28;
-  color: #95e6d9;
+  color: var(--success);
 }
 
 .state-partial,
@@ -2776,13 +2776,13 @@ code {
 .state-unsupported {
   border-color: #76642d;
   background: #28220f;
-  color: #ffe9a4;
+  color: var(--warning);
 }
 
 .state-unavailable,
 .state-disabled {
   border-color: #4d5968;
-  background: #1a202b;
+  background: var(--surface-raised);
   color: #aeb9c6;
 }
 
@@ -2794,7 +2794,7 @@ code {
   margin: 0 0 1rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #121720;
+  background: var(--surface);
   color: var(--muted);
   padding: 0.45rem 0.7rem;
   font-size: 0.75rem;
@@ -2804,8 +2804,8 @@ code {
 .live-reconnecting .status-dot,
 .live-resyncing .status-dot,
 .live-connecting .status-dot {
-  background: #ffe9a4;
-  box-shadow: 0 0 1rem #ffe9a4;
+  background: var(--warning);
+  box-shadow: 0 0 1rem var(--warning);
 }
 
 .live-error .status-dot,
@@ -3229,7 +3229,7 @@ code {
 
 .cancellation-record span,
 .cancellation-record small {
-  color: #ffe9a4;
+  color: var(--warning);
 }
 
 .cancellation-panel {
@@ -3417,7 +3417,6 @@ code {
   min-width: 12rem;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
   background: #080b0f;
   color: inherit;
   padding: 0.65rem 0.75rem;
@@ -3468,7 +3467,7 @@ code {
 }
 
 .performance-chart-point {
-  fill: #d8ff72;
+  fill: var(--accent);
   stroke: #111821;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
@@ -3794,7 +3793,6 @@ code {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
   background: #080b0f;
   color: inherit;
   padding: 0.65rem 0.75rem;
@@ -3937,7 +3935,7 @@ code {
 }
 
 .runtime-agent-override {
-  color: #ffe9a4;
+  color: var(--warning);
 }
 
 .operations-library .section-heading > span {
@@ -3959,12 +3957,12 @@ code {
 .reconciliation-warning {
   display: block;
   margin-top: 0.35rem;
-  color: #95e6d9;
+  color: var(--success);
   font-size: 0.75rem;
 }
 
 .reconciliation-warning {
-  color: #ffe9a4;
+  color: var(--warning);
 }
 
 .reason-record,
@@ -4050,7 +4048,6 @@ code {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
   background: #080b0f;
   color: inherit;
   padding: 0.65rem 0.75rem;
@@ -4179,8 +4176,7 @@ code {
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
-  outline: none;
-  background: #0c1016;
+  background: var(--surface-subtle);
   color: inherit;
   padding: 0.65rem 0.75rem;
 }
@@ -4214,7 +4210,12 @@ code {
   min-height: 20rem;
   grid-template-rows: auto 1fr auto auto;
   gap: 1rem;
-  background: linear-gradient(150deg, #18211a 0, #121720 46%, #10141b 100%);
+  background: linear-gradient(
+    150deg,
+    #18211a 0,
+    var(--surface) 46%,
+    #10141b 100%
+  );
   transition:
     border-color 140ms ease,
     transform 140ms ease;
@@ -4332,7 +4333,7 @@ code {
   background-image: linear-gradient(
     145deg,
     #182025 0,
-    #121720 52%,
+    var(--surface) 52%,
     #16131d 100%
   );
 }
@@ -4424,7 +4425,7 @@ code {
   align-items: start;
   gap: 1rem;
   border-color: #753f42;
-  background: linear-gradient(145deg, #25191b, #121720 62%);
+  background: linear-gradient(145deg, #25191b, var(--surface) 62%);
 }
 
 .project-deletion-progress h3 {
@@ -4853,7 +4854,7 @@ code {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 0.7rem;
-  background: #0c1016;
+  background: var(--surface-subtle);
 }
 
 .project-all-workflows > summary {
@@ -4911,7 +4912,7 @@ code {
   gap: 0.4rem;
   border: 1px solid var(--line);
   border-radius: 0.6rem;
-  background: #0c1016;
+  background: var(--surface-subtle);
   padding: 0.8rem;
   color: var(--muted-strong);
   font-size: 0.78rem;

@@ -95,6 +95,32 @@ function gatewayBody(value: components["schemas"]["LLMGatewayBody"]) {
             managementUrl: value.credentialManager.managementUrl,
           },
         }),
+    ...(value.failureSignatures === undefined
+      ? {}
+      : { failureSignatures: failureSignatures(value.failureSignatures) }),
+  };
+}
+
+function failureSignatures(
+  value: components["schemas"]["GatewayFailureSignatures"],
+): components["schemas"]["GatewayFailureSignatures"] {
+  return {
+    ...(value.modelUnavailable === undefined
+      ? {}
+      : {
+          modelUnavailable: value.modelUnavailable.map((signature) => ({
+            status: signature.status,
+            ...(signature.messageEquals === undefined
+              ? {}
+              : { messageEquals: signature.messageEquals }),
+            ...(signature.litellmWrapped === undefined
+              ? {}
+              : { litellmWrapped: signature.litellmWrapped }),
+          })),
+        }),
+    ...(value.permanentCodes === undefined
+      ? {}
+      : { permanentCodes: [...value.permanentCodes] }),
   };
 }
 

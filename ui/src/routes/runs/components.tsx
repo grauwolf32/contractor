@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, type ReactNode, Suspense, type SyntheticEvent } from "react";
 import { Link } from "react-router";
 
 import type { components } from "../../api/generated/public";
@@ -16,8 +16,51 @@ type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type Metrics = components["schemas"]["MetricsSummary"];
 type Diagnostics = components["schemas"]["AttemptDiagnostics"];
 
+const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
+
 function stateLabel(value: string): string {
   return value.replaceAll("_", " ");
+}
+
+/** Controlled `<details>` state shared by the heavy Run detail sections. */
+export type RunDisclosureProps = {
+  open: boolean;
+  onToggle: (event: SyntheticEvent<HTMLDetailsElement>) => void;
+};
+
+/** Heading row for a collapsible Run section; the parent `<details>` owns `open`. */
+export function RunDisclosureSummary({
+  eyebrow,
+  title,
+  aside,
+}: {
+  eyebrow: string;
+  title: string;
+  aside?: ReactNode;
+}) {
+  return (
+    <summary className="run-disclosure-summary">
+      <span>
+        <span className="eyebrow">{eyebrow}</span>
+        <strong>{title}</strong>
+      </span>
+      {aside === undefined ? null : <span>{aside}</span>}
+    </summary>
+  );
+}
+
+/** Planner summaries are Markdown; the preview is bounded and lazy-loaded. */
+function ResultSummary({ summary }: { summary: string }) {
+  if (summary.trim() === "") {
+    return null;
+  }
+  return (
+    <div className="result-summary">
+      <Suspense fallback={<p className="result-summary-plain">{summary}</p>}>
+        <MarkdownPreview source={summary} />
+      </Suspense>
+    </div>
+  );
 }
 
 export function StateBadge({ state }: { state: WorkflowRunState | string }) {
@@ -434,7 +477,7 @@ function ResultView({
           <p>
             <strong>Planner result: {attempt.result.outcome}</strong>
           </p>
-          <p>{attempt.result.summary}</p>
+          <ResultSummary summary={attempt.result.summary} />
           {attempt.result.error === undefined ? null : (
             <p>
               Error <code>{attempt.result.error.code}</code> ·{" "}

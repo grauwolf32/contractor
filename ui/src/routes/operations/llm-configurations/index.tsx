@@ -68,7 +68,7 @@ export function ConfigurationListRoute() {
         </p>
       ) : null}
       {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading configurations…
         </p>
       ) : query.error !== null ? (

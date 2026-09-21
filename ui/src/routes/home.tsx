@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../app/document-title";
 import { RecordedTime } from "../app/recorded-time";
 import { getOwnerQueueControl } from "../api/queue";
 import { ContextLink } from "../app/context-navigation";
@@ -120,7 +121,9 @@ function AttentionPanel({
         age; these are historical outcomes.
       </p>
       {query.isPending ? (
-        <p className="loading-copy">Loading recent activity…</p>
+        <p className="loading-copy" role="status">
+          Loading recent activity…
+        </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : (
@@ -157,7 +160,9 @@ function ActivePanel({ queries }: { queries: ActiveQuery[] }) {
         Runs that are starting, running, or stopping.
       </p>
       {pending && runs.length === 0 ? (
-        <p className="loading-copy">Loading active Runs…</p>
+        <p className="loading-copy" role="status">
+          Loading active Runs…
+        </p>
       ) : errors.length === queries.length ? (
         <ErrorNotice error={errors[0]} />
       ) : (
@@ -197,7 +202,9 @@ function RecentSuccessPanel({
       </div>
       <p className="action-panel-copy">Open a Run to preview its results.</p>
       {query.isPending ? (
-        <p className="loading-copy">Loading recent activity…</p>
+        <p className="loading-copy" role="status">
+          Loading recent activity…
+        </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : (
@@ -350,7 +357,9 @@ function QuickStartPanel({
         <Link to="/projects">Open Projects →</Link>
       </p>
       {query.isPending ? (
-        <p className="loading-copy">Loading Workflow catalog…</p>
+        <p className="loading-copy" role="status">
+          Loading Workflow catalog…
+        </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : workflows.length === 0 ? (
@@ -407,6 +416,7 @@ function useOperations(authorized: boolean) {
 }
 
 export function HomeRoute() {
+  useDocumentTitle("Home");
   const { session } = useSession();
   const operationsAuthorized =
     session?.principal.capabilities.includes("operations") === true;

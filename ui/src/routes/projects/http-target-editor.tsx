@@ -343,19 +343,17 @@ function ProjectHTTPTargetDialog({
         {authMode === "existing" ? (
           <>
             {credentials.isPending ? (
-              <p className="loading-copy">Loading active credentials…</p>
+              <p className="loading-copy" role="status">
+                Loading active credentials…
+              </p>
             ) : null}
             {credentials.error === null ? null : (
               <>
-                <ErrorNotice error={credentials.error} />
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={credentials.isFetching}
-                  onClick={() => void credentials.refetch()}
-                >
-                  Retry credentials
-                </button>
+                <ErrorNotice
+                  error={credentials.error}
+                  onRetry={() => void credentials.refetch()}
+                  retryPending={credentials.isFetching}
+                />
               </>
             )}
             <label>

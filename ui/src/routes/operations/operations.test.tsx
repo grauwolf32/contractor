@@ -119,6 +119,35 @@ beforeEach(() => {
 });
 
 describe("Operations routes", () => {
+  it("lists the readiness shortcuts as separate links", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) {
+          return authenticated;
+        }
+        if (new URL(request.url).pathname === "/v1/operations/snapshot") {
+          return apiResponse(snapshot());
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations");
+    const shortcuts = await screen.findByRole("list", {
+      name: "Readiness shortcuts",
+    });
+    const links = within(shortcuts).getAllByRole("link");
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      "Inspect Runtime Agents →",
+      "Runtime configuration →",
+      "Inspect Run wait reasons →",
+    ]);
+    expect(shortcuts.querySelectorAll("li")).toHaveLength(3);
+    expect(shortcuts.classList.contains("form-actions")).toBe(false);
+  });
+
   it("keeps fenced Runtime observation separate from the authoritative lease", async () => {
     let snapshotReads = 0;
     const api = new PublicAPI(

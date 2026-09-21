@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
@@ -26,6 +27,7 @@ const EVAL_STATES = [
 ] as const;
 
 export function EvalListRoute() {
+  useDocumentTitle("Evals");
   const api = usePublicAPI(),
     projects = useEvalProjects();
   const [params, setParams] = useSearchParams();

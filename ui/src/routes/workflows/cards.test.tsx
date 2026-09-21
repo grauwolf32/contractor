@@ -15,10 +15,10 @@ const config = {
 const workflow = (version: string) => ({
   ref: { name: "check", version },
   entryStage: "check",
-  presentation: {
-    displayName: "Source check",
-    description: "Review source evidence.",
-  },
+  presentation:
+    version === "10"
+      ? { displayName: "Source check", description: "Review source evidence." }
+      : { displayName: "Source check" },
   parameters: {},
   inputs: {},
   outputs:
@@ -98,9 +98,16 @@ describe("shared Workflow cards", () => {
       within(card).getByRole("link", { name: "View workflow" }),
     ).toHaveAttribute("href", "/catalog/workflows/check/10");
     expect(within(card).getByText("report")).toBeVisible();
+    expect(
+      within(card).getByText("Review source evidence."),
+    ).toBeInTheDocument();
     const user = userEvent.setup();
     await user.selectOptions(select, "9");
     expect(within(card).queryByText("report")).toBeNull();
+    // A version without a description simply omits the purpose line.
+    expect(within(card).queryByText("Review source evidence.")).toBeNull();
+    expect(within(card).queryByText(/Purpose is not described/)).toBeNull();
+    expect(card.querySelector(".workflow-card-description")).toBeNull();
     expect(
       within(card).getByRole("link", { name: "View workflow" }),
     ).toHaveAttribute("href", "/catalog/workflows/check/9");

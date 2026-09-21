@@ -438,6 +438,11 @@ export function LLMGatewayPublicationForm({
             },
           }
         : {}),
+      // Provider failure signatures are declared in the catalog YAML; a cloned
+      // version keeps the source declaration rather than silently dropping it.
+      ...(sourceBody.failureSignatures === undefined
+        ? {}
+        : { failureSignatures: sourceBody.failureSignatures }),
     };
     const nextErrors = [
       ...cloneIdentityErrors(identity, source),

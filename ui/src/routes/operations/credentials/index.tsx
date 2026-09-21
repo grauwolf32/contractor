@@ -44,7 +44,7 @@ export function CredentialListRoute() {
           </div>
         </div>
         {query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
+          <p className="loading-copy" role="status">
             Loading credentials…
           </p>
         ) : query.error !== null ? (

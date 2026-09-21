@@ -4,6 +4,7 @@ import type { Audit } from "../../../api/audits";
 import { formatBytes, formatTimestamp } from "../../artifacts/common";
 import { AuditProgress } from "./progress";
 import { ExactArtifactLink } from "./shared";
+import { describeStopReason } from "./stop-reason";
 
 function compactDigest(digest: string): string {
   return digest.length <= 28
@@ -30,14 +31,18 @@ function StringList({
 
 export function AuditOverview({ audit }: { audit: Audit }) {
   const baseline = audit.baseline;
+  const stop = describeStopReason(audit);
   return (
     <div className="audit-detail-stack">
-      {audit.stopReason === undefined ||
-      (audit.state === "paused" &&
-        audit.stopReason.code === "deadline_exhausted") ? null : (
+      {stop === null || stop.deadline ? null : stop.tone === "error" ? (
         <section className="notice notice-error audit-stop-reason" role="alert">
-          <strong>{audit.stopReason.code}</strong>
-          <p>{audit.stopReason.message}</p>
+          {stop.label === undefined ? null : <strong>{stop.label}</strong>}
+          <p>{stop.message}</p>
+        </section>
+      ) : (
+        <section className="notice audit-stop-reason" role="status">
+          {stop.label === undefined ? null : <strong>{stop.label}</strong>}
+          <p>{stop.message}</p>
         </section>
       )}
       <AuditProgress audit={audit} />

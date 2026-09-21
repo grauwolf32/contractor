@@ -70,7 +70,9 @@ function RecentRunResults({
         {formatTimestamp(summary.updatedAt)}
       </small>
       {run.isPending ? (
-        <p className="loading-copy">Loading exact outputs…</p>
+        <p className="loading-copy" role="status">
+          Loading exact outputs…
+        </p>
       ) : run.error ? (
         <>
           <ErrorNotice error={run.error} />
@@ -251,7 +253,9 @@ export function ProjectOverview({ project }: { project: Project }) {
                 : "Next steps"}
             </p>
             {decisions.isPending ? (
-              <p className="loading-copy">Checking Audit decisions…</p>
+              <p className="loading-copy" role="status">
+                Checking Audit decisions…
+              </p>
             ) : decisions.error ? (
               <ErrorNotice error={decisions.error} />
             ) : decisions.data.items.length ? (
@@ -315,7 +319,9 @@ export function ProjectOverview({ project }: { project: Project }) {
               Outputs from the three most recent successful Runs.
             </p>
             {successful.isPending ? (
-              <p className="loading-copy">Loading successful Runs…</p>
+              <p className="loading-copy" role="status">
+                Loading successful Runs…
+              </p>
             ) : successful.error ? (
               <ErrorNotice error={successful.error} />
             ) : successful.data.items.length === 0 ? (
@@ -338,7 +344,9 @@ export function ProjectOverview({ project }: { project: Project }) {
               <Link to={`${root}/runs`}>All Runs →</Link>
             </div>
             {recent.isPending ? (
-              <p className="loading-copy">Loading recent Runs…</p>
+              <p className="loading-copy" role="status">
+                Loading recent Runs…
+              </p>
             ) : recent.error ? (
               <ErrorNotice error={recent.error} />
             ) : recent.data.items.length === 0 ? (
@@ -375,7 +383,9 @@ export function ProjectOverview({ project }: { project: Project }) {
               </p>
             ) : null}
             {materials.isPending ? (
-              <p className="loading-copy">Loading materials…</p>
+              <p className="loading-copy" role="status">
+                Loading materials…
+              </p>
             ) : materials.error ? (
               <ErrorNotice error={materials.error} />
             ) : empty ? (
@@ -431,7 +441,9 @@ export function ProjectOverview({ project }: { project: Project }) {
               <Link to={`${root}/audits`}>All audits →</Link>
             </div>
             {audits.isPending ? (
-              <p className="loading-copy">Loading Audits…</p>
+              <p className="loading-copy" role="status">
+                Loading Audits…
+              </p>
             ) : audits.error ? (
               <ErrorNotice error={audits.error} />
             ) : audits.data.items.length === 0 ? (

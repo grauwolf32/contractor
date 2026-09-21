@@ -327,8 +327,8 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   await expect(page.getByText("revision 2")).toBeVisible();
   await page.getByRole("link", { name: "Coverage" }).click();
   await expect(page.getByText("Inconclusive", { exact: true })).toBeVisible();
-  const taskAndResult = page.locator("details").filter({
-    has: page.getByText("Read task and result", { exact: true }),
+  const taskAndResult = page.locator("details.audit-result-reading").filter({
+    has: page.getByText("Inconclusive", { exact: true }),
   });
   await taskAndResult.locator("summary").click();
   await expect(taskAndResult.getByText("test evidence missing")).toBeVisible();
@@ -346,7 +346,11 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     .getByRole("searchbox", { name: "Search checks" })
     .fill("cross-account");
   await expect(page.getByText("Showing 1 of 1 checks")).toBeVisible();
-  await page.getByText("Full task & evidence (1)").click();
+  await page
+    .locator("details.audit-result-reading")
+    .first()
+    .locator("summary")
+    .click();
   await expect(page.getByText(/compares the order owner/u)).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({

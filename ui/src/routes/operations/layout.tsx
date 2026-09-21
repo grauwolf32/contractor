@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../../app/document-title";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
@@ -118,6 +119,17 @@ export function OperationsLayoutRoute() {
   const independentRead =
     normalizedPath === "/operations/performance" ||
     normalizedPath === "/operations/allocations/completed";
+  const currentSection = [...navigation]
+    .reverse()
+    .find(
+      (item) =>
+        normalizedPath === item.to || normalizedPath.startsWith(item.to + "/"),
+    );
+  useDocumentTitle(
+    currentSection === undefined || currentSection.to === "/operations"
+      ? "Operations"
+      : `${currentSection.label} · Operations`,
+  );
   const [connection, setConnection] =
     useState<RunEventConnectionState>("connecting");
   const [liveError, setLiveError] = useState<string>();
@@ -205,15 +217,7 @@ export function OperationsLayoutRoute() {
       </nav>
       <MobileSectionPicker
         label="Operations section"
-        value={
-          [...navigation]
-            .reverse()
-            .find(
-              (item) =>
-                normalizedPath === item.to ||
-                normalizedPath.startsWith(item.to + "/"),
-            )?.to ?? "/operations"
-        }
+        value={currentSection?.to ?? "/operations"}
         options={navigation.filter(
           (item) => authorized || item.to === "/operations/settings",
         )}
@@ -223,11 +227,15 @@ export function OperationsLayoutRoute() {
       {independentRead || personalSettings ? (
         <Outlet />
       ) : query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading authoritative Operations snapshot…
         </p>
       ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
+        <ErrorNotice
+          error={query.error}
+          onRetry={refresh}
+          retryPending={query.isFetching}
+        />
       ) : (
         <>
           <OperationsLiveSubscription

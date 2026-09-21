@@ -920,10 +920,14 @@ describe("Run routes", () => {
       "Stop after the current review",
     );
     await user.click(button);
-    expect(
-      await screen.findByRole("heading", { name: "Run is terminal" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("succeeded")).toBeInTheDocument();
+    expect(await screen.findByText("succeeded")).toBeInTheDocument();
+    // A terminal Run shows no cancellation panel at all.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Request cancellation" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/Cancellation/)).not.toBeInTheDocument();
     expect(cancellationCalls).toBe(1);
     expect(cancellationBody).toEqual({
       reason: "Stop after the current review",
@@ -1022,6 +1026,10 @@ describe("Run routes", () => {
       view.container.querySelector<HTMLDetailsElement>(
         "#attempt-stage-router-1",
       )?.open,
+    ).toBe(true);
+    // A failed Run keeps its attempts and diagnostics expanded.
+    expect(
+      view.container.querySelector<HTMLDetailsElement>("#run-attempts")?.open,
     ).toBe(true);
     expect(
       view.container.querySelector<HTMLDetailsElement>(
@@ -1326,7 +1334,7 @@ describe("Run routes", () => {
           result: {
             apiVersion: "contractor/v1alpha1",
             outcome: "succeeded",
-            summary: "Architecture review completed.",
+            summary: "## Summary\n\nArchitecture review completed.",
             artifacts: { report: output },
           },
           metrics: {
@@ -1474,9 +1482,14 @@ describe("Run routes", () => {
     );
     const view = renderRunApplication(api, "/runs/run-router");
     expect(await screen.findByText("worker_lease_lost")).toBeInTheDocument();
+    // The Planner summary is Markdown, rendered inside a bounded preview.
     expect(
-      screen.getByText("Architecture review completed."),
+      await screen.findByText("Architecture review completed."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Summary", level: 2 }),
+    ).toBeInTheDocument();
+    expect(view.container.querySelector(".result-summary")).not.toBeNull();
     expect(screen.getByText("strong-review@2")).toBeInTheDocument();
     expect(screen.getByText("Model calls")).toBeInTheDocument();
     expect(screen.getByText("1600")).toBeInTheDocument();
@@ -1515,12 +1528,21 @@ describe("Run routes", () => {
     expect(
       await screen.findAllByRole("link", { name: /outputs\/report@output-r2/ }),
     ).toHaveLength(2);
-    expect(
-      screen.getByRole("heading", { name: "Run is terminal" }),
-    ).toBeInTheDocument();
+    // Terminal Runs hide the cancellation panel entirely and collapse the
+    // heavy sections; the artifact table summary still reports its count.
+    expect(screen.queryByText(/Cancellation/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Request cancellation" }),
     ).not.toBeInTheDocument();
+    expect(
+      view.container.querySelector<HTMLDetailsElement>("#run-attempts")?.open,
+    ).toBe(false);
+    const library =
+      view.container.querySelector<HTMLDetailsElement>("#run-artifacts");
+    expect(library?.open).toBe(false);
+    await waitFor(() =>
+      expect(library?.querySelector("summary")).toHaveTextContent("1 Artifact"),
+    );
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Preview result" }));
     expect(

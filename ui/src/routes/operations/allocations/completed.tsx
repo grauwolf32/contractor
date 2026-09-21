@@ -102,7 +102,7 @@ export function CompletedAllocationListRoute() {
         {query.error !== null ? (
           <ErrorNotice error={query.error} />
         ) : query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
+          <p className="loading-copy" role="status">
             Loading completed allocations…
           </p>
         ) : query.data.items.length === 0 ? (

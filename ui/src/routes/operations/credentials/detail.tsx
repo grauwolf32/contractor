@@ -109,7 +109,7 @@ export function CredentialDetailRoute() {
       {!valid ? (
         <ErrorNotice error={new Error("Credential route is invalid")} />
       ) : query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading credential metadata…
         </p>
       ) : query.error !== null ? (

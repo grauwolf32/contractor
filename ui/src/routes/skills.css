@@ -42,6 +42,21 @@
   line-height: 1.5;
 }
 
+.skill-description-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
+.skill-description-error .skill-description {
+  color: var(--muted);
+}
+.skill-table .skill-description-retry {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+}
+
 .skill-upload-dialog {
   width: min(100%, 36rem);
 }

@@ -175,7 +175,7 @@ describe("Project HTTP credential picker", () => {
     expect(screen.queryByRole("option", { name: /first-origin/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Save target" })).toBeDisabled();
     fail = false;
-    await user.click(screen.getByRole("button", { name: "Retry credentials" }));
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     await screen.findByRole("option", { name: /later-origin/ });
     expect(screen.getByRole("option", { name: /first-origin/ })).toBeVisible();
     expect(cursors).toEqual([null, "page-2", null, "page-2"]);

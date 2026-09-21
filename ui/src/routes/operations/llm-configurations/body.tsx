@@ -97,6 +97,34 @@ function GatewayView({ body }: { body: LLMGatewayBody }) {
           )}
         </dd>
       </div>
+      <div>
+        <dt>Failure signatures</dt>
+        <dd>
+          {body.failureSignatures === undefined ? (
+            <span className="muted-copy">Protocol default</span>
+          ) : (
+            <span className="nested-value">
+              {(body.failureSignatures.modelUnavailable ?? []).map(
+                (signature, index) => (
+                  <code key={`unavailable-${index}`}>
+                    {signature.status} →{" "}
+                    {signature.messageEquals ?? signature.litellmWrapped}
+                    {signature.litellmWrapped === undefined
+                      ? ""
+                      : " (LiteLLM wrapped)"}
+                  </code>
+                ),
+              )}
+              {(body.failureSignatures.permanentCodes ?? []).length ===
+              0 ? null : (
+                <code>
+                  permanent: {body.failureSignatures.permanentCodes?.join(", ")}
+                </code>
+              )}
+            </span>
+          )}
+        </dd>
+      </div>
     </dl>
   );
 }

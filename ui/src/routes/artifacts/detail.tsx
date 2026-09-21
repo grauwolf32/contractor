@@ -3,6 +3,7 @@ import {
   ArtifactHistoryDisclosure,
   ArtifactHistoryButton,
 } from "./metadata-summary";
+import { useDocumentTitle } from "../../app/document-title";
 import { ReturnLink } from "../../app/context-navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -151,7 +152,9 @@ function ArtifactHistory({ metadata }: { metadata: ArtifactMetadata }) {
           </div>
         </div>
         {versions.isPending ? (
-          <p className="loading-copy">Loading versions…</p>
+          <p className="loading-copy" role="status">
+            Loading versions…
+          </p>
         ) : versions.error !== null ? (
           <ErrorNotice error={versions.error} />
         ) : versions.data.items.length === 0 ? (
@@ -200,7 +203,9 @@ function ArtifactHistory({ metadata }: { metadata: ArtifactMetadata }) {
         <p className="eyebrow">Provenance</p>
         <h3>Lineage</h3>
         {lineage.isPending ? (
-          <p className="loading-copy">Loading lineage…</p>
+          <p className="loading-copy" role="status">
+            Loading lineage…
+          </p>
         ) : lineage.error !== null ? (
           <ErrorNotice error={lineage.error} />
         ) : lineage.data.items.length === 0 ? (
@@ -257,6 +262,7 @@ export function ArtifactDetailRoute() {
   const { namespace = "", name = "" } = useParams();
   const [searchParams] = useSearchParams();
   const revision = searchParams.get("revision") ?? undefined;
+  useDocumentTitle(name ? `${namespace}/${name}` : "Artifact");
   const validIdentity =
     ARTIFACT_NAME_PATTERN.test(namespace) && ARTIFACT_NAME_PATTERN.test(name);
   const validRevision =
@@ -310,7 +316,7 @@ export function ArtifactDetailRoute() {
       </header>
 
       {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading Artifact metadata…
         </p>
       ) : query.error !== null ? (

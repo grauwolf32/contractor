@@ -28,6 +28,15 @@ function readable(value: string) {
   return EVIDENCE_LABELS[value] ?? value;
 }
 
+function firstLine(text: string, limit = 200): string {
+  const line =
+    text
+      .split("\n")
+      .map((candidate) => candidate.replace(/^[#>*\-\s]+/u, "").trim())
+      .find((candidate) => candidate !== "") ?? "";
+  return line.length > limit ? `${line.slice(0, limit)}…` : line;
+}
+
 function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
   const assessment = ASSESSMENTS[row.coverage.status];
   const details = row.details;
@@ -36,100 +45,109 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
   const evidence = [
     ...new Set([...row.coverage.requested, ...row.coverage.completed]),
   ];
+  const excerpt = firstLine(
+    conclusion ?? details?.objective ?? assessment.description,
+  );
   return (
     <article
-      className={`panel audit-result-card audit-result-${assessment.group}`}
+      className={`audit-result-card audit-check-row audit-result-${assessment.group}`}
       aria-label={row.subjectKey}
     >
-      <div className="audit-result-heading">
-        <div>
-          <p className="eyebrow">Check {row.ordinal + 1}</p>
-          <h4 title={row.subjectKey}>{auditCheckTitle(row)}</h4>
-        </div>
-        <span
-          className={`audit-assessment audit-assessment-${assessment.group}`}
-          title={assessment.description}
-        >
-          {assessment.label}
-        </span>
-      </div>
-      <p className="audit-result-excerpt">
-        {(conclusion ?? details?.objective ?? assessment.description).slice(
-          0,
-          280,
-        )}
-        {(conclusion ?? details?.objective ?? "").length > 280 ? "…" : ""}
-      </p>
-      <details className="audit-record-details audit-result-reading">
-        <summary>Read task and result</summary>
-        <div className="audit-result-columns">
-          <section>
-            <h5>Task given to the model</h5>
-            {details?.objective ? (
-              <AuditMarkdown source={details.objective} />
-            ) : (
-              <p className="muted-copy">
-                Task text is unavailable for this check.
-              </p>
-            )}
-            {details?.methods.length ? (
-              <p className="audit-check-method">
-                Method: {details.methods.map(readable).join(", ")}
-              </p>
-            ) : null}
-          </section>
-          <section>
-            <h5>Result</h5>
-            <p className="audit-assessment-description">
-              {assessment.description}
-            </p>
-            {conclusion ? (
-              <AuditMarkdown source={conclusion} />
-            ) : row.result ? (
-              <p className="muted-copy">No written conclusion is available.</p>
-            ) : null}
-            {row.coverage.rationale && row.coverage.rationale !== conclusion ? (
-              <AuditMarkdown source={row.coverage.rationale} />
-            ) : null}
-            {row.coverage.gaps.length ? (
-              <div className="audit-evidence-gaps">
-                <strong>Limitations & missing evidence</strong>
-                <ul>
-                  {row.coverage.gaps.map((gap, index) => (
-                    <li key={index}>{gap}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </section>
-        </div>
-      </details>
-      <div className="audit-evidence-checklist" aria-label="Evidence coverage">
-        {evidence.length ? (
-          evidence.map((value) => (
-            <span
-              key={value}
-              className={
-                completed.has(value)
-                  ? "audit-evidence-complete"
-                  : "audit-evidence-missing"
-              }
-            >
-              <span aria-hidden="true">{completed.has(value) ? "✓" : "○"}</span>{" "}
-              {readable(value)}{" "}
-              <small>· {completed.has(value) ? "collected" : "missing"}</small>
-            </span>
-          ))
-        ) : (
-          <span className="muted-copy">No evidence requirements listed.</span>
-        )}
-      </div>
-      <details className="audit-check-details">
-        <summary>
-          Full task & evidence
-          {details?.evidence.length ? ` (${details.evidence.length})` : ""}
+      <details className="audit-result-reading">
+        <summary className="audit-check-summary">
+          <span
+            className="audit-check-ordinal"
+            title={`Check ${row.ordinal + 1}`}
+          >
+            {row.ordinal + 1}
+          </span>
+          <h4 className="audit-check-title" title={row.subjectKey}>
+            {auditCheckTitle(row)}
+          </h4>
+          <span
+            className={`audit-assessment audit-assessment-${assessment.group}`}
+            title={assessment.description}
+          >
+            {assessment.label}
+          </span>
+          <span className="audit-result-excerpt" title={excerpt}>
+            {excerpt}
+          </span>
         </summary>
-        <div className="audit-check-details-body">
+        <div className="audit-check-body">
+          <div className="audit-result-columns">
+            <section>
+              <h5>Task given to the model</h5>
+              {details?.objective ? (
+                <AuditMarkdown source={details.objective} />
+              ) : (
+                <p className="muted-copy">
+                  Task text is unavailable for this check.
+                </p>
+              )}
+              {details?.methods.length ? (
+                <p className="audit-check-method">
+                  Method: {details.methods.map(readable).join(", ")}
+                </p>
+              ) : null}
+            </section>
+            <section>
+              <h5>Result</h5>
+              <p className="audit-assessment-description">
+                {assessment.description}
+              </p>
+              {conclusion ? (
+                <AuditMarkdown source={conclusion} />
+              ) : row.result ? (
+                <p className="muted-copy">
+                  No written conclusion is available.
+                </p>
+              ) : null}
+              {row.coverage.rationale &&
+              row.coverage.rationale !== conclusion ? (
+                <AuditMarkdown source={row.coverage.rationale} />
+              ) : null}
+              {row.coverage.gaps.length ? (
+                <div className="audit-evidence-gaps">
+                  <strong>Limitations & missing evidence</strong>
+                  <ul>
+                    {row.coverage.gaps.map((gap, index) => (
+                      <li key={index}>{gap}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          </div>
+          <div
+            className="audit-evidence-checklist"
+            aria-label="Evidence coverage"
+          >
+            {evidence.length ? (
+              evidence.map((value) => (
+                <span
+                  key={value}
+                  className={
+                    completed.has(value)
+                      ? "audit-evidence-complete"
+                      : "audit-evidence-missing"
+                  }
+                >
+                  <span aria-hidden="true">
+                    {completed.has(value) ? "✓" : "○"}
+                  </span>{" "}
+                  {readable(value)}{" "}
+                  <small>
+                    · {completed.has(value) ? "collected" : "missing"}
+                  </small>
+                </span>
+              ))
+            ) : (
+              <span className="muted-copy">
+                No evidence requirements listed.
+              </span>
+            )}
+          </div>
           {details?.evidence.length ? (
             <section>
               <h5>Evidence supporting this result</h5>
@@ -152,13 +170,15 @@ function CheckRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
               </pre>
             </details>
           ) : null}
-          <ContextLink
-            returnLabel="Coverage and results"
-            to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${row.itemId}`}
-          >
-            View attempts & execution details →
-          </ContextLink>
-          <small className="muted-copy">Check ID: {row.itemKey}</small>
+          <div className="audit-check-links">
+            <ContextLink
+              returnLabel="Coverage and results"
+              to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${row.itemId}`}
+            >
+              View attempts & execution details →
+            </ContextLink>
+            <small className="muted-copy">Check ID: {row.itemKey}</small>
+          </div>
         </div>
       </details>
     </article>
@@ -258,7 +278,7 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
           <p className="eyebrow">Current round · Tasks and outcomes</p>
           <h3>Coverage and results</h3>
           <p className="muted-copy">
-            Read the task, the conclusion and the evidence for each check.
+            Open a check to read the task, the conclusion and the evidence.
           </p>
         </div>
         <button
@@ -340,7 +360,7 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
         ) : null}
       </div>
       {filtered.length ? (
-        <div className="audit-check-list">
+        <div className="audit-check-rows">
           {filtered.map((row) => (
             <CheckRow key={row.itemId} audit={audit} row={row} />
           ))}

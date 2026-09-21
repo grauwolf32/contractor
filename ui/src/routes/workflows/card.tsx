@@ -130,23 +130,13 @@ export function WorkflowCard({
           className={`workflow-card-status ${matching?.compatible && !ambiguous ? "is-found" : "is-missing"}`}
         >
           {status}
-          {matching?.compatible ? (
-            <small>
-              Matched by file type. Review contents and parameters before
-              running.
-            </small>
-          ) : null}
         </p>
       ) : null}
       {workflow.presentation?.description ? (
         <p className="workflow-card-description">
           {workflow.presentation.description}
         </p>
-      ) : (
-        <p className="workflow-card-description muted-copy">
-          Purpose is not described in this published version.
-        </p>
-      )}
+      ) : null}
       {matching ? (
         <>
           <div className="workflow-card-inputs">

@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../../app/document-title";
 import { RecordedTime } from "../../app/recorded-time";
 import { EvaluationActivity } from "./evaluation-activity";
 import "./collection.css";
@@ -192,7 +193,7 @@ function ProjectCollectionRoute({
       </div>
 
       {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading {presentation.heading}…
         </p>
       ) : query.error !== null ? (
@@ -329,6 +330,7 @@ function ProjectCollectionRoute({
 }
 
 export function ProjectListRoute() {
+  useDocumentTitle("Projects");
   return (
     <ProjectCollectionRoute
       presentation={{
@@ -351,6 +353,7 @@ export function ProjectListRoute() {
 }
 
 export function EvaluationListRoute() {
+  useDocumentTitle("Evals");
   return (
     <ProjectCollectionRoute
       presentation={{

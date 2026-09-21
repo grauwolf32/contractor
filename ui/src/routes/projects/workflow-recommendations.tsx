@@ -66,7 +66,7 @@ function ProjectWorkflowLauncher({
   }, [selection]);
   function renderForm(onSubmittingChange?: (pending: boolean) => void) {
     return workflow.isPending ? (
-      <p className="loading-copy" aria-live="polite">
+      <p className="loading-copy" role="status">
         Loading exact Workflow contract…
       </p>
     ) : workflow.error !== null ? (
@@ -222,7 +222,7 @@ export function ProjectWorkflowRecommendations({
         id="project-workflows"
         tabIndex={-1}
       >
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Matching Workflows to Project Artifacts…
         </p>
       </section>

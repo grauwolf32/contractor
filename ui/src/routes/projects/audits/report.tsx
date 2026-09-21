@@ -103,9 +103,11 @@ export function AuditReportView({
           {report.data.summary === undefined ? null : (
             <div className="audit-report-summary">
               <h4>Summary</h4>
-              <Suspense fallback={<p>Loading Markdown preview…</p>}>
-                <MarkdownArtifactPreview source={report.data.summary} />
-              </Suspense>
+              <div className="audit-report-markdown">
+                <Suspense fallback={<p>Loading Markdown preview…</p>}>
+                  <MarkdownArtifactPreview source={report.data.summary} />
+                </Suspense>
+              </div>
             </div>
           )}
           <div className="audit-artifact-list">

@@ -141,7 +141,7 @@ it("preserves an attempt filter selected while retrying a failed page", async ()
   await screen.findByText("Public API is unavailable");
   context.fixture.state.experiment.viewSnapshot = "view-8";
   context.hold();
-  await user.click(screen.getByRole("button", { name: "Retry" }));
+  await user.click(screen.getByRole("button", { name: "Try again" }));
   await waitFor(() => expect(context.pending).toHaveLength(1));
   await user.selectOptions(screen.getByLabelText("Attempt filter"), "failed");
   context.failMembers(false);

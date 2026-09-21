@@ -68,11 +68,11 @@
 
 .workflow-run-primary {
   scroll-margin-top: 1rem;
-  outline: none;
 }
 
 .workflow-run-primary:focus-visible {
   border-radius: 0.8rem;
+  outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 

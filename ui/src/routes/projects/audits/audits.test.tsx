@@ -917,7 +917,8 @@ describe("Project Audit routes", () => {
     expect(
       await screen.findByText("Missing authorization check"),
     ).toBeVisible();
-    fireEvent.click(within(rows[1]!).getByText("Read task and result"));
+    expect(screen.queryByText("tests unavailable")).not.toBeVisible();
+    fireEvent.click(rows[1]!.querySelector("summary")!);
     expect(screen.getByText("tests unavailable")).toBeVisible();
     const readsBeforePoll = auditReads;
     await vi.advanceTimersByTimeAsync(1_100);
@@ -1000,11 +1001,22 @@ describe("Project Audit routes", () => {
       "/projects/project_example/audits/audit_example/coverage",
     );
     const user = userEvent.setup();
-    await user.click(
-      within(
-        await screen.findByRole("article", { name: "custom-check" }),
-      ).getByText("Read task and result"),
-    );
+    const customCheck = await screen.findByRole("article", {
+      name: "custom-check",
+    });
+    expect(
+      within(customCheck).getByText("1", { selector: ".audit-check-ordinal" }),
+    ).toBeVisible();
+    expect(
+      within(customCheck).getByText(
+        "An expired invitation can still be accepted.",
+        { selector: ".audit-result-excerpt" },
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Verify that expired invitations cannot be reused."),
+    ).not.toBeVisible();
+    await user.click(customCheck.querySelector("summary")!);
     expect(
       await screen.findByText(
         "Verify that expired invitations cannot be reused.",
@@ -1014,7 +1026,7 @@ describe("Project Audit routes", () => {
       within(
         screen
           .getByRole("article", { name: "custom-check" })
-          .querySelector(".audit-result-reading") as HTMLElement,
+          .querySelector(".audit-check-body") as HTMLElement,
       ).getByText("An expired invitation can still be accepted."),
     ).toBeVisible();
     expect(screen.getByText("Showing 2 of 2 checks")).toBeVisible();
@@ -1030,12 +1042,12 @@ describe("Project Audit routes", () => {
     );
     expect(screen.getByRole("article", { name: "custom-check" })).toBeVisible();
     expect(screen.queryByRole("article", { name: "trace-check" })).toBeNull();
-    await user.click(screen.getByText("Full task & evidence (1)"));
     expect(
       await screen.findByText(
         "The invitation endpoint accepts an expired token.",
       ),
     ).toBeVisible();
+    expect(screen.getByText("Check ID: custom-check")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByText("Fully traced")).toBeVisible();
     expect(
@@ -1962,7 +1974,14 @@ describe("Project Audit routes", () => {
       expect(
         screen.queryByRole("button", { name: "Continue Audit" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText(current.stopReason.message)).toBeVisible();
+      expect(screen.queryByText("deadline_exhausted")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(current.stopReason.message),
+      ).not.toBeInTheDocument();
+      const note = screen.getByText("Stopped by time limit.").closest("p")!;
+      expect(note).toBeVisible();
+      expect(note).toHaveAttribute("role", "status");
+      expect(note.classList.contains("notice-error")).toBe(state === "failed");
       expect(
         screen.queryByText(/Continue with a longer limit/),
       ).not.toBeInTheDocument();

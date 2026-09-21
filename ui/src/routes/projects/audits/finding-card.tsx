@@ -239,11 +239,11 @@ function FindingReviewControls({
           </label>
         ) : null}
       </div>
-      <label>
+      <label className="audit-review-rationale">
         Analyst rationale
         <textarea
           required
-          rows={3}
+          rows={2}
           value={rationale}
           onChange={(event) => setRationale(event.target.value)}
           placeholder="Explain the evidence for this decision. Markdown is supported."
@@ -432,12 +432,32 @@ export function AuditFindingCard({
         </div>
         <StateBadge state={finding.state} />
       </div>
-      <a
-        className="audit-decision-jump"
-        href={`#decision-${audit.auditId}-${finding.findingId}`}
+      <div
+        className="audit-finding-decision"
+        id={`decision-${audit.auditId}-${finding.findingId}`}
       >
-        Review decision ↓
-      </a>
+        {reviewLoading ? (
+          <p className="loading-copy">Loading review status…</p>
+        ) : reviewError !== null ? (
+          <div className="audit-finding-review-actions">
+            <ErrorNotice error={reviewError} />
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={onRetryReview}
+            >
+              Retry review status
+            </button>
+          </div>
+        ) : (
+          <FindingReviewControls
+            audit={audit}
+            finding={finding}
+            findings={findings}
+            {...(pendingReview === undefined ? {} : { pendingReview })}
+          />
+        )}
+      </div>
       <div className="audit-finding-description">
         <AuditMarkdown source={finding.firstProposal.document.description} />
       </div>
@@ -534,32 +554,6 @@ export function AuditFindingCard({
         </dl>
       </details>
       <FindingProvenanceView audit={audit} finding={finding} />
-      <div
-        className="audit-finding-decision"
-        id={`decision-${audit.auditId}-${finding.findingId}`}
-      >
-        {reviewLoading ? (
-          <p className="loading-copy">Loading review status…</p>
-        ) : reviewError !== null ? (
-          <div className="audit-finding-review-actions">
-            <ErrorNotice error={reviewError} />
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={onRetryReview}
-            >
-              Retry review status
-            </button>
-          </div>
-        ) : (
-          <FindingReviewControls
-            audit={audit}
-            finding={finding}
-            findings={findings}
-            {...(pendingReview === undefined ? {} : { pendingReview })}
-          />
-        )}
-      </div>
     </article>
   );
 }

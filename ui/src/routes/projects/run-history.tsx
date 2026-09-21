@@ -168,7 +168,9 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
         </button>
       </div>
       {runs.isPending ? (
-        <p className="loading-copy">Loading Project Runs…</p>
+        <p className="loading-copy" role="status">
+          Loading Project Runs…
+        </p>
       ) : runs.error ? (
         <ErrorNotice error={runs.error} />
       ) : runs.data.items.length === 0 ? (

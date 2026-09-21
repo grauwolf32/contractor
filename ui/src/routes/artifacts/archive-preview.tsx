@@ -179,17 +179,15 @@ export function ArchivePreviewPanel({
                     archive to view it.
                   </p>
                 ) : file.isPending || file.isFetching ? (
-                  <p className="loading-copy">Loading file…</p>
+                  <p className="loading-copy" role="status">
+                    Loading file…
+                  </p>
                 ) : file.error !== null ? (
                   <>
-                    <ErrorNotice error={file.error} />
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() => void file.refetch()}
-                    >
-                      Retry file
-                    </button>
+                    <ErrorNotice
+                      error={file.error}
+                      onRetry={() => void file.refetch()}
+                    />
                   </>
                 ) : (
                   <LoadedArtifactPreview

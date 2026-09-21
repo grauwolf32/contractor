@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
@@ -154,6 +155,7 @@ export function EvalDetailRoute() {
   const { experimentId = "", section = "overview" } = useParams();
   const experiment = useEvalExperiment(experimentId);
   const data = experiment.data;
+  useDocumentTitle(data?.name ?? "Experiment");
   return (
     <EvalFrame title={data?.name ?? "Experiment"}>
       <EvalError

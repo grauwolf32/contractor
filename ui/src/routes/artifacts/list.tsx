@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../../app/document-title";
 import { ContextLink } from "../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
@@ -21,6 +22,7 @@ import {
 const EXCLUDED_SKILL_NAMESPACE = "skills";
 
 export function ArtifactListRoute() {
+  useDocumentTitle("Artifacts");
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const namespace = filters.get("namespace") || undefined;
@@ -162,7 +164,7 @@ export function ArtifactListRoute() {
           </p>
         )}
         {query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
+          <p className="loading-copy" role="status">
             Loading Artifact bindings…
           </p>
         ) : query.error !== null ? (

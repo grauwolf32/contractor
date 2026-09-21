@@ -31,6 +31,7 @@ import {
 } from "../../artifacts/common";
 import { AuditControls } from "./controls";
 import { auditProfileLabel } from "./labels";
+import { describeStopReason } from "./stop-reason";
 import { StateBadge } from "../../runs/components";
 
 import "./styles.css";
@@ -526,12 +527,7 @@ export function ProjectAuditWorkspace({
   });
   return (
     <div className="audit-page audit-collection">
-      <div className="section-heading">
-        <div>
-          <p className="muted-copy">
-            Review tasks, evidence and results from your security audits.
-          </p>
-        </div>
+      <div className="section-heading audit-collection-actions">
         <div className="button-row">
           <button
             className="secondary-button"
@@ -570,6 +566,12 @@ export function ProjectAuditWorkspace({
         <div className="audit-card-grid">
           {audits.data.items.map((audit) => {
             const root = `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(audit.auditId)}`;
+            const stop = describeStopReason(audit);
+            const inputNames = [
+              ...new Set(
+                Object.values(audit.inputs).map((input) => input.ref.name),
+              ),
+            ];
             return (
               <article
                 className="panel audit-card"
@@ -589,6 +591,19 @@ export function ProjectAuditWorkspace({
                         {auditProfileLabel(audit)}
                       </ContextLink>
                     </h3>
+                    <p className="audit-card-inputs">
+                      {inputNames.length === 0 ? (
+                        <span>No inputs selected</span>
+                      ) : (
+                        inputNames.map((name) => <code key={name}>{name}</code>)
+                      )}
+                      <span
+                        className="audit-card-short-id"
+                        title={audit.auditId}
+                      >
+                        #{audit.auditId.slice(-8)}
+                      </span>
+                    </p>
                   </div>
                   <StateBadge state={audit.state} />
                 </div>
@@ -597,11 +612,6 @@ export function ProjectAuditWorkspace({
                     {audit.scope.objective}
                   </p>
                 ) : null}
-                <p className="audit-card-inputs">
-                  {Object.values(audit.inputs)
-                    .map((input) => input.ref.name)
-                    .join(" · ") || "No inputs selected"}
-                </p>
                 <dl className="metadata-grid audit-card-stats">
                   <div>
                     <dt>Runs submitted</dt>
@@ -616,21 +626,23 @@ export function ProjectAuditWorkspace({
                     <dd>{formatTimestamp(audit.updatedAt)}</dd>
                   </div>
                 </dl>
-                {audit.stopReason ? (
+                {stop === null ? null : (
                   <p
                     className={
-                      audit.state === "paused" &&
-                      audit.stopReason.code === "deadline_exhausted"
-                        ? "muted-copy"
-                        : "form-error"
+                      stop.tone === "error" && !stop.deadline
+                        ? "form-error"
+                        : "muted-copy audit-card-stop"
                     }
                   >
-                    {audit.state === "paused" &&
-                    audit.stopReason.code === "deadline_exhausted"
-                      ? "Time limit reached. Continue with a longer limit or no time limit."
-                      : audit.stopReason.message}
+                    {stop.deadline
+                      ? audit.state === "paused"
+                        ? "Time limit reached. Continue with a longer limit or no time limit."
+                        : "Time limit reached; no further Runs were submitted."
+                      : stop.label === undefined
+                        ? stop.message
+                        : `${stop.label}. ${stop.message}`}
                   </p>
-                ) : null}
+                )}
                 <div className="audit-card-footer">
                   <div className="button-row">
                     <ContextLink

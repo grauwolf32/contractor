@@ -1,3 +1,4 @@
+import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useParams } from "react-router";
 import { ActionMenu } from "../../app/action-menu";
@@ -48,6 +49,9 @@ function ProjectWorkspaceRoute({
       : undefined;
   const deleteLabel =
     expectedKind === "evaluation" ? "Delete Eval" : "Delete Project";
+  useDocumentTitle(
+    project.data?.name ?? (expectedKind === "evaluation" ? "Eval" : "Project"),
+  );
 
   if (!validProject) {
     return (
@@ -119,18 +123,22 @@ function ProjectWorkspaceRoute({
       </header>
 
       {project.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading Project…
         </p>
       ) : deletionObserved &&
         project.error instanceof PublicAPIError &&
         project.error.status === 404 ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Project deleted. Returning to{" "}
           {expectedKind === "evaluation" ? "Evals" : "Projects"}…
         </p>
       ) : project.error !== null ? (
-        <ErrorNotice error={project.error} />
+        <ErrorNotice
+          error={project.error}
+          onRetry={() => void project.refetch()}
+          retryPending={project.isFetching}
+        />
       ) : project.data.kind !== expectedKind ? (
         <ErrorNotice
           error={

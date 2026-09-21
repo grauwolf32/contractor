@@ -132,7 +132,7 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
         execution.
       </p>
       {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading Eval Runs…
         </p>
       ) : query.error !== null ? (

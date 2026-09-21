@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 
 import { useOperationsSnapshot } from "./context";
+import "./overview.css";
 
 export function OperationsOverviewRoute() {
   const { snapshot } = useOperationsSnapshot();
@@ -64,11 +65,22 @@ export function OperationsOverviewRoute() {
             readiness before starting execution.
           </p>
         ) : null}
-        <div className="form-actions">
-          <Link to="/operations/runtime-agents">Inspect Runtime Agents →</Link>
-          <Link to="/runs/configuration">Runtime configuration →</Link>
-          <Link to="/runs">Inspect Run wait reasons →</Link>
-        </div>
+        <ul
+          className="operations-readiness-links"
+          aria-label="Readiness shortcuts"
+        >
+          <li>
+            <Link to="/operations/runtime-agents">
+              Inspect Runtime Agents →
+            </Link>
+          </li>
+          <li>
+            <Link to="/runs/configuration">Runtime configuration →</Link>
+          </li>
+          <li>
+            <Link to="/runs">Inspect Run wait reasons →</Link>
+          </li>
+        </ul>
       </section>
       <Link
         className="panel operations-summary-card"

@@ -1496,7 +1496,9 @@ export function RuntimeConfigurationRoute() {
           </div>
         </div>
         {configs.isPending ? (
-          <p className="loading-copy">Loading RuntimeConfigs…</p>
+          <p className="loading-copy" role="status">
+            Loading RuntimeConfigs…
+          </p>
         ) : loadedConfigs.length === 0 ? (
           <p className="compact-empty">
             No RuntimeConfig versions are visible.

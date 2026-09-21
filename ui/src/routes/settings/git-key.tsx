@@ -132,7 +132,7 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
           </div>
 
           {query.isPending ? (
-            <p className="loading-copy" aria-live="polite">
+            <p className="loading-copy" role="status">
               Loading Git key settings…
             </p>
           ) : query.error ? (

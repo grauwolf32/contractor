@@ -76,7 +76,9 @@ export function RuntimeAgentListRoute() {
         {principals.error !== null ? (
           <ErrorNotice error={principals.error} />
         ) : principals.isPending ? (
-          <p className="loading-copy">Loading Runtime Agents…</p>
+          <p className="loading-copy" role="status">
+            Loading Runtime Agents…
+          </p>
         ) : visible.length === 0 ? (
           <p className="compact-empty">
             No agents match this connection filter.

@@ -166,7 +166,9 @@ function ProjectArtifactHistory({
         <p className="eyebrow">Immutable history</p>
         <h3>Versions</h3>
         {versions.isPending ? (
-          <p className="loading-copy">Loading versions…</p>
+          <p className="loading-copy" role="status">
+            Loading versions…
+          </p>
         ) : versions.error !== null ? (
           <ErrorNotice error={versions.error} />
         ) : versions.data.items.length === 0 ? (
@@ -215,7 +217,9 @@ function ProjectArtifactHistory({
         <p className="eyebrow">Provenance</p>
         <h3>Lineage</h3>
         {lineage.isPending ? (
-          <p className="loading-copy">Loading lineage…</p>
+          <p className="loading-copy" role="status">
+            Loading lineage…
+          </p>
         ) : lineage.error !== null ? (
           <ErrorNotice error={lineage.error} />
         ) : lineage.data.items.length === 0 ? (
@@ -338,7 +342,7 @@ function ProjectArtifactDetailRouteView({
       </header>
 
       {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading Project Artifact metadata…
         </p>
       ) : query.error !== null ? (

@@ -575,7 +575,7 @@ export function OperationsPerformanceRoute() {
       {current.error !== null ? (
         <ErrorNotice error={current.error} />
       ) : current.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading current performance…
         </p>
       ) : !current.data.enabled ? (
@@ -641,7 +641,7 @@ export function OperationsPerformanceRoute() {
         {history.error !== null ? (
           <ErrorNotice error={history.error} />
         ) : history.isPending ? (
-          <p className="loading-copy" aria-live="polite">
+          <p className="loading-copy" role="status">
             Loading bounded history…
           </p>
         ) : (

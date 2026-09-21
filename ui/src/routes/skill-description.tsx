@@ -58,6 +58,23 @@ export function SkillDescription({ metadata }: { metadata: ArtifactMetadata }) {
       };
     },
   });
+  if (query.isError) {
+    return (
+      <div ref={element} className="skill-description-error">
+        <p className="skill-description muted-copy" role="status">
+          Description unavailable
+        </p>
+        <button
+          className="secondary-button skill-description-retry"
+          type="button"
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          {query.isFetching ? "Retrying…" : "Retry"}
+        </button>
+      </div>
+    );
+  }
   return (
     <div ref={element}>
       <p className="skill-description" title={query.data?.description}>

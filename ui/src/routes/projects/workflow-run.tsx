@@ -60,7 +60,7 @@ export function ProjectWorkflowRunRoute() {
         </div>
       </header>
       {project.isPending || workflow.isPending ? (
-        <p className="loading-copy" aria-live="polite">
+        <p className="loading-copy" role="status">
           Loading exact Project and Workflow contracts…
         </p>
       ) : project.error !== null || workflow.error !== null ? (

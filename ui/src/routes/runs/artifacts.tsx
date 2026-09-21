@@ -34,6 +34,7 @@ import {
   formatTimestamp,
 } from "../artifacts/common";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
+import { type RunDisclosureProps, RunDisclosureSummary } from "./components";
 import {
   missingOutputCopy,
   organizeRunOutputs,
@@ -279,7 +280,10 @@ export function RunOutputGallery({
   );
 }
 
-export function RunArtifactLibrary({ runId }: { runId: string }) {
+export function RunArtifactLibrary({
+  runId,
+  ...disclosure
+}: { runId: string } & RunDisclosureProps) {
   const api = usePublicAPI();
   const [namespaceDraft, setNamespaceDraft] = useState("");
   const [namespace, setNamespace] = useState<string | undefined>();
@@ -310,13 +314,26 @@ export function RunArtifactLibrary({ runId }: { runId: string }) {
     setCursors([undefined]);
   }
 
+  const count =
+    query.data === undefined
+      ? undefined
+      : `${query.data.items.length}${query.data.page.hasMore ? "+" : ""}`;
   return (
-    <div className="panel run-artifact-library" id="run-artifacts">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">RunScope</p>
-          <h3>Inputs, intermediate Artifacts, and frozen outputs</h3>
-        </div>
+    <details
+      className="panel run-disclosure run-artifact-library"
+      id="run-artifacts"
+      {...disclosure}
+    >
+      <RunDisclosureSummary
+        eyebrow="RunScope"
+        title="Inputs, intermediate Artifacts, and frozen outputs"
+        aside={
+          count === undefined
+            ? undefined
+            : `${count} Artifact${count === "1" ? "" : "s"}${namespace === undefined ? "" : ` in ${namespace}`}`
+        }
+      />
+      <div className="run-disclosure-body">
         <form className="inline-form" onSubmit={applyFilter}>
           <label>
             Namespace
@@ -330,72 +347,72 @@ export function RunArtifactLibrary({ runId }: { runId: string }) {
             Apply
           </button>
         </form>
-      </div>
-      {filterError === undefined ? null : (
-        <p className="form-error" role="alert">
-          {filterError}
-        </p>
-      )}
-      {query.isPending ? (
-        <p className="loading-copy">Loading RunScope Artifacts…</p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
-      ) : query.data.items.length === 0 ? (
-        <div className="compact-empty">No bindings match this view.</div>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Binding</th>
-                <th>Exact revision</th>
-                <th>Media type</th>
-                <th>Size</th>
-                <th>Frozen</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {query.data.items.map((metadata) => (
-                <tr
-                  key={`${metadata.artifact.namespace}/${metadata.artifact.name}`}
-                >
-                  <td>
-                    <ContextLink
-                      returnLabel="Run results"
-                      to={`/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(metadata.artifact.namespace)}/${encodeURIComponent(metadata.artifact.name)}?revision=${encodeURIComponent(metadata.artifact.revision)}`}
-                    >
-                      {metadata.artifact.namespace}/{metadata.artifact.name}
-                    </ContextLink>
-                  </td>
-                  <td>
-                    <code>{metadata.artifact.revision}</code>
-                  </td>
-                  <td>{metadata.mediaType}</td>
-                  <td>{formatBytes(metadata.size)}</td>
-                  <td>{metadata.frozen ? "yes" : "no"}</td>
-                  <td>{formatTimestamp(metadata.createdAt)}</td>
+        {filterError === undefined ? null : (
+          <p className="form-error" role="alert">
+            {filterError}
+          </p>
+        )}
+        {query.isPending ? (
+          <p className="loading-copy">Loading RunScope Artifacts…</p>
+        ) : query.error !== null ? (
+          <ErrorNotice error={query.error} />
+        ) : query.data.items.length === 0 ? (
+          <div className="compact-empty">No bindings match this view.</div>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Binding</th>
+                  <th>Exact revision</th>
+                  <th>Media type</th>
+                  <th>Size</th>
+                  <th>Frozen</th>
+                  <th>Created</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <CursorControls
-        label="Run Artifact pages"
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.hasMore === true &&
-        query.data.page.nextCursor !== undefined
-          ? { nextCursor: query.data.page.nextCursor }
-          : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
-      />
-    </div>
+              </thead>
+              <tbody>
+                {query.data.items.map((metadata) => (
+                  <tr
+                    key={`${metadata.artifact.namespace}/${metadata.artifact.name}`}
+                  >
+                    <td>
+                      <ContextLink
+                        returnLabel="Run results"
+                        to={`/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(metadata.artifact.namespace)}/${encodeURIComponent(metadata.artifact.name)}?revision=${encodeURIComponent(metadata.artifact.revision)}`}
+                      >
+                        {metadata.artifact.namespace}/{metadata.artifact.name}
+                      </ContextLink>
+                    </td>
+                    <td>
+                      <code>{metadata.artifact.revision}</code>
+                    </td>
+                    <td>{metadata.mediaType}</td>
+                    <td>{formatBytes(metadata.size)}</td>
+                    <td>{metadata.frozen ? "yes" : "no"}</td>
+                    <td>{formatTimestamp(metadata.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <CursorControls
+          label="Run Artifact pages"
+          canGoBack={cursors.length > 1}
+          {...(query.data?.page.hasMore === true &&
+          query.data.page.nextCursor !== undefined
+            ? { nextCursor: query.data.page.nextCursor }
+            : {})}
+          onBack={() =>
+            setCursors((current) =>
+              current.slice(0, Math.max(1, current.length - 1)),
+            )
+          }
+          onNext={(next) => setCursors((current) => [...current, next])}
+        />
+      </div>
+    </details>
   );
 }
 
