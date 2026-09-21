@@ -83,7 +83,8 @@ To work on one component:
 | Regenerate public Go client | `make generate-public-client` |
 | Regenerate public UI types | `make ui-generate` |
 
-For architecture changes, with the LikeC4 CLI installed:
+For architecture changes, `make verify-architecture` validates the LikeC4 model
+(it is part of `release-verify`). With the LikeC4 CLI installed:
 
 ```shell
 likec4 validate docs/spec

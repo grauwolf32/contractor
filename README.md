@@ -39,6 +39,11 @@ PostgreSQL by default or a configured filesystem backend.
 
 [![Contractor architecture: control plane, Runtime Agents, allocations, and infrastructure adapters](docs/assets/architecture-overview.png)](docs/assets/architecture-overview.png)
 
+The picture is a hand-maintained overview. The maintained architecture model is
+[docs/spec/artitecture.likec4](docs/spec/artitecture.likec4): 47 focused views
+kept in step with the specifications and validated by `make verify-architecture`.
+Explore it interactively with `likec4 start docs/spec`.
+
 ## Get started
 
 Follow [deployment](docs/deployment.md) to install and run Contractor, or the
