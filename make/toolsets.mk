@@ -97,7 +97,7 @@ test-agent-skills-hardening: test-agent-skills-matrix test-agent-skill-contract 
 
 test-migrated-agent-skills: test-migrated-agent-skills-analysis test-migrated-agent-skills-live
 	go test -count=1 ./internal/agentskills/... -run '^(TestRepositoryLikeC4SkillMigrationIsCompleteAndDeterministic|TestMigratedAgentSkillsAreDeterministicAndWorkerFacing)$$'
-	go test -count=1 ./internal/config/... -run '^(TestRepositoryLikeC4SkillTemplateVersionBoundary|TestRepositoryLiveSkillCompatibilityBoundary)$$'
+	go test -count=1 ./internal/config/... -run '^(TestRepositoryCurrentLikeC4TemplatesSelectSkill|TestRepositoryLiveSkillCompatibilityBoundary)$$'
 
 test-migrated-agent-skills-analysis:
 	go test -count=1 ./internal/agentskills/... -run '^TestMigratedAnalysisSkill'
