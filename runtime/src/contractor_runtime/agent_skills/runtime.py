@@ -477,7 +477,7 @@ async def prepare_agent_skills(
             "skill_runtime_unsupported", retryable=False, status_code=422
         )
     try:
-        root.mkdir(mode=0o700)
+        await _run_blocking(root.mkdir, 0o700)
     except OSError:
         raise AgentSkillPreparationError(
             "skill_runtime_unsupported", retryable=False, status_code=422
@@ -515,13 +515,13 @@ async def prepare_agent_skills(
                 raise AgentSkillPreparationError(
                     "skill_media_type_invalid", retryable=False, status_code=422
                 )
-            digest = f"sha256:{hashlib.sha256(value.data).hexdigest()}"
+            digest = f"sha256:{(await _run_blocking(hashlib.sha256, value.data)).hexdigest()}"
             if digest != selected.package_digest:
                 raise AgentSkillPreparationError(
                     "skill_digest_mismatch", retryable=False, status_code=422
                 )
             try:
-                package = validate_package(value.data, selected.name)
+                package = await _run_blocking(validate_package, value.data, selected.name)
             except SkillPackageError as error:
                 raise AgentSkillPreparationError(
                     error.code, retryable=False, status_code=422
@@ -537,9 +537,9 @@ async def prepare_agent_skills(
         charges: dict[tuple[str, str, str], int] = {}
         binary_resources: dict[tuple[str, str], bytes] = {}
         for selected, package in packages:
-            skill_directory = _extract_package(root, selected.name, package)
+            skill_directory = await _run_blocking(_extract_package, root, selected.name, package)
             try:
-                skill = load_skill_from_dir(skill_directory)
+                skill = await _run_blocking(load_skill_from_dir, skill_directory)
             except Exception:
                 raise AgentSkillPreparationError(
                     "skill_runtime_unsupported", retryable=False, status_code=422
@@ -802,6 +802,23 @@ def _write_exclusive_member(root_fd: int, path: str, data: bytes) -> None:
             os.close(file_fd)
     finally:
         os.close(directory_fd)
+
+
+async def _run_blocking[T](function: Callable[..., T], *args: Any) -> T:
+    # Keep preparation ordered after the syscall finishes, including repeated
+    # cancellation, so failure cleanup never races an extraction thread.
+    task = asyncio.create_task(asyncio.to_thread(function, *args), name="agent-skill-preparation")
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled = True
+    if cancelled:
+        if not task.cancelled():
+            task.exception()
+        raise asyncio.CancelledError
+    return task.result()
 
 
 async def _cleanup_failed_preparation(

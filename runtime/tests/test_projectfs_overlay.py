@@ -13,7 +13,9 @@ from contractor_runtime.projectfs import (
     WorkspaceStorageError,
     decode_workspace_state,
     hydrate_workspace,
+    overlay,
 )
+from contractor_runtime.settings import WorkspaceLimits
 
 
 def test_overlay_mutation_state_and_diff_match_across_unchanged_lowers(
@@ -133,6 +135,69 @@ def test_overlay_rolls_back_to_checkpoint_and_bounds_diff(tmp_path: Path) -> Non
 
         await session.close()
         assert session._source.text_files == {}
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+def test_overlay_write_limits_hold_across_writes_without_revalidating_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [("source", "", archive({"a.txt": b"12345", "dir/b.txt": b"12345"}))]
+        )
+        spec.mode = "overlay"
+        limits = WorkspaceLimits(
+            max_files=5, max_expanded_bytes=20, max_managed_text_bytes=16, max_file_bytes=10
+        )
+        provider = MemoryWorkspaceProvider(settings("memory", limits=limits))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="write-limits",
+            timeout_seconds=5,
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+
+        def unexpected_tree_validation(*_: object) -> None:
+            raise AssertionError("text writes must not re-validate the whole tree")
+
+        monkeypatch.setattr(overlay, "_validate_tree", unexpected_tree_validation)
+
+        # Overwrites are charged by their delta: 5 + 5 -> 10 + 5 fits in 16.
+        await session.write_text("a.txt", "x" * 10)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("dir/b.txt", "y" * 7)
+        await session.write_text("dir/b.txt", "y" * 6)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("c.txt", "z")
+        # Shrinking releases bytes for later writes; UTF-8 bytes are charged.
+        await session.write_text("a.txt", "é")
+        await session.write_text("c.txt", "z" * 8)
+        assert await session.read_text("a.txt") == "é"
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("d.txt", "w")
+
+        monkeypatch.undo()
+        # A replaced tree is recounted before the next incremental write.
+        await session.delete_path("c.txt")
+        await session.write_text("d.txt", "w" * 8)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("e.txt", "v")
+        await session.rollback_changes()
+        monkeypatch.setattr(overlay, "_validate_tree", unexpected_tree_validation)
+        await session.write_text("e.txt", "v")
+        await session.write_text("f.txt", "u")
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("g.txt", "t")
+        await session.write_text("f.txt", "u" * 5)
+        with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+            await session.write_text("f.txt", "u" * 6)
+        assert await session.changed_paths() == ("e.txt", "f.txt")
+
+        await session.close()
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
