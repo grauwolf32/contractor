@@ -869,7 +869,7 @@ func newPostgresControllerHarness(
 	t *testing.T, ctx context.Context, itemCount int, batchSizes ...int,
 ) *postgresControllerHarness {
 	t.Helper()
-	return newPostgresControllerReviewHarness(t, ctx, 0, itemCount, batchSizes...)
+	return newPostgresControllerHarnessWithConfig(t, ctx, 0, itemCount, loadControllerConfig(t, batchSizes...))
 }
 
 // newPostgresControllerReviewHarness materializes manualCount manual-review
@@ -878,12 +878,21 @@ func newPostgresControllerReviewHarness(
 	t *testing.T, ctx context.Context, manualCount, itemCount int, batchSizes ...int,
 ) *postgresControllerHarness {
 	t.Helper()
+	return newPostgresControllerHarnessWithConfig(
+		t, ctx, manualCount, itemCount,
+		loadControllerConfigWithItemLimit(t, max(10, manualCount+itemCount), batchSizes...),
+	)
+}
+
+func newPostgresControllerHarnessWithConfig(
+	t *testing.T, ctx context.Context, manualCount, itemCount int, snapshot *config.Snapshot,
+) *postgresControllerHarness {
+	t.Helper()
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	snapshot := loadControllerConfigWithItemLimit(t, max(10, manualCount+itemCount), batchSizes...)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
@@ -1039,13 +1048,15 @@ func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID s
 	return controller
 }
 
-func (h *postgresControllerHarness) controllerWithCollector(t *testing.T) *Controller {
+func (h *postgresControllerHarness) controllerWithCollector(
+	t *testing.T, findings ...auditimport.FindingRetention,
+) *Controller {
 	t.Helper()
 	access, err := auditimport.NewArtifactAccess(h.artifacts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	collector, err := auditimport.New(h.audits, h.runs, access)
+	collector, err := auditimport.New(h.audits, h.runs, access, findings...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1113,6 +1124,20 @@ func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ..
 	if len(batchSizes) > 1 || batchSize < 1 || batchSize > config.MaxAuditBatchSize {
 		t.Fatalf("invalid test batch size %v", batchSizes)
 	}
+	return loadControllerConfigWithFindings(t, batchSize, maxItems, false)
+}
+
+// loadControllerConfigWithFindings optionally lets the worker propose
+// findings and requires human confirmation for them.
+func loadControllerConfigWithFindings(t *testing.T, batchSize, maxItems int, findings bool) *config.Snapshot {
+	t.Helper()
+	findingTools, findingConfirmation := "", "disabled"
+	if findings {
+		findingTools = `
+    - ref: security-findings@1
+      tools: [finding]`
+		findingConfirmation = "human-required"
+	}
 	root := t.TempDir()
 	files := map[string]string{
 		"instructions/planner.md": "Execute the selected checklist item.",
@@ -1138,7 +1163,7 @@ spec:
   modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
-      tools: [read_artifact, write_artifact]
+      tools: [read_artifact, write_artifact]` + findingTools + `
   sandboxProfile: local-workdir@1
 `,
 		"workflows/check.yaml": `apiVersion: contractor/v1alpha1
@@ -1203,10 +1228,10 @@ spec:
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: disabled
+    findingConfirmation: %s
     notApplicable: profile-rule
     reportAcceptance: automatic
-`, batchSize, maxItems, maxItems, 2*maxItems),
+`, batchSize, maxItems, maxItems, 2*maxItems, findingConfirmation),
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

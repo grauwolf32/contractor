@@ -176,3 +176,38 @@ FROM audit_findings WHERE audit_id=$2 AND first_receipt_id=$3`, storedID, input.
 		})
 	}
 }
+
+func TestPostgresCollectionRetentionAdmitsClosingAudit(t *testing.T) {
+	for _, state := range []string{"finalizing", "cancelling", "cancelled", "completed"} {
+		t.Run(state, func(t *testing.T) {
+			f := newDeletionImportFixture(t)
+			if _, err := f.pool.Exec(f.ctx, `
+UPDATE audits
+   SET state = $2, baseline_snapshot = '{}'::jsonb, started_at = clock_timestamp(),
+       finished_at = CASE WHEN $2 IN ('cancelled', 'completed') THEN clock_timestamp() END
+ WHERE audit_id = $1`, f.request.AuditID, state); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := f.intake.ImportIntoAudit(f.ctx, f.request); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("owner import into %s Audit error = %v", state, err)
+			}
+			_, _, err := f.intake.RetainAuditCollection(f.ctx, f.request)
+			if state == "cancelled" || state == "completed" {
+				if !errors.Is(err, ErrAuditClosed) {
+					t.Fatalf("collection retention into %s Audit error = %v", state, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("collection retention into %s Audit error = %v", state, err)
+			}
+			if _, replayed, err := f.intake.RetainAuditCollection(f.ctx, f.request); err != nil || !replayed {
+				t.Fatalf("collection retention replay = (%t, %v)", replayed, err)
+			}
+			receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
+			if err != nil || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 1 {
+				t.Fatalf("retained receipt = (%+v, %v)", receipt, err)
+			}
+		})
+	}
+}

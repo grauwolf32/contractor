@@ -36,7 +36,7 @@ type RunReader interface {
 type FindingRetention interface {
 	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	GetAuditReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
-	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+	RetainAuditCollection(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
 	ResolveAuditProposals(
 		context.Context, string, string, string, string, []findingintake.ProposalKey,
 	) ([]findingintake.ResolvedProposal, error)

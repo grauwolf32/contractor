@@ -270,7 +270,8 @@ func sortedStringKeys[T any](values map[string]T) []string {
 
 // retainFindingProposals runs before the collection receipt commits. The
 // transfer is independently idempotent, so a later collection retry resumes
-// safely. A Run can fail after committing a proposal; technical failure must
+// safely. Retention is admitted while the Audit finalizes or cancels, so a
+// closing Audit still keeps every proposal its children found. A Run can fail after committing a proposal; technical failure must
 // not erase that candidate or silently promote it to a confirmed finding.
 func (i *Importer) retainFindingProposals(
 	ctx context.Context,
@@ -314,10 +315,17 @@ func (i *Importer) retainFindingProposals(
 					return fmt.Errorf("%w: finding proposal standard reference is invalid", ErrPermanent)
 				}
 			}
-			if _, _, err := i.findings.ImportIntoAudit(ctx, findingintake.ImportRequest{
+			_, _, err := i.findings.RetainAuditCollection(ctx, findingintake.ImportRequest{
 				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
 				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
-			}); err != nil {
+			})
+			if errors.Is(err, findingintake.ErrAuditClosed) {
+				// A terminal Audit has sealed its report, and a deleting one
+				// purges its holds anyway. The proposal stays held by its
+				// source Run, and a late collection must not block settlement.
+				return nil
+			}
+			if err != nil {
 				return fmt.Errorf("retain Audit child finding proposal: %w", err)
 			}
 		}
