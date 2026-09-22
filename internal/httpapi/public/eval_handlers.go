@@ -240,6 +240,7 @@ func (h *handler) getEvalExperiment(w http.ResponseWriter, r *http.Request) {
 	h.evalJSON(w, http.StatusOK, "Experiment", e)
 }
 func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
+	const evalExperimentCursorKey = "created"
 	q, limit, err := evalQuery(r, "projectId", "state", "datasetId", "controlMode")
 	if err != nil {
 		h.evalError(w, err)
@@ -249,7 +250,9 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 		h.evalError(w, evaldomain.Failure("eval_invalid"))
 		return
 	}
-	cursor, err := h.readEvalCursor(r, q, 2)
+	// Positions are (key tag, created_at, experiment_id). The tag rejects
+	// cursors minted when this list was keyed by the mutable updated_at.
+	cursor, err := h.readEvalCursor(r, q, 3)
 	if err != nil {
 		h.evalError(w, err)
 		return
@@ -269,13 +272,13 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 		Revision:    revision,
 	}}
 	if len(cursor.Position) > 0 {
-		at, err := time.Parse(time.RFC3339Nano, cursor.Position[0])
-		if err != nil {
+		at, err := time.Parse(time.RFC3339Nano, cursor.Position[1])
+		if cursor.Position[0] != evalExperimentCursorKey || err != nil {
 			h.evalError(w, evaldomain.Failure("eval_invalid"))
 			return
 		}
-		p.AfterTime = &at
-		p.AfterID = cursor.Position[1]
+		p.AfterCreatedAt = &at
+		p.AfterID = cursor.Position[2]
 	}
 	data, err := h.dependencies.Evals.List(r.Context(), p)
 	if err != nil {
@@ -284,10 +287,9 @@ func (h *handler) listEvalExperiments(w http.ResponseWriter, r *http.Request) {
 	}
 	lastTime, lastID := "", ""
 	if len(data.Items) > 0 {
-		last := data.Items[len(data.Items)-1]
-		lastTime, lastID = last.UpdatedAt.Format(time.RFC3339Nano), last.ID
+		lastTime, lastID = data.LastCreatedAt.Format(time.RFC3339Nano), data.Items[len(data.Items)-1].ID
 	}
-	page, err := h.evalPage(r, q, data.HasMore, strconv.FormatInt(data.Revision, 10), lastTime, lastID)
+	page, err := h.evalPage(r, q, data.HasMore, strconv.FormatInt(data.Revision, 10), evalExperimentCursorKey, lastTime, lastID)
 	if err != nil {
 		h.evalError(w, err)
 		return

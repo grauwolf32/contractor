@@ -85,9 +85,11 @@ SELECT COALESCE((SELECT revision
 	return result, nil
 }
 
+// SummaryPageParams pages by the immutable (created_at, experiment_id) key;
+// updated_at moves on usage ticks that do not fence the collection revision.
 type SummaryPageParams struct {
 	ListParams
-	AfterTime *time.Time
+	AfterCreatedAt *time.Time
 }
 
 type PublicSummary struct {
@@ -111,6 +113,8 @@ type SummaryPage struct {
 	Revision int64
 	Items    []PublicSummary
 	HasMore  bool
+	// LastCreatedAt is the keyset position of the last returned item.
+	LastCreatedAt time.Time
 }
 
 func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPage, error) {
@@ -127,15 +131,15 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 	err := s.db.QueryRow(ctx, `
 WITH page AS MATERIALIZED (
     SELECT experiment_id, project_id, name, control_mode, state, revision,
-        expected_count, draft, updated_at, dataset_id
+        expected_count, draft, created_at, updated_at, dataset_id
     FROM eval_experiments
     WHERE owner_id = $1
         AND ($2 = '' OR project_id = $2)
         AND ($3 = '' OR state = $3)
         AND ($4 = '' OR dataset_id = $4)
         AND ($5 = '' OR control_mode = $5)
-        AND ($6::timestamptz IS NULL OR (updated_at, experiment_id) < ($6, $7))
-    ORDER BY updated_at DESC, experiment_id DESC LIMIT $8
+        AND ($6::timestamptz IS NULL OR (created_at, experiment_id) < ($6, $7))
+    ORDER BY created_at DESC, experiment_id DESC LIMIT $8
 ), details AS (
     SELECT page.*, convert_from(COALESCE(p.setup, page.draft), 'UTF8')::jsonb AS setup,
         convert_from(v.summary, 'UTF8')::jsonb AS summary,
@@ -158,21 +162,31 @@ SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id = $1 AND p
                 ORDER BY CASE WHEN arm->>'id' = setup->'comparison'->>'baseline' THEN 0 ELSE 1 END)
             FROM jsonb_array_elements(setup->'variants') arm),
         'datasetId', NULLIF(dataset_id, ''), 'caseCount', jsonb_array_length(setup->'caseIds'),
-        'repetitions', (setup->>'repetitions')::int, 'summary', summary, 'freshness', freshness
-    ) ORDER BY updated_at DESC, experiment_id DESC) FROM details), '[]'::jsonb)
-`, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterTime, p.AfterID, p.Limit+1).Scan(&result.Revision, &raw)
+        'repetitions', (setup->>'repetitions')::int, 'summary', summary, 'freshness', freshness,
+        'pageCreatedAt', created_at
+    ) ORDER BY created_at DESC, experiment_id DESC) FROM details), '[]'::jsonb)
+`, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterCreatedAt, p.AfterID, p.Limit+1).Scan(&result.Revision, &raw)
 	if err != nil {
 		return result, err
 	}
 	if p.Revision != nil && *p.Revision != result.Revision {
 		return result, evaldomain.Failure("eval_view_changed")
 	}
-	if err = json.Unmarshal(raw, &result.Items); err != nil {
+	var rows []struct {
+		PublicSummary
+		CreatedAt time.Time `json:"pageCreatedAt"`
+	}
+	if err = json.Unmarshal(raw, &rows); err != nil {
 		return result, err
 	}
-	if len(result.Items) > p.Limit {
+	if len(rows) > p.Limit {
 		result.HasMore = true
-		result.Items = result.Items[:p.Limit]
+		rows = rows[:p.Limit]
+	}
+	result.Items = make([]PublicSummary, len(rows))
+	for i, row := range rows {
+		result.Items[i] = row.PublicSummary
+		result.LastCreatedAt = row.CreatedAt
 	}
 	return result, nil
 }
