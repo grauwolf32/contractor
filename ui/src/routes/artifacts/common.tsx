@@ -238,7 +238,7 @@ export function ArtifactWriteForm({
   excludedNamespace,
   expectedRevision,
   acceptedMediaTypes,
-  signal,
+  startOperation,
   submitLabel,
   headingId,
   onPendingChange,
@@ -255,7 +255,8 @@ export function ArtifactWriteForm({
   };
   expectedRevision?: string;
   acceptedMediaTypes?: readonly string[];
-  signal?: AbortSignal;
+  /** Starts an upload and returns the signal that aborts it. */
+  startOperation?: () => AbortSignal;
   submitLabel?: string;
   /** Labels the form by an outer (dialog) heading instead of its own. */
   headingId?: string;
@@ -373,7 +374,7 @@ export function ArtifactWriteForm({
       mediaType: effectiveMediaType,
       payload: file,
       ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      ...(signal === undefined ? {} : { signal }),
+      ...(startOperation === undefined ? {} : { signal: startOperation() }),
     });
   }
 
