@@ -39,16 +39,11 @@ export function ActionReviewControls({
         "audit-action-review",
       ),
   );
+  // The Audit detail key prefixes its reviews and items queries.
   async function invalidate(): Promise<void> {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: queryKeys.audits.detail(audit.auditId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.reviews(audit.auditId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.items(audit.auditId),
       }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.audits.report(audit.auditId),
