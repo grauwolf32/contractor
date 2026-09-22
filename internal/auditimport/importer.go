@@ -304,6 +304,10 @@ func (i *Importer) retainFindingProposals(
 				receipt.Origin.RunID != *execution.RunID {
 				return fmt.Errorf("%w: Audit child finding origin is inconsistent", ErrPermanent)
 			}
+			request := findingintake.ImportRequest{
+				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
+				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
+			}
 			if len(receipt.Document.StandardRefs) != 0 {
 				if standards == nil {
 					standards, err = loadStandards()
@@ -312,13 +316,19 @@ func (i *Importer) retainFindingProposals(
 					}
 				}
 				if validateProposalStandardRefs(receipt.Document, standards) != nil {
-					return fmt.Errorf("%w: finding proposal standard reference is invalid", ErrPermanent)
+					// The model authored this one proposal; reject only it
+					// and keep collecting the others and the execution.
+					err := i.findings.RejectAuditCollection(ctx, request, "finding-proposal-standard-invalid")
+					if errors.Is(err, findingintake.ErrAuditClosed) {
+						return nil
+					}
+					if err != nil {
+						return fmt.Errorf("reject invalid Audit child finding proposal: %w", err)
+					}
+					continue
 				}
 			}
-			_, _, err := i.findings.RetainAuditCollection(ctx, findingintake.ImportRequest{
-				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
-				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
-			})
+			_, _, err := i.findings.RetainAuditCollection(ctx, request)
 			if errors.Is(err, findingintake.ErrAuditClosed) {
 				// A terminal Audit has sealed its report, and a deleting one
 				// purges its holds anyway. The proposal stays held by its

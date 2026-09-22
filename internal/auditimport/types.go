@@ -37,6 +37,7 @@ type FindingRetention interface {
 	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	GetAuditReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
 	RetainAuditCollection(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+	RejectAuditCollection(context.Context, findingintake.ImportRequest, string) error
 	ResolveAuditProposals(
 		context.Context, string, string, string, string, []findingintake.ProposalKey,
 	) ([]findingintake.ResolvedProposal, error)

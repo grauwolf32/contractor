@@ -46,7 +46,9 @@ func TestPostgresClosingAuditRetainsLateChildFindingProposal(t *testing.T) {
 				t.Fatalf("submitted child = (%+v, %v)", executions, err)
 			}
 			runID := *executions[0].RunID
-			submitChildFindingProposal(t, ctx, harness, intake, runID, "late-candidate")
+			submitChildFindingProposal(
+				t, ctx, intake, childFindingGrant(t, ctx, harness, runID), "late-candidate", nil,
+			)
 
 			current, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
 			if err != nil {
@@ -161,10 +163,90 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
 	}
 }
 
-func submitChildFindingProposal(
-	t *testing.T, ctx context.Context, harness *postgresControllerHarness,
-	intake *findingintake.Service, runID, clientKey string,
-) findingintake.Receipt {
+// One model-authored proposal with an invalid standard reference must not
+// poison its collection: only that proposal is rejected, its siblings stay
+// retained, and the next-round inbox lists only exactly held receipts.
+func TestPostgresCollectionRejectsOnlyInvalidChildFindingProposal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarnessWithConfig(t, ctx, 1, loadControllerConfigWithFindings(t, 1, true))
+	intake, err := findingintake.New(harness.pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := harness.controllerWithCollector(t, intake)
+	for step := 0; step < 2; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("dispatch step %d = (%t, %v)", step, worked, err)
+		}
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("submitted child = (%+v, %v)", executions, err)
+	}
+	runID := *executions[0].RunID
+	grant := childFindingGrant(t, ctx, harness, runID)
+	invalid := submitChildFindingProposal(t, ctx, intake, grant, "invalid-candidate",
+		[]auditdomain.StandardReference{{Scheme: "unpinned", Version: "1", RequirementID: "invented"}})
+	valid := submitChildFindingProposal(t, ctx, intake, grant, "valid-candidate", nil)
+	if _, err := harness.runs.TransitionRun(
+		ctx, runID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "test_failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	for operation := 0; operation < 4; operation++ {
+		collected, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if collected[0].State == auditstore.ExecutionCollected {
+			break
+		}
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("collection operation %d = (%t, %v)", operation, worked, err)
+		}
+	}
+	var disposition string
+	if err := harness.pool.QueryRow(ctx, `
+SELECT disposition FROM audit_collection_receipts WHERE execution_id = $1`,
+		executions[0].ExecutionID).Scan(&disposition); err != nil || disposition != "execution-failed" {
+		t.Fatalf("collection disposition = (%q, %v)", disposition, err)
+	}
+	if err := intake.RejectAuditCollection(ctx, findingintake.ImportRequest{
+		OwnerID: harness.started.Audit.OwnerID, AuditID: harness.started.Audit.AuditID,
+		RunID: runID, Proposal: invalid.Proposal.Ref,
+	}, "finding-proposal-standard-invalid"); err != nil {
+		t.Fatalf("replayed rejection: %v", err)
+	}
+	var heldReceipt, rejectedReceipt, reason string
+	if err := harness.pool.QueryRow(ctx, `
+SELECT (SELECT string_agg(receipt_id, ',') FROM finding_proposal_audit_holds WHERE audit_id = $1),
+       (SELECT string_agg(entity_id, ',') FROM audit_events
+         WHERE audit_id = $1 AND kind = 'finding.proposal_rejected'),
+       (SELECT string_agg(summary->>'reason', ',') FROM audit_events
+         WHERE audit_id = $1 AND kind = 'finding.proposal_rejected')`,
+		harness.started.Audit.AuditID).Scan(&heldReceipt, &rejectedReceipt, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if heldReceipt != valid.ReceiptID || rejectedReceipt != invalid.ReceiptID ||
+		reason != "finding-proposal-standard-invalid" {
+		t.Fatalf("held=%q rejected=%q reason=%q", heldReceipt, rejectedReceipt, reason)
+	}
+	query := findingintake.ListQuery{Limit: 10}
+	owner, auditID := harness.started.Audit.OwnerID, harness.started.Audit.AuditID
+	inbox, err := intake.ListAuditInbox(ctx, owner, auditID, query)
+	if err != nil || len(inbox) != 2 {
+		t.Fatalf("owner inbox = (%d, %v)", len(inbox), err)
+	}
+	held, err := intake.ListAuditHeldInbox(ctx, owner, auditID, query)
+	if err != nil || len(held) != 1 || held[0].ReceiptID != valid.ReceiptID {
+		t.Fatalf("held inbox = (%+v, %v)", held, err)
+	}
+}
+
+func childFindingGrant(
+	t *testing.T, ctx context.Context, harness *postgresControllerHarness, runID string,
+) controlplane.AllocationGrant {
 	t.Helper()
 	run, err := harness.runs.GetRun(ctx, runID)
 	if err != nil {
@@ -235,19 +317,31 @@ func submitChildFindingProposal(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	invocationID := clientKey + "-invocation"
-	receipt, _, err := intake.Submit(ctx, controlplane.AllocationGrant{
+	return controlplane.AllocationGrant{
 		AllocationID: allocationID, RuntimeAgentID: runtimeAgentID,
 		RuntimeInstanceID: "closing-instance", RunID: runID, StageExecutionID: stageID,
 		LogicalAgentName: "worker", Namespace: binding.Namespace,
-	}, findingintake.Submission{
+	}
+}
+
+func submitChildFindingProposal(
+	t *testing.T, ctx context.Context, intake *findingintake.Service,
+	grant controlplane.AllocationGrant, clientKey string,
+	standardRefs []auditdomain.StandardReference,
+) findingintake.Receipt {
+	t.Helper()
+	if standardRefs == nil {
+		standardRefs = []auditdomain.StandardReference{}
+	}
+	invocationID := clientKey + "-invocation"
+	receipt, _, err := intake.Submit(ctx, grant, findingintake.Submission{
 		APIVersion: findingintake.APIVersion, InvocationID: invocationID,
 		SubmissionID: findingintake.StableSubmissionID(invocationID, clientKey),
 		Proposal: auditdomain.FindingProposal{
 			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
 			Title: "Late candidate", Description: "A candidate found before the Audit closed.",
 			Subject:       &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
-			Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+			Preconditions: []string{}, StandardRefs: standardRefs,
 			EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
 			Limitations: []string{},
 		},

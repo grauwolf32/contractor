@@ -18,7 +18,7 @@ func (s *Service) selectNextProposalChecks(
 	selection := proposalCheckAccumulator{selected: make(map[string]auditdomain.FindingInventoryProposal)}
 	query := findingintake.ListQuery{Limit: nextRoundInboxPage}
 	for selection.scanned < maxNextRoundInboxScan {
-		receipts, err := s.findings.ListAuditInbox(ctx, audit.OwnerID, audit.AuditID, query)
+		receipts, err := s.findings.ListAuditHeldInbox(ctx, audit.OwnerID, audit.AuditID, query)
 		if err != nil {
 			return proposalCheckSelection{}, err
 		}
