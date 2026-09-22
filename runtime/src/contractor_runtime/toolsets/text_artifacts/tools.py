@@ -172,11 +172,11 @@ class ReadTextArtifactTool(_BaseTextTool):
             try:
                 content = value.data.decode("utf-8", errors="strict")
             except UnicodeDecodeError as error:
-                raise ValueError("artifact is not valid UTF-8") from error
+                raise ToolInputError("artifact is not valid UTF-8") from error
             lines = content.splitlines(keepends=True)
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
-                raise ValueError("start_line exceeds artifact line count")
+                raise ToolInputError("start_line exceeds artifact line count")
             selected, end_line, partial_line = _bounded_lines(
                 lines, start_line=start_line, max_lines=max_lines
             )

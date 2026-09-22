@@ -11,6 +11,11 @@ class ToolInputError(ValueError):
     code = "tool_input_invalid"
     retryable = False
 
+    def __init__(self, *args: object, code: str | None = None) -> None:
+        super().__init__(*args)
+        if code is not None:
+            self.code = code
+
     @property
     def diagnostic_message(self) -> str:
         return str(self)

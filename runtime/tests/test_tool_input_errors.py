@@ -13,7 +13,7 @@ from test_openapi_toolset import MemoryArtifactClient as OpenAPIArtifacts
 from test_openapi_toolset import make_tools as openapi_tools
 from test_run_artifacts_toolset import FakeArtifactClient
 from test_security_findings_toolset import FakeFindingClient
-from test_source_analysis_toolset import ReadOnlyArtifactClient
+from test_source_analysis_toolset import ReadOnlyArtifactClient, make_zip
 from test_source_analysis_toolset import make_tools as source_tools
 from test_text_artifacts_toolset import MemoryArtifactClient
 from test_text_artifacts_toolset import make_tools as text_tools
@@ -23,6 +23,7 @@ from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.caido.tools import CaidoToolError
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.http.tools import HTTPToolError
+from contractor_runtime.toolsets.openapi.tools import _validate_path_item
 from contractor_runtime.toolsets.run_artifacts.tools import WriteArtifactTool
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
@@ -213,3 +214,99 @@ def test_metrics_remain_serializable_with_invalid_unicode_in_arguments():
     report = metrics.build_report(report_id="invalid-unicode", duration_ms=1)
     assert report.model_dump_json().encode("utf-8")
     assert report.tool_calls[0].arguments["name"] == "?"
+
+
+def assert_model_facing(error, text, code="tool_input_invalid"):
+    assert isinstance(error, ToolInputError)
+    reply = _safe_tool_response("test_tool", error)
+    assert reply["error"]["code"] == code
+    assert text in reply["error"]["message"]
+    assert "failed (" not in reply["error"]["message"]
+
+
+def test_likec4_state_and_fragment_errors_reach_the_model(tmp_path):
+    async def scenario():
+        client, state = LikeC4Artifacts(), WorkerState()
+        tools = await likec4_tools(tmp_path, client, state, namespace="architecture")
+        with pytest.raises(ValueError) as caught:
+            await tools["read_likec4"]()
+        assert_model_facing(caught.value, "must be called first", "document_not_loaded")
+        await tools["write_likec4"]("model {\n}\n")
+        with pytest.raises(ValueError) as caught:
+            await tools["read_likec4"](start_line=10)
+        assert_model_facing(caught.value, "start_line exceeds")
+        with pytest.raises(ValueError) as caught:
+            await tools["append_likec4"]("")
+        assert_model_facing(caught.value, "append content")
+        with pytest.raises(ValueError) as caught:
+            await tools["replace_likec4"]("missing", "service")
+        assert_model_facing(caught.value, "old fragment is absent", "fragment_not_found")
+        with pytest.raises(ValueError) as caught:
+            await tools["replace_likec4"]("model", {})
+        assert_model_facing(caught.value, "new fragment must be a string")
+
+    asyncio.run(scenario())
+
+
+def test_openapi_lookup_and_validation_errors_reach_the_model(tmp_path):
+    async def scenario():
+        client, state = OpenAPIArtifacts(), WorkerState()
+        tools = await openapi_tools(tmp_path, client, state, namespace="openapi")
+        await tools["initialize_openapi"](title="API")
+        with pytest.raises(ValueError) as caught:
+            await tools["get_openapi_path"]("/missing")
+        assert_model_facing(caught.value, "OpenAPI path is absent", "openapi_path_not_found")
+        with pytest.raises(ValueError) as caught:
+            await tools["get_openapi_component"]("schemas", "Missing")
+        assert_model_facing(
+            caught.value, "OpenAPI component is absent", "openapi_component_not_found"
+        )
+        with pytest.raises(ValueError) as caught:
+            await tools["upsert_openapi_path"]("/x", "not-an-object", ["src/app.py"])
+        assert_model_facing(caught.value, "path_item must be an object")
+
+    asyncio.run(scenario())
+
+
+def test_openapi_pydantic_details_reach_the_model():
+    with pytest.raises(ValueError) as caught:
+        _validate_path_item({"get": {"responses": "invalid"}})
+    assert_model_facing(caught.value, '"component":"PathItem"')
+
+
+def test_text_artifact_line_errors_reach_the_model(tmp_path):
+    async def scenario():
+        client, state = MemoryArtifactClient(), WorkerState()
+        client.seed("worker-space", "notes", "text/plain", b"one\n")
+        client.seed("worker-space", "binary", "text/plain", b"\xff")
+        tools = await text_tools(tmp_path, client, state)
+        with pytest.raises(ValueError) as caught:
+            await tools["read_text_artifact"]("worker-space", "notes", start_line=5)
+        assert_model_facing(caught.value, "start_line exceeds artifact line count")
+        with pytest.raises(ValueError) as caught:
+            await tools["read_text_artifact"]("worker-space", "binary")
+        assert_model_facing(caught.value, "not valid UTF-8")
+
+    asyncio.run(scenario())
+
+
+def test_source_state_and_path_errors_reach_the_model(tmp_path):
+    async def scenario():
+        client, state = ReadOnlyArtifactClient(), WorkerState()
+        tools = await source_tools(tmp_path, client, state)
+        with pytest.raises(ValueError) as caught:
+            await tools["read_source"]("app.py")
+        assert_model_facing(caught.value, "must be called first", "source_archive_not_open")
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"app.py": "x\n"}))
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        with pytest.raises(ValueError) as caught:
+            await tools["read_source"]("missing.py")
+        assert_model_facing(caught.value, "source path is absent", "source_path_not_found")
+        with pytest.raises(ValueError) as caught:
+            await tools["read_source"]("app.py", start_line=5)
+        assert_model_facing(caught.value, "start_line exceeds")
+        with pytest.raises(ValueError) as caught:
+            await tools["read_source"]("../app.py")
+        assert_model_facing(caught.value, "source path must be normalized")
+
+    asyncio.run(scenario())

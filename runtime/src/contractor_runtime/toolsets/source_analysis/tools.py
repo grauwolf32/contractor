@@ -292,13 +292,16 @@ class _SourceArchiveSession:
             self._require_open()
             source = self._files.get(normalized)
             if source is None:
-                raise ValueError("source path is absent or not a readable text file")
+                raise ToolInputError(
+                    "source path is absent or not a readable text file",
+                    code="source_path_not_found",
+                )
             content = await self._guard.run(
                 lambda: self._read_file(source), deadline=self._deadline()
             )
             lines = content.splitlines(keepends=True)
             if lines and start_line > len(lines):
-                raise ValueError("start_line exceeds source file line count")
+                raise ToolInputError("start_line exceeds source file line count")
             selected, end_line, partial_line = _bounded_lines(
                 lines, start_line=start_line, max_lines=max_lines
             )
@@ -362,7 +365,7 @@ class _SourceArchiveSession:
             try:
                 compiled = bounded_regex.compile(query, flags)
             except bounded_regex.error as error:
-                raise ValueError("query is not a valid regular expression") from error
+                raise ToolInputError("query is not a valid regular expression") from error
         matches: list[dict[str, Any]] = []
         scanned_bytes = 0
         scanned_files = 0
@@ -386,7 +389,7 @@ class _SourceArchiveSession:
                         else needle in (line if case_sensitive else line.casefold())
                     )
                 except TimeoutError as error:
-                    raise ValueError("regular expression search timed out") from error
+                    raise ToolInputError("regular expression search timed out") from error
                 if not found:
                     continue
                 matches.append(
@@ -427,7 +430,9 @@ class _SourceArchiveSession:
     def _require_open(self) -> None:
         self._require_available()
         if self._summary is None:
-            raise ValueError("open_source_archive must be called first")
+            raise ToolInputError(
+                "open_source_archive must be called first", code="source_archive_not_open"
+            )
 
 
 class _BaseSourceTool:
@@ -819,10 +824,13 @@ def _validate_search(
 
 def _validate_requested_path(raw: str) -> str:
     if not isinstance(raw, str):
-        raise ValueError("source path is invalid")
-    normalized = _validated_member_path(raw)
+        raise ToolInputError("source path is invalid")
+    try:
+        normalized = _validated_member_path(raw)
+    except ValueError:
+        raise ToolInputError("source path must be normalized and relative") from None
     if raw != normalized:
-        raise ValueError("source path must be normalized and relative")
+        raise ToolInputError("source path must be normalized and relative")
     return normalized
 
 
