@@ -560,7 +560,7 @@ func writeDownloadedFile(path string, payload []byte, force bool) error {
 		return err
 	}
 	if !force {
-		output, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		output, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if errors.Is(err, os.ErrExist) {
 			return fmt.Errorf("%s already exists (use --force to replace it)", path)
 		}
