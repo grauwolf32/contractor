@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.mtls import (
     CONTROL_PLANE_URI_PREFIX,
@@ -41,7 +42,7 @@ def foreign_pki(tmp_path_factory: pytest.TempPathFactory) -> PKI:
 
 
 def generate_pki(root: Path) -> PKI:
-    repository = Path(__file__).resolve().parents[2]
+    repository = REPOSITORY_ROOT
     for arguments in (
         ("init-ca", "--root", str(root)),
         ("issue-control-plane", "--root", str(root)),

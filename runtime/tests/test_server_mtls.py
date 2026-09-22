@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import pytest
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.mtls import runtime_agent_server_context
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
@@ -107,7 +108,7 @@ def client_context(pki: dict[str, Path], certificate: str, key: str) -> ssl.SSLC
 
 
 def generate_pki(root: Path) -> dict[str, Path]:
-    repository = Path(__file__).resolve().parents[2]
+    repository = REPOSITORY_ROOT
     for arguments in (
         ("init-ca", "--root", str(root)),
         ("issue-control-plane", "--root", str(root)),

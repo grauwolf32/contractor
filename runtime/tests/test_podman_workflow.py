@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from fakes.podman_lifecycle import owner
 from fakes.podman_workflow import ArtifactPeer, Commands, exercise_sample, sample_model, sample_spec
+from paths import REPOSITORY_ROOT
 from test_projectfs_storage import local_settings
 
 from contractor_runtime.allocation import AllocationService
@@ -65,12 +66,9 @@ def test_sample_uses_exact_source_and_no_skills_or_overlay_export():
 
 def test_service_template_preserves_independent_cleanup_owners():
     from configparser import ConfigParser
-    from pathlib import Path
 
     unit = ConfigParser(interpolation=None)
-    unit.read(
-        Path(__file__).resolve().parents[2] / "deploy/podman/contractor-runtime.service.example"
-    )
+    unit.read(REPOSITORY_ROOT / "deploy/podman/contractor-runtime.service.example")
     service = unit["Service"]
     assert service["Type"] == "exec"
     assert service["KillMode"] == "mixed" and service["SendSIGKILL"] == "no"

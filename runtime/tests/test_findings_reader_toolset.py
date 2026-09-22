@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from google.adk.tools import FunctionTool
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
@@ -36,9 +37,7 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
-FIXTURE = (
-    Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-collection-v1.fixture.json"
-)
+FIXTURE = REPOSITORY_ROOT / "internal/auditdomain/testdata/finding-collection-v1.fixture.json"
 TIMESTAMPS = {
     "x-contractor-binding-created-at": "2026-09-06T09:00:00Z",
     "x-contractor-revision-created-at": "2026-09-06T09:00:00Z",

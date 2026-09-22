@@ -6,12 +6,12 @@ import asyncio
 import json
 import time
 from email.utils import formatdate
-from pathlib import Path
 
 import httpx
 import pytest
 from jsonschema import Draft202012Validator
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
+from paths import REPOSITORY_ROOT
 from referencing import Registry, Resource
 from test_otlp_adapter import adapter_context, telemetry_settings
 
@@ -416,7 +416,7 @@ def test_drop_counters_round_trip_in_runtime_report_and_published_schema() -> No
     report = RuntimeReport(complete=True, adapters={"otlp-http@1": metrics.snapshot()})
     encoded = report.model_dump_json(by_alias=True, exclude_none=True)
     assert RuntimeReport.model_validate_json(encoded) == report
-    schema_root = Path(__file__).parents[2] / "api/v1alpha1"
+    schema_root = REPOSITORY_ROOT / "api/v1alpha1"
     schemas = {
         path.name: json.loads(path.read_bytes()) for path in schema_root.glob("*.schema.json")
     }
@@ -427,7 +427,7 @@ def test_drop_counters_round_trip_in_runtime_report_and_published_schema() -> No
     Draft202012Validator(schemas["runtime-report.schema.json"], registry=registry).validate(runtime)
     final = json.loads(
         (
-            Path(__file__).parents[2] / "api/testdata/v1alpha1/valid/allocation-final-response.json"
+            REPOSITORY_ROOT / "api/testdata/v1alpha1/valid/allocation-final-response.json"
         ).read_bytes()
     )
     final["report"]["runtime"] = runtime

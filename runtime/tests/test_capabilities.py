@@ -8,6 +8,7 @@ from typing import Literal
 
 import pytest
 import yaml
+from paths import REPOSITORY_ROOT
 
 import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.likec4.tools as likec4
@@ -39,12 +40,7 @@ from contractor_runtime.workspace import LocalWorkdirFactory
 def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     tmp_path: Path,
 ) -> None:
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "api"
-        / "descriptor-parity"
-        / "toolset-infrastructure-channels.yaml"
-    )
+    path = REPOSITORY_ROOT / "api" / "descriptor-parity" / "toolset-infrastructure-channels.yaml"
     fixture = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert fixture["schemaVersion"] == "1.0"
     factories = built_in_factories(tmp_path).toolsets

@@ -3,11 +3,11 @@
 import asyncio
 import json
 from dataclasses import FrozenInstanceError, replace
-from pathlib import Path
 from types import SimpleNamespace
 
 import jcs
 import pytest
+from paths import REPOSITORY_ROOT
 from test_audit_result_publication import assigned
 from test_audit_results_toolset import digest, package
 
@@ -32,9 +32,7 @@ from contractor_runtime.toolsets.audit_results.encoding import (
 from contractor_runtime.toolsets.audit_results.v2 import ReadAuditTaskTool, SubmitCheckResultTool
 
 FIXTURE = json.loads(
-    (
-        Path(__file__).parents[2] / "api/testdata/audit-completion/task-local-validation.json"
-    ).read_text()
+    (REPOSITORY_ROOT / "api/testdata/audit-completion/task-local-validation.json").read_text()
 )
 CONTEXT = SimpleNamespace(invocation_id="invocation-1")
 

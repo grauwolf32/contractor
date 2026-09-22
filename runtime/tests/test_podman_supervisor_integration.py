@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
+from paths import TESTS_ROOT
 
 from contractor_runtime.sandbox.contracts import (
     ExecutionResult,
@@ -294,7 +295,7 @@ def test_runtime_sigkill_without_restart_stops_workload(tmp_path):
             controller = await asyncio.create_subprocess_exec(
                 sys.executable,
                 "-I",
-                str(Path(__file__).parent / "fakes/podman_runtime.py"),
+                str(TESTS_ROOT / "fakes/podman_runtime.py"),
                 str(fence.directory),
                 str(fence.init_pid),
                 str(fence.pidfd),

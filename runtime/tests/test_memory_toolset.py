@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 from google.adk.tools import FunctionTool
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
@@ -179,9 +180,7 @@ def test_write_replace_append_list_search_and_tag_semantics() -> None:
 
 
 def test_shared_memory_projection_json() -> None:
-    fixtures = json.loads(
-        (Path(__file__).parents[2] / "testdata/memory/projections.json").read_text()
-    )
+    fixtures = json.loads((REPOSITORY_ROOT / "testdata/memory/projections.json").read_text())
     for fixture in fixtures:
         raw = fixture["note"]
         note = StoredMemoryNote(

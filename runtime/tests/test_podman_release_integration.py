@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from paths import TESTS_ROOT
 from test_podman_execution_integration import allocation, deadline
 
 from contractor_runtime.sandbox.contracts import ExecutionRequest
@@ -246,7 +247,7 @@ def test_real_restart_recovers_lost_create_but_preserves_unrelated_container(tmp
             identity = await other.create("unrelated", other_root, deadline=time.monotonic() + 20)
             process = await asyncio.create_subprocess_exec(
                 sys.executable,
-                str(Path(__file__).parent / "fakes/podman_lost_create.py"),
+                str(TESTS_ROOT / "fakes/podman_lost_create.py"),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,

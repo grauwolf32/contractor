@@ -4,9 +4,9 @@ import hashlib
 import json
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.toolsets.memory.codec import (
     ARTIFACT_NAME_PREFIX,
@@ -30,7 +30,7 @@ from contractor_runtime.toolsets.memory.codec import (
     preview_projection,
 )
 
-FIXTURES = Path(__file__).parents[2] / "testdata" / "memory" / "cases.json"
+FIXTURES = REPOSITORY_ROOT / "testdata" / "memory" / "cases.json"
 
 
 def test_shared_codec_fixtures() -> None:

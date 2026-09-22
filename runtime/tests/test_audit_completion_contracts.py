@@ -3,10 +3,10 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from paths import REPOSITORY_ROOT
 from referencing import Registry, Resource
 
 from contractor_runtime.contracts import (
@@ -32,7 +32,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
 )
 from contractor_runtime.worker.completion import ContinueCompletion
 
-ROOT = Path(__file__).parents[2]
+ROOT = REPOSITORY_ROOT
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/audit-completion-cases.json").read_bytes())
 MODELS = {
     "contract": WorkerCompletionContract,

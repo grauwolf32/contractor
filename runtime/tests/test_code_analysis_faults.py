@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from paths import TESTS_ROOT
 
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.toolsets.code_analysis.trailmark_host import (
@@ -12,7 +13,7 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     TrailmarkHostError,
 )
 
-FAULT_CHILD = Path(__file__).parent / "fixtures" / "trailmark_fault_child.py"
+FAULT_CHILD = TESTS_ROOT / "fixtures" / "trailmark_fault_child.py"
 
 
 def test_definitely_unprocessed_read_only_build_gets_exactly_one_safe_replay(

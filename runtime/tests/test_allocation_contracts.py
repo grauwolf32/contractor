@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fakes.spec import allocation_spec
+from paths import REPOSITORY_ROOT
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.digests import TemplateDigestMismatch, verify_template_digests
 
-FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1" / "valid"
+FIXTURES = REPOSITORY_ROOT / "api" / "testdata" / "v1alpha1" / "valid"
 
 
 def test_optional_summarizer_round_trips_on_both_allocation_contracts() -> None:

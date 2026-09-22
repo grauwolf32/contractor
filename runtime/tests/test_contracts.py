@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
+from paths import REPOSITORY_ROOT
 from pydantic import BaseModel, ValidationError
 from referencing import Registry, Resource
 
@@ -45,7 +46,7 @@ from contractor_runtime.digests import (
     verify_gateway_config_digest,
 )
 
-FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
+FIXTURES = REPOSITORY_ROOT / "api" / "testdata" / "v1alpha1"
 
 DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
     "registration-missing-api-version.json": (AgentRegistration, "version"),
@@ -584,7 +585,7 @@ def test_all_golden_files_have_an_assigned_model() -> None:
 def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> None:
     cases = json.loads((FIXTURES / "run-metadata-label-cases.json").read_text())
     baseline = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
-    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schema_root = REPOSITORY_ROOT / "api" / "v1alpha1"
     schemas = {
         path.name: json.loads(path.read_text(encoding="utf-8"))
         for path in schema_root.glob("*.schema.json")
@@ -626,7 +627,7 @@ def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> 
 def test_shared_worker_session_mode_cases_match_model_and_schema() -> None:
     cases = json.loads((FIXTURES / "worker-session-mode-cases.json").read_text())
     baseline = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
-    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schema_root = REPOSITORY_ROOT / "api" / "v1alpha1"
     schemas = {
         path.name: json.loads(path.read_text(encoding="utf-8"))
         for path in schema_root.glob("*.schema.json")
@@ -667,7 +668,7 @@ def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
 
 
 def test_schema_files_are_json_objects() -> None:
-    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schema_root = REPOSITORY_ROOT / "api" / "v1alpha1"
     schemas: list[dict[str, Any]] = [
         json.loads(path.read_text(encoding="utf-8")) for path in schema_root.glob("*.schema.json")
     ]
@@ -678,7 +679,7 @@ def test_schema_files_are_json_objects() -> None:
 
 def test_schema_ids_are_unique_across_the_api_catalog() -> None:
     owners: dict[str, Path] = {}
-    for path in (Path(__file__).parents[2] / "api").rglob("*.schema.json"):
+    for path in (REPOSITORY_ROOT / "api").rglob("*.schema.json"):
         schema = json.loads(path.read_bytes())
         schema_id = schema["$id"]
         assert schema_id not in owners, (schema_id, owners.get(schema_id), path)
@@ -686,7 +687,7 @@ def test_schema_ids_are_unique_across_the_api_catalog() -> None:
 
 
 def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
-    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schema_root = REPOSITORY_ROOT / "api" / "v1alpha1"
     schemas = {
         path.name: json.loads(path.read_text(encoding="utf-8"))
         for path in schema_root.glob("*.schema.json")

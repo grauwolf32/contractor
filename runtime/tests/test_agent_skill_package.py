@@ -4,9 +4,9 @@ import base64
 import io
 import json
 import zipfile
-from pathlib import Path
 
 import pytest
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.agent_skills import SkillPackageError, validate_package
 from contractor_runtime.agent_skills.package import (
@@ -26,7 +26,7 @@ from contractor_runtime.agent_skills.package import (
     MAXIMUM_RESOURCE_BYTES,
 )
 
-FIXTURES = Path(__file__).parents[2] / "testdata" / "agent-skills" / "cases.json"
+FIXTURES = REPOSITORY_ROOT / "testdata" / "agent-skills" / "cases.json"
 
 
 def test_shared_package_corpus() -> None:

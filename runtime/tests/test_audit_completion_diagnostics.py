@@ -4,10 +4,10 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 from fakes.model import text_result
+from paths import REPOSITORY_ROOT
 from pydantic import ValidationError
 from test_adk_runtime import stage_request
 from test_audit_completion_runtime import runtime_for, submit
@@ -21,9 +21,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 
-CASES = json.loads(
-    (Path(__file__).parents[2] / "api/testdata/audit-completion/diagnostics.json").read_text()
-)
+CASES = json.loads((REPOSITORY_ROOT / "api/testdata/audit-completion/diagnostics.json").read_text())
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])

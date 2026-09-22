@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from paths import REPOSITORY_ROOT
 
 import contractor_runtime.cli as runtime_cli
 from contractor_runtime.settings import Settings
@@ -250,7 +251,7 @@ def make_settings(tmp_path: Path) -> Settings:
 
 
 def generate_pki(root: Path) -> dict[str, Path]:
-    repository = Path(__file__).resolve().parents[2]
+    repository = REPOSITORY_ROOT
     for arguments in (
         ("init-ca", "--root", str(root)),
         ("issue-control-plane", "--root", str(root)),

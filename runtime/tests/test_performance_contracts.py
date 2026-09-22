@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import math
-from pathlib import Path
 
 import pytest
 from fakes.spec import allocation_spec
 from jsonschema import Draft202012Validator
+from paths import REPOSITORY_ROOT
 from pydantic import ValidationError
 from referencing import Registry, Resource
 
@@ -22,7 +22,7 @@ from contractor_runtime.contracts import (
     encode_private,
 )
 
-ROOT = Path(__file__).parents[2]
+ROOT = REPOSITORY_ROOT
 FIXTURES = ROOT / "api/testdata/v1alpha1"
 CASES = json.loads((FIXTURES / "performance-cases.json").read_text())
 FINAL = ROOT / "api/testdata/v1alpha1/valid/allocation-final-response.json"

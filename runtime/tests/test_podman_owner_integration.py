@@ -10,9 +10,9 @@ import sys
 import time
 import uuid
 from dataclasses import asdict
-from pathlib import Path
 
 import pytest
+from paths import TESTS_ROOT
 from test_podman_supervisor_integration import launch
 
 from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxIdentity
@@ -63,7 +63,7 @@ def test_real_runtime_death_or_stall_fences_work_and_owner_recovers(tmp_path, st
         sentinel.write_text("retain until owner confirms removal")
         runtime = await asyncio.create_subprocess_exec(
             sys.executable,
-            str(Path(__file__).parent / "fakes/podman_allocation_runtime.py"),
+            str(TESTS_ROOT / "fakes/podman_allocation_runtime.py"),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

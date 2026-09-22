@@ -12,6 +12,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from paths import TESTS_ROOT
 
 from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
 from contractor_runtime.sandbox.podman.engine import LABEL_PREFIX, PodmanEngine
@@ -518,7 +519,7 @@ def test_root_engine_identity_is_rejected(tmp_path: Path, monkeypatch):
 
 def fake_executable(tmp_path: Path) -> Path:
     target = tmp_path / "fake-podman"
-    shutil.copyfile(Path(__file__).parent / "fakes/podman_cli.py", target)
+    shutil.copyfile(TESTS_ROOT / "fakes/podman_cli.py", target)
     target.chmod(0o700)
     return target
 

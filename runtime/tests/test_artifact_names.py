@@ -1,16 +1,16 @@
 """One portable Artifact name contract across wire validation and JSON Schema."""
 
 import json
-from pathlib import Path
 
 import pytest
 from fakes.spec import allocation_spec
 from jsonschema import Draft202012Validator
+from paths import REPOSITORY_ROOT
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import AllocationSpec, ArtifactRef
 
-ROOT = Path(__file__).parents[2]
+ROOT = REPOSITORY_ROOT
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/artifact-name-cases.json").read_text())
 SCHEMA = json.loads((ROOT / "api/v1alpha1/common.schema.json").read_text())["$defs"]["artifactRef"]
 

@@ -2,11 +2,11 @@
 
 import asyncio
 import json
-from pathlib import Path
 
 import httpx
 import pytest
 from google.adk.models.llm_request import LlmRequest
+from paths import REPOSITORY_ROOT
 
 from contractor_runtime.contracts import GatewayFailureSignatures
 from contractor_runtime.contracts.settings import default_gateway_failure_signatures
@@ -16,10 +16,9 @@ from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGat
 from contractor_runtime.telemetry.metrics import MetricsState
 
 FIXTURE = json.loads(
-    (
-        Path(__file__).parents[2]
-        / "api/testdata/v1alpha1/gateway-failure-classification-cases.json"
-    ).read_text(encoding="utf-8")
+    (REPOSITORY_ROOT / "api/testdata/v1alpha1/gateway-failure-classification-cases.json").read_text(
+        encoding="utf-8"
+    )
 )
 SIGNATURE_SETS = {
     "declared": GatewayFailureSignatures.model_validate(FIXTURE["declared"]),

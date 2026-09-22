@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 import pytest
 from google.adk.tools import FunctionTool
 from google.genai import types
+from paths import REPOSITORY_ROOT
 from test_http_toolset import FakeArtifactClient, create_tools
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
@@ -29,7 +29,7 @@ from contractor_runtime.toolsets.security_findings.facades import (
 from contractor_runtime.toolsets.security_findings.locations import normalize_locations
 
 LOCATION_CASES = json.loads(
-    (Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-locations.json").read_text()
+    (REPOSITORY_ROOT / "internal/auditdomain/testdata/finding-locations.json").read_text()
 )
 
 

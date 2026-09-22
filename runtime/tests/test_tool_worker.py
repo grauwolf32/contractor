@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import httpx
@@ -13,6 +12,7 @@ from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
 from a2a.utils.constants import TransportProtocol
 from google.protobuf.json_format import ParseDict
+from paths import REPOSITORY_ROOT
 from test_a2a_server import data_request, send
 
 from contractor_runtime.allocation import AllocationService, WorkerState
@@ -37,7 +37,7 @@ from contractor_runtime.state import RuntimeState
 from contractor_runtime.worker.tool_runtime import ToolWorkerRuntimeFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
-ROOT = Path(__file__).parents[2]
+ROOT = REPOSITORY_ROOT
 
 
 def tool_spec():

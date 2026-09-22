@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from paths import TESTS_ROOT
 
 import contractor_runtime.toolsets.code_analysis.trailmark_host as host_module
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
@@ -14,7 +15,7 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     TrailmarkHostError,
 )
 
-FAULT_CHILD = Path(__file__).parent / "fixtures" / "trailmark_fault_child.py"
+FAULT_CHILD = TESTS_ROOT / "fixtures" / "trailmark_fault_child.py"
 
 
 @pytest.mark.parametrize(

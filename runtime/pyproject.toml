@@ -41,6 +41,9 @@ packages = ["src/contractor_runtime"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+# Test modules import their shared helpers by name (paths, fakes.*),
+# so the suite root stays importable from any subdirectory.
+pythonpath = ["tests"]
 
 [tool.ruff]
 target-version = "py313"
