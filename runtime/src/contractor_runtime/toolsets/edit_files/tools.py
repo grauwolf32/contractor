@@ -303,6 +303,9 @@ class InsertLineTool(_BaseEditTool):
             addition = _normalize_newlines(content, style)
             if line <= len(lines) and addition and not _ends_newline(addition):
                 addition += style
+            elif line > len(lines) and addition and current and not _ends_newline(current):
+                # Appending at EOF separates the text like append_file does.
+                addition = style + addition
             lines.insert(line - 1, addition)
             return "".join(lines)
 
@@ -390,7 +393,13 @@ class ReplaceRangeTool(_BaseEditTool):
                 raise FilesystemToolError("workspace_line_invalid")
             style = _newline_style(current)
             replacement = _normalize_newlines(content, style)
-            if end_line < len(lines) and replacement and not _ends_newline(replacement):
+            # The last replaced line keeps its line break, including the
+            # file's trailing newline when the range ends at EOF.
+            if (
+                replacement
+                and _ends_newline(lines[end_line - 1])
+                and not _ends_newline(replacement)
+            ):
                 replacement += style
             lines[start_line - 1 : end_line] = [replacement] if replacement else []
             return "".join(lines)

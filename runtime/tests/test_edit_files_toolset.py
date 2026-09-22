@@ -135,6 +135,41 @@ def test_line_edits_number_lines_like_read_file(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "before,operation,after",
+    [
+        ("a\nb\n", ("replace_range", 2, 2, "x"), "a\nx\n"),
+        ("a\r\nb\r\n", ("replace_range", 1, 2, "x"), "x\r\n"),
+        ("a\nb", ("replace_range", 2, 2, "x"), "a\nx"),
+        ("a\nb\n", ("replace_range", 2, 2, "x\n"), "a\nx\n"),
+        ("a\nb\n", ("replace_range", 2, 2, ""), "a\n"),
+        ("a\nb", ("insert_line", 3, "c"), "a\nb\nc"),
+        ("a\rb", ("insert_line", 3, "c"), "a\rb\rc"),
+        ("a\nb\n", ("insert_line", 3, "c"), "a\nb\nc"),
+        ("", ("insert_line", 1, "c"), "c"),
+        ("a\nb", ("insert_line", 2, "c"), "a\nc\nb"),
+    ],
+)
+def test_line_edits_preserve_line_breaks_at_eof(
+    tmp_path: Path, before: str, operation: tuple[Any, ...], after: str
+) -> None:
+    async def scenario() -> None:
+        session, provider = await hydrated_workspace(tmp_path, "memory", "direct", "eof")
+        tools = await make_tools(
+            tmp_path,
+            session.writer_view(),
+            WorkerState(),
+            ["write_file", "insert_line", "replace_range"],
+        )
+        await tools["write_file"]("eof.txt", before)
+        name, *arguments = operation
+        await tools[name]("eof.txt", *arguments)
+        assert await session.read_text("eof.txt") == after
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
 async def hydrated_workspace(
     tmp_path: Path,
     storage: str,
