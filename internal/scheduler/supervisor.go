@@ -137,6 +137,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("generate Scheduler claim ID: %w", err)
 	}
 	claimContext, cancelClaim := context.WithTimeout(ctx, s.options.OperationTimeout)
+	leaseExpiresAt := s.now().Add(s.options.ClaimDuration)
 	run, err := s.store.ClaimRunnableRun(claimContext, claimID, s.options.ClaimDuration)
 	cancelClaim()
 	if errors.Is(err, runstore.ErrNoWork) {
@@ -170,7 +171,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	renewal.Add(1)
 	go func() {
 		defer renewal.Done()
-		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID)
+		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID, leaseExpiresAt)
 	}()
 
 	err = s.executeRun(executionContext, run)
@@ -315,6 +316,7 @@ func (s *Scheduler) renewClaim(
 	stop <-chan struct{},
 	runID string,
 	claimID string,
+	leaseExpiresAt time.Time,
 ) {
 	interval := s.options.ClaimDuration / 3
 	if s.options.PollInterval < interval {
@@ -322,6 +324,20 @@ func (s *Scheduler) renewClaim(
 	}
 	if interval <= 0 {
 		interval = time.Millisecond
+	}
+	// Transient store failures are retried while the last known lease still
+	// has a safety margin; past that point another Scheduler may reclaim it.
+	safetyMargin := s.options.ClaimDuration / 3
+	keepRenewing := func(err error) bool {
+		if !claimOwnershipLost(err) && s.now().Before(leaseExpiresAt.Add(-safetyMargin)) {
+			s.options.Logger.Warn(
+				"WorkflowRun claim renewal failed; retrying",
+				"run_id", runID, "lease_expires_at", leaseExpiresAt, "error", err,
+			)
+			return true
+		}
+		cancelOwnership(errors.Join(ErrClaimLost, err))
+		return false
 	}
 	for {
 		select {
@@ -332,6 +348,7 @@ func (s *Scheduler) renewClaim(
 		case <-s.after(interval):
 		}
 		renewContext, renewCancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+		renewStarted := s.now()
 		err := s.store.RenewRunClaim(renewContext, runID, claimID, s.options.ClaimDuration)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -351,17 +368,22 @@ func (s *Scheduler) renewClaim(
 			if ctx.Err() != nil {
 				return
 			}
-			cancelOwnership(errors.Join(ErrClaimLost, err))
-			return
+			if !keepRenewing(err) {
+				return
+			}
+			continue
 		}
+		leaseExpiresAt = renewStarted.Add(s.options.ClaimDuration)
 		current, err := s.store.GetRun(renewContext, runID)
 		renewCancel()
 		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			cancelOwnership(errors.Join(ErrClaimLost, err))
-			return
+			if !keepRenewing(err) {
+				return
+			}
+			continue
 		}
 		if terminalRunReleasedClaim(current) {
 			return
@@ -370,6 +392,13 @@ func (s *Scheduler) renewClaim(
 			cancelExecution(ErrRunCancellationRequested)
 		}
 	}
+}
+
+// claimOwnershipLost reports store answers that prove the claim can no longer
+// be renewed, as opposed to transient failures worth retrying.
+func claimOwnershipLost(err error) bool {
+	return errors.Is(err, runstore.ErrConflict) || errors.Is(err, runstore.ErrNotFound) ||
+		errors.Is(err, runstore.ErrInvalid)
 }
 
 func terminalRunReleasedClaim(run runstore.WorkflowRun) bool {
