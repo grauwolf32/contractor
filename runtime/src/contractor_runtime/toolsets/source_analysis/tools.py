@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import fnmatch
 import hashlib
 import io
 import shutil
@@ -24,6 +23,11 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
+from contractor_runtime.projectfs.paths import (
+    ProjectPathError,
+    normalize_project_glob,
+    project_glob_matches,
+)
 from contractor_runtime.toolsets.common.artifact_visibility import (
     artifact_observation_cursor,
     clear_artifact_observations,
@@ -536,7 +540,7 @@ class ListSourceFilesTool(_BaseSourceTool):
     description = """List files in the archive opened by open_source_archive.
 
     Args:
-        pattern: Archive-relative path glob; defaults to "**/*".
+        pattern: Archive-relative path glob where ** spans directories; defaults to "**/*".
         offset: Zero-based pagination offset; defaults to 0.
         limit: Maximum files per page, from 1 to 200; defaults to 200.
 
@@ -570,7 +574,8 @@ class SearchSourceTool(_BaseSourceTool):
 
     Args:
         query: Non-empty literal string or regular expression, at most 512 characters.
-        path_pattern: Archive-relative file glob; defaults to "**/*".
+        path_pattern: Archive-relative file glob where ** spans directories; defaults
+            to "**/*".
         regex: Interpret query as a regular expression; defaults to false.
         case_sensitive: Match letter case; defaults to false.
         max_results: Maximum matches to return, from 1 to 100; defaults to 100.
@@ -775,12 +780,21 @@ def _validate_pattern(pattern: str) -> None:
         or ".." in PurePosixPath(pattern).parts
     ):
         raise ToolInputError("path_pattern must be a relative glob of at most 256 characters")
+    try:
+        normalize_project_glob(pattern)
+    except ProjectPathError:
+        raise ToolInputError(
+            "path_pattern must use / separators with ** only as a whole component"
+        ) from None
 
 
 def _path_matches(path: str, pattern: str) -> bool:
     if pattern in {"*", "**", "**/*"}:
         return True
-    return fnmatch.fnmatchcase(path, pattern) or PurePosixPath(path).match(pattern)
+    try:
+        return project_glob_matches(path, pattern)
+    except ProjectPathError:
+        return False
 
 
 def _validate_page(offset: int, limit: int) -> None:

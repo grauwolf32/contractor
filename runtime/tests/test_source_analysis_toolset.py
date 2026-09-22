@@ -65,7 +65,7 @@ def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) 
         assert [item["path"] for item in listed["files"]] == ["pyproject.toml", "src/app.py"]
         assert not listed["truncated"]
 
-        fixed = await tools["search_source"]("FastAPI", "*.py")
+        fixed = await tools["search_source"]("FastAPI", "src/*.py")
         assert [(item["path"], item["line"]) for item in fixed["matches"]] == [
             ("src/app.py", 1),
             ("src/app.py", 2),
@@ -191,6 +191,35 @@ def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
             await tools["read_source"]("main.py", start_line=9)
         with pytest.raises(ValueError, match="normalized and relative"):
             await tools["read_source"]("main.py/")
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "pattern,expected",
+    [
+        ("**/*.py", ["main.py", "src/a.py", "src/x/a.py"]),
+        ("src/**/*.py", ["src/a.py", "src/x/a.py"]),
+        ("src/*.py", ["src/a.py"]),
+    ],
+)
+def test_source_globs_treat_double_star_as_recursive(
+    tmp_path: Path, pattern: str, expected: list[str]
+) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed(
+            "inputs",
+            "source",
+            "application/zip",
+            make_zip({"main.py": "hit\n", "src/a.py": "hit\n", "src/x/a.py": "hit\n"}),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        listed = await tools["list_source_files"](pattern)
+        assert [item["path"] for item in listed["files"]] == expected
+        found = await tools["search_source"]("hit", pattern)
+        assert [item["path"] for item in found["matches"]] == expected
 
     asyncio.run(scenario())
 
