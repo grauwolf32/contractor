@@ -233,6 +233,31 @@ async def make_service(
     )
 
 
+def test_lease_deadline_is_measured_from_the_request_send_time() -> None:
+    async def scenario() -> None:
+        clock = FakeMonotonic()
+        expirations: list[None] = []
+
+        async def expire() -> None:
+            expirations.append(None)
+
+        watchdog = LeaseWatchdog(expire, monotonic=clock)
+        sent = watchdog.now()
+        clock.advance(20)
+        await watchdog.arm(60, sent)
+        assert watchdog.confirmed_deadline == 60
+
+        sent = watchdog.now()
+        clock.advance(30)
+        assert await watchdog.acknowledge(1, 60, sent)
+        assert watchdog.confirmed_deadline == 80
+        clock.advance(30)
+        assert await watchdog.expire_if_due()
+        assert len(expirations) == 1
+
+    asyncio.run(scenario())
+
+
 class FakeMonotonic:
     def __init__(self) -> None:
         self.value = 0.0

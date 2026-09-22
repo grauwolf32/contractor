@@ -132,6 +132,36 @@ def test_invalid_heartbeat_never_renews_lease_or_exposes_response(response: byte
     asyncio.run(scenario())
 
 
+def test_lease_deadline_starts_when_request_is_sent_not_answered(
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    class SlowTransport(FakeTransport):
+        async def post_json(
+            self, path: str, payload: Mapping[str, Any]
+        ) -> Mapping[str, Any] | bytes:
+            nonlocal now
+            now += 5.0
+            return await super().post_json(path, payload)
+
+    now = 1000.0
+
+    def clock() -> float:
+        return now
+
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-lease-latency", capabilities=runtime_capabilities)
+        watchdog = LeaseWatchdog(noop_expiry, monotonic=clock)
+        transport = SlowTransport([registration_response(), heartbeat_response(1)])
+        client = ControlClient(make_settings(), state, transport, watchdog=watchdog)
+
+        await client.register()
+        assert watchdog.confirmed_deadline == 1000.0 + 60
+        await client.heartbeat_once()
+        assert watchdog.confirmed_deadline == 1005.0 + 60
+
+    asyncio.run(scenario())
+
+
 def test_concurrent_heartbeats_are_serialized() -> None:
     async def scenario() -> None:
         started = asyncio.Event()
