@@ -191,6 +191,99 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	return Audit{}, ErrPrecondition
 }
 
+// TransitionTrusted applies a service-authorized transition with the same
+// transition table, active-Project gate and state event as other transitions.
+func (s *PostgresStore) TransitionTrusted(
+	ctx context.Context,
+	params TrustedTransitionParams,
+) (Audit, error) {
+	if err := validateTrustedTransition(params); err != nil {
+		return Audit{}, err
+	}
+	var reasonCode, reasonMessage *string
+	if params.Reason != nil {
+		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
+	}
+	audit, err := scanAudit(s.db.QueryRow(ctx, `
+WITH active_project_gate AS MATERIALIZED (
+    SELECT audit.audit_id,
+           CASE WHEN $4 = 'active'
+                THEN contractor_require_active_audit_project(audit.project_id, audit.owner_id)
+           END
+      FROM audits AS audit
+     WHERE audit.audit_id = $1
+     FOR UPDATE OF audit
+), changed AS (
+    UPDATE audits AS audit
+       SET state = $4,
+           paused_at = CASE WHEN $4 = 'paused' THEN clock_timestamp() ELSE NULL END,
+           revision = audit.revision + 1,
+           dispatch_state = CASE
+               WHEN $4 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed', 'deleting')
+                   THEN 'closed'
+               ELSE audit.dispatch_state
+           END,
+           stop_reason_code = $5,
+           stop_reason_message = $6,
+           deletion_requested_at = CASE WHEN $4 = 'deleting'
+               THEN COALESCE(audit.deletion_requested_at, clock_timestamp())
+               ELSE audit.deletion_requested_at
+           END,
+           finished_at = CASE WHEN $4 IN ('completed', 'cancelled', 'failed')
+                              THEN clock_timestamp() ELSE NULL END,
+           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond'),
+           next_event_sequence = audit.next_event_sequence + 1
+      FROM active_project_gate
+     WHERE audit.audit_id = active_project_gate.audit_id
+       AND audit.revision = $2 AND audit.state = $3
+    RETURNING audit.*
+), event_row AS (
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT audit_id, next_event_sequence - 1, 'audit.state_changed', audit_id, revision,
+           jsonb_build_object('from', $3::text, 'to', $4::text)
+      FROM changed
+)
+SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+		params.AuditID, params.ExpectedRevision,
+		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
+	))
+	if err == nil {
+		return audit, nil
+	}
+	if persistencepostgres.SQLState(err) == "55000" {
+		return Audit{}, ErrProjectDeleting
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Audit{}, fmt.Errorf("transition trusted Audit: %w", err)
+	}
+	if _, getErr := s.getAuditTrusted(ctx, params.AuditID); getErr != nil {
+		return Audit{}, getErr
+	}
+	return Audit{}, ErrPrecondition
+}
+
+// ActivateAfterItemReview returns a waiting_review Audit to active after an
+// item decision unless every unsettled item still awaits review, so an
+// approved item becomes dispatchable without waiting for its siblings.
+func (s *PostgresStore) ActivateAfterItemReview(
+	ctx context.Context, auditID string, expectedRevision uint64,
+) (Audit, bool, error) {
+	onlyAwaiting, err := s.onlyAwaitingReview(ctx, auditID)
+	if err != nil || onlyAwaiting {
+		return Audit{}, false, err
+	}
+	audit, err := s.TransitionTrusted(ctx, TrustedTransitionParams{
+		AuditID: auditID, ExpectedRevision: expectedRevision,
+		ExpectedState: AuditWaitingReview, TargetState: AuditActive,
+	})
+	if err != nil {
+		return Audit{}, false, err
+	}
+	return audit, true, nil
+}
+
 func (s *PostgresStore) getAuditTrusted(ctx context.Context, auditID string) (Audit, error) {
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
 SELECT `+auditColumns+` FROM audits WHERE audit_id = $1`, auditID))

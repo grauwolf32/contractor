@@ -243,6 +243,71 @@ func TestPostgresControllerWaitsForReviewBeyondReconcileWindow(t *testing.T) {
 	}
 }
 
+func TestPostgresControllerDispatchesApprovedItemWhileOtherReviewsWait(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, 3, 0)
+	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
+	controller := harness.controller(t)
+	for step := 0; step < 3; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatalf("reconcile step=%d error=%v", step, err)
+		}
+	}
+	audit, err := harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("Audit awaiting every review = (%q, %v), want waiting_review", audit.State, err)
+	}
+	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 3 {
+		t.Fatalf("pending item reviews = (%+v, %v)", reviews, err)
+	}
+	decide := func(index int, action auditservice.ReviewAction) {
+		t.Helper()
+		key := fmt.Sprintf("decision-%d", index)
+		if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
+			OwnerID: ownerID, AuditID: auditID, RequestID: reviews[index].RequestID,
+			ExpectedRequestRevision: reviews[index].Revision, DecisionID: key, Action: action,
+			Rationale: "The owner decided this exact checklist action.", IdempotencyKey: key,
+			RequestDigest: postgresDigest(key),
+		}); err != nil {
+			t.Fatalf("decide review %d with %q: %v", index, action, err)
+		}
+	}
+
+	decide(0, auditservice.ReviewReject)
+	audit, err = harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("Audit after rejection with reviews left = (%q, %v), want waiting_review", audit.State, err)
+	}
+	decide(1, auditservice.ReviewApprove)
+	audit, err = harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditActive {
+		t.Fatalf("Audit after approval with a review left = (%q, %v), want active", audit.State, err)
+	}
+	var transitions int
+	if err := harness.pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_events
+ WHERE audit_id = $1 AND kind = 'audit.state_changed'
+   AND summary = '{"from": "waiting_review", "to": "active"}'::jsonb`, auditID).Scan(&transitions); err != nil ||
+		transitions != 1 {
+		t.Fatalf("review activation events = (%d, %v)", transitions, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch approved item = (%t, %v)", worked, err)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, auditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("approved item executions = (%+v, %v)", executions, err)
+	}
+	members, err := harness.audits.ListExecutionItems(ctx, executions[0].ExecutionID)
+	if err != nil || len(members) != 1 || members[0].ItemID != reviews[1].SubjectID {
+		t.Fatalf("approved item members = (%+v, %v)", members, err)
+	}
+}
+
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -796,6 +861,7 @@ type postgresControllerHarness struct {
 	audits     *auditstore.PostgresStore
 	runs       *runstore.PostgresStore
 	runService *runservice.Service
+	service    *auditservice.Service
 	started    auditservice.StartedAudit
 }
 
@@ -916,7 +982,7 @@ func newPostgresControllerReviewHarness(
 	}
 	return &postgresControllerHarness{
 		pool: pool, snapshot: snapshot, artifacts: artifactService,
-		audits: audits, runs: runs, runService: runCreation, started: started,
+		audits: audits, runs: runs, runService: runCreation, service: auditService, started: started,
 	}
 }
 

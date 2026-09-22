@@ -50,12 +50,13 @@ SELECT decision_id, request_id, request_digest
 		var auditState auditstore.AuditState
 		var subjectKind ReviewSubjectKind
 		var subjectID, kind, subjectDigest string
+		var auditRevision uint64
 		var subjectRevision, requestRevision int64
 		var requestState ReviewState
 		var expiresAt *time.Time
 		var requestedJSON []byte
 		err = tx.QueryRow(ctx, `
-SELECT audit.state, request.subject_kind, request.subject_id, request.kind,
+SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, request.kind,
        request.subject_revision, request.subject_digest,
        request.requested_actions, request.state, request.expires_at,
        request.revision
@@ -65,7 +66,7 @@ SELECT audit.state, request.subject_kind, request.subject_id, request.kind,
    AND request.request_id = $3
  FOR UPDATE OF audit, request`,
 			params.OwnerID, params.AuditID, params.RequestID,
-		).Scan(&auditState, &subjectKind, &subjectID, &kind, &subjectRevision,
+		).Scan(&auditState, &auditRevision, &subjectKind, &subjectID, &kind, &subjectRevision,
 			&subjectDigest, &requestedJSON, &requestState, &expiresAt, &requestRevision)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return auditstore.ErrNotFound
@@ -147,18 +148,10 @@ UPDATE audit_review_requests
  WHERE request_id = $1 AND state = 'pending'`, requestID); err != nil {
 			return err
 		}
-		if subjectKind == ReviewSubjectItemAction {
-			if _, err := tx.Exec(ctx, `
-UPDATE audits AS audit
-   SET state = CASE
-           WHEN audit.state = 'waiting_review' AND NOT EXISTS (
-               SELECT 1 FROM audit_items AS item
-                WHERE item.audit_id = audit.audit_id
-                  AND item.state = 'awaiting_review'
-           ) THEN 'active'
-           ELSE audit.state
-       END
- WHERE audit.audit_id = $1`, params.AuditID); err != nil {
+		if subjectKind == ReviewSubjectItemAction && auditState == auditstore.AuditWaitingReview {
+			if _, _, err := auditstore.NewPostgresStore(tx).ActivateAfterItemReview(
+				ctx, params.AuditID, auditRevision,
+			); err != nil {
 				return err
 			}
 		}

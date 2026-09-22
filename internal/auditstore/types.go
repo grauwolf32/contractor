@@ -332,6 +332,16 @@ type ClaimedTransitionParams struct {
 	Reason           *StopReason
 }
 
+// TrustedTransitionParams is a service-authorized transition applied inside
+// the caller's transaction. It carries neither owner idempotency nor a claim.
+type TrustedTransitionParams struct {
+	AuditID          string
+	ExpectedRevision uint64
+	ExpectedState    AuditState
+	TargetState      AuditState
+	Reason           *StopReason
+}
+
 type RoundTransitionParams struct {
 	Claim            ControllerClaim
 	RoundID          string

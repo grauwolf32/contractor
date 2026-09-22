@@ -35,6 +35,17 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 	if err := validateTransition(base); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("controller-only/invalid transition error = %v", err)
 	}
+	trusted := TrustedTransitionParams{
+		AuditID: "audit", ExpectedRevision: 2,
+		ExpectedState: AuditWaitingReview, TargetState: AuditActive,
+	}
+	if err := validateTrustedTransition(trusted); err != nil {
+		t.Fatalf("valid trusted transition: %v", err)
+	}
+	trusted.ExpectedState = AuditCompleted
+	if err := validateTrustedTransition(trusted); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("disallowed trusted transition error = %v", err)
+	}
 }
 
 func TestReportSummaryRequiresMarkdown(t *testing.T) {

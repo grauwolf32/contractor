@@ -294,6 +294,24 @@ func validateClaimedTransition(params ClaimedTransitionParams) error {
 	return nil
 }
 
+func validateTrustedTransition(params TrustedTransitionParams) error {
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 || !params.ExpectedState.Valid() ||
+		!params.TargetState.Valid() || !transitionAllowed(params.ExpectedState, params.TargetState) ||
+		(params.ExpectedState == AuditDraft && params.TargetState == AuditActive) {
+		return invalidf("trusted Audit transition is invalid")
+	}
+	if params.Reason != nil {
+		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
+			return err
+		}
+		return validateText("reason message", params.Reason.Message, 4096, false)
+	}
+	return nil
+}
+
 func roundTransitionAllowed(from, to RoundState) bool {
 	switch from {
 	case RoundProposed:
