@@ -225,7 +225,7 @@ class AllocationService:
                     # Even embedded preparation cannot hydrate/delete orphan
                     # storage until this service's predecessor is removed.
                     await lifecycle.recover(
-                        deadline=asyncio.get_running_loop().time()
+                        deadline=time.monotonic()
                         + max(0.0, (adapter_deadline - self._now()).total_seconds())
                     )
                 adapter_host = await AllocationAdapterHost.create(

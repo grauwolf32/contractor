@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
@@ -402,6 +403,42 @@ class FailedToolset:
 
     async def create_selected(self, **_: object) -> dict[str, object]:
         raise AssertionError("probe must not construct tools")
+
+
+def test_discovery_deadline_uses_the_monotonic_clock(tmp_path: Path) -> None:
+    lifecycle = RecordingRecovery()
+    factories = FactoryRegistry(
+        worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+        sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
+        toolsets={"empty@1": EmptyToolset()},
+        execution_lifecycle=lifecycle,  # type: ignore[arg-type]
+    )
+
+    async def scenario() -> None:
+        before = time.monotonic()
+        snapshot = await discover_capabilities(factories, total_timeout_seconds=30)
+        assert snapshot.runtimes == ("adk@1",)
+        assert lifecycle.deadlines
+        assert before + 30 <= lifecycle.deadlines[0] <= time.monotonic() + 30
+
+    asyncio.run(scenario(), loop_factory=SkewedClockLoop)
+
+
+class SkewedClockLoop(asyncio.SelectorEventLoop):
+    """An event loop whose clock is not time.monotonic()."""
+
+    def time(self) -> float:
+        return super().time() + 1_000_000
+
+
+class RecordingRecovery:
+    probe_available = False
+
+    def __init__(self) -> None:
+        self.deadlines: list[float] = []
+
+    async def recover(self, *, deadline: float) -> None:
+        self.deadlines.append(deadline)
 
 
 class EmptyToolset:
