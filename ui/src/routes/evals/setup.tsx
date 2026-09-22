@@ -26,7 +26,7 @@ import { VariantEditor } from "./variants";
 import { DatasetAuthor } from "./datasets";
 import { AssessmentSetup } from "./assessment-setup";
 import { EvalReadiness } from "./readiness";
-import { finishMutation, mutationKey } from "./recovery";
+import { recoverableMutation } from "./recovery";
 
 const STEPS = [
   "Variants",
@@ -82,12 +82,9 @@ export function EvalSetupForm({
   const createWorkspace = useMutation({
     mutationFn: async () => {
       const body = { kind: "evaluation" as const, name: workspaceName };
-      const result = await createProject(api, {
-        request: body,
-        idempotencyKey: await mutationKey(owner, "workspace", body),
-      });
-      await finishMutation(owner, "workspace", body);
-      return result;
+      return recoverableMutation(owner, "workspace", body, (idempotencyKey) =>
+        createProject(api, { request: body, idempotencyKey }),
+      );
     },
     onSuccess: async (result) => {
       await cache.invalidateQueries({ queryKey: ["evals", "projects"] });
@@ -105,15 +102,9 @@ export function EvalSetupForm({
         : undefined;
       const request = { body, current };
       const operation = `draft:${projectId}`;
-      const result = await saveEvalDraft(
-        api,
-        projectId,
-        body,
-        await mutationKey(owner, operation, request),
-        current,
+      return recoverableMutation(owner, operation, request, (key) =>
+        saveEvalDraft(api, projectId, body, key, current),
       );
-      await finishMutation(owner, operation, request);
-      return result;
     },
     onSuccess: async (result) => {
       setDirty(false);
