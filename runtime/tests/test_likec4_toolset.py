@@ -13,7 +13,11 @@ import pytest
 
 import contractor_runtime.toolsets.likec4.tools as likec4_module
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.artifacts import ArtifactValue
+from contractor_runtime.artifacts import (
+    MAX_ARTIFACT_BYTES,
+    ArtifactResponseLimitError,
+    ArtifactValue,
+)
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
@@ -263,6 +267,7 @@ def test_seed_requires_media_type_utf8_and_size_without_target_write(tmp_path: P
             await tools["load_likec4"]("inputs", "binary", invalid_utf8.revision)
         with pytest.raises(ValueError, match="1 MiB"):
             await tools["load_likec4"]("inputs", "large", oversized.revision)
+        assert client.read_limits == [MAX_DOCUMENT_UTF8_BYTES] * 3
         assert ("architecture", "architecture") not in client.bindings
         assert client.write_count == 0
 
@@ -591,6 +596,7 @@ class MemoryArtifactClient:
         self._next_revision = 1
         self.write_count = 0
         self.read_count = 0
+        self.read_limits: list[int] = []
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -599,12 +605,17 @@ class MemoryArtifactClient:
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
 
-    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+    async def read_artifact(
+        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+    ) -> ArtifactValue:
         self.read_count += 1
+        self.read_limits.append(max_bytes)
         if ref.revision is None:
             stored = self.bindings[(ref.namespace, ref.name)]
         else:
             stored = self.history[(ref.namespace, ref.name, ref.revision)]
+        if len(stored.data) > max_bytes:
+            raise ArtifactResponseLimitError("Artifact API response exceeds the read byte limit")
         exact = ArtifactRef(
             namespace=ref.namespace,
             name=ref.name,

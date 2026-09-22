@@ -17,7 +17,7 @@ from typing import Any
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.toolsets.common.artifact_visibility import (
@@ -147,7 +147,12 @@ class _LikeC4Session:
             )
         source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
         async with self._lock:
-            value = await self._client.read_artifact(source_ref)
+            try:
+                value = await self._client.read_artifact(
+                    source_ref, max_bytes=MAX_DOCUMENT_UTF8_BYTES
+                )
+            except ArtifactResponseLimitError:
+                raise ToolInputError("LikeC4 document exceeds the 1 MiB tool limit") from None
             if revision is not None and value.artifact.revision != revision:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
             if value.media_type not in {TARGET_MEDIA_TYPE, "text/plain"}:

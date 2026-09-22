@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.projectfs.storage import (
@@ -227,7 +227,10 @@ class _OpenAPISession:
             )
         source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
         async with self._lock:
-            value = await self._client.read_artifact(source_ref)
+            try:
+                value = await self._client.read_artifact(source_ref, max_bytes=MAX_DOCUMENT_BYTES)
+            except ArtifactResponseLimitError:
+                raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit") from None
             if revision is not None and value.artifact.revision != revision:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
             if value.media_type not in {"application/yaml", "application/json"}:

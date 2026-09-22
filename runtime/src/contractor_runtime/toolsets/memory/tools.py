@@ -15,6 +15,7 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
+    ArtifactResponseLimitError,
     ArtifactTransportError,
     ArtifactValue,
     ArtifactWriteValue,
@@ -26,6 +27,7 @@ from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.memory.codec import (
     ARTIFACT_NAME_PREFIX,
     MAXIMUM_EXACT_ORDINAL,
+    MAXIMUM_PAYLOAD_BYTES,
     MEDIA_TYPE,
     REASON_PAYLOAD_TOO_LARGE,
     SCHEMA_VERSION,
@@ -232,7 +234,7 @@ class _MemorySession:
                 raise MemoryToolError("memory_unavailable", retryable=True)
             seen.add(ref.name)
             try:
-                value = await self._client.read_artifact(ref)
+                value = await self._client.read_artifact(ref, max_bytes=MAXIMUM_PAYLOAD_BYTES)
             except (ArtifactTransportError, ArtifactAPIError) as error:
                 raise _mapped_client_error(error) from None
             result.append(_decode_value(self._namespace, ref.name, value))
@@ -243,7 +245,8 @@ class _MemorySession:
     async def _read_optional(self, binding_name: str) -> _LoadedNote | None:
         try:
             value = await self._client.read_artifact(
-                ArtifactRef(namespace=self._namespace, name=binding_name)
+                ArtifactRef(namespace=self._namespace, name=binding_name),
+                max_bytes=MAXIMUM_PAYLOAD_BYTES,
             )
         except ArtifactAPIError as error:
             if error.code == "artifact_not_found":
@@ -297,7 +300,10 @@ class _MemorySession:
             pass
 
         try:
-            current = await self._client.read_artifact(target)
+            current = await self._client.read_artifact(target, max_bytes=MAXIMUM_PAYLOAD_BYTES)
+        except ArtifactResponseLimitError:
+            # A current value larger than any note cannot equal the payload.
+            raise MemoryToolError("memory_changed", retryable=True) from None
         except (ArtifactTransportError, ArtifactAPIError) as read_error:
             # The reconciliation read is authoritative for whether the current
             # value could be inspected. A retry conflict alone cannot prove
