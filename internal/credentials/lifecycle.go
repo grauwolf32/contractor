@@ -26,6 +26,13 @@ const maximumCredentialRunReferences = 128
 var (
 	ErrGatewayUnavailable = errors.New("Gateway credential operation is unavailable")
 	ErrRecoveryRequired   = errors.New("credential operation recovery is required")
+	// ErrCreateAbandoned reports a create whose idempotency key belongs to an
+	// operation that recovery abandoned: its remote alias was confirmed absent
+	// and its stored request no longer validates. The credential ID stays
+	// reserved; a new request needs a new credential ID and idempotency key.
+	ErrCreateAbandoned = fmt.Errorf(
+		"%w: credential create operation was abandoned because its request is no longer valid", ErrConflict,
+	)
 )
 
 type CredentialInUseError struct {
@@ -191,7 +198,8 @@ func (s *Service) Recover(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				if _, err := s.executeCreate(ctx, operation, request, true); err != nil {
+				if _, err := s.executeCreate(ctx, operation, request, true); err != nil &&
+					!errors.Is(err, ErrCreateAbandoned) {
 					return err
 				}
 			case OperationDelete:
@@ -249,6 +257,9 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 	if err == nil {
 		if existing.RequestHash != requestHash || existing.CredentialID != normalized.CredentialID {
 			return CreateResult{}, ErrConflict
+		}
+		if existing.Phase == OperationAbandoned {
+			return CreateResult{}, ErrCreateAbandoned
 		}
 		record, getErr := s.repository.GetCredential(ctx, normalized.CredentialID)
 		if getErr != nil {
@@ -453,7 +464,20 @@ func (s *Service) executeCreate(
 			return Record{}, ErrGatewayUnavailable
 		}
 		if err := manager.ValidateCreate(ctx, managerRequest); err != nil {
-			return Record{}, safeManagerValidationError(ctx, err)
+			validationErr := safeManagerValidationError(ctx, err)
+			if !errors.Is(validationErr, ErrInvalid) {
+				return Record{}, validationErr
+			}
+			// RecoverCreate confirmed that the deterministic remote alias is
+			// absent, and validation failed deterministically, so no replay can
+			// ever succeed. Record a terminal failure instead of blocking
+			// recovery forever. Ambiguous failures above stay prepared.
+			if err := s.repository.AbandonOperation(
+				ctx, operation.OperationID, operationCompletionTime(operation, s.now()),
+			); err != nil {
+				return Record{}, err
+			}
+			return Record{}, ErrCreateAbandoned
 		}
 	}
 	generated, err := manager.Create(ctx, managerRequest)

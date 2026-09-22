@@ -274,14 +274,28 @@ WHERE operation_kind = $1 AND idempotency_key = $2`, kind, idempotencyKey))
 func (r *Repository) CompleteOperation(
 	ctx context.Context, operationID string, completedAt time.Time,
 ) error {
-	if !operationIDPattern.MatchString(operationID) || completedAt.IsZero() {
+	return r.finishOperation(ctx, operationID, OperationCompleted, completedAt)
+}
+
+// AbandonOperation records the terminal failed outcome of a prepared create.
+func (r *Repository) AbandonOperation(
+	ctx context.Context, operationID string, abandonedAt time.Time,
+) error {
+	return r.finishOperation(ctx, operationID, OperationAbandoned, abandonedAt)
+}
+
+func (r *Repository) finishOperation(
+	ctx context.Context, operationID string, phase OperationPhase, finishedAt time.Time,
+) error {
+	if !operationIDPattern.MatchString(operationID) || finishedAt.IsZero() ||
+		(phase != OperationCompleted && phase != OperationAbandoned) {
 		return fmt.Errorf("%w: operation completion is invalid", ErrInvalid)
 	}
 	command, err := r.db.Exec(ctx, `
 UPDATE credential_operations
-SET phase = 'completed', updated_at = $2
+SET phase = $3, updated_at = $2
 WHERE operation_id = $1 AND phase = 'prepared' AND updated_at <= $2`,
-		operationID, databaseTime(completedAt),
+		operationID, databaseTime(finishedAt), phase,
 	)
 	if err != nil {
 		return classifyRepositoryWrite(err)
@@ -289,13 +303,13 @@ WHERE operation_id = $1 AND phase = 'prepared' AND updated_at <= $2`,
 	if command.RowsAffected() == 1 {
 		return nil
 	}
-	var phase OperationPhase
-	if err := r.db.QueryRow(ctx, `SELECT phase FROM credential_operations WHERE operation_id = $1`, operationID).Scan(&phase); errors.Is(err, pgx.ErrNoRows) {
+	var stored OperationPhase
+	if err := r.db.QueryRow(ctx, `SELECT phase FROM credential_operations WHERE operation_id = $1`, operationID).Scan(&stored); errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	} else if err != nil {
 		return persistencepostgres.WrapError("read credential operation phase", err)
 	}
-	if phase == OperationCompleted {
+	if stored == phase {
 		return nil
 	}
 	return ErrConflict
@@ -435,7 +449,8 @@ func validateOperation(operation Operation) error {
 		!idempotencyKeyPattern.MatchString(operation.IdempotencyKey) ||
 		!credentialDigestPattern.MatchString(operation.RequestHash) ||
 		validateCredentialID(operation.CredentialID) != nil || !validOperationKind(operation.Kind) ||
-		(operation.Phase != OperationPrepared && operation.Phase != OperationCompleted) ||
+		(operation.Phase != OperationPrepared && operation.Phase != OperationCompleted &&
+			operation.Phase != OperationAbandoned) ||
 		operation.CreatedAt.IsZero() || operation.UpdatedAt.Before(operation.CreatedAt) ||
 		len(operation.Request) == 0 || len(operation.Request) > maximumOperationRequestBytes {
 		return fmt.Errorf("%w: credential operation is invalid", ErrInvalid)

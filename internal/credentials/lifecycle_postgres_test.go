@@ -136,6 +136,86 @@ func TestCredentialLifecycleRecoversCreateCrashWindow(t *testing.T) {
 	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationCompleted)
 }
 
+func TestCredentialLifecycleAbandonsCreateWhoseReplayIsDeterministicallyInvalid(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	crash := errors.New("simulated process loss after remote create")
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{
+		AfterManagerCreate: func() error { return crash },
+	})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-abandoned", "create-abandoned")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, crash) {
+		t.Fatalf("crash-window create error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationPrepared)
+
+	// The exact ModelPolicy disappeared while the operation was prepared, but
+	// the Gateway is unreachable: remote state is ambiguous, so recovery must
+	// still fail closed and keep the prepared intent.
+	manager.validateErr = fmt.Errorf("%w: exact ModelPolicy is unavailable", ErrInvalid)
+	manager.recoverErr = errors.New("gateway unreachable")
+	ambiguous := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
+	if err := ambiguous.service.Recover(ctx); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("ambiguous recovery error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationPrepared)
+
+	manager.recoverErr = nil
+	restarted := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
+	if err := restarted.service.Recover(ctx); err != nil {
+		t.Fatalf("recovery with abandoned create: %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationAbandoned)
+	if manager.remoteCount() != 0 || manager.createCalls() != 1 {
+		t.Fatalf("abandoned create manager state: remote=%d creates=%d", manager.remoteCount(), manager.createCalls())
+	}
+	if _, err := restarted.service.GetCredential(ctx, request.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("abandoned credential lookup error = %v", err)
+	}
+	_, err := restarted.service.Create(ctx, request)
+	if !errors.Is(err, ErrCreateAbandoned) || !errors.Is(err, ErrConflict) {
+		t.Fatalf("retry of abandoned create error = %v", err)
+	}
+	if manager.createCalls() != 1 {
+		t.Fatalf("retry of abandoned create reached Gateway: creates=%d", manager.createCalls())
+	}
+	// Recovery is idempotent once the operation is terminal.
+	if err := restarted.service.Recover(ctx); err != nil {
+		t.Fatalf("second recovery: %v", err)
+	}
+}
+
+func TestCredentialLifecycleAbandonsPreparedCreateOnIdempotentRetry(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	manager.createErr = errors.New("gateway create failed")
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-abandoned-retry", "create-abandoned-retry")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed create error = %v", err)
+	}
+	manager.validateErr = fmt.Errorf("%w: exact ModelPolicy is unavailable", ErrInvalid)
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrCreateAbandoned) {
+		t.Fatalf("retry after policy removal error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationCreate, request.IdempotencyKey, OperationAbandoned)
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrCreateAbandoned) {
+		t.Fatalf("second retry error = %v", err)
+	}
+	// Other operations are no longer blocked by the terminal failure.
+	other := fixture.createRequest("managed-after-abandon", "create-after-abandon")
+	manager.validateErr, manager.createErr = nil, nil
+	if _, err := fixture.service.Create(ctx, other); err != nil {
+		t.Fatalf("create after abandonment: %v", err)
+	}
+}
+
 func TestCredentialDeletionRejectsPinnedRunThenDeletesAndReplays(t *testing.T) {
 	pool, ctx := lifecycleTestPool(t)
 	manager := newFakeGatewayManager()
