@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { ArtifactWriteResponse } from "../../api/artifacts";
 import { Dialog } from "../../app/dialog";
@@ -26,19 +26,26 @@ export function RunInputUploadDialog({
 }) {
   const heading = useId();
   const description = useId();
-  const [controller] = useState(() => new AbortController());
+  const operation = useRef<AbortController | null>(null);
   const [pending, setPending] = useState(false);
   const mediaType = fixedMediaType(mediaTypes);
 
-  useEffect(() => () => controller.abort(), [controller]);
+  useEffect(() => () => operation.current?.abort(), []);
+
+  function startOperation(): AbortSignal {
+    operation.current?.abort();
+    const controller = new AbortController();
+    operation.current = controller;
+    return controller.signal;
+  }
 
   function close(): void {
-    controller.abort();
+    operation.current?.abort();
     onClose();
   }
 
   function uploaded(result: ArtifactWriteResponse): void {
-    if (controller.signal.aborted) return;
+    if (operation.current?.signal.aborted) return;
     onUploaded(result);
     onClose();
   }
@@ -49,7 +56,7 @@ export function RunInputUploadDialog({
         fixedNamespace="inputs"
         {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
         acceptedMediaTypes={mediaTypes}
-        signal={controller.signal}
+        startOperation={startOperation}
         submitLabel="Upload and select"
         onPendingChange={setPending}
         onWritten={uploaded}
@@ -60,7 +67,7 @@ export function RunInputUploadDialog({
         fixedNamespace="artifacts"
         {...(mediaType === undefined ? {} : { fixedMediaType: mediaType })}
         acceptedMediaTypes={mediaTypes}
-        signal={controller.signal}
+        startOperation={startOperation}
         submitLabel="Upload and select"
         onPendingChange={setPending}
         onWritten={uploaded}

@@ -656,6 +656,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 			State: auditstore.RoundClosed, ExpectedItemCount: 1, Revision: 3,
 		},
 	}
+	store.rounds = []auditstore.Round{*snapshot.Round}
 	claim := auditstore.ControllerClaim{AuditID: item.AuditID, HolderID: "holder", Epoch: 2}
 	worked, err := importer.Finalize(context.Background(), claim, snapshot)
 	if err != nil || !worked || store.committed.Machine.Artifact.Ref.Revision == nil ||
@@ -698,6 +699,94 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		t.Fatalf("human Markdown summary omitted qualification: %s", artifactAccess.writes["report.md"])
 	}
 
+}
+
+func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
+	profile := loadResultProfile(t)
+	profileSnapshot, _ := json.Marshal(profile)
+	auditID := "audit-rounds"
+	disposition := auditstore.FinalAccepted
+	rounds := make([]auditstore.Round, 0, 2)
+	var items []auditstore.Item
+	var coverage []auditstore.CoverageRow
+	for roundOrdinal, count := range []int{1, 2} {
+		roundID := fmt.Sprintf("round-%d", roundOrdinal+1)
+		manifestRevision := roundID + "-manifest"
+		rounds = append(rounds, auditstore.Round{
+			RoundID: roundID, AuditID: auditID, Ordinal: roundOrdinal + 1,
+			Manifest: auditstore.ExactArtifact{
+				Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: roundID, Revision: &manifestRevision},
+				Digest: digestBytes([]byte(roundID)),
+			},
+			State: auditstore.RoundClosed, ExpectedItemCount: count, Revision: 3,
+		})
+		for ordinal := range count {
+			itemID := fmt.Sprintf("item-%s-%d", roundID, ordinal)
+			taskRevision := itemID + "-task"
+			item := auditstore.Item{
+				ItemID: itemID, AuditID: auditID, RoundID: roundID,
+				ItemKey: itemID, Ordinal: ordinal, Kind: "checklist", SubjectKey: itemID,
+				Task: auditstore.ExactArtifact{
+					Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "task", Revision: &taskRevision},
+					Digest: digestBytes([]byte(itemID)), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
+				},
+				WorkflowRole: "check", State: auditstore.ItemSettled, FinalDisposition: &disposition,
+			}
+			items = append(items, item)
+			coverage = append(coverage, auditstore.CoverageRow{
+				AuditID: auditID, RoundID: roundID, ItemID: itemID, Ordinal: ordinal,
+				ItemKey: itemID, SubjectKey: itemID,
+				Coverage: auditstore.Coverage{
+					Status: auditstore.CoverageSatisfied, Requested: []string{"source"},
+					Completed: []string{"source"}, Gaps: []string{},
+				},
+			})
+		}
+	}
+	store := &fakeImportStore{rounds: rounds, items: items, coverage: coverage}
+	artifactAccess := &fakeImportArtifacts{project: map[string][]byte{}, writes: map[string][]byte{}}
+	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := rounds[len(rounds)-1]
+	snapshot := auditstore.ReconcileSnapshot{
+		Audit: auditstore.Audit{
+			AuditID: auditID, ProjectID: "project-rounds",
+			Profile:          auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},
+			ProfileSnapshot:  profileSnapshot,
+			BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inventory":{"gaps":[]}}`),
+			State:            auditstore.AuditFinalizing, Revision: 9, UpdatedAt: time.Unix(100, 0),
+		},
+		Round: &current,
+	}
+	claim := auditstore.ControllerClaim{AuditID: auditID, HolderID: "holder", Epoch: 2}
+	worked, err := importer.Finalize(context.Background(), claim, snapshot)
+	if err != nil || !worked || store.committed.Machine.Artifact.Ref.Revision == nil {
+		t.Fatalf("finalize multi-Round report = (%t, %v, %+v)", worked, err, store.committed)
+	}
+	var report struct {
+		Coverage struct {
+			SelectedItems int `json:"selectedItems"`
+		} `json:"coverage"`
+		Items []struct {
+			ItemID  string `json:"itemId"`
+			RoundID string `json:"roundId"`
+		} `json:"items"`
+		Conclusion string `json:"conclusion"`
+	}
+	if err := json.Unmarshal(artifactAccess.writes["report.json"], &report); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"item-round-1-0", "item-round-2-0", "item-round-2-1"}
+	if report.Coverage.SelectedItems != len(want) || len(report.Items) != len(want) || report.Conclusion != "completed" {
+		t.Fatalf("multi-Round report = %s", artifactAccess.writes["report.json"])
+	}
+	for index, itemID := range want {
+		if report.Items[index].ItemID != itemID || report.Items[index].RoundID != items[index].RoundID {
+			t.Fatalf("multi-Round report item %d = %+v, want %s", index, report.Items[index], itemID)
+		}
+	}
 }
 
 func TestMarkdownSummaryEscapesDynamicFields(t *testing.T) {
@@ -1082,6 +1171,7 @@ func newImportHarness(t *testing.T) importHarness {
 type fakeImportStore struct {
 	members   []auditstore.ExecutionItem
 	collected auditstore.CollectParams
+	rounds    []auditstore.Round
 	items     []auditstore.Item
 	coverage  []auditstore.CoverageRow
 	findings  []auditstore.ReportFinding
@@ -1096,10 +1186,13 @@ func (f *fakeImportStore) ListExecutionItems(context.Context, string) ([]auditst
 func (f *fakeImportStore) ListItems(context.Context, string) ([]auditstore.Item, error) {
 	return append([]auditstore.Item{}, f.items...), nil
 }
-func (f *fakeImportStore) ListCoverage(_ context.Context, _, _ string, after, limit int) ([]auditstore.CoverageRow, error) {
+func (f *fakeImportStore) ListRounds(context.Context, string) ([]auditstore.Round, error) {
+	return append([]auditstore.Round{}, f.rounds...), nil
+}
+func (f *fakeImportStore) ListCoverage(_ context.Context, _, roundID string, after, limit int) ([]auditstore.CoverageRow, error) {
 	result := make([]auditstore.CoverageRow, 0, limit)
 	for _, row := range f.coverage {
-		if row.Ordinal > after && len(result) < limit {
+		if row.RoundID == roundID && row.Ordinal > after && len(result) < limit {
 			result = append(result, row)
 		}
 	}

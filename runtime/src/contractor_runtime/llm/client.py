@@ -27,6 +27,9 @@ if TYPE_CHECKING:
 
 GATEWAY_MAX_RETRIES = 3
 GATEWAY_RETRY_GRACE_SECONDS = 60.0
+# Bound on the best-effort probe release sent when a granted model call is
+# abandoned; the Server's own probe timeout covers a release that is lost.
+RECOVERY_RELEASE_TIMEOUT_SECONDS = 5.0
 _MAX_RETRY_AFTER_SECONDS = 120.0
 _STATUS_ERROR_TYPES = {
     400: "BadRequestError",
@@ -194,6 +197,11 @@ class GatewayClientHandle:
                         retryable=True,
                         failure=GatewayFailure("gateway_timeout", True),
                     )
+                except (asyncio.CancelledError, Exception):
+                    # Cancellation or an unexpected failure must not leave the
+                    # granted probe held until the Server times it out.
+                    await asyncio.shield(_release_probe(recovery, model, request_id))
+                    raise
                 if error is None:
                     await recovery.update(model, request_id, "succeeded")
                     return result
@@ -227,6 +235,16 @@ class GatewayClientHandle:
             return
         if owns_http_client:
             await client.aclose()
+
+
+async def _release_probe(recovery: GatewayRecoveryClient, model: str, request_id: str) -> None:
+    try:
+        async with asyncio.timeout(RECOVERY_RELEASE_TIMEOUT_SECONDS):
+            await recovery.update(model, request_id, "finished")
+    except Exception:
+        # Best effort: transport loss, a stopped authority or the bound
+        # expiring must not replace the error that abandoned the call.
+        pass
 
 
 def new_gateway_client(

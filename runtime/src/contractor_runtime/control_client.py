@@ -184,6 +184,7 @@ class ControlClient:
 
     async def register(self) -> AgentRegistrationResponse:
         registration = await self._state.registration(self._settings)
+        sent_at = self._watchdog.now() if self._watchdog is not None else None
         raw = await self._transport.post_json(
             "/private/v1/agents/register",
             registration.model_dump(mode="json", by_alias=True, exclude_none=True),
@@ -204,7 +205,7 @@ class ControlClient:
             # allocation for this identity, so an idle lease loss may clear.
             await self._state.confirm_release(None)
         if self._watchdog is not None:
-            await self._watchdog.arm(self._timing.confirmed_lease_seconds)
+            await self._watchdog.arm(self._timing.confirmed_lease_seconds, sent_at)
         return response
 
     async def register_until_stopped(self, stop: asyncio.Event) -> bool:
@@ -231,6 +232,7 @@ class ControlClient:
         self._sequence += 1
         request = await self._state.heartbeat(self._sequence, self._echoed_ack)
         path = f"/private/v1/agents/{quote(self._state.instance_id, safe='')}/heartbeat"
+        sent_at = self._watchdog.now() if self._watchdog is not None else None
         raw = await self._transport.post_json(
             path,
             request.model_dump(mode="json", by_alias=True, exclude_none=True),
@@ -243,7 +245,9 @@ class ControlClient:
             raise ControlClientError("heartbeat response acknowledged the wrong sequence")
         self._echoed_ack = response.ack_seq
         if self._watchdog is not None:
-            await self._watchdog.acknowledge(response.ack_seq, self._timing.confirmed_lease_seconds)
+            await self._watchdog.acknowledge(
+                response.ack_seq, self._timing.confirmed_lease_seconds, sent_at
+            )
         await self._apply_reconciliation(response)
         return response
 

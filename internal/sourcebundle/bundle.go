@@ -19,12 +19,18 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
+// Source ZIP limits match the runtime source_analysis toolset and Git imports.
 const (
-	MaxArchiveBytes = 64 * 1024 * 1024
-	maxPathBytes    = 4096
-	maxPathParts    = 128
+	MaxArchiveBytes  = gitimport.MaxArchiveBytes
+	MaxEntries       = gitimport.MaxEntries
+	MaxFileBytes     = gitimport.MaxFileBytes
+	MaxExpandedBytes = gitimport.MaxArchiveBytes
+	MaxPathBytes     = gitimport.MaxPathBytes
+	maxPathParts     = 128
 )
 
 var ErrArchiveTooLarge = errors.New("source ZIP exceeds the 64 MiB Artifact limit")
@@ -38,6 +44,8 @@ type Bundle struct {
 	Files         int
 	ExpandedBytes int64
 	SHA256        string
+	// SkippedRepositories counts submodules and nested Git repositories left out of the bundle.
+	SkippedRepositories int
 }
 
 type sourceFile struct {
@@ -59,7 +67,7 @@ func Build(source string, options Options) (Bundle, error) {
 		return Bundle{}, errors.New("source must be a regular directory, not a symlink")
 	}
 
-	paths, err := candidatePaths(root, options.IncludeIgnored)
+	paths, skipped, err := candidatePaths(root, options.IncludeIgnored)
 	if err != nil {
 		return Bundle{}, err
 	}
@@ -99,24 +107,30 @@ func Build(source string, options Options) (Bundle, error) {
 	digest := sha256.Sum256(payload)
 	return Bundle{
 		Data: payload, Files: len(files), ExpandedBytes: expanded,
-		SHA256: "sha256:" + hex.EncodeToString(digest[:]),
+		SHA256:              "sha256:" + hex.EncodeToString(digest[:]),
+		SkippedRepositories: skipped,
 	}, nil
 }
 
-func candidatePaths(root string, includeIgnored bool) ([]string, error) {
+func candidatePaths(root string, includeIgnored bool) ([]string, int, error) {
 	if !includeIgnored {
 		if _, err := exec.LookPath("git"); err == nil {
 			command := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".")
 			output, commandErr := command.Output()
 			if commandErr == nil {
-				return splitNUL(output), nil
+				paths, skipped := skipNestedRepositories(root, splitNUL(output))
+				return paths, skipped, nil
 			}
 			var exit *exec.ExitError
 			if !errors.As(commandErr, &exit) || exit.ExitCode() != 128 {
-				return nil, fmt.Errorf("enumerate Git working tree: %w", commandErr)
+				return nil, 0, fmt.Errorf("enumerate Git working tree: %w", commandErr)
 			}
-		} else if _, statErr := os.Stat(filepath.Join(root, ".git")); statErr == nil {
-			return nil, errors.New("git is required to honor .gitignore; use --include-ignored to walk the directory explicitly")
+			if insideGitWorkTree(root) {
+				return nil, 0, fmt.Errorf("enumerate Git working tree: %w: %s; use --include-ignored to walk the directory explicitly",
+					commandErr, strings.TrimSpace(string(exit.Stderr)))
+			}
+		} else if insideGitWorkTree(root) {
+			return nil, 0, errors.New("git is required to honor .gitignore; use --include-ignored to walk the directory explicitly")
 		}
 	}
 
@@ -143,9 +157,49 @@ func candidatePaths(root string, includeIgnored bool) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("walk source directory: %w", err)
+		return nil, 0, fmt.Errorf("walk source directory: %w", err)
 	}
-	return paths, nil
+	return paths, 0, nil
+}
+
+// skipNestedRepositories drops submodule gitlinks and untracked nested
+// repositories, which git ls-files reports as directories rather than files.
+func skipNestedRepositories(root string, paths []string) ([]string, int) {
+	result := make([]string, 0, len(paths))
+	skipped := 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "/") {
+			skipped++
+			continue
+		}
+		if info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(path))); err == nil && info.IsDir() {
+			skipped++
+			continue
+		}
+		result = append(result, path)
+	}
+	return result, skipped
+}
+
+// insideGitWorkTree reports whether root belongs to a Git work tree, so a
+// failing git ls-files is not mistaken for a plain directory.
+func insideGitWorkTree(root string) bool {
+	if _, err := exec.LookPath("git"); err == nil {
+		output, err := exec.Command("git", "-C", root, "rev-parse", "--is-inside-work-tree").Output()
+		if err == nil && strings.TrimSpace(string(output)) == "true" {
+			return true
+		}
+	}
+	for directory := root; ; {
+		if _, err := os.Lstat(filepath.Join(directory, ".git")); err == nil {
+			return true
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return false
+		}
+		directory = parent
+	}
 }
 
 func applyContractorIgnore(root string, paths []string) ([]string, error) {
@@ -175,6 +229,7 @@ func applyContractorIgnore(root string, paths []string) ([]string, error) {
 		"check-ignore", "--no-index", "-v", "-z", "--stdin",
 	}
 	command := exec.Command("git", arguments...)
+	command.Dir = root
 	command.Stdin = bytes.NewReader(joinNUL(paths))
 	output, commandErr := command.Output()
 	if commandErr != nil {
@@ -193,6 +248,9 @@ func applyContractorIgnore(root string, paths []string) ([]string, error) {
 		return nil, fmt.Errorf("resolve .contractorignore: %w", err)
 	}
 	for index := 0; index < len(fields); index += 4 {
+		if strings.HasPrefix(fields[index+2], "!") {
+			continue
+		}
 		origin, err := filepath.Abs(fields[index])
 		if err == nil && origin == cleanIgnore {
 			ignored[fields[index+3]] = struct{}{}
@@ -236,8 +294,14 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil, 0, fmt.Errorf("source member %s is not a regular file", portable)
 		}
-		if info.Size() > 0 && expanded > int64(^uint64(0)>>1)-info.Size() {
-			return nil, 0, errors.New("source expanded size overflow")
+		if len(files) >= MaxEntries {
+			return nil, 0, fmt.Errorf("source exceeds the %d file limit", MaxEntries)
+		}
+		if info.Size() > MaxFileBytes {
+			return nil, 0, fmt.Errorf("source member %s exceeds the %d MiB per-file limit", portable, MaxFileBytes>>20)
+		}
+		if info.Size() > MaxExpandedBytes-expanded {
+			return nil, 0, fmt.Errorf("source exceeds the %d MiB expanded size limit", MaxExpandedBytes>>20)
 		}
 		expanded += info.Size()
 		files = append(files, sourceFile{hostPath: hostPath, path: portable, info: info})
@@ -249,9 +313,11 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 func portablePath(value string) (string, error) {
 	value = norm.NFC.String(value)
 	if value == "" || strings.HasPrefix(value, "/") || strings.Contains(value, "\\") ||
-		strings.Contains(value, "\x00") || strings.Contains(value, "://") || !utf8.ValidString(value) ||
-		len([]byte(value)) > maxPathBytes {
+		strings.Contains(value, "\x00") || strings.Contains(value, "://") || !utf8.ValidString(value) {
 		return "", fmt.Errorf("source path %q is not a portable workspace path", value)
+	}
+	if len(value) > MaxPathBytes {
+		return "", fmt.Errorf("source path %q exceeds the %d-byte path limit", value, MaxPathBytes)
 	}
 	parts := strings.Split(value, "/")
 	if len(parts) > maxPathParts {

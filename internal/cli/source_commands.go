@@ -62,6 +62,9 @@ func (c *CLI) runSource(ctx context.Context, client *publicclient.Client, printe
 		return err
 	}
 	_, _ = fmt.Fprintf(c.stderr, "packed %d files, %d expanded bytes, %d ZIP bytes\n", bundle.Files, bundle.ExpandedBytes, len(bundle.Data))
+	if bundle.SkippedRepositories > 0 {
+		_, _ = fmt.Fprintf(c.stderr, "skipped %d submodules or nested Git repositories\n", bundle.SkippedRepositories)
+	}
 
 	scope := artifactScope{projectID: projectID}
 	create := false

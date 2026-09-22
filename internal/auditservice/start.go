@@ -441,7 +441,7 @@ func readAndVerifyInputs(
 	result := make(map[string]artifacts.ReadResult, len(selection.Inputs))
 	for name, selected := range selection.Inputs {
 		contract, exists := profile.Inputs[name]
-		if !exists || !acceptsMediaType(contract.MediaTypes, selected.MediaType) {
+		if !exists || !contracts.AcceptsMediaType(contract.MediaTypes, selected.MediaType) {
 			return nil, fmt.Errorf("%w: stored Audit input no longer matches profile", ErrInvalid)
 		}
 		read, err := store.Read(ctx, selected.Ref)

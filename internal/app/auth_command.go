@@ -42,7 +42,7 @@ func runAuthHashPassword(args []string, prompt passwordPrompt, output io.Writer)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&userID, "user-id", userID, "immutable local principal ID")
 	flags.StringVar(&username, "username", username, "case-sensitive local username")
-	if err := flags.Parse(args); err != nil {
+	if err := parseCommandFlags(flags, args); err != nil {
 		return fmt.Errorf("parse auth hash-password flags: %w", err)
 	}
 	if flags.NArg() != 0 {

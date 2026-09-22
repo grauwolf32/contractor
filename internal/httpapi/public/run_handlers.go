@@ -486,15 +486,6 @@ func sortedArtifactSlots(source map[string]contracts.ArtifactRef) []string {
 	return result
 }
 
-func acceptsMediaType(accepted []string, actual string) bool {
-	for _, mediaType := range accepted {
-		if mediaType == "*/*" || mediaType == actual {
-			return true
-		}
-	}
-	return false
-}
-
 func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
@@ -869,9 +860,5 @@ func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", result.Payload.MediaType)
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(result.Payload.Data)
+	writeArtifactBytes(w, result)
 }

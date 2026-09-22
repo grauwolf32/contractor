@@ -153,7 +153,7 @@ export function ProjectArtifactWriteForm({
   acceptedMediaTypes,
   expectedRevision,
   submitLabel,
-  signal,
+  startOperation,
   headingId,
   onPendingChange,
   onCancel,
@@ -167,7 +167,8 @@ export function ProjectArtifactWriteForm({
   acceptedMediaTypes?: readonly string[];
   expectedRevision?: string;
   submitLabel?: string;
-  signal?: AbortSignal;
+  /** Starts an upload and returns the signal that aborts it. */
+  startOperation?: () => AbortSignal;
   /** Labels the form by an outer (dialog) heading instead of its own. */
   headingId?: string;
   onPendingChange?: (pending: boolean) => void;
@@ -274,7 +275,7 @@ export function ProjectArtifactWriteForm({
       mediaType: effectiveMediaType,
       payload: file,
       ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      ...(signal === undefined ? {} : { signal }),
+      ...(startOperation === undefined ? {} : { signal: startOperation() }),
     });
   }
 

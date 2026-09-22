@@ -61,6 +61,20 @@ func TestForcedDownloadNewFileIsPrivate(t *testing.T) {
 	}
 }
 
+func TestDownloadNewFileIsPrivate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "artifact")
+	if err := writeDownloadedFile(path, []byte("private payload"), false); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o177 != 0 {
+		t.Fatalf("new download grants permissions beyond 0600: %04o", info.Mode().Perm())
+	}
+}
+
 func TestDownloadRefusesExistingWithoutForce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "artifact")
 	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {

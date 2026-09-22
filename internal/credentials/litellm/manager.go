@@ -159,7 +159,8 @@ func (m *Manager) Delete(ctx context.Context, request credentials.ManagerDeleteR
 
 // RecoverCreate removes the deterministic alias before lifecycle retries key
 // generation. It deliberately does not resolve ModelPolicies: cleanup remains
-// possible even if an exact policy file was removed after a process crash.
+// possible even if an exact policy file was removed after a process crash. A
+// nil result means LiteLLM confirmed the alias deleted or absent.
 func (m *Manager) RecoverCreate(ctx context.Context, request credentials.ManagerCreateRequest) error {
 	binding, err := m.validateBase(
 		ctx, request.OperationID, request.CredentialID, request.LLMGateway,

@@ -32,8 +32,8 @@ func parseBlobCleanupConfig(args []string, getenv func(string) string) (cfg blob
 	flags.StringVar(&cfg.path, "artifact-blob-path", cfg.path, "filesystem blob directory")
 	flags.BoolVar(&cfg.apply, "apply", false, "remove unreferenced files (default: dry-run)")
 	flags.BoolVar(&offline, "offline", false, "acknowledge every Server/writer using this store is stopped")
-	if err = flags.Parse(args[1:]); err != nil {
-		return cfg, errors.New("invalid blob cleanup flags")
+	if err = parseCommandFlags(flags, args[1:]); err != nil {
+		return cfg, fmt.Errorf("invalid blob cleanup flags: %w", err)
 	}
 	if flags.NArg() != 0 {
 		return cfg, errors.New("unexpected blob cleanup arguments")

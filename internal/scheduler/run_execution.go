@@ -181,7 +181,13 @@ func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	_, err = s.store.TransitionRun(operationContext, runID, current.State, runstore.RunFailed, runstore.Reason{Code: code})
+	next, reason := runstore.RunFailed, runstore.Reason{Code: code}
+	if current.State == runstore.RunCancelling {
+		// Cancellation already owns the outcome; cancelling may only end as
+		// cancelled, so failing it would leave a poison Run.
+		next, reason = runstore.RunCancelled, runstore.Reason{Code: runstore.CancellationUserRequested}
+	}
+	_, err = s.store.TransitionRun(operationContext, runID, current.State, next, reason)
 	if err != nil {
 		return errors.Join(cause, err)
 	}

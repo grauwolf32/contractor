@@ -124,6 +124,11 @@ SELECT count(*) FROM audit_proposal_items
 	}
 
 	closeAuditRoundForTest(t, ctx, store, claim, "round-two", 1)
+	rounds, err := store.ListRounds(ctx, audit.AuditID)
+	if err != nil || len(rounds) != 2 || rounds[0].RoundID != "round-one" || rounds[1].RoundID != "round-two" ||
+		rounds[1].ExpectedItemCount != 1 || rounds[1].State != RoundClosed {
+		t.Fatalf("list Audit rounds = (%+v, %v)", rounds, err)
+	}
 	audit, err = store.Get(ctx, project.OwnerID, audit.AuditID)
 	if err != nil {
 		t.Fatal(err)

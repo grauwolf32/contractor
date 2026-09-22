@@ -46,19 +46,34 @@ class LeaseWatchdog:
             return None
         return self._deadline
 
-    async def arm(self, lease_seconds: float) -> None:
-        """Start a new lease generation after successful registration."""
+    def now(self) -> float:
+        """The watchdog clock; callers stamp request send times with it."""
+        return self._monotonic()
+
+    async def arm(self, lease_seconds: float, sent_at: float | None = None) -> None:
+        """Start a new lease generation after successful registration.
+
+        ``sent_at`` is when the registration request was sent (``now()``);
+        the Server's lease can only have started after that instant.
+        """
 
         if lease_seconds <= 0:
             raise ValueError("confirmed lease must be positive")
         async with self._lock:
-            self._deadline = self._monotonic() + lease_seconds
+            start = self._monotonic() if sent_at is None else sent_at
+            self._deadline = start + lease_seconds
             self._expired = False
             self._expiry_started = False
             self._changed.set()
 
-    async def acknowledge(self, ack_sequence: int, lease_seconds: float) -> bool:
-        """Renew a live generation for a strictly newer valid acknowledgement."""
+    async def acknowledge(
+        self, ack_sequence: int, lease_seconds: float, sent_at: float | None = None
+    ) -> bool:
+        """Renew a live generation for a strictly newer valid acknowledgement.
+
+        ``sent_at`` is when the acknowledged heartbeat was sent (``now()``),
+        so response latency never extends the lease beyond the Server's.
+        """
 
         if ack_sequence <= 0 or lease_seconds <= 0:
             raise ValueError("ack sequence and confirmed lease must be positive")
@@ -72,7 +87,7 @@ class LeaseWatchdog:
             if ack_sequence <= self._last_ack:
                 return False
             self._last_ack = ack_sequence
-            self._deadline = now + lease_seconds
+            self._deadline = (now if sent_at is None else sent_at) + lease_seconds
             self._changed.set()
             return True
 

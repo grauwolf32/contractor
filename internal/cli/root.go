@@ -200,13 +200,18 @@ func (c *CLI) client(options globalOptions, store *ContextStore) (*publicclient.
 			options.allowHTTP = context.AllowHTTP
 		}
 	}
+	// An explicit --token-file or the context's token file takes precedence
+	// over CONTRACTOR_API_TOKEN.
+	var token string
 	var err error
-	token := c.getenv("CONTRACTOR_API_TOKEN")
-	if token == "" && options.tokenFile != "" {
+	if options.tokenFile != "" {
 		token, err = publicclient.ReadTokenFile(options.tokenFile)
 		if err != nil {
 			return nil, "", err
 		}
+	}
+	if token == "" {
+		token = c.getenv("CONTRACTOR_API_TOKEN")
 	}
 	if token == "" {
 		return nil, "", errors.New("API token is required; set CONTRACTOR_API_TOKEN or --token-file")
@@ -237,7 +242,7 @@ Commands:
   version     Print CLI version
 
 Global flags must appear before the command. Authentication uses
-CONTRACTOR_API_TOKEN or --token-file.`)
+--token-file, then the context's token file, then CONTRACTOR_API_TOKEN.`)
 }
 
 func parseFlags(name string, output io.Writer, args []string, configure func(*flag.FlagSet)) (*flag.FlagSet, error) {

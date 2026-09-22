@@ -948,6 +948,15 @@ func createFinalizingFixture(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 ) finalizingFixture {
 	t.Helper()
+	return createFinalizingFixtureWith(t, ctx, pool, nil)
+}
+
+// createFinalizingFixtureWith runs beforeResult after the Planner starts and
+// before the Stage result enters finalization.
+func createFinalizingFixtureWith(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, beforeResult func(),
+) finalizingFixture {
+	t.Helper()
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
@@ -1003,6 +1012,9 @@ func createFinalizingFixture(
 		Reason: runstore.Reason{Code: "planner_started"},
 	}); err != nil {
 		t.Fatal(err)
+	}
+	if beforeResult != nil {
+		beforeResult()
 	}
 	result := contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "copied",

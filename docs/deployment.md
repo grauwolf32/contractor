@@ -142,7 +142,7 @@ printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-master-key
 printf 'sk-%s\n' "$(openssl rand -hex 32)" > .local/secrets/litellm-salt-key
 CONTRACTOR_LITELLM_MASTER_KEY_FILE="$(pwd)/.local/secrets/litellm-master-key" \
 CONTRACTOR_LITELLM_SALT_KEY_FILE="$(pwd)/.local/secrets/litellm-salt-key" \
-CONTRACTOR_LM_STUDIO_URL='http://192.168.1.217:1234/v1' \
+CONTRACTOR_LM_STUDIO_URL='http://lm-studio-host:1234/v1' \
   deploy/litellm/run.sh
 ```
 

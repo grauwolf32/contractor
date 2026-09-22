@@ -425,8 +425,11 @@ class ToolWorkerRuntime:
             error = "tool_outcome_unknown"
         finally:
             # State admission may have been cancelled after its mutation won.
-            # Join it before the matching terminal revision is published.
-            await beginning
+            # Join it before the matching terminal revision is published. A
+            # failed admission committed nothing (its error is already the
+            # outcome), so it is joined without re-raising and not completed.
+            await asyncio.wait({beginning})
+            begun = not beginning.cancelled() and beginning.exception() is None
             # Cancellation leaves the durable started receipt intact. It never
             # authorizes another scan after lease fencing or a lost response.
             if owned is not None and error != "tool_cancelled":
@@ -468,6 +471,8 @@ class ToolWorkerRuntime:
                     else "succeeded",
                     metrics=_metrics(self._execution.tool, calls, tool_failed),
                 )
+                if begun
+                else self._state.sync_metrics()
             )
             try:
                 snapshot = await asyncio.shield(finishing)

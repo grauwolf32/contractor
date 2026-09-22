@@ -149,6 +149,21 @@ FROM llm_credentials WHERE credential_id = $1`, record.CredentialID).Scan(
 	if prepared, err := repository.ListPreparedOperations(ctx, 10); err != nil || len(prepared) != 0 {
 		t.Fatalf("prepared operations after completion = (%+v, %v)", prepared, err)
 	}
+	if err := repository.AbandonOperation(ctx, operation.OperationID, completedAt.Add(time.Minute)); !errors.Is(err, ErrConflict) {
+		t.Fatalf("abandon completed operation error = %v", err)
+	}
+	deleteOperation := operation
+	deleteOperation.OperationID, deleteOperation.IdempotencyKey = "delete:managed-worker:01", "request-02"
+	deleteOperation.Kind = OperationDelete
+	if err := repository.InsertOperation(ctx, deleteOperation); err != nil {
+		t.Fatalf("insert delete operation: %v", err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE credential_operations SET phase = 'abandoned' WHERE operation_id = $1`,
+		deleteOperation.OperationID)
+	assertCredentialSQLState(t, err, "23514")
+	if err := repository.CompleteOperation(ctx, deleteOperation.OperationID, completedAt); err != nil {
+		t.Fatalf("complete delete operation: %v", err)
+	}
 	_, err = pool.Exec(ctx, `UPDATE credential_operations SET request_hash = $2 WHERE operation_id = $1`,
 		operation.OperationID, "sha256:"+strings.Repeat("e", 64))
 	assertCredentialSQLState(t, err, "23514")

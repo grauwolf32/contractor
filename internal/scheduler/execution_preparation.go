@@ -7,13 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Allocation configuration is materialized only at preparation time. These
@@ -123,7 +127,7 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 		},
 	)
 	if err != nil {
-		return nil, errors.New("Project HTTP target credential is unavailable")
+		return nil, persistencepostgres.WrapError("Project HTTP target credential is unavailable", err)
 	}
 	if err := target.Validate(); err != nil {
 		return nil, errors.New("Project HTTP target settings are invalid")
@@ -155,8 +159,8 @@ func (s *Scheduler) materializeRuntimeSettings(
 		token, err := s.options.Credentials.ResolveLLMCredential(
 			ctx, *resolved.LLMCredential, resolved.LLMGateway.Ref,
 		)
-		if err != nil || token.Reveal() == "" {
-			return contracts.RuntimeSettings{}, fmt.Errorf("selected LLM credential is unavailable")
+		if err := resolvedCredentialError(token, err); err != nil {
+			return contracts.RuntimeSettings{}, err
 		}
 		result.LLMGatewayToken = &token
 	}
@@ -190,7 +194,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 					return nil
 				},
 			); err != nil {
-				return contracts.RuntimeSettings{}, fmt.Errorf("Worker telemetry credential is unavailable")
+				return contracts.RuntimeSettings{}, persistencepostgres.WrapError("Worker telemetry credential is unavailable", err)
 			}
 		}
 		result.Telemetry = telemetry
@@ -242,7 +246,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 					return nil
 				},
 			); err != nil {
-				return contracts.RuntimeSettings{}, fmt.Errorf("Worker HTTP proxy credential is unavailable")
+				return contracts.RuntimeSettings{}, persistencepostgres.WrapError("Worker HTTP proxy credential is unavailable", err)
 			}
 		}
 		result.HTTPProxy = proxy
@@ -278,7 +282,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 					return nil
 				},
 			); err != nil {
-				return contracts.RuntimeSettings{}, fmt.Errorf("Worker Caido credential is unavailable")
+				return contracts.RuntimeSettings{}, persistencepostgres.WrapError("Worker Caido credential is unavailable", err)
 			}
 		}
 		result.Caido = caido
@@ -379,8 +383,71 @@ func (s *Scheduler) resolveCredential(
 	token, err := s.options.Credentials.ResolveLLMCredential(
 		ctx, *selection.Credential, selection.LLMGateway.Ref,
 	)
-	if err != nil || token.Reveal() == "" {
-		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")
+	if err := resolvedCredentialError(token, err); err != nil {
+		return contracts.SecretString{}, err
 	}
 	return token, nil
+}
+
+var errEmptyCredential = errors.New("credential material is empty")
+
+// resolvedCredentialError keeps the resolver cause for classification while
+// rendering only a static message.
+func resolvedCredentialError(token contracts.SecretString, err error) error {
+	if err == nil && token.Reveal() == "" {
+		err = errEmptyCredential
+	}
+	if err != nil {
+		return persistencepostgres.WrapError("selected LLM credential is unavailable", err)
+	}
+	return nil
+}
+
+// credentialFailure converts a credential or execution-configuration error
+// into a Stage failure. Context cancellation and transient storage failures
+// are retryable; missing, invalid or unreadable credentials are permanent.
+// Only a coarse cause is logged, never the underlying error text.
+func (s *Scheduler) credentialFailure(
+	run runstore.WorkflowRun, execution runstore.StageExecution, code, message string, err error,
+) planner.Failure {
+	retryable, cause := classifyCredentialError(err)
+	s.options.Logger.Warn(
+		message,
+		"run_id", run.RunID, "stage_execution_id", execution.StageExecutionID,
+		"cause", cause, "retryable", retryable,
+	)
+	return planner.Failure{Code: code, Message: message, Retryable: retryable}
+}
+
+func classifyCredentialError(err error) (bool, string) {
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return true, "context_ended"
+	case errors.Is(err, credentials.ErrNotFound), errors.Is(err, credentials.ErrRuntimeCredentialNotFound):
+		return false, "credential_not_found"
+	case errors.Is(err, credentials.ErrInvalid), errors.Is(err, credentials.ErrRuntimeCredentialInvalid),
+		errors.Is(err, errEmptyCredential):
+		return false, "credential_invalid"
+	case errors.Is(err, credentials.ErrCrypto), errors.Is(err, credentials.ErrKeyUnavailable):
+		return false, "credential_unreadable"
+	}
+	if transientStorageError(err) {
+		return true, "storage_unavailable"
+	}
+	return false, "configuration_unavailable"
+}
+
+// transientStorageError recognizes connection, resource and serialization
+// failures reported by PostgreSQL or its transport.
+func transientStorageError(err error) bool {
+	if state := persistencepostgres.SQLState(err); state != "" {
+		switch state[:2] {
+		case "08", "40", "53", "57", "58":
+			return true
+		}
+		return false
+	}
+	var connectErr *pgconn.ConnectError
+	var netErr net.Error
+	return errors.As(err, &connectErr) || errors.As(err, &netErr) || pgconn.Timeout(err)
 }

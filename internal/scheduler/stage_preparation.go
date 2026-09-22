@@ -211,9 +211,9 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 
 	workerSettings, err := s.workerExecutionSettingsForRun(ctx, run, workflow.stage, reservations)
 	if err != nil {
-		return nil, s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
-			Code: "worker_execution_config_unavailable", Message: "Worker execution configuration is unavailable", Retryable: false,
-		})
+		return nil, s.beginAbort(ctx, run, workflow, execution, reservations, s.credentialFailure(
+			run, execution, "worker_execution_config_unavailable", "Worker execution configuration is unavailable", err,
+		))
 	}
 	prepareContext, cancelPrepare := context.WithTimeout(ctx, s.options.OperationTimeout)
 	handles, err := s.workers.PrepareAll(prepareContext, reservations, workerSettings)

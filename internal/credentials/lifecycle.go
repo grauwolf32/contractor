@@ -26,6 +26,13 @@ const maximumCredentialRunReferences = 128
 var (
 	ErrGatewayUnavailable = errors.New("Gateway credential operation is unavailable")
 	ErrRecoveryRequired   = errors.New("credential operation recovery is required")
+	// ErrCreateAbandoned reports a create whose idempotency key belongs to an
+	// operation that recovery abandoned: its remote alias was confirmed absent
+	// and its stored request no longer validates. The credential ID stays
+	// reserved; a new request needs a new credential ID and idempotency key.
+	ErrCreateAbandoned = fmt.Errorf(
+		"%w: credential create operation was abandoned because its request is no longer valid", ErrConflict,
+	)
 )
 
 type CredentialInUseError struct {
@@ -108,6 +115,9 @@ type Service struct {
 
 	lifecycleMu sync.Mutex
 	barrier     *LifecycleBarrier
+	// deleteDirty is set only when a delete's durable intent may or may not
+	// exist. A durable prepared delete fences only its own credential ID,
+	// through EncryptedProvider lookups, instead of every Run creation.
 	deleteDirty bool
 	ready       atomic.Bool
 }
@@ -150,7 +160,9 @@ func (s *Service) GetCredential(ctx context.Context, credentialID string) (Recor
 }
 
 // WithRunCreation holds the shared side of the deletion barrier while a Run
-// revalidates credential metadata and commits its immutable snapshot.
+// revalidates credential metadata and commits its immutable snapshot. A
+// credential with a prepared delete is rejected by its metadata lookup, so
+// such a delete does not block Runs that pin other credentials.
 func (s *Service) WithRunCreation(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return ErrInvalid
@@ -191,7 +203,8 @@ func (s *Service) Recover(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				if _, err := s.executeCreate(ctx, operation, request, true); err != nil {
+				if _, err := s.executeCreate(ctx, operation, request, true); err != nil &&
+					!errors.Is(err, ErrCreateAbandoned) {
 					return err
 				}
 			case OperationDelete:
@@ -202,11 +215,7 @@ func (s *Service) Recover(ctx context.Context) error {
 				if err := s.barrier.lockMutation(ctx); err != nil {
 					return err
 				}
-				s.deleteDirty = true
 				err = s.executeDelete(ctx, operation, request)
-				if err == nil {
-					s.deleteDirty = false
-				}
 				s.barrier.unlockMutation()
 				if err != nil {
 					return err
@@ -242,13 +251,16 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 			return CreateResult{}, ErrConflict
 		}
 		record, err := s.executeCreate(ctx, *prepared, storedRequest, true)
-		return CreateResult{Credential: record, Replayed: err == nil}, err
+		return CreateResult{Credential: record}, err
 	}
 
 	existing, err := s.repository.GetOperationByIdempotency(ctx, OperationCreate, request.IdempotencyKey)
 	if err == nil {
 		if existing.RequestHash != requestHash || existing.CredentialID != normalized.CredentialID {
 			return CreateResult{}, ErrConflict
+		}
+		if existing.Phase == OperationAbandoned {
+			return CreateResult{}, ErrCreateAbandoned
 		}
 		record, getErr := s.repository.GetCredential(ctx, normalized.CredentialID)
 		if getErr != nil {
@@ -311,12 +323,11 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		if err != nil || storedRequest.ActorID != request.ActorID {
 			return DeleteResult{}, ErrConflict
 		}
-		s.deleteDirty = true
 		err = s.executeDelete(ctx, *prepared, storedRequest)
 		if err == nil {
 			s.deleteDirty = false
 		}
-		return DeleteResult{Replayed: err == nil}, err
+		return DeleteResult{}, err
 	}
 
 	existing, err := s.repository.GetOperationByIdempotency(ctx, OperationDelete, request.IdempotencyKey)
@@ -364,10 +375,13 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if err != nil {
 		return DeleteResult{}, err
 	}
-	// From this point until a confirmed completed operation, an ambiguous
-	// database or Gateway result must prevent a new Run from pinning this key.
-	s.deleteDirty = true
+	// Once the prepared intent is durable, lookups of this credential fail
+	// until the operation completes. If the insert outcome is unknown, fence
+	// every new reference until a delete completes.
 	if err := s.repository.InsertOperation(ctx, operation); err != nil {
+		if !errors.Is(err, ErrConflict) && !errors.Is(err, ErrInvalid) {
+			s.deleteDirty = true
+		}
 		return DeleteResult{}, err
 	}
 	err = s.executeDelete(ctx, operation, storedRequest)
@@ -453,7 +467,20 @@ func (s *Service) executeCreate(
 			return Record{}, ErrGatewayUnavailable
 		}
 		if err := manager.ValidateCreate(ctx, managerRequest); err != nil {
-			return Record{}, safeManagerValidationError(ctx, err)
+			validationErr := safeManagerValidationError(ctx, err)
+			if !errors.Is(validationErr, ErrInvalid) {
+				return Record{}, validationErr
+			}
+			// RecoverCreate confirmed that the deterministic remote alias is
+			// absent, and validation failed deterministically, so no replay can
+			// ever succeed. Record a terminal failure instead of blocking
+			// recovery forever. Ambiguous failures above stay prepared.
+			if err := s.repository.AbandonOperation(
+				ctx, operation.OperationID, operationCompletionTime(operation, s.now()),
+			); err != nil {
+				return Record{}, err
+			}
+			return Record{}, ErrCreateAbandoned
 		}
 	}
 	generated, err := manager.Create(ctx, managerRequest)

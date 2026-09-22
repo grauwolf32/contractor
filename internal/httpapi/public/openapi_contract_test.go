@@ -742,6 +742,16 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteUnavailable, true); response.Code != http.StatusBadGateway {
 		t.Fatalf("credential Gateway failure = %d: %s", response.Code, response.Body.String())
 	}
+	fixture.credentials.deleteErr = credentials.ErrRecoveryRequired
+	deleteRecovering := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/credentials/contract-in-use", nil,
+	)
+	deleteRecovering.Header.Set("Idempotency-Key", "contract-delete-recovering")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteRecovering, true); response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("credential recovery = %d: %s", response.Code, response.Body.String())
+	} else {
+		assertErrorCode(t, response, "credential_recovery_required")
+	}
 	fixture.credentials.deleteErr = nil
 
 	download := newPublicContractRequest(http.MethodGet, "/v1/artifacts/projects/source", nil)

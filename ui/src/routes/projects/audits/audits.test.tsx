@@ -1055,6 +1055,39 @@ describe("Project Audit routes", () => {
     expect(selection).toHaveTextContent("v5.0.0-2.1.1");
   });
 
+  it("does not link a non-http standard source on the Audit baseline", async () => {
+    const current = auditAt("completed", 3);
+    current.baseline = top10Baseline(current);
+    current.baseline.standards[0]!.source.url = "javascript:alert(1)";
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(current, { headers: { ETag: '"3"' } });
+        }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByText("Baseline and standards"));
+    const standards = await screen.findByTestId("audit-baseline-standards");
+    expect(within(standards).getByText("source")).toBeVisible();
+    expect(
+      within(standards).queryByRole("link", { name: "source" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders mixed coverage as assessments and refetches active Audits", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let auditReads = 0;
@@ -2078,6 +2111,68 @@ describe("Project Audit routes", () => {
       }),
     ).toBeVisible();
     expect(decided).toBe(true);
+  });
+
+  it("keeps the mutated Audit when an older detail fetch resolves later", async () => {
+    let current = auditAt("draft", 2);
+    let releaseStale: (() => void) | undefined;
+    const queryClient = queryClientFactory.createApplicationQueryClient();
+    vi.spyOn(
+      queryClientFactory,
+      "createApplicationQueryClient",
+    ).mockReturnValue(queryClient);
+    const detailKey = queryKeys.audits.detail("audit_example");
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/audits/audit_example") {
+          const snapshot = current;
+          if (releaseStale === undefined && snapshot.state === "draft") {
+            await new Promise<void>((resolve) => {
+              releaseStale = resolve;
+            });
+          }
+          return jsonResponse(snapshot, {
+            headers: { ETag: `"${snapshot.revision}"` },
+          });
+        }
+        if (path.endsWith("/start")) {
+          current = auditAt("active", 3);
+          return jsonResponse(
+            { audit: current, round: { roundId: "round_example" }, items: [] },
+            { headers: { ETag: '"3"' } },
+          );
+        }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    // Seed the detail so the initial load does not wait on the held fetch.
+    queryClient.setQueryData(detailKey, current);
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Start Audit" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Start Audit" });
+    // The mount refetch of the seeded detail is still in flight with the
+    // pre-mutation revision.
+    expect(releaseStale).toBeDefined();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Start Audit" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Pause new Audit Runs" }),
+    ).toBeVisible();
+    releaseStale!();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(queryClient.getQueryData<Audit>(detailKey)?.revision).toBe(3);
   });
 
   it.each(["draft", "paused"] as const)(

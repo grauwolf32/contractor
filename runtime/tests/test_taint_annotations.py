@@ -377,6 +377,23 @@ def test_crlf_and_input_failures_are_bounded_and_non_mutating(tmp_path: Path) ->
     asyncio.run(scenario())
 
 
+def test_line_indexing_ignores_non_newline_separators(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = "# page\x0cbreak\u2028here\ndef handler(req):\n    return req\n"
+        writer = MemoryWriter({"app.py": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_validate"]("app.py", "handler", "req", "schema")
+        assert result["annotationLine"] == 2
+        assert await writer.read_text("app.py") == (
+            "# page\x0cbreak\u2028here\n"
+            "# @validate arg=req kind=schema\n"
+            "def handler(req):\n"
+            "    return req\n"
+        )
+
+    asyncio.run(scenario())
+
+
 def test_factory_requires_a_writer_and_successful_positive_probe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

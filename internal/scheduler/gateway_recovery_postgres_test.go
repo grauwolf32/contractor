@@ -200,3 +200,40 @@ func TestGatewayRecoveryRequestRetryHintAndFailureReplay(t *testing.T) {
 		t.Fatalf("replay/hint: failures=%d delay=%s", failures, time.Until(next))
 	}
 }
+
+func TestGatewayWaitingRunAcceptsStageResultAndDropsWaits(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedSchedulerPool(t, ctx)
+	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := gatewayrecovery.Route{OwnerID: "user-1", GatewayDigest: "gateway", Model: "model"}
+	fixture := createFinalizingFixtureWith(t, ctx, pool, func() {
+		if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{route}); err != nil || !allowed {
+			t.Fatalf("admit route = %v, %v", allowed, err)
+		}
+		participant := service.Planner("run-1", "invocation-finalizing", route, contracts.DefaultGatewayFailureSignatures())
+		recoveryUpdate(t, participant, "outage", "failed")
+		run, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run-1")
+		if err != nil || run.State != runstore.RunWaiting {
+			t.Fatalf("Run before result = (%+v, %v), want waiting", run, err)
+		}
+	})
+	if err := fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
+		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
+		OutputContracts: fixture.workflow.Outputs,
+		Progression:     terminalSuccessProgression("run-1", fixture.executionID),
+	}); err != nil {
+		t.Fatalf("commit result for waiting Run: %v", err)
+	}
+	run, err := fixture.store.GetRun(ctx, "run-1")
+	if err != nil || run.State != runstore.RunSucceeded {
+		t.Fatalf("Run after result = (%+v, %v)", run, err)
+	}
+	var waits int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM gateway_recovery_waits WHERE run_id='run-1'`).Scan(&waits); err != nil || waits != 0 {
+		t.Fatalf("gateway waits after result = %d, %v", waits, err)
+	}
+}

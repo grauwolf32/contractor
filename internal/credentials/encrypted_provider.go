@@ -13,6 +13,12 @@ type RecordReader interface {
 	GetCredential(context.Context, string) (Record, error)
 }
 
+// PreparedDeleteReader is implemented by record readers that can report a
+// prepared, uncompleted credential deletion.
+type PreparedDeleteReader interface {
+	HasPreparedDelete(context.Context, string) (bool, error)
+}
+
 type EncryptedProvider struct {
 	records RecordReader
 	cipher  *TokenCipher
@@ -37,6 +43,17 @@ func (p *EncryptedProvider) LookupLLMCredential(
 			return config.CredentialMetadata{}, ErrNotFound
 		}
 		return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
+	}
+	// A prepared delete may already have removed the remote key. New Run and
+	// allocation references must not pin it until the delete is recovered.
+	if deletions, ok := p.records.(PreparedDeleteReader); ok {
+		prepared, err := deletions.HasPreparedDelete(ctx, id)
+		if err != nil {
+			return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
+		}
+		if prepared {
+			return config.CredentialMetadata{}, ErrRecoveryRequired
+		}
 	}
 	return config.CredentialMetadata{
 		Ref:           contracts.LLMCredentialRef{CredentialID: record.CredentialID},

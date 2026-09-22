@@ -224,6 +224,12 @@ export function AuditControls({
       setConfirmation(undefined);
       setTimeAction(undefined);
       const updated = auditMutationAudit(result);
+      // An in-flight detail fetch started before the mutation would otherwise
+      // overwrite the newer revision when it resolves.
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.audits.detail(updated.auditId),
+        exact: true,
+      });
       queryClient.setQueryData(
         queryKeys.audits.detail(updated.auditId),
         updated,

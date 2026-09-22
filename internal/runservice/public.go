@@ -161,7 +161,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if forkErr != nil {
 						return forkErr
 					}
-					if !acceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
+					if !contracts.AcceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)
 					}
 					exactSources[slot] = fork.SourceRef

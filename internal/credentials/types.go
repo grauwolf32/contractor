@@ -127,6 +127,9 @@ type OperationPhase string
 const (
 	OperationPrepared  OperationPhase = "prepared"
 	OperationCompleted OperationPhase = "completed"
+	// OperationAbandoned is the terminal failed outcome of a create whose
+	// remote alias was confirmed absent and whose replay no longer validates.
+	OperationAbandoned OperationPhase = "abandoned"
 )
 
 type Operation struct {
@@ -182,6 +185,9 @@ type GatewayCredentialManager interface {
 	ValidateCreate(context.Context, ManagerCreateRequest) error
 	Create(context.Context, ManagerCreateRequest) (GeneratedCredential, error)
 	Delete(context.Context, ManagerDeleteRequest) error
+	// RecoverCreate returns nil only after the deterministic remote alias is
+	// confirmed absent (removed or never created). Lifecycle relies on that to
+	// abandon a prepared create whose replay then fails with ErrInvalid.
 	RecoverCreate(context.Context, ManagerCreateRequest) error
 }
 

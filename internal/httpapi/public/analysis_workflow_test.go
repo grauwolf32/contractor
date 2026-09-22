@@ -42,8 +42,8 @@ func TestPrecomputedAnalysisRunInputsAreExplicitAndStrict(t *testing.T) {
 			if err := validateRunInputs(workflow, request); err == nil {
 				t.Fatal("missing dependency report was accepted")
 			}
-			if acceptsMediaType(workflow.Inputs["dependency_report"].MediaTypes, "text/plain") ||
-				!acceptsMediaType(workflow.Inputs["dependency_report"].MediaTypes, "text/markdown") {
+			if contracts.AcceptsMediaType(workflow.Inputs["dependency_report"].MediaTypes, "text/plain") ||
+				!contracts.AcceptsMediaType(workflow.Inputs["dependency_report"].MediaTypes, "text/markdown") {
 				t.Fatal("dependency report media-type contract is not strict")
 			}
 		})

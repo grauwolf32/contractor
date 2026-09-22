@@ -385,8 +385,12 @@ WHERE owner_id=$1
 		}
 		if errors.Is(err, pgx.ErrNoRows) {
 			tombstone, tombErr := s.Tombstone(ctx, scope.OwnerID, id, member)
-			if tombErr != nil {
+			if evaldomain.IsCode(tombErr, "eval_not_found") {
+				// The execution is not terminal yet and left no tombstone.
 				return ErrDrain
+			}
+			if tombErr != nil {
+				return tombErr
 			}
 			if tombstone.ID != *sub.ExecutionID {
 				return evaldomain.Failure("eval_member_conflict")

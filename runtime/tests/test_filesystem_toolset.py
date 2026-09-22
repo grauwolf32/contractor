@@ -111,9 +111,10 @@ def test_read_tools_are_sorted_paginated_and_preserve_newlines(tmp_path: Path, m
             ("src/a.py", 2),
         ]
         regex = await tools["grep"](r"NEE[D]LE", "src", "**/*.py", True, False, "", 10)
-        assert [item["path"] for item in regex["matches"]] == [
-            "src/a.py",
-            "src/nested/b.py",
+        # Line numbers follow read_file: form feed and U+2028 do not break lines.
+        assert [(item["path"], item["line"]) for item in regex["matches"]] == [
+            ("src/a.py", 2),
+            ("src/nested/b.py", 2),
         ]
 
         assert len(state.metrics.tool_calls) >= 8
@@ -247,7 +248,7 @@ async def workspace(mode: str, name: str) -> DirectWorkspaceSession:
         text_files={
             "root.py": f"needle {SECRET_PATTERN}\n",
             "src/a.py": "first\nneedle here\n",
-            "src/nested/b.py": "NEEDLE nested\n",
+            "src/nested/b.py": "form\x0cfeed\u2028sep\nNEEDLE nested\n",
             "docs/readme.txt": "first\r\nsecond\nlast",
             "long.txt": "x" * (filesystem_module.MAX_READ_BYTES + 100),
         },

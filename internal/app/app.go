@@ -66,6 +66,19 @@ func RunCLI(
 	getenv func(string) string,
 	logger *slog.Logger,
 ) error {
+	err := runCLI(ctx, args, getenv, logger)
+	if errors.Is(err, errHelpShown) {
+		return nil
+	}
+	return err
+}
+
+func runCLI(
+	ctx context.Context,
+	args []string,
+	getenv func(string) string,
+	logger *slog.Logger,
+) error {
 	if len(args) > 0 && args[0] == "config" {
 		return runConfigCLI(args[1:], logger)
 	}

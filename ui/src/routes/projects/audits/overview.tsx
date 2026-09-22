@@ -2,6 +2,7 @@ import { Link } from "react-router";
 
 import type { Audit } from "../../../api/audits";
 import { formatBytes, formatTimestamp } from "../../artifacts/common";
+import { SourceLink } from "../../catalog/audit-preset-checks";
 import { AuditProgress } from "./progress";
 import { ExactArtifactLink } from "./shared";
 import { describeStopReason } from "./stop-reason";
@@ -246,14 +247,8 @@ export function AuditOverview({ audit }: { audit: Audit }) {
                       {standard.reference.scheme}@{standard.reference.version}
                     </code>{" "}
                     · <code>{compactDigest(standard.retained.digest)}</code> ·{" "}
-                    <a
-                      href={standard.source.url}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      source
-                    </a>{" "}
-                    · {standard.license.id}
+                    <SourceLink url={standard.source.url}>source</SourceLink> ·{" "}
+                    {standard.license.id}
                   </li>
                 ))}
               </ul>

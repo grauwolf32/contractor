@@ -28,6 +28,9 @@ CONTRACTOR_API_TOKEN="$TOKEN" \
   contractor --server https://contractor.example --ca-file ./ca.crt workflow list
 ```
 
+The token is taken from an explicit `--token-file` first, then from the
+selected context's token file, and only then from `CONTRACTOR_API_TOKEN`.
+
 Global flags must precede the command. Resource-specific flags may appear
 before or after positional arguments. Use `--` before positional arguments
 starting with a hyphen, for example `source push -- -source`.
@@ -73,8 +76,11 @@ Use the [configuration catalog](../../configs/README.md) to choose another Workf
 working tree it includes tracked files, working-tree changes, and untracked
 non-ignored files. `.gitignore` and an optional `.contractorignore` are
 honored. `--include-ignored` disables the Git ignore filter;
-`.contractorignore` still applies. Symbolic and special files are rejected,
-and the final ZIP is bounded by the Server's 64 MiB Artifact limit. If the
+`.contractorignore` still applies. Submodules and nested Git repositories
+are skipped. Symbolic and special files are rejected. The bundle matches the
+runtime source limits: at most 10,000 files, 4 MiB per file, 64 MiB expanded,
+and 512-byte paths, and the final ZIP is bounded by the Server's 64 MiB
+Artifact limit. If the
 binding exists, the command reads its current revision and performs a CAS
 update.
 

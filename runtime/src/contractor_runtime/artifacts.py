@@ -467,17 +467,18 @@ class MTLSArtifactTransport:
             raise ValueError("invalid private Artifact API request target")
         if not 0 <= max_response_bytes <= MAX_ARTIFACT_BYTES:
             raise ValueError("invalid Artifact API response limit")
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(
-                self._host,
-                self._port,
-                ssl=self._context,
-                server_hostname=self._host,
-                limit=64 * 1024,
-            ),
-            timeout=self._timeout,
-        )
+        writer: asyncio.StreamWriter | None = None
         try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(
+                    self._host,
+                    self._port,
+                    ssl=self._context,
+                    server_hostname=self._host,
+                    limit=64 * 1024,
+                ),
+                timeout=self._timeout,
+            )
             ssl_object = writer.get_extra_info("ssl_object")
             if not isinstance(ssl_object, ssl.SSLObject | ssl.SSLSocket):
                 raise ssl.SSLCertVerificationError("private connection has no TLS peer")
@@ -514,15 +515,18 @@ class MTLSArtifactTransport:
                 f"Artifact API transport failed ({type(error).__name__})"
             ) from None
         finally:
-            writer.close()
-            current_task = asyncio.current_task()
-            if current_task is not None and current_task.cancelling():
-                writer.transport.abort()
-            else:
-                try:
-                    await asyncio.wait_for(writer.wait_closed(), timeout=min(0.5, self._timeout))
-                except Exception:
+            if writer is not None:
+                writer.close()
+                current_task = asyncio.current_task()
+                if current_task is not None and current_task.cancelling():
                     writer.transport.abort()
+                else:
+                    try:
+                        await asyncio.wait_for(
+                            writer.wait_closed(), timeout=min(0.5, self._timeout)
+                        )
+                    except Exception:
+                        writer.transport.abort()
 
 
 def _validate_ref(ref: ArtifactRef) -> None:

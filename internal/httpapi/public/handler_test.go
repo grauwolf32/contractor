@@ -1847,6 +1847,39 @@ func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	}
 }
 
+func TestRawArtifactBytesAreNeverRenderedInAPIOrigin(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	markup := []byte("<script>untrusted()</script>")
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "page"},
+		artifacts.Payload{MediaType: "text/html", Data: markup}, nil); err != nil {
+		t.Fatal(err)
+	}
+	fixture.runs.runs["run-owned"] = runstore.WorkflowRun{
+		RunID: "run-owned", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1", State: runstore.RunSucceeded,
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run-owned")
+	source, err := runArtifacts.Write(t.Context(), contracts.ArtifactRef{Namespace: "builder", Name: "result"},
+		artifacts.Payload{MediaType: "text/html", Data: markup}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.artifacts.BindOutputExact(t.Context(), "run-owned", "result", source.Ref, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/v1/artifacts/projects/page", "/v1/runs/run-owned/outputs/result"} {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil)))
+		header := response.Header()
+		if response.Code != http.StatusOK || response.Body.String() != string(markup) || header.Get("Content-Type") != "text/html" ||
+			header.Get("X-Content-Type-Options") != "nosniff" ||
+			header.Get("Content-Security-Policy") != "sandbox; default-src 'none'" ||
+			header.Get("Content-Disposition") != "attachment" {
+			t.Fatalf("%s = status %d, headers %v", path, response.Code, header)
+		}
+	}
+}
+
 func assertErrorCode(t *testing.T, response *httptest.ResponseRecorder, expected string) {
 	t.Helper()
 	var body errorResponse

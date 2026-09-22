@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router";
 import contractorLogoUrl from "../assets/contractor-logo.png";
 import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
+import { discardSessionRunDrafts } from "../run-drafts/session-stores";
 import { Icon } from "./icon";
 
 const navigation = [
@@ -33,6 +34,7 @@ export function ApplicationShell() {
     setLogoutError(null);
     try {
       await logout();
+      discardSessionRunDrafts();
     } catch (error) {
       setLogoutError(
         error instanceof Error ? error.message : "Could not end the session",
