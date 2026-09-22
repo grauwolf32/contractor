@@ -1,6 +1,7 @@
-import { MemoryStorage } from "../test/storage";
+import { MemoryStorage, storedValues } from "../test/storage";
 import { webcrypto } from "node:crypto";
-import { render, screen, waitFor } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -149,6 +150,24 @@ describe("Managed Evals setup", () => {
       body: first.body,
     });
     expect(fixture.state.experiment.revision).toBe(2);
+  });
+
+  it("does not resend a finished command when queries refetch", async () => {
+    const fixture = createEvalFixture({ prepared: true }),
+      user = userEvent.setup();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Start" }));
+    await user.click(screen.getByRole("button", { name: "Confirm start" }));
+    await screen.findByText("Start: completed.");
+    expect(storedValues(localStorage)).not.toContain("eval-recovery");
+    act(() => {
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(
+      fixture.state.requests.filter((r) => r.path.endsWith("/commands")),
+    ).toHaveLength(1);
   });
 
   it("keeps the reviewed Start revision when a competing update arrives before confirmation", async () => {
