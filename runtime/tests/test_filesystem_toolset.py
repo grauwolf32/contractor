@@ -116,6 +116,13 @@ def test_read_tools_are_sorted_paginated_and_preserve_newlines(tmp_path: Path, m
             ("src/a.py", 2),
             ("src/nested/b.py", 2),
         ]
+        # glob is project-relative even when path narrows the search.
+        scoped = await tools["grep"](r"NEE[D]LE", "src", "src/nested/*.py", True, False, "", 10)
+        assert [item["path"] for item in scoped["matches"]] == ["src/nested/b.py"]
+        relative = await tools["grep"](r"NEE[D]LE", "src", "nested/*.py", True, False, "", 10)
+        assert relative["matches"] == []
+        single = await tools["grep"](r"NEE[D]LE", "src/a.py", "src/*.py", True, False, "", 10)
+        assert [item["path"] for item in single["matches"]] == ["src/a.py"]
 
         assert len(state.metrics.tool_calls) >= 8
         assert all(call.arguments == {} for call in state.metrics.tool_calls)

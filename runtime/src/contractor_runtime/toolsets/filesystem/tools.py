@@ -266,10 +266,9 @@ class _FilesystemSession:
                 break
             file = files[file_index]
             scanned_paths += 1
-            relative = (
-                file.path.rsplit("/", 1)[-1] if file.path == root else _relative(file.path, root)
-            )
-            if relative is None or not project_glob_matches(relative, normalized_glob):
+            if _relative(file.path, root) is None or not project_glob_matches(
+                file.path, normalized_glob
+            ):
                 file_index += 1
                 line_index = 0
                 continue
