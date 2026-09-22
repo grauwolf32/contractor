@@ -39,6 +39,7 @@ func TestPublicErrorDiagnosticsAreCorrelatedRedactedAndDoNotChangeEnvelopes(t *t
 			Code: secret, Message: secret,
 		}, http.StatusInternalServerError},
 		{"downstream", "downstream_unavailable", "gateway_unavailable", credentials.ErrGatewayUnavailable, http.StatusBadGateway},
+		{"credential-recovery", "unknown", "credential_recovery_required", credentials.ErrRecoveryRequired, http.StatusServiceUnavailable},
 		{"cancelled", "cancelled", "internal_error", context.Canceled, http.StatusInternalServerError},
 		{"deadline", "deadline_exceeded", "internal_error", context.DeadlineExceeded, http.StatusInternalServerError},
 		{"unknown", "unknown", "internal_error", errors.New(secret), http.StatusInternalServerError},

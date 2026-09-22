@@ -5765,6 +5765,7 @@ paths:
               schema: {$ref: '#/components/schemas/CredentialPage'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
     post:
       operationId: createCredential
@@ -5795,6 +5796,7 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '409': {$ref: '#/components/responses/Conflict'}
         '502': {$ref: '#/components/responses/GatewayUnavailable'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/operations/credentials/{credentialId}:
@@ -5816,6 +5818,7 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
     delete:
       operationId: deleteCredential
@@ -5834,6 +5837,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/CredentialInUse'}
         '502': {$ref: '#/components/responses/GatewayUnavailable'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/operations/settings/scheduler:
@@ -6397,6 +6401,13 @@ components:
           schema: {$ref: '#/components/schemas/RuntimeLabelBinding'}
     GatewayUnavailable:
       description: Bounded managed-Gateway operation failure
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    CredentialRecoveryRequired:
+      description: Credential lifecycle recovery has not completed; retry after it settles
       headers:
         X-Request-ID: {$ref: '#/components/headers/RequestId'}
       content:

@@ -5851,6 +5851,16 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Credential lifecycle recovery has not completed; retry after it settles */
+        CredentialRecoveryRequired: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         InternalError: {
             headers: {
                 [name: string]: unknown;
@@ -10829,6 +10839,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     createCredential: {
@@ -10867,6 +10878,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     getCredential: {
@@ -10894,6 +10906,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     deleteCredential: {
@@ -10921,6 +10934,7 @@ export interface operations {
             409: components["responses"]["CredentialInUse"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     getSchedulerSettings: {

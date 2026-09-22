@@ -105,6 +105,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		})
 	case errors.Is(err, credentials.ErrGatewayUnavailable), errors.Is(err, credentials.ErrManagerUnavailable):
 		h.writeError(w, http.StatusBadGateway, "gateway_unavailable", "managed Gateway operation is unavailable", true)
+	case errors.Is(err, credentials.ErrRecoveryRequired):
+		h.writeError(w, http.StatusServiceUnavailable, "credential_recovery_required", "credential operation recovery is in progress", true)
 	case errors.Is(err, credentials.ErrConflict):
 		h.writeError(w, http.StatusConflict, "credential_conflict", "credential identity or idempotency key conflicts", false)
 	case errors.Is(err, credentials.ErrNotFound):

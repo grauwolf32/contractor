@@ -6959,6 +6959,9 @@ type Error409 = Error
 // CredentialInUse defines model for CredentialInUse.
 type CredentialInUse = Error
 
+// CredentialRecoveryRequired defines model for CredentialRecoveryRequired.
+type CredentialRecoveryRequired = Error
+
 // CurrentSession defines model for CurrentSession.
 type CurrentSession = AuthSession
 
@@ -35765,6 +35768,11 @@ type ListCredentialsResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// ListCredentialsResponse503Headers the declared response headers of an HTTP 503 response for ListCredentials
+type ListCredentialsResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type ListCredentialsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -35776,6 +35784,8 @@ type ListCredentialsResponse struct {
 	JSON401 *Unauthorized
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *CredentialRecoveryRequired
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *ListCredentialsResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -35784,6 +35794,8 @@ type ListCredentialsResponse struct {
 	Headers401 *ListCredentialsResponse401Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *ListCredentialsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListCredentialsResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -35804,6 +35816,11 @@ func (r ListCredentialsResponse) GetJSON401() *Unauthorized {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r ListCredentialsResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListCredentialsResponse) GetJSON503() *CredentialRecoveryRequired {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -35873,6 +35890,11 @@ type CreateCredentialResponse502Headers struct {
 	XRequestID RequestId
 }
 
+// CreateCredentialResponse503Headers the declared response headers of an HTTP 503 response for CreateCredential
+type CreateCredentialResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type CreateCredentialResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -35890,6 +35912,8 @@ type CreateCredentialResponse struct {
 	JSON500 *InternalError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *GatewayUnavailable
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *CredentialRecoveryRequired
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreateCredentialResponse201Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -35904,6 +35928,8 @@ type CreateCredentialResponse struct {
 	Headers500 *CreateCredentialResponse500Headers
 	// Headers502 the parsed response headers for an HTTP 502 response
 	Headers502 *CreateCredentialResponse502Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CreateCredentialResponse503Headers
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -35939,6 +35965,11 @@ func (r CreateCredentialResponse) GetJSON500() *InternalError {
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
 func (r CreateCredentialResponse) GetJSON502() *GatewayUnavailable {
 	return r.JSON502
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36012,6 +36043,11 @@ type DeleteCredentialResponse502Headers struct {
 	XRequestID RequestId
 }
 
+// DeleteCredentialResponse503Headers the declared response headers of an HTTP 503 response for DeleteCredential
+type DeleteCredentialResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type DeleteCredentialResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36029,6 +36065,8 @@ type DeleteCredentialResponse struct {
 	JSON500 *InternalError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *GatewayUnavailable
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *CredentialRecoveryRequired
 	// Headers204 the parsed response headers for an HTTP 204 response
 	Headers204 *DeleteCredentialResponse204Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -36045,6 +36083,8 @@ type DeleteCredentialResponse struct {
 	Headers500 *DeleteCredentialResponse500Headers
 	// Headers502 the parsed response headers for an HTTP 502 response
 	Headers502 *DeleteCredentialResponse502Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DeleteCredentialResponse503Headers
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -36080,6 +36120,11 @@ func (r DeleteCredentialResponse) GetJSON500() *InternalError {
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
 func (r DeleteCredentialResponse) GetJSON502() *GatewayUnavailable {
 	return r.JSON502
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DeleteCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -36138,6 +36183,11 @@ type GetCredentialResponse500Headers struct {
 	XRequestID RequestId
 }
 
+// GetCredentialResponse503Headers the declared response headers of an HTTP 503 response for GetCredential
+type GetCredentialResponse503Headers struct {
+	XRequestID RequestId
+}
+
 type GetCredentialResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36151,6 +36201,8 @@ type GetCredentialResponse struct {
 	JSON404 *NotFound
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *CredentialRecoveryRequired
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetCredentialResponse200Headers
 	// Headers400 the parsed response headers for an HTTP 400 response
@@ -36161,6 +36213,8 @@ type GetCredentialResponse struct {
 	Headers404 *GetCredentialResponse404Headers
 	// Headers500 the parsed response headers for an HTTP 500 response
 	Headers500 *GetCredentialResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetCredentialResponse503Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -36186,6 +36240,11 @@ func (r GetCredentialResponse) GetJSON404() *NotFound {
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
 func (r GetCredentialResponse) GetJSON500() *InternalError {
 	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetCredentialResponse) GetJSON503() *CredentialRecoveryRequired {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -57961,6 +58020,13 @@ func ParseListCredentialsResponse(rsp *http.Response) (*ListCredentialsResponse,
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest CredentialRecoveryRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -58018,6 +58084,16 @@ func ParseListCredentialsResponse(rsp *http.Response) (*ListCredentialsResponse,
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListCredentialsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -58085,6 +58161,13 @@ func ParseCreateCredentialResponse(rsp *http.Response) (*CreateCredentialRespons
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest CredentialRecoveryRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -58180,6 +58263,16 @@ func ParseCreateCredentialResponse(rsp *http.Response) (*CreateCredentialRespons
 			headers.XRequestID = value
 		}
 		response.Headers502 = &headers
+	case rsp.StatusCode == 503:
+		var headers CreateCredentialResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -58250,6 +58343,13 @@ func ParseDeleteCredentialResponse(rsp *http.Response) (*DeleteCredentialRespons
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest CredentialRecoveryRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -58348,6 +58448,16 @@ func ParseDeleteCredentialResponse(rsp *http.Response) (*DeleteCredentialRespons
 			headers.XRequestID = value
 		}
 		response.Headers502 = &headers
+	case rsp.StatusCode == 503:
+		var headers DeleteCredentialResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
@@ -58401,6 +58511,13 @@ func ParseGetCredentialResponse(rsp *http.Response) (*GetCredentialResponse, err
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest CredentialRecoveryRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -58469,6 +58586,16 @@ func ParseGetCredentialResponse(rsp *http.Response) (*GetCredentialResponse, err
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetCredentialResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
