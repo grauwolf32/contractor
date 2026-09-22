@@ -247,7 +247,7 @@ Every successful analysis response includes bounded coverage metadata:
 
 `incomplete` is true when a file/byte/symbol/deadline ceiling or parser error
 can make the answer omit otherwise supported source. Its sorted unique reasons
-are drawn from `file_limit`, `byte_limit`, `symbol_limit`, `deadline`, and
+are drawn from `file_limit`, `byte_limit`, `symbol_limit`, `symbol_name_limit`, `deadline`, and
 `parse_errors`. Binary and unsupported-language counts describe intentional
 coverage boundaries and do not alone make the supported-language result
 incomplete. Unknown non-source files are ignored rather than counted.
