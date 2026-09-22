@@ -31,6 +31,7 @@ from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_BASE64_PAYLOAD_LENGTH = ((MAX_ARTIFACT_BYTES + 2) // 3) * 4
+MAX_READ_CHUNK_BYTES = 256 * 1024
 
 
 class RunArtifactsToolsetFactory:
@@ -161,18 +162,24 @@ class ListArtifactsTool(_BaseTool):
 
 class ReadArtifactTool(_BaseTool):
     name = "read_artifact"
-    description = """Read artifact bytes from this Workflow Run as base64.
+    description = """Read artifact bytes from this Workflow Run as base64, in pages.
 
-    Use read_text_artifact for a bounded UTF-8 text preview.
+    Each call returns at most 256 KiB of decoded bytes. When hasMore is true,
+    call again with offset set to nextOffset and the same exact revision. Use
+    read_text_artifact for a bounded UTF-8 text preview.
 
     Args:
         namespace: Artifact namespace.
         name: Exact artifact binding name.
         revision: Exact revision to read; omit for the current revision. Use the
             exact revision supplied in Stage context when available.
+        offset: Zero-based byte offset to start reading from; defaults to 0.
+        length: Maximum bytes to return, from 1 to 262144; defaults to 262144.
 
     Returns:
-        The exact artifact reference, mediaType, byte size and dataBase64.
+        The exact artifact reference, mediaType, total byte size, offset, the
+        returned byte length, dataBase64, hasMore and nextOffset (null when no
+        bytes remain).
     """
 
     async def __call__(
@@ -180,26 +187,51 @@ class ReadArtifactTool(_BaseTool):
         namespace: str,
         name: str,
         revision: str | None = None,
+        offset: int = 0,
+        length: int = MAX_READ_CHUNK_BYTES,
     ) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
-        arguments = {"namespace": namespace, "name": name, "revision": revision}
+        arguments = {
+            "namespace": namespace,
+            "name": name,
+            "revision": revision,
+            "offset": offset,
+            "length": length,
+        }
         try:
             require_model_visible_binding(namespace, name)
+            if type(offset) is not int or offset < 0:
+                raise ToolInputError("offset must be a non-negative integer")
+            if type(length) is not int or not 1 <= length <= MAX_READ_CHUNK_BYTES:
+                raise ToolInputError(f"length must be between 1 and {MAX_READ_CHUNK_BYTES}")
+            # The Artifact API has no range reads, so page within one bounded read.
             value = await self._client.read_artifact(
                 ArtifactRef(namespace=namespace, name=name, revision=revision)
             )
+            size = len(value.data)
+            if offset > size:
+                raise ToolInputError("offset exceeds the artifact size")
+            chunk = value.data[offset : offset + length]
+            end = offset + len(chunk)
             result = {
                 "artifact": value.artifact.model_dump(by_alias=True),
                 "mediaType": value.media_type,
-                "size": len(value.data),
-                "dataBase64": base64.b64encode(value.data).decode("ascii"),
+                "size": size,
+                "offset": offset,
+                "length": len(chunk),
+                "dataBase64": base64.b64encode(chunk).decode("ascii"),
+                "hasMore": end < size,
+                "nextOffset": end if end < size else None,
             }
             self._success(
                 arguments,
                 {
                     "artifact": result["artifact"],
                     "mediaType": value.media_type,
-                    "size": len(value.data),
+                    "size": size,
+                    "offset": offset,
+                    "length": len(chunk),
+                    "hasMore": result["hasMore"],
                 },
                 started_ns,
             )

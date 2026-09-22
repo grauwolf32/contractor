@@ -18,6 +18,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.telemetry.metrics import MAX_METRIC_TOOL_CALLS
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -58,6 +59,43 @@ def test_factory_constructs_only_explicitly_selected_tools(
         assert state.metrics.counters["tool_calls"] == 2
         assert all(entry.result_size_bytes is not None for entry in state.metrics.tool_calls)
         assert "dataBase64" not in repr(state.metrics.tool_calls)
+
+    asyncio.run(scenario())
+
+
+def test_read_artifact_pages_large_payloads() -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        chunk = run_artifacts.MAX_READ_CHUNK_BYTES
+        client.read_data = bytes(range(256)) * (chunk // 256) * 2 + b"tail"
+        state = WorkerState()
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await create_tools(factory, state, ["read_artifact"])
+
+        first = await tools["read_artifact"]("inputs", "source")
+        assert first["size"] == len(client.read_data)
+        assert first["offset"] == 0 and first["length"] == chunk
+        assert len(base64.b64decode(first["dataBase64"])) == chunk
+        assert first["hasMore"] and first["nextOffset"] == chunk
+
+        collected = base64.b64decode(first["dataBase64"])
+        offset = first["nextOffset"]
+        while offset is not None:
+            page = await tools["read_artifact"]("inputs", "source", offset=offset)
+            collected += base64.b64decode(page["dataBase64"])
+            offset = page["nextOffset"]
+        assert collected == client.read_data
+        assert not page["hasMore"] and page["length"] == 4
+
+        window = await tools["read_artifact"]("inputs", "source", offset=2, length=3)
+        assert base64.b64decode(window["dataBase64"]) == bytes([2, 3, 4])
+        assert window["hasMore"]
+
+        for arguments in ({"length": 0}, {"length": chunk + 1}, {"offset": -1}):
+            with pytest.raises(ToolInputError):
+                await tools["read_artifact"]("inputs", "source", **arguments)
+        with pytest.raises(ToolInputError, match="offset exceeds"):
+            await tools["read_artifact"]("inputs", "source", offset=len(client.read_data) + 1)
 
     asyncio.run(scenario())
 
@@ -239,6 +277,7 @@ async def create_tools(
 class FakeArtifactClient:
     def __init__(self, *, write_error: Exception | None = None) -> None:
         self.write_error = write_error
+        self.read_data = b"payload"
         self.write_expected_revision: str | None = None
         self.read_calls = 0
         self.write_calls = 0
@@ -276,7 +315,7 @@ class FakeArtifactClient:
         return ArtifactValue(
             artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
             media_type="text/plain",
-            data=b"payload",
+            data=self.read_data,
             binding_created_at=datetime.now(UTC),
             revision_created_at=datetime.now(UTC),
         )
