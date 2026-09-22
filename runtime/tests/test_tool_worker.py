@@ -469,6 +469,26 @@ def test_cancel_during_publication_finishes_state_without_rescan(tmp_path, phase
     asyncio.run(scenario())
 
 
+def test_failed_state_admission_completes_without_running_tool(tmp_path):
+    from contractor_runtime.worker.state import WorkerStateError
+
+    async def scenario():
+        store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
+        runtime = await worker(tmp_path, store, tool)
+
+        async def refuse(**kwargs):
+            raise WorkerStateError("a Worker invocation is already active")
+
+        runtime._state.begin_invocation = refuse
+        refused = await runtime.invoke(request(spec))
+        assert refused.failure.code == "tool_outcome_unknown"
+        assert tool.calls == [] and store.values == {}
+        state = (await runtime.agent_state_snapshot()).state
+        assert state.current_invocation is None and state.last_completed_invocation is None
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "failure,expected,calls",
     [
