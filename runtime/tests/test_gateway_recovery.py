@@ -127,6 +127,79 @@ def test_cancellation_interrupts_manual_recovery_wait_without_model_call():
     asyncio.run(scenario())
 
 
+def test_cancelled_probe_releases_its_grant_before_propagating():
+    async def scenario():
+        authority = Authority()
+        sent = asyncio.Event()
+
+        async def gateway(_request):
+            sent.set()
+            await asyncio.Event().wait()
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            task = asyncio.create_task(handle.complete({"model": "worker"}))
+            await asyncio.wait_for(sent.wait(), 1)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 1)
+        assert [event[2] for event in authority.events] == ["acquire", "finished"]
+        assert authority.events[0][1] == authority.events[1][1]
+
+    asyncio.run(scenario())
+
+
+def test_unexpected_probe_failure_releases_grant_and_tolerates_lost_authority(monkeypatch):
+    from contractor_runtime.artifacts import ArtifactTransportError
+    from contractor_runtime.llm import client as client_module
+
+    class Defect(Exception):
+        pass
+
+    async def defective_transport(self, payload, max_retries, timeout_seconds):
+        raise Defect
+
+    class UnreachableOnRelease(Authority):
+        async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
+            decision = await super().update(model, request_id, action, code, retry_after_seconds)
+            if action == "finished":
+                raise ArtifactTransportError("connection refused")
+            return decision
+
+    class HangingOnRelease(Authority):
+        async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
+            decision = await super().update(model, request_id, action, code, retry_after_seconds)
+            if action == "finished":
+                await asyncio.Event().wait()
+            return decision
+
+    monkeypatch.setattr(
+        client_module.GatewayClientHandle, "_complete_transport", defective_transport
+    )
+    monkeypatch.setattr(client_module, "RECOVERY_RELEASE_TIMEOUT_SECONDS", 0.01)
+
+    async def scenario():
+        for authority in (Authority(), UnreachableOnRelease(), HangingOnRelease()):
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=1,
+                recovery=authority,
+            )
+            with pytest.raises(Defect):
+                await asyncio.wait_for(handle.complete({"model": "worker"}), 1)
+            await handle.close()
+            assert [event[2] for event in authority.events] == ["acquire", "finished"]
+
+    asyncio.run(scenario())
+
+
 # --- GatewayRecoveryClient authority loop -----------------------------------
 
 
