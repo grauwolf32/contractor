@@ -169,7 +169,7 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
 func TestPostgresCollectionRejectsOnlyInvalidChildFindingProposal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	harness := newPostgresControllerHarnessWithConfig(t, ctx, 1, loadControllerConfigWithFindings(t, 1, true))
+	harness := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, loadControllerConfigWithFindings(t, 1, 10, true))
 	intake, err := findingintake.New(harness.pool)
 	if err != nil {
 		t.Fatal(err)
