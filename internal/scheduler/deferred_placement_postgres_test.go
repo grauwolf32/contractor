@@ -204,3 +204,59 @@ func TestPostgresAdmitStageFailureReusesDurablePlacement(t *testing.T) {
 		t.Fatalf("reused placement did not bind model routes: %d %v", routes, err)
 	}
 }
+
+// Failing a Run the Scheduler cannot progress must also end its active Stage,
+// so terminal allocation recovery releases the allocation it still holds.
+func TestPostgresFailActiveRunTerminatesStageAndReleasesAllocations(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		cancel     bool
+		runState   runstore.WorkflowRunState
+		stageState runstore.StageExecutionState
+	}{
+		{"failed", false, runstore.RunFailed, runstore.StageInterrupted},
+		{"cancelling", true, runstore.RunCancelled, runstore.StageCancelled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			failing := &failOnceAdmitPersistence{}
+			h := newDeferredPlacementHarness(t, ctx, func(persistence AtomicPersistence) AtomicPersistence {
+				failing.AtomicPersistence = persistence
+				return failing
+			})
+			if worked, err := h.scheduler.RunOnce(ctx); err == nil || !worked {
+				t.Fatalf("placement RunOnce = (%v, %v)", worked, err)
+			}
+			if test.cancel {
+				if _, err := h.store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+					Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errors.New("invalid state")); err != nil {
+				t.Fatal(err)
+			}
+			run, err := h.store.GetRun(ctx, "run-1")
+			if err != nil || run.State != test.runState {
+				t.Fatalf("Run = (%s %+v, %v)", run.State, run.StateReason, err)
+			}
+			executions, err := h.store.ListStageExecutions(ctx, "run-1")
+			if err != nil || len(executions) != 1 || executions[0].State != test.stageState ||
+				executions[0].Termination == nil || executions[0].Termination.Phase != runstore.TerminationPreparing {
+				t.Fatalf("StageExecutions = (%+v, %v)", executions, err)
+			}
+			if _, err := h.scheduler.RunOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+			if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
+				t.Fatalf("Stage allocations after recovery = (%+v, %v)", allocations, err)
+			}
+			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+				t.Fatalf("allocation grant after recovery = %v", err)
+			}
+		})
+	}
+}

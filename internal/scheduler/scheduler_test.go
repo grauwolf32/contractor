@@ -2392,6 +2392,35 @@ func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
 	return runstore.ErrConflict
 }
 
+func (p *memoryAtomicPersistence) FailRunWithActiveStages(
+	_ context.Context,
+	runID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	reason runstore.Reason,
+	termination runstore.StageTermination,
+	abortID string,
+) error {
+	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
+		return runstore.ErrConflict
+	}
+	for index := range p.store.stages {
+		stage := &p.store.stages[index]
+		switch stage.State {
+		case runstore.StagePreparing, runstore.StageRunning:
+			ended := termination
+			ended.Phase = runstore.TerminationPhase(stage.State)
+			stage.Termination, stage.AbortID = &ended, &abortID
+			stage.State = runstore.StageExecutionState(ended.Outcome)
+		case runstore.StageAborting:
+			stage.State = runstore.StageExecutionState(stage.Termination.Outcome)
+		}
+	}
+	p.store.run.State, p.store.run.StateReason = nextRunState, reason
+	p.store.claimID = ""
+	return nil
+}
+
 type memoryArtifactResolver struct {
 	current map[string]string
 	values  map[string]ResolvedArtifact

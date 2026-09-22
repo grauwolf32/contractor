@@ -182,12 +182,23 @@ func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause
 		return errors.Join(cause, err)
 	}
 	next, reason := runstore.RunFailed, runstore.Reason{Code: code}
+	termination := runstore.StageTermination{
+		Outcome: runstore.TerminationInterrupted, Code: code,
+		Message: "Scheduler could not progress the WorkflowRun", OccurredAt: s.now(),
+	}
 	if current.State == runstore.RunCancelling {
 		// Cancellation already owns the outcome; cancelling may only end as
 		// cancelled, so failing it would leave a poison Run.
 		next, reason = runstore.RunCancelled, runstore.Reason{Code: runstore.CancellationUserRequested}
+		termination.Outcome = runstore.TerminationCancelled
 	}
-	_, err = s.store.TransitionRun(operationContext, runID, current.State, next, reason)
+	abortID, err := s.newID("abort_")
+	if err != nil {
+		return errors.Join(cause, err)
+	}
+	// Active Stages end with the Run so terminal recovery releases their
+	// allocations; this is a single commit and never re-enters Stage recovery.
+	err = s.persistence.FailRunWithActiveStages(operationContext, runID, current.State, next, reason, termination, abortID)
 	if err != nil {
 		return errors.Join(cause, err)
 	}
