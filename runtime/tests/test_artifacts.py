@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
+import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -14,6 +16,7 @@ from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactHTTPResponse,
     ArtifactTransportError,
+    MTLSArtifactTransport,
 )
 from contractor_runtime.contracts import ArtifactRef
 
@@ -374,6 +377,27 @@ class RecordedRequest:
     headers: Mapping[str, str]
     body: bytes
     maximum: int
+
+
+def refused_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
+
+
+def test_mtls_transport_maps_connection_setup_failure_to_transport_error() -> None:
+    transport = MTLSArtifactTransport(
+        f"https://127.0.0.1:{refused_port()}/private/v1",
+        ssl.create_default_context(),
+        timeout_seconds=3,
+        runtime_instance_id="runtime-1",
+    )
+
+    async def scenario() -> None:
+        with pytest.raises(ArtifactTransportError, match="ConnectionRefusedError"):
+            await transport.request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
+
+    asyncio.run(scenario())
 
 
 class FakeTransport:

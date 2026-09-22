@@ -223,6 +223,43 @@ def test_authority_5xx_is_bounded_by_its_own_deadline_but_transport_loss_is_not(
     asyncio.run(scenario())
 
 
+def test_refused_authority_connection_is_retried_as_transport_loss():
+    import socket
+    import ssl
+
+    from contractor_runtime.artifacts import MTLSArtifactTransport
+    from contractor_runtime.llm.recovery import GatewayRecoveryClient
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+
+    class Stop(Exception):
+        pass
+
+    async def stop_after_first_retry(seconds):
+        raise Stop
+
+    async def scenario():
+        causes = []
+        client = GatewayRecoveryClient(
+            "alloc-1",
+            MTLSArtifactTransport(
+                f"https://127.0.0.1:{port}/private/v1",
+                ssl.create_default_context(),
+                timeout_seconds=3,
+                runtime_instance_id="runtime-1",
+            ),
+            on_retry=causes.append,
+            sleep=stop_after_first_retry,
+        )
+        with pytest.raises(Stop):
+            await client.update("worker", "req-1", "acquire")
+        assert causes == ["transport"]
+
+    asyncio.run(scenario())
+
+
 def test_authority_4xx_and_invalid_decisions_stop_without_retry():
     from contractor_runtime.llm.recovery import RecoveryStoppedError
 
