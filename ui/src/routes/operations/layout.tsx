@@ -18,7 +18,7 @@ import type {
   RunEventConnectionState,
   RunResyncReason,
 } from "../../events/run-events";
-import { ErrorNotice } from "../artifacts/common";
+import { QueryView } from "../../app/query-view";
 import type { OperationsOutletContext } from "./context";
 import { RefreshButton } from "../../app/refresh-button";
 
@@ -244,70 +244,72 @@ export function OperationsLayoutRoute() {
 
       {independentRead || personalSettings ? (
         <Outlet />
-      ) : query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Operations snapshot…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice
-          error={query.error}
-          onRetry={refresh}
-          retryPending={query.isFetching}
-        />
       ) : (
-        <>
-          <OperationsLiveSubscription
-            key={liveKey}
-            snapshot={query.data}
-            onConnection={recordConnection}
-            onError={recordLiveError}
-            onResync={recordResync}
-          />
-          <Outlet
-            context={
-              {
-                snapshot: query.data,
-                refresh,
-                refreshing: query.isFetching,
-              } satisfies OperationsOutletContext
-            }
-          />
-          <details className="panel operations-snapshot-record">
-            <summary>Diagnostics: snapshot and live connection</summary>
-            <dl className="key-value-list">
-              <div>
-                <dt>Generation</dt>
-                <dd>
-                  <code>{query.data.cursor.generation}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Snapshot revision</dt>
-                <dd>
-                  <code>{query.data.cursor.revision}</code>
-                </dd>
-              </div>
-            </dl>
-            <div className={`live-status live-${connection}`} role="status">
-              <span className="status-dot" aria-hidden="true" />
-              Operations events: {connection}
-              {resyncReason === undefined
-                ? null
-                : ` · REST resync after ${resyncReason.replaceAll("_", " ")}`}
-            </div>
-            {liveError === undefined ? null : (
-              <div className="notice notice-warning" role="alert">
-                <strong>{liveError}</strong>
-                <p>Use Refresh to reload the snapshot.</p>
-              </div>
-            )}
-            <p className="muted-copy">
-              These are transport diagnostics. Runtime readiness and Run wait
-              reasons are separate Server-owned facts. Refresh the snapshot if
-              live updates are unavailable.
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading Operations snapshot…
             </p>
-          </details>
-        </>
+          }
+          onRetry={refresh}
+        >
+          {(snapshot) => (
+            <>
+              <OperationsLiveSubscription
+                key={liveKey}
+                snapshot={snapshot}
+                onConnection={recordConnection}
+                onError={recordLiveError}
+                onResync={recordResync}
+              />
+              <Outlet
+                context={
+                  {
+                    snapshot: snapshot,
+                    refresh,
+                    refreshing: query.isFetching,
+                  } satisfies OperationsOutletContext
+                }
+              />
+              <details className="panel operations-snapshot-record">
+                <summary>Diagnostics: snapshot and live connection</summary>
+                <dl className="key-value-list">
+                  <div>
+                    <dt>Generation</dt>
+                    <dd>
+                      <code>{snapshot.cursor.generation}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Snapshot revision</dt>
+                    <dd>
+                      <code>{snapshot.cursor.revision}</code>
+                    </dd>
+                  </div>
+                </dl>
+                <div className={`live-status live-${connection}`} role="status">
+                  <span className="status-dot" aria-hidden="true" />
+                  Operations events: {connection}
+                  {resyncReason === undefined
+                    ? null
+                    : ` · REST resync after ${resyncReason.replaceAll("_", " ")}`}
+                </div>
+                {liveError === undefined ? null : (
+                  <div className="notice notice-warning" role="alert">
+                    <strong>{liveError}</strong>
+                    <p>Use Refresh to reload the snapshot.</p>
+                  </div>
+                )}
+                <p className="muted-copy">
+                  These are transport diagnostics. Runtime readiness and Run
+                  wait reasons are separate Server-owned facts. Refresh the
+                  snapshot if live updates are unavailable.
+                </p>
+              </details>
+            </>
+          )}
+        </QueryView>
       )}
     </section>
   );

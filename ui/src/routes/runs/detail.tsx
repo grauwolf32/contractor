@@ -33,6 +33,7 @@ import { RunRecoveryControl } from "./recovery";
 import { RunResumeControl } from "./resume";
 import { useLiveRunProjection } from "./live";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
+import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 
@@ -899,24 +900,24 @@ export function RunDetailRoute() {
           onRefresh={() => void query.refetch()}
         />
       </header>
-      {query.isPending ? (
-        <p className="loading-copy" aria-live="polite">
-          Loading Run…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice
-          error={query.error}
-          context="Could not load this Run"
-          onRetry={() => void query.refetch()}
-          retryPending={query.isFetching}
-        />
-      ) : (
-        <LoadedRunDetail
-          key={query.data.runId}
-          run={query.data}
-          snapshotVersion={query.dataUpdatedAt}
-        />
-      )}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" aria-live="polite">
+            Loading Run…
+          </p>
+        }
+        errorContext="Could not load this Run"
+        onRetry={() => void query.refetch()}
+      >
+        {(run) => (
+          <LoadedRunDetail
+            key={run.runId}
+            run={run}
+            snapshotVersion={query.dataUpdatedAt}
+          />
+        )}
+      </QueryView>
     </section>
   );
 }

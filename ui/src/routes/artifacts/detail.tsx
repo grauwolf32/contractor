@@ -29,6 +29,7 @@ import {
   formatBytes,
 } from "./common";
 import { ArtifactPreviewPanel } from "./preview";
+import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 
@@ -313,32 +314,32 @@ export function ArtifactDetailRoute() {
         />
       </header>
 
-      {query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading Artifact metadata…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice
-          error={query.error}
-          context="Could not load this Artifact"
-          onRetry={() => void query.refetch()}
-          retryPending={query.isFetching}
-        />
-      ) : (
-        <>
-          <ArtifactMetadataSummary metadata={query.data} />
-          <ArtifactActions
-            key={`actions-${query.data.artifact.revision}`}
-            metadata={query.data}
-          />
-          <ArtifactHistoryDisclosure>
-            <ArtifactHistory
-              key={`history-${query.data.artifact.revision}`}
-              metadata={query.data}
+      <QueryView
+        query={query}
+        loading={
+          <p className="loading-copy" role="status">
+            Loading Artifact metadata…
+          </p>
+        }
+        errorContext="Could not load this Artifact"
+        onRetry={() => void query.refetch()}
+      >
+        {(metadata) => (
+          <>
+            <ArtifactMetadataSummary metadata={metadata} />
+            <ArtifactActions
+              key={`actions-${metadata.artifact.revision}`}
+              metadata={metadata}
             />
-          </ArtifactHistoryDisclosure>
-        </>
-      )}
+            <ArtifactHistoryDisclosure>
+              <ArtifactHistory
+                key={`history-${metadata.artifact.revision}`}
+                metadata={metadata}
+              />
+            </ArtifactHistoryDisclosure>
+          </>
+        )}
+      </QueryView>
     </section>
   );
 }
