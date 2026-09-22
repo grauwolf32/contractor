@@ -1728,23 +1728,26 @@ async def _run_vacuum(
             "truncated": False,
         }
     serious = [
-        _issue_with_snippet(item, source_text)
+        item
         for item in parsed
         if isinstance(item, dict)
         and type(item.get("severity")) is int
         and item["severity"] in {0, 1}
     ]
-    serious.sort(key=lambda item: item.get("severity", 99))
+    serious.sort(key=lambda item: item["severity"])
     truncated = len(serious) > MAX_VALIDATION_ISSUES
+    source_lines = source_text.splitlines()
     return {
         "available": True,
         "executionError": None,
-        "issues": serious[:MAX_VALIDATION_ISSUES],
+        "issues": [
+            _issue_with_snippet(item, source_lines) for item in serious[:MAX_VALIDATION_ISSUES]
+        ],
         "truncated": truncated,
     }
 
 
-def _issue_with_snippet(issue: dict[str, Any], source_text: str) -> dict[str, Any]:
+def _issue_with_snippet(issue: dict[str, Any], lines: list[str]) -> dict[str, Any]:
     result = {key: copy.deepcopy(value) for key, value in issue.items() if key != "range"}
     result["snippet"] = ""
     coordinates = issue.get("range")
@@ -1758,7 +1761,6 @@ def _issue_with_snippet(issue: dict[str, Any], source_text: str) -> dict[str, An
     if not all(type(value) is int for value in values):
         return result
     start_line, start_char, end_line, end_char = values
-    lines = source_text.splitlines()
     if not (1 <= start_line <= end_line <= len(lines) and start_char >= 1 and end_char >= 1):
         return result
     if start_line == end_line:
