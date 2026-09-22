@@ -15,9 +15,9 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 	reservations, handles := prepared.reservations, prepared.handles
 	modelAccess, err := s.plannerModelAccess(ctx, workflow.stage)
 	if err != nil {
-		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
-			Code: "planner_execution_config_unavailable", Message: "Planner execution configuration is unavailable", Retryable: false,
-		})
+		return s.beginAbort(ctx, run, workflow, execution, reservations, s.credentialFailure(
+			run, execution, "planner_execution_config_unavailable", "Planner execution configuration is unavailable", err,
+		))
 	}
 	if modelAccess != nil && s.options.GatewayRecovery != nil {
 		route := plannerModelRoute(run.OwnerID, workflow.stage)
