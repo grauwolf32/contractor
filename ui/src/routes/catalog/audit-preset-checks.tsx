@@ -5,7 +5,7 @@ import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { ErrorNotice } from "../artifacts/common";
 
-function SourceLink({
+export function SourceLink({
   url,
   children,
 }: {

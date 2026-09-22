@@ -1055,6 +1055,39 @@ describe("Project Audit routes", () => {
     expect(selection).toHaveTextContent("v5.0.0-2.1.1");
   });
 
+  it("does not link a non-http standard source on the Audit baseline", async () => {
+    const current = auditAt("completed", 3);
+    current.baseline = top10Baseline(current);
+    current.baseline.standards[0]!.source.url = "javascript:alert(1)";
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(current, { headers: { ETag: '"3"' } });
+        }
+        if (path.endsWith("/coverage") || path.endsWith("/reviews"))
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+
+    await userEvent
+      .setup()
+      .click(await screen.findByText("Baseline and standards"));
+    const standards = await screen.findByTestId("audit-baseline-standards");
+    expect(within(standards).getByText("source")).toBeVisible();
+    expect(
+      within(standards).queryByRole("link", { name: "source" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders mixed coverage as assessments and refetches active Audits", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let auditReads = 0;
