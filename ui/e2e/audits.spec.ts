@@ -89,7 +89,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     },
     inventory: {
       implementation: "checklist@1",
-      sourceInput: "sources",
+      source: { source: "audit-input", name: "sources" },
       itemWorkflowRole: "check",
     },
     execution: {
@@ -140,7 +140,12 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     createdAt: "2026-09-06T10:00:00Z",
     updatedAt: "2026-09-06T10:00:00Z",
   };
-  let audit = { ...baseAudit, state: "draft", revision: 1 };
+  let audit: Record<string, unknown> = {
+    ...baseAudit,
+    state: "draft",
+    phase: "not-started",
+    revision: 1,
+  };
   const createRequests: Array<{
     headers: Record<string, string>;
     body: unknown;
@@ -218,6 +223,8 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
       audit = {
         ...audit,
         state: "active",
+        phase: "rounds",
+        currentRoundId: "round_browser",
         revision: 2,
         dispatchState: "open",
         holdState: "held",
@@ -377,13 +384,16 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   const taskAndResult = page.locator("details.audit-result-reading").filter({
     has: page.getByText("Inconclusive", { exact: true }),
   });
-  await taskAndResult.locator("summary").click();
+  await taskAndResult.locator(":scope > summary").click();
   await expect(taskAndResult.getByText("test evidence missing")).toBeVisible();
   await expect(
     taskAndResult.getByText(/Verify that a user can only read/u),
   ).toBeVisible();
+  // The conclusion appears as a summary excerpt and as the full body copy.
   await expect(
-    taskAndResult.getByText(/The service checks ownership/u),
+    taskAndResult.getByRole("paragraph").filter({
+      hasText: /The service checks ownership/u,
+    }),
   ).toBeVisible();
   // The former Checks tab lives inside the row: attempts, Run and identity.
   await expect(page.getByRole("link", { name: "Checks" })).toHaveCount(0);
@@ -397,8 +407,12 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     attempts.getByRole("link", { name: "run_browser" }),
   ).toHaveAttribute("href", "/runs/run_browser");
   await expect(attempts.getByText("Task package")).toBeVisible();
+  // The check key names both the Task package and the attempt identity.
   await expect(
-    attempts.getByText("check-authz", { exact: true }),
+    attempts.locator("code", { hasText: "check-authz" }),
+  ).toBeVisible();
+  await expect(
+    attempts.getByText("check-authz", { exact: true }).last(),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("audit-coverage-desktop.png"),
@@ -408,11 +422,15 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     .getByRole("searchbox", { name: "Search checks" })
     .fill("cross-account");
   await expect(page.getByText("Showing 1 of 1 checks")).toBeVisible();
-  await page
-    .locator("details.audit-result-reading")
-    .first()
-    .locator("summary")
-    .click();
+  // The row keeps its open state across the search; open it only if needed.
+  const firstReading = page.locator("details.audit-result-reading").first();
+  if (
+    !(await firstReading.evaluate(
+      (element: HTMLDetailsElement) => element.open,
+    ))
+  ) {
+    await firstReading.locator(":scope > summary").click();
+  }
   await expect(page.getByText(/compares the order owner/u)).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
@@ -540,6 +558,8 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
     scope: { objective: "Render exact program evidence." },
     runtimeLabels: [],
     state: "completed",
+    phase: "rounds",
+    currentRoundId: `${auditId}-round-1`,
     revision: 7,
     dispatchState: "closed",
     holdState: "held",
@@ -801,7 +821,7 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
   await expect(asvsStandards).toContainText("owasp-asvs@5.0.0");
   await expect(asvsStandards).toContainText("CC-BY-SA-4.0");
   const selected = page.getByTestId("audit-baseline-standard-selection");
-  await expect(selected).toContainText("5 exact requirements");
+  await expect(selected).toContainText("Level 1 · 5 requirements");
   await expect(selected).toContainText("v5.0.0-2.1.1");
   await page.getByRole("link", { name: "Coverage" }).click();
   await expect(page.locator(".audit-result-card")).toHaveCount(5);
@@ -888,6 +908,8 @@ for (const viewport of [
     let audit: Record<string, unknown> = {
       ...baseAudit,
       state: "waiting_review",
+      phase: "rounds",
+      currentRoundId: "round_review_browser",
       revision: 1,
     };
     const proposal = {

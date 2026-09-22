@@ -203,7 +203,9 @@ function safeCreateRunResponse(
     !RESOURCE_ID_PATTERN.test(response.runId) ||
     ![
       "initializing",
+      "pending",
       "running",
+      "waiting",
       "cancelling",
       "succeeded",
       "failed",

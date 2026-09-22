@@ -277,6 +277,8 @@ async function installFixture(
           scope: {},
           runtimeLabels: [],
           state: "failed",
+          phase: "rounds",
+          currentRoundId: "round-one",
           revision: 1,
           dispatchState: "closed",
           holdState: "released",

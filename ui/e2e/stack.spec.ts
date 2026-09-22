@@ -613,6 +613,8 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(page).toHaveURL(/label=eval.id%3Dui-stack-eval-01/);
   await expect(page).toHaveURL(/label=eval.leg%3Da/);
   await page.goto(`/runs/${streamlineRunID}`);
+  // Terminal Runs collapse the heavy attempts section by default.
+  await openDetails(page.locator("details#run-attempts"));
   const streamlineAttempt = stageAttempt(page, "copy");
   await expect(streamlineAttempt).toHaveCount(1);
   await openDetails(streamlineAttempt);
@@ -812,6 +814,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await openDetails(page.locator("details#run-attempts"));
   const validationAttempt = stageAttempt(page, "openapi_validate");
   await expect(validationAttempt).toHaveCount(1);
   await openDetails(validationAttempt);
