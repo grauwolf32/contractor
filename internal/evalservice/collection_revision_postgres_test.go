@@ -1,6 +1,7 @@
 package evalservice
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -60,5 +61,25 @@ func TestPostgresEvalUsageTicksKeepListCursors(t *testing.T) {
 	}
 	if _, err = store.List(t.Context(), evalstore.ListParams{OwnerID: h.scope.OwnerID, Limit: 1, Revision: &owned.Revision}); err != nil {
 		t.Fatal("usage tick invalidated owner list cursor", err)
+	}
+}
+
+func TestPostgresEvalSettleSurfacesTombstoneReadFailures(t *testing.T) {
+	h, e, claim, member := liveMember(t)
+	// A live execution without a tombstone drains; a failed tombstone read
+	// must abort instead of being committed as a drain.
+	if err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
+		return s.Settle(t.Context(), h.scope, e.ID, member, claim)
+	}); !errors.Is(err, evalstore.ErrDrain) {
+		t.Fatal("live execution did not drain", err)
+	}
+	if _, err := h.pool.Exec(t.Context(), `ALTER TABLE eval_execution_tombstones RENAME TO eval_execution_tombstones_unavailable`); err != nil {
+		t.Fatal(err)
+	}
+	err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
+		return s.Settle(t.Context(), h.scope, e.ID, member, claim)
+	})
+	if err == nil || errors.Is(err, evalstore.ErrDrain) {
+		t.Fatal("tombstone read failure was treated as drain", err)
 	}
 }
