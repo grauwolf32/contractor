@@ -23,6 +23,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
     dependency_versions_match,
 )
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
@@ -487,7 +488,7 @@ def _plan_mutation(
     if len(matches) != 1:
         raise TaintAnnotationError("taint_annotation_target_ambiguous")
     target = matches[0]
-    lines = source.splitlines(keepends=True)
+    lines = split_lines(source, keepends=True)
     if target.insertion_line < 1 or target.insertion_line > len(lines):
         raise TaintAnnotationError("taint_annotation_unavailable", retryable=True)
     source_line = _without_newline(lines[target.insertion_line - 1])
@@ -509,7 +510,7 @@ def _apply_plan(
     plan: _MutationPlan,
     request: _AnnotationRequest,
 ) -> tuple[str, dict[str, Any]]:
-    lines = source.splitlines(keepends=True)
+    lines = split_lines(source, keepends=True)
     insertion_index = plan.target.insertion_line - 1
     block = _annotation_block(lines, insertion_index, plan.indent, plan.marker)
     exact = next((index for index, value in block if value == plan.line), None)

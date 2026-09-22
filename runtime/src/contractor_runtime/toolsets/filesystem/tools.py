@@ -31,6 +31,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
     WorkspaceTextFile,
 )
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.worker.observations import (
     WorkspaceToolObservation,
@@ -278,7 +279,7 @@ class _FilesystemSession:
                     file.text[: MAX_GREP_BYTES // 4].encode("utf-8"), MAX_GREP_BYTES
                 )
                 incomplete = True
-            lines = visible_text.splitlines()
+            lines = split_lines(visible_text)
             while line_index < len(lines):
                 if time.monotonic() >= deadline or scanned_bytes >= MAX_GREP_BYTES:
                     stopped = True

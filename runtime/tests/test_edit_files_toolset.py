@@ -15,6 +15,7 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
@@ -95,6 +96,40 @@ def test_failed_edits_and_concurrent_updates_leave_no_partial_state(tmp_path: Pa
         content = await session.read_text("lf.txt")
         assert content.count("parallel-a") == 1
         assert content.count("parallel-b") == 1
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+def test_split_lines_matches_read_file_line_boundaries() -> None:
+    text = "a\x0cb\x0bc\x1cd\x85e\u2028f\u2029g\r\nh\ri\nj"
+    assert split_lines(text) == ["a\x0cb\x0bc\x1cd\x85e\u2028f\u2029g", "h", "i", "j"]
+    assert split_lines(text, keepends=True) == [
+        "a\x0cb\x0bc\x1cd\x85e\u2028f\u2029g\r\n",
+        "h\r",
+        "i\n",
+        "j",
+    ]
+    assert split_lines("") == []
+    assert split_lines("a\n\n") == ["a", ""]
+
+
+def test_line_edits_number_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        session, provider = await hydrated_workspace(tmp_path, "memory", "direct", "lines")
+        tools = await make_tools(
+            tmp_path,
+            session.writer_view(),
+            WorkerState(),
+            ["write_file", "insert_line", "replace_range"],
+        )
+        await tools["write_file"]("feed.txt", "a\x0cb\u2028c\nd\ne\n")
+        await tools["replace_range"]("feed.txt", 2, 2, "D")
+        assert await session.read_text("feed.txt") == "a\x0cb\u2028c\nD\ne\n"
+        await tools["insert_line"]("feed.txt", 2, "x")
+        assert await session.read_text("feed.txt") == "a\x0cb\u2028c\nx\nD\ne\n"
+        with pytest.raises(FilesystemToolError, match="workspace_line_invalid"):
+            await tools["replace_range"]("feed.txt", 5, 5, "y")
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
