@@ -1350,6 +1350,8 @@ descriptor to match the artifact's actual media type, digest and byte length. Re
 attempts leave report links, review decisions and Audit history unchanged.
 The machine-readable report remains `report.json`.
 
+The report covers the items of every Round, ordered by Round ordinal and then
+item ordinal, and each report item names its `roundId`.
 The report includes baseline/profile/standard versions, scope, coverage matrix,
 confirmed and proposed findings separately, unresolved questions, exclusions,
 incomplete evidence, human decisions, limits, and reproducible provenance. Any

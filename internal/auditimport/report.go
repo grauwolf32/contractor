@@ -75,6 +75,7 @@ type reportCoverageSummary struct {
 
 type reportItem struct {
 	ItemID           string                      `json:"itemId"`
+	RoundID          string                      `json:"roundId"`
 	ItemKey          string                      `json:"itemKey"`
 	Ordinal          int                         `json:"ordinal"`
 	Kind             string                      `json:"kind"`
@@ -172,15 +173,32 @@ func (i *Importer) Finalize(
 		baseline.Schema != auditbaseline.Schema || baseline.Inventory.Gaps == nil {
 		return false, fmt.Errorf("%w: report baseline snapshot is invalid", ErrPermanent)
 	}
+	rounds, err := i.store.ListRounds(ctx, snapshot.Audit.AuditID)
+	if err != nil {
+		return false, err
+	}
+	if len(rounds) == 0 || rounds[len(rounds)-1].RoundID != snapshot.Round.RoundID {
+		return false, fmt.Errorf("%w: report round barrier is incomplete", ErrPermanent)
+	}
 	items, err := i.store.ListItems(ctx, snapshot.Audit.AuditID)
 	if err != nil {
 		return false, err
 	}
-	coverage, err := i.allCoverage(ctx, snapshot.Audit.AuditID, snapshot.Round.RoundID)
-	if err != nil {
-		return false, err
+	// The report covers every Round: items and coverage rows of earlier Rounds
+	// stay part of the final Audit outcome.
+	roundOrdinals := make(map[string]int, len(rounds))
+	expectedItems := 0
+	coverage := make([]auditstore.CoverageRow, 0, len(items))
+	for _, round := range rounds {
+		roundOrdinals[round.RoundID] = round.Ordinal
+		expectedItems += round.ExpectedItemCount
+		rows, err := i.allCoverage(ctx, snapshot.Audit.AuditID, round.RoundID)
+		if err != nil {
+			return false, err
+		}
+		coverage = append(coverage, rows...)
 	}
-	if len(items) != snapshot.Round.ExpectedItemCount || len(coverage) != len(items) {
+	if len(items) != expectedItems || len(coverage) != len(items) {
 		return false, fmt.Errorf("%w: report coverage barrier is incomplete", ErrPermanent)
 	}
 	rowsByItem := make(map[string]auditstore.CoverageRow, len(coverage))
@@ -190,17 +208,23 @@ func (i *Importer) Finalize(
 	reportItems := make([]reportItem, len(items))
 	for index, item := range items {
 		row, exists := rowsByItem[item.ItemID]
-		if !exists || item.State != auditstore.ItemSettled || item.FinalDisposition == nil {
+		_, roundExists := roundOrdinals[item.RoundID]
+		if !exists || !roundExists || row.RoundID != item.RoundID ||
+			item.State != auditstore.ItemSettled || item.FinalDisposition == nil {
 			return false, fmt.Errorf("%w: report item barrier is incomplete", ErrPermanent)
 		}
 		reportItems[index] = reportItem{
-			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
+			ItemID: item.ItemID, RoundID: item.RoundID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
 			Kind: item.Kind, SubjectKey: item.SubjectKey,
 			FinalDisposition: *item.FinalDisposition, Coverage: row.Coverage,
 			Result: row.Result, Task: item.Task,
 		}
 	}
-	sort.Slice(reportItems, func(left, right int) bool {
+	sort.SliceStable(reportItems, func(left, right int) bool {
+		leftRound, rightRound := roundOrdinals[reportItems[left].RoundID], roundOrdinals[reportItems[right].RoundID]
+		if leftRound != rightRound {
+			return leftRound < rightRound
+		}
 		return reportItems[left].Ordinal < reportItems[right].Ordinal
 	})
 	attempts, err := i.store.CollectionDispositionCounts(ctx, snapshot.Audit.AuditID)

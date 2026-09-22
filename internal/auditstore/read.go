@@ -53,6 +53,29 @@ SELECT `+roundColumns+` FROM audit_rounds
 	return result, nil
 }
 
+// ListRounds returns every Round of one Audit in ordinal order.
+func (s *PostgresStore) ListRounds(ctx context.Context, auditID string) ([]Round, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT `+roundColumns+` FROM audit_rounds
+ WHERE audit_id = $1 ORDER BY ordinal`, auditID)
+	if err != nil {
+		return nil, fmt.Errorf("list Audit rounds: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Round, 0)
+	for rows.Next() {
+		round, scanErr := scanRound(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan Audit round: %w", scanErr)
+		}
+		result = append(result, round)
+	}
+	return result, rows.Err()
+}
+
 func (s *PostgresStore) ListItems(ctx context.Context, auditID string) ([]Item, error) {
 	return s.listItems(ctx, auditID, 0)
 }
