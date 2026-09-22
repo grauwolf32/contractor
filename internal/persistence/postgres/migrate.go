@@ -39,7 +39,16 @@ type migration struct {
 // ApplyMigrations serializes migrators with a transaction advisory lock,
 // verifies recorded checksums, and applies every pending embedded migration.
 func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
-	ctx, cancel := WithMigrationBudget(ctx)
+	return ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{})
+}
+
+// ApplyMigrationsWithBudgets is ApplyMigrations with operator-selected
+// statement and lock timeouts; zero fields keep the defaults.
+func ApplyMigrationsWithBudgets(ctx context.Context, pool *pgxpool.Pool, budgets MigrationBudgets) (MigrationResult, error) {
+	ctx, cancel, err := WithMigrationBudgets(ctx, budgets)
+	if err != nil {
+		return MigrationResult{}, err
+	}
 	defer cancel()
 	available, err := loadMigrations()
 	if err != nil {

@@ -126,7 +126,8 @@ contractor server auth hash-password
 ```
 
 Server flags and `CONTRACTOR_DATABASE_URL` behave the same as with
-`cmd/contractor-server`.
+`cmd/contractor-server`. `migrate` also accepts `--statement-timeout` and
+`--lock-timeout`; see [migration timeouts](../deployment.md#start-and-verify).
 
 Create the configuration, login and certificates using the
 [deployment guide](../deployment.md) before starting Server.

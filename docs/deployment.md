@@ -165,8 +165,15 @@ contractor server run --config .local/server.yaml
 ```
 
 The DSN above assumes a local database; configure PostgreSQL TLS for a remote
-database. Migrations are forward-only. Keep Server running while starting a
-Runtime in another terminal:
+database. Migrations are forward-only and run in one transaction. Each
+statement is limited to 120 seconds and each lock wait to 10 seconds by
+default; for a large upgrade raise them with `--statement-timeout` and
+`--lock-timeout` (or `CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and
+`CONTRACTOR_MIGRATE_LOCK_TIMEOUT`, which the flags override). The lock timeout
+must be shorter than the statement timeout, and the whole run is allowed at
+least 15 minutes or the statement timeout plus about 5 minutes. These settings
+apply only to `migrate`, not to ServerConfig database budgets. Keep Server
+running while starting a Runtime in another terminal:
 
 ```shell
 runtime/.venv/bin/contractor-runtime \
