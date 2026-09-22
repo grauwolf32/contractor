@@ -1,10 +1,30 @@
 package app
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"os"
 )
+
+// errHelpShown reports that -h or --help printed usage; RunCLI exits with success.
+var errHelpShown = errors.New("help shown")
+
+// commandUsageOutput receives usage printed for -h or --help.
+var commandUsageOutput io.Writer = os.Stderr
+
+// parseCommandFlags parses a flag set whose output is discarded, printing its
+// usage only when help is requested so parse errors are reported once.
+func parseCommandFlags(flags *flag.FlagSet, args []string) error {
+	err := flags.Parse(args)
+	if errors.Is(err, flag.ErrHelp) {
+		flags.SetOutput(commandUsageOutput)
+		flags.Usage()
+		return errHelpShown
+	}
+	return err
+}
 
 func (c *serveConfigInputs) parseFlags(args []string) error {
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
@@ -73,7 +93,7 @@ func (c *serveConfigInputs) parseFlags(args []string) error {
 	flags.StringVar(&c.privateKeyFile, "private-key-file", c.privateKeyFile, "Control Plane private key")
 	flags.DurationVar(&c.plannerTimeout, "planner-timeout", c.plannerTimeout, "maximum Stage preparation and Planner wall time")
 	flags.StringVar(&c.developmentLLMGateway, "development-llm-gateway", c.developmentLLMGateway, "exact LLM Gateway selector for development token bindings")
-	if err := flags.Parse(args); err != nil {
+	if err := parseCommandFlags(flags, args); err != nil {
 		return fmt.Errorf("parse serve flags: %w", err)
 	}
 	if flags.NArg() != 0 {

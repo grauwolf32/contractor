@@ -43,7 +43,7 @@ func parseMigrationDatabaseURL(args []string, getenv func(string) string) (strin
 	flags := flag.NewFlagSet("contractor-server migrate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&databaseURL, "database-url", databaseURL, "PostgreSQL connection URL")
-	if err := flags.Parse(args); err != nil {
+	if err := parseCommandFlags(flags, args); err != nil {
 		return "", fmt.Errorf("parse migrate flags: %w", err)
 	}
 	if flags.NArg() != 0 {

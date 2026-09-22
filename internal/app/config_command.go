@@ -18,7 +18,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	flags := flag.NewFlagSet("contractor-server config validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&root, "root", root, "configuration root")
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := parseCommandFlags(flags, args[1:]); err != nil {
 		return fmt.Errorf("parse config validate flags: %w", err)
 	}
 	if flags.NArg() != 0 {
