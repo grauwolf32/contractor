@@ -837,6 +837,155 @@ SELECT run_event_generation, next_run_event_sequence - 1
 	return generation, uint64(sequence)
 }
 
+func TestPostgresAuditTrustedTransitionsApplyGateAndEvents(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool := isolatedAuditPool(t, ctx, databaseURL)
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-trusted", OwnerID: "owner-trusted", Kind: projectstore.KindProject,
+		Name: "Trusted transitions", IdempotencyKey: "project-trusted", RequestDigest: testDigest("1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgresStore(pool)
+	audit, _, err := store.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-trusted", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile:         ProfileIdentity{Name: "profile", Version: "1", Digest: testDigest("2")},
+		ProfileSnapshot: json.RawMessage(`{"name":"profile"}`),
+		InputSelection:  json.RawMessage(`{"inputs":{}}`),
+		Limits: Limits{
+			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2,
+			MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
+		},
+		IdempotencyKey: "audit-trusted", RequestDigest: testDigest("3"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := make([]MaterializedItem, 0, 2)
+	for index, key := range []string{"review-one", "review-two"} {
+		items = append(items, MaterializedItem{
+			ItemID: "item-" + key, ItemKey: key, Ordinal: index, Kind: "checklist", SubjectKey: key,
+			Task: testExact("audits", "task-"+key, "r1"), Origin: testOrigin(key), WorkflowRole: "check",
+			InitialState: ItemAwaitingReview, ApprovalKind: ItemApprovalActiveCheck,
+			ApprovalDigest: testDigest(strconv.Itoa(5 + index)), Coverage: emptyCoverage(),
+		})
+	}
+	audit, _, err = store.MaterializeRound(ctx, MaterializeRoundParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		RoundID: "round-trusted", RoundOrdinal: 1, Manifest: testExact("audits", "round-trusted", "r1"),
+		BaselineSnapshot: json.RawMessage(`{"inputs":{},"skills":[]}`),
+		DeadlineAt:       time.Now().Add(time.Hour), Items: items,
+		IdempotencyKey: "start-trusted", RequestDigest: testDigest("4"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionTrusted(ctx, TrustedTransitionParams{
+		AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		ExpectedState: AuditCompleted, TargetState: AuditActive,
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("disallowed trusted transition error = %v", err)
+	}
+	claims, err := store.Claim(ctx, ClaimParams{HolderID: "controller-trusted", Lease: 20 * time.Second, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim Audit = (%+v, %v)", claims, err)
+	}
+	waiting, err := store.TransitionClaimed(ctx, ClaimedTransitionParams{
+		Claim: claims[0], ExpectedRevision: audit.Revision,
+		ExpectedState: AuditActive, TargetState: AuditWaitingReview,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReleaseClaim(ctx, claims[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, changed, err := store.ActivateAfterItemReview(ctx, audit.AuditID, waiting.Revision); err != nil || changed {
+		t.Fatalf("activation with only reviews left = (%t, %v)", changed, err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE audit_items SET state = 'ready' WHERE audit_id = $1 AND item_key = 'review-one'`, audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
+	active, changed, err := store.ActivateAfterItemReview(ctx, audit.AuditID, waiting.Revision)
+	if err != nil || !changed || active.State != AuditActive || active.Revision != waiting.Revision+1 {
+		t.Fatalf("activation with an approved item = (%+v, %t, %v)", active, changed, err)
+	}
+	var events int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_events
+ WHERE audit_id = $1 AND kind = 'audit.state_changed' AND entity_revision = $2
+   AND summary = '{"from": "waiting_review", "to": "active"}'::jsonb`,
+		audit.AuditID, int64(active.Revision)).Scan(&events); err != nil || events != 1 {
+		t.Fatalf("trusted transition events = (%d, %v)", events, err)
+	}
+	if _, err := store.TransitionTrusted(ctx, TrustedTransitionParams{
+		AuditID: audit.AuditID, ExpectedRevision: waiting.Revision,
+		ExpectedState: AuditWaitingReview, TargetState: AuditActive,
+	}); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("stale trusted transition error = %v", err)
+	}
+
+	paused, _, err := store.Transition(ctx, TransitionParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID,
+		ExpectedRevision: active.Revision, ExpectedState: AuditActive, TargetState: AuditPaused,
+		Reason:         &StopReason{Code: "owner_paused", Message: "paused by test"},
+		IdempotencyKey: "pause-trusted", RequestDigest: testDigest("7"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Hour).UTC().Round(time.Microsecond)
+	resume := ResumeParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: paused.Revision,
+		DeadlineAt: &deadline, IdempotencyKey: "resume-trusted", RequestDigest: testDigest("8"),
+	}
+	resumed, inserted, err := store.Resume(ctx, resume)
+	if err != nil || !inserted || resumed.State != AuditActive || resumed.Dispatch != DispatchOpen ||
+		resumed.Hold != HoldHeld || resumed.StopReason != nil || resumed.PausedAt != nil ||
+		resumed.DeadlineAt == nil || !resumed.DeadlineAt.Equal(deadline) ||
+		resumed.Revision != paused.Revision+1 {
+		t.Fatalf("resume = (%+v, %t, %v)", resumed, inserted, err)
+	}
+	if replay, inserted, err := store.Resume(ctx, resume); err != nil || inserted || replay.Revision != resumed.Revision {
+		t.Fatalf("resume replay = (%+v, %t, %v)", replay, inserted, err)
+	}
+	var previousCode string
+	if err := pool.QueryRow(ctx, `
+SELECT summary->'previousStopReason'->>'Code' FROM audit_events
+ WHERE audit_id = $1 AND kind = 'audit.resumed' AND entity_revision = $2`,
+		audit.AuditID, int64(resumed.Revision)).Scan(&previousCode); err != nil || previousCode != "owner_paused" {
+		t.Fatalf("resume event previous stop reason = (%q, %v)", previousCode, err)
+	}
+
+	pausedAgain, _, err := store.Transition(ctx, TransitionParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID,
+		ExpectedRevision: resumed.Revision, ExpectedState: AuditActive, TargetState: AuditPaused,
+		IdempotencyKey: "pause-trusted-again", RequestDigest: testDigest("9"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Resume(ctx, ResumeParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: pausedAgain.Revision,
+		IdempotencyKey: "resume-deleting", RequestDigest: testDigest("e"),
+	}); !errors.Is(err, ErrProjectDeleting) {
+		t.Fatalf("resume in a deleting Project error = %v", err)
+	}
+}
+
 func isolatedAuditPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {
 	t.Helper()
 	adminConfig, err := pgxpool.ParseConfig(databaseURL)

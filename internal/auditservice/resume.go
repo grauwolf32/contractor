@@ -2,7 +2,6 @@ package auditservice
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -85,19 +84,11 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 	if err := renewExpiredItemReviews(ctx, tx, audit, deadline, now); err != nil {
 		return MutationResult{}, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE audits SET state='active', dispatch_state='open', hold_state='held', deadline_at=$2, paused_at=NULL, finished_at=NULL, stop_reason_code=NULL, stop_reason_message=NULL, revision=revision+1, next_event_sequence=next_event_sequence+1, updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond') WHERE audit_id=$1`, audit.AuditID, deadline); err != nil {
-		return MutationResult{}, err
-	}
-	summary, _ := json.Marshal(map[string]any{"from": audit.State, "to": "active", "previousStopReason": audit.StopReason, "deadlineAt": deadline})
-	if _, err := tx.Exec(ctx, `INSERT INTO audit_events(audit_id,sequence_number,kind,entity_id,entity_revision,summary) SELECT audit_id,next_event_sequence-1,'audit.resumed',audit_id,revision,$2::jsonb FROM audits WHERE audit_id=$1`, audit.AuditID, summary); err != nil {
-		return MutationResult{}, err
-	}
-	response, _ := json.Marshal(map[string]string{"auditId": audit.AuditID})
-	if _, err := tx.Exec(ctx, `INSERT INTO audit_idempotency(owner_id,operation,idempotency_key,request_digest,audit_id,resource_id,response_snapshot) VALUES($1,'audit.transition',$2,$3,$4,$4,$5::jsonb)`, params.OwnerID, params.IdempotencyKey, params.RequestDigest, audit.AuditID, response); err != nil {
-		return MutationResult{}, err
-	}
-	updated, err := store.Get(ctx, params.OwnerID, audit.AuditID)
-	return MutationResult{Audit: updated}, err
+	resumed, inserted, err := store.Resume(ctx, auditstore.ResumeParams{
+		OwnerID: params.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		DeadlineAt: deadline, IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
+	})
+	return MutationResult{Audit: resumed, Replayed: !inserted}, err
 }
 
 func resumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.Time, error) {

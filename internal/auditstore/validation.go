@@ -258,6 +258,20 @@ func validateTransition(params TransitionParams) error {
 	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
 }
 
+func validateResume(params ResumeParams) error {
+	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
+		return err
+	}
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 ||
+		!transitionAllowed(AuditPaused, AuditActive) || !ownerTransitionAllowed(AuditPaused, AuditActive) {
+		return invalidf("Audit resume is invalid")
+	}
+	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
+}
+
 func ownerTransitionAllowed(from, to AuditState) bool {
 	if to == AuditPaused {
 		return from == AuditActive || from == AuditWaitingReview

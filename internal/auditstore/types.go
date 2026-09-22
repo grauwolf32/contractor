@@ -316,6 +316,17 @@ type TransitionParams struct {
 	RequestDigest    string
 }
 
+// ResumeParams resumes a paused Audit under a fresh dispatch hold. A nil
+// DeadlineAt resumes without a time limit.
+type ResumeParams struct {
+	OwnerID          string
+	AuditID          string
+	ExpectedRevision uint64
+	DeadlineAt       *time.Time
+	IdempotencyKey   string
+	RequestDigest    string
+}
+
 type DeleteParams struct {
 	OwnerID          string
 	AuditID          string
