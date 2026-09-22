@@ -345,6 +345,7 @@ class ParseResult:
     symbols: tuple[SymbolRecord, ...]
     parse_error: bool
     symbol_limit_reached: bool
+    long_names_skipped: bool = False
 
 
 def detect_language(path: str) -> Language | None:
@@ -383,6 +384,7 @@ def parse_symbols(
     stack: list[Node] = [root]
     symbols: list[SymbolRecord] = []
     symbol_limit_reached = False
+    long_names_skipped = False
     while stack:
         current = stack.pop()
         spec = spec_map.get(current.type)
@@ -390,7 +392,7 @@ def parse_symbols(
             name = _extract_name(current, source, spec.name_field)
             if name:
                 if len(name) > MAX_SYMBOL_NAME_CHARS:
-                    symbol_limit_reached = True
+                    long_names_skipped = True
                 elif len(symbols) >= max_symbols:
                     symbol_limit_reached = True
                     break
@@ -410,7 +412,7 @@ def parse_symbols(
                     )
         for index in range(current.child_count - 1, -1, -1):
             stack.append(current.children[index])
-    return ParseResult(tuple(symbols), root.has_error, symbol_limit_reached)
+    return ParseResult(tuple(symbols), root.has_error, symbol_limit_reached, long_names_skipped)
 
 
 def extract_node_name(node: Node, source: bytes, preferred_field: str = "") -> str | None:

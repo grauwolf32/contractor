@@ -362,6 +362,24 @@ def test_coverage_reports_binary_unsupported_oversized_and_parse_errors(
     asyncio.run(scenario())
 
 
+def test_overlong_symbol_names_are_skipped_without_stopping_the_scan(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        long_name = "x" * 300
+        reader = MutableReader(
+            {
+                "a.py": f"def {long_name}(): pass\ndef kept(): pass\n",
+                "b.py": "def later(): pass\n",
+            }
+        )
+        tools, _ = await _tools(reader, tmp_path)
+        for _ in range(2):
+            listed = await tools["list_symbols"]()
+            assert sorted(item["name"] for item in listed["items"]) == ["kept", "later"]
+            assert listed["coverage"]["reasons"] == ["symbol_name_limit"]
+
+    asyncio.run(scenario())
+
+
 def test_file_byte_symbol_and_result_limits_are_explicit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

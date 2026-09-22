@@ -235,6 +235,7 @@ class _Cursor:
 class _CachedFile:
     symbols: tuple[SymbolRecord, ...]
     parse_error: bool
+    long_names_skipped: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -941,6 +942,8 @@ class _CodeAnalysisSession:
             coverage.parse_errors += int(parsed.parse_error)
             if parsed.parse_error:
                 coverage.reasons.add("parse_errors")
+            if parsed.long_names_skipped:
+                coverage.reasons.add("symbol_name_limit")
             admitted = parsed.symbols[:remaining]
             symbols.extend(admitted)
             seen_symbols += len(admitted)
@@ -963,7 +966,9 @@ class _CodeAnalysisSession:
         cached = self._file_cache.get(item.path)
         if cached is not None:
             return (
-                language_support.ParseResult(cached.symbols, cached.parse_error, False),
+                language_support.ParseResult(
+                    cached.symbols, cached.parse_error, False, cached.long_names_skipped
+                ),
                 True,
             )
         try:
@@ -989,7 +994,9 @@ class _CodeAnalysisSession:
             and len(self._file_cache) < MAX_COMPACT_CACHE_FILES
             and self._cached_symbols + len(parsed.symbols) <= MAX_COMPACT_SYMBOLS
         ):
-            self._file_cache[item.path] = _CachedFile(parsed.symbols, parsed.parse_error)
+            self._file_cache[item.path] = _CachedFile(
+                parsed.symbols, parsed.parse_error, parsed.long_names_skipped
+            )
             self._cached_symbols += len(parsed.symbols)
         return parsed, False
 
