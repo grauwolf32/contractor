@@ -174,6 +174,75 @@ func TestPostgresControllerBatchBuildsOnePinnedRunForTwoItems(t *testing.T) {
 	}
 }
 
+func TestPostgresControllerDispatchesReadyItemsBehindReviewWindow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, auditstore.MaxReconcileRows+5, 2)
+	controller := harness.controller(t)
+	for step := 0; step < 2; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("reconcile step=%d worked=%t error=%v", step, worked, err)
+		}
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) == 0 || executions[0].RunID == nil {
+		t.Fatalf("ready items behind the review window were not dispatched: (%+v, %v)", executions, err)
+	}
+	members, err := harness.audits.ListExecutionItems(ctx, executions[0].ExecutionID)
+	if err != nil || len(members) != 1 {
+		t.Fatalf("dispatched members = (%+v, %v)", members, err)
+	}
+	items, err := harness.audits.ListItems(ctx, harness.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.ItemID == members[0].ItemID && item.ItemKey != "check-0" {
+			t.Fatalf("dispatched item %q, want the first automatic item", item.ItemKey)
+		}
+	}
+	claims, err := harness.audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "window-inspector", Lease: 5 * time.Second, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim for snapshot inspection = (%+v, %v)", claims, err)
+	}
+	snapshot, err := harness.audits.GetReconcileSnapshot(ctx, claims[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.audits.ReleaseClaim(ctx, claims[0]); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Audit.State != auditstore.AuditActive || snapshot.OnlyAwaitingReview || !snapshot.MoreItems {
+		t.Fatalf("snapshot state=%q onlyAwaitingReview=%t moreItems=%t",
+			snapshot.Audit.State, snapshot.OnlyAwaitingReview, snapshot.MoreItems)
+	}
+	found := false
+	for _, item := range snapshot.Items {
+		found = found || item.ItemID == members[0].ItemID
+	}
+	if !found {
+		t.Fatalf("in-flight item %q is outside the bounded reconcile window", members[0].ItemID)
+	}
+}
+
+func TestPostgresControllerWaitsForReviewBeyondReconcileWindow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, auditstore.MaxReconcileRows+5, 0)
+	controller := harness.controller(t)
+	for step := 0; step < 4; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatalf("reconcile step=%d error=%v", step, err)
+		}
+	}
+	audit, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("Audit with only reviews beyond the window = (%q, %v), want waiting_review", audit.State, err)
+	}
+}
+
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -734,12 +803,21 @@ func newPostgresControllerHarness(
 	t *testing.T, ctx context.Context, itemCount int, batchSizes ...int,
 ) *postgresControllerHarness {
 	t.Helper()
+	return newPostgresControllerReviewHarness(t, ctx, 0, itemCount, batchSizes...)
+}
+
+// newPostgresControllerReviewHarness materializes manualCount manual-review
+// checklist items ordered before itemCount automatic ones.
+func newPostgresControllerReviewHarness(
+	t *testing.T, ctx context.Context, manualCount, itemCount int, batchSizes ...int,
+) *postgresControllerHarness {
+	t.Helper()
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	snapshot := loadControllerConfig(t, batchSizes...)
+	snapshot := loadControllerConfigWithItemLimit(t, max(10, manualCount+itemCount), batchSizes...)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
@@ -755,15 +833,21 @@ func newPostgresControllerHarness(
 		t.Fatal(err)
 	}
 	checklist := `{"schema":"contractor.audit.checklist.v1","items":[`
+	entries := make([]string, 0, manualCount+itemCount)
+	for index := range manualCount {
+		// Inventory orders items by key, so these precede every automatic check.
+		entries = append(entries, fmt.Sprintf(
+			`{"key":"approval-%04d","version":"1","statement":"Review check %d.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"manual"}`,
+			index, index,
+		))
+	}
 	for index := range itemCount {
-		if index > 0 {
-			checklist += ","
-		}
-		checklist += fmt.Sprintf(
+		entries = append(entries, fmt.Sprintf(
 			`{"key":"check-%d","version":"1","statement":"Verify check %d.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}`,
 			index, index,
-		)
+		))
 	}
+	checklist += strings.Join(entries, ",")
 	checklist += `]}`
 	input, err := projectArtifacts.Write(
 		ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "checklist"},
@@ -951,6 +1035,11 @@ func (controllerRuntimeCredentials) ValidateRuntimeCredential(context.Context, s
 
 func loadControllerConfig(t *testing.T, batchSizes ...int) *config.Snapshot {
 	t.Helper()
+	return loadControllerConfigWithItemLimit(t, 10, batchSizes...)
+}
+
+func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ...int) *config.Snapshot {
+	t.Helper()
 	batchSize := 1
 	if len(batchSizes) > 0 {
 		batchSize = batchSizes[0]
@@ -1039,9 +1128,9 @@ spec:
     roundMode: fixed-barrier
     maxRounds: 1
     batchSize: %d
-    maxItemsPerRound: 10
-    maxItemsTotal: 10
-    maxSubmittedRuns: 20
+    maxItemsPerRound: %d
+    maxItemsTotal: %d
+    maxSubmittedRuns: %d
     maxItemRunAttempts: 2
     deadlineSeconds: 3600
     maxEvidenceBytes: 1048576
@@ -1051,7 +1140,7 @@ spec:
     findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic
-`, batchSize),
+`, batchSize, maxItems, maxItems, 2*maxItems),
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

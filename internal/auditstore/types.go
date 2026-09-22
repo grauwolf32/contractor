@@ -813,9 +813,15 @@ type ReconcileSnapshot struct {
 	RoleExecutions []Execution
 	Receipts       []CollectionReceiptSummary
 	RoleReceipts   []CollectionReceiptSummary
+	// ReadyItems are the current Round's dispatchable items, read directly so
+	// that items awaiting review ahead of them cannot starve dispatch.
+	ReadyItems     []Item
 	MoreItems      bool
 	MoreExecutions bool
 	MoreReceipts   bool
+	// OnlyAwaitingReview is counted over every non-settled item, independent
+	// of the bounded Items window.
+	OnlyAwaitingReview bool
 }
 
 // OwnerRepository never accepts an untrusted owner in stored payloads.

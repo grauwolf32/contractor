@@ -621,10 +621,25 @@ func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim audi
 		return auditstore.ReconcileSnapshot{}, auditstore.ErrClaimLost
 	}
 	round := s.round
+	var ready []auditstore.Item
+	unsettled, awaiting := 0, 0
+	for _, item := range s.items {
+		if item.State == auditstore.ItemReady && item.RoundID == round.RoundID {
+			ready = append(ready, item)
+		}
+		if item.State != auditstore.ItemSettled {
+			unsettled++
+		}
+		if item.State == auditstore.ItemAwaitingReview {
+			awaiting++
+		}
+	}
 	return auditstore.ReconcileSnapshot{
 		Audit: s.audit, Round: &round,
-		Items:      append([]auditstore.Item(nil), s.items...),
-		Executions: append([]auditstore.Execution(nil), s.executions...),
+		Items:              append([]auditstore.Item(nil), s.items...),
+		Executions:         append([]auditstore.Execution(nil), s.executions...),
+		ReadyItems:         ready,
+		OnlyAwaitingReview: unsettled != 0 && unsettled == awaiting,
 	}, nil
 }
 
