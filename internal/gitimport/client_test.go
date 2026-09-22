@@ -265,7 +265,7 @@ func TestSnapshotContentAndDeterminism(t *testing.T) {
 		data       []byte
 		want       error
 	}{
-		{"120000", "link", []byte("target"), ErrContent}, {"160000", "module", nil, ErrContent}, {"100644", "../escape", nil, ErrContent}, {"100644", "C:drive", nil, ErrContent}, {"100644", ".git", nil, ErrContent}, {"100644", strings.Repeat("x", 513), nil, ErrBudget}, {"100644", "large", make([]byte, maxFileBytes+1), ErrBudget}, {"100644", "lfs", []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n"), ErrContent},
+		{"120000", "link", []byte("target"), ErrContent}, {"160000", "module", nil, ErrContent}, {"100644", "../escape", nil, ErrContent}, {"100644", "C:drive", nil, ErrContent}, {"100644", ".git", nil, ErrContent}, {"100644", strings.Repeat("x", 513), nil, ErrBudget}, {"100644", "large", make([]byte, MaxFileBytes+1), ErrBudget}, {"100644", "lfs", []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n"), ErrContent},
 	} {
 		t.Run(fmt.Sprintf("%s-%s", tc.mode, tc.name[:min(len(tc.name), 20)]), func(t *testing.T) {
 			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
@@ -282,8 +282,8 @@ func TestSnapshotEntryAndExpandedLimits(t *testing.T) {
 		count int
 		size  int
 	}{
-		{"entries", maxEntries + 1, 0},
-		{"expanded", MaxArchiveBytes/maxFileBytes + 1, maxFileBytes},
+		{"entries", MaxEntries + 1, 0},
+		{"expanded", MaxArchiveBytes/MaxFileBytes + 1, MaxFileBytes},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			blob := &gitObject{kind: plumbing.BlobObject, data: make([]byte, tc.size)}

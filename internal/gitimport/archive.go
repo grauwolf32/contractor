@@ -13,9 +13,9 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-const maxEntries = 10000
-const maxFileBytes = 4 << 20
-const maxPathBytes = 512
+const MaxEntries = 10000
+const MaxFileBytes = 4 << 20
+const MaxPathBytes = 512
 
 type sourceFile struct {
 	name string
@@ -63,7 +63,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				return err
 			}
 			entries++
-			if entries > maxEntries {
+			if entries > MaxEntries {
 				return ErrBudget
 			}
 			mode, tail, ok := bytes.Cut(data, []byte{' '})
@@ -82,7 +82,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				return ErrContent
 			}
 			path := prefix + component
-			if len(path) > maxPathBytes {
+			if len(path) > MaxPathBytes {
 				return ErrBudget
 			}
 			if seen[path] {
@@ -99,7 +99,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 				if blob == nil || blob.kind != plumbing.BlobObject {
 					return ErrContent
 				}
-				if len(blob.data) > maxFileBytes || len(blob.data) > MaxArchiveBytes-total {
+				if len(blob.data) > MaxFileBytes || len(blob.data) > MaxArchiveBytes-total {
 					return ErrBudget
 				}
 				if bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\n")) || bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\r\n")) {
