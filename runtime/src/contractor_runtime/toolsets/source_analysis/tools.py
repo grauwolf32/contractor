@@ -386,6 +386,9 @@ class _SourceArchiveSession:
             scanned_bytes += source.size
             scanned_files += 1
             for line_number, line in enumerate(content.splitlines(), start=1):
+                if time.monotonic() >= deadline:
+                    truncated = True
+                    break
                 try:
                     found = (
                         compiled.search(line, timeout=REGEX_LINE_TIMEOUT_SECONDS) is not None

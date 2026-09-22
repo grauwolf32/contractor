@@ -7,9 +7,11 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import contractor_runtime.toolsets.source_analysis.tools as source_tools_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
@@ -191,6 +193,28 @@ def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
             await tools["read_source"]("main.py", start_line=9)
         with pytest.raises(ValueError, match="normalized and relative"):
             await tools["read_source"]("main.py/")
+
+    asyncio.run(scenario())
+
+
+def test_search_deadline_is_checked_between_lines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"big.py": "hit\n" * 50}))
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        session = tools["search_source"]._session
+        ticks = iter([0.0, 0.0, 0.0])
+        monkeypatch.setattr(
+            source_tools_module,
+            "time",
+            SimpleNamespace(monotonic=lambda: next(ticks, 1e9)),
+        )
+        result = session._search_files(tuple(session._files.values()), "hit", False, False, 100)
+        assert len(result["matches"]) == 1
+        assert result["truncated"]
 
     asyncio.run(scenario())
 
