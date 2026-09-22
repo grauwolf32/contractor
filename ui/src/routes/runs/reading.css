@@ -87,6 +87,14 @@
   .compact-run-history tr {
     gap: 0.4rem 0.6rem;
   }
+  /* Route CSS loads after the global sheet since routes became lazy; keep the
+     mobile card layout's zero cell padding from styles.css winning here. */
+  .compact-run-history td {
+    padding-block: 0;
+  }
+  .compact-run-history .run-list-finished-cell {
+    padding-top: 0.15rem;
+  }
   .compact-run-history.run-list-table:has(.run-list-actions-cell)
     .run-list-workflow-cell {
     grid-column: 1;
