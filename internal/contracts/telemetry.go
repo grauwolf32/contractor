@@ -431,3 +431,61 @@ func (r RuntimeReport) validateAdapters() error {
 	}
 	return nil
 }
+
+var runtimeAdapterErrorCodes = map[string]struct{}{
+	"close_failed": {}, "delivery_failed": {}, "flush_failed": {},
+	"flush_timeout": {}, "queue_overflow": {}, "request_failed": {},
+}
+
+type RuntimeAdapterMetrics struct {
+	Operations       uint64             `json:"operations"`
+	FailedOperations uint64             `json:"failedOperations"`
+	FlushAttempted   *bool              `json:"flushAttempted,omitempty"`
+	FlushSucceeded   *bool              `json:"flushSucceeded,omitempty"`
+	LastErrorCode    *string            `json:"lastErrorCode,omitempty"`
+	DroppedSpans     *DroppedSpanCounts `json:"droppedSpans,omitempty"`
+}
+
+func (m RuntimeAdapterMetrics) Validate() error {
+	if m.FailedOperations > m.Operations {
+		return invalidf("Runtime adapter failures exceed operations")
+	}
+	if (m.FlushAttempted == nil) != (m.FlushSucceeded == nil) {
+		return invalidf("Runtime adapter flush fields must be present together")
+	}
+	if m.FlushAttempted != nil && !*m.FlushAttempted && *m.FlushSucceeded {
+		return invalidf("Runtime adapter flush cannot succeed when not attempted")
+	}
+	if m.LastErrorCode != nil {
+		if _, allowed := runtimeAdapterErrorCodes[*m.LastErrorCode]; !allowed {
+			return invalidf("Runtime adapter lastErrorCode is invalid")
+		}
+	}
+	return nil
+}
+
+func (r RuntimeReport) Validate() error {
+	if r.Resources != nil {
+		if err := r.Resources.Validate(); err != nil {
+			return err
+		}
+	}
+	if r.DurationMS != nil && *r.DurationMS < 0 {
+		return invalidf("runtime duration must be non-negative")
+	}
+	if r.StopReason != nil && strings.TrimSpace(*r.StopReason) == "" {
+		return invalidf("runtime stopReason must not be empty")
+	}
+	if r.Adapters == nil || len(r.Adapters) > 64 {
+		return invalidf("runtime adapter metrics map is invalid")
+	}
+	for ref, metrics := range r.Adapters {
+		if err := ref.Validate(); err != nil {
+			return err
+		}
+		if err := metrics.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
