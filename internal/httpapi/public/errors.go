@@ -178,3 +178,43 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
 }
+
+var errInvalidRequest = errors.New("invalid public API request")
+
+type errorResponse struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+	RequestID string `json:"requestId"`
+	Details   any    `json:"details,omitempty"`
+}
+
+type runtimeCredentialInUseDetailsResponse struct {
+	Kind          string   `json:"kind"`
+	BindingLabels []string `json:"bindingLabels"`
+	ProjectIDs    []string `json:"projectIds"`
+	RunIDs        []string `json:"runIds"`
+	AuditIDs      []string `json:"auditIds,omitempty"`
+	AllocationIDs []string `json:"allocationIds"`
+}
+
+type runtimeLabelInUseDetailsResponse struct {
+	Kind            string   `json:"kind"`
+	RuntimeAgentIDs []string `json:"runtimeAgentIds"`
+}
+
+type credentialInUseDetailsResponse struct {
+	Kind     string   `json:"kind"`
+	RunIDs   []string `json:"runIds"`
+	AuditIDs []string `json:"auditIds,omitempty"`
+}
+
+type auditUnsupportedDetailsResponse struct {
+	Kind    string                             `json:"kind"`
+	Reasons []auditservice.CompatibilityReason `json:"reasons"`
+}
+
+type runNotDeletableDetailsResponse struct {
+	Kind   string                         `json:"kind"`
+	Reason runstore.RunNotDeletableReason `json:"reason"`
+}
