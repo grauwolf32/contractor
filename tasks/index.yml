@@ -1102,7 +1102,8 @@ ui_usability_planning:
 
 ui_design_review_2_planning:
   planned_on: "2026-09-22"
-  status: in_progress
+  status: implemented
+  released: "UI 0.6.0 on the demo stand, 2026-09-22; evidence tasks/evidence/v66-011.json"
   review: docs/research/2026-09-22-ui-design-review-2.md
   plan: docs/plans/2026-09-22-ui-design-review-2.md
   delivery_order:

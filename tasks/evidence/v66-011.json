@@ -1,0 +1,263 @@
+{
+  "task": "V66-011",
+  "status": "verified",
+  "version": "0.6.0",
+  "codeRevision": "a597ca1cd04ec2064a09c95cba8877e85c08c604",
+  "release": "/home/ruslan/src/contractor/.local/demo/releases/ui-review-0.6.0-a597ca1c-20260922T001409Z",
+  "findings": 10,
+  "taskImplementationCommits": {
+    "V66-001": "670763bd065e772b2517f29618168052fca23b4e",
+    "V66-002": "64735aca59478d2cd15e86a29f3842c3f2251f82",
+    "V66-003": "64735aca59478d2cd15e86a29f3842c3f2251f82",
+    "V66-004": "b0ad37f8dfb6e7f5fea5a045d12405207133a5de",
+    "V66-005": "84bfe696ce7e3fa67ab8c24a2896d90ffbce0cd6",
+    "V66-006": "2f87023df4a38920e7a0bb11aa973089ffa087e2",
+    "V66-007": "218146f9652be680190fdeb98c4ebec0a3b91bf8",
+    "V66-008": "8cc9c222800da0ab018796a684b977de9c1bccd1",
+    "V66-009": "d0ed598505bf222ba26d6f6ede8e21281b650ed5",
+    "V66-010": "9e5d19dcdd3f2662135eea3dd28dfb428db07a98"
+  },
+  "checks": {
+    "command": "make ui-verify; go test -tags=e2e ./tests/ui-stack -run TestBrowserOperationsStack",
+    "uiTests": 618,
+    "uiTestFiles": 78,
+    "staticServerTests": 11,
+    "browserStack": "ok (24 specs: stack, audits, lifecycle-controls, project-workspace, run-repeat, scheduler-settings, performance)",
+    "result": "passed"
+  },
+  "prerequisiteFixes": [
+    "ui/src/api/workflows.ts accepted pending and waiting Run states (introduced by fae981a0 without validator update)",
+    "ui/e2e fixtures carry Audit phase/round/inventory required since 22fcba08",
+    "ui/server static allowlist serves /operations/configuration",
+    "runs/reading.css resets compact history cell padding on small screens after route CSS became lazy"
+  ],
+  "browser": {
+    "states": 92,
+    "captures": 117,
+    "widths": [
+      390,
+      1440
+    ],
+    "pageErrors": [],
+    "actionErrors": [
+      "new-eval",
+      "artifact-upload",
+      "audit-continue",
+      "audit-delete-dialog"
+    ],
+    "handledAPIerrors": [
+      {
+        "view": "project-overview",
+        "details": [
+          {
+            "path": "/v1/workflows/audit-openapi-operation-trace/versions/4",
+            "status": 404
+          }
+        ]
+      },
+      {
+        "view": "project-dvwa",
+        "details": [
+          {
+            "path": "/v1/workflows/likec4-from-workspace-streamline/versions/2",
+            "status": 404
+          },
+          {
+            "path": "/v1/workflows/likec4-from-workspace/versions/5",
+            "status": 404
+          },
+          {
+            "path": "/v1/workflows/openapi-from-workspace/versions/5",
+            "status": 404
+          }
+        ]
+      },
+      {
+        "view": "run-2-cancelled",
+        "details": [
+          {
+            "path": "/v1/workflows/audit-openapi-operation-trace/versions/4",
+            "status": 404
+          }
+        ]
+      },
+      {
+        "view": "run-4-succeeded",
+        "details": [
+          {
+            "path": "/v1/workflows/security-analysis/versions/2",
+            "status": 404
+          }
+        ]
+      },
+      {
+        "view": "run-3-failed",
+        "details": [
+          {
+            "path": "/v1/workflows/security-analysis/versions/2",
+            "status": 404
+          }
+        ]
+      },
+      {
+        "view": "catalog-skills",
+        "details": [
+          {
+            "path": "/v1/artifacts/skills/likec4/archive",
+            "status": 503
+          },
+          {
+            "path": "/v1/artifacts/skills/stride/archive",
+            "status": 503
+          },
+          {
+            "path": "/v1/artifacts/skills/trace/archive",
+            "status": 503
+          },
+          {
+            "path": "/v1/artifacts/skills/vuln-scan/archive",
+            "status": 503
+          }
+        ]
+      },
+      {
+        "view": "project-artifact-zip",
+        "details": [
+          {
+            "path": "/v1/projects/project_26f02cc01364ebe6d382dd6cc3091122/artifacts/sources/nextcloud-daa077b4a0b14c26/archive",
+            "status": 422
+          }
+        ]
+      },
+      {
+        "view": "skill-upload",
+        "details": [
+          {
+            "path": "/v1/artifacts/skills/likec4/archive",
+            "status": 503
+          }
+        ]
+      },
+      {
+        "view": "skill-from-catalog",
+        "details": [
+          {
+            "path": "/v1/artifacts/skills/trace/archive",
+            "status": 503
+          },
+          {
+            "path": "/v1/artifacts/skills/vuln-scan/archive",
+            "status": 503
+          }
+        ]
+      },
+      {
+        "view": "run-repeat-drawer",
+        "details": [
+          {
+            "path": "/v1/workflows/security-analysis/versions/2",
+            "status": 404
+          }
+        ]
+      }
+    ],
+    "heights1440": {
+      "audit-coverage": {
+        "before": 8801,
+        "after": 2272
+      },
+      "audit-checks": {
+        "before": 5720,
+        "after": 2272
+      },
+      "run-1-succeeded": {
+        "before": 5901,
+        "after": 2178
+      },
+      "run-4-succeeded": {
+        "before": 6468,
+        "after": 2453
+      },
+      "run-primary-preview": {
+        "before": 6781,
+        "after": 3058
+      },
+      "project-new-audit": {
+        "before": 2257,
+        "after": 1214
+      },
+      "eval-detail": {
+        "before": 1776,
+        "after": 960
+      },
+      "eval-spring": {
+        "before": 3769,
+        "after": 1439
+      },
+      "project-overview": {
+        "before": 1922,
+        "after": 1773
+      },
+      "project-audits": {
+        "before": 1424,
+        "after": 1214
+      },
+      "audit-overview": {
+        "before": 1957,
+        "after": 1788
+      },
+      "operations-agents": {
+        "before": 1307,
+        "after": 1041
+      }
+    },
+    "heights390": {
+      "audit-coverage": {
+        "before": 13342,
+        "after": 5928
+      },
+      "run-1-succeeded": {
+        "before": 10906,
+        "after": 3155
+      },
+      "run-4-succeeded": {
+        "before": 11940,
+        "after": 3583
+      },
+      "project-findings": {
+        "before": 6129,
+        "after": 5768
+      },
+      "audit-findings": {
+        "before": 4159,
+        "after": 3823
+      },
+      "home": {
+        "before": 3944,
+        "after": 3920
+      },
+      "runs-completed": {
+        "before": 9691,
+        "after": 10706,
+        "note": "Finished line per row intended (V58-004); padding regression fixed in a597ca1c"
+      }
+    },
+    "notes": [
+      "agent-diagnostics grew because two Runtime Agents are online on the stand; baseline had none",
+      "legacy Runs referencing removed Workflow versions still return 404 (out of scope by user decision)",
+      "skill archive 503 and source archive 422 are server-side and pre-existing"
+    ]
+  },
+  "deployment": {
+    "stand": "demo (systemd --user units)",
+    "deployedAt": "2026-09-22T00:16:48+00:00",
+    "databaseBackup": "/home/ruslan/src/contractor/.local/demo/releases/ui-review-0.6.0-a597ca1c-20260922T001409Z/backups/database.dump",
+    "migrationsApplied": 0,
+    "services": "server, ui, runtime-a, runtime-b, lan-proxy active; 2 runtime agents idle",
+    "healthz": {
+      "local": "http://127.0.0.1:4173",
+      "lan": "http://192.168.1.217:4173",
+      "uiVersion": "0.6.0"
+    }
+  }
+}

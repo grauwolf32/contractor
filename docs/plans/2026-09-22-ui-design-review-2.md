@@ -17,3 +17,5 @@ The user approved recording the ten findings of the [follow-up review](../resear
 | [V66-011](../../tasks/v66-011-release-verification.yml) | Verify and release the second design review implementation | E01, E02, E03, E04, E05, E06, E07, E08, E09, E10 |
 
 Delivery order: wave 1 = V66-003, V66-002, V66-001 (headers, refresh controls, copy); wave 2 = V66-008, V66-004, V66-006; wave 3 = V66-005, V66-007, V66-009, V66-010; verification = V66-011. Baseline screenshots for comparison are the 2026-09-21 capture; heights and request errors are compared per state.
+
+Tasks V66-001–V66-011 are complete; UI 0.6.0 is deployed on the demo stand. Verification: `make ui-verify`, the browser operations stack (24 Playwright specs) and a 92-state screenshot capture compared with the 2026-09-21 baseline, recorded in [evidence](../../tasks/evidence/v66-011.json). Two pre-existing defects surfaced by the browser stack were fixed on the way: the Run creation validator rejected the queued states added by run admission, and the browser Audit fixtures lacked the composition fields required by the current schema.

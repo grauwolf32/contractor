@@ -3,8 +3,8 @@ id: V66-011
 title: Verify and release the second design review implementation
 milestone: ui-design-review-2
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a597ca1cd04ec2064a09c95cba8877e85c08c604
 depends_on:
 - V66-001
 - V66-002
@@ -61,3 +61,9 @@ verification_requirements:
 - Run the listed tests, eslint, prettier and tsc; visual changes are checked in the browser against the
   populated demo data.
 - Record before/after evidence in the task file under verification.
+verification:
+  ui_verify: passed (install, generate check, lint, typecheck, 618 unit tests in 78 files, 11 static server tests, build).
+  browser_stack: go test ./tests/ui-stack TestBrowserOperationsStack ok after fixing pre-existing fixture and validator drift (see evidence prerequisiteFixes).
+  captures: 92 states at 1440 and 25 at 390 from the deployed stand; no page errors; heights compared with the 2026-09-21 baseline in tasks/evidence/v66-011.json.
+  release: /home/ruslan/src/contractor/.local/demo/releases/ui-review-0.6.0-a597ca1c-20260922T001409Z deployed; UI 0.6.0; database backup retained; no new migrations.
+  evidence: tasks/evidence/v66-011.json

@@ -4,7 +4,7 @@ title: Bound audit collection loading and stop polling terminal audits
 milestone: ui-design-review-2
 priority: P1
 status: completed
-implementation_commit: 8cc9c222
+implementation_commit: 8cc9c222800da0ab018796a684b977de9c1bccd1
 depends_on: []
 languages:
 - typescript
