@@ -251,7 +251,7 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 			return CreateResult{}, ErrConflict
 		}
 		record, err := s.executeCreate(ctx, *prepared, storedRequest, true)
-		return CreateResult{Credential: record, Replayed: err == nil}, err
+		return CreateResult{Credential: record}, err
 	}
 
 	existing, err := s.repository.GetOperationByIdempotency(ctx, OperationCreate, request.IdempotencyKey)
@@ -327,7 +327,7 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		if err == nil {
 			s.deleteDirty = false
 		}
-		return DeleteResult{Replayed: err == nil}, err
+		return DeleteResult{}, err
 	}
 
 	existing, err := s.repository.GetOperationByIdempotency(ctx, OperationDelete, request.IdempotencyKey)

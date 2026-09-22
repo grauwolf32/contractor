@@ -400,6 +400,43 @@ func TestCredentialFailedDeleteFencesOnlyItsOwnCredential(t *testing.T) {
 	}
 }
 
+func TestCredentialRetryThatCompletesAPreparedOperationIsNotReplayed(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	request := fixture.createRequest("managed-retry", "create-retry")
+	manager.createErr = errors.New("gateway create failed")
+	if _, err := fixture.service.Create(ctx, request); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed create error = %v", err)
+	}
+	manager.createErr = nil
+	completed, err := fixture.service.Create(ctx, request)
+	if err != nil || completed.Replayed || completed.Credential.CredentialID != request.CredentialID {
+		t.Fatalf("retry completing a prepared create = (%+v, %v)", completed, err)
+	}
+	if replayed, err := fixture.service.Create(ctx, request); err != nil || !replayed.Replayed {
+		t.Fatalf("replay of completed create = (%+v, %v)", replayed, err)
+	}
+
+	deletion := DeleteRequest{
+		CredentialID: request.CredentialID, IdempotencyKey: "delete-retry", ActorID: "user-1",
+	}
+	manager.deleteErr = errors.New("gateway delete failed")
+	if _, err := fixture.service.Delete(ctx, deletion); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed delete error = %v", err)
+	}
+	manager.deleteErr = nil
+	if result, err := fixture.service.Delete(ctx, deletion); err != nil || result.Replayed {
+		t.Fatalf("retry completing a prepared delete = (%+v, %v)", result, err)
+	}
+	if result, err := fixture.service.Delete(ctx, deletion); err != nil || !result.Replayed {
+		t.Fatalf("replay of completed delete = (%+v, %v)", result, err)
+	}
+}
+
 func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
 	pool, ctx := lifecycleTestPool(t)
 	manager := newFakeGatewayManager()
