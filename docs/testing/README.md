@@ -15,7 +15,11 @@ UI dependencies. Choose a check by the boundary you changed:
 | Aggregate deterministic release gate used by CI | `make release-verify` | All of the above |
 
 The aggregate targets and their exact dependencies are defined in the
-[Makefile](../../Makefile). [CI](../../.github/workflows/ci.yml) runs
+[Makefile](../../Makefile), which includes the grouped target files under
+[`make/`](../../make). Targets needing a test database declare
+`require-database`, and those reaching Python declare `runtime-venv`; both are
+prerequisites, so make prepares each at most once per invocation.
+[CI](../../.github/workflows/ci.yml) runs
 `make release-verify` with PostgreSQL 17. Gate definitions describe what a
 command checks; completed results are recorded in the corresponding task files.
 
