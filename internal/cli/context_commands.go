@@ -122,9 +122,12 @@ func (c *CLI) runContext(ctx context.Context, store *ContextStore, printer *Prin
 		if err != nil {
 			return err
 		}
-		token := c.getenv("CONTRACTOR_API_TOKEN")
-		if token == "" && selected.TokenFile != "" {
+		token := ""
+		if selected.TokenFile != "" {
 			token, err = publicclient.ReadTokenFile(selected.TokenFile)
+		}
+		if err == nil && token == "" {
+			token = c.getenv("CONTRACTOR_API_TOKEN")
 		}
 		if err != nil || token == "" {
 			if err != nil {

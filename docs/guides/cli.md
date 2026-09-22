@@ -28,6 +28,9 @@ CONTRACTOR_API_TOKEN="$TOKEN" \
   contractor --server https://contractor.example --ca-file ./ca.crt workflow list
 ```
 
+The token is taken from an explicit `--token-file` first, then from the
+selected context's token file, and only then from `CONTRACTOR_API_TOKEN`.
+
 Global flags must precede the command. Resource-specific flags may appear
 before or after positional arguments. Use `--` before positional arguments
 starting with a hyphen, for example `source push -- -source`.
