@@ -311,7 +311,7 @@ func (s *Service) selectDraftInputs(
 		if err != nil {
 			return nil, err
 		}
-		if !acceptsMediaType(profile.Inputs[name].MediaTypes, metadata.MediaType) {
+		if !contracts.AcceptsMediaType(profile.Inputs[name].MediaTypes, metadata.MediaType) {
 			return nil, fmt.Errorf("%w: Audit input media type is incompatible", ErrInvalid)
 		}
 		result[name] = auditstore.ExactArtifact{
@@ -338,13 +338,4 @@ func normalizeProfileSelector(value ProfileSelector) (string, error) {
 		return "", fmt.Errorf("%w: AuditProfile selector is invalid", ErrInvalid)
 	}
 	return selector.String(), nil
-}
-
-func acceptsMediaType(accepted []string, actual string) bool {
-	for _, candidate := range accepted {
-		if candidate == actual {
-			return true
-		}
-	}
-	return false
 }

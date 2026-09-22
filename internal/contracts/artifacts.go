@@ -23,6 +23,17 @@ func ValidateArtifactName(value string) error {
 	return nil
 }
 
+// AcceptsMediaType reports whether an artifact slot accepting the given media
+// types admits actual; a slot declaring */* admits every media type.
+func AcceptsMediaType(accepted []string, actual string) bool {
+	for _, mediaType := range accepted {
+		if mediaType == "*/*" || mediaType == actual {
+			return true
+		}
+	}
+	return false
+}
+
 type ArtifactRef struct {
 	Namespace string  `json:"namespace"`
 	Name      string  `json:"name"`

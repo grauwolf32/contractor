@@ -31,3 +31,24 @@ func TestArtifactNameCases(t *testing.T) {
 		}
 	}
 }
+
+func TestAcceptsMediaType(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		accepted []string
+		actual   string
+		want     bool
+	}{
+		{[]string{"*/*"}, "application/zip", true},
+		{[]string{"*/*"}, "text/html", true},
+		{[]string{"text/markdown", "text/plain"}, "text/plain", true},
+		{[]string{"text/markdown"}, "text/plain", false},
+		{[]string{"text/*"}, "text/plain", false},
+		{nil, "text/plain", false},
+	}
+	for _, tc := range cases {
+		if got := AcceptsMediaType(tc.accepted, tc.actual); got != tc.want {
+			t.Errorf("AcceptsMediaType(%v, %q) = %v, want %v", tc.accepted, tc.actual, got, tc.want)
+		}
+	}
+}

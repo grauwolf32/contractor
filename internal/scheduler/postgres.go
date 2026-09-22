@@ -209,7 +209,7 @@ func (p *PostgresPersistence) CommitResultProgression(
 				if err != nil {
 					return fmt.Errorf("bind Workflow output %q: %w", outputName, err)
 				}
-				if !acceptsMediaType(value.OutputContracts[outputName].MediaTypes, bound.MediaType) {
+				if !contracts.AcceptsMediaType(value.OutputContracts[outputName].MediaTypes, bound.MediaType) {
 					return fmt.Errorf("Workflow output %q has incompatible media type", outputName)
 				}
 			}
@@ -728,7 +728,7 @@ WHERE binding.scope_kind = 'run' AND binding.scope_id = $1
 		if err != nil {
 			return fmt.Errorf("verify Workflow output %q: %w", name, err)
 		}
-		if !acceptsMediaType(slot.MediaTypes, mediaType) {
+		if !contracts.AcceptsMediaType(slot.MediaTypes, mediaType) {
 			return fmt.Errorf("Workflow output %q has incompatible media type", name)
 		}
 	}
@@ -742,13 +742,4 @@ func sortedArtifactNames(values map[string]contracts.ArtifactRef) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func acceptsMediaType(accepted []string, actual string) bool {
-	for _, mediaType := range accepted {
-		if mediaType == "*/*" || mediaType == actual {
-			return true
-		}
-	}
-	return false
 }

@@ -132,7 +132,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return forkErr
 				}
 				forks[slot] = fork.TargetRef
-				if !acceptsMediaType(normalized.Workflow.Inputs[slot].MediaTypes, fork.MediaType) {
+				if !contracts.AcceptsMediaType(normalized.Workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 					return fmt.Errorf("%w: Audit input %q has unsupported media type", ErrInvalid, slot)
 				}
 			}

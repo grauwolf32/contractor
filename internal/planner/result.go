@@ -68,7 +68,7 @@ func validateCandidate(
 				err,
 			)
 		}
-		if !acceptsMediaType(contract[name].MediaTypes, metadata.MediaType) {
+		if !contracts.AcceptsMediaType(contract[name].MediaTypes, metadata.MediaType) {
 			return NewError(
 				"result_contract_violation",
 				fmt.Sprintf("Result artifact %q has an incompatible media type", name),
@@ -90,13 +90,4 @@ func ValidateCandidate(
 	inspector ArtifactInspector,
 ) *Error {
 	return validateCandidate(ctx, runID, contract, result, inspector)
-}
-
-func acceptsMediaType(accepted []string, actual string) bool {
-	for _, mediaType := range accepted {
-		if mediaType == "*/*" || mediaType == actual {
-			return true
-		}
-	}
-	return false
 }

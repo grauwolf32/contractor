@@ -52,12 +52,3 @@ func cloneHTTPOriginTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTT
 	}
 	return &result
 }
-
-func acceptsMediaType(accepted []string, actual string) bool {
-	for _, candidate := range accepted {
-		if candidate == actual {
-			return true
-		}
-	}
-	return false
-}

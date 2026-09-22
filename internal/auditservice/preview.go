@@ -5,6 +5,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // ValidateInputPreview reuses the ordinary Audit inventory and compatibility
@@ -19,7 +20,7 @@ func ValidateInputPreview(profile config.ResolvedAuditProfile, scope Scope, inpu
 		if slot.Required && !ok {
 			return fmt.Errorf("%w: required Audit input is missing", ErrInvalid)
 		}
-		if ok && !acceptsMediaType(slot.MediaTypes, input.Payload.MediaType) {
+		if ok && !contracts.AcceptsMediaType(slot.MediaTypes, input.Payload.MediaType) {
 			return fmt.Errorf("%w: Audit input media type is incompatible", ErrInvalid)
 		}
 	}
