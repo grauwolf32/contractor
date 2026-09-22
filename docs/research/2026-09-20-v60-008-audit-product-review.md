@@ -2,7 +2,7 @@
 
 Review started from `8edeabf21194f5bba8dd258d53a072af713c630e` in the isolated
 `review/v60-deep-review` worktree. The scope and required commands are recorded
-in [V60-008](../../tasks/v60-008-audit-product-journeys-review.yml). No existing
+in [V60-008](../../tasks/v60/v60-008-audit-product-journeys-review.yml). No existing
 user Audit, live model, production service or external scan target was used.
 
 ## Contract and historical basis
@@ -52,7 +52,7 @@ remain in force. The existing public handler returns `201 Created` for each new
 destination import and `200 OK` with `replayed: true` for same-Audit replay; no
 new endpoint or success status is introduced. Spec 19 now records this decision.
 
-[Correction V60-027](../../tasks/v60-027-audit-scoped-finding-import.yml) adds
+[Correction V60-027](../../tasks/v60/v60-027-audit-scoped-finding-import.yml) adds
 migration 062 to change only future finding admission. Its opaque ID hashes a
 JSON array of `(audit_id, receipt_id)` with SHA-256. Historical migration 041 and
 all existing IDs/history remain unchanged. New direct-assessment IDs include
@@ -106,7 +106,7 @@ fixture invocation. An actual before-selection command listed just **1 test in
 1 file** for the operations stack. Independently managed Evals runs did not
 supply the omitted journeys.
 
-[V60-031](../../tasks/v60-031-audit-lifecycle-browser-gate-selection.yml)
+[V60-031](../../tasks/v60/v60-031-audit-lifecycle-browser-gate-selection.yml)
 restores an explicit bounded set: real `stack.spec.ts`, and route-fixture
 `audits`, `lifecycle-controls`, `project-workspace`, `run-repeat`,
 `scheduler-settings` and `performance`. Actual after-selection lists **20 tests
@@ -138,7 +138,7 @@ badge and its excerpt; lifecycle controls used the previous Project action
 label; Performance expected GPU temperature/Power counters outside the
 collapsed Detailed counters view introduced by `f5ae4a4f` / V58-010.
 
-[V60-032](../../tasks/v60-032-browser-fixture-selectors.yml) narrows the Audit
+[V60-032](../../tasks/v60/v60-032-browser-fixture-selectors.yml) narrows the Audit
 badge assertion, uses the current accessible Project action, and explicitly
 opens Detailed counters for the retained metric checks. Existing chart,
 mobile, exact evidence and destructive-action assertions remain. These are
@@ -172,7 +172,7 @@ in 38.293 s: only `asOf` changed between the two responses. `auditRevision`,
 `1b45fc52`, which added revision-bound pages with an SQL statement timestamp for
 each read, as documented by spec19.
 
-[V60-035](../../tasks/v60-035-findings-read-snapshot-comparison.yml) validates
+[V60-035](../../tasks/v60/v60-035-findings-read-snapshot-comparison.yml) validates
 both nonzero RFC3339 timestamps, then compares every remaining response field
 using the existing equality check. The producer, reader, exact collection,
 no-new-proposal and Gateway assertions are unchanged. No product mutation or

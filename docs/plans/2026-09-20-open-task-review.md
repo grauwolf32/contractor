@@ -39,13 +39,13 @@ its integration with V60-012. [Results](2026-09-20-managed-evals-core-review.md)
 
 | Task | Remaining work | Relevance and dependency |
 | --- | --- | --- |
-| [V38-006](../../tasks/v38-006-eval-assessment-comparison.yml) | Collection, attributed assessments, review, CAS selection, full snapshots, pairs, charts/report/inventory API and checks | Active development; foundation for the remaining Evals features. |
-| [V38-007](../../tasks/v38-007-eval-setup-ui.yml) | Dataset authoring and the full experiment preparation/start UI | Relevant after 006. A ready setup backend does not replace this UI. |
-| [V38-008](../../tasks/v38-008-eval-comparison-ui.yml) | Comparison UI, review, evidence, charts and exports | After 007. The existing Evals workspace does not cover the full journey. |
-| [V38-009](../../tasks/v38-009-playground-eval-client.yml) | Playground as a managed Evals API client | Optional extension after 006. Not a duplicate of the portable/direct V41 runner; native Contractor does not depend on this client. |
-| [V38-010](../../tasks/v38-010-eval-release-gate.yml) | Full native/external process/browser gate: restart, ownership, completeness, deletion | Needed; currently depends on 008 and 009. Reconsider the optional Playground dependency before scheduling release. |
-| [V40-002](../../tasks/v40-002-agent-instruction-paired-runner.yml) | Valid model/runtime/tools/Skills/budget pins, six-program dispatch, input/capability mapping, normalization and receipt collection | Prepared wrappers and the recorded 24-member matrix are preserved. Strict live readiness remains false. |
-| [V40-003](../../tasks/v40-003-agent-instruction-eval-decision.yml) | Live pilot, independent confirmation and adopt/revise/reject/inconclusive decisions | After 002; offline fixtures and managed Evals do not establish instruction quality. |
+| [V38-006](../../tasks/v38/v38-006-eval-assessment-comparison.yml) | Collection, attributed assessments, review, CAS selection, full snapshots, pairs, charts/report/inventory API and checks | Active development; foundation for the remaining Evals features. |
+| [V38-007](../../tasks/v38/v38-007-eval-setup-ui.yml) | Dataset authoring and the full experiment preparation/start UI | Relevant after 006. A ready setup backend does not replace this UI. |
+| [V38-008](../../tasks/v38/v38-008-eval-comparison-ui.yml) | Comparison UI, review, evidence, charts and exports | After 007. The existing Evals workspace does not cover the full journey. |
+| [V38-009](../../tasks/v38/v38-009-playground-eval-client.yml) | Playground as a managed Evals API client | Optional extension after 006. Not a duplicate of the portable/direct V41 runner; native Contractor does not depend on this client. |
+| [V38-010](../../tasks/v38/v38-010-eval-release-gate.yml) | Full native/external process/browser gate: restart, ownership, completeness, deletion | Needed; currently depends on 008 and 009. Reconsider the optional Playground dependency before scheduling release. |
+| [V40-002](../../tasks/v40/v40-002-agent-instruction-paired-runner.yml) | Valid model/runtime/tools/Skills/budget pins, six-program dispatch, input/capability mapping, normalization and receipt collection | Prepared wrappers and the recorded 24-member matrix are preserved. Strict live readiness remains false. |
+| [V40-003](../../tasks/v40/v40-003-agent-instruction-eval-decision.yml) | Live pilot, independent confirmation and adopt/revise/reject/inconclusive decisions | After 002; offline fixtures and managed Evals do not establish instruction quality. |
 
 V40-002 has a scope-organization problem: generic dispatch/normalization is
 required for acceptance, but generic runner implementation is explicitly excluded.
@@ -67,13 +67,13 @@ The complete first user-facing set is not yet finished.
 
 | Task | Remaining work | Relevance and dependency |
 | --- | --- | --- |
-| [V55-004](../../tasks/v55-004-sqlmap-http-request.yml) | Complete HTTP request artifact, exact method/headers/body, private `sqlmap -r`, provenance and cleanup | Needed; first clarify the previous assignment's status. `in_progress` alone does not mean ready. |
-| [V55-005](../../tasks/v55-005-ffuf-wordlist-artifacts.yml) | ffuf with a validated wordlist from an exact ArtifactRef | Needed for the first set; dependencies are complete. Shared scan files require coordination with 004. |
-| [V55-006](../../tasks/v55-006-scan-workflows-release.yml) | sqlmap/ffuf Workflows, input/wordlist upload, a connected user journey and E2E | After 004 and 005. Nuclei/naabu fixtures from 003 deliver only part of this outcome. |
-| [V55-007](../../tasks/v55-007-openapi-request-set.yml) | Deterministic RequestSet from OpenAPI | Relevant extension after 006, not a prerequisite for the first manual scans. |
-| [V55-008](../../tasks/v55-008-deterministic-scan-planner.yml) | Persisted job plan, constraints and recovery | After 007. `internal/scanplan` is still absent. |
-| [V55-009](../../tasks/v55-009-scan-candidate-ranking.yml) | Optional LLM ranking of already permitted candidates | After 008; evaluate usefulness against the ready deterministic path. Not mandatory technical debt. |
-| [V55-010](../../tasks/v55-010-katana-scan-adapter.yml) | Katana as a bounded discovery adapter | After 007; a deferred extension, with no adapter implemented yet. |
+| [V55-004](../../tasks/v55/v55-004-sqlmap-http-request.yml) | Complete HTTP request artifact, exact method/headers/body, private `sqlmap -r`, provenance and cleanup | Needed; first clarify the previous assignment's status. `in_progress` alone does not mean ready. |
+| [V55-005](../../tasks/v55/v55-005-ffuf-wordlist-artifacts.yml) | ffuf with a validated wordlist from an exact ArtifactRef | Needed for the first set; dependencies are complete. Shared scan files require coordination with 004. |
+| [V55-006](../../tasks/v55/v55-006-scan-workflows-release.yml) | sqlmap/ffuf Workflows, input/wordlist upload, a connected user journey and E2E | After 004 and 005. Nuclei/naabu fixtures from 003 deliver only part of this outcome. |
+| [V55-007](../../tasks/v55/v55-007-openapi-request-set.yml) | Deterministic RequestSet from OpenAPI | Relevant extension after 006, not a prerequisite for the first manual scans. |
+| [V55-008](../../tasks/v55/v55-008-deterministic-scan-planner.yml) | Persisted job plan, constraints and recovery | After 007. `internal/scanplan` is still absent. |
+| [V55-009](../../tasks/v55/v55-009-scan-candidate-ranking.yml) | Optional LLM ranking of already permitted candidates | After 008; evaluate usefulness against the ready deterministic path. Not mandatory technical debt. |
+| [V55-010](../../tasks/v55/v55-010-katana-scan-adapter.yml) | Katana as a bounded discovery adapter | After 007; a deferred extension, with no adapter implemented yet. |
 
 Practical path to the first result: **004 + 005 → 006**. Parallel implementation
 of 004/005 requires separating edits to `scan/tools.py`, the factory and tests.
@@ -85,15 +85,15 @@ All nine tasks remain pending in main. Three are complete in the branch:
 
 | Task | Deliverable | Actual state |
 | --- | --- | --- |
-| [V61-001](../../tasks/v61-001-toolset-configuration-contracts.yml) | Contracts, typed settings and discovery schema | Completed in branch, implementation `323b54eb`; not in main. |
-| [V61-002](../../tasks/v61-002-toolset-runtime-config-store.yml) | RuntimeConfig merge, MCP credentials and lifecycle references | Completed in branch, `761068d1`; not in main. |
-| [V61-004](../../tasks/v61-004-allocation-tool-discovery.yml) | Allocation discovery, placement and Audit admission | Completed in branch, `9d74c38b`; not in main. |
-| [V61-003](../../tasks/v61-003-run-toolset-pinning-allocation.yml) | Immutable Run/Audit pins, allocation setting selection and secret delivery | Active development. |
-| [V61-005](../../tasks/v61-005-mcp-session-lifecycle.yml) | MCP Streamable HTTP sessions, ownership, proxy and cleanup | After 003. The real MCP transport is still absent. |
-| [V61-007](../../tasks/v61-007-toolset-configuration-read-api.yml) | Public requirements, coverage and provenance | After 003; can proceed alongside 005. |
-| [V61-006](../../tasks/v61-006-mcp-tools-adk.yml) | MCP tools in ADK and shared accounting | After 005. Fake factories in discovery tests do not establish production MCP readiness. |
-| [V61-008](../../tasks/v61-008-toolset-connections-ui.yml) | Connection selection/creation UI and draft recovery | After 007. |
-| [V61-009](../../tasks/v61-009-toolset-configuration-release.yml) | Final DB/Runtime/process/browser gate | After 006 and 008. |
+| [V61-001](../../tasks/v61/v61-001-toolset-configuration-contracts.yml) | Contracts, typed settings and discovery schema | Completed in branch, implementation `323b54eb`; not in main. |
+| [V61-002](../../tasks/v61/v61-002-toolset-runtime-config-store.yml) | RuntimeConfig merge, MCP credentials and lifecycle references | Completed in branch, `761068d1`; not in main. |
+| [V61-004](../../tasks/v61/v61-004-allocation-tool-discovery.yml) | Allocation discovery, placement and Audit admission | Completed in branch, `9d74c38b`; not in main. |
+| [V61-003](../../tasks/v61/v61-003-run-toolset-pinning-allocation.yml) | Immutable Run/Audit pins, allocation setting selection and secret delivery | Active development. |
+| [V61-005](../../tasks/v61/v61-005-mcp-session-lifecycle.yml) | MCP Streamable HTTP sessions, ownership, proxy and cleanup | After 003. The real MCP transport is still absent. |
+| [V61-007](../../tasks/v61/v61-007-toolset-configuration-read-api.yml) | Public requirements, coverage and provenance | After 003; can proceed alongside 005. |
+| [V61-006](../../tasks/v61/v61-006-mcp-tools-adk.yml) | MCP tools in ADK and shared accounting | After 005. Fake factories in discovery tests do not establish production MCP readiness. |
+| [V61-008](../../tasks/v61/v61-008-toolset-connections-ui.yml) | Connection selection/creation UI and draft recovery | After 007. |
+| [V61-009](../../tasks/v61/v61-009-toolset-configuration-release.yml) | Final DB/Runtime/process/browser gate | After 006 and 008. |
 
 Before integration, update the branch to current main. The common base is
 currently `c41a5989`; subsequent changes overlap in OpenAPI,
@@ -115,12 +115,12 @@ Their pending status remains appropriate.
 
 | Task | Actual remaining scope | How to avoid repeating completed work |
 | --- | --- | --- |
-| [V60-005](../../tasks/v60-005-execution-recovery-review.yml) | Cancel/success/restart/claim-loss and queue-admission interleavings | Start with durable state transitions; V61 is changing Scheduler execution preparation, so coordinate that area. |
-| [V60-006](../../tasks/v60-006-runtime-contract-tools-review.yml) | Identity, cancellation/cleanup, cross-language contracts and tools | Strong overlap with V61 Runtime/private contracts. A complete pass is better after integrating 003. Do not automatically resume V57-003. |
-| [V60-007](../../tasks/v60-007-artifact-persistence-review.yml) | Artifact CAS/ownership, blobs, corruption/backend parity, migrations/recovery | Storage/read/CAS can be checked separately. Use completed V60-003/012 retention/pool/delete cases as evidence; Run holds/migrations overlap with V61 and Evals. |
-| [V60-008](../../tasks/v60-008-audit-product-journeys-review.yml) | TTL/review, multiround, full browser journeys and importing the same receipt into multiple Audits | A specific identity collision was confirmed during V60-012. Start with its contract and a bounded correction; do not duplicate verified report-delete/replay cases. |
-| [V60-009](../../tasks/v60-009-operations-security-gates-review.yml) | Auth, secrets, real install/restore and credible release gates | Cookie/auth/mTLS can be checked separately. Review shared credentials/schema/generated API and the final gate after active integrations. Do not repeat V60-004/011 as new investigations. |
-| [V60-010](../../tasks/v60-010-configuration-evaluation-backlog-review.yml) | End-to-end configuration attribution and exact eval inputs→evidence links | This backlog review covers only the informational portion. The technical pass is needed after V61 pinning and V38 collection; do not create a parallel eval runner. |
+| [V60-005](../../tasks/v60/v60-005-execution-recovery-review.yml) | Cancel/success/restart/claim-loss and queue-admission interleavings | Start with durable state transitions; V61 is changing Scheduler execution preparation, so coordinate that area. |
+| [V60-006](../../tasks/v60/v60-006-runtime-contract-tools-review.yml) | Identity, cancellation/cleanup, cross-language contracts and tools | Strong overlap with V61 Runtime/private contracts. A complete pass is better after integrating 003. Do not automatically resume V57-003. |
+| [V60-007](../../tasks/v60/v60-007-artifact-persistence-review.yml) | Artifact CAS/ownership, blobs, corruption/backend parity, migrations/recovery | Storage/read/CAS can be checked separately. Use completed V60-003/012 retention/pool/delete cases as evidence; Run holds/migrations overlap with V61 and Evals. |
+| [V60-008](../../tasks/v60/v60-008-audit-product-journeys-review.yml) | TTL/review, multiround, full browser journeys and importing the same receipt into multiple Audits | A specific identity collision was confirmed during V60-012. Start with its contract and a bounded correction; do not duplicate verified report-delete/replay cases. |
+| [V60-009](../../tasks/v60/v60-009-operations-security-gates-review.yml) | Auth, secrets, real install/restore and credible release gates | Cookie/auth/mTLS can be checked separately. Review shared credentials/schema/generated API and the final gate after active integrations. Do not repeat V60-004/011 as new investigations. |
+| [V60-010](../../tasks/v60/v60-010-configuration-evaluation-backlog-review.yml) | End-to-end configuration attribution and exact eval inputs→evidence links | This backlog review covers only the informational portion. The technical pass is needed after V61 pinning and V38 collection; do not create a parallel eval runner. |
 
 Migration internals/atomicity belong to V60-007; operator startup/restore and
 mandatory release gates belong to V60-009. This avoids two identical passes.

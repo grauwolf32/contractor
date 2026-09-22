@@ -6,7 +6,7 @@ to remain independent of Playground. The managed Playground service proposed in
 the earlier draft is superseded.
 
 [US-10](spec/ui-user-stories.md#us-10--compare-variants-through-evals) ·
-[V38-001](../tasks/v38-001-evals-experience-contract.yml) ·
+[V38-001](../tasks/v38/v38-001-evals-experience-contract.yml) ·
 [Managed Evals contract](spec/30-managed-evals.md) ·
 [Portable format](spec/26-portable-evaluation-format.md)
 
@@ -281,15 +281,15 @@ cannot support a total saving claim. The result remains inconclusive.
 
 | Task | Deliverable |
 | --- | --- |
-| [V38-002](../tasks/v38-002-eval-contract-fixtures.yml) | Managed DTOs, portable identity mapping and shared conformance fixtures |
-| [V38-003](../tasks/v38-003-eval-store.yml) | Owner-scoped datasets, drafts, immutable plans, members and durable commands |
-| [V38-004](../tasks/v38-004-eval-coordinator.yml) | Native coordinator and common replay-safe per-member Run/Audit submission |
-| [V38-005](../tasks/v38-005-eval-public-api.yml) | Public authoring/control/import APIs and safe capability/readiness catalog |
-| [V38-006](../tasks/v38-006-eval-assessment-comparison.yml) | Attributed assessments, exact selection and complete paginated comparison views |
-| [V38-007](../tasks/v38-007-eval-setup-ui.yml) | Dataset/setup/readiness UI and experiment lifecycle actions |
-| [V38-008](../tasks/v38-008-eval-comparison-ui.yml) | Experiment list, comparison, evidence, review and legacy navigation |
-| [V38-009](../tasks/v38-009-playground-eval-client.yml) | Optional Playground client using only the public protocol |
-| [V38-010](../tasks/v38-010-eval-release-gate.yml) | Independent-server and external-client process, fault and browser gates |
+| [V38-002](../tasks/v38/v38-002-eval-contract-fixtures.yml) | Managed DTOs, portable identity mapping and shared conformance fixtures |
+| [V38-003](../tasks/v38/v38-003-eval-store.yml) | Owner-scoped datasets, drafts, immutable plans, members and durable commands |
+| [V38-004](../tasks/v38/v38-004-eval-coordinator.yml) | Native coordinator and common replay-safe per-member Run/Audit submission |
+| [V38-005](../tasks/v38/v38-005-eval-public-api.yml) | Public authoring/control/import APIs and safe capability/readiness catalog |
+| [V38-006](../tasks/v38/v38-006-eval-assessment-comparison.yml) | Attributed assessments, exact selection and complete paginated comparison views |
+| [V38-007](../tasks/v38/v38-007-eval-setup-ui.yml) | Dataset/setup/readiness UI and experiment lifecycle actions |
+| [V38-008](../tasks/v38/v38-008-eval-comparison-ui.yml) | Experiment list, comparison, evidence, review and legacy navigation |
+| [V38-009](../tasks/v38/v38-009-playground-eval-client.yml) | Optional Playground client using only the public protocol |
+| [V38-010](../tasks/v38/v38-010-eval-release-gate.yml) | Independent-server and external-client process, fault and browser gates |
 
 The source code review establishes the initial gap; the screen/ownership choices,
 API examples and walkthrough above address V38-001 A1. The indexed tasks with

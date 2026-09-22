@@ -66,7 +66,7 @@ Curated Audit standard packages live in the additional non-YAML
 | [22](22-performance-metrics-and-profiling.md) | Implemented: Server/DB performance charts, completed allocation resources, retained history and independent Go profiling |
 | [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
 | [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
-| [25](25-audit-worker-finalization.md) | Implemented opt-in: collection, Runtime completion, ZIP publication and diagnostics; [V39-007](../../tasks/v39-007-audit-completion-release-gate.yml) records the completed deterministic release gate |
+| [25](25-audit-worker-finalization.md) | Implemented opt-in: collection, Runtime completion, ZIP publication and diagnostics; [V39-007](../../tasks/v39/v39-007-audit-completion-release-gate.yml) records the completed deterministic release gate |
 | [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
 | [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
 | [28](28-finding-analysis-and-sarif.md) | Draft; not implemented: structured finding analysis, exact-evidence resolution and deterministic SARIF export |

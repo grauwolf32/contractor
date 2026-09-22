@@ -1,7 +1,7 @@
 # 27 — Finding tools and immutable collections
 
 Status: **Implemented and verified** — see the
-[findings contract gate task](../../tasks/v43-005-findings-contract-gate.yml).
+[findings contract gate task](../../tasks/v43/v43-005-findings-contract-gate.yml).
 
 The application uses one current finding schema and interface set; old
 development shapes are not maintained as compatibility variants.

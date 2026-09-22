@@ -88,14 +88,14 @@ for designs that have not yet been selected.
 
 History changes the assessment:
 
-1. [V13-001](../../tasks/v13-001-runtime-owned-worker-result.yml) already removed
+1. [V13-001](../../tasks/v13/v13-001-runtime-owned-worker-result.yml) already removed
    the LLM serializer: plain terminal text became a Runtime-owned result,
    with exact artifacts selected from trusted observations.
-2. [V17-003](../../tasks/v17-003-structured-worker-results.yml) explicitly revoked
+2. [V17-003](../../tasks/v17/v17-003-structured-worker-results.yml) explicitly revoked
    that plain-text success projection. Requirement R1:
    “No arbitrary final model text can become a successful WorkerResult”.
    The model had to return `WorkerModelResult(subtaskId,result)`.
-3. [V21-001](../../tasks/v21-001-adk-worker-result-finalizer.yml) fixed an observed
+3. [V21-001](../../tasks/v21/v21-001-adk-worker-result-finalizer.yml) fixed an observed
    LikeC4/LiteLLM → LM Studio grammar failure when combining tools and schema.
    A separate tool-free serializer preserved the strict boundary. It deliberately
    extracts no new meaning and must copy the text exactly.
@@ -163,7 +163,7 @@ Sources: [private contracts](../../internal/contracts/private.go),
 
 The [client](../../internal/planner/a2a/client.go) creates a Transport within Invoke
 with `DisableKeepAlives: true`. The flag arrived with principal binding in
-[V8-004](../../tasks/v8-004-runtime-agent-principals.yml); no separate rationale
+[V8-004](../../tasks/v8/v8-004-runtime-agent-principals.yml); no separate rationale
 for the flag was found in the task. That does not establish it as accidental.
 The 100 ms polling interval explains potential handshake cost, but is neither
 a load measurement nor proof of the main bottleneck.
@@ -188,7 +188,7 @@ a global pool, streaming nor a production toggle is part of the experiment.
 
 **R03 — live harness: fix the specific regression**
 
-[V2-008](../../tasks/v2-008-project-workflows-live-eval.yml) requires env overrides
+[V2-008](../../tasks/v2/v2-008-project-workflows-live-eval.yml) requires env overrides
 for URL/token/model. However,
 [copyLiveConfiguration](../../tests/eval/project_workflows/live_process_test.go)
 changes only legacy `domain_worker*` policies. Selected
@@ -208,7 +208,7 @@ in copied YAML is insufficient.
 Failure-only evidence retention was explicitly part of V2-008. Success retention
 is therefore excluded from the bug fix. A full experiment, if needed, should use
 the already implemented V41 portable format. Fixing the old harness does not
-close [V40-002](../../tasks/v40-002-agent-instruction-paired-runner.yml), whose
+close [V40-002](../../tasks/v40/v40-002-agent-instruction-paired-runner.yml), whose
 own pins, mappings, aggregate dispatch and observation collection remain open.
 
 **R04 — correct summaries without creating another status system**
@@ -216,7 +216,7 @@ own pins, mappings, aggregate dispatch and observation collection remain open.
 In the [task index](../../tasks/index.yml), UI planning still says planned and
 “All new tasks are pending”, although V37 is complete. The
 [spec index](../spec/README.md) calls V39-007 a remaining release gate, although
-the [task](../../tasks/v39-007-audit-completion-release-gate.yml) is complete.
+the [task](../../tasks/v39/v39-007-audit-completion-release-gate.yml) is complete.
 These are specific documentation inconsistencies.
 
 However, `active_delivery_order` is dated 2026-09-06 and does not override
@@ -234,10 +234,10 @@ duplicate work either: make deduplicates shared prerequisites, and some setup
 may be a cheap no-op.
 
 Broad process/race/fault gates were deliberately required, for example in
-[V8-016](../../tasks/v8-016-runtime-configuration-hardening-e2e.yml).
+[V8-016](../../tasks/v8/v8-016-runtime-configuration-hardening-e2e.yml).
 The [findings runner](../../scripts/test-findings-e2e.py) already verifies actual
 run/pass/skips. Its absence from the mandatory pipeline matches the scope of
-[V43-005](../../tasks/v43-005-findings-contract-gate.yml).
+[V43-005](../../tasks/v43/v43-005-findings-contract-gate.yml).
 
 If CI obstructs delivery, first collect durations, cold/warm setup costs, actual
 selected/pass/skip cases and flaky failures. Split jobs or unify gate scripts
@@ -245,7 +245,7 @@ around an identified costly step. No implementation task is created now.
 
 **R06 — scanner-only Runtime: a separate measurable capability**
 
-[V55-003](../../tasks/v55-003-model-free-tool-worker.yml) requires tool execution
+[V55-003](../../tasks/v55/v55-003-model-free-tool-worker.yml) requires tool execution
 without model services/credentials, not an installation without ADK.
 Full [factory composition](../../runtime/src/contractor_runtime/factories.py)
 does not contradict that requirement.
@@ -265,7 +265,7 @@ model Worker, lazy imports only defer an unavoidable cost.
 
 The [private API README](../../api/v1alpha1/README.md) defines explicit Go/Python
 DTOs and shared golden fixtures.
-[V50-001](../../tasks/v50-001-unified-private-contracts.yml), at the user's
+[V50-001](../../tasks/v50/v50-001-unified-private-contracts.yml), at the user's
 request, removed parallel DTO/conversion families. This is not a prohibition on
 generation, but a reason not to add a layer without demonstrated benefit.
 Public Go/TypeScript generation already exists.
@@ -331,7 +331,7 @@ new contract before a working consumer exists.
 **R11 — annotations: preserve the output's purpose**
 
 [Spec 13](../spec/13-taint-annotations.md),
-[V16-004](../../tasks/v16-004-trace-annotation-config.yml) and the
+[V16-004](../../tasks/v16/v16-004-trace-annotation-config.yml) and the
 [trace skill](../../configs/skills/trace/SKILL.md) intentionally provide source
 mutation, cumulative overlay state, diff and report. No retained direct user
 quote saying “in-source only” was found; it must not be attributed to the user.
@@ -354,7 +354,7 @@ hash verification: at most 64 MiB and four concurrent transfers, with admission
 before reading. This is not a 256 MiB process cap: additional driver/serialization
 buffers exist. The [filesystem backend](../../internal/artifacts/blob_filesystem.go)
 checks size, an extra byte and digest before returning data.
-[V34-001](../../tasks/v34-001-blob-contracts-and-postgres.yml) preserves PostgreSQL
+[V34-001](../../tasks/v34/v34-001-blob-contracts-and-postgres.yml) preserves PostgreSQL
 mode without a mandatory temporary volume.
 
 Streaming changes when integrity is established and how consumers behave.
@@ -366,14 +366,14 @@ this recommendation.
 
 **R13 — source indexes: account for existing reuse**
 
-[V15-003](../../tasks/v15-003-trailmark-child-host.yml) introduced a child lifecycle,
+[V15-003](../../tasks/v15/v15-003-trailmark-child-host.yml) introduced a child lifecycle,
 in part to return graph RSS to the OS.
 [Spec 12](../spec/12-code-analysis-tools.md) explicitly excludes persisted/shared
 graph artifacts and cross-allocation caching. However, a cached graph for the
 current digest and a shallow cache already exist within an allocation.
 Each tool call does not imply a new graph build.
 
-[V2-009](../../tasks/v2-009-precomputed-analysis-variants.yml) implemented explicit
+[V2-009](../../tasks/v2/v2-009-precomputed-analysis-variants.yml) implemented explicit
 from-analysis workflows with exact discovery reports. Model-analysis reuse is
 already available. [Memory](../spec/08-memory-tools.md) survives allocation release
 within its Run scope; a different Run receives previous conclusions through
@@ -391,13 +391,13 @@ hidden cross-Run reuse does not follow automatically from a benchmark result.
 
 **R14 — execution compiler: authority checks are not automatically layer leakage**
 
-[V39-002](../../tasks/v39-002-audit-completion-pinning-placement.yml) requires
+[V39-002](../../tasks/v39/v39-002-audit-completion-pinning-placement.yml) requires
 trusted task/manifest/output pins and a selected passthrough single-Worker target.
 [Scheduler checks](../../internal/scheduler/audit_completion.go) protect precisely
 that boundary. Frontloading does not replace checking the selected attempt at
 escalation, allocation and secret materialization.
 
-[V61-003](../../tasks/v61-003-run-toolset-pinning-allocation.yml) already includes
+[V61-003](../../tasks/v61/v61-003-run-toolset-pinning-allocation.yml) already includes
 pure merge and selected per-allocation projection. Another compiler epic would
 duplicate some work. For now, complete its existing acceptance and extract a
 helper for specific duplication. Generic completion is better designed around
@@ -406,12 +406,12 @@ a second real consumer while preserving Audit authority.
 **R15 — receipts/resume: do not promise more than the selected job mode**
 
 At-most-one Planner invocation and interruption after process loss are original
-constraints confirmed by [V1-006](../../tasks/v1-006-streamline-planner.yml),
+constraints confirmed by [V1-006](../../tasks/v1/v1-006-streamline-planner.yml),
 not accidentally unfinished persistence.
 
 [Tool Workers](../spec/29-tool-workers.md) already have durable receipts, unknown
 outcomes and a prohibition on unsafe automatic rescanning.
-[V55-008](../../tasks/v55-008-deterministic-scan-planner.yml) contains the required
+[V55-008](../../tasks/v55/v55-008-deterministic-scan-planner.yml) contains the required
 bounded deterministic planner/restart scope. It must check logical job identity
 together with Stage-attempt identity, completed-receipt replay and unknown
 outcomes without rescanning. stageExecutionId must not be removed from the key.
@@ -422,7 +422,7 @@ Transparent Stage resume remains a substantial subsystem redesign.
 
 **R16 — AuditItem checkpoints: distinguish local progress from authoritative acceptance**
 
-[V26-004](../../tasks/v26-004-batched-audit-executions.yml) deliberately chose
+[V26-004](../../tasks/v26/v26-004-batched-audit-executions.yml) deliberately chose
 small bounded batches to reduce repeated preparation and share analysis;
 partial durable checkpoints were left out of scope.
 [Spec 19](../spec/19-audits.md) and
@@ -441,7 +441,7 @@ This changes the unit of result acceptance; it is not partial ZIP import.
 
 **R17 — allocation on demand: a different admission model**
 
-[V3-004](../../tasks/v3-004-router-planner.yml) deliberately hides physical capacity
+[V3-004](../../tasks/v3/v3-004-router-planner.yml) deliberately hides physical capacity
 from Planner and excludes parallel dispatch. The
 [core spec](../spec/02-runtime-and-a2a.md) requires complete injective matching
 before reservation, preventing partial resource holds and greedy-placement errors.

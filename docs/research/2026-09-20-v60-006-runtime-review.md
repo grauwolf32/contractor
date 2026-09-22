@@ -3,7 +3,7 @@
 База: `8edeabf21194f5bba8dd258d53a072af713c630e`, отдельный worktree
 `review/v60-deep-review`, 20.09.2026. Проверка обнаружила один подтверждённый
 P2: Go/Python по-разному считали необязательный JSON escaping в Worker result.
-Коррекция вынесена в [V60-026](../../tasks/v60-026-worker-result-json-size-parity.yml)
+Коррекция вынесена в [V60-026](../../tasks/v60/v60-026-worker-result-json-size-parity.yml)
 с [отдельным разбором](2026-09-20-v60-026-worker-result-size-parity.md) и
 межъязыковой матрицей. Иные production-дефекты в проверенном объёме не установлены.
 

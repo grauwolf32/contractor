@@ -1,6 +1,6 @@
 # 21 — Allocation-scoped Podman execution sandbox
 
-Status: **Implemented; execution remains opt-in** (verified by [V31-008](../../tasks/v31-008-podman-release-gate.yml))
+Status: **Implemented; execution remains opt-in** (verified by [V31-008](../../tasks/v31/v31-008-podman-release-gate.yml))
 
 Depends on: [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -409,9 +409,9 @@ cases below to concrete tests. Unsupported host configurations and deferred
 skill/network features are not certified by this gate.
 
 Verification: the local direct prerequisite
-[V30-004](../../tasks/v30-004-local-direct-release-gate.yml), the Podman tasks
-[V31-001](../../tasks/v31-001-podman-contracts-settings-placement.yml) through
-[V31-008](../../tasks/v31-008-podman-release-gate.yml) and the
+[V30-004](../../tasks/v30/v30-004-local-direct-release-gate.yml), the Podman tasks
+[V31-001](../../tasks/v31/v31-001-podman-contracts-settings-placement.yml) through
+[V31-008](../../tasks/v31/v31-008-podman-release-gate.yml) and the
 [verification record](../../runtime/PODMAN.md#release-verification-v31-008)
 document the environment, effective policy and verification scope.
 

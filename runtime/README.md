@@ -46,7 +46,7 @@ filesystem release checks, including an independent writer process and real
 allocation cleanup retries. `make test-project-workspaces-e2e` additionally
 requires `CONTRACTOR_TEST_DATABASE_URL` for isolated PostgreSQL process tests.
 V30-004 passed these gates and `make verify` on 2026-09-06; evidence is recorded in
-[`tasks/v30-004-local-direct-release-gate.yml`](../tasks/v30-004-local-direct-release-gate.yml).
+[`tasks/v30/v30-004-local-direct-release-gate.yml`](../tasks/v30/v30-004-local-direct-release-gate.yml).
 Local/direct storage alone grants no command-execution authority. The opt-in
 Podman backend and `code-execution@1` now require complete positive startup
 probes; see [Podman policy](PODMAN.md).

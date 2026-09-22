@@ -1,6 +1,6 @@
 # 23 — Server Artifact blob backends
 
-Status: **Implemented — PostgreSQL/filesystem; S3 deferred** (verified by [V34-005](../../tasks/v34-005-blob-backends-release-gate.yml))
+Status: **Implemented — PostgreSQL/filesystem; S3 deferred** (verified by [V34-005](../../tasks/v34/v34-005-blob-backends-release-gate.yml))
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [18](18-run-and-workspace-lifecycle-controls.md), [19](19-audits.md).
@@ -206,7 +206,7 @@ stronger crash durability remain deferred. Git import is specified separately
 in [24](24-git-artifacts.md).
 
 Verification: the task files
-[V34-001](../../tasks/v34-001-blob-contracts-and-postgres.yml) through
-[V34-005](../../tasks/v34-005-blob-backends-release-gate.yml) record this
-increment; [V34-006](../../tasks/v34-006-overlay-export-size-contract.yml)
+[V34-001](../../tasks/v34/v34-001-blob-contracts-and-postgres.yml) through
+[V34-005](../../tasks/v34/v34-005-blob-backends-release-gate.yml) record this
+increment; [V34-006](../../tasks/v34/v34-006-overlay-export-size-contract.yml)
 records the overlay export limit contract.

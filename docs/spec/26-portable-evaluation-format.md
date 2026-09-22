@@ -1,6 +1,6 @@
 # 26 — Portable evaluation format and execution bindings
 
-Status: **Implemented in playground-v2 and offline-verified ([V41-008](../../tasks/v41-008-eval-format-release-gate.yml)).**
+Status: **Implemented in playground-v2 and offline-verified ([V41-008](../../tasks/v41/v41-008-eval-format-release-gate.yml)).**
 The managed Evals UX is owned by [30](30-managed-evals.md). Offline conformance
 does not prove instruction quality or a successful live target campaign.
 
@@ -596,8 +596,8 @@ quality; a model-quality evaluation is a separate task with its own explicit
 budget and environment.
 
 Verification: the gate result is recorded in
-[V41-008](../../tasks/v41-008-eval-format-release-gate.yml); instruction
+[V41-008](../../tasks/v41/v41-008-eval-format-release-gate.yml); instruction
 fixtures, provider bindings/pilot plan and the adoption decision are tracked by
-[V40-001](../../tasks/v40-001-agent-instruction-eval-fixtures.yml),
-[V40-002](../../tasks/v40-002-agent-instruction-paired-runner.yml) and
-[V40-003](../../tasks/v40-003-agent-instruction-eval-decision.yml).
+[V40-001](../../tasks/v40/v40-001-agent-instruction-eval-fixtures.yml),
+[V40-002](../../tasks/v40/v40-002-agent-instruction-paired-runner.yml) and
+[V40-003](../../tasks/v40/v40-003-agent-instruction-eval-decision.yml).

@@ -66,7 +66,7 @@ executed test names in `executed.json` under a fresh directory in
 `.local/audit-completion-gate/`. `executed.json` is written only after every
 check passes; old reports cannot make a later failed invocation pass. Use
 `python3 scripts/test-audit-completion-e2e.py --output-dir <directory>` to retain
-these artifacts elsewhere. [V39-007](../../tasks/v39-007-audit-completion-release-gate.yml)
+these artifacts elsewhere. [V39-007](../../tasks/v39/v39-007-audit-completion-release-gate.yml)
 records the implementation commit and verification evidence.
 
 ## Hardening gates

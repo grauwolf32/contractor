@@ -1,7 +1,7 @@
 # V60-012: Run deletion and Audit revisions
 
 Fix for PR-06 from the [first review pass](2026-09-20-project-review-first-pass.md).
-The [task](../../tasks/v60-012-run-deletion-audit-revisions.yml) defines acceptance;
+The [task](../../tasks/v60/v60-012-run-deletion-audit-revisions.yml) defines acceptance;
 actual commands and results are retained in the
 [evidence](../../tasks/evidence/v60-012.json).
 

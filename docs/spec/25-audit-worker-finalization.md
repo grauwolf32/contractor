@@ -1,6 +1,6 @@
 # Audit Worker completion contracts
 
-Status: **Implemented opt-in; deterministic release gate verified ([V39-007](../../tasks/v39-007-audit-completion-release-gate.yml)).**
+Status: **Implemented opt-in; deterministic release gate verified ([V39-007](../../tasks/v39/v39-007-audit-completion-release-gate.yml)).**
 
 Existing deployed Runs and immutable snapshots keep their current behavior until
 an explicitly versioned configuration selects this contract.

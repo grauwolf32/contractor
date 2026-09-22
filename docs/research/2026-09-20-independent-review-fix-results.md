@@ -6,17 +6,17 @@ commit, followed by separate verification metadata. Existing unrelated edits wer
 
 | Finding | Task | Implementation | Change |
 | --- | --- | --- | --- |
-| CR-01 | [V60-013](../../tasks/v60-013-runtime-operation-ownership.yml) | `9b37df76fe1e` | Retain Runtime operation ownership until cancellation cleanup completes |
-| CR-02 | [V60-014](../../tasks/v60-014-worker-handle-deep-copy.yml) | `bcdfd661c15b` | Detach WorkerHandle AgentCard copies without shared mutation |
-| CR-03 | [V60-015](../../tasks/v60-015-transaction-bound-credential-reads.yml) | `6cebf5a02734` | Bind placement and RuntimeConfig rebind credential reads to their transaction |
-| CR-04 | [V60-016](../../tasks/v60-016-resume-escalated-attempts.yml) | `74d3ede369ec` | Resume escalated Run attempts without reusing automatic escalation identity |
-| CR-05 | [V60-017](../../tasks/v60-017-http-raw-query-preservation.yml) | `0dd5bb1041ce` | Preserve caller-provided raw HTTP query bytes |
-| CR-06 | [V60-018](../../tasks/v60-018-session-generation-fence.yml) | `c7018285cc89` | Fence stale session responses from newer authentication state |
-| CR-07 | [V60-019](../../tasks/v60-019-audit-terminal-projection-refresh.yml) | `8d73ef8edce8` | Refresh Audit projections at their terminal transition |
-| CR-08 | [V60-020](../../tasks/v60-020-http-credential-picker-pages.yml) | `18a48d448014` | Make later Runtime credential pages selectable in HTTP target editor |
-| CR-09 | [V60-021](../../tasks/v60-021-encoded-client-route-identities.yml) | `cf21c0763994` | Serve encoded valid client-route identities on direct navigation |
-| CR-10 | [V60-022](../../tasks/v60-022-download-file-permissions.yml) | `e7f679a493e6` | Preserve private file permissions on forced CLI downloads |
-| CR-11 | [V60-023](../../tasks/v60-023-cli-positional-separator.yml) | `033cccd4be01` | Retain positional protection after CLI flag reordering |
+| CR-01 | [V60-013](../../tasks/v60/v60-013-runtime-operation-ownership.yml) | `9b37df76fe1e` | Retain Runtime operation ownership until cancellation cleanup completes |
+| CR-02 | [V60-014](../../tasks/v60/v60-014-worker-handle-deep-copy.yml) | `bcdfd661c15b` | Detach WorkerHandle AgentCard copies without shared mutation |
+| CR-03 | [V60-015](../../tasks/v60/v60-015-transaction-bound-credential-reads.yml) | `6cebf5a02734` | Bind placement and RuntimeConfig rebind credential reads to their transaction |
+| CR-04 | [V60-016](../../tasks/v60/v60-016-resume-escalated-attempts.yml) | `74d3ede369ec` | Resume escalated Run attempts without reusing automatic escalation identity |
+| CR-05 | [V60-017](../../tasks/v60/v60-017-http-raw-query-preservation.yml) | `0dd5bb1041ce` | Preserve caller-provided raw HTTP query bytes |
+| CR-06 | [V60-018](../../tasks/v60/v60-018-session-generation-fence.yml) | `c7018285cc89` | Fence stale session responses from newer authentication state |
+| CR-07 | [V60-019](../../tasks/v60/v60-019-audit-terminal-projection-refresh.yml) | `8d73ef8edce8` | Refresh Audit projections at their terminal transition |
+| CR-08 | [V60-020](../../tasks/v60/v60-020-http-credential-picker-pages.yml) | `18a48d448014` | Make later Runtime credential pages selectable in HTTP target editor |
+| CR-09 | [V60-021](../../tasks/v60/v60-021-encoded-client-route-identities.yml) | `cf21c0763994` | Serve encoded valid client-route identities on direct navigation |
+| CR-10 | [V60-022](../../tasks/v60/v60-022-download-file-permissions.yml) | `e7f679a493e6` | Preserve private file permissions on forced CLI downloads |
+| CR-11 | [V60-023](../../tasks/v60/v60-023-cli-positional-separator.yml) | `033cccd4be01` | Retain positional protection after CLI flag reordering |
 
 The Runtime fix retains filesystem ownership through cancellation and joins validator
 process groups before cleanup. Scan, LikeC4 and OpenAPI reuse one bounded asynchronous
@@ -72,7 +72,7 @@ outside this corrective wave.
 
 ## Follow-up
 
-[V60-025](../../tasks/v60-025-review-readability-followups.yml) was completed in a subsequent
+[V60-025](../../tasks/v60/v60-025-review-readability-followups.yml) was completed in a subsequent
 step: Audit sections and Runtime batch orchestration were separated, and RuntimeConfig
 merge assignment became type-checked. See the [readability results](2026-09-20-review-readability-results.md).
 Earlier review-track tasks V60-005–V60-010 retain their own status and acceptance requirements.

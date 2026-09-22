@@ -1,6 +1,6 @@
 # 30 — Independent managed Evals and external producers
 
-Status: **Implemented and deterministically verified ([V38-010](../../tasks/v38-010-eval-release-gate.yml)): native setup, comparison/review, optional Playground client and independent process acceptance.**
+Status: **Implemented and deterministically verified ([V38-010](../../tasks/v38/v38-010-eval-release-gate.yml)): native setup, comparison/review, optional Playground client and independent process acceptance.**
 
 [User guide](../guides/evals.md) · [Release checks](../testing/evals-release-gate.md)
 

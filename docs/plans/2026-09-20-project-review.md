@@ -154,12 +154,12 @@ do not require another full Runtime/eval run.
 
 | Finding | Discovery | Task |
 | --- | --- | --- |
-| PR-01 | The 2 KiB login raw-body cap cannot fit a supported 1024-byte password after JSON escaping; direct Login succeeds, HTTP returns 400. | [V60-002](../../tasks/v60-002-login-json-body-bound.yml): justified 8 KiB raw cap and boundary HTTP tests. |
-| PR-02 | Provenance handler can label new data with old Audit/finding revisions during concurrent mutation. | [V60-003](../../tasks/v60-003-provenance-consistent-reads.yml): revision fence and regression interleaving. |
+| PR-01 | The 2 KiB login raw-body cap cannot fit a supported 1024-byte password after JSON escaping; direct Login succeeds, HTTP returns 400. | [V60-002](../../tasks/v60/v60-002-login-json-body-bound.yml): justified 8 KiB raw cap and boundary HTTP tests. |
+| PR-02 | Provenance handler can label new data with old Audit/finding revisions during concurrent mutation. | [V60-003](../../tasks/v60/v60-003-provenance-consistent-reads.yml): revision fence and regression interleaving. |
 | PR-03 | Provenance hydration requests a receipt from the pool while prior rows hold a connection; confirmed on PostgreSQL with pool=1. | V60-003: close rows before hydration and retain reproduction with real PostgreSQL. |
-| PR-04 | Audit completion gate redacts the password across the entire JSON line. CI password `contractor` corrupts Package; `pass` corrupts Action; valid results fail the gate. | [V60-004](../../tasks/v60-004-audit-gate-event-redaction.yml): separate identity/status from redacted diagnostics and check their composition. |
-| PR-05 | After V57-004, the mandatory Runtime matrix refers to the old name of a strengthened test; the real gate rejects its absence after 331 successful Python tests. | [V60-011](../../tasks/v60-011-audit-gate-runtime-matrix.yml): preserve required behavior under the current name, check test declarations and run the full gate. |
-| PR-06 | Deleting a source Run changes retained provenance without incrementing Audit revision; old pins remain valid. | [V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml), complete: atomic invalidation of all affected Audits; import/delete/purge and immutable report retry verified on PostgreSQL. |
+| PR-04 | Audit completion gate redacts the password across the entire JSON line. CI password `contractor` corrupts Package; `pass` corrupts Action; valid results fail the gate. | [V60-004](../../tasks/v60/v60-004-audit-gate-event-redaction.yml): separate identity/status from redacted diagnostics and check their composition. |
+| PR-05 | After V57-004, the mandatory Runtime matrix refers to the old name of a strengthened test; the real gate rejects its absence after 331 successful Python tests. | [V60-011](../../tasks/v60/v60-011-audit-gate-runtime-matrix.yml): preserve required behavior under the current name, check test declarations and run the full gate. |
+| PR-06 | Deleting a source Run changes retained provenance without incrementing Audit revision; old pins remain valid. | [V60-012](../../tasks/v60/v60-012-run-deletion-audit-revisions.yml), complete: atomic invalidation of all affected Audits; import/delete/purge and immutable report retry verified on PostgreSQL. |
 
 V60-012 was closed with a local fix: Run lock during import, ordered Audit locks
 during deletion and an atomic revision bump. The report timestamp is preserved

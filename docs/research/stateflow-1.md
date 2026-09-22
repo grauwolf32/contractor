@@ -570,7 +570,7 @@ session-lifecycle operations are proposed:
 
 Implementation of the session-mode prerequisite is tracked independently from
 the stateflow experiment in
-[`V19-001`](../../tasks/v19-001-worker-session-modes.yml).
+[`V19-001`](../../tasks/v19/v19-001-worker-session-modes.yml).
 
 ```text
 Scheduler / Control Plane

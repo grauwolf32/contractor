@@ -954,7 +954,7 @@
       "docs/research/2026-09-19-a2a-connection-reuse-decision.md",
       "docs/research/README.md",
       "tasks/evidence/v57-005.json",
-      "tasks/v57-005-a2a-connection-reuse-experiment.yml",
+      "tasks/v57/v57-005-a2a-connection-reuse-experiment.yml",
       "tasks/index.yml"
     ],
     "result": "Only test fixtures, research, evidence and task metadata; no production settings, dependencies or clients changed."

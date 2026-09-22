@@ -179,133 +179,133 @@
       "task_id": "V37-010",
       "status": "completed",
       "implementation_commit": "1b45fc52bc93c1a3ed53d3081ab243902a1a398a",
-      "path": "tasks/v37-010-audit-review-workspace.yml"
+      "path": "tasks/v37/v37-010-audit-review-workspace.yml"
     },
     {
       "task_id": "V37-011",
       "status": "completed",
       "implementation_commit": "efbf7a7f68dbaf5e093c7d29ac148d1b2956ce88",
-      "path": "tasks/v37-011-operations-progressive-forms.yml"
+      "path": "tasks/v37/v37-011-operations-progressive-forms.yml"
     },
     {
       "task_id": "V37-012",
       "status": "completed",
       "implementation_commit": "efa7d5dab88c9b200bb7126c2ad6039a544cecc7",
-      "path": "tasks/v37-012-ui-journey-verification.yml"
+      "path": "tasks/v37/v37-012-ui-journey-verification.yml"
     },
     {
       "task_id": "V38-007",
       "status": "completed",
       "implementation_commit": "d2a843d32b1653471430d5307dbb73ed11e9ffa2",
-      "path": "tasks/v38-007-eval-setup-ui.yml"
+      "path": "tasks/v38/v38-007-eval-setup-ui.yml"
     },
     {
       "task_id": "V38-008",
       "status": "completed",
       "implementation_commit": "a5aaa119d99b842ab84e2a3a41923f3cd4078d47",
-      "path": "tasks/v38-008-eval-comparison-ui.yml"
+      "path": "tasks/v38/v38-008-eval-comparison-ui.yml"
     },
     {
       "task_id": "V38-009",
       "status": "completed",
       "implementation_commit": "d1f7e970e3db12a231bffca565748d1293cbed6d",
-      "path": "tasks/v38-009-playground-eval-client.yml"
+      "path": "tasks/v38/v38-009-playground-eval-client.yml"
     },
     {
       "task_id": "V38-010",
       "status": "completed",
       "implementation_commit": "f3d00ccda97df0a33bfc13764ae8b68d6b868564",
-      "path": "tasks/v38-010-eval-release-gate.yml"
+      "path": "tasks/v38/v38-010-eval-release-gate.yml"
     },
     {
       "task_id": "V40-002",
       "status": "in_progress",
       "implementation_commit": null,
-      "path": "tasks/v40-002-agent-instruction-paired-runner.yml"
+      "path": "tasks/v40/v40-002-agent-instruction-paired-runner.yml"
     },
     {
       "task_id": "V55-006",
       "status": "completed",
       "implementation_commit": null,
-      "path": "tasks/v55-006-scan-workflows-release.yml"
+      "path": "tasks/v55/v55-006-scan-workflows-release.yml"
     },
     {
       "task_id": "V55-007",
       "status": "completed",
       "implementation_commit": "a51c6d938497ce7fb1763931a6126ec664c43f20",
-      "path": "tasks/v55-007-openapi-request-set.yml"
+      "path": "tasks/v55/v55-007-openapi-request-set.yml"
     },
     {
       "task_id": "V55-008",
       "status": "completed",
       "implementation_commit": null,
-      "path": "tasks/v55-008-deterministic-scan-planner.yml"
+      "path": "tasks/v55/v55-008-deterministic-scan-planner.yml"
     },
     {
       "task_id": "V55-009",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v55-009-scan-candidate-ranking.yml"
+      "path": "tasks/v55/v55-009-scan-candidate-ranking.yml"
     },
     {
       "task_id": "V55-010",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v55-010-katana-scan-adapter.yml"
+      "path": "tasks/v55/v55-010-katana-scan-adapter.yml"
     },
     {
       "task_id": "V61-001",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-001-toolset-configuration-contracts.yml"
+      "path": "tasks/v61/v61-001-toolset-configuration-contracts.yml"
     },
     {
       "task_id": "V61-002",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-002-toolset-runtime-config-store.yml"
+      "path": "tasks/v61/v61-002-toolset-runtime-config-store.yml"
     },
     {
       "task_id": "V61-003",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-003-run-toolset-pinning-allocation.yml"
+      "path": "tasks/v61/v61-003-run-toolset-pinning-allocation.yml"
     },
     {
       "task_id": "V61-004",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-004-allocation-tool-discovery.yml"
+      "path": "tasks/v61/v61-004-allocation-tool-discovery.yml"
     },
     {
       "task_id": "V61-005",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-005-mcp-session-lifecycle.yml"
+      "path": "tasks/v61/v61-005-mcp-session-lifecycle.yml"
     },
     {
       "task_id": "V61-006",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-006-mcp-tools-adk.yml"
+      "path": "tasks/v61/v61-006-mcp-tools-adk.yml"
     },
     {
       "task_id": "V61-007",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-007-toolset-configuration-read-api.yml"
+      "path": "tasks/v61/v61-007-toolset-configuration-read-api.yml"
     },
     {
       "task_id": "V61-008",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-008-toolset-connections-ui.yml"
+      "path": "tasks/v61/v61-008-toolset-connections-ui.yml"
     },
     {
       "task_id": "V61-009",
       "status": "pending",
       "implementation_commit": null,
-      "path": "tasks/v61-009-toolset-configuration-release.yml"
+      "path": "tasks/v61/v61-009-toolset-configuration-release.yml"
     }
   ],
   "accepted_or_rejected_hypotheses": [

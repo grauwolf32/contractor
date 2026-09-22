@@ -178,7 +178,7 @@
     "method": "Isolated task worktrees merged into one branch; V58-013 concurrent UI release included, source conflict only in task index resolved by retaining both task groups; full UI checks repeated.",
     "target": "local main",
     "preserve": "Uncommitted architecture/toolset planning files are not part of V59 commits.",
-    "completion_record": "tasks/v59-005-verification-and-integration.yml records actual main integration and full implementation hash in a subsequent metadata commit."
+    "completion_record": "tasks/v59/v59-005-verification-and-integration.yml records actual main integration and full implementation hash in a subsequent metadata commit."
   },
   "limitations": [
     "Full Go suite without database environment may skip database-gated tests; separately listed targeted packages and Audit pagination gate ran with real isolated PostgreSQL.",

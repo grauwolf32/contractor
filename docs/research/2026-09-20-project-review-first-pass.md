@@ -42,7 +42,7 @@ bytes. HTTP with compact JSON serialization produces:
 
 The largest standard compact serialization for a permitted 64-character ASCII
 username and 1024 single-byte control characters occupies
-`29 + 64 + 6 × 1024 = 6237` bytes. [V60-002](../../tasks/v60-002-login-json-body-bound.yml)
+`29 + 64 + 6 × 1024 = 6237` bytes. [V60-002](../../tasks/v60/v60-002-login-json-body-bound.yml)
 therefore raises only the raw-body cap to a justified 8 KiB while preserving the
 decoded password bound. This does not promise acceptance of unlimited JSON
 whitespace. Regression coverage must also check overflow, malformed/unknown
@@ -63,7 +63,7 @@ after mutation to `10/5`. The expected `409` was absent.
 
 This proves HTTP orchestration behavior for the specified interleaving; it is
 not a measurement of PostgreSQL race probability. The fix belongs to
-[V60-003](../../tasks/v60-003-provenance-consistent-reads.yml): consistency checking
+[V60-003](../../tasks/v60/v60-003-provenance-consistent-reads.yml): consistency checking
 covers reading and hydration while preserving the existing cursor contract.
 
 ### PR-03 — P2: provenance waits for a second connection while holding the first
@@ -97,7 +97,7 @@ CI password, the verifier reports mandatory cases missing. With a long password
 that does not match metadata, the same matrix passes. This is a deterministic
 evidence-processing defect; the investigation did not execute a full GitHub Actions run.
 
-[V60-004](../../tasks/v60-004-audit-gate-event-redaction.yml) must preserve framework
+[V60-004](../../tasks/v60/v60-004-audit-gate-event-redaction.yml) must preserve framework
 identity/status and redact diagnostic data. Weakening required cases or changing
 the CI password is not a fix. Tests must compose subprocess capture with the
 verifier, including secret-free logs, skip/fail/missing/malformed and nonzero exit.
@@ -113,7 +113,7 @@ History at `7f553b22` shows that the test was renamed to
 `test_audit_typed_assembly_preserves_reminder_publication_and_refs_without_model_decode`;
 its previous assertions were preserved and strengthened, but the matrix was not updated.
 
-This is a V57-004 integration omission. [V60-011](../../tasks/v60-011-audit-gate-runtime-matrix.yml)
+This is a V57-004 integration omission. [V60-011](../../tasks/v60/v60-011-audit-gate-runtime-matrix.yml)
 preserves the required minimum of `1` for the current strengthened test. A new
 offline AST check compares the matrix with real Python test declarations: it
 fails on the old entry and passes after correction. Synthetic JUnit probes copied
@@ -133,7 +133,7 @@ revision remained `2` and finding revision `1`. This is a separate upstream
 invalidation defect: V60-003's comparison of correctly captured revisions cannot
 detect a mutation that does not itself advance the revision.
 
-[V60-012](../../tasks/v60-012-run-deletion-audit-revisions.yml) is complete:
+[V60-012](../../tasks/v60/v60-012-run-deletion-audit-revisions.yml) is complete:
 managed executions, native receipts and all destination Audit holds participate
 in atomic invalidation. Lock ordering is coordinated with import/purge; rollback,
 HTTP pins/cursor and report retry were checked on PostgreSQL. `Attempt.RunDeleted`
@@ -227,7 +227,7 @@ ID, while the holds table is keyed by `(receipt_id, audit_id)`.
 This is a confirmed implementation limitation. No explicit accepted requirement
 for one receipt in multiple Audits was found: existing support for multiple
 Audits and compatible import does not fully define this edge case.
-[V60-008](../../tasks/v60-008-audit-product-journeys-review.yml) must clarify the
+[V60-008](../../tasks/v60/v60-008-audit-product-journeys-review.yml) must clarify the
 contract, expected HTTP outcome and safe identity/migration strategy, then create
 a correction task. V60-012 checks multiple destination Audits for different
 receipts from one Run and does not claim to fix this collision.

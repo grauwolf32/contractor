@@ -158,7 +158,7 @@ mechanisms:
 
   worker_session_modes:
     status: specified
-    owned_by: tasks/v19-001-worker-session-modes.yml
+    owned_by: tasks/v19/v19-001-worker-session-modes.yml
     intended_values: [isolated, shared]
     current_gap: V19-001 is pending; current allocations retain the legacy shared-session behavior.
 

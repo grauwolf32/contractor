@@ -1,6 +1,6 @@
 # OpenAPI Audit scan adapter
 
-Status: **Released and verified ([V62-009](../../tasks/v62-009-audit-openapi-scan-profile.yml)). Prepare-role execution that would generate the OpenAPI is specified in [19 §4.4](19-audits.md#44-preparation-contract) but not yet delivered, so prepare profiles return `preparation_unsupported`.**
+Status: **Released and verified ([V62-009](../../tasks/v62/v62-009-audit-openapi-scan-profile.yml)). Prepare-role execution that would generate the OpenAPI is specified in [19 §4.4](19-audits.md#44-preparation-contract) but not yet delivered, so prepare profiles return `preparation_unsupported`.**
 
 ## Delivery order
 

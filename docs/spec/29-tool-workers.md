@@ -1,6 +1,6 @@
 # 29 — Deterministic tool Workers
 
-Status: **Implemented**; [V55-003](../../tasks/v55-003-model-free-tool-worker.yml) records verification.
+Status: **Implemented**; [V55-003](../../tasks/v55/v55-003-model-free-tool-worker.yml) records verification.
 
 ## Template and arguments
 

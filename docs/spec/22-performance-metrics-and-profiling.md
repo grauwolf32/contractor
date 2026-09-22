@@ -1,6 +1,6 @@
 # 22 — Operations performance metrics and Go profiling
 
-Status: **Implemented** (verified by [V32-008](../../tasks/v32-008-performance-release-gate.yml))
+Status: **Implemented** (verified by [V32-008](../../tasks/v32/v32-008-performance-release-gate.yml))
 
 Depends on: [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -10,8 +10,8 @@ Depends on: [02](02-runtime-and-a2a.md),
 ## Implementation status
 
 Verification: the task files
-[V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml) through
-[V32-008](../../tasks/v32-008-performance-release-gate.yml) record the
+[V32-001](../../tasks/v32/v32-001-performance-contracts-and-settings.yml) through
+[V32-008](../../tasks/v32/v32-008-performance-release-gate.yml) record the
 implementation and release-gate evidence; see
 [Verification and delivery](#verification-and-delivery). Allocation performance
 policy is a separate forward-only migration from Run resumption. Historical
@@ -455,14 +455,14 @@ go tool pprof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
 ## Verification and delivery
 
 Verification: the task files
-[V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml),
-[V32-002](../../tasks/v32-002-server-performance-collection.yml),
-[V32-003](../../tasks/v32-003-postgres-performance-history.yml),
-[V32-004](../../tasks/v32-004-allocation-resource-sampling.yml),
-[V32-005](../../tasks/v32-005-performance-api-and-allocation-history.yml),
-[V32-006](../../tasks/v32-006-operations-performance-ui.yml),
-[V32-007](../../tasks/v32-007-opt-in-go-profiling.yml) and
-[V32-008](../../tasks/v32-008-performance-release-gate.yml) record the
+[V32-001](../../tasks/v32/v32-001-performance-contracts-and-settings.yml),
+[V32-002](../../tasks/v32/v32-002-server-performance-collection.yml),
+[V32-003](../../tasks/v32/v32-003-postgres-performance-history.yml),
+[V32-004](../../tasks/v32/v32-004-allocation-resource-sampling.yml),
+[V32-005](../../tasks/v32/v32-005-performance-api-and-allocation-history.yml),
+[V32-006](../../tasks/v32/v32-006-operations-performance-ui.yml),
+[V32-007](../../tasks/v32/v32-007-opt-in-go-profiling.yml) and
+[V32-008](../../tasks/v32/v32-008-performance-release-gate.yml) record the
 implementation, dependencies and release-gate evidence.
 
 Required acceptance:

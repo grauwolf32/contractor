@@ -1,7 +1,7 @@
 # Contractor UI: user stories and improvement plan
 
 Status: **Implemented for US-01 through US-11; separate follow-up scope
-remains** (verified by [V37-012](../../tasks/v37-012-ui-journey-verification.yml))
+remains** (verified by [V37-012](../../tasks/v37/v37-012-ui-journey-verification.yml))
 
 This document records user goals and usability criteria. The
 [UI specification](06-server-ui-and-operations.md) describes current behavior
@@ -227,33 +227,33 @@ policy of "after the first releasable slice".
 
 | Wave | Task | Outcome | Rationale |
 | --- | --- | --- | --- |
-| 1 | [V37-001](../../tasks/v37-001-accessible-dialogs.yml) | Shared Dialog, focus management and nested forms | UX-05 |
-| 1 | [V37-002](../../tasks/v37-002-run-draft-continuity.yml) | Drafts within the current tab, local upload to an input slot and Git integration | UX-02 |
-| 1 | [V37-003](../../tasks/v37-003-project-workflow-primary-actions.yml) | Add-materials and launch actions visible at the top of the page | UX-01 |
-| 1 | [V37-004](../../tasks/v37-004-input-suggestion-review.yml) | Explicit review of inputs suggested by format | UX-03 |
-| 1 | [V37-005](../../tasks/v37-005-audit-action-confirmations.yml) | Cancel/Delete Audit confirmations | UX-04 |
-| 2 | [V37-006](../../tasks/v37-006-catalog-discovery-contracts.yml) | Metadata and bounded search, version and usage-link APIs | UX-06 |
-| 2 | [V37-007](../../tasks/v37-007-catalog-discovery-ui.yml) | Workflow selection by purpose, agent version selection and Where used | UX-06 |
-| 2 | [V37-008](../../tasks/v37-008-run-repeat-and-next-actions.yml) | Prefilled repeat and next steps for errors/waits | UX-07 |
-| 2 | [V37-009](../../tasks/v37-009-primary-result-preview.yml) | Primary results and preview in one action | UX-08 |
-| 3 | [V37-010](../../tasks/v37-010-audit-review-workspace.yml) | Audit summary and decision work queue | UX-09 |
-| 3 | [V37-011](../../tasks/v37-011-operations-progressive-forms.yml) | Operations overview, forms opened by action and the impact of changes | UX-10 |
-| V37 acceptance | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
-| Separate design | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Selected native experiment and independent producer contract | UX-11 / US-10 |
-| V38 acceptance | [V38-010](../../tasks/v38-010-eval-release-gate.yml) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
+| 1 | [V37-001](../../tasks/v37/v37-001-accessible-dialogs.yml) | Shared Dialog, focus management and nested forms | UX-05 |
+| 1 | [V37-002](../../tasks/v37/v37-002-run-draft-continuity.yml) | Drafts within the current tab, local upload to an input slot and Git integration | UX-02 |
+| 1 | [V37-003](../../tasks/v37/v37-003-project-workflow-primary-actions.yml) | Add-materials and launch actions visible at the top of the page | UX-01 |
+| 1 | [V37-004](../../tasks/v37/v37-004-input-suggestion-review.yml) | Explicit review of inputs suggested by format | UX-03 |
+| 1 | [V37-005](../../tasks/v37/v37-005-audit-action-confirmations.yml) | Cancel/Delete Audit confirmations | UX-04 |
+| 2 | [V37-006](../../tasks/v37/v37-006-catalog-discovery-contracts.yml) | Metadata and bounded search, version and usage-link APIs | UX-06 |
+| 2 | [V37-007](../../tasks/v37/v37-007-catalog-discovery-ui.yml) | Workflow selection by purpose, agent version selection and Where used | UX-06 |
+| 2 | [V37-008](../../tasks/v37/v37-008-run-repeat-and-next-actions.yml) | Prefilled repeat and next steps for errors/waits | UX-07 |
+| 2 | [V37-009](../../tasks/v37/v37-009-primary-result-preview.yml) | Primary results and preview in one action | UX-08 |
+| 3 | [V37-010](../../tasks/v37/v37-010-audit-review-workspace.yml) | Audit summary and decision work queue | UX-09 |
+| 3 | [V37-011](../../tasks/v37/v37-011-operations-progressive-forms.yml) | Operations overview, forms opened by action and the impact of changes | UX-10 |
+| V37 acceptance | [V37-012](../../tasks/v37/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
+| Separate design | [V38-001](../../tasks/v38/v38-001-evals-experience-contract.yml) | Selected native experiment and independent producer contract | UX-11 / US-10 |
+| V38 acceptance | [V38-010](../../tasks/v38/v38-010-eval-release-gate.yml) | Full Evals setup, launch, review, comparison and release verification | UX-11 / US-10 |
 | Project sections | [Project section plan](../plans/2026-09-project-section-navigation.md) | Project Overview and independent section screens | US-01 |
 
-Git Settings/import ([V35-004](../../tasks/v35-004-git-settings-and-import-ui.yml))
-and the Performance UI ([V32-006](../../tasks/v32-006-operations-performance-ui.yml))
+Git Settings/import ([V35-004](../../tasks/v35/v35-004-git-settings-and-import-ui.yml))
+and the Performance UI ([V32-006](../../tasks/v32/v32-006-operations-performance-ui.yml))
 are owned by their own specifications; the stories reuse them without
 duplication. Journey verification does not establish performance at production
 inventory sizes.
 
 ## Verification
 
-Verification: [V37-012](../../tasks/v37-012-ui-journey-verification.yml) with
+Verification: [V37-012](../../tasks/v37/v37-012-ui-journey-verification.yml) with
 its [acceptance report](../plans/2026-09-19-v37-journey-verification.md), and
-[V38-010](../../tasks/v38-010-eval-release-gate.yml) with its
+[V38-010](../../tasks/v38/v38-010-eval-release-gate.yml) with its
 [acceptance record](../plans/2026-09-20-managed-evals-ui.md), record connected
 browser journeys, real Server/Runtime/PostgreSQL and API checks, restart and
 response-loss recovery, owner isolation and desktop/mobile viewports. Fixture

@@ -1,6 +1,6 @@
 # 24 — Git repositories as Artifact inputs
 
-Status: **Implemented** (verified by [V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml))
+Status: **Implemented** (verified by [V35-005](../../tasks/v35/v35-005-git-artifacts-release-gate.yml))
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [17](17-projects-and-queue.md), [23](23-artifact-blob-backends.md).
@@ -208,8 +208,8 @@ TLS, advertisement/object/delta caps, malformed packs, unsafe content and
 cancellation. The importer must also complete in a read-only container with no
 writable checkout or temporary directory.
 
-Verification: [V35-002](../../tasks/v35-002-bounded-memory-git-snapshots.yml)
-and [V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml) record the
+Verification: [V35-002](../../tasks/v35/v35-002-bounded-memory-git-snapshots.yml)
+and [V35-005](../../tasks/v35/v35-005-git-artifacts-release-gate.yml) record the
 reader evidence and measured memory, together with the
 [Git artifacts guide](../guides/git-artifacts.md).
 
@@ -255,11 +255,11 @@ containing authentication material.
 ## Delivery and verification
 
 Verification: the task files
-[V35-001](../../tasks/v35-001-git-key-settings-and-contracts.yml),
-[V35-002](../../tasks/v35-002-bounded-memory-git-snapshots.yml),
-[V35-003](../../tasks/v35-003-git-artifact-publication-and-provenance.yml),
-[V35-004](../../tasks/v35-004-git-settings-and-import-ui.yml) and
-[V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml) record key
+[V35-001](../../tasks/v35/v35-001-git-key-settings-and-contracts.yml),
+[V35-002](../../tasks/v35/v35-002-bounded-memory-git-snapshots.yml),
+[V35-003](../../tasks/v35/v35-003-git-artifact-publication-and-provenance.yml),
+[V35-004](../../tasks/v35/v35-004-git-settings-and-import-ui.yml) and
+[V35-005](../../tasks/v35/v35-005-git-artifacts-release-gate.yml) record key
 storage, the bounded reader, import API/provenance, the UI and the release gate.
 
 The gate must demonstrate public HTTPS and private SSH imports, key replacement

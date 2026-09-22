@@ -180,18 +180,18 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 
 | Task | Deliverable | Depends on within V62 |
 | --- | --- | --- |
-| [009](../../tasks/v62-009-audit-openapi-scan-profile.yml) | **Accepted:** supplied OpenAPI, SQLMap requests, Nuclei fixed URLs, coverage and retry contract | — |
-| [001](../../tasks/v62-001-audit-composition-contracts.yml) | **Accepted:** preparation contracts, current schema and shared fixtures | 009 |
-| [002](../../tasks/v62-002-audit-preparation-store.yml) | Durable preparation state, executions, retention and migration | 001 |
-| [003](../../tasks/v62-003-audit-preparation-controller.yml) | Prepare Runs, recovery and minimal public controls before a Round exists | 002 |
-| [004](../../tasks/v62-004-audit-prepared-inventory.yml) | Atomic generated inventory and a profile using existing source-to-OpenAPI Workflow | 003 |
-| [005](../../tasks/v62-005-audit-round-result-snapshots.yml) | **Deferred:** settled round snapshots | 004 |
-| [006](../../tasks/v62-006-audit-retained-dependencies.yml) | **Deferred:** cross-round item dependencies | 004 |
-| [007](../../tasks/v62-007-audit-check-routing.yml) | **Deferred:** proposed-check routing | 005, 006 |
-| [008](../../tasks/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
-| [010](../../tasks/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
-| [011](../../tasks/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
-| [012](../../tasks/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
+| [009](../../tasks/v62/v62-009-audit-openapi-scan-profile.yml) | **Accepted:** supplied OpenAPI, SQLMap requests, Nuclei fixed URLs, coverage and retry contract | — |
+| [001](../../tasks/v62/v62-001-audit-composition-contracts.yml) | **Accepted:** preparation contracts, current schema and shared fixtures | 009 |
+| [002](../../tasks/v62/v62-002-audit-preparation-store.yml) | Durable preparation state, executions, retention and migration | 001 |
+| [003](../../tasks/v62/v62-003-audit-preparation-controller.yml) | Prepare Runs, recovery and minimal public controls before a Round exists | 002 |
+| [004](../../tasks/v62/v62-004-audit-prepared-inventory.yml) | Atomic generated inventory and a profile using existing source-to-OpenAPI Workflow | 003 |
+| [005](../../tasks/v62/v62-005-audit-round-result-snapshots.yml) | **Deferred:** settled round snapshots | 004 |
+| [006](../../tasks/v62/v62-006-audit-retained-dependencies.yml) | **Deferred:** cross-round item dependencies | 004 |
+| [007](../../tasks/v62/v62-007-audit-check-routing.yml) | **Deferred:** proposed-check routing | 005, 006 |
+| [008](../../tasks/v62/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
+| [010](../../tasks/v62/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
+| [011](../../tasks/v62/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
+| [012](../../tasks/v62/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
 
 Deferred tasks retain their proposed scope but are excluded from eligible work.
 Existing in-progress tasks outside V62 retain their owners and scope.

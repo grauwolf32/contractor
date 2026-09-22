@@ -129,12 +129,12 @@ membership, scope and missing-data semantics. The portable evaluator in
 verification evidence; neither proves live model quality.
 
 Verification: the UI journey gate
-[V37-012](../../tasks/v37-012-ui-journey-verification.yml), the follow-up
-tasks [V46-001](../../tasks/v46-001-run-draft-submission-generation.yml)
-through [V46-004](../../tasks/v46-004-catalog-previous-page.yml), the
-Performance gate [V32-008](../../tasks/v32-008-performance-release-gate.yml),
-the Git gate [V35-005](../../tasks/v35-005-git-artifacts-release-gate.yml) and
-the Evals gate [V38-010](../../tasks/v38-010-eval-release-gate.yml) record the
+[V37-012](../../tasks/v37/v37-012-ui-journey-verification.yml), the follow-up
+tasks [V46-001](../../tasks/v46/v46-001-run-draft-submission-generation.yml)
+through [V46-004](../../tasks/v46/v46-004-catalog-previous-page.yml), the
+Performance gate [V32-008](../../tasks/v32/v32-008-performance-release-gate.yml),
+the Git gate [V35-005](../../tasks/v35/v35-005-git-artifacts-release-gate.yml) and
+the Evals gate [V38-010](../../tasks/v38/v38-010-eval-release-gate.yml) record the
 implementation and verification boundaries of this surface.
 
 ## Deployment boundary
