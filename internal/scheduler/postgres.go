@@ -84,7 +84,9 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		if err != nil {
 			return err
 		}
-		if err := lockRunState(ctx, tx, execution.RunID, runstore.RunRunning); err != nil {
+		// A Runtime Agent may deliver its result while the Run waits for a
+		// model gateway on another route; the result commit clears the wait.
+		if err := lockRunState(ctx, tx, execution.RunID, runstore.RunRunning, runstore.RunWaiting); err != nil {
 			return err
 		}
 		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
@@ -176,6 +178,10 @@ func (p *PostgresPersistence) CommitResultProgression(
 		); err != nil {
 			return err
 		}
+		// A completed invocation no longer waits for its model gateway.
+		if err := clearStageGatewayWaits(ctx, tx, value.RunID); err != nil {
+			return err
+		}
 
 		if value.Result.Outcome == contracts.StageSucceeded {
 			artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
@@ -244,11 +250,7 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		}
 		// A terminated invocation cannot continue recovering its model. Drop
 		// its waits before admitting any configured follow-up Stage.
-		if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, value.RunID); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE workflow_runs SET state='running',updated_at=clock_timestamp()
-WHERE run_id=$1 AND state='waiting'`, value.RunID); err != nil {
+		if err := clearStageGatewayWaits(ctx, tx, value.RunID); err != nil {
 			return err
 		}
 
@@ -260,6 +262,18 @@ WHERE run_id=$1 AND state='waiting'`, value.RunID); err != nil {
 		}
 		return commitTerminalRun(ctx, tx, store, value.RunID, nil, value.Progression)
 	})
+}
+
+// clearStageGatewayWaits drops the finished Stage's gateway recovery waits and
+// returns a waiting Run to running before any follow-up Stage or terminal
+// transition is committed in the same transaction.
+func clearStageGatewayWaits(ctx context.Context, tx pgx.Tx, runID string) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, runID); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `UPDATE workflow_runs SET state='running',updated_at=clock_timestamp()
+WHERE run_id=$1 AND state='waiting'`, runID)
+	return err
 }
 
 func (p *PostgresPersistence) AcceptResultDuringCancellation(
