@@ -439,8 +439,14 @@ func validateArtifactRouteNames(r *http.Request) error {
 	return validatePublicArtifactName(r.PathValue("name"))
 }
 
+// writeArtifactBytes serves stored artifact bytes under their recorded media
+// type; the media type is caller-controlled, so browsers must neither sniff
+// nor render the payload in the API origin.
 func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 	w.Header().Set("Content-Type", result.Payload.MediaType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+	w.Header().Set("Content-Disposition", "attachment")
 	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
 	w.WriteHeader(http.StatusOK)

@@ -869,9 +869,5 @@ func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", result.Payload.MediaType)
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(result.Payload.Data)
+	writeArtifactBytes(w, result)
 }
