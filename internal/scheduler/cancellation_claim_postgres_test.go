@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -119,5 +120,26 @@ func (s *cancellationClaimStore) ListStageExecutions(ctx context.Context, runID 
 		return nil, ctx.Err()
 	case <-s.finish:
 		return s.PostgresStore.ListStageExecutions(ctx, runID)
+	}
+}
+
+func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	store := runstore.NewPostgresStore(pool)
+	createSchedulerRun(t, ctx, store, artifacts.NewService(artifacts.NewPostgresRepository(pool)), loadSchedulerWorkflow(t))
+	if _, err := store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+		Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := &Scheduler{store: store, options: Options{OperationTimeout: 5 * time.Second}}
+	if err := s.failInvalidRunState(ctx, "run-1", nil); err != nil {
+		t.Fatalf("fail cancelling Run: %v", err)
+	}
+	run, err := store.GetRun(ctx, "run-1")
+	if err != nil || run.State != runstore.RunCancelled {
+		t.Fatalf("Run = (%+v, %v), want cancelled", run, err)
 	}
 }
