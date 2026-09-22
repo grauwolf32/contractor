@@ -2468,6 +2468,9 @@ type memoryAllocator struct {
 	reserveError          error
 	losses                []controlplane.AllocationLoss
 	resolvedRuntimeConfig *runtimeconfig.ResolvedRuntimeConfig
+	// record mirrors production placement, which durably pins
+	// stage_allocations rows before the reservation becomes visible.
+	record func(context.Context, string, []controlplane.Reservation) error
 }
 
 func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
@@ -2483,6 +2486,16 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 		reservation, err := a.reservationForRequest(request)
 		if err != nil {
 			return nil, err
+		}
+		if request.Admit != nil {
+			if err := request.Admit(ctx, []controlplane.Reservation{reservation}); err != nil {
+				return nil, err
+			}
+		}
+		if a.record != nil {
+			if err := a.record(ctx, request.StageExecutionID, []controlplane.Reservation{reservation}); err != nil {
+				return nil, err
+			}
 		}
 		a.cached = []controlplane.Reservation{reservation}
 		for _, reservation := range a.cached {

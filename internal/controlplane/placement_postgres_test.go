@@ -106,6 +106,44 @@ func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *t
 	}
 }
 
+func TestPlacementPostgresAdmissionDenialLeavesNoDurableAllocation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	fixture.registerCandidate(t, ctx, "runtime-gated", "4", nil)
+	denied := errors.New("admission deferred")
+	request := fixture.request()
+	request.Admit = func(_ context.Context, candidates []Reservation) error {
+		if len(candidates) != 1 || candidates[0].ResolvedRuntimeConfig == nil {
+			t.Errorf("admission candidates = %+v", candidates)
+		}
+		return denied
+	}
+	if _, err := fixture.allocator.ReserveAllContext(ctx, request); !errors.Is(err, denied) {
+		t.Fatalf("denied placement error = %v", err)
+	}
+	agent, err := fixture.registry.GetAgent("runtime-gated")
+	if err != nil || agent.AuthoritativeAllocationID != nil {
+		t.Fatalf("denied candidate was not discarded: (%+v, %v)", agent, err)
+	}
+	store := runstore.NewPostgresStore(pool)
+	allocations, err := store.ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("denied durable allocations = (%+v, %v)", allocations, err)
+	}
+
+	request.Admit = nil
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, request)
+	if err != nil || len(reservations) != 1 {
+		t.Fatalf("admitted placement = (%+v, %v)", reservations, err)
+	}
+	allocations, err = store.ListStageAllocations(ctx, fixture.stageExecutionID)
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != reservations[0].Grant.AllocationID {
+		t.Fatalf("admitted durable allocations = (%+v, %v)", allocations, err)
+	}
+}
+
 func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

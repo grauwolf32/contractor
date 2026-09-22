@@ -54,6 +54,15 @@ func (s *Scheduler) liveOrNewReservations(
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 		RunMetadataLabels: run.MetadataLabels.Clone(),
 		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
+		// Gateway admission runs before placement is durable: a denial must not
+		// leave pinned allocation rows without live grants behind.
+		Admit: func(ctx context.Context, candidates []controlplane.Reservation) error {
+			allowed, err := s.admitModelRoutes(ctx, run, workflow.stage, candidates)
+			if err == nil && !allowed {
+				err = ErrDeferred
+			}
+			return err
+		},
 	})
 	if err != nil {
 		return nil, false, err
