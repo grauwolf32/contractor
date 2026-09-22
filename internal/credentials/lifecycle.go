@@ -115,6 +115,9 @@ type Service struct {
 
 	lifecycleMu sync.Mutex
 	barrier     *LifecycleBarrier
+	// deleteDirty is set only when a delete's durable intent may or may not
+	// exist. A durable prepared delete fences only its own credential ID,
+	// through EncryptedProvider lookups, instead of every Run creation.
 	deleteDirty bool
 	ready       atomic.Bool
 }
@@ -157,7 +160,9 @@ func (s *Service) GetCredential(ctx context.Context, credentialID string) (Recor
 }
 
 // WithRunCreation holds the shared side of the deletion barrier while a Run
-// revalidates credential metadata and commits its immutable snapshot.
+// revalidates credential metadata and commits its immutable snapshot. A
+// credential with a prepared delete is rejected by its metadata lookup, so
+// such a delete does not block Runs that pin other credentials.
 func (s *Service) WithRunCreation(ctx context.Context, fn func() error) error {
 	if fn == nil {
 		return ErrInvalid
@@ -210,11 +215,7 @@ func (s *Service) Recover(ctx context.Context) error {
 				if err := s.barrier.lockMutation(ctx); err != nil {
 					return err
 				}
-				s.deleteDirty = true
 				err = s.executeDelete(ctx, operation, request)
-				if err == nil {
-					s.deleteDirty = false
-				}
 				s.barrier.unlockMutation()
 				if err != nil {
 					return err
@@ -322,7 +323,6 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 		if err != nil || storedRequest.ActorID != request.ActorID {
 			return DeleteResult{}, ErrConflict
 		}
-		s.deleteDirty = true
 		err = s.executeDelete(ctx, *prepared, storedRequest)
 		if err == nil {
 			s.deleteDirty = false
@@ -375,10 +375,13 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if err != nil {
 		return DeleteResult{}, err
 	}
-	// From this point until a confirmed completed operation, an ambiguous
-	// database or Gateway result must prevent a new Run from pinning this key.
-	s.deleteDirty = true
+	// Once the prepared intent is durable, lookups of this credential fail
+	// until the operation completes. If the insert outcome is unknown, fence
+	// every new reference until a delete completes.
 	if err := s.repository.InsertOperation(ctx, operation); err != nil {
+		if !errors.Is(err, ErrConflict) && !errors.Is(err, ErrInvalid) {
+			s.deleteDirty = true
+		}
 		return DeleteResult{}, err
 	}
 	err = s.executeDelete(ctx, operation, storedRequest)

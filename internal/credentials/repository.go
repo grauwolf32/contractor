@@ -315,6 +315,23 @@ WHERE operation_id = $1 AND phase = 'prepared' AND updated_at <= $2`,
 	return ErrConflict
 }
 
+// HasPreparedDelete reports whether a delete of credentialID is prepared but
+// not yet completed.
+func (r *Repository) HasPreparedDelete(ctx context.Context, credentialID string) (bool, error) {
+	if err := validateCredentialID(credentialID); err != nil {
+		return false, err
+	}
+	var prepared bool
+	if err := r.db.QueryRow(ctx, `
+SELECT EXISTS (
+    SELECT 1 FROM credential_operations
+    WHERE credential_id = $1 AND operation_kind = 'delete' AND phase = 'prepared'
+)`, credentialID).Scan(&prepared); err != nil {
+		return false, persistencepostgres.WrapError("read prepared credential deletion", err)
+	}
+	return prepared, nil
+}
+
 func (r *Repository) ListPreparedOperations(ctx context.Context, limit int) ([]Operation, error) {
 	if limit < 1 || limit > maximumCredentialPageSize {
 		return nil, fmt.Errorf("%w: operation page limit is invalid", ErrInvalid)

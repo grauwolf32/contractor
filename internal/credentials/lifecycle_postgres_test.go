@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -323,9 +325,13 @@ func TestCredentialLifecycleRecoversDeleteCrashAndBlocksRunCreation(t *testing.T
 		t.Fatalf("database record was removed before atomic delete commit: %v", err)
 	}
 	called := false
-	if err := fixture.service.WithRunCreation(ctx, func() error { called = true; return nil }); !errors.Is(err, ErrRecoveryRequired) || called {
+	if err := fixture.service.WithRunCreation(ctx, func() error {
+		called = true
+		return lookupManagedCredential(ctx, pool, create.CredentialID)
+	}); !errors.Is(err, ErrRecoveryRequired) || !called {
 		t.Fatalf("Run creation during ambiguous delete = (called=%v, err=%v)", called, err)
 	}
+	called = false
 	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationPrepared)
 
 	restarted := newLifecycleFixtureWithCipher(t, pool, manager, fixture.cipher, ServiceOptions{})
@@ -339,6 +345,59 @@ func TestCredentialLifecycleRecoversDeleteCrashAndBlocksRunCreation(t *testing.T
 		t.Fatalf("Run guard after recovery = (called=%v, err=%v)", called, err)
 	}
 	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationCompleted)
+}
+
+func TestCredentialFailedDeleteFencesOnlyItsOwnCredential(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deleting := fixture.createRequest("managed-deleting", "create-deleting")
+	unrelated := fixture.createRequest("managed-unrelated", "create-unrelated")
+	for _, request := range []CreateRequest{deleting, unrelated} {
+		if _, err := fixture.service.Create(ctx, request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manager.deleteErr = errors.New("gateway delete failed")
+	deletion := DeleteRequest{
+		CredentialID: deleting.CredentialID, IdempotencyKey: "delete-scoped", ActorID: "user-1",
+	}
+	if _, err := fixture.service.Delete(ctx, deletion); !errors.Is(err, ErrGatewayUnavailable) {
+		t.Fatalf("failed delete error = %v", err)
+	}
+	assertCredentialOperationPhase(t, ctx, pool, OperationDelete, deletion.IdempotencyKey, OperationPrepared)
+
+	runs := runstore.NewPostgresStore(pool)
+	if err := fixture.service.WithRunCreation(ctx, func() error {
+		if err := lookupManagedCredential(ctx, pool, unrelated.CredentialID); err != nil {
+			return err
+		}
+		_, err := runs.CreateRun(ctx, pinnedRunParams("run-unrelated", unrelated.CredentialID))
+		return err
+	}); err != nil {
+		t.Fatalf("Run pinning an unrelated credential was fenced: %v", err)
+	}
+	if err := fixture.service.WithAllocationReferences(ctx, func() error {
+		return lookupManagedCredential(ctx, pool, unrelated.CredentialID)
+	}); err != nil {
+		t.Fatalf("allocation referencing an unrelated credential was fenced: %v", err)
+	}
+	if err := fixture.service.WithRunCreation(ctx, func() error {
+		return lookupManagedCredential(ctx, pool, deleting.CredentialID)
+	}); !errors.Is(err, ErrRecoveryRequired) {
+		t.Fatalf("Run pinning a credential with a prepared delete error = %v", err)
+	}
+
+	manager.deleteErr = nil
+	if _, err := fixture.service.Delete(ctx, deletion); err != nil {
+		t.Fatalf("retried delete: %v", err)
+	}
+	if err := lookupManagedCredential(ctx, pool, deleting.CredentialID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted credential lookup error = %v", err)
+	}
 }
 
 func TestCredentialDeleteSerializesAgainstRunSnapshotCommit(t *testing.T) {
@@ -651,6 +710,38 @@ func pinnedRunParams(runID, credentialID string) runstore.CreateRunParams {
 		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 		Parameters:    map[string]string{},
 	}
+}
+
+// lookupManagedCredential resolves metadata through both production lookup
+// paths: the pooled composite provider and the transaction-bound factory.
+func lookupManagedCredential(ctx context.Context, pool *pgxpool.Pool, credentialID string) error {
+	development, err := NewStaticProvider(nil)
+	if err != nil {
+		return err
+	}
+	managed, err := NewEncryptedProvider(NewRepository(pool), nil)
+	if err != nil {
+		return err
+	}
+	composite, err := NewCompositeProvider(development, managed)
+	if err != nil {
+		return err
+	}
+	if _, err := composite.LookupLLMCredential(ctx, credentialID); err != nil {
+		return err
+	}
+	factory, err := NewTransactionLookupFactory(development)
+	if err != nil {
+		return err
+	}
+	return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		lookup, err := factory.ForTransaction(tx)
+		if err != nil {
+			return err
+		}
+		_, err = lookup.LookupLLMCredential(ctx, credentialID)
+		return err
+	})
 }
 
 func createPinnedRun(

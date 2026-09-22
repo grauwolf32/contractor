@@ -36,6 +36,9 @@ func (p *CompositeProvider) LookupLLMCredential(
 		if errors.Is(err, ErrNotFound) {
 			continue
 		}
+		if errors.Is(err, ErrRecoveryRequired) {
+			return config.CredentialMetadata{}, ErrRecoveryRequired
+		}
 		if err != nil {
 			return config.CredentialMetadata{}, fmt.Errorf("lookup LLM credential")
 		}
