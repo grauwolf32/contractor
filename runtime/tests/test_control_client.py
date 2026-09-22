@@ -217,6 +217,7 @@ def test_valid_reconciliation_actions_are_applied_after_ack(
         await state.commit_allocation("allocation-1")
         await client.heartbeat_once()
         await client.heartbeat_once()
+        await client.wait_for_reconciliation()
 
         assert handler.drains == [("allocation-1", 10.0)]
         assert handler.releases == ["allocation-1"]

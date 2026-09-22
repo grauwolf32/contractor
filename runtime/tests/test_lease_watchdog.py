@@ -149,7 +149,113 @@ def test_lost_release_response_keeps_slot_fenced_until_repeated_action(
         assert await service.snapshot() is not None
 
         await client.heartbeat_once()
+        await client.wait_for_reconciliation()
         assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await service.snapshot() is None
+
+    asyncio.run(scenario())
+
+
+def test_reconciliation_during_slow_prepare_does_not_stop_heartbeats(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-slow-prepare")
+        await state.mark_registered()
+        factory = GatedRuntimeFactory()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": factory},
+            toolsets={"run-artifacts@1": RunArtifactsToolsetFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            force_exit=lambda _: None,
+        )
+        spec = allocation_spec()
+        prepare = asyncio.create_task(service.prepare(spec))
+        await factory.started.wait()
+
+        clock = FakeMonotonic()
+        watchdog = LeaseWatchdog(lambda: service.expire_control_lease(1), monotonic=clock)
+        await watchdog.arm(60)
+        transport = ScriptedTransport(
+            [
+                {
+                    "apiVersion": API_VERSION,
+                    "ackSeq": 1,
+                    "action": "drain",
+                    "allocationId": spec.allocation_id,
+                },
+                {
+                    "apiVersion": API_VERSION,
+                    "ackSeq": 2,
+                    "action": "release",
+                    "allocationId": spec.allocation_id,
+                },
+                {"apiVersion": API_VERSION, "ackSeq": 3, "action": "continue"},
+            ]
+        )
+        client = ControlClient(
+            make_settings(tmp_path),
+            state,
+            transport,
+            watchdog=watchdog,
+            reconciliation=service,
+        )
+        try:
+            for _ in range(3):
+                clock.advance(30)
+                await asyncio.wait_for(client.heartbeat_once(), timeout=1)
+            assert watchdog.last_ack == 3
+            assert not await watchdog.expire_if_due()
+            assert not prepare.done()
+        finally:
+            factory.release.set()
+            await prepare
+            await client.wait_for_reconciliation()
+            await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_local_lease_expiry_fences_without_waiting_for_slow_prepare(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-slow-prepare-expiry")
+        await state.mark_registered()
+        factory = GatedRuntimeFactory()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": factory},
+            toolsets={"run-artifacts@1": RunArtifactsToolsetFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            force_exit=lambda _: None,
+        )
+        prepare = asyncio.create_task(service.prepare(allocation_spec()))
+        await factory.started.wait()
+
+        expiry = asyncio.create_task(service.expire_control_lease(1))
+        for _ in range(10):
+            await asyncio.sleep(0)
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+        factory.release.set()
+        with pytest.raises(AllocationError):
+            await prepare
+        await expiry
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
         assert await service.snapshot() is None
 
     asyncio.run(scenario())
@@ -279,6 +385,19 @@ class FailingStopRuntimeFactory:
 class FailingStopRuntime(StubWorkerRuntime):
     async def abort(self, deadline: datetime) -> None:
         raise RuntimeError("synthetic stop failure")
+
+
+class GatedRuntimeFactory:
+    ref = "adk@1"
+
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def create(self, context: WorkerBuildContext) -> StubWorkerRuntime:
+        self.started.set()
+        await self.release.wait()
+        return StubWorkerRuntime(context)
 
 
 class ScriptedTransport:

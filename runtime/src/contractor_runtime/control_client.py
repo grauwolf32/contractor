@@ -9,6 +9,7 @@ import random
 import re
 import ssl
 import uuid
+from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -163,6 +164,10 @@ class ControlClient:
         self._sleep = sleep
         self._jitter = jitter
         self._heartbeat_lock = asyncio.Lock()
+        # Reconciliation may wait for a long allocation operation. It runs in
+        # one serialized background task so heartbeats keep renewing the lease.
+        self._pending_reconciliation: deque[tuple[ReconciliationAction, str | None]] = deque()
+        self._reconciliation_task: asyncio.Task[None] | None = None
         self._sequence = 0
         self._echoed_ack = 0
         self._timing = ControlTiming(
@@ -223,8 +228,8 @@ class ControlClient:
         return False
 
     async def heartbeat_once(self) -> HeartbeatResponse:
-        # Keep the request, acknowledgement and reconciliation in sequence even
-        # when callers invoke heartbeat_once concurrently.
+        # Keep the request, acknowledgement and reconciliation order in
+        # sequence even when callers invoke heartbeat_once concurrently.
         async with self._heartbeat_lock:
             return await self._exchange_heartbeat()
 
@@ -255,30 +260,76 @@ class ControlClient:
         if response.action is ReconciliationAction.DRAIN:
             if self._reconciliation is None or response.allocation_id is None:
                 raise ControlClientError("heartbeat drain action cannot be applied")
-            await self._reconciliation.reconcile_drain(
-                response.allocation_id, self._settings.shutdown_grace_seconds
-            )
+            self._schedule_reconciliation(response.action, response.allocation_id)
         elif response.action is ReconciliationAction.RELEASE:
             if self._reconciliation is None:
                 raise ControlClientError("heartbeat release action cannot be applied")
-            await self._reconciliation.confirm_release(response.allocation_id)
+            self._schedule_reconciliation(response.action, response.allocation_id)
         elif response.action is ReconciliationAction.REREGISTER:
             await self.register()
 
-    async def run_heartbeats(self, stop: asyncio.Event) -> None:
-        failures = 0
-        while not stop.is_set():
+    def _schedule_reconciliation(
+        self, action: ReconciliationAction, allocation_id: str | None
+    ) -> None:
+        # Repeated heartbeats re-send the same authoritative action. Queue it
+        # once so a long-running allocation operation cannot grow the backlog.
+        if (action, allocation_id) not in self._pending_reconciliation:
+            self._pending_reconciliation.append((action, allocation_id))
+        if self._reconciliation_task is None or self._reconciliation_task.done():
+            self._reconciliation_task = asyncio.create_task(
+                self._run_reconciliation(), name="runtime-control-reconciliation"
+            )
+            self._reconciliation_task.add_done_callback(_consume_background_task)
+
+    async def _run_reconciliation(self) -> None:
+        assert self._reconciliation is not None
+        while self._pending_reconciliation:
+            action, allocation_id = self._pending_reconciliation.popleft()
             try:
-                await self.heartbeat_once()
-                failures = 0
-                delay = self._timing.heartbeat_interval_seconds
+                if action is ReconciliationAction.DRAIN:
+                    assert allocation_id is not None
+                    await self._reconciliation.reconcile_drain(
+                        allocation_id, self._settings.shutdown_grace_seconds
+                    )
+                else:
+                    await self._reconciliation.confirm_release(allocation_id)
             except asyncio.CancelledError:
                 raise
             except Exception as error:
-                failures += 1
-                logger.warning("Control Plane heartbeat failed (%s)", type(error).__name__)
-                delay = self._backoff(failures)
-            await self._sleep_until_stopped(stop, delay)
+                logger.warning("Control Plane reconciliation failed (%s)", type(error).__name__)
+
+    async def wait_for_reconciliation(self) -> None:
+        """Wait until every reconciliation action received so far was attempted."""
+
+        while self._reconciliation_task is not None and not self._reconciliation_task.done():
+            await asyncio.wait({self._reconciliation_task})
+
+    async def close(self) -> None:
+        """Cancel queued and in-flight reconciliation on shutdown."""
+
+        self._pending_reconciliation.clear()
+        task = self._reconciliation_task
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    async def run_heartbeats(self, stop: asyncio.Event) -> None:
+        failures = 0
+        try:
+            while not stop.is_set():
+                try:
+                    await self.heartbeat_once()
+                    failures = 0
+                    delay = self._timing.heartbeat_interval_seconds
+                except asyncio.CancelledError:
+                    raise
+                except Exception as error:
+                    failures += 1
+                    logger.warning("Control Plane heartbeat failed (%s)", type(error).__name__)
+                    delay = self._backoff(failures)
+                await self._sleep_until_stopped(stop, delay)
+        finally:
+            await self.close()
 
     async def _sleep_until_stopped(self, stop: asyncio.Event, delay: float) -> None:
         if stop.is_set():
@@ -298,6 +349,12 @@ class ControlClient:
     def _backoff(self, failures: int) -> float:
         ceiling = min(5.0, self._timing.heartbeat_interval_seconds)
         return bounded_backoff(failures, ceiling, self._jitter)
+
+
+def _consume_background_task(task: asyncio.Task[Any]) -> None:
+    if task.cancelled():
+        return
+    task.exception()
 
 
 def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:
