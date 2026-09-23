@@ -102,6 +102,40 @@ func TestRemoteHTTPRequiresExplicitOptIn(t *testing.T) {
 	}
 }
 
+func TestTransportLeavesCallerRequestUnchanged(t *testing.T) {
+	var seen http.Header
+	transport := &checkedTransport{
+		base: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			seen = request.Header.Clone()
+			header := http.Header{}
+			header.Set(APIVersionHeader, APIVersion)
+			return &http.Response{StatusCode: http.StatusNoContent, Header: header, Body: http.NoBody, Request: request}, nil
+		}),
+		origin: "http://127.0.0.1:8080", token: "secret", userAgent: "contractor-test",
+	}
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1:8080/v1/workflows", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("X-Caller", "kept")
+	response, err := transport.RoundTrip(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if seen.Get("Authorization") != "Bearer secret" || seen.Get("User-Agent") != "contractor-test" ||
+		seen.Get("X-Caller") != "kept" {
+		t.Fatalf("sent headers = %v", seen)
+	}
+	if len(request.Header) != 1 || request.Header.Get("X-Caller") != "kept" {
+		t.Fatalf("caller request headers were modified: %v", request.Header)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
+
 // The Server accepts bearer tokens of 1 through 4096 bytes; a longer token
 // must fail locally instead of producing an unexplained 401.
 func TestTokenBoundMatchesServer(t *testing.T) {

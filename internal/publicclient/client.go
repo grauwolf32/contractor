@@ -149,6 +149,9 @@ func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, err
 		!strings.HasPrefix(request.URL.EscapedPath(), "/v1/") {
 		return nil, errors.New("public API request escaped the configured Server boundary")
 	}
+	// A RoundTripper must not modify the caller's request; add the
+	// credentials and fixed headers to a clone instead.
+	request = request.Clone(request.Context())
 	request.Header.Set("Authorization", "Bearer "+t.token)
 	request.Header.Set("Accept", "application/json")
 	if t.userAgent != "" {
