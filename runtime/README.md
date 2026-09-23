@@ -287,8 +287,10 @@ Calls use fixed argument arrays without a shell, a private allocation-local
 temporary directory and a minimal child environment. Calls within one toolset
 are serialized. The maximum deadline is 3600 seconds; timeout, cancellation,
 allocation close and output overflow terminate the process group before scratch
-cleanup. Combined process output is capped at 1 MiB, previews at 32 KiB per
-stream, and JSONL results at 100 records / 128 KiB. Every result carries process
+cleanup. A descendant that detached into another session cannot hold a call
+open: Runtime closes its pipe ends instead of waiting for their EOF. Combined
+process output is capped at 1 MiB, previews at 32 KiB per stream, and JSONL
+results at 100 records / 128 KiB. Every result carries process
 status, error code, exit code and truncation information. A completed process
 does not certify a clean target; partial results and SQLMap diagnostics require
 interpretation. Direct tool calls return observations; `tool@1` Workers persist

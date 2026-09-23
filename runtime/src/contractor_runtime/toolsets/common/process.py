@@ -53,7 +53,15 @@ async def _stop(process: asyncio.subprocess.Process) -> None:
     # group must stop even when the requested command has already returned.
     with suppress(ProcessLookupError):
         os.killpg(process.pid, signal.SIGKILL)
-    await process.communicate()
+    # A descendant that left the group (setsid, daemons) survives killpg and may
+    # hold our pipes open indefinitely. Never wait for its EOF: close our ends,
+    # which also lets wait() finish once the killed leader is reaped.
+    transport = process._transport  # asyncio exposes no public pipe handle
+    for fd in (0, 1, 2):
+        pipe = transport.get_pipe_transport(fd)
+        if pipe is not None:
+            pipe.close()
+    await process.wait()
 
 
 async def run_command(
@@ -65,7 +73,10 @@ async def run_command(
     timeout: float,
     max_output_bytes: int,
 ) -> subprocess.CompletedProcess[bytes]:
-    """Return bounded output only after the leader and its descendants stop."""
+    """Return bounded output only after the leader and its process group stop.
+
+    A descendant that detached into another session is not waited for.
+    """
     stdout, stderr = bytearray(), bytearray()
     total = 0
     failure = None

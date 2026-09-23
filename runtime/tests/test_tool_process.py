@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import os
+import signal
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -100,6 +104,54 @@ def test_repeated_cancellation_joins_child_even_during_spawn_or_cleanup(
             await asyncio.gather(task, return_exceptions=True)
 
     asyncio.run(scenario())
+
+
+def _detached_holder(marker: Path) -> list[str]:
+    # The descendant leaves the process group but keeps the stdout pipe open.
+    return [
+        "sh",
+        "-c",
+        f"setsid sh -c 'echo $$ > {marker}; exec sleep 30' & echo started; wait",
+    ]
+
+
+def _kill_detached(marker: Path) -> None:
+    if marker.exists():
+        with contextlib.suppress(ProcessLookupError, ValueError):
+            os.kill(int(marker.read_text()), signal.SIGKILL)
+
+
+@pytest.mark.parametrize("ending", ["timeout", "cancel"])
+def test_detached_descendant_holding_pipes_cannot_stall_stop(tmp_path: Path, ending: str) -> None:
+    marker = tmp_path / "holder-pid"
+
+    async def scenario() -> None:
+        started = time.monotonic()
+        task = asyncio.create_task(
+            run_command(
+                _detached_holder(marker),
+                env={"PATH": "/usr/bin:/bin"},
+                timeout=1 if ending == "timeout" else 30,
+                max_output_bytes=1024,
+            )
+        )
+        if ending == "timeout":
+            with pytest.raises(process_module.ProcessTimeoutError) as raised:
+                await asyncio.wait_for(task, 5)
+            assert raised.value.output == b"started\n"
+        else:
+            async with asyncio.timeout(3):
+                while not marker.exists():
+                    await asyncio.sleep(0.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 5)
+        assert time.monotonic() - started < 5
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        _kill_detached(marker)
 
 
 def test_proxy_async_process_keeps_private_routing_and_rejects_bearer(monkeypatch) -> None:
