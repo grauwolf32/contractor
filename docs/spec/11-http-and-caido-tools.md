@@ -108,14 +108,15 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 
 `http_request` accepts:
 
-- `url`: absolute `http` or `https` URL, no userinfo or fragment;
+- `url`: absolute `http` or `https` URL without userinfo; a `#fragment` is
+  client-side state and is removed before the request is sent;
 - `method`: `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`;
 - at most 64 bounded headers and query keys;
 - `body_type`: `none|json|form|text`, with at most 1 MiB encoded request body;
 - timeout 1..120 seconds, capped by allocation settings; when omitted, it is
   `min(allocation request timeout, 120 seconds)`;
-- `follow_redirects`, with at most 10 redirects; every hop is parsed and
-  checked against the target policy again.
+- `follow_redirects`, with at most 10 redirects; every hop is parsed, stripped
+  of its fragment and checked against the target policy again.
 
 The initial callable shape intentionally remains compatible with the migrated
 Skills: `http_request(url, method, headers, query, body, body_type, timeout,
@@ -238,8 +239,12 @@ unreferenced reserved binding; it cannot be recovered through
 The httpx transport cookie jar is scratch state: allocation-owned cookies are
 the authoritative copy and transport cookies are cleared before every hop,
 including redirects and retries on direct and proxied requests. Same-origin
-response cookies and deletions are applied to prospective request state;
-cross-origin hops receive no session cookies or authorization. Prospective
+response cookies and deletions are applied to prospective request state.
+Each redirect hop is compared with the originally requested origin: a hop on
+another origin receives no session cookies, session authorization or sensitive
+request header (`Authorization`, `Cookie`, and any name containing `api-key`,
+`auth-token` or `access-token`), and a later hop back on the original origin
+receives them again. Prospective
 cookies become session state only after the full request and body Artifact
 write succeed. Every response is closed, including when its redirect target
 is malformed or forbidden.

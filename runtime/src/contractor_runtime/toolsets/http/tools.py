@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit
+from urllib.parse import parse_qsl, urldefrag, urlencode, urljoin, urlsplit
 
 import httpx
 from google.adk.tools.tool_context import ToolContext
@@ -447,19 +447,24 @@ class _HTTPSession:
         current_url = url
         current_headers = headers
         current_payload = payload
-        allow_session_auth = True
-        allow_session_cookies = True
+        original_origin = _origin(url)
         while True:
             _validate_target(current_url, self._target_policy)
+            # Each hop is compared with the requested origin, not the previous
+            # hop: a chain that leaves and returns regains the caller's
+            # credentials only for the original origin.
+            same_origin = _origin(current_url) == original_origin
             try:
                 response = await self._send_once(
                     current_method,
                     current_url,
-                    headers=current_headers,
+                    headers=(
+                        current_headers if same_origin else _without_sensitive(current_headers)
+                    ),
                     content=current_payload,
                     timeout=timeout_seconds,
-                    allow_session_auth=allow_session_auth,
-                    allow_session_cookies=allow_session_cookies,
+                    allow_session_auth=same_origin,
+                    allow_session_cookies=same_origin,
                     request_cookies=candidate_cookies,
                     capture_attempts=attempts,
                 )
@@ -505,7 +510,10 @@ class _HTTPSession:
                 if redirects >= MAX_REDIRECTS:
                     raise HTTPToolError("http_request_failed")
 
-                next_url = urljoin(current_url, location)
+                try:
+                    next_url = urldefrag(urljoin(current_url, location)).url
+                except ValueError:
+                    raise HTTPToolError("http_request_invalid") from None
                 _validate_target(next_url, self._target_policy)
                 next_method = current_method
                 next_payload = current_payload
@@ -520,14 +528,6 @@ class _HTTPSession:
                         for name, value in next_headers.items()
                         if name.lower() not in {"content-type", "content-encoding"}
                     }
-                if _origin(current_url) != _origin(next_url):
-                    next_headers = {
-                        name: value
-                        for name, value in next_headers.items()
-                        if name.lower() not in {"authorization", "cookie"}
-                    }
-                    allow_session_auth = False
-                    allow_session_cookies = False
                 current_url = next_url
                 current_method = next_method
                 current_payload = next_payload
@@ -851,10 +851,11 @@ class HTTPRequestTool(_HTTPTool):
 
     Loopback, private, metadata and Runtime service destinations fail with
     http_target_denied unless they are the project target or an operator-allowed
-    network.
+    network. Redirects to another origin do not carry session credentials or
+    secret headers.
 
     Args:
-        url: Absolute HTTP or HTTPS URL.
+        url: Absolute HTTP or HTTPS URL; a #fragment is removed before sending.
         method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
         headers: Per-request string headers merged over session defaults.
         query: Query parameter mapping.
@@ -1171,6 +1172,8 @@ def _method(value: object) -> str:
 def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
     if not isinstance(url, str) or not 1 <= _request_utf8_size(url) <= MAX_URL_BYTES:
         raise HTTPToolError("http_request_invalid")
+    # A fragment is client-side state that is never sent on the wire.
+    url = url.partition("#")[0]
     try:
         parsed = urlsplit(url)
         existing = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=False)
@@ -1188,9 +1191,8 @@ def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
     if added_query:
         # Existing percent escapes, duplicate/bare keys and separators are part
         # of the requested target. Decode only for counting, never for rewriting.
-        base, fragment_separator, fragment = url.partition("#")
-        separator = "&" if raw_query else "" if "?" in base else "?"
-        result = base + separator + added_query + fragment_separator + fragment
+        separator = "&" if raw_query else "" if "?" in url else "?"
+        result = url + separator + added_query
         raw_query += ("&" if raw_query else "") + added_query
     if len(raw_query.encode("utf-8")) > MAX_QUERY_BYTES:
         raise HTTPToolError("http_request_invalid")
@@ -1346,6 +1348,10 @@ def _validate_target(url: str, policy: TargetPolicy) -> None:
         policy.check_url(url)
     except TargetDenied:
         raise HTTPToolError("http_target_denied") from None
+
+
+def _without_sensitive(headers: Mapping[str, str]) -> dict[str, str]:
+    return {name: value for name, value in headers.items() if not _is_sensitive_header(name)}
 
 
 def _origin(url: str) -> tuple[str, str, int]:

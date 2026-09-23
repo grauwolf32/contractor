@@ -119,7 +119,6 @@ def test_url_header_query_and_body_injection_fail_before_transport(tmp_path: Pat
         request = tools["http_request"]
         cases: list[tuple[dict[str, Any], str]] = [
             ({"url": "https://user:password@target.example/"}, "http_request_invalid"),
-            ({"url": "https://target.example/#fragment"}, "http_request_invalid"),
             ({"url": "http://localhost/"}, "http_target_denied"),
             ({"url": "http://service.localhost/"}, "http_target_denied"),
             ({"url": "http://127.0.0.1/"}, "http_target_denied"),
