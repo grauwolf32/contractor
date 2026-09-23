@@ -50,6 +50,24 @@ func TestPackageAndValidateCommands(t *testing.T) {
 	}
 }
 
+func TestValidateDirectoryHonorsExpectedName(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "example")
+	if err := os.Mkdir(source, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "SKILL.md"), []byte("---\nname: example\ndescription: Example.\n---\n# Example\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"validate", "--name", "example", source}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("validate matching name: %v", err)
+	}
+	var stdout bytes.Buffer
+	err := run([]string{"validate", "--name", "other", source}, &stdout, &bytes.Buffer{})
+	if agentskills.ErrorCode(err) != agentskills.CodeNameMismatch || stdout.Len() != 0 {
+		t.Fatalf("validate mismatched name = %v, stdout %q", err, stdout.String())
+	}
+}
+
 func TestCommandDiagnosticsDoNotExposeInputPath(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "secret-name.zip")
 	err := run([]string{"validate", secretPath}, &bytes.Buffer{}, &bytes.Buffer{})

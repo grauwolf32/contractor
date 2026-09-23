@@ -39,7 +39,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		var skill *agentskills.Package
 		if info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
+			// The directory's base name already binds the manifest name;
+			// --name additionally pins which Skill the caller expects.
 			_, skill, err = agentskills.PackageDirectory(path)
+			if err == nil && *expectedName != "" && skill.Manifest.Name != *expectedName {
+				err = &agentskills.ValidationError{Code: agentskills.CodeNameMismatch, Member: "SKILL.md"}
+			}
 		} else if info.Mode().IsRegular() {
 			if info.Size() > agentskills.MaximumArchiveBytes {
 				return &agentskills.ValidationError{Code: agentskills.CodeLimitExceeded}
