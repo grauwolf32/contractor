@@ -643,7 +643,9 @@ class _OpenAPISession:
     ) -> None:
         for path_item in document["paths"].values():
             self._validate_evidence_from_paths(path_item["x-path-files"], project_evidence_paths)
-        for values in document.get("components", {}).values():
+        for section, values in document.get("components", {}).items():
+            if section.startswith("x-"):
+                continue
             for component in values.values():
                 self._validate_evidence_from_paths(
                     component["x-component-files"], project_evidence_paths
@@ -1214,7 +1216,26 @@ class ValidateOpenAPITool(_BaseOpenAPITool):
 
 
 class _UniqueSafeLoader(yaml.SafeLoader):
-    pass
+    """SafeLoader with JSON-compatible scalar resolution.
+
+    JSON has no date type, so unquoted dates such as ``version: 2023-01-01``
+    stay strings instead of resolving to ``datetime.date``. An explicit
+    ``!!timestamp`` tag still produces a date and is rejected.
+    """
+
+
+_UniqueSafeLoader.yaml_implicit_resolvers = {
+    first: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
+# JSON object keys are strings, so a plain or quoted key such as ``200:``,
+# ``1.5:`` or ``on:`` keeps its source text instead of becoming an int, float
+# or bool. Keys with any other tag are constructed normally and must still be
+# strings.
+_JSON_SCALAR_KEY_TAGS = frozenset(
+    f"tag:yaml.org,2002:{name}" for name in ("str", "int", "float", "bool", "null")
+)
 
 
 class _NoAliasSafeDumper(yaml.SafeDumper):
@@ -1229,7 +1250,10 @@ def _construct_unique_mapping(
     loader.flatten_mapping(node)
     result: dict[Any, Any] = {}
     for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
+        if isinstance(key_node, yaml.ScalarNode) and key_node.tag in _JSON_SCALAR_KEY_TAGS:
+            key: Any = key_node.value
+        else:
+            key = loader.construct_object(key_node, deep=deep)
         try:
             duplicate = key in result
         except TypeError as error:
@@ -1336,9 +1360,12 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
     if not isinstance(components, dict):
         raise ToolInputError("OpenAPI components must be an object")
     for section, values in components.items():
+        if section.startswith("x-"):
+            # Specification Extensions are allowed on the Components Object
+            # and carry arbitrary JSON rather than named components.
+            continue
         if section not in ALLOWED_COMPONENT_SECTIONS:
-            # OpenAPI extensions can add x-* component-adjacent data, but an
-            # unknown component bucket is almost certainly a model mistake.
+            # An unknown component bucket is almost certainly a model mistake.
             raise ToolInputError(f"unsupported OpenAPI component section: {section}")
         if version.startswith("3.0.") and section == "pathItems":
             raise ToolInputError("OpenAPI components.pathItems requires OpenAPI 3.1")
@@ -1418,6 +1445,9 @@ def _validate_schema_shapes(document: dict[str, Any], version: str) -> None:
 
 
 def _validate_schema_shape(value: Any, version: str) -> None:
+    if isinstance(value, bool) and version.startswith("3.1."):
+        # OpenAPI 3.1 uses JSON Schema 2020-12, where true/false are schemas.
+        return
     if not isinstance(value, dict):
         raise ToolInputError("OpenAPI schema must be an object")
     schema_type = value.get("type")
@@ -1444,7 +1474,7 @@ def _validate_schema_shape(value: Any, version: str) -> None:
         if keyword in value and (
             not isinstance(members, list)
             or not members
-            or any(not isinstance(item, dict) for item in members)
+            or any(not _schema_value(item, version) for item in members)
         ):
             raise ToolInputError(f"OpenAPI schema {keyword} must contain at least one schema")
         if isinstance(members, list):
@@ -1460,6 +1490,10 @@ def _validate_schema_shape(value: Any, version: str) -> None:
         raise ToolInputError("OpenAPI schema additionalProperties must be a boolean or schema")
     if isinstance(additional, dict):
         _validate_schema_shape(additional, version)
+
+
+def _schema_value(value: Any, version: str) -> bool:
+    return isinstance(value, dict) or (isinstance(value, bool) and version.startswith("3.1."))
 
 
 def _validation_message(kind: str, error: ValidationError) -> str:

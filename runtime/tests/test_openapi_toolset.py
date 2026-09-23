@@ -317,7 +317,7 @@ def test_openapi_tools_enforce_shared_memory_source_target_and_ref_visibility(
             b"openapi: 3.0.3\ninfo:\n  title: Demo\n  version: '1'\npaths: {}\n"
             b"components:\n  pathItems: {}\n"
         ),
-        b"openapi: 3.0.3\ninfo:\n  title: Demo\n  version: '1'\npaths: {}\n1: invalid-key\n",
+        b"openapi: 3.0.3\ninfo:\n  title: Demo\n  version: '1'\npaths: {}\n? [1]\n: invalid-key\n",
         b"[]\n",
     ],
 )
@@ -332,6 +332,124 @@ def test_malformed_or_unsafe_seed_never_creates_target(tmp_path: Path, payload: 
         assert client.write_count == 0
 
     asyncio.run(scenario())
+
+
+VALID_31_SEED = b"""\
+openapi: 3.1.0
+info:
+  title: Dated
+  version: 2023-01-01
+paths:
+  /items:
+    x-path-files: [src/app.py]
+    get:
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                prefixItems: [{type: string}]
+                items: false
+        404:
+          description: Missing
+components:
+  x-internal:
+    owner: platform
+  schemas:
+    Open:
+      x-component-files: [src/app.py]
+      type: object
+      properties:
+        anything: true
+        nothing: false
+        on: {type: string}
+      allOf: [true]
+"""
+
+
+def test_json_compatible_yaml_seed_with_31_boolean_schemas_loads_and_validates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/items'\n")
+        client = MemoryArtifactClient()
+        seed = client.seed("inputs", "seed", "application/yaml", VALID_31_SEED)
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["load_openapi"]("inputs", "seed", seed.revision)
+
+        info = await tools["get_openapi_info"]()
+        assert info["info"]["version"] == "2023-01-01"
+        path = await tools["get_openapi_path"]("/items")
+        assert list(path["pathItem"]["get"]["responses"]) == ["200", "404"]
+        schema = (await tools["get_openapi_component"]("schemas", "Open"))["component"]
+        assert schema["properties"] == {
+            "anything": True,
+            "nothing": False,
+            "on": {"type": "string"},
+        }
+        monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
+        validated = await tools["validate_openapi"]()
+        assert validated["structuralErrors"] == []
+        assert validated["valid"] is True
+
+        # The stored target still reads back with the same JSON meaning.
+        stored = client.bindings[("openapi", "openapi")].data
+        assert b"'2023-01-01'" in stored
+        reloaded = openapi_module._parse_document(stored)
+        assert reloaded["info"]["version"] == "2023-01-01"
+        assert reloaded["components"]["x-internal"] == {"owner": "platform"}
+        assert "200" in reloaded["paths"]["/items"]["get"]["responses"]
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("fragment", "message"),
+    [
+        ("      items: false\n", "schema must be an object"),
+        ("      properties: {a: true}\n", "schema must be an object"),
+        ("      allOf: [true]\n", "at least one schema"),
+    ],
+)
+def test_boolean_schemas_remain_invalid_for_openapi_30(fragment: str, message: str) -> None:
+    payload = (
+        "openapi: 3.0.3\ninfo: {title: Demo, version: '1'}\npaths: {}\n"
+        "components:\n  schemas:\n    Value:\n      type: array\n" + fragment
+    ).encode()
+    with pytest.raises(ValueError, match=message):
+        openapi_module._validate_document(
+            openapi_module._parse_document(payload), require_provenance=False
+        )
+
+
+def test_yaml_keys_are_json_strings_without_weakening_structure_checks() -> None:
+    base = "openapi: 3.0.3\ninfo: {title: Demo, version: '1'}\npaths: {}\n"
+    parsed = openapi_module._parse_document(
+        (base + "x-codes: {200: ok, 1.5: half, true: kept, null: none}\n").encode()
+    )
+    assert parsed["x-codes"] == {"200": "ok", "1.5": "half", "true": "kept", "null": "none"}
+    for payload, message in (
+        (base + "x-codes: {200: a, '200': b}\n", "duplicate key"),
+        (base + "? [1, 2]\n: sequence-key\n", "keys must be scalar strings"),
+        (base + "!!binary aGk=: binary-key\n", "keys must be strings"),
+        (base + "released: !!timestamp 2023-01-01\n", "unsupported date value"),
+        (base + "x-ref: &a 1\nx-copy: *a\n", "aliases and anchors"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            openapi_module._parse_document(payload.encode())
+
+
+def test_components_accept_extensions_but_not_unknown_sections() -> None:
+    document = minimal_document("Extensions")
+    document["components"] = {"x-owner": "platform", "x-flags": ["internal"]}
+    openapi_module._validate_document(document, require_provenance=True)
+    document["components"]["schema"] = {}
+    with pytest.raises(ValueError, match="unsupported OpenAPI component section"):
+        openapi_module._validate_document(document, require_provenance=False)
 
 
 def test_parser_enforces_byte_depth_and_item_limits(
