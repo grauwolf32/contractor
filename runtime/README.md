@@ -40,8 +40,11 @@ on disk. Completed external writes, creates, renames and deletes are visible to
 the next tool call without refresh, including same-size changes with restored
 timestamps. `read_file` acquires only the requested text; complete snapshots and
 derived analysis acquire the current bounded managed-text projection. Existing
-symlinks, hard links and special files are rejected. An oversized external tree
-can fail a complete acquisition without preventing an otherwise bounded read.
+symlinks, hard links, special files, files over the per-file limit, unreadable
+entries and non-NFC names are listed as opaque binary-like leaves: never opened
+or followed, and any operation touching them fails with
+`workspace_type_conflict`. An oversized external tree can fail a complete
+acquisition without preventing an otherwise bounded read.
 
 Filesystem calls share an operation-ownership guard and run blocking I/O off the
 event loop. Cancellation fences uncertain work but does not release its ownership:

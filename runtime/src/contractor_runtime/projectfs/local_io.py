@@ -2,6 +2,8 @@
 
 These synchronous primitives belong behind WorkspaceOperationGuard. They never
 follow symlinks, accept special files or trust a previous hydration snapshot.
+A complete scan records such entries as opaque leaves instead of failing: they
+are listed, counted and never opened, and every operation touching them fails.
 """
 
 from __future__ import annotations
@@ -12,9 +14,10 @@ import os
 import secrets
 import stat
 import time
+import unicodedata
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
@@ -24,6 +27,7 @@ from contractor_runtime.settings import WorkspaceLimits
 _DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
 _CHUNK = 64 * 1024
+_REPLACEMENT = "\ufffd"
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +38,9 @@ class LocalEntry:
     mode: int
     identity: tuple[int, int]
     version: tuple[int, int, int]
+    # A leaf the Runtime never opens or follows: symlink, multiply linked or
+    # special file, oversize or unreadable entry, or a non-canonical name.
+    opaque: bool = False
 
 
 @dataclass(slots=True)
@@ -41,6 +48,7 @@ class LocalTree:
     entries: dict[str, LocalEntry] = field(default_factory=dict)
     texts: dict[str, str] = field(default_factory=dict, repr=False)
     binary_paths: set[str] = field(default_factory=set)
+    opaque_paths: set[str] = field(default_factory=set)
     expanded_bytes: int = 0
 
 
@@ -121,6 +129,7 @@ class RootedLocalFilesystem:
         path = _path(path)
         with _safe_errors(), self._opened_root() as root:
             tree = self._scan(root, path, deadline, contents=False)
+            _refuse_opaque(tree)
             if len(tree.entries) > 1 and not recursive:
                 raise WorkspaceStorageError("workspace_type_conflict")
             for item in sorted(
@@ -142,6 +151,7 @@ class RootedLocalFilesystem:
         source, destination = _copy_paths(source, destination)
         with _safe_errors(), self._opened_root() as root:
             tree = self._scan(root, source, deadline, contents=False)
+            _refuse_opaque(tree)
             if tree.entries[source].directory and not recursive:
                 raise WorkspaceStorageError("workspace_type_conflict")
             with _parent(root, destination) as (parent, name):
@@ -161,6 +171,7 @@ class RootedLocalFilesystem:
         source, destination = _copy_paths(source, destination)
         with _safe_errors(), self._opened_root() as root:
             tree = self._scan(root, source, deadline, contents=False)
+            _refuse_opaque(tree)
             with (
                 _parent(root, source) as (src_parent, src_name),
                 _parent(root, destination) as (dst_parent, dst_name),
@@ -229,19 +240,29 @@ class RootedLocalFilesystem:
         def add(item: LocalEntry) -> None:
             nonlocal managed_bytes
             _check_deadline(deadline)
+            if item.path in tree.entries:
+                # Two on-disk names project onto one path (e.g. NFC and NFD).
+                raise WorkspaceStorageError("workspace_path_invalid")
             tree.entries[item.path] = item
             if len(tree.entries) > self.limits.max_files:
                 raise WorkspaceStorageError("workspace_limit_exceeded")
+            if item.opaque:
+                tree.opaque_paths.add(item.path)
+                return
             if item.directory:
                 return
             tree.expanded_bytes += item.size
-            if (
-                item.size > self.limits.max_file_bytes
-                or tree.expanded_bytes > self.limits.max_expanded_bytes
-            ):
+            if tree.expanded_bytes > self.limits.max_expanded_bytes:
                 raise WorkspaceStorageError("workspace_limit_exceeded")
             if contents:
-                data = self._read(root, item.path, deadline, expected=item)
+                try:
+                    data = self._read(root, item.path, deadline, expected=item)
+                except PermissionError:
+                    # A sandbox command may chmod its own files; nothing was read.
+                    tree.expanded_bytes -= item.size
+                    tree.entries[item.path] = replace(item, opaque=True)
+                    tree.opaque_paths.add(item.path)
+                    return
                 try:
                     text = data.decode("utf-8")
                 except UnicodeError:
@@ -262,17 +283,23 @@ class RootedLocalFilesystem:
             with os.scandir(descriptor) as entries:
                 for child in entries:
                     _check_deadline(deadline)
-                    relative = f"{prefix}/{child.name}" if prefix else child.name
-                    if _path(relative) != relative:
-                        raise WorkspaceStorageError("workspace_path_invalid")
-                    item = _entry(relative, child.stat(follow_symlinks=False))
-                    add(item)
+                    relative, canonical = _child_path(prefix, child.name)
+                    item = _scan_entry(relative, child.stat(follow_symlinks=False), self.limits)
+                    if not canonical:
+                        # Never followed: its listed path cannot address it on disk.
+                        item = replace(item, directory=False, opaque=True)
+                    nested = None
                     if item.directory:
-                        nested = os.open(child.name, _DIRECTORY_FLAGS, dir_fd=descriptor)
-                        try:
+                        nested = _open_scannable(descriptor, child.name)
+                        if nested is None:
+                            item = replace(item, directory=False, opaque=True)
+                    try:
+                        add(item)
+                        if nested is not None:
                             _verify(item, _entry(relative, os.fstat(nested)))
                             walk(nested, relative)
-                        finally:
+                    finally:
+                        if nested is not None:
                             os.close(nested)
             if (before.st_mtime_ns, before.st_ctime_ns) != (
                 os.fstat(descriptor).st_mtime_ns,
@@ -282,14 +309,21 @@ class RootedLocalFilesystem:
 
         if path:
             with _parent(root, path) as (parent, name):
-                item = _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
-                add(item)
+                item = _scan_entry(
+                    path, os.stat(name, dir_fd=parent, follow_symlinks=False), self.limits
+                )
+                descriptor = None
                 if item.directory:
-                    descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
-                    try:
+                    descriptor = _open_scannable(parent, name)
+                    if descriptor is None:
+                        item = replace(item, directory=False, opaque=True)
+                try:
+                    add(item)
+                    if descriptor is not None:
                         _verify(item, _entry(path, os.fstat(descriptor)))
                         walk(descriptor, path)
-                    finally:
+                finally:
+                    if descriptor is not None:
                         os.close(descriptor)
         else:
             walk(root, "")
@@ -378,6 +412,66 @@ def _entry(path: str, info: os.stat_result) -> LocalEntry:
         _identity(info),
         (info.st_size, info.st_mtime_ns, info.st_ctime_ns),
     )
+
+
+def _scan_entry(path: str, info: os.stat_result, limits: WorkspaceLimits) -> LocalEntry:
+    """Like ``_entry``, but an unsupported leaf is recorded instead of failing."""
+    directory = stat.S_ISDIR(info.st_mode)
+    regular = stat.S_ISREG(info.st_mode) and info.st_nlink == 1
+    return LocalEntry(
+        path,
+        directory,
+        info.st_size if not directory else 0,
+        info.st_mode,
+        _identity(info),
+        (info.st_size, info.st_mtime_ns, info.st_ctime_ns),
+        opaque=not directory and (not regular or info.st_size > limits.max_file_bytes),
+    )
+
+
+def _child_path(prefix: str, name: str) -> tuple[str, bool]:
+    """Project an on-disk name to its listed path and whether that path addresses it.
+
+    A non-canonical name (not NFC, control or other invalid characters) is
+    listed under a sanitized display path so the entry stays visible as opaque.
+    """
+    relative = f"{prefix}/{name}" if prefix else name
+    try:
+        if normalize_project_path(relative, allow_root=False) == relative:
+            return relative, True
+    except ProjectPathError:
+        pass
+    display = unicodedata.normalize(
+        "NFC",
+        "".join(
+            _REPLACEMENT
+            if ord(character) < 0x20
+            or character in {"\x7f", "\\"}
+            or 0xD800 <= ord(character) <= 0xDFFF
+            else character
+            for character in name
+        ),
+    )
+    if not prefix and len(display) > 1 and display[1] == ":":
+        display = display[0] + _REPLACEMENT + display[2:]  # not a drive prefix
+    return _path(f"{prefix}/{display}" if prefix else display), False
+
+
+def _open_scannable(parent: int, name: str) -> int | None:
+    """Open a directory for listing, or ``None`` if its owner revoked access."""
+    try:
+        descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+    except PermissionError:
+        return None
+    if not os.access(".", os.X_OK, dir_fd=descriptor):
+        os.close(descriptor)
+        return None
+    return descriptor
+
+
+def _refuse_opaque(tree: LocalTree) -> None:
+    if tree.opaque_paths:
+        raise WorkspaceStorageError("workspace_type_conflict")
 
 
 def _optional_entry(parent: int, name: str, path: str) -> LocalEntry | None:

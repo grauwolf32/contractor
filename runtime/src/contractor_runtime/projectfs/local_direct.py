@@ -29,6 +29,8 @@ from contractor_runtime.settings import WorkspaceLimits
 T = TypeVar("T")
 # Internal ceiling; a caller's earlier timeout also fences and retains ownership.
 _Mutation = Callable[[RootedLocalFilesystem, float], None]
+# A plan sees the managed projection and the opaque leaves it may not touch.
+_Plan = Callable[[ManagedWorkspaceTree, frozenset[str]], _Mutation]
 
 
 class LocalDirectWorkspace:
@@ -89,16 +91,18 @@ class LocalDirectWorkspace:
 
         return await self._run(read)
 
-    async def _mutate(self, plan: Callable[[ManagedWorkspaceTree], _Mutation]) -> None:
+    async def _mutate(self, plan: _Plan) -> None:
         def owned(fs: RootedLocalFilesystem, deadline: float) -> None:
             acquired = fs.scan(deadline=deadline)
             candidate = _managed(acquired)
-            mutation = plan(candidate)
+            opaque = frozenset(acquired.opaque_paths)
+            mutation = plan(candidate, opaque)
             _validate_managed_tree(candidate, self._limits)
             # Managed tree validation deliberately excludes binary bytes for
-            # memory/overlay. Local direct must count all physical regular files.
+            # memory/overlay. Local direct must count all physical regular files
+            # it reads; opaque leaves are never read.
             expanded = sum(len(text.encode("utf-8")) for text in candidate.text_files.values())
-            expanded += sum(acquired.entries[path].size for path in candidate.binary_paths)
+            expanded += sum(acquired.entries[path].size for path in candidate.binary_paths - opaque)
             if expanded > self._limits.max_expanded_bytes:
                 raise WorkspaceStorageError("workspace_limit_exceeded")
             try:
@@ -115,7 +119,8 @@ class LocalDirectWorkspace:
         path = _normalized_path(path)
         data = _validate_managed_text(text, self._limits)
 
-        def plan(tree: ManagedWorkspaceTree) -> _Mutation:
+        def plan(tree: ManagedWorkspaceTree, opaque: frozenset[str]) -> _Mutation:
+            _refuse_opaque(opaque, {path})
             if tree.kind(path) == "binary":
                 raise WorkspaceStorageError("binary_file_unsupported")
             if tree.kind(path) == "directory":
@@ -129,7 +134,8 @@ class LocalDirectWorkspace:
     async def update_text(self, path: str, transform: Callable[[str], str]) -> None:
         path = _normalized_path(path)
 
-        def plan(tree: ManagedWorkspaceTree) -> _Mutation:
+        def plan(tree: ManagedWorkspaceTree, opaque: frozenset[str]) -> _Mutation:
+            _refuse_opaque(opaque, {path})
             if tree.kind(path) == "binary":
                 raise WorkspaceStorageError("binary_file_unsupported")
             if path not in tree.text_files:
@@ -144,7 +150,7 @@ class LocalDirectWorkspace:
     async def make_directory(self, path: str, *, parents: bool = False) -> None:
         path = _normalized_path(path)
 
-        def plan(tree: ManagedWorkspaceTree) -> _Mutation:
+        def plan(tree: ManagedWorkspaceTree, opaque: frozenset[str]) -> _Mutation:
             if tree.kind(path) == "directory":
                 return lambda fs, deadline: None
             if tree.kind(path) is not None:
@@ -163,10 +169,11 @@ class LocalDirectWorkspace:
     async def delete_path(self, path: str, *, recursive: bool = False) -> None:
         path = _normalized_path(path)
 
-        def plan(tree: ManagedWorkspaceTree) -> _Mutation:
+        def plan(tree: ManagedWorkspaceTree, opaque: frozenset[str]) -> _Mutation:
             if tree.kind(path) is None:
                 raise WorkspaceStorageError("workspace_not_found")
             selected = _subtree_paths(tree, path)
+            _refuse_opaque(opaque, selected)
             if selected & tree.binary_paths:
                 raise WorkspaceStorageError("binary_file_unsupported")
             if len(selected) > 1 and not recursive:
@@ -179,7 +186,8 @@ class LocalDirectWorkspace:
     async def copy_path(self, source: str, destination: str, *, recursive: bool = False) -> None:
         source, destination = _normalized_path(source), _normalized_path(destination)
 
-        def plan(tree: ManagedWorkspaceTree) -> _Mutation:
+        def plan(tree: ManagedWorkspaceTree, opaque: frozenset[str]) -> _Mutation:
+            _refuse_opaque(opaque, _subtree_paths(tree, source) | {destination})
             _copy_tree(tree, source, destination, recursive=recursive)
             return lambda fs, deadline: fs.copy(
                 source, destination, recursive=recursive, deadline=deadline
@@ -190,7 +198,8 @@ class LocalDirectWorkspace:
     async def move_path(self, source: str, destination: str) -> None:
         source, destination = _normalized_path(source), _normalized_path(destination)
 
-        def plan(tree: ManagedWorkspaceTree) -> _Mutation:
+        def plan(tree: ManagedWorkspaceTree, opaque: frozenset[str]) -> _Mutation:
+            _refuse_opaque(opaque, _subtree_paths(tree, source) | {destination})
             _copy_tree(tree, source, destination, recursive=True)
             _remove_tree(tree, source)
             return lambda fs, deadline: fs.move(source, destination, deadline=deadline)
@@ -211,9 +220,20 @@ class LocalDirectWorkspace:
 
 
 def _managed(tree: LocalTree) -> ManagedWorkspaceTree:
+    # Opaque leaves (links, special, oversize or unreadable entries) are listed
+    # like binary files: visible and counted, but never read as text.
+    binary_paths = tree.binary_paths | tree.opaque_paths
     return ManagedWorkspaceTree(
         directories={path for path, item in tree.entries.items() if item.directory},
         text_files=dict(tree.texts),
-        binary_paths=set(tree.binary_paths),
-        stored_binary_paths=set(tree.binary_paths),
+        binary_paths=set(binary_paths),
+        stored_binary_paths=set(binary_paths),
     )
+
+
+def _refuse_opaque(opaque: frozenset[str], paths: set[str]) -> None:
+    """An opaque leaf is never followed, so neither it nor paths below it resolve."""
+    if opaque and any(
+        path in opaque or not opaque.isdisjoint(parent_paths(path)) for path in paths
+    ):
+        raise WorkspaceStorageError("workspace_type_conflict")

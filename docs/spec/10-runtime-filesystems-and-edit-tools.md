@@ -386,17 +386,29 @@ directory. Descriptor-relative access or an equivalent mechanism must prevent
 path replacement from redirecting an operation outside that root;
 `resolve`-then-open or string-prefix checks alone are insufficient.
 
-Existing symlinks and multiply linked regular files fail preflight. They are
-not followed or interpreted as another host path. FIFOs, sockets and devices
-are rejected without blocking reads. Invalid or colliding normalized on-disk
-names produce a safe error, not silent renaming or omission from a complete
-snapshot. Ordinary binary files remain on disk and are classified as binary;
-text tools retain `binary_file_unsupported` for unsupported access.
+Complete acquisition records unsupported entries as opaque leaves instead of
+failing the whole workspace: symlinks, multiply linked regular files, FIFOs,
+sockets, devices, regular files larger than `maxFileBytes`, entries the
+Runtime may not open (a workload can revoke its own permissions) and entries
+whose on-disk names are not canonical (for example NFD, control characters).
+Tools such as `python -m venv` and `npm install` create such entries. Opaque
+leaves are listed like binary files and count toward `maxFiles`; a
+non-canonical name is listed under its NFC form with invalid characters
+replaced by U+FFFD. They are never opened, read, followed or interpreted as
+another host path, so a symlinked directory's contents are not listed and
+FIFOs never block. Reads, writes, copies, moves and deletions that touch an
+opaque leaf or a path below it fail with `workspace_type_conflict`; a scoped
+read of an oversize regular file keeps failing with `workspace_limit_exceeded`.
+On-disk names that project onto one listed path, or that cannot be listed
+within the path bounds, still fail complete acquisition with
+`workspace_path_invalid`, never silent renaming. Ordinary binary files remain
+on disk and are classified as binary; text tools retain
+`binary_file_unsupported` for unsupported access.
 
 Existing workspace limits apply to current-state acquisition and mutation
 preflight, not just archive input. Complete acquisition checks entry count,
-regular-file bytes and managed-text bytes; reads stay bounded if a file grows
-during acquisition. A violation yields `workspace_limit_exceeded`, not stale
+the bytes of the regular files it reads (opaque leaves are not read) and
+managed-text bytes; reads stay bounded if a file grows during acquisition. A violation yields `workspace_limit_exceeded`, not stale
 data, hidden partial success or automatic deletion of external outputs.
 Build/dependency files are not silently excluded from the complete workspace
 contract. Scope-limited reads can remain available within their own bounds
