@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import stat
 import threading
 import uuid
 from pathlib import Path
@@ -48,6 +49,81 @@ def test_local_provider_removes_only_marker_owned_immediate_stale_children(
         assert malformed.exists()
         assert linked.is_symlink()
         assert (outside / "keep").read_text(encoding="utf-8") == "outside"
+
+    asyncio.run(scenario())
+
+
+def _revoke_access(root: Path, outside: Path) -> None:
+    """What a keep-id sandbox workload can do to its own project tree."""
+    locked = root / "run_workdir" / "build" / "locked"
+    locked.mkdir(parents=True)
+    (locked / "deep").mkdir()
+    (locked / "deep" / "object.o").write_bytes(b"x")
+    (locked / "secret").write_text("x", encoding="utf-8")
+    (locked / "secret").chmod(0o000)
+    (locked / "outside").symlink_to(outside, target_is_directory=True)
+    (locked / "deep").chmod(0o000)
+    locked.chmod(0o000)
+    readonly = root / "run_workdir" / "readonly"
+    readonly.mkdir()
+    (readonly / "file").write_text("x", encoding="utf-8")
+    readonly.chmod(0o500)
+    (root / "run_workdir").chmod(0o500)
+
+
+def test_cleanup_restores_access_the_workload_revoked_without_following_links(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "keep").write_text("outside", encoding="utf-8")
+        outside.chmod(0o500)
+        provider = LocalWorkspaceProvider(local_settings(tmp_path / "project-workspaces"))
+        storage = await provider.create("allocation-1")
+        path = Path(storage.root)
+        _revoke_access(path, outside)
+
+        await provider.cleanup(storage)
+
+        assert not path.exists()
+        assert (outside / "keep").read_text(encoding="utf-8") == "outside"
+        assert stat.S_IMODE(outside.stat().st_mode) == 0o500
+
+    asyncio.run(scenario())
+
+
+def test_undeletable_stale_workspace_cannot_block_provider_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        root = tmp_path / "project-workspaces"
+        predecessor = LocalWorkspaceProvider(local_settings(root))
+        stuck = Path((await predecessor.create("allocation-stuck")).root)
+        stale = Path((await predecessor.create("allocation-stale")).root)
+        locked = Path((await predecessor.create("allocation-locked")).root)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        _revoke_access(locked, outside)
+
+        remove = provider_module._remove_tree
+
+        def failing(path: Path) -> None:
+            if path == stuck:
+                raise PermissionError("still busy")
+            remove(path)
+
+        monkeypatch.setattr(provider_module, "_remove_tree", failing)
+        replacement = LocalWorkspaceProvider(local_settings(root))
+        with caplog.at_level("WARNING", logger=provider_module.__name__):
+            assert await replacement.probe()
+            storage = await replacement.create("allocation-next")
+
+        assert not stale.exists() and not locked.exists()
+        # Retained with its marker so a later start retries it.
+        assert provider_module._is_owned_directory(stuck)
+        assert "PermissionError" in caplog.text and str(root) not in caplog.text
+        await replacement.cleanup(storage)
 
     asyncio.run(scenario())
 

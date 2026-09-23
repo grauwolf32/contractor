@@ -617,7 +617,13 @@ work, without reusing the slot or deleting storage under active I/O.
   it must not block Scheduler progress for other Runtime Agents;
 - startup deletes only stale directories bearing a valid Contractor ownership
   marker immediately below the exact configured `workRoot`. It never performs
-  broad or marker-free recursive cleanup.
+  broad or marker-free recursive cleanup. A stale directory that cannot be
+  removed is logged and retained, marker included, for the next start; it
+  does not block initialization or later allocations;
+- local removal (release and startup) restores owner `rwx` on directories a
+  same-UID sandbox workload made inaccessible, works relative to pinned
+  directory descriptors, never follows links and removes the ownership marker
+  last.
 
 Potentially blocking local filesystem removal never runs on the Runtime
 Agent's asyncio event-loop thread. Release owns one allocation-wide cleanup
