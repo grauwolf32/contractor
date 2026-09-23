@@ -160,8 +160,9 @@ Runtime never includes system/runtime internals, hidden thought, credentials,
 headers, provider exceptions, host paths or arbitrary ADK State. Before
 projection it replaces the allocation's host paths, the LLM Gateway token and
 every RuntimeSettings credential or private endpoint of at least 16 UTF-8 bytes
-(the set scanned by the result secret check in
-[14](14-worker-results-and-live-state.md)) with `[REDACTED]`. The event
+(the credentials scanned by the result secret check in
+[14](14-worker-results-and-live-state.md) plus the private endpoints) with
+`[REDACTED]`. The event
 projection is capped at 512 KiB. Immutable task data is retained first; the
 newest complete event groups that fit are retained next, preserving their
 original order, and a deterministic `transcriptTruncated` marker reports any

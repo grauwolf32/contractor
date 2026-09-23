@@ -454,6 +454,30 @@ def private_runtime_settings() -> RuntimeSettings:
 
 
 @pytest.mark.parametrize(
+    "value", ["https://caido.example", "https://proxy.example", "https://telemetry.example"]
+)
+def test_adk_worker_results_may_name_runtime_endpoints(tmp_path: Path, value: str) -> None:
+    # Endpoints are not credentials: a same-host audit may legitimately name
+    # a service that shares the Runtime's host.
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(f"Observed service at {value}/health")]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
     "value", [PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN, SECRET]
 )
 def test_adk_worker_blocks_every_runtime_settings_secret_in_results(

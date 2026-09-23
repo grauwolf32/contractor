@@ -15,16 +15,38 @@ MIN_PRIVATE_SUBSTRING_BYTES = 16
 
 
 def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
+    """Every private RuntimeSettings value: credentials, endpoints, CA bundles."""
+
     values = [settings.llm_gateway_url, settings.artifact_api_url]
+    if settings.telemetry is not None:
+        values.append(settings.telemetry.endpoint)
+    if settings.http_proxy is not None:
+        values.append(settings.http_proxy.proxy_url)
+        if settings.http_proxy.ca_bundle_pem is not None:
+            values.append(settings.http_proxy.ca_bundle_pem)
+    if settings.caido is not None:
+        values.append(settings.caido.endpoint)
+        if settings.caido.ca_bundle_pem is not None:
+            values.append(settings.caido.ca_bundle_pem)
+    values.extend(_runtime_secret_values(settings))
+    return tuple(value for value in values if value)
+
+
+def _runtime_secret_values(settings: RuntimeSettings) -> tuple[str, ...]:
+    """Only the RuntimeSettings credentials, without endpoints or CA bundles.
+
+    Worker results may legitimately name an endpoint (a same-host deployment
+    audits services next to its own), but never a credential.
+    """
+
+    values: list[str] = []
     token = settings.llm_gateway_token
     if token is not None:
         values.append(token.get_secret_value())
     if settings.telemetry is not None:
-        values.append(settings.telemetry.endpoint)
         values.extend(secret.get_secret_value() for secret in settings.telemetry.headers.values())
     if settings.http_proxy is not None:
         proxy = settings.http_proxy
-        values.append(proxy.proxy_url)
         if proxy.basic_auth is not None:
             values.extend(
                 (
@@ -34,15 +56,8 @@ def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
             )
         if proxy.bearer_token is not None:
             values.append(proxy.bearer_token.get_secret_value())
-        if proxy.ca_bundle_pem is not None:
-            values.append(proxy.ca_bundle_pem)
-    if settings.caido is not None:
-        caido = settings.caido
-        values.append(caido.endpoint)
-        if caido.bearer_token is not None:
-            values.append(caido.bearer_token.get_secret_value())
-        if caido.ca_bundle_pem is not None:
-            values.append(caido.ca_bundle_pem)
+    if settings.caido is not None and settings.caido.bearer_token is not None:
+        values.append(settings.caido.bearer_token.get_secret_value())
     if settings.http_origin_target is not None:
         # The target URL is the audited application and legitimately appears in
         # results; only the credentials Runtime injects for it are private.

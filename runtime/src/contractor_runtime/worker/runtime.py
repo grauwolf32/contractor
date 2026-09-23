@@ -1289,24 +1289,26 @@ def _gateway_token(context: WorkerBuildContext) -> str:
 
 
 def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
-    """Whether Worker-authored text contains an allocation-private setting.
+    """Whether Worker-authored text contains an allocation credential.
 
-    Covers every RuntimeSettings credential and private endpoint (proxy, Caido,
-    HTTP origin target, telemetry headers), under the Agent Card matching
-    policy; the LLM Gateway token additionally matches at any length.
+    Covers every RuntimeSettings credential (Gateway token, telemetry headers,
+    proxy, Caido and HTTP origin target credentials) under the Agent Card
+    matching policy; the LLM Gateway token additionally matches at any length.
+    Endpoints are not credentials: a result may name them, for example when a
+    same-host deployment audits a service next to its own.
     """
 
     # Imported here: the allocation package builds Workers, so a module-level
     # import would be circular.
     from contractor_runtime.allocation.redaction import (
         _contains_private_value,
-        _runtime_setting_values,
+        _runtime_secret_values,
     )
 
     gateway_token = _gateway_token(context)
     if gateway_token and gateway_token in text:
         return True
-    return _contains_private_value(text, _runtime_setting_values(context.runtime_settings))
+    return _contains_private_value(text, _runtime_secret_values(context.runtime_settings))
 
 
 def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:

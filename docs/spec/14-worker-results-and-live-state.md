@@ -248,11 +248,11 @@ invalid binding violations are non-retryable. Workflow policy, not Runtime,
 decides whether that flag causes another attempt.
 
 The secret-retention scan (`unsafe_worker_result`) covers every allocation
-RuntimeSettings credential and private endpoint, the same set the Agent Card
-check uses: the LLM Gateway token and URL, the Artifact API URL, telemetry
-endpoint and header values, HTTP proxy URL/credentials/CA bundle, Caido
-endpoint/bearer/CA bundle and the credentials Runtime injects for the HTTP
-origin target (not the target URL itself, which results legitimately name). A
+RuntimeSettings credential: the LLM Gateway token, telemetry header values,
+HTTP proxy credentials, the Caido bearer token and the credentials Runtime
+injects for the HTTP origin target. Endpoints and CA bundles are not
+credentials and results may name them (a same-host deployment audits services
+next to its own); the Agent Card check additionally rejects those. A
 value of at least 16 UTF-8 bytes is rejected anywhere in the result text; a
 shorter value, such as a proxy username, only when it is the whole text, so an
 ordinary word cannot fail a result. The LLM Gateway token is rejected at any
