@@ -398,7 +398,9 @@ exclude command text, output, host paths and secrets. Bounded command/output
 content belongs only to the existing authorized tool observation surfaces.
 Execution-enabled Workers use metadata-only instrumentation even when an
 operator has opted into content capture: later model requests, result finalizers
-and summaries may contain earlier command/output content too.
+and summaries may contain earlier command/output content too. `exec_command`
+declares this through the shared sensitive-output tool attribute in
+[07](07-runtime-labels-and-infrastructure-config.md).
 
 ## Future skill mounts
 

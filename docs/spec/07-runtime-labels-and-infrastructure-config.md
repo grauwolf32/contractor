@@ -865,6 +865,14 @@ as a trusted sink: no secret-content filter is applied. Secrets included in
 messages or tool results can therefore be exported. Automatic export of client
 configuration or authentication headers is not part of content capture.
 
+Tools whose results carry command output, captured HTTP traffic or HTTP session
+material declare sensitive output (`contractor_sensitive_output`). A Worker
+that selects any such tool uses metadata-only instrumentation for the whole
+allocation even when `captureContent=true`, because later model requests,
+result finalizers and summaries can repeat that output. `exec_command`
+declares it; until their toolsets declare it per tool, Runtime's central
+registry treats every `http-tools@1` and Caido tool the same way.
+
 Captured model input includes conversation messages, system instructions and
 tool declarations; output includes the model response. Worker tool spans include
 arguments/results; Planner invocation and passthrough dispatch spans include

@@ -320,6 +320,61 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry() -> None:
+    from google.adk.tools import FunctionTool
+
+    from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
+    from contractor_runtime.toolsets.code_execution.tools import ExecCommandTool
+    from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
+    from contractor_runtime.worker.runtime import requires_content_free_telemetry
+
+    async def plain() -> dict[str, bool]:
+        return {"ok": True}
+
+    declared = DeclaredSensitiveTool()
+    assert not requires_content_free_telemetry({})
+    assert not requires_content_free_telemetry({"plain": plain, "read_artifact": plain})
+    assert requires_content_free_telemetry({"declared_probe": declared})
+    assert requires_content_free_telemetry({"wrapped": FunctionTool(declared)})
+    assert ExecCommandTool.contractor_sensitive_output is True
+    for name in HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES:
+        assert requires_content_free_telemetry({"plain": plain, name: plain})
+
+
+@pytest.mark.parametrize("tool_name", ["http_request", "caido_replay", "declared_probe", "probe"])
+def test_adk_worker_suppresses_captured_content_for_sensitive_output_tools(
+    tmp_path: Path, tool_name: str
+) -> None:
+    async def probe() -> dict[str, str]:
+        return {"traffic": "tool-output-canary"}
+
+    tool = DeclaredSensitiveTool() if tool_name == "declared_probe" else probe
+    sensitive = tool_name != "probe"
+
+    async def scenario() -> None:
+        instrumentation = CapturingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {tool_name: tool},
+            scripted_model(
+                [tool_call(tool_name, {}, call_id="sensitive-call"), terminal_text("Reviewed")]
+            ),
+            instrumentation=instrumentation,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert any(span.name == "contractor.worker.tool" for span in instrumentation.spans)
+        captured = repr(instrumentation.content)
+        assert ("tool-output-canary" in captured) is not sensitive
+        assert bool(instrumentation.content) is not sensitive
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_adk_worker_treats_terminal_text_as_opaque_and_blocks_secrets(
     tmp_path: Path,
 ) -> None:
@@ -2553,3 +2608,46 @@ class RefExposingTool:
     async def __call__(self) -> dict[str, bool]:
         self._observations += 1
         return {"ok": True}
+
+
+class CapturingInstrumentation(RecordingInstrumentation):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content: list[tuple[str, str]] = []
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        span = CapturingSpan(name, attributes or {}, self.content)
+        self.spans.append(span)
+        return span
+
+
+class CapturingSpan(RecordingSpan):
+    capture_content = True
+
+    def __init__(
+        self,
+        name: str,
+        attributes: dict[str, TelemetryAttribute],
+        content: list[tuple[str, str]],
+    ) -> None:
+        super().__init__(name, attributes)
+        self._content = content
+
+    def set_content(self, kind: str, value: str) -> None:
+        self._content.append((kind, value))
+
+
+class DeclaredSensitiveTool:
+    contractor_sensitive_output = True
+
+    def __init__(self) -> None:
+        self.__name__ = "declared_probe"
+        self.__doc__ = "Return captured traffic."
+
+    async def __call__(self) -> dict[str, str]:
+        return {"traffic": "tool-output-canary"}
