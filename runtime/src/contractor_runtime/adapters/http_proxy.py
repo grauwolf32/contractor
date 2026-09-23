@@ -180,8 +180,13 @@ class ProxyHTTPClient:
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
-            if request_observer is not None:
-                request_observer(request)
+        except Exception:
+            raise ProxyRequestError from None
+        if request_observer is not None:
+            # The caller inspects the exact request before any network I/O;
+            # its refusal propagates unchanged.
+            request_observer(request)
+        try:
             response = await client.send(request, stream=True, follow_redirects=False)
             if response.status_code == 407:
                 await response.aclose()

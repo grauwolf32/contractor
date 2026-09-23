@@ -111,7 +111,13 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 - `url`: absolute `http` or `https` URL without userinfo; a `#fragment` is
   client-side state and is removed before the request is sent;
 - `method`: `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`;
-- at most 64 bounded headers and query keys;
+- at most 64 bounded headers and query keys. Session default headers plus
+  request headers total at most 48 KiB; the rest of the 64 KiB header block
+  that finding evidence retains is reserved for headers Runtime adds (request
+  tag, `Host`, session `Authorization`, client defaults). A request whose
+  complete header block, including session cookies and authorization, would
+  still exceed 64 KiB fails `http_request_invalid` before it is sent, so every
+  sent request can be selected as evidence;
 - `body_type`: `none|json|form|text`, with at most 1 MiB encoded request body;
 - timeout 1..120 seconds, capped by allocation settings; when omitted, it is
   `min(allocation request timeout, 120 seconds)`. It is one deadline for the

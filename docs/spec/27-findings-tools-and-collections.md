@@ -454,6 +454,10 @@ state. Private transport credentials remain outside the target request capture.
 
 Limits mirror existing HTTP bounds: 1 MiB outgoing body per attempt, 64 KiB per
 header block and at most ten redirects plus three attempts (13 total records).
+The request header block is the complete set actually sent, not only the
+model-supplied headers: `http_request` limits those to 48 KiB, reserving the
+rest for Runtime-added headers, and refuses before sending any request whose
+complete block would exceed 64 KiB.
 The existing 8 MiB proposal/submission limit still applies to the encoded
 snapshot. An oversized finding fails explicitly; evidence is not silently
 truncated. Original response artifact size/truncation semantics are unchanged.

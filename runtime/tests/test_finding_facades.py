@@ -16,7 +16,8 @@ from test_security_findings_toolset import FakeFindingClient, _settings, _worksp
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.llm.openai import _tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.http.limits import MAX_HISTORY
+from contractor_runtime.toolsets.http.limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import _proposal
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingsToolsetFactory,
@@ -203,6 +204,56 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         await http["http_session_clear"]()
         await http["http_request"].close()
         assert json.dumps(document) == retained
+
+    asyncio.run(scenario())
+
+
+def test_every_sent_request_fits_finding_evidence_header_limits(tmp_path):
+    async def scenario():
+        observed = []
+
+        async def handler(request):
+            observed.append(request)
+            return httpx.Response(200, text="ok", request=request)
+
+        http, state = await create_tools(tmp_path, handler)
+        client = FakeFindingClient()
+        tool = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+        # Maximal session Basic auth plus model headers at their own budget.
+        await http["http_session_set"](
+            auth={"kind": "basic", "username": "u" * 256, "password": "p" * 8192}
+        )
+        headers = {f"X-Fill-{index}": "v" * 8000 for index in range(6)}
+        filler = MAX_REQUEST_HEADER_BYTES - sum(len(k) + len(v) for k, v in headers.items())
+        headers["X-Last"] = "v" * (filler - len("X-Last"))
+        result = await http["http_request"](
+            "https://target.example/", headers=headers, tool_context=context()
+        )
+        await tool(
+            title="Finding",
+            description="Observed",
+            url="https://target.example/",
+            method="GET",
+            request_id=result["request_id"],
+            tool_context=context(),
+        )
+        attempt = client.requests[0]["proposal"]["http_exchange"]["attempts"][0]
+        assert len(attempt["headers"]) > len(headers)
+        assert _proposal(json.dumps(client.requests[0]["proposal"]).encode())
+
+        # Model headers beyond their budget are refused before sending.
+        headers["X-Extra"] = "v"
+        with pytest.raises(HTTPToolError) as invalid:
+            await http["http_request"]("https://target.example/", headers=headers)
+        assert invalid.value.code == "http_request_invalid"
+
+        # Session cookies can still grow the block; such a request is never sent.
+        await http["http_session_set"](cookies={f"c{index}": "x" * 8000 for index in range(7)})
+        with pytest.raises(HTTPToolError) as oversized:
+            await http["http_request"]("https://target.example/", headers={"X-A": "v" * 8000})
+        assert oversized.value.code == "http_request_invalid"
+        assert len(observed) == 1
+        await http["http_request"].close()
 
     asyncio.run(scenario())
 

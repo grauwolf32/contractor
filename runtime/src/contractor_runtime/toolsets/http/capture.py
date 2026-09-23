@@ -37,6 +37,9 @@ class CapturedAttempt:
             request.method, str(request.url), capture_headers(request.headers), request.content
         )
 
+    def header_pairs(self) -> list[tuple[str, str]]:
+        return [(row["name"], row["value"]) for row in self.headers]
+
     def receive(self, response: httpx.Response) -> None:
         self.status = response.status_code
         self.response_headers = capture_headers(response.headers)

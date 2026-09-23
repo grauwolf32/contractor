@@ -56,8 +56,10 @@ from contractor_runtime.toolsets.http.limits import (
     MAX_READ_UNITS,
     MAX_REDIRECTS,
     MAX_REQUEST_BODY_BYTES,
+    MAX_REQUEST_HEADER_BYTES,
     MAX_RESPONSE_BODY_BYTES,
     MAX_URL_BYTES,
+    header_block_bytes,
 )
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
@@ -574,7 +576,12 @@ class _HTTPSession:
 
         def observe(request: httpx.Request) -> None:
             nonlocal attempt
-            attempt = CapturedAttempt.from_request(request)
+            captured = CapturedAttempt.from_request(request)
+            if header_block_bytes(captured.header_pairs()) > MAX_HEADER_BYTES:
+                # Session cookies or auth grew the block past what finding
+                # evidence retains; refuse before anything is sent.
+                raise HTTPToolError("http_request_invalid")
+            attempt = captured
             attempts.append(attempt)
 
         headers = dict(kwargs.pop("headers"))
@@ -628,6 +635,8 @@ class _HTTPSession:
         except asyncio.CancelledError:
             if attempt is not None:
                 attempt.error = "cancelled"
+            raise
+        except HTTPToolError:
             raise
         except (TargetDenied, ProxyTargetDenied):
             # Connect-time and proxy-route denials share the pre-send code.
@@ -892,7 +901,9 @@ class HTTPRequestTool(_HTTPTool):
     Args:
         url: Absolute HTTP or HTTPS URL; a #fragment is removed before sending.
         method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
-        headers: Per-request string headers merged over session defaults.
+        headers: Per-request string headers merged over session defaults; both
+            together at most 48 KiB. The complete header block sent, including
+            session cookies and auth, must stay within 64 KiB.
         query: Query parameter mapping.
         body: Payload shaped according to body_type.
         body_type: "none" for no body, "json" for JSON data, "form" for a field
@@ -1290,7 +1301,7 @@ def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
         if size > MAX_HEADER_VALUE_BYTES:
             raise HTTPToolError("http_request_invalid")
         total += len(name) + size
-        if total > MAX_HEADER_BYTES:
+        if total > MAX_REQUEST_HEADER_BYTES:
             raise HTTPToolError("http_request_invalid")
         seen.add(normalized)
         result[name] = raw_value
@@ -1305,13 +1316,7 @@ def _merge_headers(defaults: Mapping[str, str], request: Mapping[str, str]) -> d
         result[name.lower()] = (name, value)
     if len(result) > MAX_HEADERS:
         raise HTTPToolError("http_request_invalid")
-    if (
-        sum(
-            len(name.encode("ascii")) + len(value.encode("utf-8"))
-            for name, value in result.values()
-        )
-        > MAX_HEADER_BYTES
-    ):
+    if header_block_bytes(result.values()) > MAX_REQUEST_HEADER_BYTES:
         raise HTTPToolError("http_request_invalid")
     return {name: value for name, value in result.values()}
 

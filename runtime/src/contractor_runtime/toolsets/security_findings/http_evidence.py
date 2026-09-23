@@ -11,6 +11,7 @@ from contractor_runtime.toolsets.http.limits import (
     MAX_EXCHANGE_ATTEMPTS,
     MAX_HEADER_BYTES,
     MAX_REQUEST_BODY_BYTES,
+    header_block_bytes,
 )
 from contractor_runtime.toolsets.security_findings.locations import (
     HTTP_TOKEN,
@@ -58,10 +59,7 @@ class HTTPAttempt(WebLocation):
     @field_validator("headers", "response_headers")
     @classmethod
     def check_headers(cls, values: list[HTTPHeader]) -> list[HTTPHeader]:
-        byte_count = sum(
-            len(row.name.encode("utf-8")) + len(row.value.encode("utf-8")) for row in values
-        )
-        if byte_count > MAX_HEADER_BYTES:
+        if header_block_bytes((row.name, row.value) for row in values) > MAX_HEADER_BYTES:
             raise ValueError("HTTP headers exceed the byte limit")
         return values
 

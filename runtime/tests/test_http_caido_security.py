@@ -21,7 +21,7 @@ from contractor_runtime.toolsets.http.tools import HTTPToolError
 def test_session_header_and_cookie_limits_apply_to_atomic_merged_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_HEADER_BYTES", 24)
+    monkeypatch.setattr(http_tools, "MAX_REQUEST_HEADER_BYTES", 24)
     monkeypatch.setattr(http_tools, "MAX_COOKIES", 2)
     transport_calls = 0
 

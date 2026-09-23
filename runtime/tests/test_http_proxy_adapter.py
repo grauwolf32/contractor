@@ -285,6 +285,35 @@ def test_proxy_handle_preserves_target_http_errors_as_responses() -> None:
     asyncio.run(scenario())
 
 
+def test_stream_request_observer_refusal_propagates_before_sending() -> None:
+    sent: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, request=request)
+
+    class Refused(Exception):
+        pass
+
+    def refuse(_request: httpx.Request) -> None:
+        raise Refused
+
+    async def scenario() -> None:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+        handle = ProxyHTTPClient(client)
+        with pytest.raises(Refused):
+            await handle.stream_request(
+                "GET",
+                "https://public.example/",
+                target_policy=TargetPolicy(),
+                request_observer=refuse,
+            )
+        assert sent == []
+        await client.aclose()
+
+    asyncio.run(scenario())
+
+
 async def assert_safe_proxy_failure(proxy_url: str, backend_url: str) -> None:
     adapter = HTTPProxyAdapter(
         adapter_context(private_bypass_hosts=("control.example",)),
