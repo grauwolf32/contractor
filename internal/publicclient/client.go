@@ -35,6 +35,10 @@ type Options struct {
 	CAFile    string
 	AllowHTTP bool
 	Timeout   time.Duration
+	// Transfer applies Timeout to every period without progress (connection,
+	// request body, response headers and response body) instead of to the
+	// whole exchange, so a large Artifact is not cut off on a slow link.
+	Transfer  bool
 	UserAgent string
 }
 
@@ -58,15 +62,20 @@ func New(options Options) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	var base http.RoundTripper = transport
+	timeout := options.Timeout
+	if options.Transfer {
+		base, timeout = &progressTransport{base: transport, timeout: options.Timeout}, 0
+	}
 	roundTripper := &checkedTransport{
-		base:      transport,
+		base:      base,
 		origin:    origin,
 		token:     options.Token,
 		userAgent: options.UserAgent,
 	}
 	httpClient := &http.Client{
 		Transport: roundTripper,
-		Timeout:   options.Timeout,
+		Timeout:   timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return errors.New("Contractor public API redirects are not allowed")
 		},

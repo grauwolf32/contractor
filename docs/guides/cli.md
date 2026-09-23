@@ -42,6 +42,11 @@ contractor --output json run get run_123
 contractor --output name workflow list
 ```
 
+`--timeout` (or `CONTRACTOR_TIMEOUT`, default `30s`) bounds each request. For
+`source push`, `artifact put`/`get` and `run output` it instead bounds each
+period without progress, from connecting through the last body byte, so a large
+Artifact may take longer on a slow link while a stalled transfer still fails.
+
 Cleartext HTTP is accepted by default only for IP-literal loopback origins.
 Use `--allow-http` explicitly for another development origin. Redirects and a
 Server with an incompatible `X-Contractor-API-Version` are rejected.
