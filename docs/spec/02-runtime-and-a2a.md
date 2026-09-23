@@ -532,9 +532,13 @@ deadline can stop it earlier. Every attempt retains the same allocation-owned
 Gateway route and never falls back around a configured proxy. The series is one
 logical ModelPolicy call because Runtime receives at most one usable response.
 If a response was lost after the Gateway accepted it, however, repeated Gateway
-work and billing are possible and only the accepted final response's usage can
+work and billing are possible and only the final received response's usage can
 be added to the Worker token counters. Gateway-side quotas therefore remain the
-hard authority for all physical attempts.
+hard authority for all physical attempts. A received response that the adapter
+then rejects (invalid tool-call JSON, an unsupported part, an empty choice) is
+still a failed model call, but its reported usage is added to the Worker,
+invocation, budget and summarizer token counters like an accepted response;
+the boundary error keeps only those numeric counters, never response content.
 
 Transport retries honor `retry-after-ms`, numeric or HTTP-date `Retry-After`,
 and explicit `x-should-retry` overrides. Finite server delays over 120 seconds

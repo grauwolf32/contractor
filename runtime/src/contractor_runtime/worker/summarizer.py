@@ -96,11 +96,17 @@ class _OneShotModel(BaseLlm):
             raise SummarizerFailure("call_limit_exceeded")
         self._calls = 1
         completed_usage: Any | None = None
-        async for response in self._delegate.generate_content_async(llm_request, stream=stream):
-            if not bool(getattr(response, "partial", False)):
-                completed_usage = getattr(response, "usage_metadata", None)
-                self._usage = _usage_projection(completed_usage)
-            yield response
+        try:
+            async for response in self._delegate.generate_content_async(llm_request, stream=stream):
+                if not bool(getattr(response, "partial", False)):
+                    completed_usage = getattr(response, "usage_metadata", None)
+                    self._usage = _usage_projection(completed_usage)
+                yield response
+        except Exception as error:
+            # A received response rejected by the Gateway adapter spent tokens.
+            if getattr(error, "response_received", False) is True:
+                self._usage = _usage_projection(getattr(error, "usage_metadata", None))
+            raise
 
 
 class TranscriptRecorder:

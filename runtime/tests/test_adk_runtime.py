@@ -506,6 +506,85 @@ def test_adk_worker_counts_a_gateway_error_missed_by_model_callbacks_once(
     asyncio.run(scenario())
 
 
+def _chat_completion(message: dict[str, object], total_tokens: int) -> dict[str, object]:
+    return {
+        "choices": [{"finish_reason": "stop", "message": message}],
+        "usage": {
+            "prompt_tokens": total_tokens - 5,
+            "completion_tokens": 5,
+            "total_tokens": total_tokens,
+        },
+    }
+
+
+REJECTED_TOOL_CALL = {
+    "content": None,
+    "tool_calls": [{"id": "call-1", "function": {"name": "tool", "arguments": '{"path":'}}],
+}
+
+
+@pytest.mark.parametrize(
+    ("phase", "max_total_tokens", "expected_code", "expected_tokens"),
+    [
+        ("main", 32768, "worker_gateway_unavailable", 30),
+        ("main", 20, "worker_budget_exhausted", 30),
+        ("result_finalizer", 32768, "worker_gateway_unavailable", 42),
+    ],
+)
+def test_adk_worker_accounts_usage_of_a_rejected_gateway_response(
+    tmp_path: Path,
+    phase: str,
+    max_total_tokens: int,
+    expected_code: str,
+    expected_tokens: int,
+) -> None:
+    responses = (
+        [_chat_completion(REJECTED_TOOL_CALL, 30)]
+        if phase == "main"
+        else [_chat_completion({"content": "done"}, 12), _chat_completion(REJECTED_TOOL_CALL, 30)]
+    )
+
+    async def gateway(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=responses.pop(0))
+
+    async def scenario() -> None:
+        state = WorkerState()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            model = OpenAICompatibleGatewayLlm(
+                model="worker-model",
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.example/v1",
+                    api_key=SECRET,
+                    timeout_seconds=1,
+                    http_client=http,
+                ),
+            )
+            runtime = await create_runtime(
+                tmp_path, state, {}, model, max_total_tokens=max_total_tokens
+            )
+
+            completion = await runtime.invoke(stage_request())
+
+            assert completion.failure is not None
+            assert completion.failure.code == expected_code
+            assert state.metrics.counters["llm_errors"] == 1
+            assert state.metrics.counters["total_tokens"] == expected_tokens
+            budget = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1
+            ).metrics.worker_budget
+            assert budget is not None
+            assert budget.observed_total_tokens == expected_tokens
+            assert budget.token_usage_unavailable == 0
+            snapshot = await state.snapshot()
+            metrics = snapshot["lastCompletedInvocation"]["metrics"]
+            assert metrics["totalTokens"] == expected_tokens
+            assert metrics["modelErrors"] == 1
+            assert SECRET not in completion.model_dump_json(by_alias=True)
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
 )
@@ -1635,6 +1714,54 @@ def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
         assert summary.model_calls == 1
         assert summary.token_usage_unavailable == 1
         assert summary.failure_codes == {"gateway_unavailable": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_terminal_summarizer_accounts_usage_of_a_rejected_gateway_response(
+    tmp_path: Path,
+) -> None:
+    class RejectedSummaryModel(BaseLlm):
+        async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
+            del stream
+            if False:
+                yield None
+            raise GatewayModelError(
+                "InvalidGatewayToolArguments",
+                response_received=True,
+                usage_metadata=types.GenerateContentResponseUsageMetadata(
+                    prompt_token_count=20, candidates_token_count=5, total_token_count=25
+                ),
+            )
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            scripted_model([tool_call("probe", {}, call_id="rejected-probe")]),
+            summary_model=RejectedSummaryModel(model="worker-summary-model"),
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.input_tokens == 20
+        assert summary.output_tokens == 5
+        assert summary.total_tokens == 25
+        assert summary.token_usage_unavailable == 0
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
