@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -25,6 +26,8 @@ const (
 	defaultPollInterval     = time.Second
 	defaultClaimDuration    = time.Minute
 	defaultOperationTimeout = 15 * time.Second
+	// defaultPurgeTimeout matches the Artifact purger's own cleanup budget.
+	defaultPurgeTimeout = 2 * time.Minute
 )
 
 var errNoDeletion = errors.New("no Project deletion is claimable")
@@ -44,9 +47,12 @@ type Clock interface {
 }
 
 type Options struct {
-	PollInterval     time.Duration
-	ClaimDuration    time.Duration
+	PollInterval  time.Duration
+	ClaimDuration time.Duration
+	// OperationTimeout bounds claim bookkeeping and the cancelling/draining
+	// phases; PurgeTimeout bounds one Run or final Project purge.
 	OperationTimeout time.Duration
+	PurgeTimeout     time.Duration
 	Clock            Clock
 	NewID            func(string) (string, error)
 	Logger           *slog.Logger
@@ -78,6 +84,9 @@ func New(
 	if options.OperationTimeout == 0 {
 		options.OperationTimeout = defaultOperationTimeout
 	}
+	if options.PurgeTimeout == 0 {
+		options.PurgeTimeout = defaultPurgeTimeout
+	}
 	if options.Clock == nil {
 		options.Clock = realClock{}
 	}
@@ -88,7 +97,7 @@ func New(
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	if options.PollInterval <= 0 || options.ClaimDuration.Microseconds() <= 0 ||
-		options.OperationTimeout <= 0 {
+		options.OperationTimeout <= 0 || options.PurgeTimeout <= 0 {
 		return nil, errors.New("Project deletion controller durations must be positive")
 	}
 	return &Controller{
@@ -135,9 +144,9 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("generate Project deletion claim ID: %w", err)
 	}
-	operationContext, cancel := context.WithTimeout(ctx, c.options.OperationTimeout)
-	defer cancel()
-	claim, err := c.claim(operationContext, claimID)
+	claimContext, cancelClaim := context.WithTimeout(ctx, c.options.OperationTimeout)
+	claim, err := c.claim(claimContext, claimID)
+	cancelClaim()
 	if errors.Is(err, errNoDeletion) {
 		return false, nil
 	}
@@ -145,22 +154,53 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	worked, completed, err := c.advance(operationContext, claim)
+	// Each phase has its own budget: a large purge must not consume the
+	// ordinary operation budget and then fail on every attempt.
+	advanceContext, cancelAdvance := context.WithTimeout(ctx, c.phaseTimeout(claim.Phase))
+	worked, completed, err := c.advance(advanceContext, claim)
+	cancelAdvance()
 	if completed {
 		return worked, err
 	}
+	// Claim bookkeeping runs on a fresh bounded context, never on the phase
+	// context the failed attempt may already have exhausted.
+	bookkeepingContext, cancelBookkeeping := context.WithTimeout(
+		context.WithoutCancel(ctx), c.options.OperationTimeout,
+	)
+	defer cancelBookkeeping()
 	if err == nil && worked {
-		if releaseErr := c.releaseClaim(operationContext, claim); releaseErr != nil {
+		if releaseErr := c.releaseClaim(bookkeepingContext, claim); releaseErr != nil {
 			return false, releaseErr
 		}
 		return true, nil
 	}
 	// Keep this Project briefly ineligible when it cannot progress. That lets
 	// another deleting Project run without sacrificing restart recovery.
-	if deferErr := c.deferClaim(operationContext, claim); deferErr != nil && err == nil {
+	if deferErr := c.deferClaim(bookkeepingContext, claim); deferErr != nil && err == nil {
 		return false, deferErr
 	}
 	return false, err
+}
+
+func isPurgePhase(phase projectstore.DeletionPhase) bool {
+	return phase == projectstore.DeletionPurgingRuns || phase == projectstore.DeletionPurgingArtifacts
+}
+
+func (c *Controller) phaseTimeout(phase projectstore.DeletionPhase) time.Duration {
+	if isPurgePhase(phase) {
+		return c.options.PurgeTimeout
+	}
+	return c.options.OperationTimeout
+}
+
+// purgeClaimDuration keeps the ordinary claim margin over the longer purge
+// budget, so a purge cannot outlive its claim and race a second controller.
+func (c *Controller) purgeClaimDuration() time.Duration {
+	extra := max(0, c.options.PurgeTimeout-c.options.OperationTimeout)
+	if extra > math.MaxInt64-c.options.ClaimDuration {
+		return math.MaxInt64
+	}
+	return c.options.ClaimDuration + extra
 }
 
 type deletionClaim struct {
@@ -186,11 +226,14 @@ WITH candidate AS (
 UPDATE projects AS project
 SET deletion_claim_id = $1,
     deletion_claimed_at = clock_timestamp(),
-    deletion_claim_expires_at = clock_timestamp() + ($2::bigint * interval '1 microsecond')
+    deletion_claim_expires_at = clock_timestamp() + (CASE
+        WHEN project.deletion_phase IN ($4, $5) THEN $3::bigint ELSE $2::bigint
+    END * interval '1 microsecond')
 FROM candidate
 WHERE project.project_id = candidate.project_id
 RETURNING project.project_id, project.owner_id, project.deletion_phase`,
-		claimID, c.options.ClaimDuration.Microseconds(),
+		claimID, c.options.ClaimDuration.Microseconds(), c.purgeClaimDuration().Microseconds(),
+		projectstore.DeletionPurgingRuns, projectstore.DeletionPurgingArtifacts,
 	).Scan(&claim.ProjectID, &claim.OwnerID, &claim.Phase)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return deletionClaim{}, errNoDeletion

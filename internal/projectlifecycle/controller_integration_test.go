@@ -405,6 +405,126 @@ func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
 	}
 }
 
+// delayedPurgeRuns makes one Run purge outlast an ordinary operation budget.
+type delayedPurgeRuns struct {
+	*runstore.PostgresStore
+	delay    time.Duration
+	onDelete func(context.Context)
+}
+
+func (s *delayedPurgeRuns) DeleteReleasedTerminalRun(ctx context.Context, ownerID, runID string) error {
+	if s.onDelete != nil {
+		s.onDelete(ctx)
+	}
+	if s.delay < 0 {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	select {
+	case <-time.After(s.delay):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return s.PostgresStore.DeleteReleasedTerminalRun(ctx, ownerID, runID)
+}
+
+// projectAwaitingRunPurge returns a deleting Project whose only terminal Run
+// is ready for the purging_runs phase.
+func projectAwaitingRunPurge(t *testing.T, ctx context.Context) (*pgxpool.Pool, *runstore.PostgresStore, string) {
+	t.Helper()
+	pool := isolatedPool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	runs := runstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-purge-budget", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Purge budget", IdempotencyKey: "create-project",
+		RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := createProjectRun(t, ctx, runs, "run-purge-budget", project.ProjectID)
+	if _, err := runs.TransitionRun(
+		ctx, run.RunID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture_failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	controller := newTestController(t, pool, runs, &recordingNotifier{}, "setup")
+	for iteration := 0; iteration < 2; iteration++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("advance to Run purge %d = (%t, %v)", iteration, worked, err)
+		}
+	}
+	current, err := projects.Get(ctx, project.OwnerID, project.ProjectID)
+	if err != nil || current.Deletion == nil || current.Deletion.Phase != projectstore.DeletionPurgingRuns {
+		t.Fatalf("Project before Run purge = (%+v, %v)", current, err)
+	}
+	return pool, runs, project.ProjectID
+}
+
+func TestProjectRunPurgeHasItsOwnBudgetAndClaimLease(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool, runs, projectID := projectAwaitingRunPurge(t, ctx)
+	operationTimeout, purgeTimeout, claimDuration := 500*time.Millisecond, 10*time.Second, time.Minute
+	var lease time.Duration
+	slow := &delayedPurgeRuns{PostgresStore: runs, delay: 3 * operationTimeout, onDelete: func(ctx context.Context) {
+		if err := pool.QueryRow(ctx, `
+SELECT deletion_claim_expires_at - deletion_claimed_at FROM projects WHERE project_id = $1`,
+			projectID).Scan(&lease); err != nil {
+			t.Error(err)
+		}
+	}}
+	controller, err := New(pool, slow, &recordingNotifier{}, Options{
+		PollInterval: time.Millisecond, ClaimDuration: claimDuration,
+		OperationTimeout: operationTimeout, PurgeTimeout: purgeTimeout,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("slow Run purge = (%t, %v)", worked, err)
+	}
+	if _, err := runs.GetRun(ctx, "run-purge-budget"); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("purged Run lookup error = %v", err)
+	}
+	// The purge claim keeps the ordinary margin over the longer budget.
+	want := claimDuration + purgeTimeout - operationTimeout
+	if lease < want || lease > want+time.Second {
+		t.Fatalf("Run purge claim lease = %s, want %s", lease, want)
+	}
+}
+
+func TestProjectDeletionDefersClaimAfterPhaseBudgetExpires(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool, runs, projectID := projectAwaitingRunPurge(t, ctx)
+	blocked := &delayedPurgeRuns{PostgresStore: runs, delay: -1}
+	controller, err := New(pool, blocked, &recordingNotifier{}, Options{
+		PollInterval: time.Second, ClaimDuration: time.Hour,
+		OperationTimeout: time.Second, PurgeTimeout: 300 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worked, err := controller.RunOnce(ctx); !errors.Is(err, context.DeadlineExceeded) || worked {
+		t.Fatalf("expired Run purge = (%t, %v)", worked, err)
+	}
+	// The failed attempt's exhausted context must not prevent deferral: the
+	// Project becomes claimable after one poll, not after the whole lease.
+	var deferred bool
+	if err := pool.QueryRow(ctx, `
+SELECT deletion_claim_expires_at <= clock_timestamp() + interval '1 minute'
+FROM projects WHERE project_id = $1`, projectID).Scan(&deferred); err != nil || !deferred {
+		t.Fatalf("Project deletion claim deferred = (%t, %v)", deferred, err)
+	}
+}
+
 func createProjectRun(
 	t *testing.T,
 	ctx context.Context,

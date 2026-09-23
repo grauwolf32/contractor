@@ -173,7 +173,11 @@ restart-safe controller repeatedly performs these phases:
 5. remove Project create-idempotency data and the Project row.
 
 The operation is monotonic, idempotent and retryable after a crash at every
-phase. Queue pause never blocks its cancellation, drain, release or cleanup
+phase. Claim bookkeeping and the cancellation/drain phases use the controller
+operation budget; each Run purge and the final ProjectScope purge use a
+separate, longer purge budget, and a purge claim's lease grows by the same
+amount. A failed attempt defers or releases its claim with a fresh bounded
+budget. Queue pause never blocks its cancellation, drain, release or cleanup
 work. UserScope artifacts, global Skills and referenced RuntimeCredential
 records are outside Project ownership and are retained; deleting the Project
 only removes their Project/Run references. No response claims completion while

@@ -39,6 +39,7 @@ type RuntimeLifecycleSettings struct {
 type ProjectLifecycleSettings struct {
 	OperationTimeout time.Duration
 	ClaimDuration    time.Duration
+	PurgeTimeout     time.Duration
 }
 
 type AuditControllerSettings struct {
@@ -84,6 +85,7 @@ type operationalSpec struct {
 	ProjectLifecycle struct {
 		OperationTimeout *string `yaml:"operationTimeout"`
 		ClaimDuration    *string `yaml:"claimDuration"`
+		PurgeTimeout     *string `yaml:"purgeTimeout"`
 	} `yaml:"projectLifecycle"`
 	AuditController struct {
 		PollInterval     *string `yaml:"pollInterval"`
@@ -122,6 +124,7 @@ func defaultOperationalSettings() OperationalSettings {
 		ProjectLifecycle: ProjectLifecycleSettings{
 			OperationTimeout: 30 * time.Second,
 			ClaimDuration:    time.Minute,
+			PurgeTimeout:     2 * time.Minute,
 		},
 		AuditController: AuditControllerSettings{
 			PollInterval:     time.Second,
@@ -166,6 +169,7 @@ func (s *OperationalSettings) durations(spec operationalSpec) []operationalDurat
 		{"runtimeLifecycle.cleanupTimeout", "runtime-lifecycle-cleanup-timeout", &s.RuntimeLifecycle.CleanupTimeout, spec.RuntimeLifecycle.CleanupTimeout},
 		{"projectLifecycle.operationTimeout", "project-lifecycle-operation-timeout", &s.ProjectLifecycle.OperationTimeout, spec.ProjectLifecycle.OperationTimeout},
 		{"projectLifecycle.claimDuration", "project-lifecycle-claim-duration", &s.ProjectLifecycle.ClaimDuration, spec.ProjectLifecycle.ClaimDuration},
+		{"projectLifecycle.purgeTimeout", "project-lifecycle-purge-timeout", &s.ProjectLifecycle.PurgeTimeout, spec.ProjectLifecycle.PurgeTimeout},
 		{"auditController.pollInterval", "audit-controller-poll-interval", &s.AuditController.PollInterval, spec.AuditController.PollInterval},
 		{"auditController.claimLease", "audit-controller-claim-lease", &s.AuditController.ClaimLease, spec.AuditController.ClaimLease},
 		{"auditController.operationTimeout", "audit-controller-operation-timeout", &s.AuditController.OperationTimeout, spec.AuditController.OperationTimeout},
