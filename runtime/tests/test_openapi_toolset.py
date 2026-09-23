@@ -464,6 +464,35 @@ def test_local_ref_array_index_rejects_non_ascii_digits() -> None:
             openapi_module._validate_document(document, require_provenance=False)
 
 
+def test_path_and_component_listings_fit_the_model_output_limit(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        document = minimal_document("Long paths")
+        for index in range(openapi_module.MAX_LIST_ITEMS):
+            path = f"/{index:04d}/" + "p" * 2000
+            document["paths"][path] = valid_path_item()
+        document["components"]["schemas"] = {
+            f"{index:04d}" + chr(0x1F600) * 252: {"type": "string"}
+            for index in range(openapi_module.MAX_LIST_ITEMS)
+        }
+        seed = client.seed("inputs", "seed", "application/yaml", yaml.safe_dump(document).encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["load_openapi"]("inputs", "seed", seed.revision)
+
+        paths = await tools["list_openapi_paths"]()
+        components = await tools["list_openapi_components"]("schemas")
+        for result, key in ((paths, "paths"), (components, "components")):
+            encoded = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+            assert len(encoded.encode("utf-8")) <= openapi_module.MAX_TARGETED_RESULT_BYTES
+            assert 0 < len(result[key]) < openapi_module.MAX_LIST_ITEMS
+            assert result["total"] == openapi_module.MAX_LIST_ITEMS
+            assert result["truncated"] is True
+            assert result[key] == sorted(result[key])
+        assert paths["paths"][0].startswith("/0000/")
+
+    asyncio.run(scenario())
+
+
 def test_parser_enforces_byte_depth_and_item_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -346,13 +346,11 @@ class _OpenAPISession:
     async def list_paths(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            paths = sorted(document["paths"])
-            return {
-                "artifact": artifact.model_dump(by_alias=True),
-                "paths": paths[:MAX_LIST_ITEMS],
-                "total": len(paths),
-                "truncated": len(paths) > MAX_LIST_ITEMS,
-            }
+            return _bounded_name_listing(
+                {"artifact": artifact.model_dump(by_alias=True)},
+                "paths",
+                sorted(document["paths"]),
+            )
 
     async def get_path(self, path: str) -> dict[str, Any]:
         normalized = _validate_api_path(path)
@@ -405,14 +403,11 @@ class _OpenAPISession:
         normalized = _validate_component_section(section)
         async with self._lock:
             document, artifact = self._require_document()
-            values = sorted(document.get("components", {}).get(normalized, {}))
-            return {
-                "artifact": artifact.model_dump(by_alias=True),
-                "section": normalized,
-                "components": values[:MAX_LIST_ITEMS],
-                "total": len(values),
-                "truncated": len(values) > MAX_LIST_ITEMS,
-            }
+            return _bounded_name_listing(
+                {"artifact": artifact.model_dump(by_alias=True), "section": normalized},
+                "components",
+                sorted(document.get("components", {}).get(normalized, {})),
+            )
 
     async def get_component(self, section: str, name: str) -> dict[str, Any]:
         normalized = _validate_component_section(section)
@@ -962,6 +957,8 @@ class ListOpenAPIPathsTool(_BaseOpenAPITool):
 
     Returns:
         Sorted path strings, total, truncated and the exact artifact reference.
+        At most 500 paths are listed, fewer when long paths reach the output
+        limit; truncated then marks the omitted suffix.
     """
 
     async def __call__(self) -> dict[str, Any]:
@@ -1057,6 +1054,8 @@ class ListOpenAPIComponentsTool(_BaseOpenAPITool):
 
     Returns:
         Sorted component names, section, total, truncated and exact artifact reference.
+        At most 500 names are listed, fewer when long names reach the output
+        limit; truncated then marks the omitted suffix.
     """
 
     async def __call__(self, section: str) -> dict[str, Any]:
@@ -1682,9 +1681,30 @@ def _require_nonempty(field: str, value: Any) -> None:
 
 
 def _bound_targeted_result(value: Any) -> None:
-    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    if len(encoded) > MAX_TARGETED_RESULT_BYTES:
+    if _encoded_size(value) > MAX_TARGETED_RESULT_BYTES:
         raise ToolInputError("targeted OpenAPI result exceeds the model output limit")
+
+
+def _encoded_size(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def _bounded_name_listing(envelope: dict[str, Any], field: str, names: list[str]) -> dict[str, Any]:
+    """Return the longest sorted prefix whose complete result fits model output."""
+
+    selected: list[str] = []
+    # "truncated": false is the longer encoding, so the sized envelope never
+    # grows when the final flag is filled in.
+    result = {**envelope, field: selected, "total": len(names), "truncated": False}
+    size = _encoded_size(result)
+    for name in names[:MAX_LIST_ITEMS]:
+        cost = _encoded_size(name) + (1 if selected else 0)
+        if size + cost > MAX_TARGETED_RESULT_BYTES:
+            break
+        selected.append(name)
+        size += cost
+    result["truncated"] = len(selected) < len(names)
+    return result
 
 
 def _document_state(
