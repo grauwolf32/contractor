@@ -201,7 +201,8 @@ class LifecycleBackend:
             await entry.guardian.request("check", deadline=min(deadline, self.lease))
             self._live(entry)
             reserve = min(
-                self.settings.stop_grace_seconds + 1, max(0, deadline - time.monotonic()) / 2
+                self.settings.command_cleanup_reserve_seconds,
+                max(0, deadline - time.monotonic()) / 2,
             )
             capture = await self.engine.execute(
                 entry.identity,

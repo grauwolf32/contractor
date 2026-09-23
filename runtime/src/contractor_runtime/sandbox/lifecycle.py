@@ -11,6 +11,7 @@ from contractor_runtime.sandbox.contracts import SandboxErrorCode, SandboxExecut
 
 if TYPE_CHECKING:
     from contractor_runtime.projectfs import DirectWorkspaceSession
+    from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 
 class PreparedExecution(Protocol):
@@ -31,6 +32,11 @@ class PreparedExecution(Protocol):
 class ExecutionLifecycle(Protocol):
     @property
     def probe_available(self) -> bool: ...
+
+    @property
+    def settings(self) -> PodmanSettings:
+        """Immutable operator policy; selected tools advertise its limits."""
+        ...
 
     async def probe(self, root: Path, *, deadline: float) -> dict: ...
 

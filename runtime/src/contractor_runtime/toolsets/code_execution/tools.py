@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from contractor_runtime.sandbox.contracts import (
@@ -16,6 +17,7 @@ from contractor_runtime.sandbox.contracts import (
     selected_executor,
 )
 from contractor_runtime.sandbox.podman.executor import failed
+from contractor_runtime.sandbox.podman.settings import PODMAN_LIMIT_CEILINGS, PodmanSettings
 
 
 class CodeExecutionToolsetFactory:
@@ -24,8 +26,15 @@ class CodeExecutionToolsetFactory:
     infrastructure_channels = EXECUTION_CHANNELS
     requires_workspace = True
 
-    def __init__(self, *, available=lambda: False):
+    def __init__(
+        self,
+        *,
+        available=lambda: False,
+        settings: Callable[[], PodmanSettings] | None = None,
+    ):
         self._available = available
+        # Read lazily: the operator policy belongs to the execution lifecycle.
+        self._settings = settings
 
     async def probe(self) -> frozenset[str]:
         return self.exported_tools if self._available() else frozenset()
@@ -51,12 +60,11 @@ class CodeExecutionToolsetFactory:
         executor = selected_executor(
             self.ref, tuple(selected), self.infrastructure_channels, sandbox_executor
         )
-        return {name: ExecCommandTool(executor, state) for name in selected}
+        settings = self._settings() if self._settings is not None else None
+        return {name: ExecCommandTool(executor, state, settings=settings) for name in selected}
 
 
-class ExecCommandTool:
-    name = "exec_command"
-    description = """Run a shell command in the allocation container.
+_DESCRIPTION = """Run a shell command in the allocation container.
 
     Background processes are forbidden. Timeout or output overflow terminates the
     allocation; partial file changes are not rolled back.
@@ -64,19 +72,45 @@ class ExecCommandTool:
     Args:
         command: Shell command to execute in the container.
         cwd: Workspace-relative working directory; empty means the workspace root.
-        timeout_seconds: Wall-clock limit from 1 to 3600 seconds; defaults to 60.
+        timeout_seconds: Wall-clock limit from 1 to {maximum} seconds; defaults to 60.
+            Larger values are rejected. The limit also covers waiting for the
+            workspace and {reserve} kept for cleanup, so the command itself may be
+            stopped that much earlier.
 
     Returns:
         Status, exitCode, stdout and stderr previews, truncation flags, durationMs
         and errorCode when execution fails.
     """
 
-    def __init__(self, executor, state):
+
+class ExecCommandTool:
+    name = "exec_command"
+
+    def __init__(self, executor, state, *, settings: PodmanSettings | None = None):
         self._executor = executor
         self._state = state
         self._closed = False
+        # The operator maximum is the real ceiling: advertise it and reject more
+        # instead of silently shortening the requested limit.
+        self._maximum = (
+            settings.command_max_seconds
+            if settings is not None
+            else PODMAN_LIMIT_CEILINGS["command_max_seconds"]
+        )
+        reserve = (
+            f"up to {settings.command_cleanup_reserve_seconds} seconds"
+            if settings is not None
+            else "a short reserve"
+        )
+        self.description = _DESCRIPTION.format(maximum=self._maximum, reserve=reserve)
         self.__name__ = self.name
         self.__doc__ = self.description
+
+    def _request(self, command, cwd="", timeout_seconds=60) -> ExecutionRequest:
+        request = ExecutionRequest(command, cwd, timeout_seconds)
+        if request.timeout_seconds > self._maximum:
+            raise SandboxContractError(SandboxErrorCode.INVALID_COMMAND)
+        return request
 
     async def close(self) -> None:
         # Container teardown belongs to AllocationService, never to a tool.
@@ -87,7 +121,7 @@ class ExecCommandTool:
         try:
             if not isinstance(args, dict) or set(args) - {"command", "cwd", "timeout_seconds"}:
                 raise SandboxContractError(SandboxErrorCode.INVALID_COMMAND)
-            ExecutionRequest(**args)
+            self._request(**args)
         except SandboxContractError as rejection:
             error = rejection
         except TypeError:
@@ -105,7 +139,7 @@ class ExecCommandTool:
         if self._closed:
             return failed(SandboxErrorCode.UNAVAILABLE, started).observation()
         try:
-            request = ExecutionRequest(command, cwd, timeout_seconds)
+            request = self._request(command, cwd, timeout_seconds)
             result = await self._executor.execute(
                 request, deadline=datetime.now(UTC) + timedelta(seconds=timeout_seconds)
             )

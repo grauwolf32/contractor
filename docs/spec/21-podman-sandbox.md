@@ -201,6 +201,12 @@ with structured argv and no host shell. `cwd` uses the existing normalized
 workspace-relative path grammar; `""` selects `/workspace`. It cannot select a
 host path or a directory outside the mounted project through a link.
 
+`timeout_seconds` ranges from 1 to the operator command maximum (300 seconds by
+default, at most 3600). The tool description advertises that maximum and the
+cleanup reserve (stop grace plus one second, at most half the budget) taken from
+the same budget. A larger value is rejected as `sandbox_invalid_command` before
+launch; it is neither clamped silently nor fatal to the allocation.
+
 Runtime supplies a private allocation-owned execution handle only to selected
 execution tools. This is a sandbox channel, not the existing host
 `runtime-subprocess-launcher`: existing validators must not automatically move

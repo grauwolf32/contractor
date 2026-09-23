@@ -97,7 +97,7 @@ For example, `--podman-command-max-seconds` is
 | `--podman-memory-bytes` | 2147483648 | Positive integer, at most 64 GiB |
 | `--podman-pids` | 256 | Positive integer, at most 4096 |
 | `--podman-tmpfs-bytes` | 268435456 | Positive integer, at most 4 GiB and no larger than memory |
-| `--podman-command-max-seconds` | 300 | Integer, 60–3600; accommodates the tool's fixed 60-second default |
+| `--podman-command-max-seconds` | 300 | Integer, 60–3600; accommodates the tool's fixed 60-second default. `exec_command` advertises it and rejects larger `timeout_seconds` |
 | `--podman-prepare-max-seconds` | 30 | Positive integer, at most 120 |
 | `--podman-stop-grace-seconds` | 5 | Positive integer, at most 30 |
 | `--podman-preview-bytes` | 32768 | Positive integer, at most 1 MiB per stream |

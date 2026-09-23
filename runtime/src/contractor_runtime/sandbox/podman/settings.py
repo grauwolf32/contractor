@@ -68,6 +68,11 @@ class PodmanSettings:
         if self.tmpfs_bytes > self.memory_bytes:
             raise ValueError("podman tmpfs maximum must not exceed memory maximum")
 
+    @property
+    def command_cleanup_reserve_seconds(self) -> int:
+        """Part of a command's budget kept for stop and removal (at most half)."""
+        return self.stop_grace_seconds + 1
+
 
 def add_podman_arguments(parser: argparse.ArgumentParser, values: Mapping[str, str]) -> None:
     defaults = PodmanSettings()

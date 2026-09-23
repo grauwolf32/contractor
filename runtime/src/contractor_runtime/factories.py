@@ -256,7 +256,8 @@ def built_in_factories(
             **(
                 {
                     "code-execution@1": CodeExecutionToolsetFactory(
-                        available=lambda: execution_lifecycle.probe_available
+                        available=lambda: execution_lifecycle.probe_available,
+                        settings=lambda: execution_lifecycle.settings,
                     )
                 }
                 if execution_lifecycle
