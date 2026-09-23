@@ -1,7 +1,6 @@
 package public
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -985,14 +984,11 @@ func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	var request struct {
 		DeadlineSeconds *int `json:"deadlineSeconds"`
 	}
-	if err := decodeStrictPublicJSON(data, &request); err != nil {
+	fields, err := decodeStrictWithPresence(data, &request)
+	if err != nil {
 		return nil, fmt.Errorf("%w: invalid Audit time limit: %v", errInvalidRequest, err)
 	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(data, &fields) != nil || fields == nil {
-		return nil, errInvalidRequest
-	}
-	if value, ok := fields["deadlineSeconds"]; ok && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+	if fields == nil || fields.null("deadlineSeconds") {
 		return nil, errInvalidRequest
 	}
 	if request.DeadlineSeconds != nil && (*request.DeadlineSeconds < 0 || *request.DeadlineSeconds > config.MaxAuditDeadlineSeconds) {

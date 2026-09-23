@@ -64,6 +64,40 @@ func decodeStrictPublicJSON(data []byte, target any) error {
 	return nil
 }
 
+// jsonMembers holds the raw top-level members of a JSON object so that an
+// absent member can be told apart from an explicit null.
+type jsonMembers map[string]json.RawMessage
+
+// null reports whether name is present with a JSON null value.
+func (m jsonMembers) null(name string) bool {
+	value, present := m[name]
+	return present && isJSONNull(value)
+}
+
+// missingOrNull reports whether name is absent or a JSON null.
+func (m jsonMembers) missingOrNull(name string) bool {
+	value, present := m[name]
+	return !present || isJSONNull(value)
+}
+
+func isJSONNull(raw []byte) bool {
+	return bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
+}
+
+// decodeStrictWithPresence strictly decodes one JSON value into target and
+// also returns its top-level members for presence and null checks. A JSON
+// null decodes to nil members.
+func decodeStrictWithPresence(data []byte, target any) (jsonMembers, error) {
+	if err := decodeStrictPublicJSON(data, target); err != nil {
+		return nil, err
+	}
+	var members jsonMembers
+	if err := json.Unmarshal(data, &members); err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
 func requestMediaType(r *http.Request) (string, error) {
 	return httpx.RequestMediaType(errInvalidRequest, r)
 }
