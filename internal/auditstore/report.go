@@ -20,18 +20,7 @@ func (s *PostgresStore) CommitReport(
 	if err := validateCommitReport(params); err != nil {
 		return Audit{}, err
 	}
-	links := []ArtifactLink{params.Machine, params.Summary}
-	encodedLinks := make([]artifactLinkJSON, len(links))
-	for index, link := range links {
-		ref, _ := json.Marshal(link.Artifact.Ref)
-		encodedLinks[index] = artifactLinkJSON{
-			LogicalKey: link.LogicalKey, ArtifactRef: ref,
-			ArtifactDigest: link.Artifact.Digest, MediaType: link.Artifact.MediaType,
-			SizeBytes: link.Artifact.SizeBytes, SourceProvenance: link.SourceProvenance,
-			DisplayRef: link.DisplayRef,
-		}
-	}
-	payload, _ := json.Marshal(encodedLinks)
+	payload := encodeReportLinks(params.Machine, params.Summary)
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
 WITH link_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($8::jsonb) AS link(
@@ -116,4 +105,21 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 		return Audit{}, ErrClaimLost
 	}
 	return Audit{}, ErrPrecondition
+}
+
+// encodeReportLinks projects the two report links for jsonb_to_recordset.
+func encodeReportLinks(machine, summary ArtifactLink) json.RawMessage {
+	links := []ArtifactLink{machine, summary}
+	encodedLinks := make([]artifactLinkJSON, len(links))
+	for index, link := range links {
+		ref, _ := json.Marshal(link.Artifact.Ref)
+		encodedLinks[index] = artifactLinkJSON{
+			LogicalKey: link.LogicalKey, ArtifactRef: ref,
+			ArtifactDigest: link.Artifact.Digest, MediaType: link.Artifact.MediaType,
+			SizeBytes: link.Artifact.SizeBytes, SourceProvenance: link.SourceProvenance,
+			DisplayRef: link.DisplayRef,
+		}
+	}
+	payload, _ := json.Marshal(encodedLinks)
+	return payload
 }

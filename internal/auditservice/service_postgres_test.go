@@ -693,21 +693,26 @@ UPDATE audit_review_requests
 		t.Fatal(err)
 	}
 	if err := validateAndApplyReportDecision(
-		ctx, rejectTx, audit.AuditID, candidate.RequestID, audit.AuditID,
+		ctx, rejectTx, audit.AuditID, waiting.Revision, candidate.RequestID, audit.AuditID,
 		int64(candidate.SubjectRevision), candidate.SubjectDigest, ReviewReject,
 	); err != nil {
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("reject exact report candidate: %v", err)
 	}
-	var rejectedState auditstore.AuditState
-	var rejectedReason *string
-	if err := rejectTx.QueryRow(ctx, `
-SELECT state, stop_reason_code FROM audits WHERE audit_id = $1`, audit.AuditID).Scan(
-		&rejectedState, &rejectedReason,
-	); err != nil || rejectedState != auditstore.AuditFailed || rejectedReason == nil ||
-		*rejectedReason != "report_rejected" {
+	rejected, err := auditstore.NewPostgresStore(rejectTx).Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || rejected.State != auditstore.AuditFailed || rejected.StopReason == nil ||
+		rejected.StopReason.Code != "report_rejected" || rejected.Revision != waiting.Revision+1 ||
+		rejected.Revision != rejected.EventSequence {
 		_ = rejectTx.Rollback(ctx)
-		t.Fatalf("rejected report transaction = (%s, %v, %v)", rejectedState, rejectedReason, err)
+		t.Fatalf("rejected report transaction = (%+v, %v)", rejected, err)
+	}
+	rejectEvents, err := auditstore.NewPostgresStore(rejectTx).ListEvents(
+		ctx, audit.AuditID, rejected.EventSequence-1, 1,
+	)
+	if err != nil || len(rejectEvents) != 1 || rejectEvents[0].Kind != "audit.state_changed" ||
+		!strings.Contains(string(rejectEvents[0].Summary), `"to": "failed"`) {
+		_ = rejectTx.Rollback(ctx)
+		t.Fatalf("rejected report event = (%+v, %v)", rejectEvents, err)
 	}
 	if err := rejectTx.Rollback(ctx); err != nil {
 		t.Fatal(err)
@@ -755,8 +760,15 @@ SELECT state, stop_reason_code FROM audits WHERE audit_id = $1`, audit.AuditID).
 		t.Fatalf("approve report = (%+v, %v)", decision, err)
 	}
 	completed, err := store.Get(ctx, project.OwnerID, audit.AuditID)
-	if err != nil || completed.State != auditstore.AuditCompleted {
+	if err != nil || completed.State != auditstore.AuditCompleted ||
+		completed.Revision != completed.EventSequence {
 		t.Fatalf("completed report Audit = (%+v, %v)", completed, err)
+	}
+	acceptEvents, err := store.ListEvents(ctx, audit.AuditID, completed.EventSequence-2, 2)
+	if err != nil || len(acceptEvents) != 2 || acceptEvents[0].Kind != "audit.report_committed" ||
+		!strings.Contains(string(acceptEvents[0].Summary), candidate.SubjectDigest) ||
+		acceptEvents[1].Kind != "review.decided" {
+		t.Fatalf("accepted report events = (%+v, %v)", acceptEvents, err)
 	}
 	for _, key := range []string{auditstore.ReportMachineLogicalKey, auditstore.ReportSummaryLogicalKey} {
 		if _, err := store.GetArtifactLink(ctx, audit.AuditID, key); err != nil {

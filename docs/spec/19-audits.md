@@ -1289,7 +1289,10 @@ Human report acceptance uses a frozen candidate rather than regenerating bytes
 after review. The request pins the candidate digest and pre-publication Audit
 revision. Acceptance atomically publishes the two exact report links and marks
 the Audit completed; rejection or bounded expiry records a stable terminal
-reason. A non-expired report request is excluded from Controller claims, while
+reason. Each is an ordinary revisioned Audit transition: acceptance records
+the same `audit.report_committed` event as an automatic report commit,
+rejection records `audit.state_changed` to `failed`, and the owner's decision
+then records `review.decided`. A non-expired report request is excluded from Controller claims, while
 an expired request becomes claimable solely for deterministic cleanup.
 
 ### 14.1 Analyst verdict and severity

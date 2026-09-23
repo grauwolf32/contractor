@@ -905,6 +905,20 @@ func validateArtifactLinks(links []ArtifactLink) (int64, error) {
 	return retainedBytes, nil
 }
 
+func validateReportDecision(params ReportDecisionParams) error {
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if err := validateID("report review request ID", params.RequestID); err != nil {
+		return err
+	}
+	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
+		params.SubjectRevision == 0 || params.SubjectRevision > math.MaxInt64 {
+		return invalidf("Audit report decision revision is invalid")
+	}
+	return validateDigest("Audit report subject digest", params.SubjectDigest)
+}
+
 func validateCommitReport(params CommitReportParams) error {
 	if err := validateClaimIdentity(params.Claim); err != nil {
 		return err
