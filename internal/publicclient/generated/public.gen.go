@@ -6905,6 +6905,9 @@ type Limit = int
 // OptionalCSRFToken defines model for OptionalCSRFToken.
 type OptionalCSRFToken = string
 
+// OptionalIdempotencyKey defines model for OptionalIdempotencyKey.
+type OptionalIdempotencyKey = string
+
 // OptionalOrigin defines model for OptionalOrigin.
 type OptionalOrigin = string
 
@@ -7557,7 +7560,8 @@ type CreateRuntimeCredentialParams struct {
 
 // DeleteRuntimeCredentialParams defines parameters for DeleteRuntimeCredential.
 type DeleteRuntimeCredentialParams struct {
-	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+	// IdempotencyKey Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key.
+	IdempotencyKey *OptionalIdempotencyKey `json:"Idempotency-Key,omitempty"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
 	Origin *OptionalOrigin `json:"Origin,omitempty"`
@@ -12787,6 +12791,11 @@ type ClientInterface interface {
 
 	// DeleteRuntimeCredential Delete one unreferenced Runtime adapter credential
 	//
+	// Deletion leaves a durable tombstone for the credential ID, so repeating
+	// it is idempotent without an Idempotency-Key and answers 204 with
+	// `Idempotency-Replayed: true`. A supplied key is validated but not bound
+	// to the request.
+	//
 	// Corresponds with DELETE /v1/operations/runtime-credentials/{credentialId} (the `DeleteRuntimeCredential` operationId).
 	DeleteRuntimeCredential(ctx context.Context, credentialId RuntimeCredentialIdParameter, params *DeleteRuntimeCredentialParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -14871,6 +14880,11 @@ func (c *Client) CreateRuntimeCredential(ctx context.Context, params *CreateRunt
 }
 
 // DeleteRuntimeCredential Delete one unreferenced Runtime adapter credential
+//
+// Deletion leaves a durable tombstone for the credential ID, so repeating
+// it is idempotent without an Idempotency-Key and answers 204 with
+// `Idempotency-Replayed: true`. A supplied key is validated but not bound
+// to the request.
 //
 // Corresponds with DELETE /v1/operations/runtime-credentials/{credentialId} (the `DeleteRuntimeCredential` operationId).
 func (c *Client) DeleteRuntimeCredential(ctx context.Context, credentialId RuntimeCredentialIdParameter, params *DeleteRuntimeCredentialParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -21642,14 +21656,16 @@ func NewDeleteRuntimeCredentialRequest(server string, credentialId RuntimeCreden
 
 	if params != nil {
 
-		var headerParam0 string
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
-		if err != nil {
-			return nil, err
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
 		}
-
-		req.Header.Set("Idempotency-Key", headerParam0)
 
 		if params.Origin != nil {
 			var headerParam1 string
@@ -26353,6 +26369,11 @@ type ClientWithResponsesInterface interface {
 	CreateRuntimeCredentialWithResponse(ctx context.Context, params *CreateRuntimeCredentialParams, body CreateRuntimeCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateRuntimeCredentialResponse, error)
 
 	// DeleteRuntimeCredentialWithResponse Delete one unreferenced Runtime adapter credential
+	//
+	// Deletion leaves a durable tombstone for the credential ID, so repeating
+	// it is idempotent without an Idempotency-Key and answers 204 with
+	// `Idempotency-Replayed: true`. A supplied key is validated but not bound
+	// to the request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -46433,6 +46454,11 @@ func (c *ClientWithResponses) CreateRuntimeCredentialWithResponse(ctx context.Co
 }
 
 // DeleteRuntimeCredentialWithResponse Delete one unreferenced Runtime adapter credential
+//
+// Deletion leaves a durable tombstone for the credential ID, so repeating
+// it is idempotent without an Idempotency-Key and answers 204 with
+// `Idempotency-Replayed: true`. A supplied key is validated but not bound
+// to the request.
 //
 // Returns a wrapper object for the known response body format(s).
 //

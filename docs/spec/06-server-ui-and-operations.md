@@ -1201,7 +1201,9 @@ Run and Artifact mutations retain their existing idempotency, ownership and CAS
 requirements. Configuration publication, credential creation/deletion and
 RuntimeConfig/label/Agent-label administrative commands require
 their own idempotency keys, revision preconditions where specified and audit
-actor.
+actor. The one exception is RuntimeCredential deletion: its durable tombstone
+makes it idempotent by credential ID, so it accepts but neither requires nor
+binds an idempotency key.
 
 The API keeps configuration/credential mutations distinct from ordinary Run and
 Artifact use so later RBAC does not require changing domain semantics.

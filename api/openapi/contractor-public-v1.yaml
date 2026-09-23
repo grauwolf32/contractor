@@ -5654,9 +5654,14 @@ paths:
       operationId: deleteRuntimeCredential
       tags: [Operations]
       summary: Delete one unreferenced Runtime adapter credential
+      description: |
+        Deletion leaves a durable tombstone for the credential ID, so repeating
+        it is idempotent without an Idempotency-Key and answers 204 with
+        `Idempotency-Replayed: true`. A supplied key is validated but not bound
+        to the request.
       x-contractor-implementation: implemented
       parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/OptionalOrigin'
         - $ref: '#/components/parameters/OptionalCSRFToken'
       responses:
@@ -6218,6 +6223,16 @@ components:
       name: Idempotency-Key
       in: header
       required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+    OptionalIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key.
       schema:
         type: string
         minLength: 1

@@ -1895,7 +1895,13 @@ export interface paths {
         get: operations["getRuntimeCredential"];
         put?: never;
         post?: never;
-        /** Delete one unreferenced Runtime adapter credential */
+        /**
+         * Delete one unreferenced Runtime adapter credential
+         * @description Deletion leaves a durable tombstone for the credential ID, so repeating
+         *     it is idempotent without an Idempotency-Key and answers 204 with
+         *     `Idempotency-Replayed: true`. A supplied key is validated but not bound
+         *     to the request.
+         */
         delete: operations["deleteRuntimeCredential"];
         options?: never;
         head?: never;
@@ -5989,6 +5995,8 @@ export interface components {
         FindingId: components["schemas"]["ResourceId"];
         ReviewRequestId: components["schemas"]["ResourceId"];
         IdempotencyKey: string;
+        /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
+        OptionalIdempotencyKey: string;
         IfMatch: string;
         RequiredIfMatch: string;
         RequiredQueueControlIfMatch: string;
@@ -10685,8 +10693,9 @@ export interface operations {
     deleteRuntimeCredential: {
         parameters: {
             query?: never;
-            header: {
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            header?: {
+                /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
+                "Idempotency-Key"?: components["parameters"]["OptionalIdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
                 /** @description Required for sessionCookie authentication; omitted for bearerAuth. */

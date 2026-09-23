@@ -727,6 +727,21 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteRuntimeCredential, true); response.Code != http.StatusNoContent {
 		t.Fatalf("delete Runtime credential = %d: %s", response.Code, response.Body.String())
 	}
+	// The tombstone, not a key, makes a repeated delete idempotent.
+	repeatRuntimeCredentialDelete := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-credentials/contract-otel", nil,
+	)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, repeatRuntimeCredentialDelete, true); response.Code != http.StatusNoContent ||
+		response.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("repeat Runtime credential delete without key = %d: %s", response.Code, response.Body.String())
+	}
+	malformedRuntimeCredentialDelete := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-credentials/contract-otel", nil,
+	)
+	malformedRuntimeCredentialDelete.Header.Set("Idempotency-Key", "-malformed key")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, malformedRuntimeCredentialDelete, false); response.Code != http.StatusBadRequest {
+		t.Fatalf("Runtime credential delete with malformed key = %d: %s", response.Code, response.Body.String())
+	}
 
 	inUseBody, err := json.Marshal(createCredentialRequest{
 		CredentialID: "contract-in-use", LLMGateway: gateway.Ref,

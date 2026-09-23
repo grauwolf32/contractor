@@ -986,6 +986,10 @@ idempotency key plus `If-Match` with the current strong revision ETag; initial
 non-default binding creation uses `If-None-Match: *`. Delete is idempotent and
 also requires the current ETag when the resource exists. The default binding
 rejects delete. Stale revisions return `412` without mutation.
+Runtime-credential delete is idempotent through the credential's durable
+tombstone: a repeat returns `204` with `Idempotency-Replayed: true`. It
+accepts an `Idempotency-Key` for uniform client headers, validates its format,
+and neither requires nor records it.
 
 Runtime-credential create is write-only: the request contains the typed secret
 body, while success contains only safe metadata. To make response-loss replay
