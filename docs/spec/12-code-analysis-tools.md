@@ -312,7 +312,13 @@ search_def(symbol, path="", language="", cursor="", limit=50)
 
 For efficiency, the implementation first performs a bounded case-folded text
 prefilter for the bare symbol, then parses only candidate files and validates
-actual definition nodes. Results are sorted by path, start line, column, name
+actual definition nodes. A file whose compact symbols are already cached skips
+the text scan: a definition name is part of its source, so the cached rows
+decide the match. Only a cached file with a parse-error or long-name flag is
+still scanned, because those flags count in coverage only when the file
+contains the symbol. Search retains and counts only matching definitions
+toward the compact-symbol ceiling, so results are identical with or without
+the cache. Results are sorted by path, start line, column, name
 and node type. Each row contains `name`, `path`, `line`, `endLine`, `column`,
 `nodeType`, `language` and an optional definition preview capped at 12 lines
 and 4 KiB. A caller can use `filesystem@1/read_file` for more context.

@@ -358,6 +358,77 @@ def test_search_def_has_no_textual_fallback_and_filters_structural_rows(
     asyncio.run(scenario())
 
 
+def test_search_def_prefilters_only_uncached_or_flagged_file_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scanned: list[int] = []
+    original = code_analysis._contains_casefold
+
+    def counting(text: str, needle: str) -> bool:
+        scanned.append(len(text))
+        return original(text, needle)
+
+    monkeypatch.setattr(code_analysis, "_contains_casefold", counting)
+
+    async def scenario() -> None:
+        reader = MutableReader(
+            {
+                "a.py": "def target():\n    pass\n",
+                "b.py": "def caller():\n    return target()\n",
+                "broken.py": "def broken(\n",
+                "broken_target.py": "def target(\n",
+                "c.py": "def unrelated():\n    pass\n",
+            }
+        )
+        tools, _ = await _tools(reader, tmp_path)
+        cold = await tools["search_def"]("target")
+        assert len(scanned) == 5
+
+        scanned.clear()
+        warm = await tools["search_def"]("target")
+        # a.py and b.py were parsed and cached; the flagged parse-error files
+        # and never-parsed files still need their text.
+        assert len(scanned) == 3
+
+        await tools["list_symbols"]()
+        scanned.clear()
+        cached = await tools["search_def"]("target")
+        assert len(scanned) == 2  # only the two cached parse-error files
+        assert cold == warm == cached
+        assert cold["coverage"]["parseErrors"] == 1
+        assert [item["path"] for item in cold["items"]] == ["a.py"]
+
+    asyncio.run(scenario())
+
+
+def test_search_def_counts_only_matching_definitions_toward_symbol_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(code_analysis, "MAX_COMPACT_SYMBOLS", 3)
+
+    async def scenario() -> None:
+        reader = MutableReader(
+            {
+                "a.py": "def target():\n    pass\n",
+                "b.py": "# target\ndef x1(): pass\ndef x2(): pass\ndef x3(): pass\n",
+                "c.py": "def target():\n    pass\n",
+            }
+        )
+        fresh_tools, _ = await _tools(reader, tmp_path / "fresh")
+        fresh = await fresh_tools["search_def"]("target")
+        assert [item["path"] for item in fresh["items"]] == ["a.py", "c.py"]
+        assert fresh["coverage"]["reasons"] == []
+
+        warmed_tools, _ = await _tools(reader, tmp_path / "warmed")
+        listed = await warmed_tools["list_symbols"]()
+        assert listed["coverage"]["reasons"] == ["symbol_limit"]
+        assert await warmed_tools["search_def"]("target") == fresh
+
+    asyncio.run(scenario())
+
+
 def test_coverage_reports_binary_unsupported_oversized_and_parse_errors(
     tmp_path: Path,
 ) -> None:
