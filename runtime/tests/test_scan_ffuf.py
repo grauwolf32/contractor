@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_scan_toolset import executable
 
 import contractor_runtime.toolsets.scan.ffuf as ffuf_module
@@ -117,7 +118,8 @@ async def make_ffuf(tmp_path, transport):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     factory = scan.ScanToolsetFactory(
-        artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, transport)
+        artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, transport),
+        target_policy=SCAN_TEST_POLICY,
     )
     state = WorkerState()
     tools = await factory.create_selected(

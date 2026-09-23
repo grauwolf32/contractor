@@ -49,6 +49,10 @@ class ProxyRequestError(RuntimeError):
         super().__init__("allocation proxy request failed")
 
 
+class ProxyTargetDenied(ProxyRequestError):
+    """The route refused a private Runtime destination before any network I/O."""
+
+
 class ProxySubprocessError(RuntimeError):
     code = "proxy_subprocess_failed"
     retryable = True
@@ -127,7 +131,7 @@ class ProxyHTTPClient:
         if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
             if self._metrics is not None:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise ProxyRequestError
+            raise ProxyTargetDenied
         try:
             response = await self.async_client.request(method, url, **kwargs)
             if response.status_code == 407:
@@ -155,7 +159,7 @@ class ProxyHTTPClient:
         if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
             if self._metrics is not None:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise ProxyRequestError
+            raise ProxyTargetDenied
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)

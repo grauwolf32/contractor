@@ -396,7 +396,9 @@ filters combine using ffuf's OR semantics. No regex or arbitrary flags are
 accepted. Runtime invokes a fixed GET operation with one thread, a ten-second
 HTTP timeout and no shell. Redirect following, recursion, auto-calibration,
 comment removal, external input commands and additional wordlists are not
-enabled. A configured subprocess proxy fails with `scan_proxy_unsupported`.
+enabled. A configured `tool-http` or `tool-subprocess` proxy route fails with
+`scan_proxy_unsupported`. The target host must pass the shared
+[target policy](11-http-and-caido-tools.md#target-policy) before launch.
 ffuf may retry a failed HTTP request once without another rate-limiter tick.
 `rate` therefore controls payload scheduling, not a strict cap on physical HTTP
 requests; the retry remains within the overall Runtime deadline.

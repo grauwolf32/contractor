@@ -13,6 +13,7 @@ from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
 from a2a.utils.constants import TransportProtocol
 from google.protobuf.json_format import ParseDict
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_a2a_server import data_request, send
 
 from contractor_runtime.allocation import AllocationService, WorkerState
@@ -636,6 +637,7 @@ def test_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch
         factories = built_in_factories(
             tmp_path / "work",
             artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, store),
+            target_policy=SCAN_TEST_POLICY,
         )
         capabilities = CapabilitySnapshot.create(
             runtimes=("tool@1",),
@@ -773,6 +775,7 @@ async def scanner_allocation(tmp_path, store, spec):
     factories = built_in_factories(
         tmp_path / "work",
         artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, store),
+        target_policy=SCAN_TEST_POLICY,
     )
     state = RuntimeState(
         capabilities=CapabilitySnapshot.create(

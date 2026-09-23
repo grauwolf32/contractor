@@ -49,6 +49,7 @@ class PreparedHTTPRequest:
     raw: bytes
     method: str
     test_parameters: tuple[str, ...]
+    url: str
 
 
 def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -227,4 +228,4 @@ def parse_http_request(data: bytes) -> PreparedHTTPRequest:
         or re.search(rb"%INJECT[_ ]?HERE%", raw, re.IGNORECASE)
     ):
         raise HTTPRequestInputError("request contains unsupported scanner request-file markers")
-    return PreparedHTTPRequest(raw=raw, method=method, test_parameters=parameters)
+    return PreparedHTTPRequest(raw=raw, method=method, test_parameters=parameters, url=url)

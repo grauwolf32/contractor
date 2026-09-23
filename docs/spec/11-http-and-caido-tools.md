@@ -114,8 +114,8 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 - `body_type`: `none|json|form|text`, with at most 1 MiB encoded request body;
 - timeout 1..120 seconds, capped by allocation settings; when omitted, it is
   `min(allocation request timeout, 120 seconds)`;
-- `follow_redirects`, with at most 10 redirects and scheme validation at each
-  hop.
+- `follow_redirects`, with at most 10 redirects; every hop is parsed and
+  checked against the target policy again.
 
 The initial callable shape intentionally remains compatible with the migrated
 Skills: `http_request(url, method, headers, query, body, body_type, timeout,
@@ -127,29 +127,56 @@ session view contains only `auth_kind`, non-sensitive default-header values,
 redaction markers for sensitive headers, cookie names/count and history count.
 
 Hop-by-hop headers, `Host`, `Content-Length`, proxy authentication and CR/LF
-header injection are rejected. Exact configured Contractor infrastructure
-origins (LLM Gateway, Artifact API, telemetry collector, forward proxy and
-Caido control API), `localhost` names and loopback/link-local/unspecified IP
-literals are always denied. Other egress is intentionally the deployment's
-responsibility: this Toolset exists to contact model-selected application
-targets. A resolved `tool-http` proxy route is mandatory routing, not a hint;
-failure never falls back to direct network.
+header injection are rejected. A resolved `tool-http` proxy route is mandatory
+routing, not a hint; failure never falls back to direct network.
+
+### Target policy
+
+`http-tools@1` and every `scan@1` operation share one Runtime target policy
+(`toolsets/common/target_policy.py`). It classifies IP addresses, not URL text.
+A literal host is first normalized the way resolvers read it: shortened,
+single-number, octal and hexadecimal IPv4 forms (`127.1`, `2130706433`,
+`0x7f000001`, `0`), IPv4-mapped IPv6 and the NAT64 well-known prefix
+`64:ff9b::/96` all classify as the IPv4 address they reach. A host whose final
+label is numeric but which is not valid IPv4 is denied rather than guessed.
+
+| Destination | Decision |
+|---|---|
+| Runtime service endpoints: LLM Gateway, Artifact API, telemetry collector, forward proxy, Caido control API, Control Plane, advertised control/A2A URLs and the private listener | Always denied, by host name plus port and by every resolved address plus port. A loopback or unspecified endpoint address protects every loopback address on that port. |
+| Cloud metadata: `169.254.169.254`, `169.254.170.2`, `169.254.170.23`, `100.100.100.200`, `fd00:ec2::254`, `fd00:ec2::23`, and the names `metadata`, `metadata.goog`, `metadata.google.internal`, `instance-data`, `instance-data.ec2.internal` | Always denied. |
+| Unspecified, `0.0.0.0/8`, multicast and reserved (including IPv4 `240.0.0.0/4` and broadcast) | Always denied. |
+| Loopback, link-local, RFC1918/ULA, shared address space and every other non-global address | Denied, unless the allocation's project HTTP target (`httpOriginTarget`) resolves to that exact address and port, or an operator private target network contains it. |
+| Global addresses | Allowed. |
+
+Operator networks are an immutable Runtime Agent startup setting:
+`--private-target-network CIDR` (repeatable) or the comma-separated
+`CONTRACTOR_PRIVATE_TARGET_NETWORKS`, at most 64 strict CIDR networks. They are
+for same-host deployments, local evaluations and explicit test networks, for
+example `127.0.0.0/8` when targets run beside the Runtime. They never unlock a
+Runtime service endpoint or a metadata address. A project target on loopback
+needs no operator setting: its own origin is allowed for the allocation that
+receives it.
+
+Every denial, whether found before sending, at connect time or by the proxy
+route, is the non-retryable `http_target_denied`; scanners report
+`scan_target_denied`, or `scan_target_unresolved` when the host did not resolve.
 
 ### Egress and DNS boundary
 
-The preceding checks are application-layer defense in depth, not a network
-sandbox. The Runtime does not resolve a hostname before every call, pin its
-addresses, reject RFC1918/ULA results, or prove that two names do not reach the
-same service. Consequently DNS rebinding and a public hostname resolving to a
-private address are outside the Toolset's guarantee. Every redirect is parsed
-and checked again, and allocation auth/cookies are stripped on a cross-origin
-hop, but the same DNS boundary applies to that new hostname.
+The direct client resolves the host once per TCP connection inside its network
+backend, checks every candidate address, and connects only to a permitted one.
+There is no second lookup, so DNS rebinding cannot swap the checked address for
+another one. HTTPS still verifies the certificate against the URL host name.
+Redirect hops and retries open connections through the same check.
 
-When a deployment needs a closed target policy, it must assign a mandatory
-`tool-http` route and enforce DNS/address/allowlist policy at that forward
-proxy, and/or restrict the Runtime's network namespace. When no route is
-resolved, the Runtime intentionally has the OS identity's direct egress. Both
-paths use normal TLS certificate and endpoint-name verification; neither
+With a `tool-http` route, the forward proxy resolves target names; the Runtime
+does not resolve them locally because proxy-only names are valid there. It still
+applies every literal-address, name and Runtime endpoint check above before
+sending, and the route itself refuses private Runtime hosts, including
+`localhost`, `127.0.0.1` and `::1`. DNS-based address policy for proxied names
+belongs to that proxy. Deployments needing a closed network boundary beyond this
+policy enforce it at the proxy and/or restrict the Runtime's network namespace.
+Both paths use normal TLS certificate and endpoint-name verification; neither
 supports an agent-selected `verify=false`. The proxy endpoint itself is
 Control-Plane configuration and cannot be changed by a tool argument.
 
@@ -415,7 +442,9 @@ Stable errors include:
 
 - arbitrary GraphQL queries or user-defined Caido schema extensions;
 - automatic PAT-to-access-token exchange and refresh;
-- Server-side HTTP allow/deny policy editor, DNS pinning or network sandbox;
+- Server-side HTTP allow/deny policy editor or network sandbox;
+- per-Run private target networks in RuntimeConfig labels (the operator setting
+  is per Runtime Agent process);
 - streaming multi-gigabyte downloads and binary artifact chunking;
 - automatic Skill-to-Toolset dependency installation;
 - UI-specific Caido panels or HTTP history browser;
@@ -430,7 +459,10 @@ Stable errors include:
 4. Generic HTTP response status is data; transport/routing failure is an error.
 5. Caido GraphQL is static-operation-only and bounded at every input/output.
 6. Allocation teardown erases all session credentials and client handles.
-7. Application URL checks do not claim DNS or private-network isolation; a
-   deployment requiring it uses mandatory proxy/network policy.
+7. Target policy classifies resolved addresses: direct HTTP connects only to a
+   checked address, Runtime endpoints and metadata are never reachable, and
+   private destinations need the project target or an operator network. Proxied
+   name resolution and scanner re-resolution remain outside that pin; a
+   deployment requiring a closed boundary uses proxy/network policy.
 8. Reserved HTTP/Caido IDs and tags are monotonic and never reused after an
    ambiguous or cancelled operation.

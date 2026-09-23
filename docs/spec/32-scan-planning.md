@@ -62,6 +62,14 @@ skipped because their target-only Worker interfaces cannot preserve those inputs
 FFUF never invents a marker or a wordlist. An exact wordlist ArtifactRef becomes
 part of the semantic job input.
 
+Planning performs no DNS or reachability checks, so a plan may contain targets
+the Runtime refuses. Each Worker applies the shared
+[target policy](11-http-and-caido-tools.md#target-policy) before launching its
+scanner. A refused job is not skipped at planning: its Worker report carries
+`scan_target_denied` or `scan_target_unresolved` without an exit code, and like
+other pre-launch refusals (for example `scan_proxy_unsupported`) the Planner
+records that job as `incomplete`, never as completed coverage.
+
 ## Plan v1 and selection
 
 The plan media type is `application/vnd.contractor.scan-plan+json`; the structural

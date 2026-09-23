@@ -24,6 +24,13 @@ from contractor_runtime.toolsets.common.artifact_visibility import require_model
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.target_policy import (
+    TargetDenied,
+    TargetPolicy,
+    TargetPolicyConfig,
+    TargetUnresolved,
+    url_endpoint,
+)
 from contractor_runtime.toolsets.scan.ffuf import (
     ffuf_observation,
     validate_ffuf_filter,
@@ -49,6 +56,7 @@ PROBE_TIMEOUT_SECONDS = 2.0
 MAX_RESULTS = 100
 MAX_RESULTS_BYTES = 128 * 1024
 PrepareInvocation = Callable[[Path], Awaitable[list[str]]]
+Destination = tuple[str, tuple[int, ...]]
 
 
 class ScanInputError(ToolInputError):
@@ -59,9 +67,21 @@ class ScannerUnavailable(Exception):
     """An adapter-owned prerequisite is unavailable; the message is a fixed error code."""
 
 
+class ScanTargetRefused(Exception):
+    """The destination failed the target policy; the message is a fixed error code."""
+
+
 class _ScanSession:
     def __init__(
-        self, workspace, executables, templates, *, proxy_configured, artifact_client, namespace
+        self,
+        workspace,
+        executables,
+        templates,
+        *,
+        proxy_configured,
+        artifact_client,
+        namespace,
+        target_policy: TargetPolicy,
     ):
         self.workspace = workspace
         self.executables = executables
@@ -69,6 +89,7 @@ class _ScanSession:
         self.proxy_configured = proxy_configured
         self.artifact_client = artifact_client
         self.namespace = namespace
+        self.target_policy = target_policy
         self._closed = False
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
@@ -79,6 +100,7 @@ class _ScanSession:
         arguments: list[str],
         timeout: int,
         *,
+        destination: Destination | None = None,
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
         finalize: Callable[[dict], Awaitable[dict]] | None = None,
@@ -93,7 +115,7 @@ class _ScanSession:
             elif not self.executables[tool.name]:
                 result = ProcessResult(None, error_code="scanner_unavailable")
             else:
-                result = await self._execute(tool, arguments, timeout, prepare)
+                result = await self._execute(tool, arguments, timeout, destination, prepare)
             value = (observation or tool.observation)(result)
             return await finalize(value) if finalize is not None else value
 
@@ -111,6 +133,7 @@ class _ScanSession:
         tool: ScanTool,
         arguments: list[str],
         timeout: int,
+        destination: Destination | None,
         prepare: PrepareInvocation | None,
     ) -> ProcessResult:
         started = time.monotonic()
@@ -118,19 +141,38 @@ class _ScanSession:
             directory = Path(root)
             try:
                 prepared = tool.prepare(directory, self.templates)
-                if prepare is not None:
-                    # Artifact retrieval and materialization share the scan deadline.
-                    async with asyncio.timeout(timeout):
+                # Destination checks, artifact retrieval and materialization
+                # share the scan deadline.
+                async with asyncio.timeout(timeout):
+                    if destination is not None:
+                        await self.require_destination(*destination)
+                    if prepare is not None:
                         prepared += await prepare(directory)
             except TimeoutError:
                 return ProcessResult(None, error_code="scan_timeout")
-            except ScannerUnavailable as error:
+            except (ScannerUnavailable, ScanTargetRefused) as error:
                 return ProcessResult(None, error_code=str(error))
             remaining = timeout - (time.monotonic() - started)
             if remaining <= 0:
                 return ProcessResult(None, error_code="scan_timeout")
             command = [self.executables[tool.name], *arguments, *prepared]
             return await run_process(command, directory, remaining)
+
+    async def require_destination(self, host: str, ports: tuple[int, ...]) -> None:
+        """Check every address the host resolves to now, before the scanner starts.
+
+        The scanner resolves the name again itself. This cannot pin its
+        connections, so a name that changes answers after this check (DNS
+        rebinding) is a residual risk; deployments needing a closed boundary
+        restrict the Runtime's network namespace.
+        """
+
+        try:
+            await self.target_policy.require(host, ports)
+        except TargetDenied:
+            raise ScanTargetRefused("scan_target_denied") from None
+        except TargetUnresolved:
+            raise ScanTargetRefused("scan_target_unresolved") from None
 
     async def close(self) -> None:
         self._closed = True
@@ -176,6 +218,7 @@ class ScanTool:
         timeout: int,
         arguments: Callable[[], list[str]],
         *,
+        destination: Callable[[], Destination] | None = None,
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
         finalize: Callable[[dict], Awaitable[dict]] | None = None,
@@ -185,10 +228,13 @@ class ScanTool:
         error = None
         try:
             _integer(timeout, "timeout_seconds", 1, 3600)
+            command = arguments()
             result = await self._session.execute(
                 self,
-                arguments(),
+                command,
                 timeout,
+                # Evaluated only after arguments() validated the target text.
+                destination=destination() if destination is not None else None,
                 prepare=prepare,
                 observation=observation,
                 finalize=finalize,
@@ -235,7 +281,9 @@ class NucleiTool(JSONLinesScanTool):
     description = """Scan one HTTP(S) URL with installed nuclei HTTP templates.
 
     Uses local templates, disables updates and external OAST callbacks. Calls are
-    serialized within the allocation. A configured subprocess proxy is unsupported.
+    serialized within the allocation. A configured tool proxy route is unsupported.
+    Loopback, private, metadata and Runtime service destinations fail with
+    scan_target_denied unless the operator allows the network.
     Findings are scanner evidence and are not automatically published.
 
     Args:
@@ -308,7 +356,9 @@ class NucleiTool(JSONLinesScanTool):
                 raise ScanInputError("severity contains an unsupported value")
             return command
 
-        return await self._call(timeout_seconds, arguments)
+        return await self._call(
+            timeout_seconds, arguments, destination=lambda: _url_destination(url)
+        )
 
 
 class SQLMapTool(ScanTool):
@@ -318,8 +368,10 @@ class SQLMapTool(ScanTool):
     description = """Check one prepared HTTP request or URL for SQL injection with sqlmap.
 
     Each call uses a fresh session. No database dumping or shell operations are
-    requested. A configured subprocess proxy is unsupported. Review the output
+    requested. A configured tool proxy route is unsupported. Review the output
     to distinguish detected injection, a negative check, and scanner diagnostics.
+    Loopback, private, metadata and Runtime service destinations fail with
+    scan_target_denied unless the operator allows the network.
 
     Args:
         url: HTTP(S) URL for legacy URL mode; omit when using request_ref.
@@ -414,6 +466,8 @@ class SQLMapTool(ScanTool):
             }:
                 raise ScanInputError("request artifact must contain HTTP request JSON")
             request = parse_http_request(value.data)
+            host, port = url_endpoint(request.url)
+            await self._session.require_destination(host, (port,))
             path = directory / "request.http"
             try:
                 # Exclusive creation and mode independent of the service umask.
@@ -454,6 +508,8 @@ class SQLMapTool(ScanTool):
         return await self._call(
             timeout_seconds,
             arguments,
+            # Request mode checks the artifact's URL once it has been read.
+            destination=(lambda: _url_destination(url)) if request_ref is None else None,
             prepare=prepare_request if request_ref is not None else None,
             observation=request_observation if request_ref is not None else None,
         )
@@ -465,8 +521,10 @@ class NaabuTool(JSONLinesScanTool):
     version_arguments = ("-version",)
     description = """Discover open TCP ports on one host with naabu CONNECT scanning.
 
-    Does not require raw-socket privileges. A configured subprocess HTTP proxy is
+    Does not require raw-socket privileges. A configured tool proxy route is
     unsupported. Calls are serialized within the allocation.
+    Loopback, private, metadata and Runtime service destinations fail with
+    scan_target_denied unless the operator allows the network.
 
     Args:
         host: One DNS hostname or IPv4/IPv6 address, without scheme, port or CIDR.
@@ -513,7 +571,9 @@ class NaabuTool(JSONLinesScanTool):
                 "1000",
             ]
 
-        return await self._call(timeout_seconds, arguments)
+        return await self._call(
+            timeout_seconds, arguments, destination=lambda: (host, _port_values(ports))
+        )
 
 
 class FFUFTool(ScanTool):
@@ -525,6 +585,8 @@ class FFUFTool(ScanTool):
     Replace FUZZ in the path or query with each UTF-8 payload, preserving duplicates,
     spaces and empty entries. Uses GET and one thread, without following redirects,
     recursion, auto-calibration or external input commands. Configured proxy unsupported.
+    Loopback, private, metadata and Runtime service destinations fail with
+    scan_target_denied unless the operator allows the network.
 
     Args:
         url: HTTP(S) URL containing FUZZ in its path or query, never the authority.
@@ -630,7 +692,11 @@ class FFUFTool(ScanTool):
             }
 
         return await self._call(
-            timeout_seconds, arguments, prepare=prepare_wordlist, observation=observation
+            timeout_seconds,
+            arguments,
+            destination=lambda: _url_destination(url),
+            prepare=prepare_wordlist,
+            observation=observation,
         )
 
 
@@ -656,7 +722,9 @@ class KatanaTool(ScanTool):
     filling, JavaScript crawling or external lookups. Publishes a create-only
     targets Artifact in the Worker's namespace and returns its exact reference.
     Only observed same-origin GET responses become targets; no scan is dispatched.
-    A configured subprocess proxy is unsupported.
+    A configured tool proxy route is unsupported.
+    Loopback, private, metadata and Runtime service destinations fail with
+    scan_target_denied unless the operator allows the network.
 
     Args:
         url: One HTTP(S) seed URL without credentials or a fragment.
@@ -787,7 +855,12 @@ class KatanaTool(ScanTool):
             return value
 
         return await self._call(
-            timeout_seconds, arguments, prepare=prepare, observation=observation, finalize=finalize
+            timeout_seconds,
+            arguments,
+            destination=lambda: _url_destination(seed),
+            prepare=prepare,
+            observation=observation,
+            finalize=finalize,
         )
 
 
@@ -803,8 +876,10 @@ class ScanToolsetFactory:
         *,
         templates_directory: Path | None = None,
         scanners: Sequence[type[ScanTool]] = SCANNERS,
+        target_policy: TargetPolicyConfig | None = None,
     ) -> None:
         self._clients = artifact_client_factory or _unconfigured_client
+        self._target_policy = target_policy or TargetPolicyConfig()
         self._scanners = {scanner.name: scanner for scanner in scanners}
         if len(self._scanners) != len(scanners):
             raise ValueError("duplicate scan tool names")
@@ -872,11 +947,34 @@ class ScanToolsetFactory:
             workspace.path,
             self._executables,
             self._templates,
-            proxy_configured=adapter_handles.tool_subprocess is not None,
+            proxy_configured=(
+                adapter_handles.tool_subprocess is not None or _proxy_routes_tools(runtime_settings)
+            ),
             artifact_client=self._clients(allocation_id, runtime_settings),
             namespace=namespace,
+            target_policy=await self._target_policy.build(runtime_settings),
         )
         return {name: self._scanners[name](session, metrics) for name in selected}
+
+
+def _proxy_routes_tools(settings: RuntimeSettings) -> bool:
+    # A tool-http route is the deployment's egress boundary for model-selected
+    # targets. Scanners cannot use it, so either tool route fails closed.
+    proxy = settings.http_proxy
+    return proxy is not None and bool({"tool-http", "tool-subprocess"} & set(proxy.targets))
+
+
+def _url_destination(value: str) -> Destination:
+    host, port = url_endpoint(value)
+    return host, (port,)
+
+
+def _port_values(value: str) -> tuple[int, ...]:
+    result: set[int] = set()
+    for item in value.split(","):
+        first, _, last = item.partition("-")
+        result.update(range(int(first), int(last or first) + 1))
+    return tuple(sorted(result))
 
 
 def _integer(value: int, name: str, low: int, high: int) -> None:

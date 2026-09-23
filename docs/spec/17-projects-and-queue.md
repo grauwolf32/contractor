@@ -257,6 +257,10 @@ events, metrics, errors or durable sessions.
 At Runtime, configured target authorization replaces a model-supplied
 `Authorization` header only on that exact origin. It is not injected on another
 port or subdomain and is removed before following a cross-origin redirect.
+The target origin also unlocks the Runtime
+[target policy](11-http-and-caido-tools.md#target-policy) for exactly the
+addresses it resolves to at allocation start and its port, so a loopback or
+private application target is reachable without widening access to its host.
 Model-visible HTTP session inspection reports neither the target nor its
 credential. Allocation cleanup clears the target URL, derived Authorization
 header and source secret before slot reuse.

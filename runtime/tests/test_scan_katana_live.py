@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from target_policy_fixtures import SCAN_TEST_POLICY
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError
@@ -43,7 +44,9 @@ async def make_live_katana(tmp_path, monkeypatch):
     (executable_dir / "katana").symlink_to(Path(KATANA_BINARY).resolve())
     monkeypatch.setenv("PATH", str(executable_dir))
     artifacts = CapturedArtifacts()
-    factory = ScanToolsetFactory(lambda *_: artifacts, scanners=[KatanaTool])
+    factory = ScanToolsetFactory(
+        lambda *_: artifacts, scanners=[KatanaTool], target_policy=SCAN_TEST_POLICY
+    )
     assert await factory.probe() == {"scan_katana"}
     workspace = tmp_path / "workspace"
     workspace.mkdir()

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import ipaddress
 import json
 import math
 import re
@@ -22,7 +21,11 @@ from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.adapters.http_proxy import ProxyHTTPClient, ProxyRequestError
+from contractor_runtime.adapters.http_proxy import (
+    ProxyHTTPClient,
+    ProxyRequestError,
+    ProxyTargetDenied,
+)
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
     ArtifactClient,
@@ -32,6 +35,11 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.target_policy import (
+    TargetDenied,
+    TargetPolicy,
+    TargetPolicyConfig,
+)
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
 from contractor_runtime.toolsets.http.limits import (
     MAX_ATTEMPTS,
@@ -49,6 +57,7 @@ from contractor_runtime.toolsets.http.limits import (
     MAX_RESPONSE_BODY_BYTES,
     MAX_URL_BYTES,
 )
+from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
@@ -127,14 +136,19 @@ class HTTPToolsetFactory:
         self,
         artifact_client_factory: ArtifactClientFactory | None = None,
         direct_client_factory: Callable[[], httpx.AsyncClient] | None = None,
+        *,
+        target_policy: TargetPolicyConfig | None = None,
     ) -> None:
         self._artifact_client_factory = artifact_client_factory or _unconfigured_client
-        self._direct_client_factory = direct_client_factory or _direct_client
+        # Tests may inject a fixed client; production clients enforce the
+        # allocation's target policy on every TCP connection.
+        self._direct_client_factory = direct_client_factory
+        self._target_policy = target_policy or TargetPolicyConfig()
 
     async def probe(self) -> frozenset[str]:
         client: httpx.AsyncClient | None = None
         try:
-            client = self._direct_client_factory()
+            client = self._new_direct_client(TargetPolicy())
         except Exception:
             return frozenset()
         finally:
@@ -171,14 +185,15 @@ class HTTPToolsetFactory:
         if proxy_required and proxy is None:
             raise RuntimeError("http-tools@1 requires the resolved tool-http proxy route")
 
+        policy = await self._target_policy.build(runtime_settings)
         direct_client = (
-            self._direct_client_factory() if request_selected and proxy is None else None
+            self._new_direct_client(policy) if request_selected and proxy is None else None
         )
         session = _HTTPSession(
             artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
             namespace=namespace,
             timeout_cap_seconds=runtime_settings.request_timeout_seconds,
-            forbidden_origins=_private_origins(runtime_settings),
+            target_policy=policy,
             secrets_for_metrics=_runtime_secrets(runtime_settings),
             proxy=proxy,
             direct_client=direct_client,
@@ -195,6 +210,11 @@ class HTTPToolsetFactory:
             "http_session_clear": lambda: HTTPSessionClearTool(session, metrics),
         }
         return {name: builders[name]() for name in selected}
+
+    def _new_direct_client(self, policy: TargetPolicy) -> httpx.AsyncClient:
+        if self._direct_client_factory is not None:
+            return self._direct_client_factory()
+        return _direct_client(policy)
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +279,7 @@ class _HTTPSession:
         artifact_client: ArtifactClient,
         namespace: str,
         timeout_cap_seconds: int,
-        forbidden_origins: frozenset[tuple[str, str, int]],
+        target_policy: TargetPolicy,
         secrets_for_metrics: tuple[str, ...],
         proxy: ProxyHTTPClient | None,
         direct_client: httpx.AsyncClient | None,
@@ -269,7 +289,7 @@ class _HTTPSession:
         self._artifact_client = artifact_client
         self._namespace = namespace
         self._timeout_cap_seconds = timeout_cap_seconds
-        self._forbidden_origins = forbidden_origins
+        self._target_policy = target_policy
         self._secrets_for_metrics = secrets_for_metrics
         self._proxy = proxy
         self._direct_client = direct_client
@@ -430,7 +450,7 @@ class _HTTPSession:
         allow_session_auth = True
         allow_session_cookies = True
         while True:
-            _validate_target(current_url, self._forbidden_origins)
+            _validate_target(current_url, self._target_policy)
             try:
                 response = await self._send_once(
                     current_method,
@@ -486,7 +506,7 @@ class _HTTPSession:
                     raise HTTPToolError("http_request_failed")
 
                 next_url = urljoin(current_url, location)
-                _validate_target(next_url, self._forbidden_origins)
+                _validate_target(next_url, self._target_policy)
                 next_method = current_method
                 next_payload = current_payload
                 next_headers = dict(current_headers)
@@ -574,6 +594,11 @@ class _HTTPSession:
             if attempt is not None:
                 attempt.error = "cancelled"
             raise
+        except (TargetDenied, ProxyTargetDenied):
+            # Connect-time and proxy-route denials share the pre-send code.
+            if attempt is not None:
+                attempt.error = "target_denied"
+            raise HTTPToolError("http_target_denied") from None
         except (httpx.HTTPError, ProxyRequestError):
             if attempt is not None:
                 attempt.error = "transport_error"
@@ -824,6 +849,10 @@ class HTTPRequestTool(_HTTPTool):
     more text or binary content. Request bodies are limited to 1 MiB and response
     bodies to 16 MiB.
 
+    Loopback, private, metadata and Runtime service destinations fail with
+    http_target_denied unless they are the project target or an operator-allowed
+    network.
+
     Args:
         url: Absolute HTTP or HTTPS URL.
         method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
@@ -1067,27 +1096,17 @@ class HTTPSessionClearTool(_HTTPTool):
             raise HTTPToolError("http_request_failed") from None
 
 
-def _direct_client() -> httpx.AsyncClient:
+def _direct_client(policy: TargetPolicy) -> httpx.AsyncClient:
+    limits = httpx.Limits(max_connections=4, max_keepalive_connections=2)
     return httpx.AsyncClient(
+        transport=PolicyHTTPTransport(policy, limits=limits),
         trust_env=False,
         follow_redirects=False,
-        limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
     )
 
 
 def _tool_http_proxy_required(settings: RuntimeSettings) -> bool:
     return settings.http_proxy is not None and "tool-http" in settings.http_proxy.targets
-
-
-def _private_origins(settings: RuntimeSettings) -> frozenset[tuple[str, str, int]]:
-    values = [settings.llm_gateway_url, settings.artifact_api_url]
-    if settings.telemetry is not None:
-        values.append(settings.telemetry.endpoint)
-    if settings.http_proxy is not None:
-        values.append(settings.http_proxy.proxy_url)
-    if settings.caido is not None:
-        values.append(settings.caido.endpoint)
-    return frozenset(_origin(value) for value in values)
 
 
 def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
@@ -1305,7 +1324,7 @@ def _timeout(value: object, cap: int) -> float:
     return min(selected, float(cap))
 
 
-def _validate_target(url: str, forbidden: frozenset[tuple[str, str, int]]) -> None:
+def _validate_target(url: str, policy: TargetPolicy) -> None:
     try:
         parsed = urlsplit(url)
         if (
@@ -1316,20 +1335,17 @@ def _validate_target(url: str, forbidden: frozenset[tuple[str, str, int]]) -> No
             or parsed.fragment
         ):
             raise HTTPToolError("http_request_invalid")
-        selected_origin = _origin(url)
+        _origin(url)
     except HTTPToolError:
         raise
     except (UnicodeError, ValueError):
         raise HTTPToolError("http_request_invalid") from None
-    host = selected_origin[1]
-    denied = selected_origin in forbidden or host == "localhost" or host.endswith(".localhost")
+    # Literal and name checks run before every hop in both routes. A direct
+    # client repeats the address check on the resolved peer at connect time.
     try:
-        address = ipaddress.ip_address(host)
-        denied = denied or address.is_loopback or address.is_link_local or address.is_unspecified
-    except ValueError:
-        pass
-    if denied:
-        raise HTTPToolError("http_target_denied")
+        policy.check_url(url)
+    except TargetDenied:
+        raise HTTPToolError("http_target_denied") from None
 
 
 def _origin(url: str) -> tuple[str, str, int]:

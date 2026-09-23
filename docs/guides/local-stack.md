@@ -119,6 +119,12 @@ uv run contractor-runtime \
   --work-root ../.local/runtime/work
 ```
 
+HTTP and scanner tools refuse loopback and private targets by default. A Project
+HTTP target on this host is allowed for Runs of that Project. To scan other
+targets on this machine, add `--private-target-network 127.0.0.0/8`; the
+Server and Runtime endpoints stay refused. See the
+[target policy](../spec/11-http-and-caido-tools.md#target-policy).
+
 The Server advertises the agreed heartbeat interval of 10 seconds and confirmed
 lease of 60 seconds. A new Runtime becomes placement-eligible after it echoes
 the first heartbeat acknowledgement, so allow roughly one heartbeat interval

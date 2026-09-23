@@ -37,6 +37,7 @@ from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFact
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
@@ -204,10 +205,11 @@ def built_in_factories(
     enabled_runtime_adapters: Sequence[str] | None = None,
     workspace_settings: WorkspaceSettings | None = None,
     execution_lifecycle: ExecutionLifecycle | None = None,
+    target_policy: TargetPolicyConfig | None = None,
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
-    http_toolset = HTTPToolsetFactory(artifact_client_factory)
+    http_toolset = HTTPToolsetFactory(artifact_client_factory, target_policy=target_policy)
     caido_toolset = CaidoToolsetFactory(artifact_client_factory)
     code_analysis_toolset = CodeAnalysisToolsetFactory(
         workspace_storage=workspace_settings.storage if workspace_settings is not None else None,
@@ -221,7 +223,7 @@ def built_in_factories(
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
-    scan_toolset = ScanToolsetFactory(artifact_client_factory)
+    scan_toolset = ScanToolsetFactory(artifact_client_factory, target_policy=target_policy)
     taint_annotations_toolset = TaintAnnotationsToolsetFactory()
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)

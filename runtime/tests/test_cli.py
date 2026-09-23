@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import socket
 import ssl
@@ -16,8 +17,13 @@ from typing import Any
 import pytest
 
 import contractor_runtime.cli as runtime_cli
+from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.toolsets.common.target_policy import (
+    TargetDenied,
+    parse_private_networks,
+)
 
 
 def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
@@ -232,6 +238,32 @@ class InflightTransport:
             self.heartbeat_cancelled = True
             raise
         raise AssertionError("unreachable")
+
+
+def test_target_policy_protects_runtime_urls_and_listener(tmp_path: Path) -> None:
+    networks = parse_private_networks(["127.0.0.0/8"])
+    settings = dataclasses.replace(
+        make_settings(tmp_path), host="::", port=9555, private_target_networks=networks
+    )
+    config = runtime_cli._target_policy(settings)
+    assert config.protected_urls == (
+        "https://localhost:8443",
+        "https://localhost:9443",
+        "https://localhost:9444",
+        "https://[::]:9555",
+    )
+    assert config.private_networks == networks
+
+    async def scenario() -> None:
+        policy = await config.build(
+            RuntimeSettings(artifactApiUrl="https://artifacts.invalid", requestTimeoutSeconds=1)
+        )
+        for host, port in (("localhost", 8443), ("127.0.0.1", 9444), ("127.1", 9555)):
+            with pytest.raises(TargetDenied):
+                policy.check_host(host, port)
+        assert policy.check_host("127.0.0.1", 3000) is not None
+
+    asyncio.run(scenario())
 
 
 def make_settings(tmp_path: Path) -> Settings:

@@ -25,6 +25,16 @@ for an allocation-isolated fsspec tree, add `--workspace-storage memory`.
 `CONTRACTOR_WORKSPACE_MAX_*` variables provide the equivalent immutable startup
 configuration. Physical roots are never registered with Control Plane.
 
+Model-selected HTTP requests and scanner targets pass one
+[target policy](../docs/spec/11-http-and-caido-tools.md#target-policy). Runtime
+service endpoints and cloud metadata addresses are always refused. Loopback,
+link-local and private addresses are refused unless they are the allocation's
+project HTTP target or fall inside an operator network. For same-host targets
+or local evaluations, allow them explicitly at startup, for example
+`--private-target-network 127.0.0.0/8` (repeatable) or
+`CONTRACTOR_PRIVATE_TARGET_NETWORKS=127.0.0.0/8,10.20.0.0/16`. Values are strict
+CIDR networks, at most 64; the setting is immutable for the process.
+
 For `direct` on a local provider, the allocation's `run_workdir` is authoritative
 on disk. Completed external writes, creates, renames and deletes are visible to
 the next tool call without refresh, including same-size changes with restored
@@ -327,10 +337,17 @@ not successful empty results. `tool@1` publishes the ordinary artifact report.
 
 These fixed scanner processes run on the Runtime host and need network access.
 They do not use the offline Podman execution sandbox. The initial implementation
-rejects calls with `scan_proxy_unsupported` when a subprocess proxy is assigned;
-it never silently falls back to direct routing. Scanner arguments and output
-are excluded from tool metrics. Install binaries/templates as deployment
-dependencies; the Runtime does not install them during allocation.
+rejects calls with `scan_proxy_unsupported` when a `tool-http` or
+`tool-subprocess` proxy route is assigned, because scanners cannot use the
+tool HTTP route; it never silently falls back to direct routing. Before launch,
+the target host is resolved and every address must pass the target policy for
+every selected port; otherwise the call fails with `scan_target_denied`, or
+`scan_target_unresolved` when the host does not resolve. The scanner resolves
+the name again itself, so an answer that changes after the check (DNS
+rebinding) is not pinned; restrict the Runtime's network namespace when that
+matters. Scanner arguments and output are excluded from tool metrics. Install
+binaries/templates as deployment dependencies; the Runtime does not install
+them during allocation.
 
 To add a scanner, implement a `ScanTool` adapter (or `JSONLinesScanTool` for
 JSONL output) and register its class in `SCANNERS`. The adapter declares the

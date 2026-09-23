@@ -8,6 +8,7 @@ from contextlib import suppress
 from types import SimpleNamespace
 
 import pytest
+from target_policy_fixtures import SCAN_TEST_POLICY
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
@@ -27,7 +28,9 @@ async def make_live_ffuf(tmp_path, data):
         return SimpleNamespace(data=data, media_type="text/vnd.contractor.wordlist")
 
     factory = ScanToolsetFactory(
-        lambda *_: SimpleNamespace(read_artifact=read_artifact), scanners=[FFUFTool]
+        lambda *_: SimpleNamespace(read_artifact=read_artifact),
+        scanners=[FFUFTool],
+        target_policy=SCAN_TEST_POLICY,
     )
     assert await factory.probe() == {"scan_ffuf"}
     workspace = tmp_path / "workspace"
