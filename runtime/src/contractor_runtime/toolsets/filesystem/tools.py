@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
-import hmac
-import json
 import secrets
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -31,6 +28,12 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
     WorkspaceTextFile,
 )
+from contractor_runtime.toolsets.common.cursors import (
+    decode_cursor,
+    encode_cursor,
+    query_digest,
+    require_limit,
+)
 from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.worker.observations import (
@@ -50,7 +53,6 @@ MAX_READ_LINES = 400
 DEFAULT_READ_LINES = 200
 MAX_READ_BYTES = 128 * 1024
 MAX_READ_SCAN_BYTES = 16 * 1024 * 1024
-MAX_CURSOR_BYTES = 2048
 REGEX_LINE_TIMEOUT_SECONDS = 0.01
 
 
@@ -112,6 +114,9 @@ class _Cursor:
     line: int = 0
 
 
+_CURSOR_FIELDS = {"snapshot": str, "query": str, "offset": int, "line": int}
+
+
 class _FilesystemSession:
     def __init__(self, reader: WorkspaceReader) -> None:
         self._reader = reader
@@ -127,7 +132,7 @@ class _FilesystemSession:
         limit = _limit(limit)
         snapshot = await self._snapshot()
         _require_directory(snapshot, root)
-        query = _query_digest({"tool": "ls", "path": root})
+        query = query_digest({"tool": "ls", "path": root})
         offset = self._cursor_offset(cursor, snapshot, query).offset if cursor else 0
         paths = _all_paths(snapshot)
         page, next_offset, scanned = _scan_page(
@@ -154,7 +159,7 @@ class _FilesystemSession:
             raise FilesystemToolError("workspace_path_invalid") from None
         limit = _limit(limit)
         snapshot = await self._snapshot()
-        query = _query_digest({"tool": "glob", "pattern": normalized})
+        query = query_digest({"tool": "glob", "pattern": normalized})
         offset = self._cursor_offset(cursor, snapshot, query).offset if cursor else 0
         paths = _all_paths(snapshot)
         page, next_offset, scanned = _scan_page(
@@ -236,7 +241,7 @@ class _FilesystemSession:
         matcher = _grep_matcher(pattern, regex, case_sensitive)
         snapshot = await self._snapshot()
         _require_grep_root(snapshot, root)
-        query = _query_digest(
+        query = query_digest(
             {
                 "tool": "grep",
                 "pattern": pattern,
@@ -366,48 +371,20 @@ class _FilesystemSession:
     def _encode_cursor(
         self, snapshot: WorkspaceSnapshot, query: str, offset: int, line: int
     ) -> str:
-        body = jcs.canonicalize(
+        return encode_cursor(
+            self._cursor_key,
             {
                 "snapshot": _snapshot_token(snapshot),
                 "query": query,
                 "offset": offset,
                 "line": line,
-            }
+            },
         )
-        signature = hmac.digest(bytes(self._cursor_key), body, "sha256")
-        return f"{_b64(body)}.{_b64(signature)}"
 
     def _decode_cursor(self, value: str) -> _Cursor:
-        if not isinstance(value, str) or not value or len(value) > MAX_CURSOR_BYTES:
-            raise FilesystemToolError("workspace_cursor_invalid")
         try:
-            encoded_body, encoded_signature = value.split(".", 1)
-            body = _unb64(encoded_body)
-            signature = _unb64(encoded_signature)
-            expected = hmac.digest(bytes(self._cursor_key), body, "sha256")
-            if not hmac.compare_digest(signature, expected):
-                raise ValueError
-            document = json.loads(body)
-            if jcs.canonicalize(document) != body or set(document) != {
-                "snapshot",
-                "query",
-                "offset",
-                "line",
-            }:
-                raise ValueError
-            if (
-                not isinstance(document["snapshot"], str)
-                or not isinstance(document["query"], str)
-                or not isinstance(document["offset"], int)
-                or isinstance(document["offset"], bool)
-                or document["offset"] < 0
-                or not isinstance(document["line"], int)
-                or isinstance(document["line"], bool)
-                or document["line"] < 0
-            ):
-                raise ValueError
-            return _Cursor(**document)
-        except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+            return _Cursor(**decode_cursor(self._cursor_key, value, _CURSOR_FIELDS))
+        except ValueError:
             raise FilesystemToolError("workspace_cursor_invalid") from None
 
 
@@ -593,14 +570,11 @@ def _path(value: str, *, allow_root: bool) -> str:
 
 
 def _limit(value: int) -> int:
-    if (
-        not isinstance(value, int)
-        or isinstance(value, bool)
-        or value <= 0
-        or value > MAX_PAGE_ITEMS
-    ):
-        raise FilesystemToolError("workspace_limit_exceeded")
-    return value
+    return require_limit(value, MAX_PAGE_ITEMS, _limit_exceeded)
+
+
+def _limit_exceeded() -> FilesystemToolError:
+    return FilesystemToolError("workspace_limit_exceeded")
 
 
 def _all_paths(snapshot: WorkspaceSnapshot) -> tuple[str, ...]:
@@ -795,26 +769,6 @@ def _grep_matcher(pattern: str, regex: bool, case_sensitive: bool) -> Callable[[
 def _snapshot_token(snapshot: WorkspaceSnapshot) -> str:
     document = {"managedDigest": snapshot.digest, "binaryPaths": list(snapshot.binary_paths)}
     return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
-
-
-def _query_digest(document: Mapping[str, Any]) -> str:
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(dict(document))).hexdigest()
-
-
-def _b64(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
-
-
-def _unb64(value: str) -> bytes:
-    if not value or any(
-        character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-        for character in value
-    ):
-        raise ValueError
-    decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-    if _b64(decoded) != value:
-        raise ValueError
-    return decoded
 
 
 def _utf8_prefix(value: bytes, maximum: int) -> str:

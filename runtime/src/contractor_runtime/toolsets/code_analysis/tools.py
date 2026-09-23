@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import hashlib
-import hmac
-import json
 import re
 import secrets
 import time
@@ -46,6 +42,7 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     TrailmarkHostError,
     probe_trailmark_child,
 )
+from contractor_runtime.toolsets.common import cursors
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -85,7 +82,6 @@ MAX_PAGE_ITEMS = 200
 MAX_RESULT_BYTES = 256 * 1024
 MAX_QUERY_CHARS = 256
 MAX_SCAN_SECONDS = 10.0
-MAX_CURSOR_BYTES = 2048
 MAX_PREVIEW_LINES = 12
 MAX_PREVIEW_BYTES = 4096
 
@@ -231,6 +227,9 @@ class _Cursor:
     offset: int
 
 
+_CURSOR_FIELDS = {"snapshot": str, "operation": str, "query": str, "offset": int}
+
+
 @dataclass(frozen=True, slots=True)
 class _CachedFile:
     symbols: tuple[SymbolRecord, ...]
@@ -296,7 +295,7 @@ class _CodeAnalysisSession:
         normalized_path = _path(path)
         selected_language = _language(language)
         resolved_limit = _limit(limit)
-        query = _query_digest(
+        query = cursors.query_digest(
             {
                 "operation": "search_def",
                 "symbol": normalized_symbol,
@@ -348,7 +347,7 @@ class _CodeAnalysisSession:
         selected_language = _language(language)
         normalized_node_type = _node_type(node_type)
         resolved_limit = _limit(limit)
-        query = _query_digest(
+        query = cursors.query_digest(
             {
                 "operation": "list_symbols",
                 "path": normalized_path,
@@ -406,7 +405,7 @@ class _CodeAnalysisSession:
     async def find_symbol(self, query: str, cursor: str, limit: int) -> _OperationResult:
         normalized_query = _query_string(query)
         resolved_limit = _limit(limit)
-        query_digest = _query_digest(
+        query_digest = cursors.query_digest(
             {"operation": "find_symbol", "query": normalized_query.casefold()}
         )
         async with self._lock:
@@ -469,7 +468,7 @@ class _CodeAnalysisSession:
         ):
             raise CodeAnalysisError("code_analysis_symbol_not_found")
         resolved_limit = _limit(limit)
-        query_digest = _query_digest({"operation": operation, "symbolId": symbol_id})
+        query_digest = cursors.query_digest({"operation": operation, "symbolId": symbol_id})
         async with self._lock:
             snapshot, invalidations = await self._begin_call()
             host = self._require_graph_host()
@@ -580,7 +579,7 @@ class _CodeAnalysisSession:
 
     async def attack_surface(self, cursor: str, limit: int) -> _OperationResult:
         resolved_limit = _limit(limit)
-        query_digest = _query_digest({"operation": "attack_surface"})
+        query_digest = cursors.query_digest({"operation": "attack_surface"})
         async with self._lock:
             snapshot, invalidations = await self._begin_call()
             offset = (
@@ -623,7 +622,7 @@ class _CodeAnalysisSession:
     ) -> _OperationResult:
         resolved_threshold = _complexity_threshold(threshold)
         resolved_limit = _limit(limit)
-        query_digest = _query_digest(
+        query_digest = cursors.query_digest(
             {"operation": "complexity_hotspots", "threshold": resolved_threshold}
         )
         async with self._lock:
@@ -677,7 +676,7 @@ class _CodeAnalysisSession:
     ) -> _OperationResult:
         normalized_exception = _query_string(exception)
         resolved_limit = _limit(limit)
-        query_digest = _query_digest(
+        query_digest = cursors.query_digest(
             {"operation": "functions_that_raise", "exception": normalized_exception}
         )
         async with self._lock:
@@ -1054,41 +1053,15 @@ class _CodeAnalysisSession:
         return cursor.offset
 
     def _encode_cursor(self, snapshot: str, operation: str, query: str, offset: int) -> str:
-        body = jcs.canonicalize(
-            {"snapshot": snapshot, "operation": operation, "query": query, "offset": offset}
+        return cursors.encode_cursor(
+            self._cursor_key,
+            {"snapshot": snapshot, "operation": operation, "query": query, "offset": offset},
         )
-        signature = hmac.digest(bytes(self._cursor_key), body, "sha256")
-        return f"{_b64(body)}.{_b64(signature)}"
 
     def _decode_cursor(self, value: str) -> _Cursor:
-        if not isinstance(value, str) or not value or len(value) > MAX_CURSOR_BYTES:
-            raise CodeAnalysisError("code_analysis_cursor_invalid")
         try:
-            encoded_body, encoded_signature = value.split(".", 1)
-            body = _unb64(encoded_body)
-            signature = _unb64(encoded_signature)
-            expected = hmac.digest(bytes(self._cursor_key), body, "sha256")
-            if not hmac.compare_digest(signature, expected):
-                raise ValueError
-            document = json.loads(body)
-            if jcs.canonicalize(document) != body or set(document) != {
-                "snapshot",
-                "operation",
-                "query",
-                "offset",
-            }:
-                raise ValueError
-            if (
-                not isinstance(document["snapshot"], str)
-                or not isinstance(document["operation"], str)
-                or not isinstance(document["query"], str)
-                or not isinstance(document["offset"], int)
-                or isinstance(document["offset"], bool)
-                or document["offset"] < 0
-            ):
-                raise ValueError
-            return _Cursor(**document)
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return _Cursor(**cursors.decode_cursor(self._cursor_key, value, _CURSOR_FIELDS))
+        except ValueError:
             raise CodeAnalysisError("code_analysis_cursor_invalid") from None
 
     def _clear_derived_state(self) -> None:
@@ -1600,21 +1573,19 @@ def _node_type(value: str) -> str:
 
 
 def _limit(value: int) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= MAX_PAGE_ITEMS:
-        raise CodeAnalysisError("code_analysis_input_invalid")
-    return value
+    return cursors.require_limit(value, MAX_PAGE_ITEMS, _input_invalid)
 
 
 def _path_limit(value: int) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 50:
-        raise CodeAnalysisError("code_analysis_input_invalid")
-    return value
+    return cursors.require_limit(value, 50, _input_invalid)
 
 
 def _path_depth(value: int) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 20:
-        raise CodeAnalysisError("code_analysis_input_invalid")
-    return value
+    return cursors.require_limit(value, 20, _input_invalid)
+
+
+def _input_invalid() -> CodeAnalysisError:
+    return CodeAnalysisError("code_analysis_input_invalid")
 
 
 def _complexity_threshold(value: int) -> int:
@@ -1725,23 +1696,6 @@ def _preview(source: bytes, start_byte: int, end_byte: int) -> str:
 
 def _utf8_prefix(value: bytes, maximum: int) -> str:
     return value[:maximum].decode("utf-8", errors="ignore")
-
-
-def _query_digest(document: Mapping[str, Any]) -> str:
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(dict(document))).hexdigest()
-
-
-def _b64(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
-
-
-def _unb64(value: str) -> bytes:
-    if not value or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
-        raise ValueError
-    decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-    if _b64(decoded) != value:
-        raise ValueError
-    return decoded
 
 
 async def _to_thread_cancellation_safe(function: Any, *arguments: Any) -> Any:

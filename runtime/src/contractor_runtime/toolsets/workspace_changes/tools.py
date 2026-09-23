@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
-import hmac
-import json
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -23,6 +20,12 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceChanges,
     WorkspaceStorageError,
 )
+from contractor_runtime.toolsets.common.cursors import (
+    decode_cursor,
+    encode_cursor,
+    query_digest,
+    require_limit,
+)
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.worker.observations import (
@@ -33,7 +36,6 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_ITEMS = 100
 MAX_DIFF_BYTES = 1 << 20
-MAX_CURSOR_BYTES = 2048
 
 
 class WorkspaceChangesToolsetFactory:
@@ -78,6 +80,9 @@ class WorkspaceChangesToolsetFactory:
             "rollback_changes": lambda: RollbackChangesTool(session, metrics),
         }
         return {name: builders[name]() for name in selected}
+
+
+_CURSOR_FIELDS = {"query": str, "fingerprint": str, "offset": int}
 
 
 class _ChangesSession:
@@ -126,7 +131,7 @@ class _ChangesSession:
         try:
             entries = await self._changes.change_entries(path)
             fingerprint = _change_fingerprint(entries)
-            query = _query_digest({"tool": "diff", "path": path})
+            query = query_digest({"tool": "diff", "path": path})
             offset = self._decode_cursor(cursor, query, fingerprint) if cursor else 0
             result = await self._changes.diff(path, max_bytes=max_bytes, offset_bytes=offset)
         except (ProjectPathError, WorkspaceStorageError) as error:
@@ -153,33 +158,18 @@ class _ChangesSession:
         return {"changed": True}
 
     def _encode_cursor(self, query: str, fingerprint: str, offset: int) -> str:
-        body = jcs.canonicalize({"query": query, "fingerprint": fingerprint, "offset": offset})
-        signature = hmac.digest(bytes(self._key), body, "sha256")
-        return f"{_b64(body)}.{_b64(signature)}"
+        return encode_cursor(
+            self._key, {"query": query, "fingerprint": fingerprint, "offset": offset}
+        )
 
     def _decode_cursor(self, value: str, query: str, fingerprint: str) -> int:
-        if not isinstance(value, str) or not value or len(value) > MAX_CURSOR_BYTES:
-            raise FilesystemToolError("workspace_cursor_invalid")
         try:
-            encoded_body, encoded_signature = value.split(".", 1)
-            body = _unb64(encoded_body)
-            signature = _unb64(encoded_signature)
-            if not hmac.compare_digest(signature, hmac.digest(bytes(self._key), body, "sha256")):
-                raise ValueError
-            document = json.loads(body)
-            if (
-                jcs.canonicalize(document) != body
-                or set(document) != {"query", "fingerprint", "offset"}
-                or document["query"] != query
-                or document["fingerprint"] != fingerprint
-                or not isinstance(document["offset"], int)
-                or isinstance(document["offset"], bool)
-                or document["offset"] < 0
-            ):
-                raise ValueError
-            return document["offset"]
-        except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+            document = decode_cursor(self._key, value, _CURSOR_FIELDS)
+        except ValueError:
             raise FilesystemToolError("workspace_cursor_invalid") from None
+        if document["query"] != query or document["fingerprint"] != fingerprint:
+            raise FilesystemToolError("workspace_cursor_invalid")
+        return document["offset"]
 
     def _require_open(self) -> None:
         if self._closed:
@@ -297,19 +287,12 @@ def _change_fingerprint(entries: Sequence[WorkspaceChange]) -> str:
     return "sha256:" + hashlib.sha256(jcs.canonicalize(document)).hexdigest()
 
 
-def _query_digest(document: Mapping[str, Any]) -> str:
-    return "sha256:" + hashlib.sha256(jcs.canonicalize(dict(document))).hexdigest()
-
-
 def _limit(value: int) -> int:
-    if (
-        not isinstance(value, int)
-        or isinstance(value, bool)
-        or value <= 0
-        or value > MAX_PAGE_ITEMS
-    ):
-        raise FilesystemToolError("workspace_limit_exceeded")
-    return value
+    return require_limit(value, MAX_PAGE_ITEMS, _limit_exceeded)
+
+
+def _limit_exceeded() -> FilesystemToolError:
+    return FilesystemToolError("workspace_limit_exceeded")
 
 
 def _mapped(error: Exception) -> FilesystemToolError:
@@ -325,22 +308,6 @@ def _mapped(error: Exception) -> FilesystemToolError:
     }:
         code = "workspace_unavailable"
     return FilesystemToolError(code)
-
-
-def _b64(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
-
-
-def _unb64(value: str) -> bytes:
-    if not value or any(
-        character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-        for character in value
-    ):
-        raise ValueError
-    decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-    if _b64(decoded) != value:
-        raise ValueError
-    return decoded
 
 
 def _elapsed_ms(started: int) -> int:

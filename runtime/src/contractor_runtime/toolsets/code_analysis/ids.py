@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import json
 from dataclasses import dataclass
+
+from contractor_runtime.toolsets.common.cursors import b64url_decode, b64url_encode
 
 SYMBOL_ID_PREFIX = "cas1"
 MAX_SYMBOL_ID_BYTES = 512
@@ -29,12 +30,12 @@ def encode_symbol_id(key: bytes, snapshot_digest: str, index: int, upstream_id: 
         raise ValueError("invalid symbol index")
     upstream_binding = _upstream_binding(key, snapshot_digest, index, upstream_id)
     body = json.dumps(
-        {"binding": _encode(upstream_binding), "digest": snapshot_digest, "index": index},
+        {"binding": b64url_encode(upstream_binding), "digest": snapshot_digest, "index": index},
         separators=(",", ":"),
         sort_keys=True,
     ).encode("ascii")
     signature = hmac.digest(key, SYMBOL_ID_PREFIX.encode("ascii") + b"\x00" + body, "sha256")
-    return f"{SYMBOL_ID_PREFIX}.{_encode(body)}.{_encode(signature)}"
+    return f"{SYMBOL_ID_PREFIX}.{b64url_encode(body)}.{b64url_encode(signature)}"
 
 
 def decode_symbol_id(key: bytes, value: str) -> DecodedSymbolID:
@@ -50,8 +51,8 @@ def decode_symbol_id(key: bytes, value: str) -> DecodedSymbolID:
         prefix, encoded_body, encoded_signature = value.split(".")
         if prefix != SYMBOL_ID_PREFIX:
             raise ValueError
-        body = _decode(encoded_body)
-        signature = _decode(encoded_signature)
+        body = b64url_decode(encoded_body)
+        signature = b64url_decode(encoded_signature)
         expected = hmac.digest(key, SYMBOL_ID_PREFIX.encode("ascii") + b"\x00" + body, "sha256")
         if len(signature) != hashlib.sha256().digest_size or not hmac.compare_digest(
             signature, expected
@@ -67,7 +68,7 @@ def decode_symbol_id(key: bytes, value: str) -> DecodedSymbolID:
         binding_value = document["binding"]
         if not isinstance(binding_value, str):
             raise ValueError
-        binding = _decode(binding_value)
+        binding = b64url_decode(binding_value)
         digest = document["digest"]
         index = document["index"]
         if (
@@ -86,14 +87,14 @@ def decode_symbol_id(key: bytes, value: str) -> DecodedSymbolID:
 
 def encode_symbol_key(key: bytes) -> str:
     _validate_key(key)
-    return _encode(key)
+    return b64url_encode(key)
 
 
 def decode_symbol_key(value: str) -> bytes:
     if not isinstance(value, str) or len(value) > 128:
         raise ValueError("invalid symbol key")
     try:
-        key = _decode(value)
+        key = b64url_decode(value)
     except ValueError:
         raise ValueError("invalid symbol key") from None
     _validate_key(key)
@@ -150,20 +151,3 @@ def _valid_digest(value: object) -> bool:
         and len(value) == 71
         and all(character in "0123456789abcdef" for character in value[7:])
     )
-
-
-def _encode(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
-
-
-def _decode(value: str) -> bytes:
-    if not value or any(not (character.isalnum() or character in "-_") for character in value):
-        raise ValueError("invalid base64url")
-    padding = "=" * (-len(value) % 4)
-    try:
-        decoded = base64.b64decode(value + padding, altchars=b"-_", validate=True)
-    except (ValueError, base64.binascii.Error):
-        raise ValueError("invalid base64url") from None
-    if _encode(decoded) != value:
-        raise ValueError("non-canonical base64url")
-    return decoded
