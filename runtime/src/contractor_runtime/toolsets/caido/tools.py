@@ -1506,14 +1506,17 @@ def _active_workflow_result(data: object, expected_workflow_id: str) -> dict[str
 def _inject_request_tag(raw: bytes, tag: str) -> tuple[bytes, tuple[int, int]]:
     if not raw or len(raw) > MAX_RAW_REQUEST_BYTES:
         raise CaidoToolError("caido_request_invalid")
-    if b"\r\n\r\n" in raw:
-        separator = b"\r\n"
-        head, body = raw.split(b"\r\n\r\n", 1)
-    elif b"\n\n" in raw:
-        separator = b"\n"
-        head, body = raw.split(b"\n\n", 1)
-    else:
+    # The head ends at whichever terminator comes first; the body may contain
+    # either sequence.
+    terminators = [
+        (index, separator)
+        for separator in (b"\r\n", b"\n")
+        if (index := raw.find(separator + separator)) >= 0
+    ]
+    if not terminators:
         raise CaidoToolError("caido_request_invalid")
+    index, separator = min(terminators)
+    head, body = raw[:index], raw[index + 2 * len(separator) :]
     lines = head.split(separator)
     forbidden_line_byte = b"\n" if separator == b"\r\n" else b"\r"
     if (

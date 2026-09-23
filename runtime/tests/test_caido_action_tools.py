@@ -634,3 +634,24 @@ def test_unlisted_user_error_types_are_rejections_not_invalid_responses(
         await handle.close()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # LF-framed head whose body contains CRLF CRLF.
+        (
+            b"POST /x HTTP/1.1\nHost: t\n\nbody\r\n\r\nmore",
+            b"POST /x HTTP/1.1\nX-Request-Id: tag-1\nHost: t\n\nbody\r\n\r\nmore",
+        ),
+        # CRLF-framed head whose body contains LF LF.
+        (
+            b"POST /x HTTP/1.1\r\nHost: t\r\n\r\nbody\n\nmore",
+            b"POST /x HTTP/1.1\r\nX-Request-Id: tag-1\r\nHost: t\r\n\r\nbody\n\nmore",
+        ),
+    ],
+)
+def test_request_tag_framing_follows_the_first_header_terminator(raw, expected) -> None:
+    tagged, (start, end) = caido_module._inject_request_tag(raw, "tag-1")
+    assert tagged == expected
+    assert tagged[start:end] == b"X-Request-Id: tag-1"
