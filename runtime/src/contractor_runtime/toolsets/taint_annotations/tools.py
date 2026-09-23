@@ -23,7 +23,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
     dependency_versions_match,
 )
-from contractor_runtime.toolsets.common.lines import split_lines
+from contractor_runtime.toolsets.common.lines import newline_style, split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
@@ -497,7 +497,7 @@ def _plan_mutation(
     marker = _COMMENT_MARKERS.get(language, "//")
     line = f"{indent}{marker} @{request.kind} {request.body}"
     encoded_line = line.encode("utf-8")
-    newline = _newline_style(source).encode("ascii")
+    newline = newline_style(source).encode("ascii")
     if (
         len(encoded_line) > MAX_ANNOTATION_BYTES
         or len(source.encode("utf-8")) + len(encoded_line) + len(newline) > MAX_SOURCE_FILE_BYTES
@@ -530,7 +530,7 @@ def _apply_plan(
         for _, value in block
     ):
         raise TaintAnnotationError("taint_annotation_conflict")
-    newline = _newline_style(source)
+    newline = newline_style(source)
     lines.insert(insertion_index, plan.line + newline)
     return "".join(lines), _result(
         request,
@@ -752,15 +752,6 @@ def _normalize_error(error: Exception) -> TaintAnnotationError:
 def _parse_target_file(source: bytes, language: Language) -> AnnotationParseResult:
     parser = language_support.load_parser(language)
     return parse_annotation_targets(parser, source, language)
-
-
-def _newline_style(value: str) -> str:
-    for index, character in enumerate(value):
-        if character == "\n":
-            return "\n"
-        if character == "\r":
-            return "\r\n" if index + 1 < len(value) and value[index + 1] == "\n" else "\r"
-    return "\n"
 
 
 def _without_newline(value: str) -> str:

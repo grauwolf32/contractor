@@ -15,7 +15,7 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
-from contractor_runtime.toolsets.common.lines import split_lines
+from contractor_runtime.toolsets.common.lines import newline_style, split_lines
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
@@ -112,6 +112,21 @@ def test_split_lines_matches_read_file_line_boundaries() -> None:
     ]
     assert split_lines("") == []
     assert split_lines("a\n\n") == ["a", ""]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("", "\n"),
+        ("a", "\n"),
+        ("a\nb\r\n", "\n"),
+        ("a\r\nb\n", "\r\n"),
+        ("a\rb\n", "\r"),
+        ("a\r", "\r"),
+    ],
+)
+def test_newline_style_uses_first_line_break(text: str, expected: str) -> None:
+    assert newline_style(text) == expected
 
 
 def test_line_edits_number_lines_like_read_file(tmp_path: Path) -> None:

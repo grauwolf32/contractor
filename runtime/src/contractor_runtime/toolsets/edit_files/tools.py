@@ -13,7 +13,7 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
-from contractor_runtime.toolsets.common.lines import split_lines
+from contractor_runtime.toolsets.common.lines import newline_style, split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.worker.observations import WorkspaceToolObservation, edit_tool_observation
@@ -192,7 +192,7 @@ class AppendFileTool(_BaseEditTool):
     async def __call__(self, path: str, content: str) -> dict[str, bool]:
         def transform(current: str) -> str:
             _require_editable_text(current)
-            style = _newline_style(current)
+            style = newline_style(current)
             addition = _normalize_newlines(content, style)
             separator = style if current and addition and not _ends_newline(current) else ""
             return current + separator + addition
@@ -299,7 +299,7 @@ class InsertLineTool(_BaseEditTool):
             lines = split_lines(current, keepends=True)
             if line > len(lines) + 1:
                 raise FilesystemToolError("workspace_line_invalid")
-            style = _newline_style(current)
+            style = newline_style(current)
             addition = _normalize_newlines(content, style)
             if line <= len(lines) and addition and not _ends_newline(addition):
                 addition += style
@@ -343,7 +343,7 @@ class EditTextTool(_BaseEditTool):
 
         def transform(current: str) -> str:
             _require_editable_text(current)
-            style = _newline_style(current)
+            style = newline_style(current)
             needle = _normalize_newlines(old, style)
             replacement = _normalize_newlines(new, style)
             count = current.count(needle)
@@ -391,7 +391,7 @@ class ReplaceRangeTool(_BaseEditTool):
             lines = split_lines(current, keepends=True)
             if start_line > len(lines) or end_line > len(lines):
                 raise FilesystemToolError("workspace_line_invalid")
-            style = _newline_style(current)
+            style = newline_style(current)
             replacement = _normalize_newlines(content, style)
             # The last replaced line keeps its line break, including the
             # file's trailing newline when the range ends at EOF.
@@ -405,15 +405,6 @@ class ReplaceRangeTool(_BaseEditTool):
             return "".join(lines)
 
         return await self._invoke(lambda: self._session._writer.update_text(path, transform))
-
-
-def _newline_style(text: str) -> str:
-    for index, character in enumerate(text):
-        if character == "\n":
-            return "\n"
-        if character == "\r":
-            return "\r\n" if index + 1 < len(text) and text[index + 1] == "\n" else "\r"
-    return "\n"
 
 
 def _normalize_newlines(value: str, newline: str) -> str:
