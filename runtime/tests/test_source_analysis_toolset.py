@@ -223,6 +223,35 @@ def test_search_and_read_number_lines_like_read_file(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "pattern,expected",
+    [
+        ("*", ["main.py"]),
+        ("**", ["main.py", "src/a.py", "src/x/a.py"]),
+        ("**/*", ["main.py", "src/a.py", "src/x/a.py"]),
+    ],
+)
+def test_single_star_matches_only_top_level_files(
+    tmp_path: Path, pattern: str, expected: list[str]
+) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed(
+            "inputs",
+            "source",
+            "application/zip",
+            make_zip({"main.py": "hit\n", "src/a.py": "hit\n", "src/x/a.py": "hit\n"}),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        listed = await tools["list_source_files"](pattern)
+        assert [item["path"] for item in listed["files"]] == expected
+        found = await tools["search_source"]("hit", pattern)
+        assert [item["path"] for item in found["matches"]] == expected
+
+    asyncio.run(scenario())
+
+
 def test_search_deadline_is_checked_between_lines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -802,7 +802,7 @@ def _validate_pattern(pattern: str) -> None:
 
 
 def _path_matches(path: str, pattern: str) -> bool:
-    if pattern in {"*", "**", "**/*"}:
+    if pattern in {"**", "**/*"}:
         return True
     try:
         return project_glob_matches(path, pattern)
