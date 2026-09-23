@@ -15,14 +15,50 @@ spec:
         app: contractor-server
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        # Secret files are root-owned; fsGroup makes them group-readable so the
+        # init container can copy them into owner-only files for this UID.
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: owner-only-secrets
+          # alpine:3.24; only copies secret files, no network or writable root.
+          image: docker.io/library/alpine@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              for name in local-auth.yaml credential-master-key ca.crt control-plane.crt control-plane.key; do
+                cp "/projected/$name" "/secrets/$name"
+                chmod 0400 "/secrets/$name"
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              memory: 16Mi
+              cpu: 10m
+            limits:
+              memory: 32Mi
+          volumeMounts:
+            - name: credentials
+              mountPath: /projected
+              readOnly: true
+            - name: secret-files
+              mountPath: /secrets
       containers:
         - name: server
           image: contractor-server:local
           command: [/contractor-server]
           args: [serve, --credential-master-key-file=/secrets/credential-master-key]
           securityContext:
-            # Projected secrets are root-owned; the Server checks owner-only files.
-            runAsUser: 0
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -73,25 +109,8 @@ spec:
             limits:
               memory: 2Gi
           volumeMounts:
-            - name: credentials
-              mountPath: /secrets/local-auth.yaml
-              subPath: local-auth.yaml
-              readOnly: true
-            - name: credentials
-              mountPath: /secrets/credential-master-key
-              subPath: credential-master-key
-              readOnly: true
-            - name: credentials
-              mountPath: /secrets/ca.crt
-              subPath: ca.crt
-              readOnly: true
-            - name: credentials
-              mountPath: /secrets/control-plane.crt
-              subPath: control-plane.crt
-              readOnly: true
-            - name: credentials
-              mountPath: /secrets/control-plane.key
-              subPath: control-plane.key
+            - name: secret-files
+              mountPath: /secrets
               readOnly: true
             - name: managed-config
               mountPath: /managed
@@ -99,7 +118,11 @@ spec:
         - name: credentials
           secret:
             secretName: contractor-server-credentials
-            defaultMode: 0400
+            defaultMode: 0440
+        - name: secret-files
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
         - name: managed-config
           emptyDir:
             medium: Memory

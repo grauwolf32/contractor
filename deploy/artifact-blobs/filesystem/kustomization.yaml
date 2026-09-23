@@ -1,0 +1,8 @@
+# Opt-in filesystem blob backend for a fresh installation only: the emptyDir
+# and Recreate strategy discard payloads whenever the pod is replaced.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../postgresql
+patches:
+  - path: filesystem.patch.yaml
