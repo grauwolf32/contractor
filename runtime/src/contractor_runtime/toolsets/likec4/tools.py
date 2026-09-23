@@ -34,6 +34,11 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.lines import (
+    bounded_window,
+    split_lines,
+    validate_line_offset,
+)
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
 from contractor_runtime.workspace import AllocationWorkspace
@@ -226,16 +231,23 @@ class _LikeC4Session:
                 copied=False,
             )
 
-    async def read(self, *, start_line: int, max_lines: int) -> dict[str, Any]:
+    async def read(
+        self, *, start_line: int, max_lines: int, line_offset: int = 0
+    ) -> dict[str, Any]:
         _validate_line_window(start_line, max_lines)
+        validate_line_offset(line_offset)
         async with self._lock:
             content, artifact = self._require_document()
-            lines = content.splitlines(keepends=True)
+            lines = split_lines(content, keepends=True)
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
                 raise ToolInputError("start_line exceeds LikeC4 document line count")
-            visible, end_line, partial_line = _bounded_lines(
-                lines, start_line=start_line, max_lines=max_lines
+            window = bounded_window(
+                lines,
+                start_line=start_line,
+                max_lines=max_lines,
+                max_bytes=MAX_VISIBLE_UTF8_BYTES,
+                line_offset=line_offset,
             )
             return {
                 "artifact": artifact.model_dump(by_alias=True),
@@ -243,10 +255,11 @@ class _LikeC4Session:
                 "utf8Size": len(content.encode("utf-8")),
                 "totalLines": total_lines,
                 "startLine": start_line,
-                "endLine": end_line,
-                "text": visible,
-                "truncated": partial_line or end_line < total_lines,
-                "partialLine": partial_line,
+                "endLine": window.end_line,
+                "text": window.text,
+                "truncated": window.truncated(total_lines),
+                "partialLine": window.partial_line,
+                **window.continuation(total_lines),
             }
 
     async def append(self, content: str) -> dict[str, Any]:
@@ -541,25 +554,30 @@ class ReadLikeC4Tool(_BaseLikeC4Tool):
     name = "read_likec4"
     description = """Read a line window from the current LikeC4 document.
 
-    Load or write the document first. Output is limited to 128 KiB.
+    Load or write the document first. Output is limited to 128 KiB. Page with
+    nextStartLine and nextLineOffset: a line longer than the limit is returned in
+    parts, continued by passing line_offset.
 
     Args:
         start_line: First line to read, 1-based and inclusive; defaults to 1.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+        line_offset: UTF-8 byte offset into start_line to continue a partial
+            line; use the returned nextLineOffset. Defaults to 0.
 
     Returns:
-        Exact artifact metadata, text, startLine, endLine, totalLines, truncated
-        and partialLine.
+        Exact artifact metadata, text, startLine, endLine, totalLines, truncated,
+        partialLine, and nextStartLine/nextLineOffset (null at the end).
     """
 
     async def __call__(
         self,
         start_line: int = 1,
         max_lines: int = DEFAULT_READ_LINES,
+        line_offset: int = 0,
     ) -> dict[str, Any]:
         return await self._call(
-            {"start_line": start_line, "max_lines": max_lines},
-            self._session.read(start_line=start_line, max_lines=max_lines),
+            {"start_line": start_line, "max_lines": max_lines, "line_offset": line_offset},
+            self._session.read(start_line=start_line, max_lines=max_lines, line_offset=line_offset),
             lambda result: {
                 "artifact": result["artifact"],
                 "utf8Size": result["utf8Size"],
@@ -878,29 +896,6 @@ def _validate_line_window(start_line: int, max_lines: int) -> None:
         raise ToolInputError("start_line must be a positive integer")
     if type(max_lines) is not int or not 1 <= max_lines <= MAX_READ_LINES:
         raise ToolInputError("max_lines must be an integer from 1 through 400")
-
-
-def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:
-    selected: list[str] = []
-    visible_bytes = 0
-    partial_line = False
-    end_line = start_line - 1
-    for line_number, line in enumerate(
-        lines[start_line - 1 : start_line - 1 + max_lines], start=start_line
-    ):
-        encoded = line.encode("utf-8")
-        remaining = MAX_VISIBLE_UTF8_BYTES - visible_bytes
-        if len(encoded) <= remaining:
-            selected.append(line)
-            visible_bytes += len(encoded)
-            end_line = line_number
-            continue
-        if remaining > 0:
-            selected.append(encoded[:remaining].decode("utf-8", errors="ignore"))
-            end_line = line_number
-        partial_line = True
-        break
-    return "".join(selected), end_line, partial_line
 
 
 def _document_state(
