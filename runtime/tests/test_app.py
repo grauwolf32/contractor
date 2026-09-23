@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 import pytest
@@ -83,6 +84,54 @@ def test_prepare_rejects_legacy_request_before_lifecycle_dispatch() -> None:
         "retryable": False,
         "requestId": "legacy-prepare-request",
     }
+
+
+@pytest.mark.parametrize("variant", ["duplicate-secret", "duplicate-root", "api-version", "nan"])
+def test_lifecycle_requests_use_the_strict_private_codec(variant: str) -> None:
+    class NoDispatchAllocationService:
+        async def prepare(self, _: object) -> object:
+            raise AssertionError("ambiguous request reached allocation preparation")
+
+        async def active_a2a_application(self, _: str) -> object:
+            raise AssertionError("unexpected A2A dispatch")
+
+    secret = "recognizable-duplicate-key-secret"
+    spec = allocation_spec(secret=secret)
+    body = json.dumps(
+        PrepareAllocationRequest(apiVersion=API_VERSION, spec=spec).model_dump(
+            mode="json", by_alias=True
+        ),
+        separators=(",", ":"),
+    )
+    token = f'"llmGatewayToken":"{secret}"'
+    assert body.count(token) == 1
+    if variant == "duplicate-secret":
+        body = body.replace(token, f'"llmGatewayToken":"attacker-token",{token}')
+    elif variant == "duplicate-root":
+        body = body.replace("{", f'{{"apiVersion":"{API_VERSION}",', 1)
+    elif variant == "api-version":
+        body = body.replace(f'"apiVersion":"{API_VERSION}"', '"apiVersion":"contractor.dev/v0"', 1)
+    else:
+        body = body.replace("{", '{"ignored":NaN,', 1)
+    with TestClient(
+        create_app(
+            allocation_service=NoDispatchAllocationService(),  # type: ignore[arg-type]
+            require_verified_peer=False,
+        )
+    ) as client:
+        response = client.post(
+            f"/private/v1/allocations/{spec.allocation_id}/prepare",
+            content=body.encode(),
+            headers={"Content-Type": "application/json", "X-Request-ID": "strict-request"},
+        )
+    assert response.status_code == 422
+    assert response.json() == {
+        "code": "invalid_request",
+        "message": "request does not match the allocation lifecycle contract",
+        "retryable": False,
+        "requestId": "strict-request",
+    }
+    assert secret not in response.text
 
 
 @pytest.mark.parametrize(
