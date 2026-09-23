@@ -414,8 +414,9 @@ on disk and are classified as binary; text tools retain
 Existing workspace limits apply to current-state acquisition and mutation
 preflight, not just archive input. Complete acquisition checks entry count,
 the bytes of the regular files it reads (opaque leaves are not read) and
-managed-text bytes; reads stay bounded if a file grows during acquisition. A violation yields `workspace_limit_exceeded`, not stale
-data, hidden partial success or automatic deletion of external outputs.
+managed-text bytes; reads stay bounded if a file grows during acquisition.
+A violation yields `workspace_limit_exceeded`, not stale data, hidden partial
+success or automatic deletion of external outputs.
 Build/dependency files are not silently excluded from the complete workspace
 contract. Scope-limited reads can remain available within their own bounds
 without constructing a complete snapshot.
