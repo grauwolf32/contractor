@@ -923,6 +923,9 @@ func firstTimeLimit(values []*int) *int {
 
 func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if exceedsBodyLimit(err) {
+		return nil, fmt.Errorf("%w: Audit time limit body is too large", errRequestTooLarge)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid Audit time limit body", errInvalidRequest)
 	}

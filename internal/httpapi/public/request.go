@@ -29,15 +29,14 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 
 func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
 	if maximum <= 0 || r.ContentLength > maximum {
-		return fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+		return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 	}
 	body := http.MaxBytesReader(w, r.Body, maximum)
 	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		var maximum *http.MaxBytesError
-		if errors.As(err, &maximum) {
-			return fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+		if exceedsBodyLimit(err) {
+			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 		}
 		return fmt.Errorf("%w: decode JSON body: %v", errInvalidRequest, err)
 	}
@@ -46,9 +45,18 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 		if err == nil {
 			return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
 		}
+		if exceedsBodyLimit(err) {
+			return fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
+		}
 		return fmt.Errorf("%w: decode trailing JSON: %v", errInvalidRequest, err)
 	}
 	return nil
+}
+
+// exceedsBodyLimit reports a read stopped by http.MaxBytesReader.
+func exceedsBodyLimit(err error) bool {
+	var maximum *http.MaxBytesError
+	return errors.As(err, &maximum)
 }
 
 func decodeStrictPublicJSON(data []byte, target any) error {
@@ -111,8 +119,7 @@ func readArtifactBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	body := http.MaxBytesReader(w, r.Body, artifacts.MaxPayloadSize)
 	data, err := io.ReadAll(body)
 	if err != nil {
-		var maximum *http.MaxBytesError
-		if errors.As(err, &maximum) {
+		if exceedsBodyLimit(err) {
 			return nil, artifacts.ErrPayloadTooLarge
 		}
 		return nil, fmt.Errorf("read artifact body: %w", err)

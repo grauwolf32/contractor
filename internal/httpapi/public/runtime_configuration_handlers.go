@@ -521,14 +521,13 @@ func parseRuntimeRevisionETag(raw string) (uint64, error) {
 
 func readBoundedRuntimeJSON(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
 	if maximum <= 0 || r.ContentLength > maximum {
-		return nil, fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 	}
 	body := http.MaxBytesReader(w, r.Body, maximum)
 	data, err := io.ReadAll(body)
 	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			return nil, fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+		if exceedsBodyLimit(err) {
+			return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 		}
 		return nil, errors.New("read RuntimeConfig request")
 	}

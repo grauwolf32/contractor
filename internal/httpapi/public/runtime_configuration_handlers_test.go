@@ -154,17 +154,20 @@ func TestRuntimeLabelConcurrentCASAndReplay(t *testing.T) {
 func TestRuntimeCredentialUnknownFieldsAndOversizeFailWithoutMutationOrEcho(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	secret := "UNKNOWN_FIELD_SECRET_CANARY"
-	for name, body := range map[string]string{
-		"unknown":  `{"credentialId":"bad","kind":"http-proxy-bearer@1","material":{"token":"value","unexpected":"` + secret + `"}}`,
-		"oversize": `{"credentialId":"bad","kind":"http-proxy-bearer@1","material":{"token":"` + strings.Repeat("x", maxJSONRequestSize) + `"}}`,
+	for name, test := range map[string]struct {
+		body   string
+		status int
+	}{
+		"unknown":  {`{"credentialId":"bad","kind":"http-proxy-bearer@1","material":{"token":"value","unexpected":"` + secret + `"}}`, http.StatusBadRequest},
+		"oversize": {`{"credentialId":"bad","kind":"http-proxy-bearer@1","material":{"token":"` + strings.Repeat("x", maxJSONRequestSize) + `"}}`, http.StatusRequestEntityTooLarge},
 	} {
 		request := runtimeMutationRequest(
-			t, http.MethodPost, "/v1/operations/runtime-credentials", body,
+			t, http.MethodPost, "/v1/operations/runtime-credentials", test.body,
 			"invalid-"+name, "", "",
 		)
 		response := httptest.NewRecorder()
 		fixture.handler.ServeHTTP(response, request)
-		if response.Code != http.StatusBadRequest || strings.Contains(response.Body.String(), secret) {
+		if response.Code != test.status || strings.Contains(response.Body.String(), secret) {
 			t.Fatalf("%s response = %d: %s", name, response.Code, response.Body.String())
 		}
 	}

@@ -115,6 +115,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
 		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
+	case errors.Is(err, errRequestTooLarge):
+		h.writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds its size limit", false)
 	case errors.Is(err, artifacts.ErrTransferCapacity):
 		h.writeError(w, http.StatusServiceUnavailable, "artifact_transfer_capacity", "artifact transfer capacity is exhausted", true)
 	case errors.Is(err, artifacts.ErrArtifactIntegrity):

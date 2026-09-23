@@ -46,7 +46,10 @@ func (h *handler) gitKeySettings(w http.ResponseWriter, r *http.Request) {
 			PrivateKey string `json:"privateKey"`
 		}
 		if err := decodeJSONBounded(w, r, &body, 64<<10); err != nil {
-			h.handleError(w, credentials.ErrGitKeyInvalid)
+			if !errors.Is(err, errRequestTooLarge) {
+				err = credentials.ErrGitKeyInvalid
+			}
+			h.handleError(w, err)
 			return
 		}
 		key := []byte(body.PrivateKey)

@@ -256,7 +256,12 @@ type Dependencies struct {
 	Logger                  *slog.Logger
 }
 
-var errInvalidRequest = errors.New("invalid public API request")
+var (
+	errInvalidRequest = errors.New("invalid public API request")
+	// errRequestTooLarge reports a JSON request body beyond its declared
+	// bound. It is 413 like an oversized artifact, not a malformed request.
+	errRequestTooLarge = errors.New("public API request body is too large")
+)
 
 type createRunRequest struct {
 	Workflow        string                           `json:"workflow"`
