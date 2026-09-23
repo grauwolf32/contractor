@@ -156,6 +156,46 @@ def test_corrupt_compressed_member_is_an_invalid_source_not_a_retryable_failure(
     assert_invalid_and_clean(tmp_path, bytes(payload), "workspace_source_invalid")
 
 
+def test_local_hydration_keeps_execute_bits_but_never_setid_or_write_bits(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        members = []
+        for name, mode in [
+            ("gradlew", 0o755),
+            ("configure", 0o744),
+            ("README.md", 0o644),
+            ("setuid", 0o4755),
+            ("world", 0o777),
+            ("windows.bin", 0),
+        ]:
+            info = zipfile.ZipInfo(name)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = ((stat.S_IFREG | mode) << 16) if mode else 0
+            members.append((info, b"#!/bin/sh\nexit 0\n"))
+        spec, reader = workspace_inputs([("source", "", archive_infos(members))])
+        provider = LocalWorkspaceProvider(settings("local", tmp_path / "local"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="modes",
+            timeout_seconds=5,
+        )
+        root = Path(session.storage.root) / "run_workdir"
+        modes = {path.name: stat.S_IMODE(path.stat().st_mode) for path in root.iterdir()}
+        plain = modes["README.md"]
+        assert not plain & 0o111 and not modes["windows.bin"] & 0o111
+        for name in ("gradlew", "setuid", "world"):
+            assert modes[name] == plain | ((plain & 0o444) >> 2)
+        assert modes["configure"] == plain | stat.S_IXUSR
+        assert all(mode & 0o7000 == 0 for mode in modes.values())
+        await session.close()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
 def test_zip_limits_are_exact_and_compression_bombs_fail_closed(tmp_path: Path) -> None:
     async def scenario() -> None:
         exact_payload = b"12345678"

@@ -6,6 +6,7 @@ import asyncio
 import codecs
 import io
 import lzma
+import os
 import stat
 import time
 import zipfile
@@ -409,6 +410,8 @@ def _extract_file(
                             text_parts.clear()
         if observed != info.file_size:
             raise _invalid_source()
+        if local_output is not None:
+            _apply_execute_bits(local_output.fileno(), info)
         if text_candidate:
             try:
                 text_parts.append(decoder.decode(b"", final=True))
@@ -431,6 +434,18 @@ def _extract_file(
     finally:
         if local_output is not None:
             local_output.close()
+
+
+def _apply_execute_bits(descriptor: int, info: zipfile.ZipInfo) -> None:
+    """Keep ``./gradlew``-style scripts runnable in a local direct workspace.
+
+    Only the archive's execute bits are honoured, and only for classes that can
+    already read the file; setuid/setgid/sticky and write bits never are.
+    """
+    executable = (info.external_attr >> 16) & 0o111
+    if executable:
+        current = stat.S_IMODE(os.fstat(descriptor).st_mode)
+        os.fchmod(descriptor, current | (executable & ((current & 0o444) >> 2)))
 
 
 def _backend_path(root: str, relative: str) -> str:

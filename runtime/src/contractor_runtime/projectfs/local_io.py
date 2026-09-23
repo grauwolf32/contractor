@@ -165,7 +165,15 @@ class RootedLocalFilesystem:
                         os.mkdir(name, mode=0o700, dir_fd=parent)
                 else:
                     data = self._read(root, item.path, deadline, expected=item)
-                    self._write(root, target, data, deadline, must_create=True)
+                    # Keep permission bits (e.g. executables), never set-id.
+                    self._write(
+                        root,
+                        target,
+                        data,
+                        deadline,
+                        must_create=True,
+                        mode=stat.S_IMODE(item.mode) & 0o777,
+                    )
 
     def move(self, source: str, destination: str, *, deadline: float) -> None:
         source, destination = _copy_paths(source, destination)
@@ -330,7 +338,14 @@ class RootedLocalFilesystem:
         return tree
 
     def _write(
-        self, root: int, path: str, data: bytes, deadline: float, *, must_create: bool = False
+        self,
+        root: int,
+        path: str,
+        data: bytes,
+        deadline: float,
+        *,
+        must_create: bool = False,
+        mode: int | None = None,
     ) -> None:
         with _parent(root, path) as (parent, name):
             before = _optional_entry(parent, name, path)
@@ -354,6 +369,8 @@ class RootedLocalFilesystem:
                     view = view[written:]
                 if before is not None:
                     os.fchmod(descriptor, stat.S_IMODE(before.mode) & 0o777)
+                elif mode is not None:
+                    os.fchmod(descriptor, mode & 0o777)
                 os.fsync(descriptor)
                 _check_deadline(deadline)
                 current = _optional_entry(parent, name, path)

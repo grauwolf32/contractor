@@ -278,6 +278,11 @@ beyond the capability advertised by the Runtime.
 
 Local storage retains ordinary binary regular files. Memory storage skips
 binary files and counts their bytes toward expanded input but not managed text.
+Local extraction honours a member's Unix execute bits (for classes that can
+read the file), so `./gradlew` or `./configure` stay runnable in the sandbox;
+it never applies setuid, setgid, sticky or extra write bits from an archive.
+A local direct copy keeps the source file's permission bits without set-id or
+sticky bits.
 A managed text file is strict UTF-8 with no NUL. In overlay mode only the text
 projection participates in overlay operations, state, diff and digests;
 reading or mutating an unmanaged binary path through text tools returns

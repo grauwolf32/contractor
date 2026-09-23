@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import time
 import unicodedata
 from pathlib import Path
@@ -45,6 +46,30 @@ def test_read_write_copy_move_remove_use_actual_disk(tmp_path: Path) -> None:
     fs.remove("moved", recursive=True, deadline=deadline())
     assert not (tmp_path / "work/moved").exists()
     assert path.read_bytes() == b"edited\r\n"
+
+
+def test_copy_preserves_permission_bits_without_setid(tmp_path: Path) -> None:
+    root = tmp_path / "work"
+    fs = disk(root)
+    (root / "tools").mkdir()
+    (root / "tools/gradlew").write_bytes(b"#!/bin/sh\n")
+    (root / "tools/gradlew").chmod(0o755)
+    (root / "tools/setuid").write_bytes(b"#!/bin/sh\n")
+    (root / "tools/setuid").chmod(0o4750)
+    (root / "tools/notes").write_bytes(b"notes\n")
+    (root / "tools/notes").chmod(0o640)
+    fs.copy("tools", "copied", recursive=True, deadline=deadline())
+    fs.copy("tools/gradlew", "gradlew", deadline=deadline())
+    modes = {
+        path: stat.S_IMODE((root / path).stat().st_mode)
+        for path in ("copied/gradlew", "copied/setuid", "copied/notes", "gradlew")
+    }
+    assert modes == {
+        "copied/gradlew": 0o755,
+        "copied/setuid": 0o750,
+        "copied/notes": 0o640,
+        "gradlew": 0o755,
+    }
 
 
 @pytest.mark.parametrize("kind", ["symlink", "hardlink", "fifo"])
