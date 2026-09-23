@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestReadAcceptsBoundedOwnerOnlyFile(t *testing.T) {
@@ -56,6 +59,51 @@ func TestReadRestrictedAppliesForbiddenBits(t *testing.T) {
 	}
 	if _, err := ReadRestricted(writeFile(t, "writable", "value", 0o620), 16, 0o022); !errors.Is(err, ErrUnsafePath) {
 		t.Fatalf("ReadRestricted(group-writable) error = %v", err)
+	}
+}
+
+func TestReadRejectsFileOwnedByAnotherUser(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("changing a file owner requires root")
+	}
+	path := writeFile(t, "foreign", "value", 0o600)
+	if err := os.Chown(path, 4242, 4242); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := Read(path, 16); !errors.Is(err, ErrUnsafePath) || data != nil {
+		t.Fatalf("Read(foreign owner) = %q, %v", data, err)
+	}
+	if data, err := readOpened(path, 16, OwnerOnly); !errors.Is(err, ErrUnsafeHandle) || data != nil {
+		t.Fatalf("readOpened(foreign owner) = %q, %v", data, err)
+	}
+}
+
+// A FIFO swapped in after the path check must be refused rather than block
+// startup until some writer opens it.
+func TestReadOpenedRefusesFIFOWithoutBlocking(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fifo")
+	if err := unix.Mkfifo(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Read(path, 16); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("Read(FIFO) error = %v", err)
+	}
+	result := make(chan error, 1)
+	go func() {
+		_, err := readOpened(path, 16, OwnerOnly)
+		result <- err
+	}()
+	select {
+	case err := <-result:
+		if !errors.Is(err, ErrUnsafeHandle) {
+			t.Fatalf("readOpened(FIFO) error = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		// Unblock the stuck open so the goroutine can finish.
+		if writer, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+			_ = writer.Close()
+		}
+		t.Fatal("readOpened blocked on a FIFO")
 	}
 }
 

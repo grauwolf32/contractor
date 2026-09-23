@@ -680,6 +680,13 @@ change. The fingerprint is not secret because the key has 256 bits of random
 entropy. The first slice accepts one active key and does not implement
 master-key rotation.
 
+This master key, the LLM Gateway admin binding and key files and the local-auth
+file below share one file check. Permission bits only restrict group and
+other access, so each file must also be owned by Server's effective UID or by
+root. Server checks the path, then opens it without following a symlink or
+waiting for a FIFO writer and re-checks the open handle, so a FIFO, device or
+file swapped in between is refused instead of blocking startup.
+
 When any credential row exists, Server startup requires the master key. A
 decryption/authentication failure is a bounded internal configuration error and
 never falls back to plaintext, another credential or an unauthenticated
