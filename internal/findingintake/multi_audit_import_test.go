@@ -56,10 +56,21 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	if err := runstore.NewPostgresStore(f.pool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
 		t.Fatal(err)
 	}
-	for auditID := range holds {
+	for auditID, hold := range holds {
 		receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, auditID, f.receiptID)
-		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld || len(receipt.AuditHolds) != 2 {
+		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld {
 			t.Fatalf("retained receipt in %s after source deletion: %+v, %v", auditID, receipt, err)
+		}
+		batch, err := f.intake.GetAuditReceipts(f.ctx, f.request.OwnerID, auditID, []string{f.receiptID})
+		if err != nil || len(batch) != 1 {
+			t.Fatalf("retained receipt page in %s after source deletion: %+v, %v", auditID, batch, err)
+		}
+		// Each Audit sees, and reads the proposal through, only its own copy.
+		for _, read := range []Receipt{receipt, batch[0]} {
+			if len(read.AuditHolds) != 1 || read.AuditHolds[0].AuditID != auditID ||
+				!sameRef(read.AuditHolds[0].Proposal.Ref, hold.Proposal.Ref) {
+				t.Fatalf("receipt holds read through %s = %+v", auditID, read.AuditHolds)
+			}
 		}
 	}
 	audits := auditstore.NewPostgresStore(f.pool)

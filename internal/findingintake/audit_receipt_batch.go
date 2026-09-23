@@ -16,7 +16,8 @@ const MaxAuditReceiptBatchSize = 200
 
 // GetAuditReceipts preserves GetAuditReceipt's ownership, holds and exact
 // artifact hydration, while loading related records for the whole page.
-// Returned receipts follow input order, including repeated identities.
+// Returned receipts follow input order, including repeated identities. Like
+// GetAuditReceipt it exposes only the requesting Audit's own hold.
 func (s *Service) GetAuditReceipts(ctx context.Context, ownerID, auditID string, ids []string) ([]Receipt, error) {
 	if ownerID == "" || auditID == "" || len(ids) > MaxAuditReceiptBatchSize {
 		return nil, ErrInvalid
@@ -46,7 +47,7 @@ SELECT `+receiptProjection+`
 	if err != nil {
 		return nil, err
 	}
-	holds, err := s.readAuditHoldsBatch(ctx, ids)
+	holds, err := s.readAuditHoldsBatch(ctx, ownerID, auditID, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -83,12 +84,22 @@ func scanAuditReceiptBatch(rows pgx.Rows, ids []string) ([]Receipt, error) {
 	return result, nil
 }
 
-func (s *Service) readAuditHoldsBatch(ctx context.Context, ids []string) (map[string][]AuditHold, error) {
+// readAuditHoldsBatch returns only the requesting Audit's holds, and only
+// when that Audit belongs to the owner and the hold's Project. A receipt read
+// through one Audit never names another Audit's copy or reads its bytes after
+// source Run deletion, as collection publication also requires.
+func (s *Service) readAuditHoldsBatch(
+	ctx context.Context, ownerID, auditID string, ids []string,
+) (map[string][]AuditHold, error) {
 	rows, err := s.pool.Query(ctx, `
-SELECT receipt_id, audit_id, project_id, proposal_ref, evidence, created_at
-  FROM finding_proposal_audit_holds
- WHERE receipt_id = ANY($1::text[])
- ORDER BY receipt_id, created_at, audit_id`, ids)
+SELECT hold.receipt_id, hold.audit_id, hold.project_id, hold.proposal_ref,
+       hold.evidence, hold.created_at
+  FROM finding_proposal_audit_holds AS hold
+  JOIN audits AS audit
+    ON audit.audit_id = hold.audit_id AND audit.project_id = hold.project_id
+ WHERE hold.receipt_id = ANY($1::text[]) AND hold.audit_id = $2
+   AND audit.owner_id = $3
+ ORDER BY hold.receipt_id, hold.created_at, hold.audit_id`, ids, auditID, ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("list finding proposal Audit holds: %w", err)
 	}

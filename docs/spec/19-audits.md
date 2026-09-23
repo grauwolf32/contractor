@@ -1588,7 +1588,9 @@ that Audit's records. Finding and direct-assessment IDs are opaque and scoped
 to the destination Audit. Direct-assessment replay supports only the current
 Audit-and-receipt identity; historical receipt-only IDs are not replay aliases.
 Deleting one destination does not release another destination's retained
-evidence or change its finding decisions.
+evidence or change its finding decisions. A receipt read through one Audit
+lists only that Audit's own hold and, after source Run deletion, reads the
+proposal from that Audit's retained copy, never from another destination's.
 
 Run deletion and creation of a destination proposal hold serialize on the source
 Run before taking Audit, receipt/retention and Artifact locks. Deletion locks
