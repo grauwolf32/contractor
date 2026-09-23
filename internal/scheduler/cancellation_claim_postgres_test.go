@@ -134,7 +134,14 @@ func TestPostgresFailActiveRunEndsCancellingRunAsCancelled(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	s := &Scheduler{store: store, options: Options{OperationTimeout: 5 * time.Second}}
+	persistence, err := NewPostgresPersistence(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Scheduler{store: store, persistence: persistence, options: Options{
+		OperationTimeout: 5 * time.Second, Clock: staticClock{now: time.Now().UTC()},
+		NewID: func(prefix string) (string, error) { return prefix + "1", nil },
+	}}
 	if err := s.failInvalidRunState(ctx, "run-1", nil); err != nil {
 		t.Fatalf("fail cancelling Run: %v", err)
 	}

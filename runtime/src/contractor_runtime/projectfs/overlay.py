@@ -88,22 +88,45 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         )
         self._source = self._tree.clone()
         self._checkpoint = self._tree.clone()
+        # Managed text bytes of one effective tree. Writes adjust it instead
+        # of re-encoding every text file; replacing the tree recounts it once.
+        self._text_bytes: tuple[ManagedWorkspaceTree, int] | None = None
 
     async def write_text(self, path: str, text: str) -> None:
         normalized = normalize_project_path(path, allow_root=False)
-        _validate_text(text, self._limits)
+        encoded = _validate_text(text, self._limits)
         async with self._lock:
             self._require_open()
-            candidate = self._tree.clone()
-            kind = candidate.kind(normalized)
+            tree = self._tree
+            kind = tree.kind(normalized)
             if kind == "binary":
                 raise WorkspaceStorageError("binary_file_unsupported")
             if kind == "directory":
                 raise WorkspaceStorageError("workspace_type_conflict")
-            _require_parent_directory(candidate, normalized)
-            candidate.text_files[normalized] = text
-            _validate_tree(candidate, self._limits)
-            self._tree = candidate
+            _require_parent_directory(tree, normalized)
+            # The effective tree is always valid, so only the written path's
+            # count and byte delta can break an invariant.
+            total = self._managed_text_bytes() + len(encoded)
+            if kind == "text":
+                total -= len(tree.text_files[normalized].encode("utf-8"))
+            elif (
+                len(tree.directories) + len(tree.text_files) + len(tree.binary_paths)
+                >= self._limits.max_files
+            ):
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            if (
+                total > self._limits.max_managed_text_bytes
+                or total > self._limits.max_expanded_bytes
+            ):
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            tree.text_files[normalized] = text
+            self._text_bytes = (tree, total)
+
+    def _managed_text_bytes(self) -> int:
+        if self._text_bytes is None or self._text_bytes[0] is not self._tree:
+            total = sum(len(_validate_text(text, None)) for text in self._tree.text_files.values())
+            self._text_bytes = (self._tree, total)
+        return self._text_bytes[1]
 
     async def make_directory(self, path: str, *, parents: bool = False) -> None:
         normalized = normalize_project_path(path, allow_root=False)

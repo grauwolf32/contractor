@@ -20,6 +20,7 @@ import { useEvalOwner } from "./queries";
 import {
   commandFinished,
   readCommand,
+  RECOVERY_STORAGE_MESSAGE,
   writeCommand,
   type PendingCommand,
 } from "./recovery";
@@ -140,11 +141,7 @@ export function EvalControls({
       setConfirm(null);
       setStorageError(null);
     } catch {
-      setStorageError(
-        new Error(
-          "Command recovery could not be saved in this browser. No command was sent.",
-        ),
-      );
+      setStorageError(new Error(RECOVERY_STORAGE_MESSAGE));
     }
   }
   async function recover() {

@@ -222,6 +222,41 @@ def test_shallow_tools_match_across_real_workspace_providers_and_modes(
     assert found["items"][0]["preview"].startswith("def Target")
 
 
+def test_search_def_builds_previews_only_for_the_returned_page(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        reader = MutableReader(
+            {
+                "a.py": "def Target():\n    pass\n" * 10,
+                "b.py": "def Target():\n    pass\n" * 10,
+            }
+        )
+        previews: list[int] = []
+        original = code_analysis._preview
+
+        def counting(source: bytes, start_byte: int, end_byte: int) -> str:
+            previews.append(start_byte)
+            return original(source, start_byte, end_byte)
+
+        monkeypatch.setattr(code_analysis, "_preview", counting)
+        tools, _ = await _tools(reader, tmp_path)
+        first = await tools["search_def"]("Target", limit=3)
+        assert len(first["items"]) == len(previews) == 3
+        assert first["observedTotal"] == 20 and first["truncated"]
+        assert all(item["preview"].startswith("def Target") for item in first["items"])
+        second = await tools["search_def"]("Target", cursor=first["nextCursor"], limit=3)
+        assert [(item["path"], item["line"]) for item in second["items"]] == [
+            ("a.py", 7),
+            ("a.py", 9),
+            ("a.py", 11),
+        ]
+        assert len(previews) == 6
+
+    asyncio.run(scenario())
+
+
 def test_pagination_is_deterministic_integrity_protected_and_query_bound(
     tmp_path: Path,
 ) -> None:
@@ -358,6 +393,24 @@ def test_coverage_reports_binary_unsupported_oversized_and_parse_errors(
         assert coverage["parseErrors"] == 1
         assert coverage["incomplete"]
         assert coverage["reasons"] == ["parse_errors"]
+
+    asyncio.run(scenario())
+
+
+def test_overlong_symbol_names_are_skipped_without_stopping_the_scan(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        long_name = "x" * 300
+        reader = MutableReader(
+            {
+                "a.py": f"def {long_name}(): pass\ndef kept(): pass\n",
+                "b.py": "def later(): pass\n",
+            }
+        )
+        tools, _ = await _tools(reader, tmp_path)
+        for _ in range(2):
+            listed = await tools["list_symbols"]()
+            assert sorted(item["name"] for item in listed["items"]) == ["kept", "later"]
+            assert listed["coverage"]["reasons"] == ["symbol_name_limit"]
 
     asyncio.run(scenario())
 

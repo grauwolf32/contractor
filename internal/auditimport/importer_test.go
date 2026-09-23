@@ -353,6 +353,100 @@ func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T)
 	}
 }
 
+func TestImporterCollectsWhenClosedAuditCannotHoldFindingProposal(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	revision := "finding-revision"
+	findings := &fakeFindingRetention{
+		retainErr: findingintake.ErrAuditClosed,
+		receipts: []findingintake.Receipt{{
+			ReceiptID: "finding-receipt", Proposal: findingintake.ExactArtifact{Ref: contracts.ArtifactRef{
+				Namespace: "finding-proposals", Name: "candidate", Revision: &revision,
+			}},
+			Origin: findingintake.Origin{
+				RunID: *harness.execution.RunID,
+				Audit: &findingintake.AuditOrigin{
+					AuditID: harness.execution.AuditID, ExecutionID: harness.execution.ExecutionID,
+					Role: string(harness.execution.Role),
+				},
+			},
+		}},
+	}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || len(findings.imports) != 1 ||
+		harness.store.collected.Disposition != auditstore.CollectionAccepted {
+		t.Fatalf("closed-Audit collection = (%t, %v, imports=%+v, collection=%+v)",
+			worked, err, findings.imports, harness.store.collected)
+	}
+}
+
+func TestImporterRejectsOnlyTheInvalidFindingProposal(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	harness.snapshot.Audit.BaselineSnapshot = json.RawMessage(
+		`{"schema":"contractor.audit.baseline.v1","standards":[]}`,
+	)
+	origin := findingintake.Origin{
+		RunID: *harness.execution.RunID,
+		Audit: &findingintake.AuditOrigin{
+			AuditID: harness.execution.AuditID, ExecutionID: harness.execution.ExecutionID,
+			Role: string(harness.execution.Role),
+		},
+	}
+	revision := "finding-revision"
+	findings := &fakeFindingRetention{}
+	for _, name := range []string{"invalid", "valid"} {
+		document := auditdomain.FindingProposal{StandardRefs: []auditdomain.StandardReference{}}
+		if name == "invalid" {
+			document.StandardRefs = []auditdomain.StandardReference{{
+				Scheme: "unpinned", Version: "1", RequirementID: "invented",
+			}}
+		}
+		findings.receipts = append(findings.receipts, findingintake.Receipt{
+			ReceiptID: name, Document: document, Origin: origin,
+			Proposal: findingintake.ExactArtifact{Ref: contracts.ArtifactRef{
+				Namespace: "finding-proposals", Name: name, Revision: &revision,
+			}},
+		})
+	}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || harness.store.collected.Disposition != auditstore.CollectionAccepted {
+		t.Fatalf("collection = (%t, %v, %+v)", worked, err, harness.store.collected)
+	}
+	if len(findings.imports) != 1 || findings.imports[0].Proposal.Name != "valid" ||
+		len(findings.rejections) != 1 || findings.rejections[0] != "invalid:finding-proposal-standard-invalid" {
+		t.Fatalf("imports=%+v rejections=%v", findings.imports, findings.rejections)
+	}
+}
+
 func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T) {
 	harness := newImportHarness(t)
 	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
@@ -1230,6 +1324,15 @@ type fakeFindingRetention struct {
 	getReceipts []findingintake.Receipt
 	imports     []findingintake.ImportRequest
 	resolved    []findingintake.ResolvedProposal
+	retainErr   error
+	rejections  []string
+}
+
+func (f *fakeFindingRetention) RejectAuditCollection(
+	_ context.Context, request findingintake.ImportRequest, reason string,
+) error {
+	f.rejections = append(f.rejections, request.Proposal.Name+":"+reason)
+	return nil
 }
 
 func (f *fakeFindingRetention) GetAuditReceipt(
@@ -1255,10 +1358,13 @@ func (f *fakeFindingRetention) ListRun(
 	return append([]findingintake.Receipt(nil), f.receipts...), nil
 }
 
-func (f *fakeFindingRetention) ImportIntoAudit(
+func (f *fakeFindingRetention) RetainAuditCollection(
 	_ context.Context, request findingintake.ImportRequest,
 ) (findingintake.AuditHold, bool, error) {
 	f.imports = append(f.imports, request)
+	if f.retainErr != nil {
+		return findingintake.AuditHold{}, false, f.retainErr
+	}
 	return findingintake.AuditHold{AuditID: request.AuditID}, false, nil
 }
 

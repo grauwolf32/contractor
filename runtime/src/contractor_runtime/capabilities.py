@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -146,8 +147,8 @@ async def discover_capabilities(
     sandboxes: list[str] = []
     runtime_adapters: list[str] = []
     workspace: WorkspaceCapabilitySnapshot | None = None
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + total_timeout_seconds
+    # Consumers compare absolute deadlines with time.monotonic().
+    deadline = time.monotonic() + total_timeout_seconds
 
     # This is a startup gate, not an optional capability probe: failure must
     # prevent workspace-provider initialization and its orphan deletion.
@@ -244,13 +245,12 @@ async def discover_capabilities(
 
 
 async def _probe_podman(factories, deadline, timeout):
-    loop = asyncio.get_running_loop()
-    end = min(deadline, loop.time() + timeout)
-    if end - loop.time() <= PROBE_CLEANUP_SECONDS:
+    end = min(deadline, time.monotonic() + timeout)
+    if end - time.monotonic() <= PROBE_CLEANUP_SECONDS:
         _log_probe(PODMAN_PROFILE, "sandbox", "total_timeout", 0)
         return
     lifecycle, provider = factories.execution_lifecycle, factories.workspace_provider
-    started = loop.time()
+    started = time.monotonic()
     try:
         async with asyncio.timeout(end - started):
             storage = await provider.create("podman-capability-probe")
@@ -270,7 +270,7 @@ async def _probe_podman(factories, deadline, timeout):
         PODMAN_PROFILE,
         "sandbox",
         "available" if result["available"] else result["failure"],
-        _duration_ms(started, loop.time()),
+        _duration_ms(started, time.monotonic()),
     )
     if result["available"]:
         logger.info(
@@ -286,8 +286,7 @@ async def _probe_one(
     deadline: float,
     per_factory_timeout_seconds: float,
 ) -> object | None:
-    loop = asyncio.get_running_loop()
-    started = loop.time()
+    started = time.monotonic()
     remaining = deadline - started
     if remaining <= 0:
         _log_probe(ref, kind, "total_timeout", 0)
@@ -296,14 +295,14 @@ async def _probe_one(
     try:
         result = await asyncio.wait_for(probe(), timeout=timeout)  # type: ignore[operator]
     except TimeoutError:
-        _log_probe(ref, kind, "timeout", _duration_ms(started, loop.time()))
+        _log_probe(ref, kind, "timeout", _duration_ms(started, time.monotonic()))
         return None
     except asyncio.CancelledError:
         raise
     except Exception:
-        _log_probe(ref, kind, "failed", _duration_ms(started, loop.time()))
+        _log_probe(ref, kind, "failed", _duration_ms(started, time.monotonic()))
         return None
-    _log_probe(ref, kind, "available", _duration_ms(started, loop.time()))
+    _log_probe(ref, kind, "available", _duration_ms(started, time.monotonic()))
     return result
 
 

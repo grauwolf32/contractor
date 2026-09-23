@@ -288,6 +288,42 @@ describe("Run routes", () => {
     expect(current.attempts).toHaveLength(1);
   });
 
+  it("keeps a loaded Run visible when a background refetch fails", async () => {
+    let fail = false;
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/runs/run-router") {
+        if (fail) {
+          return apiResponse(
+            { error: { code: "unavailable", message: "Server unavailable" } },
+            { status: 503 },
+          );
+        }
+        return apiResponse(runFixture());
+      }
+      throw new Error(`Unexpected request: ${request.method} ${path}`);
+    });
+    renderRunApplication(api, "/runs/run-router");
+    const stageHeading = {
+      name: "Produce a global architecture review.",
+    };
+    expect(
+      await screen.findByRole("heading", stageHeading),
+    ).toBeInTheDocument();
+    fail = true;
+    await userEvent.setup().click(screen.getByLabelText("Refresh"));
+    expect(
+      await screen.findByText(/showing the last loaded data/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", stageHeading)).toBeInTheDocument();
+    expect(
+      screen.queryByText("Could not load this Run"),
+    ).not.toBeInTheDocument();
+  });
+
   it("continues a failed stage only after confirmation and refreshes the authoritative Run", async () => {
     let posts = 0;
     let requestBody: unknown;

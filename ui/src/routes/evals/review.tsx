@@ -13,7 +13,7 @@ import {
 import { ContextLink } from "../../app/context-navigation";
 import { EvalError, EvalField } from "./common";
 import { useEvalOwner } from "./queries";
-import { finishMutation, mutationKey } from "./recovery";
+import { finishMutation, recoverableMutation } from "./recovery";
 
 type Decision = EvalAssessment["checks"][number]["status"];
 
@@ -107,12 +107,20 @@ export function EvalHumanReview({
         previousAssessmentSha256: member.assessmentSha256,
       };
       const operation = `review:${experiment.experimentId}:${member.member.memberId}`;
-      const receipt = await submitEvalAssessment(
-        api,
-        experiment.experimentId,
-        member.member.memberId,
+      // Keep the assessment key until selection succeeds so a retry replays it.
+      const receipt = await recoverableMutation(
+        owner,
+        operation,
         body,
-        await mutationKey(owner, operation, body),
+        (key) =>
+          submitEvalAssessment(
+            api,
+            experiment.experimentId,
+            member.member.memberId,
+            body,
+            key,
+          ),
+        { finish: false },
       );
       const selection = {
         planSha256: experiment.planSha256,
@@ -124,16 +132,22 @@ export function EvalHumanReview({
           },
         ],
       };
-      const correlation = { selection, revision: context.revision };
-      await selectEvalAssessment(
-        api,
-        experiment.experimentId,
-        selection,
-        await mutationKey(owner, operation + ":select", correlation),
-        context.revision,
+      const { revision } = context;
+      const correlation = { selection, revision };
+      await recoverableMutation(
+        owner,
+        operation + ":select",
+        correlation,
+        (key) =>
+          selectEvalAssessment(
+            api,
+            experiment.experimentId,
+            selection,
+            key,
+            revision,
+          ),
       );
       await finishMutation(owner, operation, body);
-      await finishMutation(owner, operation + ":select", correlation);
     },
     onSuccess: async () => {
       await cache.invalidateQueries({ queryKey: ["evals"] });

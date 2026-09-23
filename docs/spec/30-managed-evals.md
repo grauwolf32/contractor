@@ -573,8 +573,10 @@ opaque/signed and bound to owner, resource, filters and sort. Experiment member/
 pair pages additionally bind to `viewSnapshot`. Mutable experiment/dataset lists
 bind to an owner collection revision; a mutation invalidates the cursor and asks
 for an explicit reload instead of silently skipping or repeating moved rows.
-Sort is deterministic: experiments by updated time plus lookup ID; members/pairs
-by frozen suite order, case order, sample, variant/member ID. Filters cannot alter
+Sort is deterministic: experiments newest first by immutable creation time plus
+lookup ID (not updated time, which usage ticks move without a collection
+revision change); members/pairs by frozen suite order, case order, sample,
+variant/member ID. Filters cannot alter
 the unfiltered `experimentSummary`; any `filteredCount` is labelled separately.
 
 ```http

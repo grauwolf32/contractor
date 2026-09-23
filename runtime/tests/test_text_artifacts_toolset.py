@@ -18,6 +18,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.text_artifacts.tools import (
     MAX_TEXT_WRITE_BYTES,
+    MAX_VISIBLE_TEXT_BYTES,
     TextArtifactsToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
@@ -59,6 +60,8 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
             "text": "two-🚀\nthree-🧪\n",
             "truncated": True,
             "partialLine": False,
+            "nextStartLine": 4,
+            "nextLineOffset": 0,
         }
 
         created = await tools["write_text_artifact"](
@@ -93,6 +96,47 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
             for ref in tool.known_exact_refs
         }
         assert ("worker-space", "analysis", updated["artifact"]["revision"]) in observed
+
+    asyncio.run(scenario())
+
+
+def test_read_text_artifact_pages_through_an_oversized_line(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        # One multi-byte line longer than the visible limit, then a short line.
+        long_line = "ä" * (MAX_VISIBLE_TEXT_BYTES // 2 + 7) + "\n"
+        document = "head\n" + long_line + "tail\n"
+        source = client.seed("inputs", "log", "text/plain", document.encode())
+        tools = await make_tools(tmp_path, client, WorkerState())
+        read = tools["read_text_artifact"]
+
+        first = await read("inputs", "log", source.revision, start_line=1, max_lines=3)
+        assert first["text"] == "head\n"
+        assert (first["nextStartLine"], first["nextLineOffset"]) == (2, 0)
+
+        parts: list[str] = []
+        start, offset = 2, 0
+        while True:
+            page = await read(
+                "inputs", "log", source.revision, start_line=start, max_lines=1, line_offset=offset
+            )
+            parts.append(page["text"])
+            assert len(page["text"].encode()) <= MAX_VISIBLE_TEXT_BYTES
+            if not page["partialLine"]:
+                break
+            start, offset = page["nextStartLine"], page["nextLineOffset"]
+        assert "".join(parts) == long_line
+        last = await read("inputs", "log", source.revision, start_line=3)
+        assert last["text"] == "tail\n"
+        assert last["truncated"] is False
+        assert (last["nextStartLine"], last["nextLineOffset"]) == (None, None)
+
+        with pytest.raises(ValueError, match="line_offset"):
+            await read("inputs", "log", source.revision, start_line=1, line_offset=5)
+        with pytest.raises(ValueError, match="line_offset"):
+            await read("inputs", "log", source.revision, start_line=1, line_offset=-1)
+        with pytest.raises(ValueError, match="UTF-8 character"):
+            await read("inputs", "log", source.revision, start_line=2, line_offset=1)
 
     asyncio.run(scenario())
 

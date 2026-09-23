@@ -258,6 +258,20 @@ func validateTransition(params TransitionParams) error {
 	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
 }
 
+func validateResume(params ResumeParams) error {
+	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
+		return err
+	}
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 ||
+		!transitionAllowed(AuditPaused, AuditActive) || !ownerTransitionAllowed(AuditPaused, AuditActive) {
+		return invalidf("Audit resume is invalid")
+	}
+	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
+}
+
 func ownerTransitionAllowed(from, to AuditState) bool {
 	if to == AuditPaused {
 		return from == AuditActive || from == AuditWaitingReview
@@ -284,6 +298,24 @@ func validateClaimedTransition(params ClaimedTransitionParams) error {
 		!params.TargetState.Valid() || !transitionAllowed(params.ExpectedState, params.TargetState) ||
 		(params.ExpectedState == AuditDraft && params.TargetState == AuditActive) {
 		return invalidf("claimed Audit transition is invalid")
+	}
+	if params.Reason != nil {
+		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
+			return err
+		}
+		return validateText("reason message", params.Reason.Message, 4096, false)
+	}
+	return nil
+}
+
+func validateTrustedTransition(params TrustedTransitionParams) error {
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 || !params.ExpectedState.Valid() ||
+		!params.TargetState.Valid() || !transitionAllowed(params.ExpectedState, params.TargetState) ||
+		(params.ExpectedState == AuditDraft && params.TargetState == AuditActive) {
+		return invalidf("trusted Audit transition is invalid")
 	}
 	if params.Reason != nil {
 		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {

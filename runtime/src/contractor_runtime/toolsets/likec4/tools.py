@@ -17,7 +17,7 @@ from typing import Any
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.toolsets.common.artifact_visibility import (
@@ -142,16 +142,21 @@ class _LikeC4Session:
         require_model_visible_binding(namespace, name)
         require_model_visible_binding(self._namespace, target_name)
         if namespace != self._namespace and revision is None:
-            raise ValueError(
+            raise ToolInputError(
                 "a LikeC4 seed outside the Worker namespace requires an exact revision"
             )
         source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
         async with self._lock:
-            value = await self._client.read_artifact(source_ref)
+            try:
+                value = await self._client.read_artifact(
+                    source_ref, max_bytes=MAX_DOCUMENT_UTF8_BYTES
+                )
+            except ArtifactResponseLimitError:
+                raise ToolInputError("LikeC4 document exceeds the 1 MiB tool limit") from None
             if revision is not None and value.artifact.revision != revision:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
             if value.media_type not in {TARGET_MEDIA_TYPE, "text/plain"}:
-                raise ValueError(
+                raise ToolInputError(
                     f"LikeC4 seed media type must be {TARGET_MEDIA_TYPE} or text/plain"
                 )
             content = _decode_document(value.data)
@@ -223,7 +228,7 @@ class _LikeC4Session:
             lines = content.splitlines(keepends=True)
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
-                raise ValueError("start_line exceeds LikeC4 document line count")
+                raise ToolInputError("start_line exceeds LikeC4 document line count")
             visible, end_line, partial_line = _bounded_lines(
                 lines, start_line=start_line, max_lines=max_lines
             )
@@ -241,7 +246,7 @@ class _LikeC4Session:
 
     async def append(self, content: str) -> dict[str, Any]:
         if not isinstance(content, str) or not content:
-            raise ValueError("append content must be a non-empty string")
+            raise ToolInputError("append content must be a non-empty string")
         async with self._lock:
             current, _ = self._require_document()
             candidate = current + content
@@ -257,29 +262,31 @@ class _LikeC4Session:
         count: int | None,
     ) -> dict[str, Any]:
         if not isinstance(old, str) or not old:
-            raise ValueError("old fragment must be a non-empty string")
+            raise ToolInputError("old fragment must be a non-empty string")
         if not isinstance(new, str):
-            raise TypeError("new fragment must be a string")
+            raise ToolInputError("new fragment must be a string")
         if old == new:
-            raise ValueError("old and new fragments must differ")
+            raise ToolInputError("old and new fragments must differ")
         if count is not None and (
             type(count) is not int or not 1 <= count <= MAX_REPLACE_OCCURRENCES
         ):
-            raise ValueError("count must be an integer from 1 through 100")
+            raise ToolInputError("count must be an integer from 1 through 100")
         async with self._lock:
             current, _ = self._require_document()
             occurrences = current.count(old)
             if occurrences == 0:
-                raise ValueError("old fragment is absent from the LikeC4 document")
+                raise ToolInputError(
+                    "old fragment is absent from the LikeC4 document", code="fragment_not_found"
+                )
             if count is None:
                 if occurrences != 1:
-                    raise ValueError(
+                    raise ToolInputError(
                         "old fragment is ambiguous; pass an explicit replacement count"
                     )
                 replacement_count = 1
             else:
                 if count > occurrences:
-                    raise ValueError("replacement count exceeds matching occurrences")
+                    raise ToolInputError("replacement count exceeds matching occurrences")
                 replacement_count = count
             candidate = current.replace(old, new, replacement_count)
             result = await self._commit_current(candidate)
@@ -355,7 +362,9 @@ class _LikeC4Session:
 
     def _require_document(self) -> tuple[str, ArtifactRef]:
         if self._content is None or self._target_name is None or self._revision is None:
-            raise ValueError("load_likec4 or write_likec4 must be called first")
+            raise ToolInputError(
+                "load_likec4 or write_likec4 must be called first", code="document_not_loaded"
+            )
         return self._content, ArtifactRef(
             namespace=self._namespace,
             name=self._target_name,
@@ -853,11 +862,11 @@ def _validation_failure(available: bool, message: str) -> dict[str, Any]:
 
 def _decode_document(data: bytes) -> str:
     if len(data) > MAX_DOCUMENT_UTF8_BYTES:
-        raise ValueError("LikeC4 document exceeds the 1 MiB tool limit")
+        raise ToolInputError("LikeC4 document exceeds the 1 MiB tool limit")
     try:
         return data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
-        raise ValueError("LikeC4 document must be valid UTF-8") from error
+        raise ToolInputError("LikeC4 document must be valid UTF-8") from error
 
 
 def _validate_document(content: Any) -> bytes:

@@ -3,6 +3,9 @@ package public
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -507,7 +510,12 @@ func TestEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T
 		Page  evalPageInfo              `json:"page"`
 	}](t, h.request(t, "GET", path, nil, "", "", 200))
 	if len(page.Items) != 1 || page.Items[0].ID != second.ID || page.Page.NextCursor == nil {
-		t.Fatal("experiment sort is not updated-time descending")
+		t.Fatal("experiment sort is not created-time descending")
+	}
+	// Usage ticks bump updated_at without fencing the collection revision; the
+	// immutable created_at key must keep the row on its original page.
+	if _, err := h.pool.Exec(t.Context(), `UPDATE eval_experiments SET observed_tokens = observed_tokens + 1, revision = revision + 1, updated_at = clock_timestamp() + interval '1 hour' WHERE experiment_id = $1`, first.ID); err != nil {
+		t.Fatal(err)
 	}
 	nextPath := path + "&cursor=" + url.QueryEscape(*page.Page.NextCursor)
 	next := apiDecode[struct {
@@ -516,8 +524,14 @@ func TestEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors(t *testing.T
 	if len(next.Items) != 1 || next.Items[0].ID != first.ID {
 		t.Fatal("keyset skipped a row")
 	}
+	h.request(t, "GET", path+"&cursor="+url.QueryEscape(resignedEvalCursor(t, *page.Page.NextCursor, func(c *evalCursor) {
+		c.Position = c.Position[1:] // pre-created_at (updated_at, experiment_id) shape
+	})), nil, "", "", 422)
+	h.request(t, "GET", path+"&cursor="+url.QueryEscape(resignedEvalCursor(t, *page.Page.NextCursor, func(c *evalCursor) {
+		c.Position[0] = "updated"
+	})), nil, "", "", 422)
 	h.request(t, "GET", "/v1/eval-experiments?projectId=foreign&limit=1&cursor="+url.QueryEscape(*page.Page.NextCursor), nil, "", "", 422)
-	h.request(t, "PATCH", "/v1/eval-experiments/"+first.ID, evaldomain.DraftUpdate{Name: "Changed", Draft: draft}, "edit", `"1"`, 200)
+	h.request(t, "PATCH", "/v1/eval-experiments/"+first.ID, evaldomain.DraftUpdate{Name: "Changed", Draft: draft}, "edit", `"2"`, 200)
 	h.request(t, "GET", nextPath, nil, "", "", 409)
 	for _, query := range []string{"limit=101", "limit=0", "limit=-1", "limit=1&limit=2", "unknown=x", "state=garbage", "cursor=untrusted"} {
 		h.request(t, "GET", "/v1/eval-experiments?"+query, nil, "", "", 422)
@@ -622,4 +636,25 @@ func TestEvalPostgresNativeAuthoringCommandsAndPublicViews(t *testing.T) {
 			h.request(t, "DELETE", "/v1/eval-experiments/"+duplicate.ID, map[string]any{}, "delete", `"1"`, 202)
 		})
 	}
+}
+
+func resignedEvalCursor(t *testing.T, cursor string, edit func(*evalCursor)) string {
+	t.Helper()
+	b, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded evalCursor
+	if err := json.Unmarshal(b[:len(b)-sha256.Size], &decoded); err != nil {
+		t.Fatal(err)
+	}
+	edit(&decoded)
+	raw, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(testBearerToken))
+	mac := hmac.New(sha256.New, digest[:])
+	mac.Write(raw)
+	return base64.RawURLEncoding.EncodeToString(append(raw, mac.Sum(nil)...))
 }

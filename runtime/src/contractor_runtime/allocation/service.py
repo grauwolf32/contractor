@@ -225,7 +225,7 @@ class AllocationService:
                     # Even embedded preparation cannot hydrate/delete orphan
                     # storage until this service's predecessor is removed.
                     await lifecycle.recover(
-                        deadline=asyncio.get_running_loop().time()
+                        deadline=time.monotonic()
                         + max(0.0, (adapter_deadline - self._now()).total_seconds())
                     )
                 adapter_host = await AllocationAdapterHost.create(
@@ -584,6 +584,10 @@ class AllocationService:
         context.release_prepared = True
 
     async def expire_control_lease(self, shutdown_grace_seconds: float) -> None:
+        if self._context is None and self._lock.locked():
+            # A long prepare holds the slot lock. Fence now so the expired
+            # lease cannot wait for it; its commit then fails and rolls back.
+            await self._state.fence_control_lease()
         async with self._lock:
             context = self._context
             if context is None:
@@ -600,6 +604,11 @@ class AllocationService:
             )
 
     async def reconcile_drain(self, allocation_id: str, shutdown_grace_seconds: float) -> None:
+        if self._context is None or self._context.allocation_id != allocation_id:
+            # Only the lock owner installs a context. A drain for an absent
+            # allocation is a no-op and must not wait behind a long prepare;
+            # the Control Plane repeats it if the allocation later commits.
+            return
         async with self._lock:
             context = self._context
             if context is None or context.allocation_id != allocation_id:

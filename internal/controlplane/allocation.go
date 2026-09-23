@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"time"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -39,6 +40,10 @@ type ReservationRequest struct {
 	// by focused capacity tests. Production placement always supplies the
 	// immutable Run snapshot.
 	RuntimeConfig *runtimeconfig.RunSnapshot
+	// Admit, when set, sees the selected candidates with their resolved
+	// Runtime configuration before placement becomes durable. An error
+	// discards the candidates, so a deferred Stage leaves no allocation behind.
+	Admit func(context.Context, []Reservation) error
 }
 
 // CandidateEdge is one already-resolved, non-secret compatibility edge. The

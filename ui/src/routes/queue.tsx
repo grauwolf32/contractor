@@ -81,9 +81,28 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
     )
     .join("\u0000");
 
+  // A resync leaves subscriptions waiting for an authoritative cursor, so
+  // resubscribe after the refetch even when the cursors did not change.
+  const [resyncs, setResyncs] = useState(0);
+
   useEffect(() => {
+    let active = true;
+    let resyncing = false;
     const invalidate = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.queue.all });
+    };
+    const resync = () => {
+      if (resyncing) return;
+      resyncing = true;
+      void queryClient
+        .refetchQueries(
+          { queryKey: queryKeys.queue.all },
+          { throwOnError: true },
+        )
+        .then(() => {
+          if (active) setResyncs((count) => count + 1);
+        })
+        .catch(() => undefined);
     };
     const subscriptions = targets.map((target) =>
       events.subscribeRun(
@@ -92,20 +111,21 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
         {
           onPlannerEvent: () => true,
           onLifecycleEvent: invalidate,
-          onResync: invalidate,
+          onResync: resync,
           onStateChange: () => undefined,
           onError: () => undefined,
         },
       ),
     );
     return () => {
+      active = false;
       for (const subscription of subscriptions) {
         subscription.unsubscribe();
       }
     };
     // The fingerprint intentionally makes exact cursors the subscription key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, queryClient, targetFingerprint]);
+  }, [events, queryClient, targetFingerprint, resyncs]);
 }
 
 export function QueuePanel() {

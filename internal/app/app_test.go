@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -422,26 +423,59 @@ func TestRunCLIValidatesConfigurationWithoutStartingServer(t *testing.T) {
 	}
 }
 
-func TestParseMigrationDatabaseURL(t *testing.T) {
+func TestParseMigrationInputs(t *testing.T) {
 	t.Parallel()
 
-	fromEnvironment, err := parseMigrationDatabaseURL(nil, func(key string) string {
+	fromEnvironment, err := parseMigrationInputs(nil, func(key string) string {
 		if key == "CONTRACTOR_DATABASE_URL" {
 			return "postgres://environment"
 		}
 		return ""
 	})
-	if err != nil || fromEnvironment != "postgres://environment" {
-		t.Fatalf("environment database URL = (%q, %v)", fromEnvironment, err)
+	if err != nil || fromEnvironment.databaseURL != "postgres://environment" ||
+		fromEnvironment.budgets != persistencepostgres.DefaultMigrationBudgets() {
+		t.Fatalf("environment migration inputs = (%+v, %v)", fromEnvironment, err)
 	}
-	fromFlag, err := parseMigrationDatabaseURL(
+	fromFlag, err := parseMigrationInputs(
 		[]string{"--database-url", "postgres://flag"},
-		func(string) string { return "postgres://environment" },
+		func(key string) string {
+			if key == "CONTRACTOR_DATABASE_URL" {
+				return "postgres://environment"
+			}
+			return ""
+		},
 	)
-	if err != nil || fromFlag != "postgres://flag" {
-		t.Fatalf("flag database URL = (%q, %v)", fromFlag, err)
+	if err != nil || fromFlag.databaseURL != "postgres://flag" {
+		t.Fatalf("flag database URL = (%+v, %v)", fromFlag, err)
 	}
-	if _, err := parseMigrationDatabaseURL(nil, func(string) string { return "" }); err == nil {
+	if _, err := parseMigrationInputs(nil, func(string) string { return "" }); err == nil {
 		t.Fatal("missing migration database URL succeeded")
+	}
+
+	environment := map[string]string{
+		"CONTRACTOR_DATABASE_URL":              "postgres://environment",
+		"CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT": "30m",
+		"CONTRACTOR_MIGRATE_LOCK_TIMEOUT":      "1m",
+	}
+	getenv := func(key string) string { return environment[key] }
+	timeouts, err := parseMigrationInputs(nil, getenv)
+	if err != nil || timeouts.budgets != (persistencepostgres.MigrationBudgets{StatementTimeout: 30 * time.Minute, LockTimeout: time.Minute}) {
+		t.Fatalf("environment migration timeouts = (%+v, %v)", timeouts, err)
+	}
+	timeouts, err = parseMigrationInputs([]string{"--statement-timeout", "10m", "--lock-timeout", "30s"}, getenv)
+	if err != nil || timeouts.budgets != (persistencepostgres.MigrationBudgets{StatementTimeout: 10 * time.Minute, LockTimeout: 30 * time.Second}) {
+		t.Fatalf("flag migration timeouts = (%+v, %v)", timeouts, err)
+	}
+	for _, args := range [][]string{
+		{"--statement-timeout", "0"}, {"--lock-timeout", "-1s"}, {"--lock-timeout", "30m"},
+		{"--statement-timeout", "25h"}, {"--statement-timeout", "soon"},
+	} {
+		if _, err := parseMigrationInputs(args, getenv); err == nil {
+			t.Errorf("invalid migration timeouts %v accepted", args)
+		}
+	}
+	environment["CONTRACTOR_MIGRATE_LOCK_TIMEOUT"] = "later"
+	if _, err := parseMigrationInputs(nil, getenv); err == nil || !strings.Contains(err.Error(), "CONTRACTOR_MIGRATE_LOCK_TIMEOUT") {
+		t.Fatalf("invalid environment migration timeout: %v", err)
 	}
 }

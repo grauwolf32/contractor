@@ -15,9 +15,11 @@ from google.adk.tools import FunctionTool
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
+    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactHTTPResponse,
+    ArtifactResponseLimitError,
     ArtifactTransportError,
     ArtifactValue,
     ArtifactWriteValue,
@@ -141,6 +143,7 @@ def test_write_replace_append_list_search_and_tag_semantics() -> None:
 
         read = await tools["read_memory"]("findings")
         assert read == appended
+        assert client.read_limits == {MAXIMUM_PAYLOAD_BYTES}
         listed = await tools["list_memories"]()
         assert [note["name"] for note in listed] == ["findings", "repo_overview"]
         assert all("content" not in note for note in listed)
@@ -759,11 +762,13 @@ def test_reconciliation_uses_current_read_authority_error() -> None:
             super().__init__(write_faults=["before", "before"])
             self.reads = 0
 
-        async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        async def read_artifact(
+            self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+        ) -> ArtifactValue:
             self.reads += 1
             if self.reads == 2:
                 raise ArtifactAPIError(409, "allocation_write_fenced", False)
-            return await super().read_artifact(ref)
+            return await super().read_artifact(ref, max_bytes=max_bytes)
 
     async def scenario() -> None:
         client = SequencedReadClient()
@@ -1071,6 +1076,7 @@ class FakeArtifactClient:
         self.active_operations = 0
         self.maximum_active_operations = 0
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
+        self.read_limits: set[int] = set()
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -1103,13 +1109,20 @@ class FakeArtifactClient:
                 and (name_prefix is None or name.startswith(name_prefix))
             ][:limit]
 
-    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+    async def read_artifact(
+        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+    ) -> ArtifactValue:
         async with self._operation():
             if self.read_error is not None:
                 raise self.read_error
             stored = self._bindings.get((ref.namespace, ref.name))
             if stored is None or (ref.revision is not None and ref.revision != stored.revision):
                 raise ArtifactAPIError(404, "artifact_not_found", False)
+            self.read_limits.add(max_bytes)
+            if len(stored.payload) > max_bytes:
+                raise ArtifactResponseLimitError(
+                    "Artifact API response exceeds the read byte limit"
+                )
             exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision=stored.revision)
             self._known[(ref.namespace, ref.name, stored.revision)] = exact
             return ArtifactValue(

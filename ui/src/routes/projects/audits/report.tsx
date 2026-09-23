@@ -8,6 +8,7 @@ import {
   type Audit,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
+import { StaleDataWarning } from "../../../app/query-view";
 import { queryKeys } from "../../../api/query-keys";
 import { StateBadge } from "../../runs/components";
 import { useAuditProjectionRefresh } from "./projection-refresh";
@@ -36,14 +37,16 @@ export function AuditReportView({
     refetchOnReconnect: true,
   });
   useAuditProjectionRefresh(audit, queryKey);
-  if (report.isPending) return <p className="loading-copy">Loading report…</p>;
-  if (report.error !== null)
+  if (report.data === undefined) {
+    if (report.error === null)
+      return <p className="loading-copy">Loading report…</p>;
     return (
       <AuditQueueError
         error={report.error}
         onRefresh={() => void report.refetch()}
       />
     );
+  }
   function downloadReport(
     name: string,
     mediaType: string,
@@ -64,6 +67,13 @@ export function AuditReportView({
         </div>
         <StateBadge state={report.data.status} />
       </div>
+      {report.error === null ? null : (
+        <StaleDataWarning
+          error={report.error}
+          onRetry={() => void report.refetch()}
+          retryPending={report.isFetching}
+        />
+      )}
       <p className="muted-copy">
         Read the conclusion and its limitations. Full coverage and accepted
         findings are separate from execution status.

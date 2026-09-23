@@ -191,6 +191,182 @@ SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
 	return Audit{}, ErrPrecondition
 }
 
+// Resume reopens dispatch for a paused Audit with a fresh hold and deadline.
+// It records the owner idempotency row and an audit.resumed event carrying
+// the cleared stop reason, behind the same active-Project gate.
+func (s *PostgresStore) Resume(ctx context.Context, params ResumeParams) (Audit, bool, error) {
+	if err := validateResume(params); err != nil {
+		return Audit{}, false, err
+	}
+	if replay, found, err := s.lookupAuditReplay(
+		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+	); err != nil || found {
+		return replay, false, err
+	}
+	deadline, _ := json.Marshal(params.DeadlineAt)
+	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID})
+	audit, err := scanAudit(s.db.QueryRow(ctx, `
+WITH previous AS MATERIALIZED (
+    SELECT audit.audit_id, audit.stop_reason_code, audit.stop_reason_message,
+           contractor_require_active_audit_project(audit.project_id, audit.owner_id) AS project_gate
+      FROM audits AS audit
+     WHERE audit.owner_id = $1 AND audit.audit_id = $2
+     FOR UPDATE OF audit
+), changed AS (
+    UPDATE audits AS audit
+       SET state = 'active', dispatch_state = 'open', hold_state = 'held',
+           deadline_at = $4, paused_at = NULL, finished_at = NULL,
+           stop_reason_code = NULL, stop_reason_message = NULL,
+           revision = audit.revision + 1,
+           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond'),
+           next_event_sequence = audit.next_event_sequence + 1
+      FROM previous
+     WHERE audit.audit_id = previous.audit_id
+       AND audit.revision = $3 AND audit.state = 'paused'
+    RETURNING audit.*, previous.stop_reason_code AS previous_code,
+              previous.stop_reason_message AS previous_message
+), idempotency_row AS (
+    INSERT INTO audit_idempotency (
+        owner_id, operation, idempotency_key, request_digest,
+        audit_id, resource_id, response_snapshot
+    )
+    SELECT $1, 'audit.transition', $6, $7, audit_id, audit_id, $8::jsonb
+      FROM changed
+), event_row AS (
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT audit_id, next_event_sequence - 1, 'audit.resumed', audit_id, revision,
+           jsonb_build_object(
+               'from', 'paused', 'to', 'active',
+               'previousStopReason', CASE WHEN previous_code IS NULL THEN 'null'::jsonb
+                   ELSE jsonb_build_object('Code', previous_code,
+                                           'Message', COALESCE(previous_message, ''))
+               END,
+               'deadlineAt', $5::jsonb
+           )
+      FROM changed
+)
+SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+		params.OwnerID, params.AuditID, params.ExpectedRevision, params.DeadlineAt, deadline,
+		params.IdempotencyKey, params.RequestDigest, response,
+	))
+	if err == nil {
+		return audit, true, nil
+	}
+	if persistencepostgres.SQLState(err) == "55000" {
+		return Audit{}, false, ErrProjectDeleting
+	}
+	if persistencepostgres.SQLState(err) == "23505" {
+		return s.replayAudit(ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Audit{}, false, fmt.Errorf("resume Audit: %w", err)
+	}
+	if replay, found, replayErr := s.lookupAuditReplay(
+		ctx, params.OwnerID, "audit.transition", params.IdempotencyKey, params.RequestDigest,
+	); replayErr != nil || found {
+		return replay, false, replayErr
+	}
+	if _, getErr := s.Get(ctx, params.OwnerID, params.AuditID); getErr != nil {
+		return Audit{}, false, getErr
+	}
+	return Audit{}, false, ErrPrecondition
+}
+
+// TransitionTrusted applies a service-authorized transition with the same
+// transition table, active-Project gate and state event as other transitions.
+func (s *PostgresStore) TransitionTrusted(
+	ctx context.Context,
+	params TrustedTransitionParams,
+) (Audit, error) {
+	if err := validateTrustedTransition(params); err != nil {
+		return Audit{}, err
+	}
+	var reasonCode, reasonMessage *string
+	if params.Reason != nil {
+		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
+	}
+	audit, err := scanAudit(s.db.QueryRow(ctx, `
+WITH active_project_gate AS MATERIALIZED (
+    SELECT audit.audit_id,
+           CASE WHEN $4 = 'active'
+                THEN contractor_require_active_audit_project(audit.project_id, audit.owner_id)
+           END
+      FROM audits AS audit
+     WHERE audit.audit_id = $1
+     FOR UPDATE OF audit
+), changed AS (
+    UPDATE audits AS audit
+       SET state = $4,
+           paused_at = CASE WHEN $4 = 'paused' THEN clock_timestamp() ELSE NULL END,
+           revision = audit.revision + 1,
+           dispatch_state = CASE
+               WHEN $4 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed', 'deleting')
+                   THEN 'closed'
+               ELSE audit.dispatch_state
+           END,
+           stop_reason_code = $5,
+           stop_reason_message = $6,
+           deletion_requested_at = CASE WHEN $4 = 'deleting'
+               THEN COALESCE(audit.deletion_requested_at, clock_timestamp())
+               ELSE audit.deletion_requested_at
+           END,
+           finished_at = CASE WHEN $4 IN ('completed', 'cancelled', 'failed')
+                              THEN clock_timestamp() ELSE NULL END,
+           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond'),
+           next_event_sequence = audit.next_event_sequence + 1
+      FROM active_project_gate
+     WHERE audit.audit_id = active_project_gate.audit_id
+       AND audit.revision = $2 AND audit.state = $3
+    RETURNING audit.*
+), event_row AS (
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT audit_id, next_event_sequence - 1, 'audit.state_changed', audit_id, revision,
+           jsonb_build_object('from', $3::text, 'to', $4::text)
+      FROM changed
+)
+SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+		params.AuditID, params.ExpectedRevision,
+		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
+	))
+	if err == nil {
+		return audit, nil
+	}
+	if persistencepostgres.SQLState(err) == "55000" {
+		return Audit{}, ErrProjectDeleting
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Audit{}, fmt.Errorf("transition trusted Audit: %w", err)
+	}
+	if _, getErr := s.getAuditTrusted(ctx, params.AuditID); getErr != nil {
+		return Audit{}, getErr
+	}
+	return Audit{}, ErrPrecondition
+}
+
+// ActivateAfterItemReview returns a waiting_review Audit to active after an
+// item decision unless every unsettled item still awaits review, so an
+// approved item becomes dispatchable without waiting for its siblings.
+func (s *PostgresStore) ActivateAfterItemReview(
+	ctx context.Context, auditID string, expectedRevision uint64,
+) (Audit, bool, error) {
+	onlyAwaiting, err := s.onlyAwaitingReview(ctx, auditID)
+	if err != nil || onlyAwaiting {
+		return Audit{}, false, err
+	}
+	audit, err := s.TransitionTrusted(ctx, TrustedTransitionParams{
+		AuditID: auditID, ExpectedRevision: expectedRevision,
+		ExpectedState: AuditWaitingReview, TargetState: AuditActive,
+	})
+	if err != nil {
+		return Audit{}, false, err
+	}
+	return audit, true, nil
+}
+
 func (s *PostgresStore) getAuditTrusted(ctx context.Context, auditID string) (Audit, error) {
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
 SELECT `+auditColumns+` FROM audits WHERE audit_id = $1`, auditID))

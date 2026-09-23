@@ -316,6 +316,17 @@ type TransitionParams struct {
 	RequestDigest    string
 }
 
+// ResumeParams resumes a paused Audit under a fresh dispatch hold. A nil
+// DeadlineAt resumes without a time limit.
+type ResumeParams struct {
+	OwnerID          string
+	AuditID          string
+	ExpectedRevision uint64
+	DeadlineAt       *time.Time
+	IdempotencyKey   string
+	RequestDigest    string
+}
+
 type DeleteParams struct {
 	OwnerID          string
 	AuditID          string
@@ -326,6 +337,16 @@ type DeleteParams struct {
 
 type ClaimedTransitionParams struct {
 	Claim            ControllerClaim
+	ExpectedRevision uint64
+	ExpectedState    AuditState
+	TargetState      AuditState
+	Reason           *StopReason
+}
+
+// TrustedTransitionParams is a service-authorized transition applied inside
+// the caller's transaction. It carries neither owner idempotency nor a claim.
+type TrustedTransitionParams struct {
+	AuditID          string
 	ExpectedRevision uint64
 	ExpectedState    AuditState
 	TargetState      AuditState
@@ -813,9 +834,15 @@ type ReconcileSnapshot struct {
 	RoleExecutions []Execution
 	Receipts       []CollectionReceiptSummary
 	RoleReceipts   []CollectionReceiptSummary
+	// ReadyItems are the current Round's dispatchable items, read directly so
+	// that items awaiting review ahead of them cannot starve dispatch.
+	ReadyItems     []Item
 	MoreItems      bool
 	MoreExecutions bool
 	MoreReceipts   bool
+	// OnlyAwaitingReview is counted over every non-settled item, independent
+	// of the bounded Items window.
+	OnlyAwaitingReview bool
 }
 
 // OwnerRepository never accepts an untrusted owner in stored payloads.

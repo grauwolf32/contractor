@@ -113,6 +113,12 @@ func (s *Service) Submit(
 			return err
 		}
 		origin.InvocationID = canonical.request.InvocationID
+		// The quota counts every submission of the Run, so distinct
+		// submissions must also serialize their count and insert.
+		runLockKey := deterministicID("run-proposal-quota-lock", grant.RunID)
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, runLockKey); err != nil {
+			return fmt.Errorf("lock Run finding proposal quota: %w", err)
+		}
 		var count int
 		if err := tx.QueryRow(ctx, `
 SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).Scan(&count); err != nil {

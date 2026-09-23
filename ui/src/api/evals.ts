@@ -66,12 +66,29 @@ export async function evalInventory<T>(
   return items;
 }
 
-function mutationHeaders(api: PublicAPI, key: string, revision?: number) {
-  api.mutationHeaders({
+export function mutationHeaders(
+  api: PublicAPI,
+  key: string,
+): { "Idempotency-Key": string };
+export function mutationHeaders(
+  api: PublicAPI,
+  key: string,
+  revision: number,
+): { "Idempotency-Key": string; "If-Match": string };
+export function mutationHeaders(
+  api: PublicAPI,
+  key: string,
+  revision?: number,
+): { "Idempotency-Key": string; "If-Match"?: string } {
+  const headers = api.mutationHeaders({
     idempotencyKey: key,
     ...(revision === undefined ? {} : { ifMatch: `"${revision}"` }),
   });
-  return { "Idempotency-Key": key, "If-Match": `"${revision}"` };
+  const ifMatch = headers.get("If-Match");
+  return {
+    "Idempotency-Key": headers.get("Idempotency-Key")!,
+    ...(ifMatch === null ? {} : { "If-Match": ifMatch }),
+  };
 }
 
 export async function getEvalCapabilities(
@@ -145,9 +162,7 @@ export async function importEvalDataset(
       client.POST("/v1/projects/{projectId}/eval-datasets", {
         params: {
           path: { projectId },
-          header: {
-            "Idempotency-Key": mutationHeaders(api, key)["Idempotency-Key"],
-          },
+          header: mutationHeaders(api, key),
         },
         body,
       }),
@@ -212,9 +227,7 @@ export async function saveEvalDraft(
       client.POST("/v1/projects/{projectId}/eval-experiments", {
         params: {
           path: { projectId },
-          header: {
-            "Idempotency-Key": mutationHeaders(api, key)["Idempotency-Key"],
-          },
+          header: mutationHeaders(api, key),
         },
         body: { ...body, controlMode: "server" },
       }),
@@ -355,9 +368,7 @@ export async function submitEvalAssessment(
       client.POST("/v1/eval-experiments/{id}/members/{memberId}/assessments", {
         params: {
           path: { id, memberId },
-          header: {
-            "Idempotency-Key": mutationHeaders(api, key)["Idempotency-Key"],
-          },
+          header: mutationHeaders(api, key),
         },
         body,
       }),

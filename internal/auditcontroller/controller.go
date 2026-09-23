@@ -393,13 +393,9 @@ func (c *Controller) dispatchClosureReason(
 			Code: "controller_contract_invalid", Message: "The active Audit is outside the one-round Controller contract.",
 		}
 	}
-	if audit.ReservedRunCount >= audit.Limits.MaxSubmittedRuns {
-		for _, item := range snapshot.Items {
-			if item.State == auditstore.ItemReady {
-				return &auditstore.StopReason{
-					Code: "submission_budget_exhausted", Message: "The Audit child Run submission budget was exhausted.",
-				}
-			}
+	if audit.ReservedRunCount >= audit.Limits.MaxSubmittedRuns && len(snapshot.ReadyItems) != 0 {
+		return &auditstore.StopReason{
+			Code: "submission_budget_exhausted", Message: "The Audit child Run submission budget was exhausted.",
 		}
 	}
 	return nil
@@ -662,18 +658,6 @@ func auditSettlementBarrier(snapshot auditstore.ReconcileSnapshot) bool {
 	return snapshot.Audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 &&
 		len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions &&
 		snapshot.Audit.Hold != auditstore.HoldHeld
-}
-
-func onlyAwaitingReview(items []auditstore.Item) bool {
-	if len(items) == 0 {
-		return false
-	}
-	for _, item := range items {
-		if item.State != auditstore.ItemAwaitingReview {
-			return false
-		}
-	}
-	return true
 }
 
 func terminalRun(state runstore.WorkflowRunState) bool {

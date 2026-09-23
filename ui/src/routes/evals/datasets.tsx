@@ -17,7 +17,7 @@ import {
 } from "./common";
 import { EvalArtifactPicker } from "./artifact-picker";
 import { useEvalDatasets, useEvalOwner, useEvalProjects } from "./queries";
-import { finishMutation, mutationKey } from "./recovery";
+import { recoverableMutation } from "./recovery";
 import { MAX_EVAL_CASES, MAX_EVAL_DOCUMENT_BYTES } from "./setup-model";
 
 function newCase(): EvalCase {
@@ -259,14 +259,9 @@ export function DatasetAuthor({
           }
         : data;
       const operation = `dataset:${projectId}`;
-      const result = await importEvalDataset(
-        api,
-        projectId,
-        body,
-        await mutationKey(owner, operation, body),
+      return recoverableMutation(owner, operation, body, (key) =>
+        importEvalDataset(api, projectId, body, key),
       );
-      await finishMutation(owner, operation, body);
-      return result;
     },
     onSuccess: async (result) => {
       await cache.invalidateQueries({

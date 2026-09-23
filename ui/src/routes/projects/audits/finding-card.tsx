@@ -67,19 +67,14 @@ function FindingReviewControls({
       ),
   );
 
+  // The Audit detail key prefixes its findings and reviews queries.
   async function invalidate(): Promise<void> {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: queryKeys.audits.detail(audit.auditId),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.findings(audit.auditId),
-      }),
-      queryClient.invalidateQueries({
         queryKey: queryKeys.projects.audits.all(audit.projectId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.reviews(audit.auditId),
       }),
     ]);
   }

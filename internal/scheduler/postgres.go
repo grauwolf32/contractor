@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -341,6 +342,63 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 			nextRunState,
 			reason,
 		)
+		return err
+	})
+}
+
+// FailRunWithActiveStages ends a Run the Scheduler cannot progress. Its
+// preparing, running and aborting Stages end in the same transaction, so
+// terminal allocation recovery releases what they still hold. A finalizing
+// Stage keeps its immutable candidate and cannot be interrupted.
+func (p *PostgresPersistence) FailRunWithActiveStages(
+	ctx context.Context,
+	runID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	reason runstore.Reason,
+	termination runstore.StageTermination,
+	abortID string,
+) error {
+	// Each Stage records the phase it was terminated from.
+	termination.Phase = runstore.TerminationPreparing
+	if err := termination.Validate(); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(termination)
+	if err != nil {
+		return fmt.Errorf("encode StageTermination: %w", err)
+	}
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, runID, expectedRunState); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+UPDATE stage_executions
+SET state = $2::jsonb->>'outcome',
+    state_reason_code = 'termination_committed',
+    state_reason_message = '',
+    termination_schema_version = $3,
+    stage_termination = jsonb_set($2::jsonb, '{phase}', to_jsonb(state)),
+    abort_id = $4,
+    abort_deadline = clock_timestamp(),
+    terminal_at = clock_timestamp(),
+    updated_at = clock_timestamp()
+WHERE run_id = $1 AND state IN ('preparing', 'running')`,
+			runID, encoded, contracts.APIVersion, abortID,
+		); err != nil {
+			return fmt.Errorf("terminate active StageExecutions: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+UPDATE stage_executions
+SET state = stage_termination->>'outcome',
+    state_reason_code = 'termination_committed',
+    state_reason_message = '',
+    terminal_at = clock_timestamp(),
+    updated_at = clock_timestamp()
+WHERE run_id = $1 AND state = 'aborting'`, runID); err != nil {
+			return fmt.Errorf("complete aborting StageExecutions: %w", err)
+		}
+		_, err := runstore.NewPostgresStore(tx).TransitionRun(ctx, runID, expectedRunState, nextRunState, reason)
 		return err
 	})
 }

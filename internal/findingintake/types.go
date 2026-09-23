@@ -33,6 +33,7 @@ var (
 	ErrConflict        = errors.New("finding proposal submission conflicts with its receipt")
 	ErrAccessDenied    = errors.New("finding proposal access is denied")
 	ErrToolNotSelected = errors.New("security finding tool is not selected")
+	ErrAuditClosed     = errors.New("finding proposal destination Audit is closed")
 )
 
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)

@@ -40,8 +40,7 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 				return reconciliationDone(err == nil, err)
 			}
 			if audit.OutstandingRunCount == 0 && len(snapshot.Executions) == 0 &&
-				!snapshot.MoreItems && !snapshot.MoreExecutions &&
-				onlyAwaitingReview(snapshot.Items) {
+				!snapshot.MoreExecutions && snapshot.OnlyAwaitingReview {
 				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
 					Claim: claim, ExpectedRevision: audit.Revision,
 					ExpectedState: auditstore.AuditActive,

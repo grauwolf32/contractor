@@ -2392,6 +2392,35 @@ func (p *memoryAtomicPersistence) CommitTerminationAndFinishRun(
 	return runstore.ErrConflict
 }
 
+func (p *memoryAtomicPersistence) FailRunWithActiveStages(
+	_ context.Context,
+	runID string,
+	expectedRunState runstore.WorkflowRunState,
+	nextRunState runstore.WorkflowRunState,
+	reason runstore.Reason,
+	termination runstore.StageTermination,
+	abortID string,
+) error {
+	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
+		return runstore.ErrConflict
+	}
+	for index := range p.store.stages {
+		stage := &p.store.stages[index]
+		switch stage.State {
+		case runstore.StagePreparing, runstore.StageRunning:
+			ended := termination
+			ended.Phase = runstore.TerminationPhase(stage.State)
+			stage.Termination, stage.AbortID = &ended, &abortID
+			stage.State = runstore.StageExecutionState(ended.Outcome)
+		case runstore.StageAborting:
+			stage.State = runstore.StageExecutionState(stage.Termination.Outcome)
+		}
+	}
+	p.store.run.State, p.store.run.StateReason = nextRunState, reason
+	p.store.claimID = ""
+	return nil
+}
+
 type memoryArtifactResolver struct {
 	current map[string]string
 	values  map[string]ResolvedArtifact
@@ -2468,6 +2497,9 @@ type memoryAllocator struct {
 	reserveError          error
 	losses                []controlplane.AllocationLoss
 	resolvedRuntimeConfig *runtimeconfig.ResolvedRuntimeConfig
+	// record mirrors production placement, which durably pins
+	// stage_allocations rows before the reservation becomes visible.
+	record func(context.Context, string, []controlplane.Reservation) error
 }
 
 func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request controlplane.ReservationRequest) ([]controlplane.Reservation, error) {
@@ -2483,6 +2515,16 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 		reservation, err := a.reservationForRequest(request)
 		if err != nil {
 			return nil, err
+		}
+		if request.Admit != nil {
+			if err := request.Admit(ctx, []controlplane.Reservation{reservation}); err != nil {
+				return nil, err
+			}
+		}
+		if a.record != nil {
+			if err := a.record(ctx, request.StageExecutionID, []controlplane.Reservation{reservation}); err != nil {
+				return nil, err
+			}
 		}
 		a.cached = []controlplane.Reservation{reservation}
 		for _, reservation := range a.cached {

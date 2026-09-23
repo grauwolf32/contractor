@@ -14,6 +14,7 @@ import {
   CONFIG_ID_PATTERN,
   CONFIG_VERSION_PATTERN,
 } from "../../../api/workflows";
+import { QueryView } from "../../../app/query-view";
 import { ErrorNotice } from "../../artifacts/common";
 import { ConfigurationBodyView } from "./body";
 import { LLMGatewayPublicationForm, ModelPolicyPublicationForm } from "./forms";
@@ -147,17 +148,23 @@ export function ConfigurationDetailRoute() {
       </h3>
       {!valid ? (
         <ErrorNotice error={new Error("Configuration route is invalid")} />
-      ) : query.isPending ? (
-        <p className="loading-copy" role="status">
-          Loading configuration…
-        </p>
-      ) : query.error !== null ? (
-        <ErrorNotice error={query.error} />
       ) : (
-        <LoadedConfiguration
-          key={query.data.ref.digest}
-          resource={query.data}
-        />
+        <QueryView
+          query={query}
+          loading={
+            <p className="loading-copy" role="status">
+              Loading configuration…
+            </p>
+          }
+          onRetry={() => void query.refetch()}
+        >
+          {(resource) => (
+            <LoadedConfiguration
+              key={resource.ref.digest}
+              resource={resource}
+            />
+          )}
+        </QueryView>
       )}
     </div>
   );

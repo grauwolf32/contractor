@@ -3,8 +3,11 @@ import {
   createMutationIdempotencyKey,
 } from "../../mutations/idempotency";
 import type { EvalCommand, EvalCommandReceipt } from "../../api/evals";
+import { PublicAPIError } from "../../api/error";
 
 const STORAGE_PREFIX = "contractor.eval-recovery.v1:";
+export const RECOVERY_STORAGE_MESSAGE =
+  "Command recovery could not be saved in this browser. No command was sent.";
 export interface PendingCommand {
   key: string;
   revision: number;
@@ -37,11 +40,15 @@ export async function mutationKey(
   request: unknown,
 ): Promise<string> {
   const entry = storageKey(owner, operation + ":" + (await digest(request)));
-  const existing = localStorage.getItem(entry);
-  if (existing && /^eval-ui-[0-9a-f]{32}$/.test(existing)) return existing;
-  const key = createMutationIdempotencyKey("eval");
-  localStorage.setItem(entry, key);
-  return key;
+  try {
+    const existing = localStorage.getItem(entry);
+    if (existing && /^eval-ui-[0-9a-f]{32}$/.test(existing)) return existing;
+    const key = createMutationIdempotencyKey("eval");
+    localStorage.setItem(entry, key);
+    return key;
+  } catch {
+    throw new Error(RECOVERY_STORAGE_MESSAGE);
+  }
 }
 
 export async function finishMutation(
@@ -49,9 +56,44 @@ export async function finishMutation(
   operation: string,
   request: unknown,
 ): Promise<void> {
-  localStorage.removeItem(
-    storageKey(owner, operation + ":" + (await digest(request))),
+  const entry = storageKey(owner, operation + ":" + (await digest(request)));
+  try {
+    localStorage.removeItem(entry);
+  } catch {
+    // The request already settled; a stale key only replays the same result.
+  }
+}
+
+// A permanent client error will not change on replay, so a retry of the same
+// request needs a fresh key. Timeouts and rate limits keep the key.
+function permanentFailure(error: unknown): boolean {
+  return (
+    error instanceof PublicAPIError &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    error.status !== 408 &&
+    error.status !== 429
   );
+}
+
+export async function recoverableMutation<T>(
+  owner: string,
+  operation: string,
+  request: unknown,
+  send: (key: string) => Promise<T>,
+  { finish = true }: { finish?: boolean } = {},
+): Promise<T> {
+  const key = await mutationKey(owner, operation, request);
+  try {
+    const result = await send(key);
+    if (finish) await finishMutation(owner, operation, request);
+    return result;
+  } catch (error) {
+    if (permanentFailure(error)) {
+      await finishMutation(owner, operation, request);
+    }
+    throw error;
+  }
 }
 
 export function readCommand(owner: string, id: string): PendingCommand | null {
@@ -102,7 +144,12 @@ export function writeCommand(
 ): void {
   const key = storageKey(owner, id);
   if (pending) localStorage.setItem(key, JSON.stringify(pending));
-  else localStorage.removeItem(key);
+  else
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Clearing is best effort; a stale entry replays with its original key.
+    }
 }
 
 export function commandFinished(command: EvalCommandReceipt): boolean {

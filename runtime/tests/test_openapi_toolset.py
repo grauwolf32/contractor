@@ -14,7 +14,11 @@ import yaml
 
 import contractor_runtime.toolsets.openapi.tools as openapi_module
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.artifacts import ArtifactValue
+from contractor_runtime.artifacts import (
+    MAX_ARTIFACT_BYTES,
+    ArtifactResponseLimitError,
+    ArtifactValue,
+)
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
@@ -344,6 +348,7 @@ def test_parser_enforces_byte_depth_and_item_limits(
         tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
         with pytest.raises(ValueError, match="4 MiB"):
             await tools["load_openapi"]("inputs", "oversized", seed.revision)
+        assert client.read_limits == [MAX_DOCUMENT_BYTES]
         assert client.write_count == 0
 
     asyncio.run(oversized_scenario())
@@ -693,6 +698,32 @@ def test_vacuum_adapter_bounds_and_orders_serious_issues(
     assert "shell" not in calls[0][1]
 
 
+def test_vacuum_adapter_builds_snippets_only_for_returned_issues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limit = openapi_module.MAX_VALIDATION_ISSUES
+    issues = [{"severity": 1, "message": f"warning {index}"} for index in range(limit + 50)]
+    issues.append({"severity": 0, "message": "error"})
+
+    def run(command: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 1, json.dumps(issues).encode(), b"")
+
+    snippets: list[str] = []
+    original = openapi_module._issue_with_snippet
+
+    def counting(issue: dict[str, Any], lines: Any) -> dict[str, Any]:
+        snippets.append(issue["message"])
+        return original(issue, lines)
+
+    monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: "/opt/bin/vacuum")
+    monkeypatch.setattr(openapi_module, "run_command", AsyncMock(side_effect=run))
+    monkeypatch.setattr(openapi_module, "_issue_with_snippet", counting)
+    result = asyncio.run(_run_vacuum("alpha\n"))
+    assert result["truncated"]
+    assert len(result["issues"]) == len(snippets) == limit
+    assert result["issues"][0]["message"] == "error"
+
+
 def test_vacuum_adapter_reports_unavailable_timeout_and_bad_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -869,6 +900,7 @@ class MemoryArtifactClient:
         self._next_revision = 1
         self.write_count = 0
         self.read_count = 0
+        self.read_limits: list[int] = []
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -877,12 +909,17 @@ class MemoryArtifactClient:
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
 
-    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+    async def read_artifact(
+        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+    ) -> ArtifactValue:
         self.read_count += 1
+        self.read_limits.append(max_bytes)
         if ref.revision is None:
             stored = self.bindings[(ref.namespace, ref.name)]
         else:
             stored = self.history[(ref.namespace, ref.name, ref.revision)]
+        if len(stored.data) > max_bytes:
+            raise ArtifactResponseLimitError("Artifact API response exceeds the read byte limit")
         exact = ArtifactRef(
             namespace=ref.namespace,
             name=ref.name,

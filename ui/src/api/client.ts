@@ -10,7 +10,7 @@ import {
   validateAPIBaseURL,
 } from "../config/runtime-config";
 import { APICompatibilityError, PublicAPIError, publicAPIError } from "./error";
-import type { components, paths } from "./generated/public";
+import type { components, operations, paths } from "./generated/public";
 
 const MAXIMUM_ERROR_BODY_BYTES = 64 * 1024;
 const SAFE_HEADER_VALUE = /^[\x21-\x7E]{1,256}$/;
@@ -327,20 +327,13 @@ export class PublicAPI {
   }
 
   async logout(): Promise<void> {
-    const headers = this.mutationHeaders();
-    const csrf = headers.get("X-CSRF-Token");
-    if (csrf === null) {
+    if (this.csrf.get() === undefined) {
       throw new TypeError("An authenticated CSRF token is required");
     }
+    // The browser sets Origin and the checked fetch adds X-CSRF-Token.
+    const header = {} as operations["logout"]["parameters"]["header"];
     const result = await this.request((client) =>
-      client.POST("/v1/auth/logout", {
-        params: {
-          header: {
-            Origin: globalThis.location.origin,
-            "X-CSRF-Token": csrf,
-          },
-        },
-      }),
+      client.POST("/v1/auth/logout", { params: { header } }),
     );
     if (result.error !== undefined) {
       throw publicAPIError(result.response.status, result.error);

@@ -53,6 +53,8 @@ describe("PublicAPI", () => {
     await api.logout();
     expect(requests[1]?.method).toBe("POST");
     expect(requests[1]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    // Browsers own Origin; a script-set value is dropped.
+    expect(requests[1]?.headers.get("Origin")).toBeNull();
     expect(api.csrf.get()).toBeUndefined();
   });
 

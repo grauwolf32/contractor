@@ -129,6 +129,15 @@ type AtomicPersistence interface {
 		runstore.WorkflowRunState,
 		runstore.Reason,
 	) error
+	FailRunWithActiveStages(
+		context.Context,
+		string,
+		runstore.WorkflowRunState,
+		runstore.WorkflowRunState,
+		runstore.Reason,
+		runstore.StageTermination,
+		string,
+	) error
 }
 
 type ResolvedArtifact struct {

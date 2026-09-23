@@ -508,6 +508,10 @@ func (laneNoopPersistence) CommitTerminationAndFinishRun(context.Context, string
 	return errors.New("unexpected persistence call")
 }
 
+func (laneNoopPersistence) FailRunWithActiveStages(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason, runstore.StageTermination, string) error {
+	return errors.New("unexpected persistence call")
+}
+
 type laneNoopArtifacts struct{}
 
 func (laneNoopArtifacts) Resolve(context.Context, string, contracts.ArtifactRef) (ResolvedArtifact, error) {

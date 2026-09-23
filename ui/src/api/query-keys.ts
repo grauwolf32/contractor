@@ -9,6 +9,7 @@ export const queryKeys = {
   },
   projects: {
     all: ["projects"] as const,
+    lists: (kind: string) => ["projects", "list", kind] as const,
     list: (kind: string, cursor?: string) =>
       ["projects", "list", kind, cursor ?? null] as const,
     detail: (projectId: string) => ["projects", "detail", projectId] as const,
@@ -125,16 +126,12 @@ export const queryKeys = {
   audits: {
     all: ["audits"] as const,
     detail: (auditId: string) => ["audits", "detail", auditId] as const,
-    items: (auditId: string, cursor?: string) =>
-      ["audits", "detail", auditId, "items", cursor ?? null] as const,
     coverage: (auditId: string, cursor?: string) =>
       ["audits", "detail", auditId, "coverage", cursor ?? null] as const,
     allCoverage: (auditId: string) =>
       ["audits", "detail", auditId, "coverage", "all"] as const,
     report: (auditId: string) =>
       ["audits", "detail", auditId, "report"] as const,
-    findings: (auditId: string, cursor?: string) =>
-      ["audits", "detail", auditId, "findings", cursor ?? null] as const,
     allFindings: (auditId: string) =>
       ["audits", "detail", auditId, "findings", "all"] as const,
     allReviews: (auditId: string) =>

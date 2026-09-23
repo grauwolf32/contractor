@@ -305,6 +305,68 @@ describe("Runs Queue view", () => {
     expect(queueReads).toBeGreaterThan(1);
   });
 
+  it("resubscribes after a resync even when the refetched cursors are unchanged", async () => {
+    let queueReads = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue/control") {
+          return queueControlResponse();
+        }
+        if (url.pathname === "/v1/queue") {
+          queueReads += 1;
+          return apiResponse({
+            items: [queueItem("run-live")],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderQueueApplication(api);
+
+    expect(
+      await screen.findByRole("link", { name: "run-live" }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
+    const socket = QueueWebSocket.instances[0];
+    act(() => socket?.open());
+    const subscription = JSON.parse(socket?.sent[0] ?? "{}");
+    act(() =>
+      socket?.message({
+        version: "contractor.events.v1",
+        type: "subscribed",
+        subscriptionId: subscription.subscriptionId,
+        stream: subscription.stream,
+        cursor: subscription.after,
+      }),
+    );
+    const readsBeforeResync = queueReads;
+    act(() =>
+      socket?.message({
+        version: "contractor.events.v1",
+        type: "resync_required",
+        subscriptionId: subscription.subscriptionId,
+        stream: subscription.stream,
+        reason: "sequence_gap",
+      }),
+    );
+
+    await waitFor(() => expect(queueReads).toBeGreaterThan(readsBeforeResync));
+    await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(2));
+    const replacement = QueueWebSocket.instances[1];
+    act(() => replacement?.open());
+    expect(JSON.parse(replacement?.sent[0] ?? "{}")).toMatchObject({
+      stream: { kind: "run", id: "run-live" },
+      after: { generation: "events-run-live", sequence: "1" },
+    });
+  });
+
   it("opens Queue deep links with active filters", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(

@@ -235,6 +235,7 @@ class _Cursor:
 class _CachedFile:
     symbols: tuple[SymbolRecord, ...]
     parse_error: bool
+    long_names_skipped: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,7 +321,7 @@ class _CodeAnalysisSession:
             matches.sort(key=_symbol_sort_key)
             rows = await _to_thread_cancellation_safe(
                 _definition_rows,
-                tuple(matches),
+                tuple(matches[offset : offset + resolved_limit]),
                 files,
             )
             value = self._page(
@@ -331,6 +332,7 @@ class _CodeAnalysisSession:
                 operation="search_def",
                 query=query,
                 coverage=coverage,
+                total=len(matches),
             )
             return _OperationResult(value, _metric(value, coverage, stats))
 
@@ -941,6 +943,8 @@ class _CodeAnalysisSession:
             coverage.parse_errors += int(parsed.parse_error)
             if parsed.parse_error:
                 coverage.reasons.add("parse_errors")
+            if parsed.long_names_skipped:
+                coverage.reasons.add("symbol_name_limit")
             admitted = parsed.symbols[:remaining]
             symbols.extend(admitted)
             seen_symbols += len(admitted)
@@ -963,7 +967,9 @@ class _CodeAnalysisSession:
         cached = self._file_cache.get(item.path)
         if cached is not None:
             return (
-                language_support.ParseResult(cached.symbols, cached.parse_error, False),
+                language_support.ParseResult(
+                    cached.symbols, cached.parse_error, False, cached.long_names_skipped
+                ),
                 True,
             )
         try:
@@ -989,7 +995,9 @@ class _CodeAnalysisSession:
             and len(self._file_cache) < MAX_COMPACT_CACHE_FILES
             and self._cached_symbols + len(parsed.symbols) <= MAX_COMPACT_SYMBOLS
         ):
-            self._file_cache[item.path] = _CachedFile(parsed.symbols, parsed.parse_error)
+            self._file_cache[item.path] = _CachedFile(
+                parsed.symbols, parsed.parse_error, parsed.long_names_skipped
+            )
             self._cached_symbols += len(parsed.symbols)
         return parsed, False
 
@@ -1003,22 +1011,26 @@ class _CodeAnalysisSession:
         operation: str,
         query: str,
         coverage: _Coverage,
+        total: int | None = None,
     ) -> dict[str, Any]:
-        if offset > len(rows):
+        """Page rows; with total, rows is already the slice starting at offset."""
+
+        observed_total = len(rows) if total is None else total
+        if offset > observed_total:
             raise CodeAnalysisError("code_analysis_cursor_invalid")
-        page = rows[offset : offset + limit]
+        page = rows[offset : offset + limit] if total is None else rows[:limit]
         while True:
             next_offset = offset + len(page)
             next_cursor = (
                 self._encode_cursor(snapshot, operation, query, next_offset)
-                if next_offset < len(rows)
+                if next_offset < observed_total
                 else None
             )
             result = {
                 "items": page,
                 "nextCursor": next_cursor,
                 "truncated": next_cursor is not None,
-                "observedTotal": len(rows),
+                "observedTotal": observed_total,
                 "coverage": coverage.wire(),
             }
             if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
@@ -1660,9 +1672,9 @@ def _symbol_row(item: SymbolRecord) -> dict[str, Any]:
     }
 
 
-def _definition_row(item: SymbolRecord, file: WorkspaceTextFile) -> dict[str, Any]:
+def _definition_row(item: SymbolRecord, source: bytes) -> dict[str, Any]:
     row = _symbol_row(item)
-    preview = _preview(file.text, item.start_byte, item.end_byte)
+    preview = _preview(source, item.start_byte, item.end_byte)
     if preview:
         row["preview"] = preview
     return row
@@ -1672,7 +1684,14 @@ def _definition_rows(
     symbols: tuple[SymbolRecord, ...],
     files: Mapping[str, WorkspaceTextFile],
 ) -> list[dict[str, Any]]:
-    return [_definition_row(item, files[item.path]) for item in symbols]
+    encoded: dict[str, bytes] = {}
+    rows = []
+    for item in symbols:
+        source = encoded.get(item.path)
+        if source is None:
+            source = encoded[item.path] = files[item.path].text.encode("utf-8")
+        rows.append(_definition_row(item, source))
+    return rows
 
 
 def _contains_casefold(text: str, needle: str) -> bool:
@@ -1695,8 +1714,7 @@ def _parse_symbols_text(
     )
 
 
-def _preview(text: str, start_byte: int, end_byte: int) -> str:
-    source = text.encode("utf-8")
+def _preview(source: bytes, start_byte: int, end_byte: int) -> str:
     selected = source[start_byte:end_byte].decode("utf-8", errors="strict")
     selected = "\n".join(selected.splitlines()[:MAX_PREVIEW_LINES])
     encoded = selected.encode("utf-8")

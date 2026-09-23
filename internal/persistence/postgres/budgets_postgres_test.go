@@ -224,7 +224,14 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 		}
 	}
 	check(ctx, pool, smallDatabaseBudgets())
-	for _, budget := range []func(context.Context) (context.Context, context.CancelFunc){WithMigrationBudget, WithCleanupBudget} {
+	configuredMigration := func(ctx context.Context) (context.Context, context.CancelFunc) {
+		ctx, cancel, err := WithMigrationBudgets(ctx, MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ctx, cancel
+	}
+	for _, budget := range []func(context.Context) (context.Context, context.CancelFunc){WithMigrationBudget, configuredMigration, WithCleanupBudget} {
 		for _, rollback := range []bool{false, true} {
 			maintenance, done := budget(ctx)
 			err := InTx(maintenance, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -247,7 +254,10 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	if result, err := ApplyMigrations(ctx, pool); err != nil || len(result.AppliedVersions) != 0 {
+	if _, err := ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{StatementTimeout: time.Second, LockTimeout: time.Second}); err == nil {
+		t.Fatal("invalid migration budgets were accepted")
+	}
+	if result, err := ApplyMigrationsWithBudgets(ctx, pool, MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second}); err != nil || len(result.AppliedVersions) != 0 {
 		t.Fatalf("migration replay: %+v %v", result, err)
 	}
 	check(ctx, pool, smallDatabaseBudgets())

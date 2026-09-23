@@ -141,6 +141,23 @@ func (a *PlacementAllocator) ReserveAllContext(
 		}
 	}()
 
+	if request.Admit != nil {
+		candidates := make([]Reservation, len(reservations))
+		for index, reservation := range reservations {
+			resolved, ok := optimistic[placementResolutionKey(
+				reservation.Grant.LogicalAgentName, reservation.Grant.RuntimeInstanceID,
+			)]
+			if !ok {
+				return nil, errors.New("candidate placement omitted a selected resolution")
+			}
+			reservation.ResolvedRuntimeConfig = &resolved
+			candidates[index] = reservation
+		}
+		if err := request.Admit(ctx, candidates); err != nil {
+			return nil, err
+		}
+	}
+
 	selectedCandidates := make(map[string]AgentSnapshot, len(reservations))
 	for _, candidate := range candidates {
 		selectedCandidates[candidate.Registration.InstanceID] = candidate

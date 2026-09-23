@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
-from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.projectfs.storage import (
@@ -222,16 +222,19 @@ class _OpenAPISession:
         require_model_visible_binding(namespace, name)
         require_model_visible_binding(self._namespace, target_name)
         if namespace != self._namespace and revision is None:
-            raise ValueError(
+            raise ToolInputError(
                 "an OpenAPI seed outside the Worker namespace requires an exact revision"
             )
         source_ref = ArtifactRef(namespace=namespace, name=name, revision=revision)
         async with self._lock:
-            value = await self._client.read_artifact(source_ref)
+            try:
+                value = await self._client.read_artifact(source_ref, max_bytes=MAX_DOCUMENT_BYTES)
+            except ArtifactResponseLimitError:
+                raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit") from None
             if revision is not None and value.artifact.revision != revision:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
             if value.media_type not in {"application/yaml", "application/json"}:
-                raise ValueError(
+                raise ToolInputError(
                     "OpenAPI seed media type must be application/yaml or application/json"
                 )
             document = _parse_document(value.data)
@@ -352,7 +355,7 @@ class _OpenAPISession:
         async with self._lock:
             document, artifact = self._require_document()
             if normalized not in document["paths"]:
-                raise ValueError("OpenAPI path is absent")
+                raise ToolInputError("OpenAPI path is absent", code="openapi_path_not_found")
             value = copy.deepcopy(document["paths"][normalized])
             _bound_targeted_result(value)
             return {
@@ -366,7 +369,7 @@ class _OpenAPISession:
     ) -> dict[str, Any]:
         normalized = _validate_api_path(path)
         if not isinstance(path_item, dict):
-            raise ValueError("path_item must be an object")
+            raise ToolInputError("path_item must be an object")
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(path_item)
         candidate["x-path-files"] = validated_evidence
@@ -387,7 +390,7 @@ class _OpenAPISession:
 
         def modify(document: dict[str, Any]) -> None:
             if normalized not in document["paths"]:
-                raise ValueError("OpenAPI path is absent")
+                raise ToolInputError("OpenAPI path is absent", code="openapi_path_not_found")
             del document["paths"][normalized]
 
         result = await self._mutate(modify, operation="remove_path")
@@ -414,7 +417,9 @@ class _OpenAPISession:
             document, artifact = self._require_document()
             components = document.get("components", {}).get(normalized, {})
             if name not in components:
-                raise ValueError("OpenAPI component is absent")
+                raise ToolInputError(
+                    "OpenAPI component is absent", code="openapi_component_not_found"
+                )
             value = copy.deepcopy(components[name])
             _bound_targeted_result(value)
             return {
@@ -434,7 +439,7 @@ class _OpenAPISession:
         normalized = _validate_component_section(section)
         _validate_component_name(name)
         if not isinstance(component, dict):
-            raise ValueError("component must be an object")
+            raise ToolInputError("component must be an object")
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(component)
         candidate["x-component-files"] = validated_evidence
@@ -455,7 +460,9 @@ class _OpenAPISession:
         def modify(document: dict[str, Any]) -> None:
             values = document.setdefault("components", {}).setdefault(normalized, {})
             if name not in values:
-                raise ValueError("OpenAPI component is absent")
+                raise ToolInputError(
+                    "OpenAPI component is absent", code="openapi_component_not_found"
+                )
             del values[name]
 
         result = await self._mutate(modify, operation="remove_component")
@@ -467,7 +474,7 @@ class _OpenAPISession:
             document, artifact = self._require_document()
             rendered = _dump_document(document).decode("utf-8")
             if len(rendered.encode("utf-8")) > MAX_TARGETED_RESULT_BYTES:
-                raise ValueError("OpenAPI document exceeds the full-read model output limit")
+                raise ToolInputError("OpenAPI document exceeds the full-read model output limit")
             return {
                 "artifact": artifact.model_dump(by_alias=True),
                 "mediaType": TARGET_MEDIA_TYPE,
@@ -597,18 +604,20 @@ class _OpenAPISession:
         if project_evidence_paths is None:
             root = self._source_root.resolve()
             if self._source_root.is_symlink() or not self._source_root.is_dir():
-                raise ValueError("open_source_archive must materialize source before mutation")
+                raise ToolInputError("open_source_archive must materialize source before mutation")
         result: list[str] = []
         seen: set[str] = set()
         for raw in evidence_files:
             normalized = _validate_relative_source_path(raw)
             if PurePosixPath(normalized).suffix.lower() in SOURCE_EVIDENCE_DENIED_SUFFIXES:
-                raise ValueError("OpenAPI provenance must reference implementation source files")
+                raise ToolInputError(
+                    "OpenAPI provenance must reference implementation source files"
+                )
             if normalized in seen:
                 continue
             if project_evidence_paths is not None:
                 if normalized not in project_evidence_paths:
-                    raise ValueError(f"source evidence file does not exist: {normalized}")
+                    raise ToolInputError(f"source evidence file does not exist: {normalized}")
             else:
                 assert root is not None
                 candidate = self._source_root.joinpath(*PurePosixPath(normalized).parts)
@@ -618,7 +627,7 @@ class _OpenAPISession:
                     or candidate.is_symlink()
                     or not candidate.is_file()
                 ):
-                    raise ValueError(f"source evidence file does not exist: {normalized}")
+                    raise ToolInputError(f"source evidence file does not exist: {normalized}")
             seen.add(normalized)
             result.append(normalized)
         return result
@@ -1220,9 +1229,9 @@ def _construct_unique_mapping(
         try:
             duplicate = key in result
         except TypeError as error:
-            raise ValueError("OpenAPI YAML mapping keys must be scalar strings") from error
+            raise ToolInputError("OpenAPI YAML mapping keys must be scalar strings") from error
         if duplicate:
-            raise ValueError(f"OpenAPI YAML contains duplicate key {key!r}")
+            raise ToolInputError(f"OpenAPI YAML contains duplicate key {key!r}")
         result[key] = loader.construct_object(value_node, deep=deep)
     return result
 
@@ -1234,20 +1243,20 @@ _UniqueSafeLoader.add_constructor(
 
 def _parse_document(data: bytes) -> dict[str, Any]:
     if len(data) > MAX_DOCUMENT_BYTES:
-        raise ValueError("OpenAPI document exceeds the 4 MiB domain limit")
+        raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit")
     try:
         text = data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
-        raise ValueError("OpenAPI document must be valid UTF-8") from error
+        raise ToolInputError("OpenAPI document must be valid UTF-8") from error
     try:
         events = list(yaml.parse(text, Loader=yaml.SafeLoader))
         if any(getattr(event, "anchor", None) is not None for event in events):
-            raise ValueError("OpenAPI YAML aliases and anchors are not supported")
+            raise ToolInputError("OpenAPI YAML aliases and anchors are not supported")
         documents = list(yaml.load_all(text, Loader=_UniqueSafeLoader))
     except yaml.YAMLError as error:
-        raise ValueError("OpenAPI document is not valid YAML or JSON") from error
+        raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
     if len(documents) != 1 or not isinstance(documents[0], dict):
-        raise ValueError("OpenAPI artifact must contain exactly one object document")
+        raise ToolInputError("OpenAPI artifact must contain exactly one object document")
     document = documents[0]
     _validate_json_tree(document)
     return document
@@ -1260,41 +1269,41 @@ def _validate_json_tree(value: Any) -> None:
     def visit(item: Any, depth: int) -> None:
         nonlocal count
         if depth > MAX_DOCUMENT_DEPTH:
-            raise ValueError("OpenAPI document exceeds the maximum nesting depth")
+            raise ToolInputError("OpenAPI document exceeds the maximum nesting depth")
         count += 1
         if count > MAX_DOCUMENT_ITEMS:
-            raise ValueError("OpenAPI document exceeds the collection item limit")
+            raise ToolInputError("OpenAPI document exceeds the collection item limit")
         if item is None or isinstance(item, str | bool):
             return
         if isinstance(item, int):
             if abs(item) > (1 << 53) - 1:
-                raise ValueError("OpenAPI document contains a non-I-JSON integer")
+                raise ToolInputError("OpenAPI document contains a non-I-JSON integer")
             return
         if isinstance(item, float):
             if not math.isfinite(item):
-                raise ValueError("OpenAPI document contains a non-finite number")
+                raise ToolInputError("OpenAPI document contains a non-finite number")
             return
         if isinstance(item, dict):
             identity = id(item)
             if identity in active:
-                raise ValueError("OpenAPI document contains a cycle")
+                raise ToolInputError("OpenAPI document contains a cycle")
             active.add(identity)
             for key, child in item.items():
                 if not isinstance(key, str):
-                    raise ValueError("OpenAPI object keys must be strings")
+                    raise ToolInputError("OpenAPI object keys must be strings")
                 visit(child, depth + 1)
             active.remove(identity)
             return
         if isinstance(item, list):
             identity = id(item)
             if identity in active:
-                raise ValueError("OpenAPI document contains a cycle")
+                raise ToolInputError("OpenAPI document contains a cycle")
             active.add(identity)
             for child in item:
                 visit(child, depth + 1)
             active.remove(identity)
             return
-        raise ValueError(f"OpenAPI document contains unsupported {type(item).__name__} value")
+        raise ToolInputError(f"OpenAPI document contains unsupported {type(item).__name__} value")
 
     visit(value, 0)
 
@@ -1305,15 +1314,15 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
     if not isinstance(version, str) or not (
         version.startswith("3.0.") or version.startswith("3.1.")
     ):
-        raise ValueError("OpenAPI document must declare a supported 3.0.x or 3.1.x version")
+        raise ToolInputError("OpenAPI document must declare a supported 3.0.x or 3.1.x version")
     info = document.get("info")
     if not isinstance(info, dict):
-        raise ValueError("OpenAPI info must be an object")
+        raise ToolInputError("OpenAPI info must be an object")
     _require_nonempty("info.title", info.get("title"))
     _require_nonempty("info.version", info.get("version"))
     paths = document.get("paths")
     if not isinstance(paths, dict):
-        raise ValueError("OpenAPI paths must be an object")
+        raise ToolInputError("OpenAPI paths must be an object")
     for path, path_item in paths.items():
         _validate_api_path(path)
         _validate_path_item(path_item)
@@ -1321,16 +1330,16 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
             _validate_provenance(path_item.get("x-path-files"), "path")
     components = document.get("components", {})
     if not isinstance(components, dict):
-        raise ValueError("OpenAPI components must be an object")
+        raise ToolInputError("OpenAPI components must be an object")
     for section, values in components.items():
         if section not in ALLOWED_COMPONENT_SECTIONS:
             # OpenAPI extensions can add x-* component-adjacent data, but an
             # unknown component bucket is almost certainly a model mistake.
-            raise ValueError(f"unsupported OpenAPI component section: {section}")
+            raise ToolInputError(f"unsupported OpenAPI component section: {section}")
         if version.startswith("3.0.") and section == "pathItems":
-            raise ValueError("OpenAPI components.pathItems requires OpenAPI 3.1")
+            raise ToolInputError("OpenAPI components.pathItems requires OpenAPI 3.1")
         if not isinstance(values, dict):
-            raise ValueError(f"OpenAPI components.{section} must be an object")
+            raise ToolInputError(f"OpenAPI components.{section} must be an object")
         for name, component in values.items():
             _validate_component_name(name)
             _validate_component(section, component)
@@ -1347,16 +1356,16 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
 
 def _validate_path_item(value: Any) -> None:
     if not isinstance(value, dict):
-        raise ValueError("OpenAPI Path Item must be an object")
+        raise ToolInputError("OpenAPI Path Item must be an object")
     try:
         PathItem.model_validate(value)
     except ValidationError as error:
-        raise ValueError(_validation_message("PathItem", error)) from error
+        raise ToolInputError(_validation_message("PathItem", error)) from error
 
 
 def _validate_component(section: str, value: Any) -> None:
     if not isinstance(value, dict):
-        raise ValueError("OpenAPI component must be an object")
+        raise ToolInputError("OpenAPI component must be an object")
     model: Any | None = {
         "securitySchemes": SecurityScheme,
         "requestBodies": RequestBody,
@@ -1366,7 +1375,7 @@ def _validate_component(section: str, value: Any) -> None:
         try:
             model.model_validate(value)
         except ValidationError as error:
-            raise ValueError(_validation_message(model.__name__, error)) from error
+            raise ToolInputError(_validation_message(model.__name__, error)) from error
 
 
 def _validate_reference_siblings(value: Any, version: str) -> None:
@@ -1374,7 +1383,7 @@ def _validate_reference_siblings(value: Any, version: str) -> None:
 
     if isinstance(value, dict):
         if version.startswith("3.0.") and "$ref" in value and len(value) != 1:
-            raise ValueError("OpenAPI 3.0 $ref objects cannot contain sibling fields")
+            raise ToolInputError("OpenAPI 3.0 $ref objects cannot contain sibling fields")
         for child in value.values():
             _validate_reference_siblings(child, version)
     elif isinstance(value, list):
@@ -1465,7 +1474,7 @@ def _validate_local_refs(document: dict[str, Any]) -> None:
             ref = value.get("$ref")
             if ref is not None:
                 if not isinstance(ref, str) or not ref.startswith("#/"):
-                    raise ValueError("OpenAPI $ref must be a local JSON pointer")
+                    raise ToolInputError("OpenAPI $ref must be a local JSON pointer")
                 refs.append(ref)
             for child in value.values():
                 collect(child)
@@ -1483,7 +1492,7 @@ def _validate_local_refs(document: dict[str, Any]) -> None:
             elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
                 current = current[int(token)]
             else:
-                raise ValueError(f"OpenAPI local reference is unresolved: {ref}")
+                raise ToolInputError(f"OpenAPI local reference is unresolved: {ref}")
 
 
 def _validate_provenance(value: Any, kind: str) -> None:
@@ -1492,38 +1501,38 @@ def _validate_provenance(value: Any, kind: str) -> None:
         or not value
         or any(not isinstance(item, str) or not item for item in value)
     ):
-        raise ValueError(f"OpenAPI {kind} is missing source provenance")
+        raise ToolInputError(f"OpenAPI {kind} is missing source provenance")
 
 
 def _validate_servers(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list) or len(value) > 100:
-        raise ValueError("OpenAPI servers must be a list of at most 100 entries")
+        raise ToolInputError("OpenAPI servers must be a list of at most 100 entries")
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for server in value:
         if not isinstance(server, dict):
-            raise ValueError("OpenAPI server entries must be objects")
+            raise ToolInputError("OpenAPI server entries must be objects")
         url = server.get("url")
         _require_nonempty("server.url", url)
         assert isinstance(url, str)
         if url in seen:
-            raise ValueError("OpenAPI server URLs must be unique")
+            raise ToolInputError("OpenAPI server URLs must be unique")
         seen.add(url)
         description = server.get("description")
         if description is not None and not isinstance(description, str):
-            raise ValueError("OpenAPI server description must be a string")
+            raise ToolInputError("OpenAPI server description must be a string")
         result.append(copy.deepcopy(server))
     return result
 
 
 def _validate_tags(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list) or len(value) > 100:
-        raise ValueError("OpenAPI tags must be a list of at most 100 entries")
+        raise ToolInputError("OpenAPI tags must be a list of at most 100 entries")
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for tag in value:
         if not isinstance(tag, dict):
-            raise ValueError("OpenAPI tag entries must be objects")
+            raise ToolInputError("OpenAPI tag entries must be objects")
         unsupported = [
             key
             for key in tag
@@ -1531,27 +1540,27 @@ def _validate_tags(value: Any) -> list[dict[str, Any]]:
             and not (isinstance(key, str) and key.startswith("x-"))
         ]
         if unsupported:
-            raise ValueError("OpenAPI tag contains unsupported fields")
+            raise ToolInputError("OpenAPI tag contains unsupported fields")
         name = tag.get("name")
         _require_nonempty("tag.name", name)
         assert isinstance(name, str)
         if len(name) > 256 or name in seen:
-            raise ValueError("OpenAPI tag names must be unique and at most 256 characters")
+            raise ToolInputError("OpenAPI tag names must be unique and at most 256 characters")
         seen.add(name)
         description = tag.get("description")
         if description is not None and not isinstance(description, str):
-            raise ValueError("OpenAPI tag description must be a string")
+            raise ToolInputError("OpenAPI tag description must be a string")
         external_docs = tag.get("externalDocs")
         if external_docs is not None:
             if not isinstance(external_docs, dict) or set(external_docs) - {
                 "url",
                 "description",
             }:
-                raise ValueError("OpenAPI tag externalDocs is invalid")
+                raise ToolInputError("OpenAPI tag externalDocs is invalid")
             _require_nonempty("tag.externalDocs.url", external_docs.get("url"))
             external_description = external_docs.get("description")
             if external_description is not None and not isinstance(external_description, str):
-                raise ValueError("OpenAPI tag externalDocs description must be a string")
+                raise ToolInputError("OpenAPI tag externalDocs description must be a string")
         result.append(copy.deepcopy(tag))
     return result
 
@@ -1566,7 +1575,7 @@ def _dump_document(document: dict[str, Any]) -> bytes:
         width=120,
     ).encode("utf-8")
     if len(rendered) > MAX_DOCUMENT_BYTES:
-        raise ValueError("OpenAPI document exceeds the 4 MiB domain limit")
+        raise ToolInputError("OpenAPI document exceeds the 4 MiB domain limit")
     return rendered
 
 
@@ -1632,7 +1641,7 @@ def _require_nonempty(field: str, value: Any) -> None:
 def _bound_targeted_result(value: Any) -> None:
     encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) > MAX_TARGETED_RESULT_BYTES:
-        raise ValueError("targeted OpenAPI result exceeds the model output limit")
+        raise ToolInputError("targeted OpenAPI result exceeds the model output limit")
 
 
 def _document_state(
@@ -1722,23 +1731,26 @@ async def _run_vacuum(
             "truncated": False,
         }
     serious = [
-        _issue_with_snippet(item, source_text)
+        item
         for item in parsed
         if isinstance(item, dict)
         and type(item.get("severity")) is int
         and item["severity"] in {0, 1}
     ]
-    serious.sort(key=lambda item: item.get("severity", 99))
+    serious.sort(key=lambda item: item["severity"])
     truncated = len(serious) > MAX_VALIDATION_ISSUES
+    source_lines = source_text.splitlines()
     return {
         "available": True,
         "executionError": None,
-        "issues": serious[:MAX_VALIDATION_ISSUES],
+        "issues": [
+            _issue_with_snippet(item, source_lines) for item in serious[:MAX_VALIDATION_ISSUES]
+        ],
         "truncated": truncated,
     }
 
 
-def _issue_with_snippet(issue: dict[str, Any], source_text: str) -> dict[str, Any]:
+def _issue_with_snippet(issue: dict[str, Any], lines: list[str]) -> dict[str, Any]:
     result = {key: copy.deepcopy(value) for key, value in issue.items() if key != "range"}
     result["snippet"] = ""
     coordinates = issue.get("range")
@@ -1752,7 +1764,6 @@ def _issue_with_snippet(issue: dict[str, Any], source_text: str) -> dict[str, An
     if not all(type(value) is int for value in values):
         return result
     start_line, start_char, end_line, end_char = values
-    lines = source_text.splitlines()
     if not (1 <= start_line <= end_line <= len(lines) and start_char >= 1 and end_char >= 1):
         return result
     if start_line == end_line:

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -168,10 +169,7 @@ func (s *Service) ListAuditInbox(
 	ownerID, auditID string,
 	query ListQuery,
 ) ([]Receipt, error) {
-	if ownerID == "" || auditID == "" || !validListQuery(query) {
-		return nil, ErrInvalid
-	}
-	ids, err := listReceiptIDs(ctx, s.pool, `
+	return s.listAuditInbox(ctx, ownerID, auditID, query, `
 SELECT receipt.receipt_id
   FROM finding_proposal_receipts AS receipt
  WHERE receipt.owner_id = $1
@@ -183,7 +181,40 @@ SELECT receipt.receipt_id
    ))
    AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
  ORDER BY receipt.created_at, receipt.receipt_id
- LIMIT $5`, ownerID, auditID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
+ LIMIT $5`)
+}
+
+// ListAuditHeldInbox lists only receipts with an exact hold in the Audit. A
+// native child receipt that collection did not retain, such as a rejected
+// invalid proposal, stays in the owner inbox but is never schedulable work.
+func (s *Service) ListAuditHeldInbox(
+	ctx context.Context,
+	ownerID, auditID string,
+	query ListQuery,
+) ([]Receipt, error) {
+	return s.listAuditInbox(ctx, ownerID, auditID, query, `
+SELECT receipt.receipt_id
+  FROM finding_proposal_receipts AS receipt
+  JOIN finding_proposal_audit_holds AS hold
+    ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
+  JOIN audits AS audit ON audit.audit_id = hold.audit_id
+ WHERE receipt.owner_id = $1 AND audit.owner_id = $1
+   AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
+ ORDER BY receipt.created_at, receipt.receipt_id
+ LIMIT $5`)
+}
+
+func (s *Service) listAuditInbox(
+	ctx context.Context,
+	ownerID, auditID string,
+	query ListQuery,
+	statement string,
+) ([]Receipt, error) {
+	if ownerID == "" || auditID == "" || !validListQuery(query) {
+		return nil, ErrInvalid
+	}
+	ids, err := listReceiptIDs(ctx, s.pool, statement,
+		ownerID, auditID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -355,10 +386,46 @@ func readReceipts(ctx context.Context, db querier, ids []string) ([]Receipt, err
 	return result, nil
 }
 
+// Owner imports target only an Audit that still accepts new work. Collection
+// of an Audit child Run is also admitted while the Audit finalizes or cancels:
+// a proposal found by a child Run is never dropped because its Audit began to
+// close, and the settlement barrier waits for that collection before the
+// report is built or the Audit becomes Cancelled.
+var (
+	ownerImportAuditStates         = []string{"draft", "active", "waiting_review", "paused"}
+	collectionRetentionAuditStates = []string{
+		"draft", "active", "waiting_review", "paused", "finalizing", "cancelling",
+	}
+)
+
 func (s *Service) ImportIntoAudit(
 	ctx context.Context,
 	request ImportRequest,
 ) (AuditHold, bool, error) {
+	return s.importIntoAudit(ctx, request, false)
+}
+
+// RetainAuditCollection transfers one proposal of an Audit child Run into its
+// owning Audit during collection. It differs from ImportIntoAudit only in the
+// admitted Audit states. A terminal (or deleting) Audit returns ErrAuditClosed
+// instead of ErrNotFound: its report is sealed or its data is being purged, so
+// the proposal stays held by its source Run and the caller must not retry.
+func (s *Service) RetainAuditCollection(
+	ctx context.Context,
+	request ImportRequest,
+) (AuditHold, bool, error) {
+	return s.importIntoAudit(ctx, request, true)
+}
+
+func (s *Service) importIntoAudit(
+	ctx context.Context,
+	request ImportRequest,
+	collection bool,
+) (AuditHold, bool, error) {
+	admittedStates := ownerImportAuditStates
+	if collection {
+		admittedStates = collectionRetentionAuditStates
+	}
 	if request.OwnerID == "" || request.AuditID == "" || request.RunID == "" ||
 		request.Proposal.ValidateExact() != nil {
 		return AuditHold{}, false, ErrInvalid
@@ -380,16 +447,19 @@ SELECT project_id FROM workflow_runs
 		if err != nil {
 			return fmt.Errorf("lock source Run for Audit finding import: %w", err)
 		}
-		var lockedAuditID string
+		var lockedAuditID, auditState string
 		err = tx.QueryRow(ctx, `
-SELECT audit_id FROM audits
+SELECT audit_id, state FROM audits
  WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
- FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID)
+ FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID, &auditState)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
 			return fmt.Errorf("lock destination Audit for finding import: %w", err)
+		}
+		if collection && !slices.Contains(admittedStates, auditState) {
+			return ErrAuditClosed
 		}
 		var receiptID, projectID, invocationID, clientKey, workflowClosureDigest string
 		var proposalDigest, proposalMediaType string
@@ -408,7 +478,7 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
    AND receipt.proposal_ref = $4::jsonb
    AND run.owner_id = $1 AND run.project_id = audit.project_id
    AND audit.owner_id = $1
-   AND audit.state IN ('draft', 'active', 'waiting_review', 'paused')
+   AND audit.state = ANY($5::text[])
    AND NOT EXISTS (
        SELECT 1
          FROM audit_report_candidates AS candidate
@@ -419,7 +489,7 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
    )
    AND audit.profile_snapshot #>> '{interaction,findingConfirmation}' = 'human-required'
  FOR UPDATE OF receipt, retention, audit`,
-			request.OwnerID, request.AuditID, request.RunID, requestedProposal,
+			request.OwnerID, request.AuditID, request.RunID, requestedProposal, admittedStates,
 		).Scan(
 			&receiptID, &projectID, &proposalRefJSON, &evidenceJSON,
 			&invocationID, &clientKey, &workflowClosureDigest,
@@ -524,6 +594,77 @@ RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, reta
 		return AuditHold{}, false, err
 	}
 	return result, replayed, nil
+}
+
+// RejectAuditCollection records that collection refused one invalid proposal
+// of an Audit child Run, so only that proposal is left out of the Audit. The
+// receipt stays held by its source Run. The finding.proposal_rejected event is
+// written once per receipt; a replay is a no-op. A terminal or deleting Audit
+// returns ErrAuditClosed, as RetainAuditCollection does.
+func (s *Service) RejectAuditCollection(
+	ctx context.Context,
+	request ImportRequest,
+	reason string,
+) error {
+	if request.OwnerID == "" || request.AuditID == "" || request.RunID == "" ||
+		request.Proposal.ValidateExact() != nil || !validIdentity(reason) {
+		return ErrInvalid
+	}
+	requestedProposal, _ := json.Marshal(request.Proposal)
+	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		var auditState string
+		err := tx.QueryRow(ctx, `
+SELECT state FROM audits
+ WHERE audit_id = $1 AND owner_id = $2
+ FOR UPDATE`, request.AuditID, request.OwnerID).Scan(&auditState)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("lock Audit for finding proposal rejection: %w", err)
+		}
+		if !slices.Contains(collectionRetentionAuditStates, auditState) {
+			return ErrAuditClosed
+		}
+		var receiptID string
+		var recorded bool
+		err = tx.QueryRow(ctx, `
+SELECT receipt.receipt_id, EXISTS (
+       SELECT 1 FROM audit_events AS event
+        WHERE event.audit_id = receipt.audit_id
+          AND event.kind = 'finding.proposal_rejected'
+          AND event.entity_id = receipt.receipt_id
+   )
+  FROM finding_proposal_receipts AS receipt
+ WHERE receipt.owner_id = $1 AND receipt.audit_id = $2 AND receipt.run_id = $3
+   AND receipt.proposal_ref = $4::jsonb`,
+			request.OwnerID, request.AuditID, request.RunID, requestedProposal,
+		).Scan(&receiptID, &recorded)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil || recorded {
+			return err
+		}
+		var sequence int64
+		if err := tx.QueryRow(ctx, `
+UPDATE audits
+   SET revision = revision + 1,
+       next_event_sequence = next_event_sequence + 1,
+       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id = $1
+RETURNING next_event_sequence - 1`, request.AuditID).Scan(&sequence); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+INSERT INTO audit_events (
+    audit_id, sequence_number, kind, entity_id, summary
+) VALUES (
+    $1, $2, 'finding.proposal_rejected', $3,
+    jsonb_build_object('runId', $4::text, 'reason', $5::text)
+)`, request.AuditID, sequence, receiptID, request.RunID, reason)
+		return err
+	})
 }
 
 func exactArtifactFromRun(

@@ -174,6 +174,140 @@ func TestPostgresControllerBatchBuildsOnePinnedRunForTwoItems(t *testing.T) {
 	}
 }
 
+func TestPostgresControllerDispatchesReadyItemsBehindReviewWindow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, auditstore.MaxReconcileRows+5, 2)
+	controller := harness.controller(t)
+	for step := 0; step < 2; step++ {
+		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+			t.Fatalf("reconcile step=%d worked=%t error=%v", step, worked, err)
+		}
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) == 0 || executions[0].RunID == nil {
+		t.Fatalf("ready items behind the review window were not dispatched: (%+v, %v)", executions, err)
+	}
+	members, err := harness.audits.ListExecutionItems(ctx, executions[0].ExecutionID)
+	if err != nil || len(members) != 1 {
+		t.Fatalf("dispatched members = (%+v, %v)", members, err)
+	}
+	items, err := harness.audits.ListItems(ctx, harness.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.ItemID == members[0].ItemID && item.ItemKey != "check-0" {
+			t.Fatalf("dispatched item %q, want the first automatic item", item.ItemKey)
+		}
+	}
+	claims, err := harness.audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "window-inspector", Lease: 5 * time.Second, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim for snapshot inspection = (%+v, %v)", claims, err)
+	}
+	snapshot, err := harness.audits.GetReconcileSnapshot(ctx, claims[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.audits.ReleaseClaim(ctx, claims[0]); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Audit.State != auditstore.AuditActive || snapshot.OnlyAwaitingReview || !snapshot.MoreItems {
+		t.Fatalf("snapshot state=%q onlyAwaitingReview=%t moreItems=%t",
+			snapshot.Audit.State, snapshot.OnlyAwaitingReview, snapshot.MoreItems)
+	}
+	found := false
+	for _, item := range snapshot.Items {
+		found = found || item.ItemID == members[0].ItemID
+	}
+	if !found {
+		t.Fatalf("in-flight item %q is outside the bounded reconcile window", members[0].ItemID)
+	}
+}
+
+func TestPostgresControllerWaitsForReviewBeyondReconcileWindow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, auditstore.MaxReconcileRows+5, 0)
+	controller := harness.controller(t)
+	for step := 0; step < 4; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatalf("reconcile step=%d error=%v", step, err)
+		}
+	}
+	audit, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("Audit with only reviews beyond the window = (%q, %v), want waiting_review", audit.State, err)
+	}
+}
+
+func TestPostgresControllerDispatchesApprovedItemWhileOtherReviewsWait(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, 3, 0)
+	auditID, ownerID := harness.started.Audit.AuditID, harness.started.Audit.OwnerID
+	controller := harness.controller(t)
+	for step := 0; step < 3; step++ {
+		if _, err := controller.RunOnce(ctx); err != nil {
+			t.Fatalf("reconcile step=%d error=%v", step, err)
+		}
+	}
+	audit, err := harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("Audit awaiting every review = (%q, %v), want waiting_review", audit.State, err)
+	}
+	reviews, err := harness.service.ListReviews(ctx, auditservice.ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 3 {
+		t.Fatalf("pending item reviews = (%+v, %v)", reviews, err)
+	}
+	decide := func(index int, action auditservice.ReviewAction) {
+		t.Helper()
+		key := fmt.Sprintf("decision-%d", index)
+		if _, err := harness.service.DecideActionReview(ctx, auditservice.DecideActionReviewParams{
+			OwnerID: ownerID, AuditID: auditID, RequestID: reviews[index].RequestID,
+			ExpectedRequestRevision: reviews[index].Revision, DecisionID: key, Action: action,
+			Rationale: "The owner decided this exact checklist action.", IdempotencyKey: key,
+			RequestDigest: postgresDigest(key),
+		}); err != nil {
+			t.Fatalf("decide review %d with %q: %v", index, action, err)
+		}
+	}
+
+	decide(0, auditservice.ReviewReject)
+	audit, err = harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditWaitingReview {
+		t.Fatalf("Audit after rejection with reviews left = (%q, %v), want waiting_review", audit.State, err)
+	}
+	decide(1, auditservice.ReviewApprove)
+	audit, err = harness.audits.Get(ctx, ownerID, auditID)
+	if err != nil || audit.State != auditstore.AuditActive {
+		t.Fatalf("Audit after approval with a review left = (%q, %v), want active", audit.State, err)
+	}
+	var transitions int
+	if err := harness.pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_events
+ WHERE audit_id = $1 AND kind = 'audit.state_changed'
+   AND summary = '{"from": "waiting_review", "to": "active"}'::jsonb`, auditID).Scan(&transitions); err != nil ||
+		transitions != 1 {
+		t.Fatalf("review activation events = (%d, %v)", transitions, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch approved item = (%t, %v)", worked, err)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, auditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("approved item executions = (%+v, %v)", executions, err)
+	}
+	members, err := harness.audits.ListExecutionItems(ctx, executions[0].ExecutionID)
+	if err != nil || len(members) != 1 || members[0].ItemID != reviews[1].SubjectID {
+		t.Fatalf("approved item members = (%+v, %v)", members, err)
+	}
+}
+
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -727,6 +861,7 @@ type postgresControllerHarness struct {
 	audits     *auditstore.PostgresStore
 	runs       *runstore.PostgresStore
 	runService *runservice.Service
+	service    *auditservice.Service
 	started    auditservice.StartedAudit
 }
 
@@ -734,12 +869,30 @@ func newPostgresControllerHarness(
 	t *testing.T, ctx context.Context, itemCount int, batchSizes ...int,
 ) *postgresControllerHarness {
 	t.Helper()
+	return newPostgresControllerHarnessWithConfig(t, ctx, 0, itemCount, loadControllerConfig(t, batchSizes...))
+}
+
+// newPostgresControllerReviewHarness materializes manualCount manual-review
+// checklist items ordered before itemCount automatic ones.
+func newPostgresControllerReviewHarness(
+	t *testing.T, ctx context.Context, manualCount, itemCount int, batchSizes ...int,
+) *postgresControllerHarness {
+	t.Helper()
+	return newPostgresControllerHarnessWithConfig(
+		t, ctx, manualCount, itemCount,
+		loadControllerConfigWithItemLimit(t, max(10, manualCount+itemCount), batchSizes...),
+	)
+}
+
+func newPostgresControllerHarnessWithConfig(
+	t *testing.T, ctx context.Context, manualCount, itemCount int, snapshot *config.Snapshot,
+) *postgresControllerHarness {
+	t.Helper()
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	snapshot := loadControllerConfig(t, batchSizes...)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
@@ -755,15 +908,21 @@ func newPostgresControllerHarness(
 		t.Fatal(err)
 	}
 	checklist := `{"schema":"contractor.audit.checklist.v1","items":[`
+	entries := make([]string, 0, manualCount+itemCount)
+	for index := range manualCount {
+		// Inventory orders items by key, so these precede every automatic check.
+		entries = append(entries, fmt.Sprintf(
+			`{"key":"approval-%04d","version":"1","statement":"Review check %d.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"manual"}`,
+			index, index,
+		))
+	}
 	for index := range itemCount {
-		if index > 0 {
-			checklist += ","
-		}
-		checklist += fmt.Sprintf(
+		entries = append(entries, fmt.Sprintf(
 			`{"key":"check-%d","version":"1","statement":"Verify check %d.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}`,
 			index, index,
-		)
+		))
 	}
+	checklist += strings.Join(entries, ",")
 	checklist += `]}`
 	input, err := projectArtifacts.Write(
 		ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "checklist"},
@@ -832,7 +991,7 @@ func newPostgresControllerHarness(
 	}
 	return &postgresControllerHarness{
 		pool: pool, snapshot: snapshot, artifacts: artifactService,
-		audits: audits, runs: runs, runService: runCreation, started: started,
+		audits: audits, runs: runs, runService: runCreation, service: auditService, started: started,
 	}
 }
 
@@ -889,13 +1048,15 @@ func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID s
 	return controller
 }
 
-func (h *postgresControllerHarness) controllerWithCollector(t *testing.T) *Controller {
+func (h *postgresControllerHarness) controllerWithCollector(
+	t *testing.T, findings ...auditimport.FindingRetention,
+) *Controller {
 	t.Helper()
 	access, err := auditimport.NewArtifactAccess(h.artifacts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	collector, err := auditimport.New(h.audits, h.runs, access)
+	collector, err := auditimport.New(h.audits, h.runs, access, findings...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -951,12 +1112,31 @@ func (controllerRuntimeCredentials) ValidateRuntimeCredential(context.Context, s
 
 func loadControllerConfig(t *testing.T, batchSizes ...int) *config.Snapshot {
 	t.Helper()
+	return loadControllerConfigWithItemLimit(t, 10, batchSizes...)
+}
+
+func loadControllerConfigWithItemLimit(t *testing.T, maxItems int, batchSizes ...int) *config.Snapshot {
+	t.Helper()
 	batchSize := 1
 	if len(batchSizes) > 0 {
 		batchSize = batchSizes[0]
 	}
 	if len(batchSizes) > 1 || batchSize < 1 || batchSize > config.MaxAuditBatchSize {
 		t.Fatalf("invalid test batch size %v", batchSizes)
+	}
+	return loadControllerConfigWithFindings(t, batchSize, maxItems, false)
+}
+
+// loadControllerConfigWithFindings optionally lets the worker propose
+// findings and requires human confirmation for them.
+func loadControllerConfigWithFindings(t *testing.T, batchSize, maxItems int, findings bool) *config.Snapshot {
+	t.Helper()
+	findingTools, findingConfirmation := "", "disabled"
+	if findings {
+		findingTools = `
+    - ref: security-findings@1
+      tools: [finding]`
+		findingConfirmation = "human-required"
 	}
 	root := t.TempDir()
 	files := map[string]string{
@@ -983,7 +1163,7 @@ spec:
   modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
-      tools: [read_artifact, write_artifact]
+      tools: [read_artifact, write_artifact]` + findingTools + `
   sandboxProfile: local-workdir@1
 `,
 		"workflows/check.yaml": `apiVersion: contractor/v1alpha1
@@ -1039,19 +1219,19 @@ spec:
     roundMode: fixed-barrier
     maxRounds: 1
     batchSize: %d
-    maxItemsPerRound: 10
-    maxItemsTotal: 10
-    maxSubmittedRuns: 20
+    maxItemsPerRound: %d
+    maxItemsTotal: %d
+    maxSubmittedRuns: %d
     maxItemRunAttempts: 2
     deadlineSeconds: 3600
     maxEvidenceBytes: 1048576
     incompleteRound: assess-with-gaps
   interaction:
     activeChecks: prohibited
-    findingConfirmation: disabled
+    findingConfirmation: %s
     notApplicable: profile-rule
     reportAcceptance: automatic
-`, batchSize),
+`, batchSize, maxItems, maxItems, 2*maxItems, findingConfirmation),
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

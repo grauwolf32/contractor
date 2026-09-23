@@ -38,7 +38,7 @@ export function ProjectHTTPTargetEditor({ project }: { project: Project }) {
         updated,
       );
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.list(project.kind),
+        queryKey: queryKeys.projects.lists(project.kind),
       });
     },
   });
@@ -252,7 +252,7 @@ function ProjectHTTPTargetDialog({
       );
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: queryKeys.projects.list(project.kind),
+          queryKey: queryKeys.projects.lists(project.kind),
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.operations.runtimeCredentials.all,

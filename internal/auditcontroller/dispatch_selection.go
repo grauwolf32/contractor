@@ -18,7 +18,7 @@ func (c *Controller) dispatchReadyBatch(ctx context.Context, claim auditstore.Co
 	selected := make([]CheckExecutionMember, 0, min(audit.Limits.BatchSize, auditstore.MaxCollectionItems))
 	var binding config.ResolvedAuditWorkflowBinding
 	profile, profileErr := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-	for _, item := range snapshot.Items {
+	for _, item := range snapshot.ReadyItems {
 		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
 			continue
 		}

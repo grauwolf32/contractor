@@ -176,20 +176,12 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return nil, cause
 	}
-	if fresh {
-		allowed, gateErr := s.admitModelRoutes(ctx, run, workflow.stage, reservations)
-		if gateErr != nil || !allowed {
-			s.releaseUnprepared(reservations)
-			if gateErr != nil {
-				return nil, gateErr
-			}
-			return nil, ErrDeferred
-		}
-	}
-	if execution.AdmittedAt == nil {
+	admitting := execution.AdmittedAt == nil
+	if admitting {
 		execution, err = s.persistence.AdmitStage(ctx, run.RunID, execution.StageExecutionID)
 		if err != nil {
-			s.releaseUnprepared(reservations)
+			// Placement is already durable. Keep it live so the next claim
+			// reuses it instead of finding pinned rows without grants.
 			return nil, err
 		}
 		stageDeadline = s.stageDeadline(execution)
@@ -203,7 +195,7 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 		}
 	}
 
-	if fresh {
+	if fresh || admitting {
 		if err := s.bindModelRoutes(ctx, run, reservations); err != nil {
 			return nil, s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{Code: "model_route_binding_failed", Message: "Model recovery route could not be bound", Retryable: true})
 		}

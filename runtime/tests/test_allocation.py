@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -226,6 +227,48 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
+
+
+def test_prepare_recovery_deadline_uses_the_monotonic_clock(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    class SkewedClockLoop(asyncio.SelectorEventLoop):
+        def time(self) -> float:
+            return super().time() + 1_000_000
+
+    class RecordingRecovery:
+        def __init__(self) -> None:
+            self.deadlines: list[float] = []
+
+        async def recover(self, *, deadline: float) -> None:
+            self.deadlines.append(deadline)
+
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-test")
+        await state.mark_registered()
+        lifecycle = RecordingRecovery()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            toolsets={"run-artifacts@1": RunArtifactsToolsetFactory()},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+            execution_lifecycle=lifecycle,  # type: ignore[arg-type]
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+            force_exit=lambda _: None,
+        )
+        spec = make_spec()
+        before = time.monotonic()
+        await service.prepare(spec)
+        timeout = min(60, spec.runtime_settings.request_timeout_seconds)
+        assert lifecycle.deadlines
+        assert before < lifecycle.deadlines[0] <= time.monotonic() + timeout
+
+    asyncio.run(scenario(), loop_factory=SkewedClockLoop)
 
 
 @pytest.mark.parametrize("failure_kind", ["exception", "cancelled", "wrong_set", "wrong_name"])

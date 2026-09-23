@@ -141,7 +141,8 @@ SELECT `+prefixedItemColumns("item")+`
   JOIN audit_rounds AS round USING (round_id, audit_id)
  WHERE item.audit_id = $1
    AND ($2::integer = 0 OR item.state <> 'settled')
- ORDER BY round.ordinal, item.ordinal, item.item_id
+ ORDER BY ($2::integer <> 0 AND item.state = 'awaiting_review'),
+          round.ordinal, item.ordinal, item.item_id
  LIMIT CASE WHEN $2::integer = 0 THEN 100001 ELSE $2 END`, auditID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit items: %w", err)
@@ -156,6 +157,41 @@ SELECT `+prefixedItemColumns("item")+`
 		result = append(result, item)
 	}
 	return result, rows.Err()
+}
+
+func (s *PostgresStore) listReadyItems(ctx context.Context, auditID, roundID string) ([]Item, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT `+prefixedItemColumns("item")+`
+  FROM audit_items AS item
+ WHERE item.audit_id = $1 AND item.round_id = $2 AND item.state = 'ready'
+ ORDER BY item.ordinal, item.item_id
+ LIMIT $3`, auditID, roundID, MaxReconcileRows)
+	if err != nil {
+		return nil, fmt.Errorf("list ready Audit items: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Item, 0)
+	for rows.Next() {
+		item, scanErr := scanItem(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan ready Audit item: %w", scanErr)
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+// onlyAwaitingReview reports whether at least one item is unsettled and every
+// unsettled item awaits human review.
+func (s *PostgresStore) onlyAwaitingReview(ctx context.Context, auditID string) (bool, error) {
+	var unsettled, awaiting int64
+	if err := s.db.QueryRow(ctx, `
+SELECT count(*), count(*) FILTER (WHERE state = 'awaiting_review')
+  FROM audit_items
+ WHERE audit_id = $1 AND state <> 'settled'`, auditID).Scan(&unsettled, &awaiting); err != nil {
+		return false, fmt.Errorf("count Audit items awaiting review: %w", err)
+	}
+	return unsettled != 0 && unsettled == awaiting, nil
 }
 
 func prefixedItemColumns(prefix string) string {
@@ -584,6 +620,16 @@ SELECT `+prefixedAuditColumns("audit")+`
 	}
 	if len(result.Items) > MaxReconcileRows {
 		result.Items, result.MoreItems = result.Items[:MaxReconcileRows], true
+	}
+	if result.Round != nil {
+		result.ReadyItems, err = s.listReadyItems(ctx, audit.AuditID, result.Round.RoundID)
+		if err != nil {
+			return ReconcileSnapshot{}, err
+		}
+	}
+	result.OnlyAwaitingReview, err = s.onlyAwaitingReview(ctx, audit.AuditID)
+	if err != nil {
+		return ReconcileSnapshot{}, err
 	}
 	result.Executions, err = s.listExecutions(ctx, audit.AuditID, MaxReconcileRows+1)
 	if err != nil {
