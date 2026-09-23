@@ -510,7 +510,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	outputs, err := h.runOutputs(r, run.RunID)
+	outputs, err := h.runArtifactsByNamespace(r, run.RunID, "outputs")
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -519,15 +519,6 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.handleError(w, err)
 		return
-	}
-	outputPublications := make([]outputPublicationResponse, len(publicationRecords))
-	for index, record := range publicationRecords {
-		outputPublications[index] = outputPublicationResponse{
-			Output: record.OutputName, Status: record.Status,
-			Source: record.Source, Target: record.Target,
-			ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage,
-			CreatedAt: record.CreatedAt,
-		}
 	}
 	inputs, err := h.runArtifactsByNamespace(r, run.RunID, "inputs")
 	if err != nil {
@@ -544,9 +535,6 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	attempts := make([]stageAttemptResponse, 0, len(executions))
-	var activeExecutionID *string
-	deletable := deletionBlocker == nil
 	var resumeSource *string
 	if run.State == runstore.RunFailed {
 		resumeSource, err = h.dependencies.Runs.ResumableStage(r.Context(), run.OwnerID, run.RunID)
@@ -555,16 +543,56 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	attempts, activeExecutionID, err := stageAttemptsReadModel(executions, related)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	var recovery *gatewayrecovery.Status
+	if h.dependencies.GatewayRecovery != nil {
+		recovery, err = h.dependencies.GatewayRecovery.Status(r.Context(), run.RunID)
+		if err != nil {
+			h.handleError(w, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, runStatusResponse{
+		Recovery:               recovery,
+		ResumeStageExecutionID: resumeSource,
+		RunID:                  run.RunID, ProjectID: run.ProjectID,
+		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+		State:    run.State, Deletable: deletionBlocker == nil,
+		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
+		Labels:               run.MetadataLabels.Clone(),
+		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
+		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
+		Cancellation:         run.Cancellation, Parameters: run.Parameters,
+		Inputs: inputs, Attempts: attempts, Transitions: stageTransitionsReadModel(decisions), Outputs: outputs,
+		OutputPublications: outputPublicationsReadModel(publicationRecords),
+		EventCursor: &eventCursorResponse{
+			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
+		},
+		ActiveStageExecutionID: activeExecutionID,
+		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
+		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
+	})
+}
+
+// stageAttemptsReadModel projects StageExecutions in order and reports the
+// last non-terminal one as the active execution.
+func stageAttemptsReadModel(
+	executions []runstore.StageExecution, related runDetailRelated,
+) ([]stageAttemptResponse, *string, error) {
+	attempts := make([]stageAttemptResponse, 0, len(executions))
+	var activeExecutionID *string
 	for _, execution := range executions {
 		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
-			h.handleError(w, fmt.Errorf("decode StageExecution read model: %w", err))
-			return
+			return nil, nil, fmt.Errorf("decode StageExecution read model: %w", err)
 		}
-		executionConfig, configErr := stageExecutionConfigReadModel(execution)
-		if configErr != nil {
-			h.handleError(w, configErr)
-			return
+		executionConfig, err := stageExecutionConfigReadModel(execution)
+		if err != nil {
+			return nil, nil, err
 		}
 		var metrics *telemetry.Summary
 		var diagnostics *telemetry.AttemptDiagnostics
@@ -608,6 +636,10 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			TerminalAt:           execution.TerminalAt,
 		})
 	}
+	return attempts, activeExecutionID, nil
+}
+
+func stageTransitionsReadModel(decisions []runstore.StageTransitionDecision) []stageTransitionResponse {
 	transitions := make([]stageTransitionResponse, 0, len(decisions))
 	for _, decision := range decisions {
 		transitions = append(transitions, stageTransitionResponse{
@@ -619,34 +651,20 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			DecidedAt:           decision.DecidedAt,
 		})
 	}
-	var recovery *gatewayrecovery.Status
-	if h.dependencies.GatewayRecovery != nil {
-		recovery, err = h.dependencies.GatewayRecovery.Status(r.Context(), run.RunID)
-		if err != nil {
-			h.handleError(w, err)
-			return
+	return transitions
+}
+
+func outputPublicationsReadModel(records []runstore.RunOutputPublication) []outputPublicationResponse {
+	publications := make([]outputPublicationResponse, len(records))
+	for index, record := range records {
+		publications[index] = outputPublicationResponse{
+			Output: record.OutputName, Status: record.Status,
+			Source: record.Source, Target: record.Target,
+			ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage,
+			CreatedAt: record.CreatedAt,
 		}
 	}
-	writeJSON(w, http.StatusOK, runStatusResponse{
-		Recovery:               recovery,
-		ResumeStageExecutionID: resumeSource,
-		RunID:                  run.RunID, ProjectID: run.ProjectID,
-		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State:    run.State, Deletable: deletable,
-		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
-		Labels:               run.MetadataLabels.Clone(),
-		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
-		Cancellation:         run.Cancellation, Parameters: run.Parameters,
-		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,
-		OutputPublications: outputPublications,
-		EventCursor: &eventCursorResponse{
-			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
-		},
-		ActiveStageExecutionID: activeExecutionID,
-		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
-		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
-	})
+	return publications
 }
 
 func stageRuntimeConfigurationReadModel(
@@ -794,10 +812,9 @@ func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {
 	return run, nil
 }
 
-func (h *handler) runOutputs(r *http.Request, runID string) (map[string]contracts.ArtifactRef, error) {
-	return h.runArtifactsByNamespace(r, runID, "outputs")
-}
-
+// runArtifactsByNamespace maps binding names in one Run namespace to their
+// current exact refs, reading metadata in keyset pages instead of one
+// lookup per binding.
 func (h *handler) runArtifactsByNamespace(
 	r *http.Request, runID string, namespace string,
 ) (map[string]contracts.ArtifactRef, error) {
@@ -805,19 +822,22 @@ func (h *handler) runArtifactsByNamespace(
 	if err != nil {
 		return nil, err
 	}
-	refs, err := store.List(r.Context(), &namespace)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]contracts.ArtifactRef, len(refs))
-	for _, ref := range refs {
-		metadata, err := store.Metadata(r.Context(), ref)
+	result := make(map[string]contracts.ArtifactRef)
+	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: maxPageLimit}
+	for {
+		page, err := store.ListMetadata(r.Context(), query)
 		if err != nil {
 			return nil, err
 		}
-		result[ref.Name] = metadata.Ref
+		for _, metadata := range page {
+			result[metadata.Ref.Name] = metadata.Ref
+		}
+		if len(page) < query.Limit {
+			return result, nil
+		}
+		last := page[len(page)-1].Ref
+		query.AfterNamespace, query.AfterName = last.Namespace, last.Name
 	}
-	return result, nil
 }
 
 func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
