@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,7 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
     overlay,
 )
+from contractor_runtime.projectfs.storage import ManagedWorkspaceTree
 from contractor_runtime.settings import WorkspaceLimits
 
 
@@ -201,3 +204,51 @@ def test_overlay_write_limits_hold_across_writes_without_revalidating_tree(
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is required to apply the patch")
+def test_workspace_diff_is_a_patch_git_applies_exactly(tmp_path: Path) -> None:
+    before = ManagedWorkspaceTree(
+        directories={"dir"},
+        text_files={
+            "grows.txt": "one\ntwo",
+            "shrinks.txt": "one\ntwo\n",
+            "separators.txt": "a\fb\x1cc\x1dd\x1ee\x85f\u2028g\u2029h\vi\n",
+            "progress.log": "fetch 10%\rfetch 20%\ndone\n",
+            "crlf.txt": "x\r\ny\r\n",
+            "dir/removed.txt": "gone",
+        },
+        binary_paths={"image.bin"},
+    )
+    after = ManagedWorkspaceTree(
+        directories={"dir"},
+        text_files={
+            "grows.txt": "one\ntwo\nthree",
+            "shrinks.txt": "one\ntwo",
+            "separators.txt": "a\fb\x1cc\x1dd\x1ee\x85f\u2028g\u2029H\vi\n",
+            "progress.log": "fetch 10%\rfetch 30%\ndone\n",
+            "crlf.txt": "x\r\nY\r\n",
+            "dir/created.txt": "new",
+        },
+    )
+    patch = overlay._workspace_diff(before, after, "", overlay.MAX_DIFF_BYTES, 0).text
+    assert patch.count("\\ No newline at end of file\n") == 5
+    assert "Binary path changed: image.bin\n" in patch
+    # Hunks count only LF-terminated lines: other separators stay in content.
+    assert "@@ -1 +1 @@" in patch and "@@ -1,2 +1,2 @@" in patch
+
+    work = tmp_path / "work"
+    for path, text in before.text_files.items():
+        (work / path).parent.mkdir(parents=True, exist_ok=True)
+        (work / path).write_bytes(text.encode("utf-8"))
+    (tmp_path / "change.patch").write_bytes(patch.encode("utf-8"))
+    applied = subprocess.run(
+        ["git", "apply", "--whitespace=nowarn", str(tmp_path / "change.patch")],
+        cwd=work,
+        capture_output=True,
+        check=False,
+    )
+    assert applied.returncode == 0, applied.stderr
+    assert not (work / "dir/removed.txt").exists()
+    for path, text in after.text_files.items():
+        assert (work / path).read_bytes() == text.encode("utf-8"), path

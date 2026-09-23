@@ -27,11 +27,13 @@ from contractor_runtime.projectfs.storage import (
 )
 from contractor_runtime.settings import WorkspaceLimits
 from contractor_runtime.threads import to_thread_until_done
+from contractor_runtime.toolsets.common.lines import split_patch_lines
 
 WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"
 WORKSPACE_OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json"
 MAX_DIFF_BYTES = 1 << 20
+_NO_NEWLINE = "\\ No newline at end of file\n"
 MAX_WORKSPACE_EXPORT_BYTES = 16 << 20
 
 
@@ -615,7 +617,9 @@ def _workspace_diff(
         lines = _path_diff(before, after, path)
         for line in lines:
             if not line.endswith("\n"):
-                line += "\n"
+                # Only a content line can lack LF: that side of the file ends
+                # without a newline, which a valid patch must say explicitly.
+                line += "\n" + _NO_NEWLINE
             encoded = line.encode("utf-8")
             if remaining_skip:
                 if remaining_skip >= len(encoded):
@@ -658,14 +662,14 @@ def _path_diff(
     if before_kind == "directory" and after_kind == "directory":
         return ()
     if before_kind == "binary" or after_kind == "binary":
-        return (f"Binary path changed: {path}",)
+        return (f"Binary path changed: {path}\n",)
     before_text = before.text_files.get(path)
     after_text = after.text_files.get(path)
     if before_text is None and after_text is None:
         return ()
     return difflib.unified_diff(
-        [] if before_text is None else before_text.splitlines(keepends=True),
-        [] if after_text is None else after_text.splitlines(keepends=True),
+        [] if before_text is None else split_patch_lines(before_text),
+        [] if after_text is None else split_patch_lines(after_text),
         fromfile="/dev/null" if before_text is None else f"a/{path}",
         tofile="/dev/null" if after_text is None else f"b/{path}",
         lineterm="\n",

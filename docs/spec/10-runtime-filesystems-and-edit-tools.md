@@ -510,8 +510,11 @@ One state artifact is self-contained relative to sources. Given `S` and state
 revision 8, revision 7 is unnecessary.
 
 Human diff is deterministic UTF-8 unified diff with media type `text/x-diff`,
-relative paths, LF syntax and bounded context. It is for analysis and review,
-not authoritative reconstruction.
+relative paths, LF syntax and bounded context. As in git, only LF ends a line
+(CR, the CR of CRLF and Unicode separators such as form feed or U+2028 stay
+in their line), and a side without a final newline carries
+`\ No newline at end of file`, so the text changes apply with `git apply`. It
+is for analysis and review, not authoritative reconstruction.
 
 ## Model-visible Toolsets
 
