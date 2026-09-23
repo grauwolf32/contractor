@@ -251,6 +251,15 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
                 raise WorkspaceStorageError("workspace_not_found")
             candidate = self._tree.clone()
             _remove_subtree(candidate, normalized)
+            if self._checkpoint.kind(normalized) is not None:
+                # Parents deleted after the checkpoint come back with the path;
+                # one that has since become a file is not silently replaced.
+                for parent in parent_paths(normalized):
+                    kind = candidate.kind(parent)
+                    if kind is None:
+                        candidate.directories.add(parent)
+                    elif kind != "directory":
+                        raise WorkspaceStorageError("workspace_type_conflict")
             _copy_subtree(self._checkpoint, candidate, normalized)
             _validate_tree(candidate, self._limits)
             self._tree = candidate

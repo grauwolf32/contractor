@@ -459,7 +459,9 @@ and define conflict semantics separately.
 During one A2A invocation the Worker produces effective tree `F`:
 
 - `diff` and `changed_paths` describe `B -> F`;
-- `rollback_changes` restores `B`, not original sources `S`;
+- `rollback_changes` restores `B`, not original sources `S`; restoring one
+  path also recreates its parent directories deleted since `B`, but fails with
+  `workspace_type_conflict` instead of replacing a parent that became a file;
 - exported overlay state describes cumulative `S -> F`;
 - exported human diff describes the current invocation `B -> F`;
 - after a graceful terminal invocation and successful export, `F` becomes the

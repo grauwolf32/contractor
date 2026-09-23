@@ -252,3 +252,54 @@ def test_workspace_diff_is_a_patch_git_applies_exactly(tmp_path: Path) -> None:
     assert not (work / "dir/removed.txt").exists()
     for path, text in after.text_files.items():
         assert (work / path).read_bytes() == text.encode("utf-8"), path
+
+
+def test_rolling_back_one_file_restores_parents_deleted_after_checkpoint() -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive(
+                        {
+                            "dir/a.txt": b"a\n",
+                            "dir/b.txt": b"b\n",
+                            "deep/er/c.txt": b"c\n",
+                            "kind/d.txt": b"d\n",
+                        }
+                    ),
+                )
+            ]
+        )
+        spec.mode = "overlay"
+        provider = MemoryWorkspaceProvider(settings("memory"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="rollback-parents",
+            timeout_seconds=5,
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+        await session.delete_path("dir", recursive=True)
+        await session.delete_path("deep", recursive=True)
+
+        await session.rollback_changes("dir/a.txt")
+        assert await session.read_text("dir/a.txt") == "a\n"
+        assert await session.changed_paths() == ("deep", "deep/er", "deep/er/c.txt", "dir/b.txt")
+        await session.rollback_changes("deep/er/c.txt")
+        assert await session.read_text("deep/er/c.txt") == "c\n"
+        assert await session.changed_paths() == ("dir/b.txt",)
+
+        # A parent that became a file is not silently replaced.
+        await session.delete_path("kind", recursive=True)
+        await session.write_text("kind", "now a file\n")
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+            await session.rollback_changes("kind/d.txt")
+        assert await session.read_text("kind") == "now a file\n"
+
+        await session.close()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
