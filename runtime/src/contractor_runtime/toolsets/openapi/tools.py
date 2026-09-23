@@ -1527,7 +1527,12 @@ def _validate_local_refs(document: dict[str, Any]) -> None:
             token = encoded.replace("~1", "/").replace("~0", "~")
             if isinstance(current, dict) and token in current:
                 current = current[token]
-            elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
+            elif (
+                isinstance(current, list)
+                and token.isascii()
+                and token.isdigit()
+                and int(token) < len(current)
+            ):
                 current = current[int(token)]
             else:
                 raise ToolInputError(f"OpenAPI local reference is unresolved: {ref}")

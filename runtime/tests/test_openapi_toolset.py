@@ -452,6 +452,18 @@ def test_components_accept_extensions_but_not_unknown_sections() -> None:
         openapi_module._validate_document(document, require_provenance=False)
 
 
+def test_local_ref_array_index_rejects_non_ascii_digits() -> None:
+    document = minimal_document("Refs")
+    document["x-values"] = [{"type": "string"}]
+    document["x-ref"] = {"$ref": "#/x-values/0"}
+    openapi_module._validate_document(document, require_provenance=False)
+    # Superscript two, Arabic-Indic one and fullwidth zero all satisfy isdigit().
+    for token in (chr(0x00B2), chr(0x0661), chr(0xFF10)):
+        document["x-ref"] = {"$ref": f"#/x-values/{token}"}
+        with pytest.raises(ValueError, match="unresolved"):
+            openapi_module._validate_document(document, require_provenance=False)
+
+
 def test_parser_enforces_byte_depth_and_item_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
