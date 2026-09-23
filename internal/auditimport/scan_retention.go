@@ -3,6 +3,7 @@ package auditimport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -70,5 +71,12 @@ func (i *Importer) retainScanRecovery(
 		ExecutionItemID: member.member.ExecutionItemID, Disposition: disposition,
 		Retryable: retryable, FinalDisposition: finalDisposition(disposition), Coverage: coverage,
 	}
-	return i.commitCollection(ctx, claim, execution, disposition, nil, links, &code, []auditstore.CollectionItem{item})
+	changed, err := i.commitCollection(ctx, claim, execution, disposition, nil, links, &code, []auditstore.CollectionItem{item})
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		// A concurrent writer consumed the budget the snapshot admitted.
+		return i.collectTechnical(ctx, claim, execution, []preparedMember{member},
+			auditstore.CollectionExecutionFailed, false, "evidence-budget-exhausted",
+			auditstore.CoverageInconclusive)
+	}
+	return changed, err
 }

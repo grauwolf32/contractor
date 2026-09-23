@@ -46,9 +46,36 @@ func (s *PostgresStore) Collect(
 		if sqlState == "23505" {
 			return CollectionReceipt{}, false, ErrConflict
 		}
+		if exceeded, budgetErr := s.evidenceBudgetExceeded(
+			ctx, params.Claim.AuditID, prepared.retainedBytes,
+		); budgetErr != nil {
+			return CollectionReceipt{}, false, budgetErr
+		} else if exceeded {
+			return CollectionReceipt{}, false, ErrEvidenceBudgetExhausted
+		}
 		return CollectionReceipt{}, false, ErrPrecondition
 	}
 	return CollectionReceipt{}, false, fmt.Errorf("collect Audit execution: %w", err)
+}
+
+// evidenceBudgetExceeded names the advanced_audit gate that rejected a
+// collection. Retained bytes never shrink while the Audit exists, so a
+// request over the budget now can never commit and must not be retried.
+func (s *PostgresStore) evidenceBudgetExceeded(
+	ctx context.Context, auditID string, retainedBytes int64,
+) (bool, error) {
+	if retainedBytes <= 0 {
+		return false, nil
+	}
+	var exceeded bool
+	err := s.db.QueryRow(ctx, `
+SELECT retained_evidence_bytes + $2 > max_evidence_bytes
+  FROM audits
+ WHERE audit_id = $1`, auditID, retainedBytes).Scan(&exceeded)
+	if err != nil {
+		return false, fmt.Errorf("read Audit evidence budget: %w", err)
+	}
+	return exceeded, nil
 }
 
 func prefixedReceiptColumns(prefix string) string {

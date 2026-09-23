@@ -297,20 +297,30 @@ func (i *Importer) retainCheckResults(
 			)
 		}
 	}
+	// Copy each distinct exact source once. Evidence records citing the same
+	// revision, or the result output itself, share that copy, so the store
+	// charges exactly the bytes retainedEvidenceFits admitted. The first
+	// sorted evidence ID names a copy, keeping retries deterministic.
+	retainedBySource := map[string]auditstore.ExactArtifact{exactRefKey(source.Ref): retainedResult}
 	evidenceIDs := sortedEvidenceIDs(evidenceByID)
 	for _, id := range evidenceIDs {
 		evidence := evidenceByID[id]
 		artifact := retainedResult
 		displayRef := "member:" + evidence.value.ContentMemberID
 		if evidence.descriptor != nil {
-			artifact, err = i.artifacts.RetainRunExact(
-				ctx, run.RunID, *evidence.descriptor, snapshot.Audit.ProjectID,
-				contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("evidence", execution.ExecutionID, id)},
-			)
-			if err != nil {
-				return false, err
+			key := exactRefKey(evidence.descriptor.Ref)
+			shared, retained := retainedBySource[key]
+			if !retained {
+				shared, err = i.artifacts.RetainRunExact(
+					ctx, run.RunID, *evidence.descriptor, snapshot.Audit.ProjectID,
+					contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("evidence", execution.ExecutionID, id)},
+				)
+				if err != nil {
+					return false, err
+				}
+				retainedBySource[key] = shared
 			}
-			displayRef = ""
+			artifact, displayRef = shared, ""
 		}
 		owner, exists := evidenceOwner[id]
 		if !exists || owner < 0 || owner >= len(members) {
@@ -325,6 +335,15 @@ func (i *Importer) retainCheckResults(
 			Artifact:   artifact, SourceProvenance: provenance, DisplayRef: displayRef,
 		})
 	}
-	return i.commitCollection(ctx, claim, execution, auditstore.CollectionAccepted,
+	changed, err := i.commitCollection(ctx, claim, execution, auditstore.CollectionAccepted,
 		&source, links, nil, collectionItems)
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		// The snapshot budget admitted these bytes, but a concurrent writer
+		// consumed it first. Settle exactly as the pre-check would have; the
+		// unlinked copies stay in the Audit namespace until Audit purge.
+		return i.collectTechnical(ctx, claim, execution, members,
+			auditstore.CollectionInvalidResult, false, "evidence-budget-exhausted",
+			auditstore.CoverageInconclusive, &source)
+	}
+	return changed, err
 }

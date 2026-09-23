@@ -720,7 +720,16 @@ an `invalid-result`. One evidence record belongs to exactly one result item; an
 evidence ID cannot be used to attribute one observation to several batch
 members. Evidence may instead reference an exact revision in the
 same RunScope. The importer never follows a path or accepts an unversioned or
-foreign-scope reference. Finding intake retains every trusted child-Run
+foreign-scope reference. Each distinct referenced revision is retained once:
+evidence records citing the same revision share one Audit copy, and a record
+citing the frozen result output shares the retained result. The evidence budget
+therefore charges every distinct retained revision exactly once, both when the
+importer checks it and when the collection transaction enforces it. A result
+whose retained revisions exceed `maxEvidenceBytes`, including after a
+concurrent writer consumed the remaining budget, commits a non-retryable
+`invalid-result` receipt with `evidence-budget-exhausted` that links and
+charges no retained revision, rather than leaving the execution collecting.
+Finding intake retains every trusted child-Run
 proposal in the Audit inbox before committing the collection receipt,
 including proposals from technically failed Runs. A non-empty `proposals`
 association contains exact `(invocation_id, client_key)` selections injected
