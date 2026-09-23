@@ -34,7 +34,9 @@ allocation's project HTTP target or fall inside an additional allowed network.
 For same-host targets or local evaluations, allow them explicitly at startup,
 for example `--allowed-target-network 127.0.0.0/8` (repeatable) or
 `CONTRACTOR_ALLOWED_TARGET_NETWORKS=127.0.0.0/8,::1/128`. Values are strict CIDR
-networks, at most 64; the setting is immutable for the process.
+networks, at most 64; the setting is immutable for the process. Requests routed
+through a `tool-http` forward proxy, such as a Caido instance on the same host,
+use the same policy; loopback then refers to the proxy's host.
 
 For `direct` on a local provider, the allocation's `run_workdir` is authoritative
 on disk. Completed external writes, creates, renames and deletes are visible to

@@ -578,7 +578,11 @@ class _HTTPSession:
         try:
             if self._proxy is not None:
                 response = await self._proxy.stream_request(
-                    method, url, request_observer=observe, **kwargs
+                    method,
+                    url,
+                    target_policy=self._target_policy,
+                    request_observer=observe,
+                    **kwargs,
                 )
             else:
                 client = self._direct_client

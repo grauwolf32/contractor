@@ -15,7 +15,7 @@ import pytest
 from test_http_toolset import FakeArtifactClient, close_tools, make_tools, proxy_runtime_settings
 
 from contractor_runtime.adapters import AdapterHandles
-from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
+from contractor_runtime.adapters.http_proxy import ProxyHTTPClient, ProxyTargetDenied
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.toolsets.common.target_policy import (
     IPAddress,
@@ -230,17 +230,18 @@ def test_operator_networks_allow_loopback_but_never_runtime_endpoints(tmp_path: 
     asyncio.run(scenario())
 
 
-def test_proxy_route_denial_is_target_denied_and_never_retried(tmp_path: Path) -> None:
+def test_proxy_route_allows_loopback_targets_that_the_policy_allows(tmp_path: Path) -> None:
     sent: list[httpx.Request] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
         sent.append(request)
-        return httpx.Response(200, request=request)
+        return httpx.Response(200, content=b"ok", request=request)
 
     async def scenario() -> None:
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
         config = TargetPolicyConfig(
-            allowed_networks=parse_allowed_networks(["127.0.0.0/8"]),
+            protected_urls=("https://127.0.0.1:9443",),
+            allowed_networks=parse_allowed_networks(["127.0.0.0/8", "::1/128"]),
             resolver=table_resolver({}),
         )
         factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
@@ -248,19 +249,81 @@ def test_proxy_route_denial_is_target_denied_and_never_retried(tmp_path: Path) -
             factory,
             tmp_path,
             settings=proxy_runtime_settings(),
-            adapter_handles=AdapterHandles(
-                tool_http=ProxyHTTPClient(client, forbidden_hosts=("127.0.0.1", "localhost"))
-            ),
+            adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client)),
         )
+        request = tools["http_request"]
         try:
-            # The operator network passes the Runtime check; the route still
-            # refuses loopback and that refusal is a policy denial.
-            await denied(tools["http_request"], "http://127.0.0.1:8080/")
-            await denied(tools["http_request"], "http://169.254.169.254/latest")
-            await denied(tools["http_request"], "https://proxy.example/")
-            assert sent == []
+            # A same-host target behind the forward proxy (for example Caido).
+            for url in (
+                "http://127.0.0.1:8080/",
+                "http://localhost:8080/",
+                "http://[::1]:8080/",
+                "http://10.0.0.5/",
+            ):
+                assert (await request(url))["status"] == 200
+            # Runtime endpoints and metadata stay denied inside allowed networks.
+            for url in (
+                "http://127.0.0.1:9443/",
+                "http://localhost:9443/",
+                "http://169.254.169.254/latest",
+                "https://proxy.example/",
+                "https://control.example/private/v1/run",
+            ):
+                await denied(request, url)
+            assert [str(item.url) for item in sent] == [
+                "http://127.0.0.1:8080/",
+                "http://localhost:8080/",
+                "http://[::1]:8080/",
+                "http://10.0.0.5/",
+            ]
+        finally:
+            await close_tools(tools)
+            await client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_proxy_route_refuses_loopback_outside_the_project_target(tmp_path: Path) -> None:
+    sent: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, content=b"ok", request=request)
+
+    async def scenario() -> None:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+        proxy = ProxyHTTPClient(client)
+        config = TargetPolicyConfig(resolver=table_resolver({"app.local": ("127.0.0.1",)}))
+        factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
+        settings = proxy_runtime_settings().model_copy(
+            update={
+                "http_origin_target": HTTPOriginTargetSettings(url="http://app.local:3000/"),
+            }
+        )
+        tools = await make_tools(
+            factory,
+            tmp_path,
+            settings=settings,
+            adapter_handles=AdapterHandles(tool_http=proxy),
+        )
+        request = tools["http_request"]
+        try:
+            assert (await request("http://app.local:3000/a"))["status"] == 200
+            assert (await request("http://127.0.0.1:3000/b"))["status"] == 200
+            await denied(request, "http://127.0.0.1:3001/")
+            await denied(request, "http://localhost:8080/")
+            assert [str(item.url) for item in sent] == [
+                "http://app.local:3000/a",
+                "http://127.0.0.1:3000/b",
+            ]
+            # The route itself applies the policy it is given, before any I/O.
+            with pytest.raises(ProxyTargetDenied):
+                await proxy.stream_request(
+                    "GET", "http://127.0.0.1:3001/", target_policy=TargetPolicy()
+                )
+            assert len(sent) == 2
             history = await tools["http_history"]()
-            assert history == []
+            assert [item["request_id"] for item in history] == [1, 2]
         finally:
             await close_tools(tools)
             await client.aclose()

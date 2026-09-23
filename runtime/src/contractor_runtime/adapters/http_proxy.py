@@ -23,6 +23,7 @@ from contractor_runtime.adapters.host import (
 )
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeAdapterRef
 from contractor_runtime.toolsets.common.process import run_command
+from contractor_runtime.toolsets.common.target_policy import TargetDenied, TargetPolicy
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -50,7 +51,7 @@ class ProxyRequestError(RuntimeError):
 
 
 class ProxyTargetDenied(ProxyRequestError):
-    """The route refused a private Runtime destination before any network I/O."""
+    """The target policy refused the destination before any network I/O."""
 
 
 class ProxySubprocessError(RuntimeError):
@@ -106,17 +107,21 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
 
 
 class ProxyHTTPClient:
-    """Narrow allocation handle; callers cannot change proxy routing."""
+    """Narrow allocation handle; callers cannot change proxy routing.
+
+    Tool requests name the allocation's shared target policy. The proxy resolves
+    target names itself, so the route applies the policy's name, literal-address
+    and Runtime endpoint checks before any network I/O; loopback is reachable
+    only where that policy allows it (project target or operator network).
+    """
 
     def __init__(
         self,
         client: httpx.AsyncClient,
         *,
-        forbidden_hosts: Sequence[str] = (),
         metrics: RuntimeAdapterMetricsState | None = None,
     ) -> None:
         self._client: httpx.AsyncClient | None = client
-        self._forbidden_hosts = frozenset(forbidden_hosts)
         self._metrics = metrics
 
     @property
@@ -126,12 +131,23 @@ class ProxyHTTPClient:
             raise ProxyRequestError
         return client
 
-    async def request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
-        parsed = urlsplit(url)
-        if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
+    def _require_permitted(self, url: str, target_policy: TargetPolicy) -> None:
+        try:
+            target_policy.check_url(url)
+        except TargetDenied:
             if self._metrics is not None:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise ProxyTargetDenied
+            raise ProxyTargetDenied from None
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        target_policy: TargetPolicy,
+        **kwargs: object,
+    ) -> httpx.Response:
+        self._require_permitted(url, target_policy)
         try:
             response = await self.async_client.request(method, url, **kwargs)
             if response.status_code == 407:
@@ -150,16 +166,13 @@ class ProxyHTTPClient:
         method: str,
         url: str,
         *,
+        target_policy: TargetPolicy,
         request_observer: Callable[[httpx.Request], None] | None = None,
         **kwargs: object,
     ) -> httpx.Response:
         """Send one routed request without buffering its response body."""
 
-        parsed = urlsplit(url)
-        if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
-            if self._metrics is not None:
-                self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise ProxyTargetDenied
+        self._require_permitted(url, target_policy)
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
@@ -184,7 +197,6 @@ class ProxyHTTPClient:
 
     def detach(self) -> None:
         self._client = None
-        self._forbidden_hosts = frozenset()
         self._metrics = None
 
     def __repr__(self) -> str:
@@ -443,13 +455,7 @@ class HTTPProxyAdapter:
             else None
         )
         tool_http = (
-            self._new_http_client(
-                proxy,
-                tls_context,
-                timeout,
-                limits,
-                forbidden_hosts=context.private_bypass_hosts,
-            )
+            self._new_http_client(proxy, tls_context, timeout, limits)
             if "tool-http" in settings.targets
             else None
         )
@@ -486,8 +492,6 @@ class HTTPProxyAdapter:
         tls_context: ssl.SSLContext,
         timeout: httpx.Timeout,
         limits: httpx.Limits,
-        *,
-        forbidden_hosts: Sequence[str] = (),
     ) -> ProxyHTTPClient:
         transport = httpx.AsyncHTTPTransport(
             verify=tls_context,
@@ -505,7 +509,6 @@ class HTTPProxyAdapter:
                 timeout=timeout,
                 limits=limits,
             ),
-            forbidden_hosts=forbidden_hosts,
             metrics=self.metrics,
         )
         self._clients.append(handle)

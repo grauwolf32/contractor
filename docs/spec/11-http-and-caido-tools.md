@@ -175,10 +175,17 @@ Redirect hops and retries open connections through the same check.
 With a `tool-http` route, the forward proxy resolves target names; the Runtime
 does not resolve them locally because proxy-only names are valid there. It still
 applies every literal-address, name and Runtime endpoint check above before
-sending, and the route itself refuses private Runtime hosts, including
-`localhost`, `127.0.0.1` and `::1`. DNS-based address policy for proxied names
-belongs to that proxy. Deployments needing a closed network boundary beyond this
-policy enforce it at the proxy and/or restrict the Runtime's network namespace.
+sending. The route handle has no host list of its own: every tool request names
+the allocation's target policy and the handle refuses a denied destination
+before any network I/O. A same-host target on `localhost`, `127.0.0.1` or `::1`
+behind a local proxy such as Caido is therefore reachable exactly when the
+policy allows it, as the project target's origin or inside an allowed target
+network, while Runtime endpoints, including the proxy and Caido endpoints on
+their loopback ports, and metadata stay refused. Loopback then means the
+proxy's host; allow it only when the proxy runs beside the Runtime. DNS-based
+address policy for proxied names belongs to that proxy. Deployments needing a
+closed network boundary beyond this policy enforce it at the proxy and/or
+restrict the Runtime's network namespace.
 Both paths use normal TLS certificate and endpoint-name verification; neither
 supports an agent-selected `verify=false`. The proxy endpoint itself is
 Control-Plane configuration and cannot be changed by a tool argument.
