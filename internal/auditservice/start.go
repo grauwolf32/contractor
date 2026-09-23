@@ -1,7 +1,6 @@
 package auditservice
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -646,27 +645,7 @@ func writeImmutableArtifact(
 	target contracts.ArtifactRef,
 	payload artifacts.Payload,
 ) (auditstore.ExactArtifact, error) {
-	written, err := store.Write(ctx, target, payload, nil)
-	if err == nil {
-		return auditstore.ExactArtifact{
-			Ref: written.Ref, Digest: auditdomain.DigestBytes(payload.Data),
-			MediaType: written.MediaType, SizeBytes: written.Size,
-		}, nil
-	}
-	if !errors.Is(err, artifacts.ErrArtifactConflict) {
-		return auditstore.ExactArtifact{}, err
-	}
-	current, readErr := store.Read(ctx, target)
-	if readErr != nil {
-		return auditstore.ExactArtifact{}, readErr
-	}
-	if current.Payload.MediaType != payload.MediaType || !bytes.Equal(current.Payload.Data, payload.Data) {
-		return auditstore.ExactArtifact{}, artifacts.ErrArtifactConflict
-	}
-	return auditstore.ExactArtifact{
-		Ref: current.Ref, Digest: auditdomain.DigestBytes(current.Payload.Data),
-		MediaType: current.Payload.MediaType, SizeBytes: int64(len(current.Payload.Data)),
-	}, nil
+	return auditstore.WriteImmutableArtifact(ctx, store, target, payload, artifacts.ErrArtifactConflict)
 }
 
 func (s *Service) startedProjection(
