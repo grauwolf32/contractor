@@ -27,13 +27,14 @@ configuration. Physical roots are never registered with Control Plane.
 
 Model-selected HTTP requests and scanner targets pass one
 [target policy](../docs/spec/11-http-and-caido-tools.md#target-policy). Runtime
-service endpoints and cloud metadata addresses are always refused. Loopback,
-link-local and private addresses are refused unless they are the allocation's
-project HTTP target or fall inside an operator network. For same-host targets
-or local evaluations, allow them explicitly at startup, for example
-`--private-target-network 127.0.0.0/8` (repeatable) or
-`CONTRACTOR_PRIVATE_TARGET_NETWORKS=127.0.0.0/8,10.20.0.0/16`. Values are strict
-CIDR networks, at most 64; the setting is immutable for the process.
+service endpoints and cloud metadata addresses are always refused. Private
+networks (RFC 1918, `100.64.0.0/10`, IPv6 unique local) and public addresses
+are allowed. Loopback and link-local addresses are refused unless they are the
+allocation's project HTTP target or fall inside an additional allowed network.
+For same-host targets or local evaluations, allow them explicitly at startup,
+for example `--allowed-target-network 127.0.0.0/8` (repeatable) or
+`CONTRACTOR_ALLOWED_TARGET_NETWORKS=127.0.0.0/8,::1/128`. Values are strict CIDR
+networks, at most 64; the setting is immutable for the process.
 
 For `direct` on a local provider, the allocation's `run_workdir` is authoritative
 on disk. Completed external writes, creates, renames and deletes are visible to

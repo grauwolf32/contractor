@@ -228,7 +228,7 @@ def _target_policy(settings: Settings) -> TargetPolicyConfig:
         protected.append(f"https://{listen_host}:{settings.port}")
     return TargetPolicyConfig(
         protected_urls=tuple(protected),
-        private_networks=settings.private_target_networks,
+        allowed_networks=settings.allowed_target_networks,
     )
 
 

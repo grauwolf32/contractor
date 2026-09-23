@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import httpcore
 import httpx
 import pytest
 from test_http_toolset import FakeArtifactClient, close_tools, make_tools, proxy_runtime_settings
@@ -18,11 +19,13 @@ from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.toolsets.common.target_policy import (
     IPAddress,
+    TargetPolicy,
     TargetPolicyConfig,
     TargetUnresolved,
-    parse_private_networks,
+    parse_allowed_networks,
 )
 from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.transport import PolicyNetworkBackend
 
 
 @dataclass
@@ -97,7 +100,7 @@ def test_names_resolving_to_loopback_are_denied_at_connect_time(tmp_path: Path) 
         async with loopback_server() as server:
             config = TargetPolicyConfig(
                 resolver=table_resolver(
-                    {"rebind.example": ("127.0.0.1",), "ula.example": ("fd00::1",)}
+                    {"rebind.example": ("127.0.0.1",), "link.example": ("fe80::1",)}
                 )
             )
             factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)
@@ -105,7 +108,7 @@ def test_names_resolving_to_loopback_are_denied_at_connect_time(tmp_path: Path) 
             try:
                 for url in (
                     f"http://rebind.example:{server.port}/",
-                    f"http://ula.example:{server.port}/",
+                    f"http://link.example:{server.port}/",
                     f"http://127.1:{server.port}/",
                     f"http://2130706433:{server.port}/",
                     f"http://0x7f000001:{server.port}/",
@@ -115,6 +118,42 @@ def test_names_resolving_to_loopback_are_denied_at_connect_time(tmp_path: Path) 
                 assert server.paths == []
             finally:
                 await close_tools(tools)
+
+    asyncio.run(scenario())
+
+
+class RecordingBackend(httpcore.AsyncNetworkBackend):
+    def __init__(self) -> None:
+        self.connected: list[tuple[str, int]] = []
+
+    async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        self.connected.append((host, port))
+        raise httpcore.ConnectError("recorded")
+
+    async def connect_unix_socket(self, path, timeout=None, socket_options=None):
+        raise AssertionError("unexpected")
+
+    async def sleep(self, seconds: float) -> None:
+        return None
+
+
+def test_private_addresses_are_connected_without_operator_networks() -> None:
+    async def scenario() -> None:
+        recording = RecordingBackend()
+        policy = TargetPolicy(
+            resolver=table_resolver(
+                {"internal.example": ("fe80::5", "10.0.0.5", "fd00::5", "100.64.0.5")}
+            )
+        )
+        backend = PolicyNetworkBackend(policy, recording)
+        with pytest.raises(httpcore.ConnectError):
+            await backend.connect_tcp("internal.example", 8080)
+        # Link-local stays denied; private candidates are tried in resolver order.
+        assert recording.connected == [
+            ("10.0.0.5", 8080),
+            ("fd00::5", 8080),
+            ("100.64.0.5", 8080),
+        ]
 
     asyncio.run(scenario())
 
@@ -153,10 +192,10 @@ def test_operator_networks_allow_loopback_but_never_runtime_endpoints(tmp_path: 
         async with loopback_server() as target, loopback_server() as artifacts:
             calls: list[str] = []
             config = TargetPolicyConfig(
-                private_networks=parse_private_networks(["127.0.0.0/8"]),
+                allowed_networks=parse_allowed_networks(["127.0.0.0/8"]),
                 resolver=table_resolver(
                     {
-                        "app.example": ("10.255.0.1", "127.0.0.1"),
+                        "app.example": ("169.254.0.1", "127.0.0.1"),
                         "artifacts.example": ("127.0.0.1",),
                     },
                     calls,
@@ -170,8 +209,8 @@ def test_operator_networks_allow_loopback_but_never_runtime_endpoints(tmp_path: 
             request = tools["http_request"]
             try:
                 calls.clear()
-                # The denied private candidate is skipped; the socket is pinned
-                # to the permitted answer from the same single lookup.
+                # The denied link-local candidate is skipped; the socket is
+                # pinned to the permitted answer from the same single lookup.
                 allowed = await request(f"http://app.example:{target.port}/allowed")
                 assert allowed["status"] == 200
                 assert calls == ["app.example"]
@@ -201,7 +240,7 @@ def test_proxy_route_denial_is_target_denied_and_never_retried(tmp_path: Path) -
     async def scenario() -> None:
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
         config = TargetPolicyConfig(
-            private_networks=parse_private_networks(["127.0.0.0/8"]),
+            allowed_networks=parse_allowed_networks(["127.0.0.0/8"]),
             resolver=table_resolver({}),
         )
         factory = HTTPToolsetFactory(lambda *_: FakeArtifactClient(), target_policy=config)

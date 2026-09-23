@@ -7,10 +7,11 @@ hexadecimal IPv4; IPv4-mapped and NAT64 IPv6) before classification:
 - Runtime service endpoints (by host name and by resolved address plus port)
   and cloud metadata, unspecified, multicast and reserved destinations are
   always denied.
-- Loopback, link-local, private and other non-global addresses are denied
-  unless the allocation's project HTTP target resolves to that exact address
-  and port, or an operator-configured network contains the address.
-- Global addresses are allowed.
+- Loopback and link-local addresses are denied unless the allocation's project
+  HTTP target resolves to that exact address and port, or an operator-allowed
+  network contains the address.
+- Every other address is allowed, including private networks (RFC 1918, shared
+  address space, IPv6 unique local) where internal application targets live.
 
 Direct HTTP transports call :meth:`TargetPolicy.resolve` at connect time and
 connect only to an address it returned. Scanner subprocesses resolve names
@@ -34,7 +35,7 @@ type IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 type Resolver = Callable[[str, int], Awaitable[Sequence[IPAddress]]]
 
 MAX_RESOLVED_ADDRESSES = 32
-MAX_PRIVATE_TARGET_NETWORKS = 64
+MAX_ALLOWED_TARGET_NETWORKS = 64
 PROTECTED_RESOLUTION_TIMEOUT_SECONDS = 5.0
 
 # Instance metadata services reachable from common cloud and container hosts.
@@ -143,18 +144,18 @@ def url_endpoint(url: str) -> tuple[str, int]:
     return host, port
 
 
-def parse_private_networks(values: Iterable[str]) -> tuple[IPNetwork, ...]:
+def parse_allowed_networks(values: Iterable[str]) -> tuple[IPNetwork, ...]:
     """Validate operator-allowed networks; raises ValueError without echoing input."""
 
     selected = tuple(values)
-    if len(selected) > MAX_PRIVATE_TARGET_NETWORKS:
-        raise ValueError(f"at most {MAX_PRIVATE_TARGET_NETWORKS} private target networks")
+    if len(selected) > MAX_ALLOWED_TARGET_NETWORKS:
+        raise ValueError(f"at most {MAX_ALLOWED_TARGET_NETWORKS} allowed target networks")
     result: list[IPNetwork] = []
     for value in selected:
         try:
             network = ipaddress.ip_network(value.strip(), strict=True)
         except ValueError:
-            raise ValueError("private target networks must be CIDR networks") from None
+            raise ValueError("allowed target networks must be CIDR networks") from None
         if network.version == 6:
             assert isinstance(network, ipaddress.IPv6Network)
             first = canonical_address(network.network_address)
@@ -188,7 +189,7 @@ class TargetPolicyConfig:
     """Process-wide policy inputs supplied by the Runtime Agent entry point."""
 
     protected_urls: tuple[str, ...] = ()
-    private_networks: tuple[IPNetwork, ...] = ()
+    allowed_networks: tuple[IPNetwork, ...] = ()
     resolver: Resolver | None = field(default=None, repr=False)
 
     async def build(self, settings: RuntimeSettings) -> TargetPolicy:
@@ -226,14 +227,14 @@ class TargetPolicyConfig:
         allowed_origins: set[tuple[IPAddress, int]] = set()
         if target is not None:
             allowed_origins.update(
-                (address, target[1]) for address in resolved[-1] if not address.is_global
+                (address, target[1]) for address in resolved[-1] if _host_local(address)
             )
         return TargetPolicy(
             protected_names=frozenset(names),
             protected_addresses=frozenset(addresses),
             protected_local_ports=frozenset(local_ports),
             allowed_origins=frozenset(allowed_origins),
-            allowed_networks=self.private_networks,
+            allowed_networks=self.allowed_networks,
             resolver=resolver,
         )
 
@@ -260,7 +261,7 @@ class TargetPolicy:
             or (selected.version == 4 and selected in _THIS_NETWORK)
         ):
             raise TargetDenied
-        if selected.is_global:
+        if not _host_local(selected):
             return
         if (selected, port) in self.allowed_origins or any(
             selected in network for network in self.allowed_networks
@@ -333,6 +334,16 @@ class TargetPolicy:
         if len(addresses) > MAX_RESOLVED_ADDRESSES:
             raise TargetDenied
         return addresses
+
+
+def _host_local(address: IPAddress) -> bool:
+    """Loopback and link-local destinations reach the Runtime host or its link.
+
+    They need the project target or an operator-allowed network; private and
+    global destinations do not.
+    """
+
+    return address.is_loopback or address.is_link_local
 
 
 def runtime_service_urls(settings: RuntimeSettings) -> tuple[str, ...]:

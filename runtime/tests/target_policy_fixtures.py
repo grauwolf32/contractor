@@ -9,11 +9,12 @@ from contractor_runtime.toolsets.common.target_policy import (
     IPAddress,
     TargetPolicyConfig,
     TargetUnresolved,
-    parse_private_networks,
+    parse_allowed_networks,
 )
 
-# RFC 2544 benchmarking space: never routed, and large enough that distinct
-# fixture names (targets versus Runtime service endpoints) do not collide.
+# RFC 2544 benchmarking space: never routed, allowed by the default policy, and
+# large enough that distinct fixture names (targets versus Runtime service
+# endpoints) do not collide.
 FIXTURE_NETWORK = ipaddress.ip_network("198.18.0.0/15")
 
 
@@ -32,6 +33,6 @@ async def fixture_resolver(host: str, port: int) -> tuple[IPAddress, ...]:
 
 
 SCAN_TEST_POLICY = TargetPolicyConfig(
-    private_networks=parse_private_networks(["127.0.0.0/8", "::1/128", str(FIXTURE_NETWORK)]),
+    allowed_networks=parse_allowed_networks(["127.0.0.0/8", "::1/128"]),
     resolver=fixture_resolver,
 )

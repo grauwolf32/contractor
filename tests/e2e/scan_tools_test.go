@@ -379,7 +379,7 @@ http:
 			"--ca-file", caPaths.Certificate, "--certificate-file", identity.Certificate, "--private-key-file", identity.PrivateKey,
 			"--listen", address, "--work-root", filepath.Join(h.temporaryRoot, name), "--request-timeout-seconds", "10", "--shutdown-grace-seconds", "5",
 			// Scanner fixtures listen on loopback, which the target policy denies unless allowed.
-			"--private-target-network", "127.0.0.0/8")
+			"--allowed-target-network", "127.0.0.0/8")
 		waitForHTTP(t, ctx, process, controlClient, baseURL+"/healthz", http.StatusOK)
 		waitForProcessLog(t, ctx, process, "runtime agent registered")
 		return process

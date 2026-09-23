@@ -146,17 +146,19 @@ label is numeric but which is not valid IPv4 is denied rather than guessed.
 | Runtime service endpoints: LLM Gateway, Artifact API, telemetry collector, forward proxy, Caido control API, Control Plane, advertised control/A2A URLs and the private listener | Always denied, by host name plus port and by every resolved address plus port. A loopback or unspecified endpoint address protects every loopback address on that port. |
 | Cloud metadata: `169.254.169.254`, `169.254.170.2`, `169.254.170.23`, `100.100.100.200`, `fd00:ec2::254`, `fd00:ec2::23`, and the names `metadata`, `metadata.goog`, `metadata.google.internal`, `instance-data`, `instance-data.ec2.internal` | Always denied. |
 | Unspecified, `0.0.0.0/8`, multicast and reserved (including IPv4 `240.0.0.0/4` and broadcast) | Always denied. |
-| Loopback, link-local, RFC1918/ULA, shared address space and every other non-global address | Denied, unless the allocation's project HTTP target (`httpOriginTarget`) resolves to that exact address and port, or an operator private target network contains it. |
-| Global addresses | Allowed. |
+| Loopback (`127.0.0.0/8`, `::1`) and link-local (`169.254.0.0/16`, `fe80::/10`) | Denied, unless the allocation's project HTTP target (`httpOriginTarget`) resolves to that exact address and port, or an operator-allowed target network contains it. |
+| Private networks (RFC 1918, shared address space `100.64.0.0/10`, IPv6 unique local `fc00::/7`), other non-global ranges and global addresses | Allowed. |
 
-Operator networks are an immutable Runtime Agent startup setting:
-`--private-target-network CIDR` (repeatable) or the comma-separated
-`CONTRACTOR_PRIVATE_TARGET_NETWORKS`, at most 64 strict CIDR networks. They are
-for same-host deployments, local evaluations and explicit test networks, for
-example `127.0.0.0/8` when targets run beside the Runtime. They never unlock a
-Runtime service endpoint or a metadata address. A project target on loopback
-needs no operator setting: its own origin is allowed for the allocation that
-receives it.
+Internal application targets usually live on private networks, so those need
+no setting; only the destinations above that reach the Runtime host itself or
+its link are gated. Additional allowed networks are an immutable Runtime Agent
+startup setting: `--allowed-target-network CIDR` (repeatable) or the
+comma-separated `CONTRACTOR_ALLOWED_TARGET_NETWORKS`, at most 64 strict CIDR
+networks. They are for same-host deployments and local evaluations, for example
+`127.0.0.0/8` when targets run beside the Runtime. They never unlock a Runtime
+service endpoint, a metadata address or another always-denied destination. A
+project target on loopback needs no operator setting: its own origin is allowed
+for the allocation that receives it.
 
 Every denial, whether found before sending, at connect time or by the proxy
 route, is the non-retryable `http_target_denied`; scanners report
@@ -448,7 +450,7 @@ Stable errors include:
 - arbitrary GraphQL queries or user-defined Caido schema extensions;
 - automatic PAT-to-access-token exchange and refresh;
 - Server-side HTTP allow/deny policy editor or network sandbox;
-- per-Run private target networks in RuntimeConfig labels (the operator setting
+- per-Run allowed target networks in RuntimeConfig labels (the operator setting
   is per Runtime Agent process);
 - streaming multi-gigabyte downloads and binary artifact chunking;
 - automatic Skill-to-Toolset dependency installation;
@@ -466,8 +468,8 @@ Stable errors include:
 6. Allocation teardown erases all session credentials and client handles.
 7. Target policy classifies resolved addresses: direct HTTP connects only to a
    checked address, Runtime endpoints and metadata are never reachable, and
-   private destinations need the project target or an operator network. Proxied
-   name resolution and scanner re-resolution remain outside that pin; a
-   deployment requiring a closed boundary uses proxy/network policy.
+   loopback/link-local destinations need the project target or an operator
+   network. Proxied name resolution and scanner re-resolution remain outside
+   that pin; a deployment requiring a closed boundary uses proxy/network policy.
 8. Reserved HTTP/Caido IDs and tags are monotonic and never reused after an
    ambiguous or cancelled operation.

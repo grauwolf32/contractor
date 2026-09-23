@@ -20,7 +20,7 @@ from contractor_runtime.toolsets.common.target_policy import (
     TargetPolicyConfig,
     TargetUnresolved,
     literal_address,
-    parse_private_networks,
+    parse_allowed_networks,
 )
 
 
@@ -79,36 +79,42 @@ def test_ambiguous_numeric_hosts_are_denied(host: str) -> None:
         "127.0.0.1",
         "127.0.0.2",
         "::1",
-        "10.0.0.5",
-        "172.16.0.1",
-        "192.168.1.1",
-        "100.64.0.1",
+        "::ffff:127.0.0.1",
         "169.254.10.10",
         "fe80::1",
-        "fd12:3456::1",
-        "::ffff:10.0.0.5",
+        "fe80::1%eth0",
+        "64:ff9b::a9fe:0a0a",
     ],
 )
-def test_restricted_addresses_are_denied_by_default_and_allowed_by_network(address: str) -> None:
+def test_host_local_addresses_are_denied_by_default_and_allowed_by_network(address: str) -> None:
     selected = ipaddress.ip_address(address)
     with pytest.raises(TargetDenied):
         TargetPolicy().check_address(selected, 80)
     allowed = TargetPolicy(
-        allowed_networks=parse_private_networks(
-            [
-                "127.0.0.0/8",
-                "::1/128",
-                "10.0.0.0/8",
-                "172.16.0.0/12",
-                "192.168.0.0/16",
-                "100.64.0.0/10",
-                "169.254.0.0/16",
-                "fe80::/10",
-                "fc00::/7",
-            ]
+        allowed_networks=parse_allowed_networks(
+            ["127.0.0.0/8", "::1/128", "169.254.0.0/16", "fe80::/10"]
         )
     )
     allowed.check_address(selected, 80)
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "10.0.0.5",
+        "172.16.0.1",
+        "192.168.1.1",
+        "100.64.0.1",
+        "fd12:3456::1",
+        "fec0::1",
+        "::ffff:10.0.0.5",
+        "64:ff9b::a00:5",
+        "198.18.0.1",
+        "192.0.2.1",
+    ],
+)
+def test_private_and_other_non_global_addresses_are_allowed_by_default(address: str) -> None:
+    TargetPolicy().check_address(ipaddress.ip_address(address), 80)
 
 
 @pytest.mark.parametrize(
@@ -129,7 +135,7 @@ def test_restricted_addresses_are_denied_by_default_and_allowed_by_network(addre
     ],
 )
 def test_metadata_unspecified_multicast_and_reserved_ignore_allowlists(address: str) -> None:
-    policy = TargetPolicy(allowed_networks=parse_private_networks(["0.0.0.0/0", "::/0"]))
+    policy = TargetPolicy(allowed_networks=parse_allowed_networks(["0.0.0.0/0", "::/0"]))
     with pytest.raises(TargetDenied):
         policy.check_address(ipaddress.ip_address(address), 80)
 
@@ -146,14 +152,14 @@ def test_global_addresses_and_names_pass_without_dns() -> None:
 )
 def test_metadata_names_are_denied_textually(host: str) -> None:
     with pytest.raises(TargetDenied):
-        TargetPolicy(allowed_networks=parse_private_networks(["0.0.0.0/0"])).check_host(host, 80)
+        TargetPolicy(allowed_networks=parse_allowed_networks(["0.0.0.0/0"])).check_host(host, 80)
 
 
 def test_runtime_endpoints_are_denied_by_name_and_resolved_address() -> None:
     async def scenario() -> None:
         config = TargetPolicyConfig(
             protected_urls=("https://control.internal:8443", "https://0.0.0.0:9443"),
-            private_networks=parse_private_networks(["127.0.0.0/8", "10.0.0.0/8"]),
+            allowed_networks=parse_allowed_networks(["127.0.0.0/8"]),
             resolver=resolver(
                 {
                     "gateway.internal": ("10.0.0.7",),
@@ -211,7 +217,7 @@ def test_runtime_endpoints_are_denied_by_name_and_resolved_address() -> None:
     asyncio.run(scenario())
 
 
-def test_project_target_allows_only_its_resolved_private_origin() -> None:
+def test_project_target_allows_only_its_resolved_loopback_origin() -> None:
     async def scenario() -> None:
         config = TargetPolicyConfig(
             resolver=resolver({"app.local": ("127.0.0.1",), "artifacts.internal": ("10.1.1.1",)})
@@ -221,9 +227,14 @@ def test_project_target_allows_only_its_resolved_private_origin() -> None:
         )
         policy.check_address(ipaddress.ip_address("127.0.0.1"), 3000)
         assert policy.check_host("127.1", 3000) == ipaddress.ip_address("127.0.0.1")
-        for address, port in (("127.0.0.1", 3001), ("127.0.0.2", 3000), ("10.1.1.2", 3000)):
+        assert policy.check_host("localhost", 3000) is None
+        for address, port in (("127.0.0.1", 3001), ("127.0.0.2", 3000), ("169.254.1.1", 3000)):
             with pytest.raises(TargetDenied):
                 policy.check_address(ipaddress.ip_address(address), port)
+        # Private addresses need no allowance, except Runtime endpoints.
+        policy.check_address(ipaddress.ip_address("10.1.1.2"), 3000)
+        with pytest.raises(TargetDenied):
+            policy.check_address(ipaddress.ip_address("10.1.1.1"), 9443)
 
         # A target on a Runtime endpoint does not unlock that endpoint.
         protected = await config.build(
@@ -241,7 +252,6 @@ def test_project_target_allows_only_its_resolved_private_origin() -> None:
 def test_resolve_filters_candidates_and_require_needs_every_address() -> None:
     async def scenario() -> None:
         policy = TargetPolicy(
-            allowed_networks=parse_private_networks(["10.0.0.0/8"]),
             resolver=resolver(
                 {
                     "mixed.example": ("127.0.0.1", "10.0.0.5"),
@@ -270,12 +280,12 @@ def test_resolve_filters_candidates_and_require_needs_every_address() -> None:
     "values",
     [["not-a-network"], ["10.0.0.1/8"], ["10.0.0.0/33"], [f"10.{i}.0.0/16" for i in range(65)]],
 )
-def test_invalid_private_networks_are_rejected(values: list[str]) -> None:
+def test_invalid_allowed_networks_are_rejected(values: list[str]) -> None:
     with pytest.raises(ValueError):
-        parse_private_networks(values)
+        parse_allowed_networks(values)
 
 
-def test_mapped_private_networks_classify_as_ipv4() -> None:
-    assert parse_private_networks(["::ffff:10.0.0.0/104", "10.0.0.0/8"]) == (
+def test_mapped_allowed_networks_classify_as_ipv4() -> None:
+    assert parse_allowed_networks(["::ffff:10.0.0.0/104", "10.0.0.0/8"]) == (
         ipaddress.ip_network("10.0.0.0/8"),
     )

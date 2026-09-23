@@ -24,10 +24,11 @@ operation. Missing binaries prevent placement on that Runtime. See
 
 Targets must pass the Runtime
 [target policy](../../docs/spec/11-http-and-caido-tools.md#target-policy):
-loopback, link-local and private hosts return `scan_target_denied` unless the
-Runtime was started with a matching `--private-target-network`, such as
-`127.0.0.0/8` for a target on the same host. Runtime service endpoints and
-cloud metadata addresses are never scanned.
+loopback and link-local hosts return `scan_target_denied` unless the Runtime
+was started with a matching `--allowed-target-network`, such as `127.0.0.0/8`
+for a target on the same host. Private-network and public hosts need no
+setting. Runtime service endpoints and cloud metadata addresses are never
+scanned.
 
 Reports contain the scanner observation, exact input artifact refs and an
 input digest. An empty or truncated report does not establish that a target

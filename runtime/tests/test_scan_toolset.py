@@ -22,7 +22,7 @@ from contractor_runtime.factories import FactoryRegistry, StubADKWorkerRuntimeFa
 from contractor_runtime.toolsets.common.target_policy import (
     TargetPolicyConfig,
     TargetUnresolved,
-    parse_private_networks,
+    parse_allowed_networks,
 )
 from contractor_runtime.toolsets.scan.process import run_process
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
@@ -351,7 +351,7 @@ async def make_policy_tools(tmp_path, *, networks=(), http_proxy=None):
     factory = scan.ScanToolsetFactory(
         templates_directory=templates,
         target_policy=TargetPolicyConfig(
-            private_networks=parse_private_networks(networks), resolver=resolver
+            allowed_networks=parse_allowed_networks(networks), resolver=resolver
         ),
     )
     state = WorkerState()
@@ -382,7 +382,8 @@ async def make_policy_tools(tmp_path, *, networks=(), http_proxy=None):
         ("scan_nuclei", {"url": "https://gateway.internal/"}, "scan_target_denied"),
         ("scan_nuclei", {"url": "http://missing.example/"}, "scan_target_unresolved"),
         ("scan_sqlmap", {"url": "http://[::ffff:169.254.169.254]/?id=1"}, "scan_target_denied"),
-        ("scan_katana", {"url": "http://10.0.0.5/"}, "scan_target_denied"),
+        ("scan_katana", {"url": "http://169.254.10.10/"}, "scan_target_denied"),
+        ("scan_katana", {"url": "http://[fe80::1]/"}, "scan_target_denied"),
         ("scan_naabu", {"host": "0x7f000001"}, "scan_target_denied"),
         ("scan_naabu", {"host": "169.254.169.254"}, "scan_target_denied"),
         ("scan_naabu", {"host": "rebind.example", "ports": "80"}, "scan_target_denied"),
@@ -415,11 +416,26 @@ def test_scan_destinations_are_checked_before_launch(name, arguments, code, tmp_
     asyncio.run(scenario())
 
 
+def test_private_scan_targets_need_no_operator_network(tmp_path, monkeypatch):
+    install_echo_scanners(tmp_path, monkeypatch)
+
+    async def scenario():
+        tools, _ = await make_policy_tools(tmp_path)
+        for url in ("http://10.0.0.5/", "http://192.168.1.10:8080/", "http://[fd00::5]/"):
+            result = await tools["scan_nuclei"](url)
+            assert result["status"] == "completed", url
+        # A Runtime endpoint inside a private network stays denied.
+        protected = await tools["scan_nuclei"]("https://10.0.0.8:8443/")
+        assert protected["errorCode"] == "scan_target_denied"
+
+    asyncio.run(scenario())
+
+
 def test_operator_networks_allow_scans_except_runtime_endpoints(tmp_path, monkeypatch):
     install_echo_scanners(tmp_path, monkeypatch)
 
     async def scenario():
-        tools, _ = await make_policy_tools(tmp_path, networks=("127.0.0.0/8", "10.0.0.0/8"))
+        tools, _ = await make_policy_tools(tmp_path, networks=("127.0.0.0/8",))
         allowed = await tools["scan_nuclei"]("http://127.0.0.1:3000/")
         assert allowed["status"] == "completed"
         public = await tools["scan_naabu"]("app.example", ports="80,443")

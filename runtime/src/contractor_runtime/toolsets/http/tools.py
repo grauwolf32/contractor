@@ -849,10 +849,10 @@ class HTTPRequestTool(_HTTPTool):
     more text or binary content. Request bodies are limited to 1 MiB and response
     bodies to 16 MiB.
 
-    Loopback, private, metadata and Runtime service destinations fail with
-    http_target_denied unless they are the project target or an operator-allowed
-    network. Redirects to another origin do not carry session credentials or
-    secret headers.
+    Metadata and Runtime service destinations fail with http_target_denied, as
+    do loopback and link-local ones unless they are the project target or an
+    operator-allowed network. Redirects to another origin do not carry session
+    credentials or secret headers.
 
     Args:
         url: Absolute HTTP or HTTPS URL; a #fragment is removed before sending.

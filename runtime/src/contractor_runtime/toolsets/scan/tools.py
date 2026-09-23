@@ -282,8 +282,8 @@ class NucleiTool(JSONLinesScanTool):
 
     Uses local templates, disables updates and external OAST callbacks. Calls are
     serialized within the allocation. A configured tool proxy route is unsupported.
-    Loopback, private, metadata and Runtime service destinations fail with
-    scan_target_denied unless the operator allows the network.
+    Metadata and Runtime service destinations fail with scan_target_denied, as do
+    loopback and link-local ones unless the operator allows the network.
     Findings are scanner evidence and are not automatically published.
 
     Args:
@@ -370,8 +370,8 @@ class SQLMapTool(ScanTool):
     Each call uses a fresh session. No database dumping or shell operations are
     requested. A configured tool proxy route is unsupported. Review the output
     to distinguish detected injection, a negative check, and scanner diagnostics.
-    Loopback, private, metadata and Runtime service destinations fail with
-    scan_target_denied unless the operator allows the network.
+    Metadata and Runtime service destinations fail with scan_target_denied, as do
+    loopback and link-local ones unless the operator allows the network.
 
     Args:
         url: HTTP(S) URL for legacy URL mode; omit when using request_ref.
@@ -523,8 +523,8 @@ class NaabuTool(JSONLinesScanTool):
 
     Does not require raw-socket privileges. A configured tool proxy route is
     unsupported. Calls are serialized within the allocation.
-    Loopback, private, metadata and Runtime service destinations fail with
-    scan_target_denied unless the operator allows the network.
+    Metadata and Runtime service destinations fail with scan_target_denied, as do
+    loopback and link-local ones unless the operator allows the network.
 
     Args:
         host: One DNS hostname or IPv4/IPv6 address, without scheme, port or CIDR.
@@ -585,8 +585,8 @@ class FFUFTool(ScanTool):
     Replace FUZZ in the path or query with each UTF-8 payload, preserving duplicates,
     spaces and empty entries. Uses GET and one thread, without following redirects,
     recursion, auto-calibration or external input commands. Configured proxy unsupported.
-    Loopback, private, metadata and Runtime service destinations fail with
-    scan_target_denied unless the operator allows the network.
+    Metadata and Runtime service destinations fail with scan_target_denied, as do
+    loopback and link-local ones unless the operator allows the network.
 
     Args:
         url: HTTP(S) URL containing FUZZ in its path or query, never the authority.
@@ -723,8 +723,8 @@ class KatanaTool(ScanTool):
     targets Artifact in the Worker's namespace and returns its exact reference.
     Only observed same-origin GET responses become targets; no scan is dispatched.
     A configured tool proxy route is unsupported.
-    Loopback, private, metadata and Runtime service destinations fail with
-    scan_target_denied unless the operator allows the network.
+    Metadata and Runtime service destinations fail with scan_target_denied, as do
+    loopback and link-local ones unless the operator allows the network.
 
     Args:
         url: One HTTP(S) seed URL without credentials or a fragment.

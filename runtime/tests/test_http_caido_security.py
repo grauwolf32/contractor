@@ -131,7 +131,8 @@ def test_url_header_query_and_body_injection_fail_before_transport(tmp_path: Pat
             ({"url": "http://169.254.169.254/"}, "http_target_denied"),
             ({"url": "http://[fd00:ec2::254]/"}, "http_target_denied"),
             ({"url": "http://metadata.google.internal/"}, "http_target_denied"),
-            ({"url": "http://10.0.0.5/"}, "http_target_denied"),
+            ({"url": "http://169.254.10.10/"}, "http_target_denied"),
+            ({"url": "http://[fe80::1]/"}, "http_target_denied"),
             ({"url": "https://gateway.example/private"}, "http_target_denied"),
             ({"url": "https://control.example/private/v1/run"}, "http_target_denied"),
             (

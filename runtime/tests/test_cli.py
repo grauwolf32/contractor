@@ -22,7 +22,7 @@ from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.toolsets.common.target_policy import (
     TargetDenied,
-    parse_private_networks,
+    parse_allowed_networks,
 )
 
 
@@ -241,9 +241,9 @@ class InflightTransport:
 
 
 def test_target_policy_protects_runtime_urls_and_listener(tmp_path: Path) -> None:
-    networks = parse_private_networks(["127.0.0.0/8"])
+    networks = parse_allowed_networks(["127.0.0.0/8"])
     settings = dataclasses.replace(
-        make_settings(tmp_path), host="::", port=9555, private_target_networks=networks
+        make_settings(tmp_path), host="::", port=9555, allowed_target_networks=networks
     )
     config = runtime_cli._target_policy(settings)
     assert config.protected_urls == (
@@ -252,7 +252,7 @@ def test_target_policy_protects_runtime_urls_and_listener(tmp_path: Path) -> Non
         "https://localhost:9444",
         "https://[::]:9555",
     )
-    assert config.private_networks == networks
+    assert config.allowed_networks == networks
 
     async def scenario() -> None:
         policy = await config.build(
