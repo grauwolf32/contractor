@@ -1,16 +1,10 @@
 package controlplane
 
-// completeCapabilityAssignment finds a complete injective binding-to-slot
-// assignment over two already stable-ordered collections. Each augmentation
-// uses an explicit queue and parent edges so request-controlled binding depth
-// never becomes call-stack depth. It does not mutate Runtime Agent entries.
-func completeCapabilityAssignment(
-	available []*agentEntry,
-	bindings []BindingRequirement,
-) ([]*agentEntry, bool) {
-	return completeCapabilityAssignmentWithEdges(available, bindings, nil)
-}
-
+// completeCapabilityAssignmentWithEdges finds a complete injective
+// binding-to-slot assignment over two already stable-ordered collections. Each
+// augmentation uses an explicit queue and parent edges so request-controlled
+// binding depth never becomes call-stack depth. It does not mutate Runtime
+// Agent entries.
 func completeCapabilityAssignmentWithEdges(
 	available []*agentEntry,
 	bindings []BindingRequirement,

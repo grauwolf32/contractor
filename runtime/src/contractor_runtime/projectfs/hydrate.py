@@ -8,8 +8,6 @@ import io
 import stat
 import time
 import zipfile
-from collections.abc import Callable
-from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -34,6 +32,7 @@ from contractor_runtime.projectfs.storage import (
     ManagedWorkspaceTree,
     WorkspaceStorageError,
 )
+from contractor_runtime.threads import to_thread_until_done
 
 WORKSPACE_SOURCE_MEDIA_TYPE = "application/zip"
 _CHUNK_BYTES = 64 * 1024
@@ -114,8 +113,9 @@ async def hydrate_workspace(
     deadline = time.monotonic() + timeout_seconds
     session: DirectWorkspaceSession | None = None
     try:
-        await _blocking_cancellation_safe(
-            lambda: storage.filesystem.makedirs(content_root, exist_ok=False)
+        await to_thread_until_done(
+            lambda: storage.filesystem.makedirs(content_root, exist_ok=False),
+            name="workspace-zip-hydration",
         )
         for source in spec.sources:
             if time.monotonic() >= deadline:
@@ -123,10 +123,11 @@ async def hydrate_workspace(
             value = await _read_artifact(artifact_reader, source.artifact, deadline)
             if value.artifact != source.artifact or value.media_type != WORKSPACE_SOURCE_MEDIA_TYPE:
                 raise _invalid_source()
-            await _blocking_cancellation_safe(
+            await to_thread_until_done(
                 lambda value=value, target=source.target: _extract_archive(
                     value.data, target, accumulator, deadline
-                )
+                ),
+                name="workspace-zip-hydration",
             )
         arguments = dict(
             storage=storage,
@@ -169,8 +170,9 @@ async def hydrate_workspace(
             try:
                 result_tree = decode_workspace_state(value.data, source_tree, limits)
                 try:
-                    await _blocking_cancellation_safe(
-                        lambda: _materialize_state(storage, content_root, source_tree, result_tree)
+                    await to_thread_until_done(
+                        lambda: _materialize_state(storage, content_root, source_tree, result_tree),
+                        name="workspace-zip-hydration",
                     )
                 except OSError:
                     raise _capacity() from None
@@ -199,16 +201,6 @@ async def hydrate_workspace(
                 status_code=503,
                 cleanup_confirmed=False,
             ) from None
-        raise
-
-
-async def _blocking_cancellation_safe(operation: Callable[[], None]) -> None:
-    task = asyncio.create_task(asyncio.to_thread(operation), name="workspace-zip-hydration")
-    try:
-        await asyncio.shield(task)
-    except asyncio.CancelledError:
-        with suppress(Exception):
-            await task
         raise
 
 

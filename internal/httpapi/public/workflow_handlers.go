@@ -62,17 +62,12 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1].Ref
-		next, cursorErr := h.encodePageCursor(cursorKind, last.Name+"@"+last.Version)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, cursorKind, func(last workflowSummaryResponse) []string {
+		return []string{last.Ref.Name + "@" + last.Ref.Version}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, workflowPageResponse{Items: items, Page: page})
 }

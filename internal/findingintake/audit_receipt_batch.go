@@ -163,7 +163,7 @@ func receiptArtifact(receipt Receipt) (artifacts.ExactReadRequest, ExactArtifact
 }
 
 func decodeReceiptDocument(read artifacts.ReadResult, expected ExactArtifact, clientKey string) (auditdomain.FindingProposal, error) {
-	if read.Payload.MediaType != expected.MediaType || int64(len(read.Payload.Data)) != expected.SizeBytes || digestBytes(read.Payload.Data) != expected.Digest {
+	if read.Payload.MediaType != expected.MediaType || int64(len(read.Payload.Data)) != expected.SizeBytes || auditdomain.DigestBytes(read.Payload.Data) != expected.Digest {
 		return auditdomain.FindingProposal{}, artifacts.ErrArtifactIntegrity
 	}
 	document, err := auditdomain.DecodeFindingProposal(read.Payload.Data)

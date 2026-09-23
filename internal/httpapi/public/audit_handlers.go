@@ -1,9 +1,6 @@
 package public
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -212,10 +210,6 @@ func (h *handler) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		h.handleError(w, err)
@@ -247,26 +241,18 @@ func (h *handler) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1].Ref
-		next, cursorErr := h.encodePageCursor("audit-profiles", last.Name+"@"+last.Version)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	items, page, err := paginate(h, items, limit, "audit-profiles", func(last auditProfileResponse) []string {
+		return []string{last.Ref.Name + "@" + last.Ref.Version}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, auditProfilePageResponse{Items: items, Page: page})
 }
 
 func (h *handler) getAuditProfile(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -289,10 +275,6 @@ func (h *handler) getAuditProfile(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) createAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -349,10 +331,6 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	projectID := r.PathValue("projectId")
 	if _, err := h.dependencies.Projects.Get(r.Context(), principalUserID(r.Context()), projectID); err != nil {
 		h.handleError(w, err)
@@ -406,16 +384,12 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(audits) > limit {
-		audits = audits[:limit]
-		last := audits[len(audits)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.AuditID)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	audits, page, err := paginate(h, audits, limit, cursorKind, func(last auditstore.Audit) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.AuditID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]auditResponse, 0, len(audits))
 	for _, audit := range audits {
@@ -432,10 +406,6 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 func (h *handler) getAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -457,10 +427,6 @@ func (h *handler) getAudit(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -485,7 +451,7 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auditID := r.PathValue("auditId")
-	digest := auditStartRequestDigest(auditID, revision, seconds)
+	digest := auditRequestDigest("", auditID, revision, seconds)
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision,
 		IdempotencyKey: key, RequestDigest: digest, DeadlineSeconds: seconds,
@@ -531,10 +497,6 @@ func (h *handler) deleteAudit(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action string, status int) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -567,7 +529,7 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 	params := auditservice.MutationParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
 		ExpectedRevision: revision, IdempotencyKey: key,
-		RequestDigest:   auditMutationRequestDigest(action, r.PathValue("auditId"), revision, seconds),
+		RequestDigest:   auditRequestDigest(action, r.PathValue("auditId"), revision, seconds),
 		DeadlineSeconds: seconds,
 	}
 	var result auditservice.MutationResult
@@ -601,10 +563,6 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 func (h *handler) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "state", "subject")
@@ -698,10 +656,6 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round")
 	if err != nil {
 		h.handleError(w, err)
@@ -742,16 +696,12 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(coverage) > limit {
-		coverage = coverage[:limit]
-		last := coverage[len(coverage)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, strconv.Itoa(last.Ordinal))
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	coverage, page, err := paginate(h, coverage, limit, cursorKind, func(last auditstore.CoverageRow) []string {
+		return []string{strconv.Itoa(last.Ordinal)}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]auditCoverageResponse, len(coverage))
 	for index, row := range coverage {
@@ -767,10 +717,6 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 func (h *handler) getAuditReport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
@@ -917,33 +863,24 @@ func createAuditRequestDigest(projectID string, request createAuditRequest) (str
 		RuntimeLabels []string                         `json:"runtimeLabels"`
 		Scope         auditservice.Scope               `json:"scope"`
 	}{projectID, request.Profile, request.Inputs, labels, request.Scope}
-	encoded, err := json.Marshal(canonical)
+	digest, err := contentdigest.JSON(canonical)
 	if err != nil {
 		return "", nil, err
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), labels, nil
+	return digest, labels, nil
 }
 
-func auditStartRequestDigest(auditID string, revision uint64, seconds ...*int) string {
+// auditRequestDigest binds a start (empty action) or lifecycle mutation.
+// Start digests predate the action field, so it is omitted when empty to keep
+// stored start digests replayable.
+func auditRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
 	encoded, _ := json.Marshal(struct {
-		AuditID         string `json:"auditId"`
-		Revision        uint64 `json:"revision"`
-		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
-	}{auditID, revision, firstTimeLimit(seconds)})
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
-}
-
-func auditMutationRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
-	encoded, _ := json.Marshal(struct {
-		Action          string `json:"action"`
+		Action          string `json:"action,omitempty"`
 		AuditID         string `json:"auditId"`
 		Revision        uint64 `json:"revision"`
 		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
 	}{action, auditID, revision, firstTimeLimit(seconds)})
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes(encoded)
 }
 
 func requireEmptyBody(w http.ResponseWriter, r *http.Request) error {
@@ -997,14 +934,11 @@ func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	var request struct {
 		DeadlineSeconds *int `json:"deadlineSeconds"`
 	}
-	if err := decodeStrictPublicJSON(data, &request); err != nil {
+	fields, err := decodeStrictWithPresence(data, &request)
+	if err != nil {
 		return nil, fmt.Errorf("%w: invalid Audit time limit: %v", errInvalidRequest, err)
 	}
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(data, &fields) != nil || fields == nil {
-		return nil, errInvalidRequest
-	}
-	if value, ok := fields["deadlineSeconds"]; ok && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+	if fields == nil || fields.null("deadlineSeconds") {
 		return nil, errInvalidRequest
 	}
 	if request.DeadlineSeconds != nil && (*request.DeadlineSeconds < 0 || *request.DeadlineSeconds > config.MaxAuditDeadlineSeconds) {

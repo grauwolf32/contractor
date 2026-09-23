@@ -36,7 +36,7 @@ func (i *Importer) retainScanRecovery(
 	}
 	coverage.Gaps = mergeSorted(coverage.Gaps, []string{code})
 	coverage.Rationale = "Scan evidence was recovered from the durable execution journal after a Run or publication failure."
-	target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID), Name: deterministicID("scan-recovery", execution.ExecutionID)}
+	target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID), Name: auditdomain.DeterministicID("scan-recovery", execution.ExecutionID)}
 	retained, err := i.artifacts.PutImmutableProject(ctx, snapshot.Audit.ProjectID, target, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: data})
 	if err != nil {
 		return false, err

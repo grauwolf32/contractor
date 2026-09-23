@@ -82,7 +82,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	if err != nil {
 		return PreparedSubmission{}, invalidSubmission("empty role execution manifest is invalid")
 	}
-	manifestDigest := digestBytes(encodedManifest)
+	manifestDigest := auditdomain.DigestBytes(encodedManifest)
 	manifestArtifact, err := b.artifacts.PutImmutableProject(
 		ctx, audit.ProjectID,
 		contracts.ArtifactRef{
@@ -109,10 +109,10 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	kind := auditstore.ExecutionRole(binding.Kind)
 	roundID := snapshot.Round.RoundID
 	attemptText := strconv.Itoa(attempt)
-	executionID := deterministicID(
+	executionID := auditdomain.DeterministicID(
 		"audit-role-execution", audit.AuditID, roundID, string(kind), workflowRole, attemptText,
 	)
-	submissionKey := deterministicID("audit-role-submission", executionID, manifestDigest)
+	submissionKey := auditdomain.DeterministicID("audit-role-submission", executionID, manifestDigest)
 	requestDigest, err := submissionDigest(struct {
 		Schema        string                              `json:"schema"`
 		AuditID       string                              `json:"auditId"`
@@ -336,7 +336,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	if err != nil || auditdomain.ValidateDispatchExecutionManifest(manifest) != nil {
 		return PreparedSubmission{}, invalidSubmission("batch execution manifest is invalid")
 	}
-	manifestDigest := digestBytes(encodedManifest)
+	manifestDigest := auditdomain.DigestBytes(encodedManifest)
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	manifestArtifact, err := b.artifacts.PutImmutableProject(
 		ctx, audit.ProjectID,
@@ -387,11 +387,11 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 
 	executionIdentity := append([]string{audit.AuditID, snapshot.Round.RoundID}, attemptIdentity...)
 	executionIdentity = append(executionIdentity, manifestDigest)
-	executionID := deterministicID("audit-execution", executionIdentity...)
+	executionID := auditdomain.DeterministicID("audit-execution", executionIdentity...)
 	for index := range members {
-		members[index].ExecutionItemID = deterministicID("audit-execution-item", executionID, members[index].ItemID)
+		members[index].ExecutionItemID = auditdomain.DeterministicID("audit-execution-item", executionID, members[index].ItemID)
 	}
-	submissionKey := deterministicID("audit-submission", executionID, manifestDigest)
+	submissionKey := auditdomain.DeterministicID("audit-submission", executionID, manifestDigest)
 	roundID := snapshot.Round.RoundID
 	requestDigest, err := submissionDigest(struct {
 		Schema        string                              `json:"schema"`
@@ -730,17 +730,7 @@ func submissionDigest(value any) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode Audit submission identity: %w", err)
 	}
-	return digestBytes(encoded), nil
-}
-
-func deterministicID(prefix string, values ...string) string {
-	digest := sha256.New()
-	_, _ = digest.Write([]byte("contractor.audit.identity.v1\x00" + prefix))
-	for _, value := range values {
-		_, _ = digest.Write([]byte{0})
-		_, _ = digest.Write([]byte(value))
-	}
-	return prefix + "-" + hex.EncodeToString(digest.Sum(nil))
+	return auditdomain.DigestBytes(encoded), nil
 }
 
 func stringsDigest(value string) string {

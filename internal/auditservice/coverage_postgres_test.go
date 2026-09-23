@@ -52,7 +52,7 @@ func TestCoverageReadsRetainedTasksAndSharedResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return auditstore.ExactArtifact{Ref: result.Ref, Digest: digestBytes(data)}
+		return auditstore.ExactArtifact{Ref: result.Ref, Digest: auditdomain.DigestBytes(data)}
 	}
 	taskRef := write("task", task.Package)
 	results, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{

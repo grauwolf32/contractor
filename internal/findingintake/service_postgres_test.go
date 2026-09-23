@@ -62,7 +62,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
 		Name: "Finding project", IdempotencyKey: "finding-project-create",
-		RequestDigest: digestBytes([]byte("finding-project")),
+		RequestDigest: auditdomain.DigestBytes([]byte("finding-project")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if firstReceipt.Origin.Workflow.ClosureDigest != digestBytes(storedRun.WorkflowSnapshot) ||
+	if firstReceipt.Origin.Workflow.ClosureDigest != auditdomain.DigestBytes(storedRun.WorkflowSnapshot) ||
 		firstReceipt.Origin.RunID != runID || firstReceipt.Origin.InvocationID != firstInput.InvocationID {
 		t.Fatalf("trusted receipt origin = %+v", firstReceipt.Origin)
 	}
@@ -250,14 +250,14 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	const auditID = "finding-audit"
 	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: ownerID, ProjectID: projectID,
-		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: digestBytes([]byte("profile"))},
+		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
 			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20,
 		},
-		IdempotencyKey: "finding-audit-create", RequestDigest: digestBytes([]byte("audit")),
+		IdempotencyKey: "finding-audit-create", RequestDigest: auditdomain.DigestBytes([]byte("audit")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -371,12 +371,12 @@ SELECT count(*) FROM audit_artifact_links
 	const otherAuditID = "finding-audit-other"
 	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: otherAuditID, OwnerID: ownerID, ProjectID: projectID,
-		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: digestBytes([]byte("profile"))},
+		Profile:         auditstore.ProfileIdentity{Name: "finding-review", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
 			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
-		IdempotencyKey: otherAuditID, RequestDigest: digestBytes([]byte(otherAuditID)),
+		IdempotencyKey: otherAuditID, RequestDigest: auditdomain.DigestBytes([]byte(otherAuditID)),
 	}); err != nil {
 		t.Fatal(err)
 	}

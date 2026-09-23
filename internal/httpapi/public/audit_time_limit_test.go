@@ -34,10 +34,10 @@ func TestAuditTimeLimitRequestAndIdempotency(t *testing.T) {
 			}
 		})
 	}
-	if auditStartRequestDigest("audit", 1) == auditStartRequestDigest("audit", 1, timeLimitPointer(0)) {
+	if auditRequestDigest("", "audit", 1) == auditRequestDigest("", "audit", 1, timeLimitPointer(0)) {
 		t.Fatal("unlimited start shares default request digest")
 	}
-	if auditMutationRequestDigest("resume", "audit", 1, timeLimitPointer(3600)) == auditMutationRequestDigest("resume", "audit", 1, timeLimitPointer(0)) {
+	if auditRequestDigest("resume", "audit", 1, timeLimitPointer(3600)) == auditRequestDigest("resume", "audit", 1, timeLimitPointer(0)) {
 		t.Fatal("resume limits share request digest")
 	}
 }

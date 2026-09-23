@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"golang.org/x/crypto/ssh"
 )
@@ -68,7 +69,7 @@ func TestGitImportPublicationAndAdmission(t *testing.T) {
 				if expected == nil {
 					request.Header.Set("If-None-Match", "*")
 				} else {
-					request.Header.Set("If-Match", quotedETag(expected))
+					request.Header.Set("If-Match", httpx.QuotedETag(expected))
 				}
 				response := httptest.NewRecorder()
 				fixture.handler.ServeHTTP(response, request)

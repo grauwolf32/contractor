@@ -1,0 +1,72 @@
+package securefile
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestReadAcceptsBoundedOwnerOnlyFile(t *testing.T) {
+	path := writeFile(t, "secret", "value", 0o600)
+	data, err := Read(path, 5)
+	if err != nil || string(data) != "value" {
+		t.Fatalf("Read() = %q, %v", data, err)
+	}
+}
+
+func TestReadRejectsUnsafeFiles(t *testing.T) {
+	directory := t.TempDir()
+	safe := writeFile(t, "safe", "value", 0o600)
+	link := filepath.Join(directory, "link")
+	if err := os.Symlink(safe, link); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]struct {
+		path     string
+		maxBytes int64
+		want     error
+	}{
+		"empty path":     {"", 16, ErrPath},
+		"blank path":     {"  ", 16, ErrPath},
+		"relative path":  {"secret", 16, ErrPath},
+		"unclean path":   {directory + "/./safe", 16, ErrPath},
+		"missing file":   {filepath.Join(directory, "missing"), 16, ErrUnsafePath},
+		"symlink":        {link, 16, ErrUnsafePath},
+		"directory":      {directory, 16, ErrUnsafePath},
+		"group readable": {writeFile(t, "group", "value", 0o640), 16, ErrUnsafePath},
+		"other readable": {writeFile(t, "other", "value", 0o604), 16, ErrUnsafePath},
+		"empty file":     {writeFile(t, "empty", "", 0o600), 16, ErrUnsafeHandle},
+		"oversized file": {writeFile(t, "large", "value", 0o600), 4, ErrUnsafeHandle},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			data, err := Read(tc.path, tc.maxBytes)
+			if !errors.Is(err, tc.want) || data != nil {
+				t.Fatalf("Read() = %q, %v; want %v", data, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestReadRestrictedAppliesForbiddenBits(t *testing.T) {
+	path := writeFile(t, "bindings", "value", 0o640)
+	if data, err := ReadRestricted(path, 16, 0o022); err != nil || string(data) != "value" {
+		t.Fatalf("ReadRestricted(0o022) = %q, %v", data, err)
+	}
+	if _, err := ReadRestricted(writeFile(t, "writable", "value", 0o620), 16, 0o022); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("ReadRestricted(group-writable) error = %v", err)
+	}
+}
+
+func writeFile(t *testing.T, name, content string, mode os.FileMode) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}

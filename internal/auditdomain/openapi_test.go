@@ -181,14 +181,14 @@ paths:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inventory.Tasks) != 1 || inventory.SourceContentDigest != digestBytes(payload) {
+	if len(inventory.Tasks) != 1 || inventory.SourceContentDigest != DigestBytes(payload) {
 		t.Fatalf("package inventory = %+v", inventory)
 	}
 	validated, err := ValidatePackage(inventory.Tasks[0].Package)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(validated.Members()) != 1 || inventory.Tasks[0].Document.SourceContentDigest != digestBytes(payload) ||
+	if len(validated.Members()) != 1 || inventory.Tasks[0].Document.SourceContentDigest != DigestBytes(payload) ||
 		len(inventory.ExecutionManifest.Items[0].Inputs) != 1 || inventory.ExecutionManifest.Items[0].Inputs[0].Ref.Revision == nil {
 		t.Fatal("task package does not retain exact source provenance")
 	}

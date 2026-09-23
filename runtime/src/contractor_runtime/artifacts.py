@@ -6,7 +6,6 @@ import asyncio
 import json
 import re
 import ssl
-import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -15,6 +14,7 @@ from urllib.parse import quote, urlsplit
 
 from pydantic import Field, ValidationError
 
+from contractor_runtime import _https
 from contractor_runtime.contracts import (
     ARTIFACT_NAME_PATTERN,
     ArtifactListResult,
@@ -29,7 +29,6 @@ MAX_ARTIFACT_JSON_BYTES = 1 << 20
 # findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
 MAX_FINDING_SUBMISSION_BYTES = 8 * 1024 * 1024
 MAX_BINDING_LIST_LIMIT = 256
-MAX_RESPONSE_HEADERS = 64
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -467,66 +466,38 @@ class MTLSArtifactTransport:
             raise ValueError("invalid private Artifact API request target")
         if not 0 <= max_response_bytes <= MAX_ARTIFACT_BYTES:
             raise ValueError("invalid Artifact API response limit")
-        writer: asyncio.StreamWriter | None = None
         try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(
-                    self._host,
-                    self._port,
-                    ssl=self._context,
-                    server_hostname=self._host,
-                    limit=64 * 1024,
-                ),
-                timeout=self._timeout,
-            )
-            ssl_object = writer.get_extra_info("ssl_object")
-            if not isinstance(ssl_object, ssl.SSLObject | ssl.SSLSocket):
-                raise ssl.SSLCertVerificationError("private connection has no TLS peer")
-            verify_control_plane_peer(ssl_object)
-            target = self._base_path + path
-            host_name = f"[{self._host}]" if ":" in self._host else self._host
-            host = host_name if self._port == 443 else f"{host_name}:{self._port}"
             request_headers = {
-                "Host": host,
+                "Host": _https.host_header(self._host, self._port),
                 "Content-Length": str(len(body)),
                 "Connection": "close",
                 **headers,
-                "X-Request-ID": f"request_{uuid.uuid4().hex}",
+                "X-Request-ID": _https.new_request_id(),
                 RUNTIME_INSTANCE_HEADER: self._runtime_instance_id,
             }
-            encoded_headers = _encode_headers(request_headers)
-            request = f"{method} {target} HTTP/1.1\r\n".encode("ascii")
-            writer.write(request + encoded_headers + b"\r\n" + body)
-            await asyncio.wait_for(writer.drain(), timeout=self._timeout)
-            status, response_headers = await asyncio.wait_for(
-                _read_response_head(reader), timeout=self._timeout
+            request = _https.encode_request(method, self._base_path + path, request_headers, body)
+            response = await _https.exchange(
+                self._host,
+                self._port,
+                self._context,
+                request,
+                timeout_seconds=self._timeout,
+                max_response_bytes=max_response_bytes,
+                verify_peer=verify_control_plane_peer,
             )
-            response_body = await asyncio.wait_for(
-                _read_response_body(reader, response_headers, max_response_bytes),
-                timeout=self._timeout,
-            )
-            return ArtifactHTTPResponse(status, response_headers, response_body)
-        except ArtifactClientError:
-            raise
+        except _https.HTTPResponseTooLargeError:
+            raise ArtifactResponseLimitError(
+                "Artifact API response exceeds its size limit"
+            ) from None
+        except _https.HTTPResponseError as error:
+            raise ArtifactTransportError(f"invalid Artifact API response ({error})") from None
         except asyncio.CancelledError:
             raise
         except Exception as error:
             raise ArtifactTransportError(
                 f"Artifact API transport failed ({type(error).__name__})"
             ) from None
-        finally:
-            if writer is not None:
-                writer.close()
-                current_task = asyncio.current_task()
-                if current_task is not None and current_task.cancelling():
-                    writer.transport.abort()
-                else:
-                    try:
-                        await asyncio.wait_for(
-                            writer.wait_closed(), timeout=min(0.5, self._timeout)
-                        )
-                    except Exception:
-                        writer.transport.abort()
+        return ArtifactHTTPResponse(response.status_code, response.headers, response.body)
 
 
 def _validate_ref(ref: ArtifactRef) -> None:
@@ -599,92 +570,3 @@ def _artifact_timestamp(headers: Mapping[str, str], name: str) -> datetime:
     if parsed.tzinfo != UTC:
         raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
     return parsed
-
-
-def _encode_headers(headers: Mapping[str, str]) -> bytes:
-    result = bytearray()
-    for name, value in headers.items():
-        if (
-            not name
-            or any(char in name for char in "\r\n:")
-            or any(char in value for char in "\r\n")
-        ):
-            raise ValueError("invalid private HTTP header")
-        result.extend(f"{name}: {value}\r\n".encode("ascii"))
-    return bytes(result)
-
-
-async def _read_response_head(reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:
-    status_line = await reader.readline()
-    if not status_line.endswith(b"\r\n") or len(status_line) > 8192:
-        raise ArtifactTransportError("invalid Artifact API status line")
-    parts = status_line.decode("ascii", errors="strict").strip().split(" ", 2)
-    if len(parts) < 2 or parts[0] not in {"HTTP/1.0", "HTTP/1.1"}:
-        raise ArtifactTransportError("invalid Artifact API status line")
-    try:
-        status = int(parts[1])
-    except ValueError as error:
-        raise ArtifactTransportError("invalid Artifact API status code") from error
-    headers: dict[str, str] = {}
-    total = len(status_line)
-    for _ in range(MAX_RESPONSE_HEADERS):
-        line = await reader.readline()
-        total += len(line)
-        if total > 64 * 1024 or not line.endswith(b"\r\n"):
-            raise ArtifactTransportError("invalid or oversized Artifact API headers")
-        if line == b"\r\n":
-            return status, headers
-        name, separator, value = line.partition(b":")
-        key = name.decode("ascii", errors="strict").strip().lower()
-        if not separator or not key or key in headers:
-            raise ArtifactTransportError("invalid or duplicate Artifact API response header")
-        headers[key] = value.decode("ascii", errors="strict").strip()
-    raise ArtifactTransportError("too many Artifact API response headers")
-
-
-async def _read_response_body(
-    reader: asyncio.StreamReader,
-    headers: Mapping[str, str],
-    maximum: int,
-) -> bytes:
-    transfer_encoding = headers.get("transfer-encoding", "").lower()
-    if transfer_encoding:
-        if transfer_encoding != "chunked":
-            raise ArtifactTransportError("unsupported Artifact API transfer encoding")
-        return await _read_chunked_body(reader, maximum)
-    if "content-length" in headers:
-        try:
-            length = int(headers["content-length"])
-        except ValueError as error:
-            raise ArtifactTransportError("invalid Artifact API content length") from error
-        if not 0 <= length <= maximum:
-            raise ArtifactResponseLimitError("Artifact API response exceeds its size limit")
-        return await reader.readexactly(length)
-    result = bytearray()
-    while True:
-        chunk = await reader.read(min(64 * 1024, maximum + 1 - len(result)))
-        if not chunk:
-            return bytes(result)
-        result.extend(chunk)
-        if len(result) > maximum:
-            raise ArtifactResponseLimitError("Artifact API response exceeds its size limit")
-
-
-async def _read_chunked_body(reader: asyncio.StreamReader, maximum: int) -> bytes:
-    result = bytearray()
-    while True:
-        size_line = await reader.readline()
-        raw_size = size_line.partition(b";")[0].strip()
-        try:
-            size = int(raw_size, 16)
-        except ValueError as error:
-            raise ArtifactTransportError("invalid Artifact API chunk size") from error
-        if size < 0 or len(result) + size > maximum:
-            raise ArtifactResponseLimitError("Artifact API response exceeds its size limit")
-        if size == 0:
-            if await reader.readline() != b"\r\n":
-                raise ArtifactTransportError("Artifact API chunked trailers are not supported")
-            return bytes(result)
-        result.extend(await reader.readexactly(size))
-        if await reader.readexactly(2) != b"\r\n":
-            raise ArtifactTransportError("invalid Artifact API chunk delimiter")

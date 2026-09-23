@@ -105,13 +105,15 @@ power-loss durability test.
 
 ## Deployment without PVC
 
-[PostgreSQL deployment](../../deploy/artifact-blobs/postgresql.yaml) runs with a
-read-only root and no Artifact or `/tmp` volume. `/managed` is an independent
+[PostgreSQL deployment](../../deploy/artifact-blobs/postgresql/postgresql.yaml) runs as
+non-root UID 65532 with a read-only root and no Artifact or `/tmp` volume. `/managed` is an independent
 64 MiB memory `emptyDir` for existing managed configuration publication; it is
 not payload storage. Immutable operator configs are baked into `/configs`.
 Prepare a static `CGO_ENABLED=0 go build -o contractor-server
 ./cmd/contractor-server` binary and your config tree in a build context, then
-build with [Containerfile](../../deploy/artifact-blobs/Containerfile).
+build with [Containerfile](../../deploy/artifact-blobs/Containerfile). It copies
+only the public CA bundle from a digest-pinned Alpine stage so HTTPS Git imports
+can verify remotes; add a private CA to that bundle if your remotes need one.
 
 Before deploying, provide `contractor-database` (key `url`) and
 `contractor-server-credentials` (keys `local-auth.yaml`, `credential-master-key`,
@@ -119,18 +121,22 @@ Before deploying, provide `contractor-database` (key `url`) and
 and PKI with the existing Server configuration tools; issue the Control Plane
 certificate for the advertised private Service DNS name. Replace the browser
 origin and image, and run `contractor server migrate` against the same database
-before starting the Deployment. These examples assume root-owned, mode 0400
-projected secret files mounted individually with `subPath` so owner-only auth
-and master-key paths are regular files, not Secret-volume symlinks. Restart
-pods after secret changes; these mounts do not rotate in place. Capabilities are dropped and privilege escalation is
-disabled. A non-root deployment needs secrets owned by its UID, as required by
-the existing owner-only credential checks.
+before starting the Deployment. Kubernetes projects Secret files as root-owned
+symlinks, so the Secret volume uses `fsGroup` 65532 with mode 0440 and a
+non-root init container copies each key into a 1 MiB memory `emptyDir` as a
+regular mode 0400 file owned by the Server UID, as the owner-only credential
+checks require. The Server mounts only that copy, read-only. Restart pods after
+secret changes; the copies do not rotate in place. Capabilities are dropped and
+privilege escalation is disabled in both containers. Files baked into `/configs`
+must be readable by UID 65532.
 
-The [filesystem patch](../../deploy/artifact-blobs/filesystem.patch.yaml) adds an
-explicit `/blobs` disk-backed `emptyDir` and uses `Recreate` with one replica.
-Render it with `kubectl kustomize deploy/artifact-blobs` and apply it to a
-**fresh filesystem installation**, not a populated PostgreSQL store. The
-PostgreSQL example is used directly without this filesystem kustomization. A container restart within the same pod can retain `emptyDir`; pod
+Render the PostgreSQL example with `kubectl kustomize deploy/artifact-blobs/postgresql`.
+The separate [filesystem overlay](../../deploy/artifact-blobs/filesystem/kustomization.yaml)
+applies its [patch](../../deploy/artifact-blobs/filesystem/filesystem.patch.yaml),
+which adds an explicit `/blobs` disk-backed `emptyDir` and uses `Recreate` with
+one replica. Render it with `kubectl kustomize deploy/artifact-blobs/filesystem`
+only for a **fresh filesystem installation**, never over a populated PostgreSQL
+store. A container restart within the same pod can retain `emptyDir`; pod
 replacement loses it. Disk `emptyDir` capacity counts against node ephemeral
 storage. Using `medium: Memory` instead also charges blob files to container
 memory. A PVC may replace this volume if persistence is desired, but is not

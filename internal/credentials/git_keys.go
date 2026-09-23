@@ -107,7 +107,7 @@ func (s *GitKeys) Signer(ctx context.Context, owner string) (ssh.Signer, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer wipeBytes(key)
+	defer clear(key)
 	signer, err := parseGitKey(key)
 	if err != nil || ssh.FingerprintSHA256(signer.PublicKey()) != fingerprint || signer.PublicKey().Type() != keyType {
 		return nil, ErrCrypto

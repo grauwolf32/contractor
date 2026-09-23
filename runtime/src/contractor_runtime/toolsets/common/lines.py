@@ -23,3 +23,14 @@ def split_lines(text: str, keepends: bool = False) -> list[str]:
     if start < len(text):
         lines.append(text[start:])
     return lines
+
+
+def newline_style(text: str) -> str:
+    """Return the first line break in ``text``, defaulting to ``\\n``."""
+
+    for index, character in enumerate(text):
+        if character == "\n":
+            return "\n"
+        if character == "\r":
+            return "\r\n" if index + 1 < len(text) and text[index + 1] == "\n" else "\r"
+    return "\n"

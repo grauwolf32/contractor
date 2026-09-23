@@ -67,6 +67,26 @@ func parsePageQuery(values url.Values) (url.Values, int, string, error) {
 	return values, limit, cursor, nil
 }
 
+// paginate trims rows fetched with limit+1 to one page. When the fetch
+// returned a row beyond limit, the page reports hasMore with a cursor of the
+// given kind positioned at the last kept row.
+func paginate[T any](
+	h *handler, rows []T, limit int, kind string, position func(last T) []string,
+) ([]T, pageInfoResponse, error) {
+	page := pageInfoResponse{}
+	if len(rows) <= limit {
+		return rows, page, nil
+	}
+	rows = rows[:limit]
+	next, err := h.encodePageCursor(kind, position(rows[len(rows)-1])...)
+	if err != nil {
+		return nil, page, err
+	}
+	page.HasMore = true
+	page.NextCursor = &next
+	return rows, page, nil
+}
+
 func (h *handler) encodePageCursor(kind string, values ...string) (string, error) {
 	payload, err := json.Marshal(pageCursor{
 		Version: pageCursorV1, Kind: pageCursorKind(kind), Values: values,
@@ -74,10 +94,7 @@ func (h *handler) encodePageCursor(kind string, values ...string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("encode page cursor: %w", err)
 	}
-	mac := hmac.New(sha256.New, h.tokenDigest[:])
-	_, _ = mac.Write(payload)
-	signed := append(payload, mac.Sum(nil)...)
-	encoded := base64.RawURLEncoding.EncodeToString(signed)
+	encoded := h.sealCursor("", payload)
 	if len(encoded) > maxCursorBytes {
 		return "", fmt.Errorf("encode page cursor: result is too large")
 	}
@@ -88,14 +105,8 @@ func (h *handler) decodePageCursor(encoded, kind string, valueCount int) ([]stri
 	if encoded == "" {
 		return nil, nil
 	}
-	signed, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil || len(signed) <= sha256.Size {
-		return nil, fmt.Errorf("%w: invalid cursor", errInvalidRequest)
-	}
-	payload, signature := signed[:len(signed)-sha256.Size], signed[len(signed)-sha256.Size:]
-	mac := hmac.New(sha256.New, h.tokenDigest[:])
-	_, _ = mac.Write(payload)
-	if !hmac.Equal(signature, mac.Sum(nil)) {
+	payload, ok := h.openCursor("", encoded)
+	if !ok {
 		return nil, fmt.Errorf("%w: invalid cursor", errInvalidRequest)
 	}
 	var cursor pageCursor
@@ -109,6 +120,33 @@ func (h *handler) decodePageCursor(encoded, kind string, valueCount int) ([]stri
 		}
 	}
 	return cursor.Values, nil
+}
+
+// sealCursor renders payload followed by its MAC as unpadded base64url. Page
+// cursors, eval cursors and eval bin tokens share this framing; domain
+// separates token families (page and eval cursors use the empty domain).
+func (h *handler) sealCursor(domain string, payload []byte) string {
+	signed := append(payload, h.cursorMAC(domain, payload)...)
+	return base64.RawURLEncoding.EncodeToString(signed)
+}
+
+// openCursor reverses sealCursor and reports whether the MAC verified.
+func (h *handler) openCursor(domain, encoded string) ([]byte, bool) {
+	signed, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil || len(signed) <= sha256.Size {
+		return nil, false
+	}
+	payload, signature := signed[:len(signed)-sha256.Size], signed[len(signed)-sha256.Size:]
+	return payload, hmac.Equal(signature, h.cursorMAC(domain, payload))
+}
+
+// cursorMAC is HMAC-SHA256 over domain||payload keyed by the bearer token
+// digest; an empty domain adds no bytes.
+func (h *handler) cursorMAC(domain string, payload []byte) []byte {
+	mac := hmac.New(sha256.New, h.tokenDigest[:])
+	_, _ = mac.Write([]byte(domain))
+	_, _ = mac.Write(payload)
+	return mac.Sum(nil)
 }
 
 func pageCursorKind(value string) string {

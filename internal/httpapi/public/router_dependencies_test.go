@@ -31,3 +31,14 @@ func TestHandlerRequiresExplicitRunServices(t *testing.T) {
 		t.Fatalf("narrow services rejected: %v", err)
 	}
 }
+
+// Audit handlers use Dependencies.Audits without a nil check, so NewHandler
+// must keep rejecting a missing Audit service.
+func TestHandlerRequiresAuditService(t *testing.T) {
+	var dependencies Dependencies
+	newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(d *Dependencies) { dependencies = *d })
+	dependencies.Audits = nil
+	if _, err := NewHandler(dependencies); err == nil || !strings.Contains(err.Error(), "dependencies are incomplete") {
+		t.Fatalf("missing Audit service: %v", err)
+	}
+}

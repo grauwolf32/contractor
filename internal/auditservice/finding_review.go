@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -30,11 +29,6 @@ type findingRow struct {
 	revision            uint64
 	createdAt           time.Time
 	updatedAt           time.Time
-}
-
-type reviewQuerier interface {
-	QueryRow(context.Context, string, ...any) pgx.Row
-	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
 const findingRowColumns = `
@@ -964,13 +958,4 @@ func validIdempotencyKey(value string) bool {
 		return false
 	}
 	return true
-}
-
-func sortProvenance(values []FindingProvenance) {
-	sort.Slice(values, func(i, j int) bool {
-		if values[i].CreatedAt.Equal(values[j].CreatedAt) {
-			return values[i].RecordID < values[j].RecordID
-		}
-		return values[i].CreatedAt.Before(values[j].CreatedAt)
-	})
 }

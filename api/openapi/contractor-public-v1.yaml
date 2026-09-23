@@ -3673,6 +3673,7 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
     get:
       operationId: listProjectRuns
@@ -3954,6 +3955,7 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/pause:
@@ -4023,6 +4025,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/cancel:
@@ -4541,6 +4544,7 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/CredentialRecoveryRequired'}
         '500': {$ref: '#/components/responses/InternalError'}
     get:
       operationId: listRuns

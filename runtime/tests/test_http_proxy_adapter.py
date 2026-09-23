@@ -141,8 +141,7 @@ def test_tool_http_and_subprocess_use_authenticated_tls_proxy_and_remove_ca(
                 "print(p); "
                 "print(urllib.request.urlopen('http://public.example/child').read().decode())"
             )
-            completed = await asyncio.to_thread(
-                launcher.run,
+            completed = await launcher.run_async(
                 [sys.executable, "-c", script],
                 env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
                 timeout=5,
@@ -234,7 +233,7 @@ def test_bearer_subprocess_fails_closed_and_registry_rejects_channel_mismatch() 
             assert (await http_handle.request("GET", "http://public.example/bearer")).is_success
             assert proxy.requests[0].headers["proxy-authorization"] == (f"Bearer {PROXY_BEARER}")
             with pytest.raises(ProxySubprocessError) as captured:
-                await asyncio.to_thread(launcher.run, [sys.executable, "-c", "print('x')"])
+                await launcher.run_async([sys.executable, "-c", "print('x')"])
             assert PROXY_BEARER not in repr(captured.value)
             assert len(proxy.requests) == 1
             await adapter.close()

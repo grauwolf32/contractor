@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -73,7 +74,7 @@ func TestArtifactArchiveScopesAndExactRevision(t *testing.T) {
 			query := "?revision=" + url.QueryEscape(*first.Ref.Revision)
 			index := serveAndValidatePublicContract(t, router, fixture.handler,
 				newPublicContractRequest(http.MethodGet, tc.path+"/archive"+query, nil), true)
-			if index.Code != http.StatusOK || index.Header().Get("ETag") != quotedETag(first.Ref.Revision) {
+			if index.Code != http.StatusOK || index.Header().Get("ETag") != httpx.QuotedETag(first.Ref.Revision) {
 				t.Fatalf("index = %d %s", index.Code, index.Body.String())
 			}
 			var listing artifactArchiveResponse

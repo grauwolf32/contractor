@@ -154,7 +154,7 @@ func (m *RuntimeCredentialMaterial) Destroy() {
 	if m == nil {
 		return
 	}
-	wipeBytes(m.canonical)
+	clear(m.canonical)
 	m.canonical = nil
 	m.kind = ""
 }

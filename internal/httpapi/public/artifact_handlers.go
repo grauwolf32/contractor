@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
@@ -248,17 +249,12 @@ func (h *handler) listArtifactBindings(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1].Ref
-		next, cursorErr := h.encodePageCursor(cursorKind, last.Namespace, last.Name)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+		return []string{last.Ref.Namespace, last.Ref.Name}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
 }
@@ -313,19 +309,12 @@ func (h *handler) listArtifactVersionsFromStore(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), *last.Ref.Revision,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), *last.Ref.Revision}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
 }
@@ -396,20 +385,18 @@ func (h *handler) listArtifactLineageFromStore(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, selectedRevision, last.CreatedAt.UTC().Format(time.RFC3339Nano),
-			*last.Target.Revision, *last.Source.Revision, last.Kind,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
+	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.LineageEdge) []string {
+		return []string{
+			selectedRevision,
+			last.CreatedAt.UTC().Format(time.RFC3339Nano),
+			*last.Target.Revision,
+			*last.Source.Revision,
+			last.Kind,
 		}
-		page.HasMore = true
-		page.NextCursor = &next
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, artifactLineagePageResponse{Items: items, Page: page})
 }
@@ -447,7 +434,7 @@ func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	w.Header().Set("Content-Disposition", "attachment")
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(result.Payload.Data)
@@ -506,7 +493,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	if expectedRevision != nil {
 		status = http.StatusOK
 	}
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	writeJSON(w, status, artifactWriteResponse{
 		Artifact:  result.Ref,
 		MediaType: result.MediaType,

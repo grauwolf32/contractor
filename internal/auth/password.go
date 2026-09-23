@@ -42,7 +42,7 @@ func HashPassword(password []byte) (string, error) {
 		return "", fmt.Errorf("generate Argon2id salt: %w", err)
 	}
 	output := argon2.IDKey(password, salt[:], ArgonIterations, ArgonMemoryKiB, ArgonParallelism, ArgonOutputBytes)
-	defer wipe(output)
+	defer clear(output)
 	return fmt.Sprintf(
 		"$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
 		ArgonMemoryKiB,
@@ -64,16 +64,16 @@ func parsePasswordHash(source string) (passwordHash, error) {
 	}
 	salt, err := base64.RawStdEncoding.Strict().DecodeString(parts[4])
 	if err != nil || len(salt) != ArgonSaltBytes || base64.RawStdEncoding.EncodeToString(salt) != parts[4] {
-		wipe(salt)
+		clear(salt)
 		return passwordHash{}, ErrInvalidBootstrap
 	}
-	defer wipe(salt)
+	defer clear(salt)
 	output, err := base64.RawStdEncoding.Strict().DecodeString(parts[5])
 	if err != nil || len(output) != ArgonOutputBytes || base64.RawStdEncoding.EncodeToString(output) != parts[5] {
-		wipe(output)
+		clear(output)
 		return passwordHash{}, ErrInvalidBootstrap
 	}
-	defer wipe(output)
+	defer clear(output)
 	var result passwordHash
 	copy(result.salt[:], salt)
 	copy(result.output[:], output)
@@ -82,12 +82,6 @@ func parsePasswordHash(source string) (passwordHash, error) {
 
 func (h passwordHash) verify(password []byte) bool {
 	output := argon2.IDKey(password, h.salt[:], ArgonIterations, ArgonMemoryKiB, ArgonParallelism, ArgonOutputBytes)
-	defer wipe(output)
+	defer clear(output)
 	return subtle.ConstantTimeCompare(output, h.output[:]) == 1
-}
-
-func wipe(value []byte) {
-	for index := range value {
-		value[index] = 0
-	}
 }

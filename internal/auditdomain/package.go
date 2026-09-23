@@ -61,7 +61,7 @@ func BuildPackage(packageID string, kind PackageKind, entryPoint string, inputs 
 		expanded += int64(len(input.Data))
 		manifest.Members = append(manifest.Members, PackageMemberManifest{
 			ID: input.ID, Path: validatedPath, MediaType: normalizedMediaType(input.MediaType),
-			Size: int64(len(input.Data)), Digest: digestBytes(input.Data),
+			Size: int64(len(input.Data)), Digest: DigestBytes(input.Data),
 		})
 	}
 	if err := validateEntryPoint(manifest, seenPaths); err != nil {
@@ -173,7 +173,7 @@ func ValidatePackage(payload []byte) (*Package, error) {
 		})
 	}
 	return &Package{
-		Manifest: manifest, Digest: digestBytes(payload), StoredBytes: int64(len(payload)),
+		Manifest: manifest, Digest: DigestBytes(payload), StoredBytes: int64(len(payload)),
 		ExpandedBytes: expanded, members: members,
 	}, nil
 }
@@ -212,7 +212,7 @@ func validatePackageManifest(manifest PackageManifest, rawMembers map[string][]b
 			return invalid(CodePackageInvalid, "manifest.members")
 		}
 		data, exists := rawMembers[memberPath]
-		if !exists || int64(len(data)) != member.Size || digestBytes(data) != member.Digest {
+		if !exists || int64(len(data)) != member.Size || DigestBytes(data) != member.Digest {
 			return invalid(CodeDigestMismatch, "manifest.members")
 		}
 	}

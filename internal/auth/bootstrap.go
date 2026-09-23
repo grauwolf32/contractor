@@ -1,14 +1,11 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
 
+	"github.com/grauwolf32/contractor/internal/securefile"
 	"go.yaml.in/yaml/v4"
-	"golang.org/x/sys/unix"
 )
 
 const maximumBootstrapBytes = 8 * 1024
@@ -52,7 +49,7 @@ func LoadBootstrap(path string) (Bootstrap, error) {
 	if err != nil {
 		return Bootstrap{}, err
 	}
-	defer wipe(data)
+	defer clear(data)
 	var documents []bootstrapDocument
 	if err := yaml.Load(
 		data,
@@ -85,28 +82,15 @@ func BootstrapYAML(userID, username, encodedHash string) ([]byte, error) {
 }
 
 func readBootstrap(path string) ([]byte, error) {
-	if strings.TrimSpace(path) == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+	data, err := securefile.Read(path, maximumBootstrapBytes)
+	switch {
+	case err == nil:
+		return data, nil
+	case errors.Is(err, securefile.ErrPath):
 		return nil, fmt.Errorf("%w: local-auth path must be clean and absolute", ErrInvalidBootstrap)
-	}
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
+	case errors.Is(err, securefile.ErrUnsafePath):
 		return nil, fmt.Errorf("%w: local-auth file must be regular, non-symlinked, and owner-only", ErrInvalidBootstrap)
-	}
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
+	default:
 		return nil, ErrInvalidBootstrap
 	}
-	handle := os.NewFile(uintptr(fd), "local-auth-bootstrap")
-	defer handle.Close()
-	var stat unix.Stat_t
-	if err := unix.Fstat(fd, &stat); err != nil || stat.Mode&unix.S_IFMT != unix.S_IFREG ||
-		os.FileMode(stat.Mode).Perm()&0o077 != 0 || stat.Size < 1 || stat.Size > maximumBootstrapBytes {
-		return nil, ErrInvalidBootstrap
-	}
-	data, err := io.ReadAll(io.LimitReader(handle, maximumBootstrapBytes+1))
-	if err != nil || len(data) == 0 || len(data) > maximumBootstrapBytes {
-		wipe(data)
-		return nil, ErrInvalidBootstrap
-	}
-	return data, nil
 }

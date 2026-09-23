@@ -43,7 +43,7 @@ func newTokenCipher(key []byte, random io.Reader) (*TokenCipher, error) {
 	derivedMACKey := derivation.Sum(nil)
 	var runtimeMACKey [sha256.Size]byte
 	copy(runtimeMACKey[:], derivedMACKey)
-	wipeBytes(derivedMACKey)
+	clear(derivedMACKey)
 	return &TokenCipher{
 		aead: aead, keyID: "sha256:" + hex.EncodeToString(fingerprint[:]),
 		runtimeMACKey: runtimeMACKey, random: random,
@@ -71,7 +71,7 @@ func (c *TokenCipher) SealRuntimeCredential(
 	}
 	plaintext := append([]byte(nil), material.canonical...)
 	ciphertext := c.aead.Seal(nil, nonce, plaintext, aad)
-	wipeBytes(plaintext)
+	clear(plaintext)
 	return EncryptedEnvelope{
 		SchemaVersion: RuntimeCredentialSchemaVersion,
 		KeyID:         c.keyID,
@@ -105,7 +105,7 @@ func (c *TokenCipher) OpenRuntimeCredential(
 		return RuntimeCredentialMaterial{}, ErrCrypto
 	}
 	material, materialErr := runtimeCredentialMaterialFromCanonical(kind, plaintext)
-	wipeBytes(plaintext)
+	clear(plaintext)
 	if materialErr != nil {
 		return RuntimeCredentialMaterial{}, ErrCrypto
 	}
@@ -139,7 +139,7 @@ func (c *TokenCipher) RuntimeCredentialRequestMAC(
 	authenticator := hmac.New(sha256.New, c.runtimeMACKey[:])
 	_, _ = authenticator.Write(request)
 	result := authenticator.Sum(nil)
-	wipeBytes(request)
+	clear(request)
 	return result, nil
 }
 

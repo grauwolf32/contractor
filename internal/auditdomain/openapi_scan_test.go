@@ -23,7 +23,7 @@ func TestOpenAPIScanDocumentedInputs(t *testing.T) {
 			}
 			options := testInventoryOptions("scan")
 			options.ApprovalRequirement = ApprovalActiveCheck
-			input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: digestBytes(settings)}
+			input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: DigestBytes(settings)}
 			input.Ref.Name = scanner + "-settings"
 			inventory, err := BuildOpenAPIScanInventory(source, "application/json", settings, input, options)
 			if err != nil || len(inventory.Tasks) != 1 {
@@ -82,7 +82,7 @@ func scanInventoryFixture(t *testing.T, settings string) (Inventory, InventoryOp
 	t.Helper()
 	options := testInventoryOptions("scan")
 	options.ApprovalRequirement = ApprovalActiveCheck
-	input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: digestBytes([]byte(settings))}
+	input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: DigestBytes([]byte(settings))}
 	input.Ref.Name = "scan-settings"
 	inventory, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(settings), input, options)
 	if err != nil {
@@ -177,10 +177,10 @@ func TestOpenAPIScanPreparationRejectsChangedBytesAndAuthority(t *testing.T) {
 	for name, mutate := range map[string]func(*ItemTask){
 		"scanner":            func(task *ItemTask) { task.Scan.Scanner = "nuclei" },
 		"operation":          func(task *ItemTask) { task.Scan.Operation = "#/paths/~1unselected/get" },
-		"settings digest":    func(task *ItemTask) { task.Scan.Settings.Digest = digestBytes([]byte("changed")) },
+		"settings digest":    func(task *ItemTask) { task.Scan.Settings.Digest = DigestBytes([]byte("changed")) },
 		"source ref":         func(task *ItemTask) { *task.SourceRef.Revision = "changed" },
-		"preparation digest": func(task *ItemTask) { task.Scan.PreparationDigest = digestBytes([]byte("changed")) },
-		"request digest":     func(task *ItemTask) { task.Scan.RequestDigest = digestBytes([]byte("changed")) },
+		"preparation digest": func(task *ItemTask) { task.Scan.PreparationDigest = DigestBytes([]byte("changed")) },
+		"request digest":     func(task *ItemTask) { task.Scan.RequestDigest = DigestBytes([]byte("changed")) },
 		"parameters":         func(task *ItemTask) { task.Scan.TestParameters = []string{"excluded"} },
 		"runnable":           func(task *ItemTask) { task.Scan.Runnable = false; task.Scan.Gaps = []string{"invented"} },
 		"kind":               func(task *ItemTask) { task.Kind = "operation-trace" },
@@ -215,7 +215,7 @@ func TestOpenAPIScanInventoryIdentityIncludesExactSettingsAndSelection(t *testin
 		strings.Replace(sqlmapSettings, `"testParameters":["q"]`, `"testParameters":["excluded"]`, 1),
 		strings.Replace(sqlmapSettings, "https://target.test/api", "https://other.test/api", 1),
 	} {
-		input.Digest = digestBytes([]byte(settings))
+		input.Digest = DigestBytes([]byte(settings))
 		changed, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(settings), input, options)
 		if err != nil {
 			t.Fatal(err)
@@ -235,13 +235,13 @@ func TestOpenAPIScanInventoryRejectsMalformedAssignmentsAtomically(t *testing.T)
 		strings.Replace(nucleiSettings, `"#/paths/~1pets~1{id}/post"`, `"#/paths/~1unknown/get"`, 1),
 		strings.Replace(nucleiSettings, `"nuclei"`, `"unknown"`, 1),
 	} {
-		input.Digest = digestBytes([]byte(settings))
+		input.Digest = DigestBytes([]byte(settings))
 		inventory, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(settings), input, options)
 		if err == nil || ErrorCode(err) == "" || len(inventory.Tasks) != 0 {
 			t.Fatalf("accepted partial/malformed inventory: %v", err)
 		}
 	}
-	input.Digest = digestBytes([]byte(nucleiSettings))
+	input.Digest = DigestBytes([]byte(nucleiSettings))
 	options.ApprovalRequirement = ApprovalNone
 	if _, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(nucleiSettings), input, options); err == nil {
 		t.Fatal("scan approval dropped")
@@ -251,7 +251,7 @@ func TestOpenAPIScanInventoryRejectsMalformedAssignmentsAtomically(t *testing.T)
 func TestOpenAPIScanInventoryValidatorChecksSettingsAndCoverage(t *testing.T) {
 	for name, mutate := range map[string]func(*Inventory){
 		"settings absent":  func(v *Inventory) { v.ExecutionManifest.Items[0].Inputs = v.ExecutionManifest.Items[0].Inputs[1:] },
-		"settings changed": func(v *Inventory) { v.ExecutionManifest.Items[0].Inputs[0].Digest = digestBytes([]byte("changed")) },
+		"settings changed": func(v *Inventory) { v.ExecutionManifest.Items[0].Inputs[0].Digest = DigestBytes([]byte("changed")) },
 		"source absent":    func(v *Inventory) { v.ExecutionManifest.Items[0].Inputs = v.ExecutionManifest.Items[0].Inputs[:1] },
 		"trace coverage":   func(v *Inventory) { v.Coverage.Rows[0].Requested = []string{"operation-resolution"} },
 		"approval": func(v *Inventory) {

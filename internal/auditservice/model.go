@@ -199,21 +199,6 @@ func validSortedIDs(values []string) bool {
 	return true
 }
 
-func digestBytes(value []byte) string {
-	digest := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(digest[:])
-}
-
-func deterministicID(prefix string, values ...string) string {
-	digest := sha256.New()
-	_, _ = digest.Write([]byte("contractor.audit.identity.v1\x00" + prefix))
-	for _, value := range values {
-		_, _ = digest.Write([]byte{'\x00'})
-		_, _ = digest.Write([]byte(value))
-	}
-	return prefix + "-" + hex.EncodeToString(digest.Sum(nil))
-}
-
 func mergeIDs(sets ...[]string) []string {
 	values := make(map[string]struct{})
 	for _, set := range sets {

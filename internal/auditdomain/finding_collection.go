@@ -95,7 +95,7 @@ func FindingCollectionDocumentID(document FindingCollectionDocument) (string, er
 	if err != nil {
 		return "", invalid(CodeInvalid, "collection.document_identity")
 	}
-	return "doc-" + strings.TrimPrefix(digestBytes(identity), "sha256:"), nil
+	return "doc-" + strings.TrimPrefix(DigestBytes(identity), "sha256:"), nil
 }
 
 func EncodeFindingCollection(value FindingCollection) ([]byte, error) {
@@ -265,7 +265,7 @@ func BuildFindingCollectionPackage(value FindingCollection, contents map[string]
 	inputs := []PackageInput{{ID: FindingCollectionMemberID, Path: "collection.json", MediaType: JSONMediaType, Data: metadata}}
 	for _, document := range value.Documents {
 		body, ok := contents[document.ID]
-		if !ok || digestBytes(body) != document.Digest || int64(len(body)) != document.SizeBytes {
+		if !ok || DigestBytes(body) != document.Digest || int64(len(body)) != document.SizeBytes {
 			return nil, invalid(CodeDigestMismatch, "collection.contents")
 		}
 		inputs = append(inputs, PackageInput{ID: document.ID, Path: "documents/" + document.ID, MediaType: document.MediaType, Data: body})
@@ -333,7 +333,7 @@ func DecodeFindingCollectionPackage(payload []byte) (FindingCollection, *Package
 }
 
 func collectionPackageID(metadata []byte) string {
-	return "collection-" + strings.TrimPrefix(digestBytes(metadata), "sha256:")
+	return "collection-" + strings.TrimPrefix(DigestBytes(metadata), "sha256:")
 }
 
 // FindingCollectionTargets returns versionless destinations in the reader's

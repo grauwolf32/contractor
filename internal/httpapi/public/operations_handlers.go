@@ -59,18 +59,12 @@ func (h *handler) listRuntimeAgents(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		next, cursorErr := h.encodeOperationsPageCursor(
-			"operations:runtime-agents", snapshot.Cursor, items[len(items)-1].InstanceID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, "operations:runtime-agents", func(last controlplane.RuntimeAgentObservation) []string {
+		return operationsPagePosition(snapshot.Cursor, last.InstanceID)
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, runtimeAgentPageResponse{
 		Cursor: operationsCursor(snapshot.Cursor), Items: items, Page: page,
@@ -106,18 +100,12 @@ func (h *handler) listAllocations(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		next, cursorErr := h.encodeOperationsPageCursor(
-			"operations:allocations", snapshot.Cursor, items[len(items)-1].AllocationID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, "operations:allocations", func(last controlplane.AllocationObservation) []string {
+		return operationsPagePosition(snapshot.Cursor, last.AllocationID)
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, allocationPageResponse{
 		Cursor: operationsCursor(snapshot.Cursor), Items: items, Page: page,
@@ -194,14 +182,8 @@ func (h *handler) operationsPageAfter(
 	return values[2], nil
 }
 
-func (h *handler) encodeOperationsPageCursor(
-	kind string,
-	cursor controlplane.OperationsCursor,
-	after string,
-) (string, error) {
-	return h.encodePageCursor(
-		kind, cursor.Generation, strconv.FormatUint(cursor.Revision, 10), after,
-	)
+func operationsPagePosition(cursor controlplane.OperationsCursor, after string) []string {
+	return []string{cursor.Generation, strconv.FormatUint(cursor.Revision, 10), after}
 }
 
 func operationsCursor(source controlplane.OperationsCursor) operationsCursorResponse {

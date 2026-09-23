@@ -1,4 +1,4 @@
-FROM node:24.20.0-alpine AS build
+FROM docker.io/library/node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS build
 
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
@@ -14,7 +14,7 @@ RUN pnpm generate \
     && pnpm typecheck \
     && pnpm build
 
-FROM node:24.20.0-alpine AS runtime
+FROM docker.io/library/node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS runtime
 
 ENV NODE_ENV=production \
     CONTRACTOR_UI_HOST=0.0.0.0 \

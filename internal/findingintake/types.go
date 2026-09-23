@@ -15,7 +15,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
 const (
@@ -201,7 +200,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
 	}
 	return canonicalSubmission{
-		request: input, proposalBytes: proposalBytes, digest: digestBytes(encoded),
+		request: input, proposalBytes: proposalBytes, digest: auditdomain.DigestBytes(encoded),
 	}, nil
 }
 
@@ -223,11 +222,6 @@ func deterministicID(prefix string, values ...string) string {
 	return prefix + "-" + hex.EncodeToString(digest[:])
 }
 
-func digestBytes(value []byte) string {
-	digest := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(digest[:])
-}
-
 func validIdentity(value string) bool {
 	return value == strings.TrimSpace(value) && identityPattern.MatchString(value)
 }
@@ -235,12 +229,4 @@ func validIdentity(value string) bool {
 func sameRef(left, right contracts.ArtifactRef) bool {
 	return left.Namespace == right.Namespace && left.Name == right.Name &&
 		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
-}
-
-func trustedGrantMatches(left, right controlplane.AllocationGrant) bool {
-	return left.AllocationID == right.AllocationID && left.RunID == right.RunID &&
-		left.StageExecutionID == right.StageExecutionID &&
-		left.RuntimeAgentID == right.RuntimeAgentID &&
-		left.RuntimeInstanceID == right.RuntimeInstanceID &&
-		left.LogicalAgentName == right.LogicalAgentName
 }

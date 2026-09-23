@@ -206,7 +206,7 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 		proposalRevision := "proposal-r1"
 		proposal := findingintake.ExactArtifact{
 			Ref:    contracts.ArtifactRef{Namespace: "audit-findings", Name: name, Revision: &proposalRevision},
-			Digest: digestBytes([]byte(name)), MediaType: "application/json", SizeBytes: int64(len(name)),
+			Digest: auditdomain.DigestBytes([]byte(name)), MediaType: "application/json", SizeBytes: int64(len(name)),
 		}
 		document := auditdomain.FindingProposal{StandardRefs: []auditdomain.StandardReference{{Scheme: pkg.Reference().Scheme, Version: pkg.Reference().Version, RequirementID: "A01:2025"}}}
 		origin := findingintake.Origin{

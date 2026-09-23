@@ -259,7 +259,7 @@ func (i *Importer) retainCheckResults(
 	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	retainedResult, err := i.artifacts.RetainRunExact(
 		ctx, run.RunID, source, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: deterministicID("result", execution.ExecutionID)},
+		contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("result", execution.ExecutionID)},
 	)
 	if err != nil {
 		return false, err
@@ -284,7 +284,7 @@ func (i *Importer) retainCheckResults(
 			collectionItems[index].FindingAssociations = append(
 				collectionItems[index].FindingAssociations,
 				auditstore.FindingAssociation{
-					AssessmentID: deterministicID(
+					AssessmentID: auditdomain.DeterministicID(
 						"finding-assessment", member.member.ExecutionItemID, proposal.ReceiptID,
 					),
 					ReceiptID: proposal.ReceiptID,
@@ -305,7 +305,7 @@ func (i *Importer) retainCheckResults(
 		if evidence.descriptor != nil {
 			artifact, err = i.artifacts.RetainRunExact(
 				ctx, run.RunID, *evidence.descriptor, snapshot.Audit.ProjectID,
-				contracts.ArtifactRef{Namespace: namespace, Name: deterministicID("evidence", execution.ExecutionID, id)},
+				contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("evidence", execution.ExecutionID, id)},
 			)
 			if err != nil {
 				return false, err

@@ -1,8 +1,6 @@
 package auditdomain
 
 import (
-	"encoding/json"
-
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -406,7 +404,3 @@ type inventoryBasis struct {
 	Subjects  []map[string]any   `json:"subjects"`
 	Gaps      []string           `json:"gaps"`
 }
-
-// rawDocument is used only while applying strict codecs to dynamic, trusted
-// normalized content. It intentionally never crosses a package boundary.
-type rawDocument = json.RawMessage

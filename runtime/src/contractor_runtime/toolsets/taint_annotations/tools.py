@@ -7,7 +7,6 @@ import re
 import time
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
-from contextlib import suppress
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
@@ -18,12 +17,13 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
     dependency_versions_match,
 )
-from contractor_runtime.toolsets.common.lines import split_lines
+from contractor_runtime.toolsets.common.lines import newline_style, split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
@@ -203,10 +203,11 @@ class _TaintAnnotationSession:
             if language is None:
                 raise TaintAnnotationError("taint_annotation_language_unsupported")
             try:
-                parsed = await _to_thread_cancellation_safe(
+                parsed = await to_thread_until_done(
                     _parse_target_file,
                     encoded,
                     language,
+                    name="taint-annotation-cpu",
                 )
                 plan = _plan_mutation(source, language, parsed, request)
             except asyncio.CancelledError:
@@ -496,7 +497,7 @@ def _plan_mutation(
     marker = _COMMENT_MARKERS.get(language, "//")
     line = f"{indent}{marker} @{request.kind} {request.body}"
     encoded_line = line.encode("utf-8")
-    newline = _newline_style(source).encode("ascii")
+    newline = newline_style(source).encode("ascii")
     if (
         len(encoded_line) > MAX_ANNOTATION_BYTES
         or len(source.encode("utf-8")) + len(encoded_line) + len(newline) > MAX_SOURCE_FILE_BYTES
@@ -529,7 +530,7 @@ def _apply_plan(
         for _, value in block
     ):
         raise TaintAnnotationError("taint_annotation_conflict")
-    newline = _newline_style(source)
+    newline = newline_style(source)
     lines.insert(insertion_index, plan.line + newline)
     return "".join(lines), _result(
         request,
@@ -753,30 +754,8 @@ def _parse_target_file(source: bytes, language: Language) -> AnnotationParseResu
     return parse_annotation_targets(parser, source, language)
 
 
-def _newline_style(value: str) -> str:
-    for index, character in enumerate(value):
-        if character == "\n":
-            return "\n"
-        if character == "\r":
-            return "\r\n" if index + 1 < len(value) and value[index + 1] == "\n" else "\r"
-    return "\n"
-
-
 def _without_newline(value: str) -> str:
     return value.removesuffix("\n").removesuffix("\r")
-
-
-async def _to_thread_cancellation_safe(function: Any, *arguments: Any) -> Any:
-    task = asyncio.create_task(
-        asyncio.to_thread(function, *arguments),
-        name="taint-annotation-cpu",
-    )
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        with suppress(Exception):
-            await task
-        raise
 
 
 def _elapsed_ms(started_ns: int) -> int:

@@ -139,7 +139,7 @@ func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
 	})
 	defer server.Close()
 	remote, _ := ParseRemote(server.URL + "/repo.git")
-	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}})
+	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
 	client.allowLoopback = true
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 	var before, after runtime.MemStats
@@ -275,7 +275,7 @@ func TestRealSSHOwnerKeyAndStrictHostTrust(t *testing.T) {
 		t.Fatal(err)
 	}
 	remote, _ := ParseRemote("ssh://git@" + address + "/repo.git")
-	client, _ := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known})
+	client, _ := NewClient(Config{AllowedRemotes: []string{address}, KnownHostsFile: known}, nil)
 	client.allowLoopback = true
 	snapshot, err := client.Fetch(context.Background(), remote, "main", owner)
 	if err != nil {
@@ -388,7 +388,7 @@ func TestReadOnlyGitProbe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}, KnownHostsFile: "/fixture/known_hosts"})
+		client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}, KnownHostsFile: "/fixture/known_hosts"}, nil)
 		client.allowLoopback = true
 		client.tlsConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 		snapshot, err := client.Fetch(context.Background(), remote, "", signer)

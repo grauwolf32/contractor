@@ -1,9 +1,6 @@
 package public
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -135,14 +132,8 @@ func (h *handler) readEvalCursor(r *http.Request, q url.Values, count int) (eval
 	if q.Get("cursor") == "" {
 		return out, nil
 	}
-	b, err := base64.RawURLEncoding.DecodeString(q.Get("cursor"))
-	if err != nil || len(b) <= sha256.Size {
-		return out, evaldomain.Failure("eval_invalid")
-	}
-	raw, sig := b[:len(b)-sha256.Size], b[len(b)-sha256.Size:]
-	mac := hmac.New(sha256.New, h.tokenDigest[:])
-	mac.Write(raw)
-	if !hmac.Equal(sig, mac.Sum(nil)) || json.Unmarshal(raw, &out) != nil || out.Context != evalCursorContext(r, q) || len(out.Position) != count || out.Snapshot == "" {
+	raw, ok := h.openCursor("", q.Get("cursor"))
+	if !ok || json.Unmarshal(raw, &out) != nil || out.Context != evalCursorContext(r, q) || len(out.Position) != count || out.Snapshot == "" {
 		return out, evaldomain.Failure("eval_invalid")
 	}
 	return out, nil
@@ -156,9 +147,7 @@ func (h *handler) evalPage(r *http.Request, q url.Values, more bool, snapshot st
 	if err != nil {
 		return out, err
 	}
-	mac := hmac.New(sha256.New, h.tokenDigest[:])
-	mac.Write(raw)
-	cursor := base64.RawURLEncoding.EncodeToString(append(raw, mac.Sum(nil)...))
+	cursor := h.sealCursor("", raw)
 	if len(cursor) > maxEvalCursorBytes {
 		return out, evaldomain.Failure("eval_limit_exceeded")
 	}

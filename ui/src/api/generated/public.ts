@@ -8363,6 +8363,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     listAuditProfiles: {
@@ -8661,6 +8662,7 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["UnprocessableEntity"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     pauseAudit: {
@@ -8745,6 +8747,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     cancelAudit: {
@@ -9443,6 +9446,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["CredentialRecoveryRequired"];
         };
     };
     getRun: {

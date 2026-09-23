@@ -20,6 +20,7 @@ from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifact_visibility import (
     artifact_observation_cursor,
     clear_artifact_observations,
@@ -27,7 +28,11 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     model_visible_observations_since,
     require_model_visible_binding,
 )
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.artifacts import (
+    ArtifactClientFactory,
+    _unconfigured_client,
+    gateway_secrets,
+)
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
@@ -663,7 +668,7 @@ async def _run_likec4(
 
     try:
         try:
-            await _run_file_operation(prepare)
+            await to_thread_until_done(prepare, name="likec4-filesystem")
             assert temporary is not None
             project = Path(temporary.name)
             source = project / VALIDATOR_FILENAME
@@ -701,7 +706,7 @@ async def _run_likec4(
                 )
         finally:
             if temporary is not None:
-                await _run_file_operation(temporary.cleanup)
+                await to_thread_until_done(temporary.cleanup, name="likec4-filesystem")
     except subprocess.TimeoutExpired:
         return _validation_failure(True, "LikeC4 validation timed out")
     except ProcessOutputLimitError:
@@ -750,23 +755,6 @@ async def _run_likec4(
         "truncated": truncated,
         "stats": stats,
     }
-
-
-async def _run_file_operation(operation: Callable[[], None]) -> None:
-    # Keep the session lock until the syscall finishes, including repeated
-    # cancellation. Allocation's outer stop deadline fences/exits if it cannot.
-    task = asyncio.create_task(asyncio.to_thread(operation), name="likec4-filesystem")
-    cancelled = False
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            cancelled = True
-    if cancelled:
-        if not task.cancelled():
-            task.exception()
-        raise asyncio.CancelledError
-    task.result()
 
 
 def _extract_json(text: str) -> Any:
@@ -931,16 +919,6 @@ def _document_state(
         "changed": changed,
         "copied": copied,
     }
-
-
-def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:
-    del runtime_settings
-    return ArtifactClient(allocation_id, _UnavailableTransport())
-
-
-class _UnavailableTransport:
-    async def request(self, *_: Any, **__: Any) -> Any:
-        raise RuntimeError("Artifact transport is not configured")
 
 
 def _elapsed_ms(started_ns: int) -> int:

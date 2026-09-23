@@ -85,7 +85,7 @@ func (s *RuntimeCredentialService) Create(
 	if err != nil {
 		return RuntimeCredentialCreateResult{}, err
 	}
-	defer wipeBytes(requestMAC)
+	defer clear(requestMAC)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,7 +115,7 @@ func (s *RuntimeCredentialService) Create(
 			CredentialID: request.CredentialID, Kind: request.Material.kind,
 			ActorID: request.ActorID, CreatedAt: createdAt,
 		}
-		defer wipeBytes(creation.RequestMAC)
+		defer clear(creation.RequestMAC)
 		transactionErr := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			repository := NewRuntimeCredentialRepository(tx)
 			if _, insertErr := repository.InsertRecord(ctx, record); insertErr != nil {

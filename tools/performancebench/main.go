@@ -361,8 +361,6 @@ func measureFixed(name string, operations int, operation func()) measurement {
 	}
 }
 
-var benchmarkDigest [32]byte
-
 func measureProfiling(name string, duration time.Duration) (measurement, error) {
 	var cancel context.CancelFunc
 	var serverDone chan error
@@ -422,7 +420,7 @@ func measureProfiling(name string, duration time.Duration) (measurement, error) 
 	for time.Now().Before(deadline) {
 		at := time.Now()
 		for range 128 {
-			benchmarkDigest = sha256.Sum256(payload)
+			_ = sha256.Sum256(payload)
 			operations++
 		}
 		latencies = append(latencies, time.Since(at).Nanoseconds()/128)

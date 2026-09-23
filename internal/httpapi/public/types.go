@@ -270,7 +270,7 @@ type createRunRequest struct {
 type runRuntimeLabels []string
 
 func (l *runRuntimeLabels) UnmarshalJSON(data []byte) error {
-	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+	if isJSONNull(data) {
 		return errors.New("runtimeLabels must be an array")
 	}
 	var value []string
@@ -345,22 +345,16 @@ type createProjectRequest struct {
 func (r *createProjectRequest) UnmarshalJSON(data []byte) error {
 	type wire createProjectRequest
 	var decoded wire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&decoded); err != nil {
-		return err
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	fields, err := decodeStrictWithPresence(data, &decoded)
+	if err != nil {
 		return err
 	}
 	for _, required := range []string{"kind", "name"} {
-		value, present := fields[required]
-		if !present || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		if fields.missingOrNull(required) {
 			return fmt.Errorf("%s is required", required)
 		}
 	}
-	if value, present := fields["description"]; present && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+	if fields.null("description") {
 		return errors.New("description cannot be null")
 	}
 	*r = createProjectRequest(decoded)
@@ -382,36 +376,27 @@ type projectHTTPTargetRequest struct {
 func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 	type wire updateProjectRequest
 	var decoded wire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&decoded); err != nil {
-		return err
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	fields, err := decodeStrictWithPresence(data, &decoded)
+	if err != nil {
 		return err
 	}
 	if len(fields) == 0 {
 		return errors.New("at least one Project field is required")
 	}
 	for name, value := range fields {
-		if name != "httpTarget" && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		if name != "httpTarget" && isJSONNull(value) {
 			return fmt.Errorf("%s cannot be null", name)
 		}
 	}
 	if raw, present := fields["httpTarget"]; present {
 		decoded.targetSet = true
-		if !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		if !isJSONNull(raw) {
 			var target projectHTTPTargetRequest
-			if err := decodeStrictPublicJSON(raw, &target); err != nil {
+			targetFields, err := decodeStrictWithPresence(raw, &target)
+			if err != nil {
 				return err
 			}
-			var targetFields map[string]json.RawMessage
-			if err := json.Unmarshal(raw, &targetFields); err != nil {
-				return err
-			}
-			urlValue, hasURL := targetFields["url"]
-			if !hasURL || bytes.Equal(bytes.TrimSpace(urlValue), []byte("null")) {
+			if targetFields.missingOrNull("url") {
 				return errors.New("httpTarget.url is required")
 			}
 			candidate := contracts.HTTPOriginTargetRef{URL: target.URL, Credential: target.Credential}
@@ -695,27 +680,22 @@ type createCredentialRequest struct {
 func (r *createCredentialRequest) UnmarshalJSON(data []byte) error {
 	type wire createCredentialRequest
 	var decoded wire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&decoded); err != nil {
+	fields, err := decodeStrictWithPresence(data, &decoded)
+	if err != nil {
 		return err
 	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	if raw, present := fields["label"]; present && bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+	if fields.null("label") {
 		return errors.New("credential label cannot be null")
 	}
-	if raw, present := fields["gatewayPolicy"]; present && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		var policyFields map[string]json.RawMessage
+	if raw, present := fields["gatewayPolicy"]; present && !isJSONNull(raw) {
+		var policyFields jsonMembers
 		if err := json.Unmarshal(raw, &policyFields); err != nil {
 			return err
 		}
 		for _, name := range []string{
 			"maxBudget", "budgetDuration", "tpmLimit", "rpmLimit", "maxParallelRequests",
 		} {
-			if value, exists := policyFields[name]; exists && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			if policyFields.null(name) {
 				return errors.New("Gateway policy optional fields cannot be null")
 			}
 		}
@@ -780,7 +760,7 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&envelope); err != nil {
 		return err
 	}
-	if len(envelope.Material) == 0 || bytes.Equal(bytes.TrimSpace(envelope.Material), []byte("null")) {
+	if len(envelope.Material) == 0 || isJSONNull(envelope.Material) {
 		return errors.New("Runtime credential material is required")
 	}
 	var material credentials.RuntimeCredentialMaterial
@@ -877,7 +857,7 @@ func (r *runtimeAgentLabelsMutationRequest) UnmarshalJSON(data []byte) error {
 	if err := decodeStrictPublicJSON(data, &envelope); err != nil {
 		return err
 	}
-	if len(envelope.Labels) == 0 || bytes.Equal(bytes.TrimSpace(envelope.Labels), []byte("null")) {
+	if len(envelope.Labels) == 0 || isJSONNull(envelope.Labels) {
 		return errors.New("Runtime Agent labels must be an array")
 	}
 	if err := json.Unmarshal(envelope.Labels, &r.Labels); err != nil || r.Labels == nil {

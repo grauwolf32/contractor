@@ -6,6 +6,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -107,7 +108,7 @@ func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
 	if expectedRevision != nil {
 		status = http.StatusOK
 	}
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	writeJSON(w, status, artifactWriteResponse{
 		Artifact: result.Ref, MediaType: result.MediaType, Size: result.Size,
 	})

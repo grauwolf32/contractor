@@ -22,13 +22,11 @@ func BuildFindingInventory(
 	basisSubjects := make([]map[string]any, 0)
 	subjects := make([]inventorySubject, 0)
 	for _, proposal := range document.Proposals {
+		// With an unspecified affected subject, verification addresses the
+		// retained finding receipt itself; the proposal remains subject:null.
 		subjectKey := proposal.ReceiptID
 		if proposal.Document.Subject != nil {
 			subjectKey = proposal.Document.Subject.Key
-		} else {
-			// With an unspecified affected subject, verification addresses the
-			// retained finding receipt itself; the proposal remains subject:null.
-			subjectKey = proposal.ReceiptID
 		}
 		limitations := copyStrings(proposal.Document.Limitations)
 		sort.Strings(limitations)

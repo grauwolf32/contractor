@@ -7,14 +7,17 @@ import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from contractor_runtime import artifacts
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactHTTPResponse,
+    ArtifactResponseLimitError,
     ArtifactTransportError,
     MTLSArtifactTransport,
 )
@@ -396,6 +399,90 @@ def test_mtls_transport_maps_connection_setup_failure_to_transport_error() -> No
     async def scenario() -> None:
         with pytest.raises(ArtifactTransportError, match="ConnectionRefusedError"):
             await transport.request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
+
+    asyncio.run(scenario())
+
+
+def fake_connection(
+    monkeypatch: pytest.MonkeyPatch, response: bytes, verify_peer: Mock | None = None
+) -> Mock:
+    context = ssl.create_default_context()
+    ssl_object = context.wrap_bio(ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname="localhost")
+    reader = asyncio.StreamReader()
+    reader.feed_data(response)
+    reader.feed_eof()
+    writer = Mock(spec=asyncio.StreamWriter)
+    writer.get_extra_info.return_value = ssl_object
+    writer.transport = Mock()
+    writer.drain = AsyncMock()
+    writer.wait_closed = AsyncMock()
+    monkeypatch.setattr(asyncio, "open_connection", AsyncMock(return_value=(reader, writer)))
+    monkeypatch.setattr(artifacts, "verify_control_plane_peer", verify_peer or Mock())
+    return writer
+
+
+def mtls_transport() -> MTLSArtifactTransport:
+    return MTLSArtifactTransport(
+        "https://localhost:8443/private/v1",
+        ssl.create_default_context(),
+        timeout_seconds=1,
+        runtime_instance_id="runtime-1",
+    )
+
+
+def test_mtls_transport_sends_identity_headers_and_returns_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        writer = fake_connection(
+            monkeypatch,
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n",
+        )
+        response = await mtls_transport().request(
+            "GET", "/x?y=1", headers={"Accept": "*/*"}, body=b"", max_response_bytes=2
+        )
+        assert (response.status_code, response.body) == (200, b"{}")
+        request = writer.write.call_args.args[0]
+        assert request.startswith(b"GET /private/v1/x?y=1 HTTP/1.1\r\nHost: localhost:8443\r\n")
+        assert b"\r\nX-Request-ID: request_" in request
+        assert b"\r\nX-Contractor-Runtime-Instance-ID: runtime-1\r\n" in request
+        writer.close.assert_called_once()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("response", "error"),
+    [
+        (b"HTTP/1.1 200 OK\r\nContent-Length: +1\r\n\r\n{", ArtifactTransportError),
+        (
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n-0\r\n\r\n",
+            ArtifactTransportError,
+        ),
+        (b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n{}", ArtifactTransportError),
+        (b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n{}x", ArtifactResponseLimitError),
+    ],
+)
+def test_mtls_transport_maps_malformed_responses_to_transport_errors(
+    monkeypatch: pytest.MonkeyPatch, response: bytes, error: type[Exception]
+) -> None:
+    async def scenario() -> None:
+        fake_connection(monkeypatch, response)
+        with pytest.raises(error):
+            await mtls_transport().request("GET", "/x", headers={}, body=b"", max_response_bytes=2)
+
+    asyncio.run(scenario())
+
+
+def test_mtls_transport_maps_peer_rejection_to_transport_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        rejected = Mock(side_effect=ssl.SSLCertVerificationError("wrong role"))
+        writer = fake_connection(monkeypatch, b"", rejected)
+        with pytest.raises(ArtifactTransportError, match="SSLCertVerificationError"):
+            await mtls_transport().request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
+        writer.write.assert_not_called()
 
     asyncio.run(scenario())
 

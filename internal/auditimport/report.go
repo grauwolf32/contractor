@@ -255,7 +255,7 @@ func (i *Importer) Finalize(
 			StandardSelection: cloneReportStandardSelection(profile.Inventory.StandardSelection),
 		},
 		Baseline: reportBaseline{
-			Digest: digestBytes(snapshot.Audit.BaselineSnapshot),
+			Digest: auditdomain.DigestBytes(snapshot.Audit.BaselineSnapshot),
 			Inputs: cloneExactArtifactMap(baseline.Inputs), Scope: cloneStringMap(baseline.Scope),
 			SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 			CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
@@ -337,7 +337,7 @@ func (i *Importer) Finalize(
 	commit := auditstore.CommitReportParams{
 		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
 		RoundID: snapshot.Round.RoundID, ExpectedRoundRevision: snapshot.Round.Revision,
-		Machine: machineLink, Summary: summaryLink, RequestDigest: digestBytes(identity),
+		Machine: machineLink, Summary: summaryLink, RequestDigest: auditdomain.DigestBytes(identity),
 	}
 	if profile.Interaction.ReportAcceptance == config.AuditReportHumanRequired {
 		_, _, err = i.store.ProposeReport(ctx, auditstore.ProposeReportParams(commit))

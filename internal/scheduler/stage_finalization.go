@@ -386,14 +386,3 @@ func (s *Scheduler) acceptFinalizingDuringCancellation(
 	_ = s.releaseTerminal(execution.StageExecutionID, reservations)
 	return nil
 }
-
-func (s *Scheduler) finishRunFromTerminalTermination(
-	ctx context.Context,
-	run runstore.WorkflowRun,
-	execution runstore.StageExecution,
-) error {
-	if execution.Termination == nil {
-		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("terminal interrupted Stage has no termination"))
-	}
-	return s.failActiveRun(ctx, run.RunID, execution.Termination.Code, nil)
-}

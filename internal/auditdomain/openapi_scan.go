@@ -37,7 +37,7 @@ func (s OpenAPIScanTask) CoverageRequirement() string {
 func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions) (Inventory, error) {
 	if options.ApprovalRequirement != ApprovalActiveCheck || settingsInput.Name == options.SourceInputName ||
 		validateIdentifier(settingsInput.Name, "settings.name") != nil || settingsInput.Ref.ValidateExact() != nil ||
-		settingsInput.Digest != digestBytes(settingsData) {
+		settingsInput.Digest != DigestBytes(settingsData) {
 		return Inventory{}, invalid(CodeInventoryInvalid, "scan.settings")
 	}
 	settings, err := scanplan.DecodeAuditScanSettings(settingsData)
@@ -64,7 +64,7 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 	if err != nil {
 		return Inventory{}, invalid(CodeInventoryInvalid, "scan.inventory")
 	}
-	canonicalDigest := digestBytes(canonical)
+	canonicalDigest := DigestBytes(canonical)
 	for index := range subjects {
 		subjects[index].itemKey = openAPIScanKey(canonicalDigest, subjects[index].scan.Operation)
 		subjects[index].subjectKey = subjects[index].itemKey
@@ -99,8 +99,8 @@ func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prep
 // ref but must contain the same bytes. Ownership/fork authorization is a caller
 // responsibility, as with other preparation helpers.
 func PrepareOpenAPIScanTask(task ItemTask, source, settingsData []byte) (scanplan.PreparedAuditOperation, error) {
-	if validateItemTask(task) != nil || task.Scan == nil || digestBytes(source) != task.SourceContentDigest ||
-		digestBytes(settingsData) != task.Scan.Settings.Digest {
+	if validateItemTask(task) != nil || task.Scan == nil || DigestBytes(source) != task.SourceContentDigest ||
+		DigestBytes(settingsData) != task.Scan.Settings.Digest {
 		return scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.inputs")
 	}
 	settings, err := scanplan.DecodeAuditScanSettings(settingsData)
@@ -115,7 +115,7 @@ func PrepareOpenAPIScanTask(task ItemTask, source, settingsData []byte) (scanpla
 }
 
 func openAPIScanKey(inventoryDigest, pointer string) string {
-	return "scan-" + strings.TrimPrefix(digestBytes([]byte(inventoryDigest+"\x00"+pointer)), "sha256:")
+	return "scan-" + strings.TrimPrefix(DigestBytes([]byte(inventoryDigest+"\x00"+pointer)), "sha256:")
 }
 
 func validateOpenAPIScanTask(value OpenAPIScanTask) error {

@@ -160,7 +160,7 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 	if err != nil {
 		return Inventory{}, invalid(CodeInventoryInvalid, "inventory")
 	}
-	canonicalDigest := digestBytes(canonical)
+	canonicalDigest := DigestBytes(canonical)
 	subjects := make([]inventorySubject, 0, len(operations))
 	for _, operation := range operations {
 		operationKey, err := openAPIOperationKey(canonicalDigest, operation.path, operation.method)

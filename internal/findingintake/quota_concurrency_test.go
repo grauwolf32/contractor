@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -31,7 +32,7 @@ func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
 		Name: "Quota project", IdempotencyKey: "quota-project",
-		RequestDigest: digestBytes([]byte("quota-project")),
+		RequestDigest: auditdomain.DigestBytes([]byte("quota-project")),
 	}); err != nil {
 		t.Fatal(err)
 	}

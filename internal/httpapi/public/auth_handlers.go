@@ -51,7 +51,7 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	}
 	password := []byte(request.Password)
 	request.Password = ""
-	defer wipePublicBytes(password)
+	defer clear(password)
 	result, err := h.dependencies.Authentication.Login(request.Username, password, peerIP)
 	if err != nil {
 		if limited, ok := auth.IsRateLimited(err); ok {
@@ -314,10 +314,4 @@ func principalUserID(ctx context.Context) string {
 		return ""
 	}
 	return principal.UserID
-}
-
-func wipePublicBytes(value []byte) {
-	for index := range value {
-		value[index] = 0
-	}
 }

@@ -767,6 +767,16 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if createdRun.Code != http.StatusAccepted {
 		t.Fatalf("create Run = %d: %s", createdRun.Code, createdRun.Body.String())
 	}
+	fixture.credentials.guard = func(func() error) error { return credentials.ErrRecoveryRequired }
+	createRunRecovering := newPublicContractRequest(http.MethodPost, "/v1/runs", createRunBody)
+	createRunRecovering.Header.Set("Content-Type", "application/json")
+	createRunRecovering.Header.Set("Idempotency-Key", "contract-create-run-recovering")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, createRunRecovering, true); response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("create Run during credential recovery = %d: %s", response.Code, response.Body.String())
+	} else {
+		assertErrorCode(t, response, "credential_recovery_required")
+	}
+	fixture.credentials.guard = nil
 
 	for name, path := range map[string]string{
 		"list UserScope Artifacts": "/v1/artifacts",

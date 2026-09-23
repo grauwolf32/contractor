@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 const (
@@ -108,7 +109,7 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", result.Payload.MediaType)
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
 	w.Header().Set("Cache-Control", "no-store")
@@ -190,7 +191,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	if create {
 		status = http.StatusCreated
 	}
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
 	writeJSON(w, status, contracts.ArtifactWriteResult{
 		APIVersion: contracts.APIVersion, Artifact: result.Ref,

@@ -95,18 +95,7 @@ class AdkWorkerRuntimeFactory:
             )
             await runtime.start()
             return runtime
-        except asyncio.CancelledError:
-            if runtime is not None:
-                with contextlib.suppress(Exception):
-                    await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
-            else:
-                if isinstance(model, OpenAICompatibleGatewayLlm):
-                    with contextlib.suppress(Exception):
-                        await model.close()
-                if prepared is not None:
-                    await prepared.close()
-            raise
-        except Exception:
+        except (asyncio.CancelledError, Exception):
             if runtime is not None:
                 with contextlib.suppress(Exception):
                     await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))

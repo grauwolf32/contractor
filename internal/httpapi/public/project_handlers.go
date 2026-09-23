@@ -1,15 +1,13 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -104,19 +102,12 @@ func (h *handler) listProjects(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(projects) > limit {
-		projects = projects[:limit]
-		last := projects[len(projects)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ProjectID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	projects, page, err := paginate(h, projects, limit, cursorKind, func(last projectstore.Project) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ProjectID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]projectResponse, 0, len(projects))
 	for _, project := range projects {
@@ -254,7 +245,7 @@ func (h *handler) deleteProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func projectRequestDigest(request createProjectRequest) (string, error) {
-	encoded, err := json.Marshal(struct {
+	digest, err := contentdigest.JSON(struct {
 		Kind        projectstore.Kind `json:"kind"`
 		Name        string            `json:"name"`
 		Description string            `json:"description"`
@@ -262,8 +253,7 @@ func projectRequestDigest(request createProjectRequest) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode Project request: %w", err)
 	}
-	sum := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return digest, nil
 }
 
 func writeProject(w http.ResponseWriter, status int, project projectstore.Project) {

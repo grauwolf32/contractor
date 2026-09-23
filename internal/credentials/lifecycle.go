@@ -3,7 +3,6 @@ package credentials
 import (
 	"context"
 	cryptorand "crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -725,12 +725,11 @@ func validateDeleteOperationRequest(request deleteOperationRequest) error {
 }
 
 func operationRequestDigest(request any) (string, error) {
-	encoded, err := json.Marshal(request)
+	digest, err := contentdigest.JSON(request)
 	if err != nil {
 		return "", fmt.Errorf("%w: credential request cannot be encoded", ErrInvalid)
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
+	return digest, nil
 }
 
 func createOperationRequestsEqual(left, right createOperationRequest) bool {

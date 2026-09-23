@@ -22,7 +22,7 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import PURPOSE_RESERVED_NAMESPACES
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.memory.codec import (
     ARTIFACT_NAME_PREFIX,
@@ -798,12 +798,6 @@ def _normalize_tool_error(error: Exception) -> MemoryToolError:
     if isinstance(error, MemoryToolError):
         return MemoryToolError(error.code)
     return MemoryToolError("memory_unavailable")
-
-
-def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:
-    from contractor_runtime.toolsets.common.artifacts import _unconfigured_client as factory
-
-    return factory(allocation_id, runtime_settings)
 
 
 def _elapsed_ms(started_ns: int) -> int:

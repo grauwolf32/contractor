@@ -42,8 +42,8 @@ func finishInventory(
 	if err != nil {
 		return Inventory{}, invalid(CodeInventoryInvalid, "inventory")
 	}
-	canonicalDigest := digestBytes(canonical)
-	sourceDigest := digestBytes(source)
+	canonicalDigest := DigestBytes(canonical)
+	sourceDigest := DigestBytes(source)
 	worklist := WorklistManifest{Schema: WorklistSchema, Round: options.Round, Items: make([]WorklistItem, 0, len(subjects))}
 	execution := ExecutionManifest{Schema: ExecutionManifestSchema, Items: make([]ExecutionItem, 0, len(subjects))}
 	coverage := CoverageEnvelope{Schema: CoverageSchema, Rows: make([]CoverageRow, 0, len(subjects))}
@@ -137,7 +137,7 @@ func finishInventory(
 // a caller persists or dispatches any part of the all-or-nothing result.
 func ValidateInventory(value Inventory) error {
 	if !validDigest(value.SourceContentDigest) || !validDigest(value.CanonicalInventoryDigest) ||
-		digestBytes(value.CanonicalInventory) != value.CanonicalInventoryDigest {
+		DigestBytes(value.CanonicalInventory) != value.CanonicalInventoryDigest {
 		return invalid(CodeInventoryInvalid, "inventory.digest")
 	}
 	var basis inventoryBasis
@@ -379,7 +379,7 @@ func validateInventoryOptions(options InventoryOptions, sourceMediaType string) 
 }
 
 func deterministicPackageID(document []byte) string {
-	digest := digestBytes(append([]byte("contractor.audit.task-package.v1\x00"), document...))
+	digest := DigestBytes(append([]byte("contractor.audit.task-package.v1\x00"), document...))
 	return "task-" + strings.TrimPrefix(digest, "sha256:")
 }
 
@@ -436,7 +436,7 @@ func openAPIOperationKey(inventoryDigest, pathTemplate, method string) (string, 
 	if err != nil {
 		return "", invalid(CodeInventoryInvalid, "operation_key")
 	}
-	return "op-" + strings.TrimPrefix(digestBytes(tuple), "sha256:"), nil
+	return "op-" + strings.TrimPrefix(DigestBytes(tuple), "sha256:"), nil
 }
 
 func mapValue(value any, field string) (map[string]any, error) {

@@ -146,7 +146,7 @@ func TestPostgresFindingRunDeletionSerializesWithAuditPurge(t *testing.T) {
 			audits := auditstore.NewPostgresStore(f.pool)
 			if _, _, err := audits.RequestDelete(f.ctx, auditstore.DeleteParams{
 				OwnerID: f.request.OwnerID, AuditID: f.request.AuditID, ExpectedRevision: 2,
-				IdempotencyKey: "delete-audit", RequestDigest: digestBytes([]byte("delete-audit")),
+				IdempotencyKey: "delete-audit", RequestDigest: auditdomain.DigestBytes([]byte("delete-audit")),
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -218,17 +218,17 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 	const owner, projectID, runID, auditID, receiptID = "delete-owner", "delete-project", "delete-run", "delete-audit", "delete-receipt"
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: owner, Kind: projectstore.KindProject, Name: "Deletion fixture",
-		IdempotencyKey: "project", RequestDigest: digestBytes([]byte("project")),
+		IdempotencyKey: "project", RequestDigest: auditdomain.DigestBytes([]byte("project")),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
-		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: digestBytes([]byte("profile"))},
+		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`), InputSelection: json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
 			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
-		IdempotencyKey: "audit", RequestDigest: digestBytes([]byte("audit")),
+		IdempotencyKey: "audit", RequestDigest: auditdomain.DigestBytes([]byte("audit")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -261,9 +261,9 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proposal := ExactArtifact{Ref: written.Ref, Digest: digestBytes(canonical.proposalBytes), MediaType: written.MediaType, SizeBytes: written.Size}
+	proposal := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(canonical.proposalBytes), MediaType: written.MediaType, SizeBytes: written.Size}
 	origin := Origin{RunID: runID, Workflow: WorkflowOrigin{Name: workflow.Ref.Name, Version: workflow.Ref.Version,
-		SchemaVersion: contracts.APIVersion, ClosureDigest: digestBytes(encoded)}}
+		SchemaVersion: contracts.APIVersion, ClosureDigest: auditdomain.DigestBytes(encoded)}}
 	origin.Workflow.ConfigurationRef.Name, origin.Workflow.ConfigurationRef.Version = workflow.Ref.Name, workflow.Ref.Version
 	grant := controlplane.AllocationGrant{RunID: runID, AllocationID: "allocation", StageExecutionID: "stage",
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}

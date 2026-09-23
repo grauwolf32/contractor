@@ -49,9 +49,3 @@ func (q *outboundQueue) close() {
 	q.closed = true
 	q.mu.Unlock()
 }
-
-func (q *outboundQueue) size() (int, int) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	return len(q.frames), q.bytes
-}

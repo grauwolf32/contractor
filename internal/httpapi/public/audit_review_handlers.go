@@ -1,8 +1,6 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 type findingPageResponse struct {
@@ -105,16 +104,16 @@ func (h *handler) listAuditFindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	findings := result.Items
-	page := pageInfoResponse{}
-	if len(findings) > limit {
-		findings = findings[:limit]
-		last := findings[len(findings)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.FindingID, strconv.FormatUint(result.AuditRevision, 10))
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
+	findings, page, err := paginate(h, findings, limit, cursorKind, func(last auditservice.Finding) []string {
+		return []string{
+			last.CreatedAt.UTC().Format(time.RFC3339Nano),
+			last.FindingID,
+			strconv.FormatUint(result.AuditRevision, 10),
 		}
-		page.HasMore, page.NextCursor = true, &next
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, findingPageResponse{Items: findings, Page: page, PageBasis: result.PageBasis})
 }
@@ -218,16 +217,16 @@ func (h *handler) listAuditReviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reviews := result.Items
-	page := pageInfoResponse{}
-	if len(reviews) > limit {
-		reviews = reviews[:limit]
-		last := reviews[len(reviews)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RequestID, strconv.FormatUint(result.AuditRevision, 10))
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
+	reviews, page, err := paginate(h, reviews, limit, cursorKind, func(last auditservice.ReviewRequest) []string {
+		return []string{
+			last.CreatedAt.UTC().Format(time.RFC3339Nano),
+			last.RequestID,
+			strconv.FormatUint(result.AuditRevision, 10),
 		}
-		page.HasMore, page.NextCursor = true, &next
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, reviewPageResponse{Items: reviews, Page: page, PageBasis: result.PageBasis})
 }
@@ -355,18 +354,17 @@ func (h *handler) listAuditFindingProvenance(w http.ResponseWriter, r *http.Requ
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind,
-			strconv.FormatUint(audit.Revision, 10), strconv.FormatUint(finding.Revision, 10),
-			last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RecordID)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
+	items, page, err := paginate(h, items, limit, cursorKind, func(last auditservice.FindingProvenance) []string {
+		return []string{
+			strconv.FormatUint(audit.Revision, 10),
+			strconv.FormatUint(finding.Revision, 10),
+			last.CreatedAt.UTC().Format(time.RFC3339Nano),
+			last.RecordID,
 		}
-		page.HasMore, page.NextCursor = true, &next
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, findingProvenancePageResponse{
 		FindingRevision: finding.Revision, AuditRevision: audit.Revision, Items: items, Page: page,
@@ -391,8 +389,7 @@ func reviewRequestDigest(kind string, identity ...any) string {
 		Kind     string `json:"kind"`
 		Identity []any  `json:"identity"`
 	}{Schema: "contractor.audit.review-request.v1", Kind: kind, Identity: identity})
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes(encoded)
 }
 
 // Continuations bind owner, filters and Audit revision. A caller may also pin
@@ -422,10 +419,6 @@ func (h *handler) decodeAuditPageCursor(value, kind, expected string) ([]string,
 
 func (h *handler) getAuditWorkspace(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -440,10 +433,6 @@ func (h *handler) getAuditWorkspace(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) getAuditReview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return

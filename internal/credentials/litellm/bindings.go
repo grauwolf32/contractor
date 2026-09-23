@@ -4,17 +4,15 @@ package litellm
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/securefile"
 	"go.yaml.in/yaml/v4"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -84,7 +82,7 @@ func LoadAdminBindings(path string, gateways GatewayLookup) (*AdminBindings, err
 	if err != nil {
 		return nil, err
 	}
-	defer wipe(documentBytes)
+	defer clear(documentBytes)
 	var documents []bindingDocument
 	if err := yaml.Load(
 		documentBytes,
@@ -145,7 +143,7 @@ func loadAdminKey(path string) (adminKey, error) {
 	if err != nil {
 		return adminKey{}, err
 	}
-	defer wipe(data)
+	defer clear(data)
 	if len(data) > 0 && data[len(data)-1] == '\n' {
 		data = data[:len(data)-1]
 	}
@@ -158,35 +156,19 @@ func loadAdminKey(path string) (adminKey, error) {
 }
 
 func readSecureFile(path string, maximumBytes int64, forbiddenPermissions os.FileMode, kind string) ([]byte, error) {
-	if strings.TrimSpace(path) == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+	data, err := securefile.ReadRestricted(path, maximumBytes, forbiddenPermissions)
+	switch {
+	case err == nil:
+		return data, nil
+	case errors.Is(err, securefile.ErrPath):
 		return nil, fmt.Errorf("%w: %s file path must be clean and absolute", credentials.ErrManagerUnavailable, kind)
-	}
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() ||
-		info.Mode().Perm()&forbiddenPermissions != 0 {
+	case errors.Is(err, securefile.ErrUnsafePath):
 		return nil, fmt.Errorf("%w: %s file permissions or type are unsafe", credentials.ErrManagerUnavailable, kind)
-	}
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
+	case errors.Is(err, securefile.ErrOpen):
 		return nil, fmt.Errorf("%w: open %s file", credentials.ErrManagerUnavailable, kind)
-	}
-	handle := os.NewFile(uintptr(fd), kind)
-	defer handle.Close()
-	var stat unix.Stat_t
-	if err := unix.Fstat(fd, &stat); err != nil || stat.Mode&unix.S_IFMT != unix.S_IFREG ||
-		os.FileMode(stat.Mode).Perm()&forbiddenPermissions != 0 || stat.Size < 1 || stat.Size > maximumBytes {
+	case errors.Is(err, securefile.ErrUnsafeHandle):
 		return nil, fmt.Errorf("%w: %s file is unsafe or outside its size bound", credentials.ErrManagerUnavailable, kind)
-	}
-	data, err := io.ReadAll(io.LimitReader(handle, maximumBytes+1))
-	if err != nil || len(data) == 0 || int64(len(data)) > maximumBytes {
-		wipe(data)
+	default:
 		return nil, fmt.Errorf("%w: read bounded %s file", credentials.ErrManagerUnavailable, kind)
-	}
-	return data, nil
-}
-
-func wipe(value []byte) {
-	for index := range value {
-		value[index] = 0
 	}
 }

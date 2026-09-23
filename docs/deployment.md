@@ -218,6 +218,7 @@ rebuilt and restarted independently.
 For running services, use the [operations index](operations/README.md) for
 timeouts, credentials, metrics, profiling and cleanup. Use [testing](testing/README.md)
 to choose release checks. Deployment examples under `deploy/` cover the
-[independent UI](../deploy/ui/README.md), [Server blob storage without PVC](operations/artifact-blob-storage.md#deployment-without-pvc),
+[independent UI](../deploy/ui/README.md), [Server blob storage without PVC](operations/artifact-blob-storage.md#deployment-without-pvc)
+(PostgreSQL by default, with an opt-in filesystem overlay),
 [Runtime labels](../deploy/runtime-labels/README.md) and [Podman](../deploy/podman/README.md);
 they are component examples and require the remaining services above.

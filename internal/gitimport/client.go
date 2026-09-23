@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -110,14 +112,18 @@ type Client struct {
 	config        Config
 	tlsConfig     *tls.Config
 	allowLoopback bool
+	logger        *slog.Logger
 }
 
-func NewClient(cfg Config) (*Client, error) {
+func NewClient(cfg Config, logger *slog.Logger) (*Client, error) {
 	if err := ValidateConfig(cfg); err != nil {
 		return nil, err
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	cfg.AllowedRemotes = append([]string(nil), cfg.AllowedRemotes...)
-	return &Client{config: cfg}, nil
+	return &Client{config: cfg, logger: logger}, nil
 }
 func (c *Client) Allowed(remote Remote) bool {
 	for _, address := range c.config.AllowedRemotes {
@@ -195,7 +201,7 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 		defer cleanup()
 	}
 	if err != nil {
-		return Snapshot{}, safeError(ctx, err)
+		return Snapshot{}, c.safeError(ctx, remote, err)
 	}
 	oid, err := resolveRef(adv, ref)
 	if err != nil {
@@ -220,19 +226,19 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, signer ss
 	body.WriteString("0009done\n")
 	response, err := exchange(body.Bytes())
 	if err != nil {
-		return Snapshot{}, safeError(ctx, err)
+		return Snapshot{}, c.safeError(ctx, remote, err)
 	}
 	defer response.Close()
 	upload := packp.NewUploadPackResponse(request)
 	// Limit ACK/shallow negotiation independently before pack streaming starts.
 	negotiation := &boundedReader{ctx: ctx, reader: response, remaining: maxAdvertisementBytes}
 	if err := upload.Decode(&countedBody{Reader: negotiation, close: response.Close}); err != nil {
-		return Snapshot{}, safeError(ctx, err)
+		return Snapshot{}, c.safeError(ctx, remote, err)
 	}
 	negotiation.remaining = MaxReceivedBytes
 	pack, err := readBounded(ctx, upload, MaxReceivedBytes)
 	if err != nil {
-		return Snapshot{}, safeError(ctx, err)
+		return Snapshot{}, c.safeError(ctx, remote, err)
 	}
 	objects, err := decodePack(ctx, pack)
 	if err != nil {
@@ -280,7 +286,10 @@ func resolveRef(adv *packp.AdvRefs, ref string) (plumbing.Hash, error) {
 	}
 	return tag, nil
 }
-func safeError(ctx context.Context, err error) error {
+
+// safeError maps a transport failure to a client-safe sentinel. The unmasked
+// cause, such as a TLS verification failure, is logged only server-side.
+func (c *Client) safeError(ctx context.Context, remote Remote, err error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -288,6 +297,10 @@ func safeError(ctx context.Context, err error) error {
 		if errors.Is(err, safe) {
 			return safe
 		}
+	}
+	if c.logger != nil {
+		c.logger.WarnContext(ctx, "Git remote operation failed",
+			"scheme", remote.Scheme, "address", remote.Address, "error", err)
 	}
 	return ErrRemote
 }
@@ -362,7 +375,7 @@ func (c *Client) https(ctx context.Context, remote Remote) (*packp.AdvRefs, func
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return nil, ErrRemote
+			return nil, fmt.Errorf("%w: HTTP status %d", ErrRemote, resp.StatusCode)
 		}
 		limit := &boundedReader{ctx: ctx, reader: resp.Body, remaining: remaining}
 		return &countedBody{Reader: limit, close: func() error { remaining = limit.remaining; return resp.Body.Close() }}, nil

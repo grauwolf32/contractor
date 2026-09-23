@@ -1,8 +1,6 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -102,19 +101,12 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(runs) > limit {
-		runs = runs[:limit]
-		last := runs[len(runs)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	runs, page, err := paginate(h, runs, limit, cursorKind, func(last runstore.WorkflowRunSummary) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]runSummaryResponse, 0, len(runs))
 	for _, run := range runs {
@@ -143,14 +135,6 @@ func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabe
 		return nil, fmt.Errorf("%w: invalid Run label selector", errInvalidRequest)
 	}
 	return normalized, nil
-}
-
-func runListCursorKind(
-	state *runstore.WorkflowRunState,
-	lifecycle *runstore.WorkflowRunLifecycle,
-	selectors []runstore.RunMetadataLabelSelector,
-) string {
-	return runListCursorKindForProject(state, lifecycle, selectors, nil)
 }
 
 func runListCursorKindForProject(
@@ -313,12 +297,7 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 	if len(metadataLabels) != 0 {
 		canonical["labels"] = metadataLabels
 	}
-	encoded, err := json.Marshal(canonical)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
+	return contentdigest.JSON(canonical)
 }
 
 func createRunRequestDigestForProject(request createRunRequest, projectID *string) (string, error) {
@@ -326,16 +305,11 @@ func createRunRequestDigestForProject(request createRunRequest, projectID *strin
 	if err != nil || projectID == nil {
 		return requestDigest, err
 	}
-	encoded, err := json.Marshal(map[string]string{
+	return contentdigest.JSON(map[string]string{
 		"sourceScope":      "project",
 		"projectId":        *projectID,
 		"runRequestDigest": requestDigest,
 	})
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
 func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
@@ -517,7 +491,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	outputs, err := h.runOutputs(r, run.RunID)
+	outputs, err := h.runArtifactsByNamespace(r, run.RunID, "outputs")
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -526,15 +500,6 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.handleError(w, err)
 		return
-	}
-	outputPublications := make([]outputPublicationResponse, len(publicationRecords))
-	for index, record := range publicationRecords {
-		outputPublications[index] = outputPublicationResponse{
-			Output: record.OutputName, Status: record.Status,
-			Source: record.Source, Target: record.Target,
-			ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage,
-			CreatedAt: record.CreatedAt,
-		}
 	}
 	inputs, err := h.runArtifactsByNamespace(r, run.RunID, "inputs")
 	if err != nil {
@@ -551,9 +516,6 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	attempts := make([]stageAttemptResponse, 0, len(executions))
-	var activeExecutionID *string
-	deletable := deletionBlocker == nil
 	var resumeSource *string
 	if run.State == runstore.RunFailed {
 		resumeSource, err = h.dependencies.Runs.ResumableStage(r.Context(), run.OwnerID, run.RunID)
@@ -562,16 +524,56 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	attempts, activeExecutionID, err := stageAttemptsReadModel(executions, related)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	var recovery *gatewayrecovery.Status
+	if h.dependencies.GatewayRecovery != nil {
+		recovery, err = h.dependencies.GatewayRecovery.Status(r.Context(), run.RunID)
+		if err != nil {
+			h.handleError(w, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, runStatusResponse{
+		Recovery:               recovery,
+		ResumeStageExecutionID: resumeSource,
+		RunID:                  run.RunID, ProjectID: run.ProjectID,
+		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+		State:    run.State, Deletable: deletionBlocker == nil,
+		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
+		Labels:               run.MetadataLabels.Clone(),
+		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
+		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
+		Cancellation:         run.Cancellation, Parameters: run.Parameters,
+		Inputs: inputs, Attempts: attempts, Transitions: stageTransitionsReadModel(decisions), Outputs: outputs,
+		OutputPublications: outputPublicationsReadModel(publicationRecords),
+		EventCursor: &eventCursorResponse{
+			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
+		},
+		ActiveStageExecutionID: activeExecutionID,
+		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
+		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
+	})
+}
+
+// stageAttemptsReadModel projects StageExecutions in order and reports the
+// last non-terminal one as the active execution.
+func stageAttemptsReadModel(
+	executions []runstore.StageExecution, related runDetailRelated,
+) ([]stageAttemptResponse, *string, error) {
+	attempts := make([]stageAttemptResponse, 0, len(executions))
+	var activeExecutionID *string
 	for _, execution := range executions {
 		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
-			h.handleError(w, fmt.Errorf("decode StageExecution read model: %w", err))
-			return
+			return nil, nil, fmt.Errorf("decode StageExecution read model: %w", err)
 		}
-		executionConfig, configErr := stageExecutionConfigReadModel(execution)
-		if configErr != nil {
-			h.handleError(w, configErr)
-			return
+		executionConfig, err := stageExecutionConfigReadModel(execution)
+		if err != nil {
+			return nil, nil, err
 		}
 		var metrics *telemetry.Summary
 		var diagnostics *telemetry.AttemptDiagnostics
@@ -615,6 +617,10 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			TerminalAt:           execution.TerminalAt,
 		})
 	}
+	return attempts, activeExecutionID, nil
+}
+
+func stageTransitionsReadModel(decisions []runstore.StageTransitionDecision) []stageTransitionResponse {
 	transitions := make([]stageTransitionResponse, 0, len(decisions))
 	for _, decision := range decisions {
 		transitions = append(transitions, stageTransitionResponse{
@@ -626,34 +632,20 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			DecidedAt:           decision.DecidedAt,
 		})
 	}
-	var recovery *gatewayrecovery.Status
-	if h.dependencies.GatewayRecovery != nil {
-		recovery, err = h.dependencies.GatewayRecovery.Status(r.Context(), run.RunID)
-		if err != nil {
-			h.handleError(w, err)
-			return
+	return transitions
+}
+
+func outputPublicationsReadModel(records []runstore.RunOutputPublication) []outputPublicationResponse {
+	publications := make([]outputPublicationResponse, len(records))
+	for index, record := range records {
+		publications[index] = outputPublicationResponse{
+			Output: record.OutputName, Status: record.Status,
+			Source: record.Source, Target: record.Target,
+			ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage,
+			CreatedAt: record.CreatedAt,
 		}
 	}
-	writeJSON(w, http.StatusOK, runStatusResponse{
-		Recovery:               recovery,
-		ResumeStageExecutionID: resumeSource,
-		RunID:                  run.RunID, ProjectID: run.ProjectID,
-		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State:    run.State, Deletable: deletable,
-		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
-		Labels:               run.MetadataLabels.Clone(),
-		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
-		Cancellation:         run.Cancellation, Parameters: run.Parameters,
-		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,
-		OutputPublications: outputPublications,
-		EventCursor: &eventCursorResponse{
-			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
-		},
-		ActiveStageExecutionID: activeExecutionID,
-		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
-		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
-	})
+	return publications
 }
 
 func stageRuntimeConfigurationReadModel(
@@ -801,10 +793,9 @@ func (h *handler) ownedRun(r *http.Request) (runstore.WorkflowRun, error) {
 	return run, nil
 }
 
-func (h *handler) runOutputs(r *http.Request, runID string) (map[string]contracts.ArtifactRef, error) {
-	return h.runArtifactsByNamespace(r, runID, "outputs")
-}
-
+// runArtifactsByNamespace maps binding names in one Run namespace to their
+// current exact refs, reading metadata in keyset pages instead of one
+// lookup per binding.
 func (h *handler) runArtifactsByNamespace(
 	r *http.Request, runID string, namespace string,
 ) (map[string]contracts.ArtifactRef, error) {
@@ -812,19 +803,22 @@ func (h *handler) runArtifactsByNamespace(
 	if err != nil {
 		return nil, err
 	}
-	refs, err := store.List(r.Context(), &namespace)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]contracts.ArtifactRef, len(refs))
-	for _, ref := range refs {
-		metadata, err := store.Metadata(r.Context(), ref)
+	result := make(map[string]contracts.ArtifactRef)
+	query := artifacts.BindingPageQuery{Namespace: &namespace, Limit: maxPageLimit}
+	for {
+		page, err := store.ListMetadata(r.Context(), query)
 		if err != nil {
 			return nil, err
 		}
-		result[ref.Name] = metadata.Ref
+		for _, metadata := range page {
+			result[metadata.Ref.Name] = metadata.Ref
+		}
+		if len(page) < query.Limit {
+			return result, nil
+		}
+		last := page[len(page)-1].Ref
+		query.AfterNamespace, query.AfterName = last.Namespace, last.Name
 	}
-	return result, nil
 }
 
 func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {

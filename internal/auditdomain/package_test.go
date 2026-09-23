@@ -51,7 +51,7 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 	validManifest := PackageManifest{
 		Schema: PackageSchema, PackageID: "test", Kind: PackageKindEvidence,
 		Members: []PackageMemberManifest{{
-			ID: "body", Path: "body.txt", MediaType: "text/plain", Size: 4, Digest: digestBytes([]byte("body")),
+			ID: "body", Path: "body.txt", MediaType: "text/plain", Size: 4, Digest: DigestBytes([]byte("body")),
 		}},
 	}
 	manifestBytes, err := canonicalJSON(validManifest)
@@ -97,7 +97,7 @@ func TestAuditPackageManifestIsStrictAndCanonical(t *testing.T) {
 	member := []byte("body")
 	manifest := PackageManifest{
 		Schema: PackageSchema, PackageID: "test", Kind: PackageKindEvidence,
-		Members: []PackageMemberManifest{{ID: "body", Path: "body.txt", MediaType: "text/plain", Size: 4, Digest: digestBytes(member)}},
+		Members: []PackageMemberManifest{{ID: "body", Path: "body.txt", MediaType: "text/plain", Size: 4, Digest: DigestBytes(member)}},
 	}
 	canonical, err := canonicalJSON(manifest)
 	if err != nil {
