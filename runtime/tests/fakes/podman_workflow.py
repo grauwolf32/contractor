@@ -275,7 +275,7 @@ class Commands:
     def __init__(self, fixture):
         self.fixture = fixture
 
-    async def run(self, identity, command, cwd, *, deadline):
+    async def run(self, identity, command, cwd, *, deadline, revoked=None):
         from contractor_runtime.sandbox.podman.command import CommandCapture
 
         root = self.fixture.backend.entry.root

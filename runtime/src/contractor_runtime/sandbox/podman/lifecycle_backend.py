@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from contractor_runtime.sandbox.contracts import (
@@ -40,6 +40,13 @@ class Entry:
     rejected: bool = False
     prepared: bool = False
     stopped: bool = False
+    # Set with ``rejected``; aborts an in-flight command without waiting for
+    # its deadline (lease loss, reject or Runtime EOF).
+    revoked: asyncio.Event = field(default_factory=asyncio.Event)
+
+    def __post_init__(self) -> None:
+        if self.rejected:
+            self.revoked.set()
 
 
 class LifecycleBackend:
@@ -56,7 +63,6 @@ class LifecycleBackend:
         self.closed = False
         self.lost = False
         self.lease = 0.0
-        self.confirmed_lease = 0.0
         self.probe_test: PodmanProbe | None = None
         self._rejected: dict[str, None] = {}
 
@@ -64,7 +70,6 @@ class LifecycleBackend:
         # This deadline belongs to the Runtime, not this surviving process.
         # The owner may not manufacture liveness by renewing itself forever.
         self.lease = min(lease, time.monotonic() + 3) if lease is not None else 0.0
-        self.confirmed_lease = lease or 0.0
         if self.entry is not None and self.lease <= time.monotonic():
             self.reject(self.entry.allocation_id)
 
@@ -76,6 +81,7 @@ class LifecycleBackend:
             del self._rejected[next(iter(self._rejected))]
         if self.entry is not None and self.entry.allocation_id == allocation_id:
             self.entry.rejected = True
+            self.entry.revoked.set()
             if self.entry.guardian is not None:
                 self.entry.guardian.disconnect()
 
@@ -86,6 +92,7 @@ class LifecycleBackend:
                 guardian.disconnect()
         if self.entry is not None:
             self.entry.rejected = True
+            self.entry.revoked.set()
             if self.entry.guardian is not None:
                 self.entry.guardian.disconnect()
 
@@ -175,7 +182,9 @@ class LifecycleBackend:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         self._live(entry)
         started = time.monotonic()
-        deadline = min(deadline, self.confirmed_lease, started + self.settings.command_max_seconds)
+        # The confirmed lease is renewed while the command runs, so it is not a
+        # command deadline. Its loss revokes the entry, which aborts the launch.
+        deadline = min(deadline, started + self.settings.command_max_seconds)
 
         # No previous command can still write: its completion check and the
         # Runtime workspace guard precede this RPC. Reject all cwd symlinks.
@@ -200,6 +209,7 @@ class LifecycleBackend:
                 deadline=deadline,
                 launch_deadline=deadline - reserve,
                 transport=self.commands,
+                revoked=entry.revoked,
             )
             if capture.error is None:
                 result = ExecutionResult(

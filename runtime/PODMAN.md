@@ -125,7 +125,9 @@ to 64 KiB and canonicalizes cwd using the existing workspace path grammar.
 The future executor must also validate the on-disk directory under the shared
 workspace guard: lexical validation alone does not exclude symlink races.
 Its effective deadline must include lock wait and cleanup and be bounded by
-request, operator, invocation and confirmed lease deadlines.
+request, operator and invocation deadlines. The confirmed lease is enforced
+continuously rather than as a launch-time deadline: its loss revokes a running
+command (see lease renewal below).
 
 The `sandbox-execution` channel is distinct from `runtime-subprocess-launcher`.
 The selected tool receives only `SandboxExecutor`; lifecycle code retains
@@ -355,7 +357,11 @@ allocation-spec lease is the initial confirmed-lease snapshot, not a permanent
 allocation TTL: successful subsequent heartbeat acknowledgements extend the
 guardian's authority through the watchdog. Expired or replayed acknowledgements
 do not revive execution. Runtime event-loop stalls therefore expire the guardian
-even while the independent owner is alive.
+even while the independent owner is alive. Because the lease is renewed while a
+command runs, it never caps the command deadline. Instead, an expired or absent
+pulse, a reject or Runtime EOF revokes the entry: the owner aborts the in-flight
+`podman exec` with `sandbox_unavailable` and stops the container, and the
+guardian kills the scope independently.
 
 On Runtime EOF the owner disconnects the guardian immediately, joins uncertain
 engine operations, discovers/removes exact owned containers and only then

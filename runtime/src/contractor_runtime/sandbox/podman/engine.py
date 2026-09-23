@@ -257,6 +257,7 @@ class PodmanEngine:
         deadline: float,
         transport: PodmanCommand,
         launch_deadline: float,
+        revoked: asyncio.Event | None = None,
     ) -> CommandCapture:
         """Join every foreground launch before releasing engine ownership."""
 
@@ -275,7 +276,7 @@ class PodmanEngine:
             await asyncio.to_thread(record.content.verify)
             remaining(launch_deadline)
             return await transport.run(
-                identity, request.command, request.cwd, deadline=launch_deadline
+                identity, request.command, request.cwd, deadline=launch_deadline, revoked=revoked
             )
 
         return await self._operations.run(operation, deadline)

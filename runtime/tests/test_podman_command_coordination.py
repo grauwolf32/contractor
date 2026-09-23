@@ -25,7 +25,7 @@ class Commands:
         self.result = CommandCapture(0, b"ok", b"", 2, 0)
         self.edit = lambda: None
 
-    async def run(self, identity, command, cwd, *, deadline):
+    async def run(self, identity, command, cwd, *, deadline, revoked=None):
         self.calls.append((identity, command, cwd, deadline))
         self.entered.set()
         await self.resume.wait()
@@ -59,6 +59,91 @@ def test_commands_serialize_with_disk_reads_and_edits_until_completion_check(tmp
             assert commands.calls[0][1:3] == ("exact; shell syntax", "src")
             assert [op for op, *_ in fixture.guardians[0].requests].count("check") >= 3
             await service.finalize(finalization(spec))
+            await service.release(release(spec))
+
+    asyncio.run(scenario())
+
+
+def test_renewed_lease_window_does_not_cap_the_command_deadline(tmp_path):
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            # A heartbeat-renewed lease whose remaining window is always short.
+            fixture.lease_seconds = 1.0
+            service, _, spec, _, _ = await service_for(tmp_path, fixture)
+            await service.prepare(spec)
+            context = service._context
+            commands = Commands()
+            commands.resume.set()
+            fixture.backend.commands = commands
+            started = time.monotonic()
+            result = await context.execution.executor.execute(
+                ExecutionRequest("long build", timeout_seconds=120), deadline=deadline(200)
+            )
+            assert result.exit_code == 0 and result.error_code is None
+            launch_deadline = commands.calls[0][3]
+            reserve = fixture.settings.stop_grace_seconds + 1
+            assert launch_deadline >= started + 120 - reserve - 1
+            assert launch_deadline <= started + 120
+            await service.finalize(finalization(spec))
+            await service.release(release(spec))
+
+    asyncio.run(scenario())
+
+
+def test_operator_maximum_still_bounds_the_command_deadline(tmp_path):
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            service, _, spec, _, _ = await service_for(tmp_path, fixture)
+            await service.prepare(spec)
+            context = service._context
+            commands = Commands()
+            commands.resume.set()
+            fixture.backend.commands = commands
+            started = time.monotonic()
+            await context.execution.executor.execute(
+                ExecutionRequest("long build", timeout_seconds=3600), deadline=deadline(4000)
+            )
+            assert commands.calls[0][3] <= started + fixture.settings.command_max_seconds
+            await service.finalize(finalization(spec))
+            await service.release(release(spec))
+
+    asyncio.run(scenario())
+
+
+class RevocableCommands(Commands):
+    """Mirrors PodmanCommand: revocation aborts the launch before its deadline."""
+
+    async def run(self, identity, command, cwd, *, deadline, revoked=None):
+        self.calls.append((identity, command, cwd, deadline))
+        self.entered.set()
+        assert revoked is not None
+        await revoked.wait()
+        return CommandCapture(None, b"", b"", 0, 0, SandboxErrorCode.UNAVAILABLE)
+
+
+def test_lease_loss_during_command_revokes_it_promptly(tmp_path):
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            service, _, spec, _, _ = await service_for(tmp_path, fixture)
+            await service.prepare(spec)
+            context = service._context
+            commands = RevocableCommands()
+            fixture.backend.commands = commands
+            executing = asyncio.create_task(
+                context.execution.executor.execute(
+                    ExecutionRequest("long build", timeout_seconds=120), deadline=deadline(200)
+                )
+            )
+            await asyncio.wait_for(commands.entered.wait(), 2)
+            started = time.monotonic()
+            fixture.lease_lost = True
+            result = await asyncio.wait_for(executing, 3)
+            assert time.monotonic() - started < 3
+            assert result.error_code == SandboxErrorCode.UNAVAILABLE
+            assert fixture.guardians[0].rejected
+            assert context.execution.stopped.is_set()
+            assert all(not row["State"]["Running"] for row in fixture.cli.containers.values())
+            await service.expire_control_lease(5)
             await service.release(release(spec))
 
     asyncio.run(scenario())

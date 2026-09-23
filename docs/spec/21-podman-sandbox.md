@@ -215,8 +215,10 @@ persistent shell cwd/environment, Python globals or background services.
 
 There is at most one active command per allocation. Waiting for the workspace
 operation lock is bounded by the command's effective deadline. The deadline is
-the minimum of requested/operator limits and the applicable invocation/lease
-bounds; the command cannot extend a lease or a shutdown grace period.
+the minimum of requested/operator limits and the applicable invocation bound.
+The confirmed control lease is enforced continuously instead of as a deadline
+snapshot: the command cannot extend a lease or a shutdown grace period, and
+lease loss revokes it immediately.
 
 Each completed command returns a bounded structured observation:
 
@@ -257,10 +259,14 @@ more specific cause. Neither classification is derived from workload output.
 
 The command budget includes workspace-lock wait and a reserved cleanup window;
 the process can therefore be stopped before `timeout_seconds` elapses. The
-effective deadline is the minimum of the request, operator policy, supplied
-execution deadline and confirmed control lease. Invocation cancellation revokes
-execution immediately; the current StageContentRequest has no additional
-wall-clock deadline field.
+effective deadline is the minimum of the request, operator policy and supplied
+execution deadline. The confirmed control lease is not part of that minimum:
+heartbeats keep renewing it while a command runs, so capping by the lease
+remaining at launch would stop long commands after one lease window. Instead,
+lease loss revokes the allocation during the command: the owner aborts the
+launch at once and the guardian kills the container scope. Invocation
+cancellation revokes execution immediately; the current StageContentRequest has
+no additional wall-clock deadline field.
 
 Files intended to outlive allocation release are explicitly written as ordinary
 Run artifacts through existing Artifact tools and grants while writes remain
