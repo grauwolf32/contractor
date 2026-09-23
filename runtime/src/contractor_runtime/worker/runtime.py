@@ -460,12 +460,16 @@ class AdkWorkerRuntime:
             raise
         except Exception as error:
             sandbox_failure = self._worker_state.execution.failure
+            gateway_error = _gateway_model_error(error)
             if (
                 sandbox_failure is None
+                and gateway_error is not None
                 and self._metrics.counters.get("llm_errors", 0) == model_errors_before
             ):
-                await self._plugin.record_unhandled_model_error(error)
-            gateway_error = _gateway_model_error(error)
+                # Only a Gateway failure that bypassed the model callbacks is a
+                # model error. Exporter, State and instrumentation defects stay
+                # worker_execution_failed without inflating modelErrors.
+                await self._plugin.record_unhandled_model_error(gateway_error)
             if sandbox_failure is not None:
                 self._accepting = False
                 outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)

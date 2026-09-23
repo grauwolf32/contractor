@@ -451,6 +451,61 @@ def test_adk_worker_maps_unhandled_model_error_to_safe_worker_failure(tmp_path: 
     asyncio.run(scenario())
 
 
+def test_adk_worker_does_not_count_runtime_defects_as_model_errors(tmp_path: Path) -> None:
+    class FailingExporter:
+        reserved_slots: frozenset[str] = frozenset()
+
+        async def export(self, outcome: object) -> object:
+            del outcome
+            raise RuntimeError("exporter invariant violated")
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
+        runtime._workspace_exporter = FailingExporter()  # type: ignore[assignment]
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        assert "llm_errors" not in state.metrics.counters
+        snapshot = await state.snapshot()
+        invocation = snapshot["lastCompletedInvocation"]
+        assert invocation["invocationId"] == completion.invocation_id
+        assert invocation["metrics"]["modelErrors"] == 0
+        assert invocation["metrics"]["modelCalls"] == 2
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_counts_a_gateway_error_missed_by_model_callbacks_once(
+    tmp_path: Path,
+) -> None:
+    class FailingExporter:
+        reserved_slots: frozenset[str] = frozenset()
+
+        async def export(self, outcome: object) -> object:
+            del outcome
+            raise GatewayModelError("APIConnectionError", retryable=True)
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
+        runtime._workspace_exporter = FailingExporter()  # type: ignore[assignment]
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_gateway_unavailable"
+        assert state.metrics.counters["llm_errors"] == 1
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
 )
