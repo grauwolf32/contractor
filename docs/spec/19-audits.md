@@ -1177,7 +1177,10 @@ not promise that increasing `batchSize` reduces cost or latency.
 
 PostgreSQL is authoritative. The Controller periodically claims and reconciles
 a bounded number of nonterminal Audits. Process-local notifications are wake
-hints only; loss, duplication, or reordering cannot prevent progress.
+hints only; loss, duplication, or reordering cannot prevent progress. A paused
+Audit only observes and collects Runs it already submitted, so it is claimed
+only while it has a submitted or collecting execution. Cancel and delete move
+it out of `paused`, so their cleanup is always claimable.
 
 Start always creates the deterministic accepted first inventory. If the pinned
 profile has discovery roles, Controller executes each role exactly once (or by

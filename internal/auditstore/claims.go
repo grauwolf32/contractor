@@ -9,6 +9,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Claim leases a bounded set of Audits with reconcilable work. A paused Audit
+// only observes and collects the Runs it already submitted, so it is claimed
+// only while such an execution exists; cancel and delete move it out of
+// paused and make it claimable again.
 func (s *PostgresStore) Claim(ctx context.Context, params ClaimParams) ([]ControllerClaim, error) {
 	if err := validateClaimParams(params); err != nil {
 		return nil, err
@@ -19,7 +23,15 @@ WITH candidates AS (
       FROM audit_controller_claims AS claim
       JOIN audits AS audit USING (audit_id)
      WHERE (
-               audit.state IN ('active', 'paused', 'finalizing', 'cancelling', 'deleting')
+               audit.state IN ('active', 'finalizing', 'cancelling', 'deleting')
+               OR (
+                   audit.state = 'paused'
+                   AND EXISTS (
+                       SELECT 1 FROM audit_executions AS execution
+                        WHERE execution.audit_id = audit.audit_id
+                          AND execution.state IN ('submitted', 'collecting')
+                   )
+               )
                OR (
                    audit.state = 'waiting_review'
                    AND (
