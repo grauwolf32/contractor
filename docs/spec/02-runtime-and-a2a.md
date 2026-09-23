@@ -488,8 +488,11 @@ unavailable and an idempotent release retry repeats cleanup. A lost HTTP
 response is therefore safe: neither side can infer an idle slot. Before
 registering an idle slot after process startup, Runtime Agent also removes
 recognized orphan allocation directories
-under its dedicated configured work root. The profile does not add a process,
-container, filesystem-permission or network security boundary.
+under its dedicated configured work root. A directory is recognized only by an
+exact `allocation-<32 hex>` name plus a sibling owner marker that Runtime writes
+before creating it and removes after it; unmarked entries, including those left
+by releases before markers existed, are never removed. The profile does not add
+a process, container, filesystem-permission or network security boundary.
 
 ### RuntimeSettings from Control Plane
 

@@ -9,7 +9,11 @@ from contractor_runtime import __version__
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
-from contractor_runtime.workspace import cleanup_orphan_workdirs
+from contractor_runtime.workspace import (
+    ALLOCATION_OWNER_SUFFIX,
+    LocalWorkdirFactory,
+    cleanup_orphan_workdirs,
+)
 
 
 def test_each_process_state_has_a_fresh_identity() -> None:
@@ -97,10 +101,10 @@ def make_settings() -> Settings:
 
 def test_startup_cleanup_removes_only_recognized_allocation_directories(tmp_path: Path) -> None:
     root = tmp_path / "work"
-    orphan = root / "allocation-old"
+    orphan = asyncio.run(LocalWorkdirFactory(root).prepare()).path
+    (orphan / "nested").mkdir()
+    (orphan / "nested" / "data").write_text("temporary", encoding="utf-8")
     preserved = root / "operator-notes"
-    orphan.mkdir(parents=True)
-    (orphan / "data").write_text("temporary", encoding="utf-8")
     preserved.mkdir()
     (preserved / "keep").write_text("important", encoding="utf-8")
 
@@ -108,3 +112,47 @@ def test_startup_cleanup_removes_only_recognized_allocation_directories(tmp_path
 
     assert not orphan.exists()
     assert (preserved / "keep").read_text(encoding="utf-8") == "important"
+    assert sorted(entry.name for entry in root.iterdir()) == ["operator-notes"]
+
+
+def test_startup_cleanup_never_touches_allocation_names_without_owner_marker(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "work"
+    root.mkdir()
+    unmarked = root / f"allocation-{'a' * 32}"
+    unmarked.mkdir()
+    (unmarked / "keep").write_text("operator data", encoding="utf-8")
+    loose = root / "allocation-notes.txt"
+    loose.write_text("operator notes", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked = root / f"allocation-{'b' * 32}"
+    linked.symlink_to(outside, target_is_directory=True)
+    forged = root / f"allocation-{'c' * 32}"
+    forged.mkdir()
+    (root / f"{forged.name}{ALLOCATION_OWNER_SUFFIX}").write_text("wrong", encoding="ascii")
+    # A crash between marker and directory creation leaves only the marker.
+    marker_only = asyncio.run(LocalWorkdirFactory(root).prepare()).path
+    marker_only.rmdir()
+
+    cleanup_orphan_workdirs(root)
+
+    assert (unmarked / "keep").read_text(encoding="utf-8") == "operator data"
+    assert loose.read_text(encoding="utf-8") == "operator notes"
+    assert linked.is_symlink() and outside.is_dir()
+    assert forged.is_dir()
+    assert not (root / f"{marker_only.name}{ALLOCATION_OWNER_SUFFIX}").exists()
+
+
+def test_allocation_workdir_cleanup_removes_its_owner_marker(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        factory = LocalWorkdirFactory(tmp_path / "work")
+        workspace = await factory.prepare()
+        marker = workspace.root / f"{workspace.path.name}{ALLOCATION_OWNER_SUFFIX}"
+        assert marker.is_file() and not (workspace.path / marker.name).exists()
+        await factory.cleanup(workspace)
+        assert list(workspace.root.iterdir()) == []
+        await factory.cleanup(workspace)
+
+    asyncio.run(scenario())
