@@ -28,6 +28,9 @@ from contractor_runtime.contracts import (
     AgentTemplateRef,
     ArtifactRef,
     ArtifactWriteResult,
+    CaidoSettings,
+    HTTPOriginTargetSettings,
+    HTTPProxySettings,
     ModelPolicyRef,
     ResolvedAgentTemplate,
     ResolvedInstructions,
@@ -35,6 +38,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     SandboxProfileRef,
     StageContentRequest,
+    TelemetrySettings,
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
@@ -48,7 +52,7 @@ from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGat
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
-from contractor_runtime.worker.runtime import AdkWorkerRuntime
+from contractor_runtime.worker.runtime import AdkWorkerRuntime, _summarizer_secrets
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -357,6 +361,106 @@ def test_adk_worker_treats_terminal_text_as_opaque_and_blocks_secrets(
         await secret_runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
+
+
+PROXY_PASSWORD = "recognizable-proxy-password"
+CAIDO_TOKEN = "recognizable-caido-bearer-token"
+TELEMETRY_HEADER = "Bearer recognizable-telemetry-header"
+ORIGIN_TOKEN = "recognizable-origin-target-token"
+
+
+def private_runtime_settings() -> RuntimeSettings:
+    return runtime_settings().model_copy(
+        update={
+            "telemetry": TelemetrySettings(
+                adapter="otlp-http@1",
+                endpoint="https://telemetry.example/v1/traces",
+                headers={"Authorization": TELEMETRY_HEADER},
+                captureContent=False,
+                flushTimeoutSeconds=1,
+            ),
+            "http_proxy": HTTPProxySettings(
+                adapter="http-proxy@1",
+                proxyUrl="https://proxy.example",
+                basicAuth={"username": "worker", "password": PROXY_PASSWORD},
+                targets=["tool-http"],
+            ),
+            "caido": CaidoSettings(
+                adapter="caido-graphql@1",
+                endpoint="https://caido.example",
+                bearerToken=CAIDO_TOKEN,
+                requestTimeoutSeconds=5,
+            ),
+            "http_origin_target": HTTPOriginTargetSettings(
+                url="https://app.example/", bearerToken=ORIGIN_TOKEN
+            ),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "value", [PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN, SECRET]
+)
+def test_adk_worker_blocks_every_runtime_settings_secret_in_results(
+    tmp_path: Path, value: str
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(f"Observed credential {value} in traffic")]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "unsafe_worker_result"
+        assert value not in completion.model_dump_json(by_alias=True)
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_keeps_results_that_only_mention_short_setting_values(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        text = "The worker account and https://app.example/ target were reviewed"
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(text)]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        assert completion.result is not None
+        assert completion.result.result == text
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_summarizer_secrets_cover_runtime_settings_credentials(tmp_path: Path) -> None:
+    context = replace(
+        build_context(tmp_path, WorkerState(), {}), runtime_settings=private_runtime_settings()
+    )
+
+    secrets = _summarizer_secrets(context)
+
+    for value in (SECRET, PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN):
+        assert value in secrets
+    assert "https://proxy.example" in secrets
+    assert "worker" not in secrets
+    assert "https://app.example/" not in secrets
+    assert str(tmp_path) in secrets
 
 
 @pytest.mark.parametrize(
@@ -2137,10 +2241,13 @@ async def create_runtime(
     context_window_tokens: int = 131_072,
     context_window_ratio: float = 0.9,
     session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
+    settings: RuntimeSettings | None = None,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
     context = replace(context, worker_session_mode=session_mode)
+    if settings is not None:
+        context = replace(context, runtime_settings=settings)
     if instrumentation is not None:
         context = replace(
             context,

@@ -567,11 +567,7 @@ class AdkWorkerRuntime:
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
         prompt = _task_prompt(request)
-        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
-        gateway_token = (
-            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
-        )
-        summary_secrets = _summarizer_secrets(self._context, gateway_token)
+        summary_secrets = _summarizer_secrets(self._context)
         transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         completion = self._completion
@@ -790,11 +786,7 @@ class AdkWorkerRuntime:
             return _failure(
                 "worker_result_invalid", "Worker returned an invalid terminal result", True
             ), False
-        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
-        gateway_token = (
-            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
-        )
-        if gateway_token and gateway_token in candidate:
+        if _exposes_private_value(candidate, self._context):
             return _failure(
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             ), False
@@ -979,11 +971,7 @@ class AdkWorkerRuntime:
         Both private callers validate immediately before this synchronous call;
         no model/strategy-supplied identity, observations or slots are inherited.
         """
-        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
-        gateway_token = (
-            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
-        )
-        if gateway_token and gateway_token in validated_fields.result:
+        if _exposes_private_value(validated_fields.result, self._context):
             return _failure(
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             ), False
@@ -1277,16 +1265,50 @@ def _summary_prompt_boundary(
     return min(ratio_boundary, output_safe_boundary)
 
 
-def _summarizer_secrets(context: WorkerBuildContext, gateway_token: str) -> tuple[str, ...]:
+def _gateway_token(context: WorkerBuildContext) -> str:
+    token = context.runtime_settings.llm_gateway_token
+    return token.get_secret_value() if token is not None else ""
+
+
+def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
+    """Whether Worker-authored text contains an allocation-private setting.
+
+    Covers every RuntimeSettings credential and private endpoint (proxy, Caido,
+    HTTP origin target, telemetry headers), under the Agent Card matching
+    policy; the LLM Gateway token additionally matches at any length.
+    """
+
+    # Imported here: the allocation package builds Workers, so a module-level
+    # import would be circular.
+    from contractor_runtime.allocation.redaction import (
+        _contains_private_value,
+        _runtime_setting_values,
+    )
+
+    gateway_token = _gateway_token(context)
+    if gateway_token and gateway_token in text:
+        return True
+    return _contains_private_value(text, _runtime_setting_values(context.runtime_settings))
+
+
+def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
     """Return allocation-private values that must not enter summarizer input."""
 
+    from contractor_runtime.allocation.redaction import (
+        _runtime_setting_values,
+        _substring_values,
+    )
+
     candidates = (
-        gateway_token,
+        _gateway_token(context),
+        *_substring_values(_runtime_setting_values(context.runtime_settings)),
         str(context.workspace.path),
         str(context.workspace.root),
     )
     # Replacing '/' would destroy every path-like value rather than protect a
-    # useful host path, so only non-root concrete paths are admitted.
+    # useful host path, so only non-root concrete paths are admitted. Short
+    # settings values (for example a proxy username) are not replaced inside
+    # ordinary transcript text for the same reason.
     return tuple(dict.fromkeys(value for value in candidates if len(value) > 1))
 
 

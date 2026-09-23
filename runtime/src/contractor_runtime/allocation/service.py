@@ -25,6 +25,7 @@ from contractor_runtime.allocation.context import AllocationSnapshot, _Allocatio
 from contractor_runtime.allocation.errors import AllocationError, _conflict, _not_found
 from contractor_runtime.allocation.identity import _spec_fingerprint
 from contractor_runtime.allocation.redaction import (
+    _contains_private_value,
     _nested_strings,
     _runtime_setting_values,
     _url_hosts,
@@ -1133,9 +1134,8 @@ class AllocationService:
         encoded = json.dumps(wire, ensure_ascii=False)
         handle_strings = _nested_strings(wire)
         private_values = _runtime_setting_values(settings)
-        leaked = any(
-            value in handle_strings or (len(value.encode("utf-8")) >= 16 and value in encoded)
-            for value in private_values
+        leaked = any(value in handle_strings for value in private_values) or (
+            _contains_private_value(encoded, private_values)
         )
         if leaked or str(workspace.path) in encoded:
             raise AllocationError(
