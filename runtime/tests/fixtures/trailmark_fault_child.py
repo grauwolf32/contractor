@@ -60,6 +60,16 @@ def main() -> int:
         else:
             os.close(descriptor)
             return 8
+    if mode == "exit-after-first-build":
+        marker = Path(sys.argv[2])
+        try:
+            descriptor = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            # Every replacement child dies before reading its first request.
+            return 8
+        os.close(descriptor)
+        success(read_request())
+        return 0
     request = read_request()
     if mode == "hang":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)

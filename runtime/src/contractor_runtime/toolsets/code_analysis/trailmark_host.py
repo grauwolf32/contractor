@@ -612,6 +612,11 @@ class TrailmarkChildHost:
                     ) from None
         except _ChildResponseError:
             raise
+        except _DefinitelyUnprocessed:
+            # The replacement child died before the replay's rebuild could be
+            # handed off. That is the one allowed recovery attempt.
+            await self._stop_locked(remove_mirror=True)
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
         except TimeoutError:
             await self._stop_locked(remove_mirror=True)
             raise TrailmarkHostError(timeout_code, retryable=True) from None
