@@ -7,7 +7,6 @@ import re
 import secrets
 import time
 from collections.abc import Mapping, Sequence
-from contextlib import suppress
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -28,6 +27,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
     WorkspaceTextFile,
 )
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.code_analysis.ids import MAX_SYMBOL_ID_BYTES
 from contractor_runtime.toolsets.code_analysis.languages import Language, SymbolRecord
 from contractor_runtime.toolsets.code_analysis.trailmark_host import (
@@ -318,10 +318,11 @@ class _CodeAnalysisSession:
             files = {item.path: item for item in snapshot.files}
             matches = [item for item in symbols if _symbol_matches(item.name, normalized_symbol)]
             matches.sort(key=_symbol_sort_key)
-            rows = await _to_thread_cancellation_safe(
+            rows = await to_thread_until_done(
                 _definition_rows,
                 tuple(matches[offset : offset + resolved_limit]),
                 files,
+                name="code-analysis-cpu",
             )
             value = self._page(
                 rows,
@@ -920,10 +921,11 @@ class _CodeAnalysisSession:
             coverage.analyzed_files += 1
             coverage.analyzed_bytes += item.size
             if needle is not None:
-                contains = await _to_thread_cancellation_safe(
+                contains = await to_thread_until_done(
                     _contains_casefold,
                     item.text,
                     needle,
+                    name="code-analysis-cpu",
                 )
                 if not contains:
                     continue
@@ -974,18 +976,20 @@ class _CodeAnalysisSession:
         try:
             parser = self._parsers.get(language)
             if parser is None:
-                parser = await _to_thread_cancellation_safe(
+                parser = await to_thread_until_done(
                     language_support.load_parser,
                     language,
+                    name="code-analysis-cpu",
                 )
                 self._parsers[language] = parser
-            parsed = await _to_thread_cancellation_safe(
+            parsed = await to_thread_until_done(
                 _parse_symbols_text,
                 parser,
                 item.text,
                 item.path,
                 language,
                 parse_limit,
+                name="code-analysis-cpu",
             )
         except Exception:
             parsed = language_support.ParseResult((), True, False)
@@ -1696,25 +1700,6 @@ def _preview(source: bytes, start_byte: int, end_byte: int) -> str:
 
 def _utf8_prefix(value: bytes, maximum: int) -> str:
     return value[:maximum].decode("utf-8", errors="ignore")
-
-
-async def _to_thread_cancellation_safe(function: Any, *arguments: Any) -> Any:
-    """Do not let cancelled CPU work mutate allocation state after lock release."""
-
-    task = asyncio.create_task(
-        asyncio.to_thread(function, *arguments),
-        name="code-analysis-cpu",
-    )
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        # Python cannot stop a thread which is already inside Tree-sitter. Keep
-        # the session owner locked until it really returns; the allocation-wide
-        # stop deadline will fence and terminate the Runtime if that cannot be
-        # confirmed in time.
-        with suppress(Exception):
-            await task
-        raise
 
 
 def _elapsed_ms(started_ns: int) -> int:

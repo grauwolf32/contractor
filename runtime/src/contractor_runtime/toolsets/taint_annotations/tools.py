@@ -7,7 +7,6 @@ import re
 import time
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
-from contextlib import suppress
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
@@ -18,6 +17,7 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
@@ -203,10 +203,11 @@ class _TaintAnnotationSession:
             if language is None:
                 raise TaintAnnotationError("taint_annotation_language_unsupported")
             try:
-                parsed = await _to_thread_cancellation_safe(
+                parsed = await to_thread_until_done(
                     _parse_target_file,
                     encoded,
                     language,
+                    name="taint-annotation-cpu",
                 )
                 plan = _plan_mutation(source, language, parsed, request)
             except asyncio.CancelledError:
@@ -764,19 +765,6 @@ def _newline_style(value: str) -> str:
 
 def _without_newline(value: str) -> str:
     return value.removesuffix("\n").removesuffix("\r")
-
-
-async def _to_thread_cancellation_safe(function: Any, *arguments: Any) -> Any:
-    task = asyncio.create_task(
-        asyncio.to_thread(function, *arguments),
-        name="taint-annotation-cpu",
-    )
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        with suppress(Exception):
-            await task
-        raise
 
 
 def _elapsed_ms(started_ns: int) -> int:
