@@ -108,6 +108,23 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 	if err := service.ValidateRuntimeCredential(ctx, "otel-auth", string(RuntimeCredentialProxyBearer)); !errors.Is(err, ErrRuntimeCredentialNotFound) {
 		t.Fatalf("wrong kind validation error = %v", err)
 	}
+	for _, test := range []struct {
+		name string
+		user RuntimeCredentialUser
+		kind RuntimeCredentialKind
+		want error
+	}{
+		{"creator", RuntimeCredentialUser{UserID: "operator"}, RuntimeCredentialCaidoBearer, nil},
+		{"other owner", RuntimeCredentialUser{UserID: "user-2"}, RuntimeCredentialCaidoBearer, ErrRuntimeCredentialNotFound},
+		{"anonymous", RuntimeCredentialUser{}, RuntimeCredentialCaidoBearer, ErrRuntimeCredentialNotFound},
+		{"operations", RuntimeCredentialUser{UserID: "user-2", Operations: true}, RuntimeCredentialCaidoBearer, nil},
+		{"creator wrong kind", RuntimeCredentialUser{UserID: "operator"}, RuntimeCredentialProxyBearer, ErrRuntimeCredentialNotFound},
+	} {
+		err := service.ValidateRuntimeCredentialUse(ctx, test.user, "caido-bearer", string(test.kind))
+		if test.want == nil && err != nil || test.want != nil && !errors.Is(err, test.want) {
+			t.Fatalf("%s use validation error = %v, want %v", test.name, err, test.want)
+		}
+	}
 	consumerErr := service.Use(ctx, "proxy-basic", []string{string(RuntimeCredentialProxyBasic)}, func(*RuntimeCredentialMaterial) error {
 		return errors.New("consumer accidentally included basic-secret-never-persist")
 	})

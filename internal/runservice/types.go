@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -61,8 +62,11 @@ type CredentialGuard interface {
 	WithRunCreation(context.Context, func() error) error
 }
 
+// RuntimeCredentialValidator checks that the requesting principal may pin an
+// active Runtime credential of an allowed kind. A credential the principal may
+// not use is reported as missing.
 type RuntimeCredentialValidator interface {
-	ValidateRuntimeCredential(context.Context, string, ...string) error
+	ValidateRuntimeCredentialUse(context.Context, credentials.RuntimeCredentialUser, string, ...string) error
 }
 
 type ProjectReader interface {
@@ -109,6 +113,11 @@ type PublicCreateParams struct {
 	IdempotencyKey         string
 	RequestDigest          string
 	NewRunID               func() (string, error)
+
+	// OperationsPrincipal reports that the requesting principal holds the
+	// Operations capability and may pin any Runtime credential. Otherwise a
+	// Project HTTP target may pin only a credential OwnerID created.
+	OperationsPrincipal bool
 }
 
 // AuditCreateParams contains only already-pinned server-side values. It has no

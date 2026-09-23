@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runrepeat"
@@ -79,9 +80,13 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 				projectTarget = cloneHTTPOriginTarget(project.HTTPTarget)
 				if projectTarget != nil && projectTarget.Credential != nil {
-					if credentialErr := s.runtimeCredentials.ValidateRuntimeCredential(
-						ctx, projectTarget.Credential.CredentialID,
-						string(projectTarget.Credential.Kind),
+					// The target was authorized when it was attached; pinning it
+					// re-checks that the requesting owner may still use it.
+					if credentialErr := s.runtimeCredentials.ValidateRuntimeCredentialUse(
+						ctx, credentials.RuntimeCredentialUser{
+							UserID: normalized.OwnerID, Operations: normalized.OperationsPrincipal,
+						},
+						projectTarget.Credential.CredentialID, string(projectTarget.Credential.Kind),
 					); credentialErr != nil {
 						return credentialErr
 					}

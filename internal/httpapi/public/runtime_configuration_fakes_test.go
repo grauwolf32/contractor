@@ -400,13 +400,13 @@ func (f *fakeRuntimeCredentialManagement) Delete(
 	return credentials.RuntimeCredentialDeleteResult{}, nil
 }
 
-func (f *fakeRuntimeCredentialManagement) ValidateRuntimeCredential(
-	_ context.Context, id string, allowedKinds ...string,
+func (f *fakeRuntimeCredentialManagement) ValidateRuntimeCredentialUse(
+	_ context.Context, user credentials.RuntimeCredentialUser, id string, allowedKinds ...string,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	item, ok := f.records[id]
-	if !ok {
+	if !ok || !user.MayUse(item) {
 		return credentials.ErrRuntimeCredentialNotFound
 	}
 	for _, allowed := range allowedKinds {

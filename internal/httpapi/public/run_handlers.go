@@ -217,9 +217,10 @@ func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, p
 		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
 		return
 	}
-	ownerID := principalUserID(r.Context())
+	credentialUser := runtimeCredentialUser(r.Context())
 	result, err := h.dependencies.RunCreator.CreatePublic(r.Context(), runservice.PublicCreateParams{
-		OwnerID: ownerID, ProjectID: projectID, Workflow: request.Workflow,
+		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		ProjectID: projectID, Workflow: request.Workflow,
 		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: []string(request.RuntimeLabels),
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
 		IdempotencyKey: idempotencyKey, RequestDigest: requestDigest,

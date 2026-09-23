@@ -166,6 +166,23 @@ type RuntimeCredentialMetadata struct {
 	CreatedAt    time.Time             `json:"createdAt"`
 }
 
+// RuntimeCredentialUser is the authenticated principal on whose behalf
+// owner-scoped configuration, such as a Project HTTP target, references a
+// Runtime credential. Runtime credentials are global rows; only this check
+// keeps one owner from pointing its target at another owner's secret.
+type RuntimeCredentialUser struct {
+	UserID string
+	// Operations is the Operations capability. It administers every Runtime
+	// credential and may therefore reference any of them.
+	Operations bool
+}
+
+// MayUse reports whether the principal may reference the credential: it
+// created the credential, or it holds the Operations capability.
+func (u RuntimeCredentialUser) MayUse(metadata RuntimeCredentialMetadata) bool {
+	return u.Operations || u.UserID != "" && metadata.CreatedBy == u.UserID
+}
+
 type RuntimeCredentialRecord struct {
 	Metadata RuntimeCredentialMetadata `json:"metadata"`
 	Envelope EncryptedEnvelope         `json:"-"`

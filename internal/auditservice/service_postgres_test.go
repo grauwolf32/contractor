@@ -524,6 +524,105 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	}
 }
 
+func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+	profiles := loadAuditServiceProfiles(t)
+	gateway, err := profiles.LLMGateway("test-gateway@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lookup := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
+	service, err := New(Options{
+		Pool: pool, Profiles: profiles,
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+		),
+		CredentialGuard: &countingCredentialGuard{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cipher, err := managedcredentials.NewTokenCipher([]byte(strings.Repeat("k", 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeCredentials, err := managedcredentials.NewRuntimeCredentialService(managedcredentials.RuntimeCredentialServiceOptions{
+		Pool: pool, Cipher: cipher, Usage: managedcredentials.NewRuntimeCredentialRepository(pool),
+		Barrier: managedcredentials.NewLifecycleBarrier(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	material, err := managedcredentials.NewHTTPOriginBearerCredential("origin-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimeCredentials.Create(ctx, managedcredentials.RuntimeCredentialCreateRequest{
+		CredentialID: "foreign-origin", Material: material,
+		IdempotencyKey: "create-foreign-origin", ActorID: "another-owner",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-target-audit", OwnerID: "owner-target-audit", Kind: projectstore.KindProject,
+		Name: "Target Audit", IdempotencyKey: "project-target-audit", RequestDigest: serviceTestDigest("target-project"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stored before ownership enforcement, or by a principal that has since
+	// lost the Operations capability.
+	project, err = projects.Update(ctx, projectstore.UpdateParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+		Name: project.Name, HTTPTarget: &contracts.HTTPOriginTargetRef{
+			URL: "https://attacker.example.test",
+			Credential: &contracts.RuntimeCredentialRef{
+				CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checklist := writeChecklist(t, ctx, projectArtifacts, "target", "automatic")
+	draft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-target", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile:        ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:         map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
+		Scope:          Scope{Objective: "Exercise Project target credential ownership"},
+		IdempotencyKey: "create-target-audit", RequestDigest: serviceTestDigest("target-create"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Start(ctx, StartParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
+		IdempotencyKey: "start-target-owner", RequestDigest: serviceTestDigest("target-start-owner"),
+	}); !errors.Is(err, managedcredentials.ErrRuntimeCredentialNotFound) {
+		t.Fatalf("start with another owner's credential = %v", err)
+	}
+	started, err := service.Start(ctx, StartParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
+		IdempotencyKey: "start-target-operations", RequestDigest: serviceTestDigest("target-start-operations"),
+		OperationsPrincipal: true,
+	})
+	if err != nil || started.Audit.State != auditstore.AuditActive {
+		t.Fatalf("start by an Operations principal = (%+v, %v)", started.Audit, err)
+	}
+}
+
 func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {

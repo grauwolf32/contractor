@@ -155,7 +155,7 @@ type RuntimeCredentialManagement interface {
 	Get(context.Context, string) (credentials.RuntimeCredentialMetadata, error)
 	Create(context.Context, credentials.RuntimeCredentialCreateRequest) (credentials.RuntimeCredentialCreateResult, error)
 	Delete(context.Context, string, string) (credentials.RuntimeCredentialDeleteResult, error)
-	ValidateRuntimeCredential(context.Context, string, ...string) error
+	ValidateRuntimeCredentialUse(context.Context, credentials.RuntimeCredentialUser, string, ...string) error
 	WithCredentialReferences(context.Context, func() error) error
 }
 

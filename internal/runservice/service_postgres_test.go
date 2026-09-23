@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -252,7 +253,9 @@ func (openCredentialGuard) WithRunCreation(ctx context.Context, fn func() error)
 
 type acceptRuntimeCredentials struct{}
 
-func (acceptRuntimeCredentials) ValidateRuntimeCredential(context.Context, string, ...string) error {
+func (acceptRuntimeCredentials) ValidateRuntimeCredentialUse(
+	context.Context, credentials.RuntimeCredentialUser, string, ...string,
+) error {
 	return nil
 }
 

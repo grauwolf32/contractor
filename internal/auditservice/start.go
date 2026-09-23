@@ -135,8 +135,9 @@ func (s *Service) startInTransaction(
 	projectTarget := cloneProjectTarget(project.HTTPTarget)
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
-		if err := credentials.NewRuntimeCredentialRepository(tx).ValidateRuntimeCredential(
-			ctx, projectTarget.Credential.CredentialID, string(projectTarget.Credential.Kind),
+		if err := credentials.NewRuntimeCredentialRepository(tx).ValidateRuntimeCredentialUse(
+			ctx, credentials.RuntimeCredentialUser{UserID: params.OwnerID, Operations: params.OperationsPrincipal},
+			projectTarget.Credential.CredentialID, string(projectTarget.Credential.Kind),
 		); err != nil {
 			return StartedAudit{}, err
 		}

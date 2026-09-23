@@ -139,6 +139,11 @@ func (recoveryCredentialGuard) WithCredentialReferences(_ context.Context, fn fu
 func (recoveryCredentialGuard) ValidateRuntimeCredential(context.Context, string, ...string) error {
 	return nil
 }
+func (recoveryCredentialGuard) ValidateRuntimeCredentialUse(
+	context.Context, credentials.RuntimeCredentialUser, string, ...string,
+) error {
+	return nil
+}
 
 func isolatedRecoveryPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	t.Helper()

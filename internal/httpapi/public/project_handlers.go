@@ -197,8 +197,9 @@ func (h *handler) updateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err = h.dependencies.RuntimeCredentials.WithCredentialReferences(r.Context(), func() error {
-			if validateErr := h.dependencies.RuntimeCredentials.ValidateRuntimeCredential(
-				r.Context(), httpTarget.Credential.CredentialID, string(httpTarget.Credential.Kind),
+			if validateErr := h.dependencies.RuntimeCredentials.ValidateRuntimeCredentialUse(
+				r.Context(), runtimeCredentialUser(r.Context()),
+				httpTarget.Credential.CredentialID, string(httpTarget.Credential.Kind),
 			); validateErr != nil {
 				return validateErr
 			}

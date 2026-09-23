@@ -244,6 +244,20 @@ its exact active ID/kind under the shared credential-reference fence. Deletion
 requires first detaching it from every Project and remains blocked while a
 nonterminal Run or unreleased allocation pins it.
 
+RuntimeCredentials are global rows, so attaching one also requires that the
+requesting principal may use it: the credential's `createdBy` is that
+principal's `userId`, or the principal holds the Operations capability, which
+already administers every RuntimeCredential. A credential the principal may not
+use is reported exactly like a missing one (`404 not_found`), so its existence
+is not disclosed. Project Run creation and Audit start re-check the same rule
+for the requesting owner before pinning the target, which also covers targets
+attached before the rule existed. Managed-eval Runs and Audits have no live
+principal and accept only credentials the owner created. The first slice's
+single local principal holds the Operations capability, so it may attach any
+credential; the rule separates owners once RBAC adds principals without it.
+Execution preparation does not repeat the check: it decrypts only the reference
+the Run pinned after this authorization.
+
 At Project Run creation, Server pins the safe URL and credential reference into
 the immutable Run input/configuration provenance, exposed safely as
 `projectHttpTarget`. After placement, Control Plane decrypts it only for a

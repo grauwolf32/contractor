@@ -103,6 +103,11 @@ type StartParams struct {
 	IdempotencyKey          string
 	RequestDigest           string
 	DeadlineSeconds         *int
+
+	// OperationsPrincipal reports that the requesting principal holds the
+	// Operations capability and may pin any Runtime credential. Otherwise the
+	// Project HTTP target may pin only a credential OwnerID created.
+	OperationsPrincipal bool
 }
 
 type MutationParams struct {

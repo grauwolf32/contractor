@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/evalcoordinator"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -48,7 +49,11 @@ func (testBarrier) WithRunCreation(ctx context.Context, fn func() error) error {
 	}
 	return fn()
 }
-func (testBarrier) ValidateRuntimeCredential(context.Context, string, ...string) error { return nil }
+func (testBarrier) ValidateRuntimeCredentialUse(
+	context.Context, credentials.RuntimeCredentialUser, string, ...string,
+) error {
+	return nil
+}
 
 type serviceHarness struct {
 	pool     *pgxpool.Pool

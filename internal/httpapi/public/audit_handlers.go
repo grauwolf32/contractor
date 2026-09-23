@@ -452,8 +452,10 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 	}
 	auditID := r.PathValue("auditId")
 	digest := auditRequestDigest("", auditID, revision, seconds)
+	credentialUser := runtimeCredentialUser(r.Context())
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
-		OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision,
+		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		AuditID: auditID, ExpectedRevision: revision,
 		IdempotencyKey: key, RequestDigest: digest, DeadlineSeconds: seconds,
 	})
 	if err != nil {
