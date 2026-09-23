@@ -349,6 +349,38 @@ describe("Catalog", () => {
     expect(router.state.location.search).toBe("?keep=yes&q=researcher");
   });
 
+  it("keeps the search text as typed across a debounced commit", async () => {
+    const user = userEvent.setup();
+    const { router } = setup("/catalog/agents?keep=yes");
+    const search = await screen.findByLabelText("Search agents");
+    await user.type(search, "supplied ");
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?keep=yes&q=supplied"),
+    );
+    expect(search).toHaveValue("supplied ");
+
+    await user.type(search, "evidence");
+    expect(search).toHaveValue("supplied evidence");
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(
+        "?keep=yes&q=supplied+evidence",
+      ),
+    );
+    expect(search).toHaveValue("supplied evidence");
+
+    // Navigation that clears the query also replaces the committed draft
+    // instead of reviving and re-committing it.
+    await act(async () => {
+      await router.navigate("/catalog/agents?keep=yes");
+    });
+    expect(search).toHaveValue("");
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+    });
+    expect(router.state.location.search).toBe("?keep=yes");
+    expect(search).toHaveValue("");
+  });
+
   it("preserves Agent usage cursors through Workflow visits and resets them for another version", async () => {
     const user = userEvent.setup();
     const { router } = setup("/catalog/agents/researcher/1", {
