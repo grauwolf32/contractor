@@ -27,7 +27,11 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     model_visible_observations_since,
     require_model_visible_binding,
 )
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.artifacts import (
+    ArtifactClientFactory,
+    _unconfigured_client,
+    gateway_secrets,
+)
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
@@ -931,16 +935,6 @@ def _document_state(
         "changed": changed,
         "copied": copied,
     }
-
-
-def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:
-    del runtime_settings
-    return ArtifactClient(allocation_id, _UnavailableTransport())
-
-
-class _UnavailableTransport:
-    async def request(self, *_: Any, **__: Any) -> Any:
-        raise RuntimeError("Artifact transport is not configured")
 
 
 def _elapsed_ms(started_ns: int) -> int:

@@ -35,7 +35,11 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     model_visible_observations_since,
     require_model_visible_binding,
 )
-from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.artifacts import (
+    ArtifactClientFactory,
+    _reject_unconfigured_client,
+    gateway_secrets,
+)
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
@@ -127,7 +131,7 @@ class SourceAnalysisToolsetFactory:
     infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
-        self._client_factory = client_factory or _unconfigured_client
+        self._client_factory = client_factory or _reject_unconfigured_client
 
     async def probe(self) -> frozenset[str]:
         return self.exported_tools
@@ -895,11 +899,6 @@ def _remove_path(path: Path) -> None:
         path.unlink()
     else:
         shutil.rmtree(path)
-
-
-def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:
-    del allocation_id, runtime_settings
-    raise RuntimeError("Artifact transport is not configured")
 
 
 def _elapsed_ms(started_ns: int) -> int:
