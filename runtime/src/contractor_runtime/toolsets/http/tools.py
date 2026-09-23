@@ -33,6 +33,7 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
@@ -1413,17 +1414,13 @@ def _origin(url: str) -> tuple[str, str, int]:
 
 
 async def _read_response_body(response: httpx.Response) -> bytes:
-    result = bytearray()
+    # Bounds both the received bytes and incremental gzip/deflate decoding.
     try:
-        async for chunk in response.aiter_bytes():
-            if len(result) + len(chunk) > MAX_RESPONSE_BODY_BYTES:
-                raise HTTPToolError("http_response_too_large")
-            result.extend(chunk)
-    except HTTPToolError:
-        raise
+        return await read_limited_body(response, MAX_RESPONSE_BODY_BYTES)
+    except BodyTooLarge:
+        raise HTTPToolError("http_response_too_large") from None
     except (httpx.HTTPError, UnicodeError):
         raise HTTPToolError("http_request_failed") from None
-    return bytes(result)
 
 
 def _content_type(headers: httpx.Headers) -> str:

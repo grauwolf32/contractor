@@ -21,6 +21,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import CaidoSettings, RuntimeAdapterRef
+from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
 MAX_CAIDO_VARIABLE_BYTES = 4 * 1024 * 1024
@@ -514,14 +515,11 @@ async def _read_bounded_response(response: httpx.Response) -> bytes:
             raise CaidoClientError("caido_response_invalid", retryable=False)
         if content_length > MAX_CAIDO_RESPONSE_BYTES:
             raise CaidoClientError("caido_response_too_large", retryable=False)
-    chunks: list[bytes] = []
-    total = 0
-    async for chunk in response.aiter_bytes():
-        total += len(chunk)
-        if total > MAX_CAIDO_RESPONSE_BYTES:
-            raise CaidoClientError("caido_response_too_large", retryable=False)
-        chunks.append(chunk)
-    return b"".join(chunks)
+    try:
+        # Bounds both the received bytes and incremental gzip/deflate decoding.
+        return await read_limited_body(response, MAX_CAIDO_RESPONSE_BYTES)
+    except BodyTooLarge:
+        raise CaidoClientError("caido_response_too_large", retryable=False) from None
 
 
 def _decode_response(raw: bytes) -> dict[str, Any]:

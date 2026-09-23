@@ -215,8 +215,12 @@ from returned headers and retained metrics.
 
 The complete body is streamed with a 16 MiB hard limit into an ordinary
 artifact in the allocation's logical namespace using media type
-`application/vnd.contractor.http-body+json`. Text is stored as UTF-8 text;
-arbitrary bytes use base64. Internal names are collision-resistant and the
+`application/vnd.contractor.http-body+json`. The limit applies separately to
+the bytes received and to the decoded body. `gzip` and `deflate` content
+codings are decoded incrementally, so compressed data never inflates past the
+limit in memory; any other content coding is stored as received. Text is
+stored as UTF-8 text; arbitrary bytes use base64. Internal names are
+collision-resistant and the
 exact returned ref is retained in allocation memory. `http_read_body` accepts
 only a request ID created by that allocation, never an arbitrary ArtifactRef.
 The JSON envelope itself must also fit the Artifact plane's 64 MiB payload
@@ -322,7 +326,7 @@ Common first limits:
 
 | Resource | Limit |
 |---|---:|
-| one GraphQL response | 16 MiB |
+| one GraphQL response, received and decoded | 16 MiB |
 | raw request supplied to replay/workflow | 1 MiB |
 | inline raw preview | 8192 characters |
 | history/results/findings page | 100 entries |
