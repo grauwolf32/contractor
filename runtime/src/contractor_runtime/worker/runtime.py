@@ -539,9 +539,14 @@ class AdkWorkerRuntime:
             stateRevision=state_snapshot["stateRevision"],
         )
 
-    def cancel_active(self) -> None:
+    def cancel_active(self, owner: asyncio.Task[Any]) -> None:
         task = self._active_task
-        if task is not None and task is not asyncio.current_task() and not task.done():
+        if (
+            task is not None
+            and task is owner
+            and task is not asyncio.current_task()
+            and not task.done()
+        ):
             task.cancel()
 
     async def finalize(self, deadline: datetime) -> None:

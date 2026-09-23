@@ -1777,6 +1777,31 @@ def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_cancel_active_ignores_a_task_that_does_not_own_the_invocation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("Too late")], block=True)
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), timeout=1)
+        other = asyncio.current_task()
+        assert other is not None
+
+        runtime.cancel_active(other)
+        await asyncio.sleep(0)
+        assert not invocation.done()
+
+        runtime.cancel_active(invocation)
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert state.metrics.final_outcome == "cancelled"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("mode", list(WorkerSessionMode))
 def test_partial_invocation_acquisition_releases_session_and_preserves_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: WorkerSessionMode

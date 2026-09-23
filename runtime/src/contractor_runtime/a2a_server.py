@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
 from typing import Any, Protocol
@@ -57,7 +58,9 @@ class InvocableWorker(Protocol):
         self, code: str, message: str, *, retryable: bool = False
     ) -> WorkerCompletion: ...
 
-    def cancel_active(self) -> None: ...
+    def cancel_active(self, owner: asyncio.Task[Any]) -> None:
+        """Cancel the active invocation only when ``owner`` started it."""
+        ...
 
 
 class ActiveA2AProvider(Protocol):
@@ -129,6 +132,8 @@ def build_worker_a2a_application(worker: InvocableWorker, card: AgentCard) -> AS
 class ContractorAgentExecutor(AgentExecutor):
     def __init__(self, worker: InvocableWorker) -> None:
         self._worker = worker
+        # A2A Task ID -> the asyncio task currently inside ``worker.invoke``.
+        self._invocations: dict[str, asyncio.Task[Any]] = {}
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if not context.task_id or not context.context_id:
@@ -157,17 +162,43 @@ class ContractorAgentExecutor(AgentExecutor):
                     "invalid_stage_content", "A2A message must contain one StageContentRequest"
                 )
             else:
-                result = await self._worker.invoke(request)
+                try:
+                    result = await self._invoke(context.task_id, request)
+                except Exception:
+                    # A Worker defect must still end the Task with a bounded
+                    # Contractor failure instead of leaving it working.
+                    try:
+                        result = await self._worker.failure_completion(
+                            "worker_execution_failed", "Worker execution failed", retryable=True
+                        )
+                    except Exception:
+                        await updater.failed()
+                        return
         message = _result_message(result, context)
         if result.failure is not None:
             await updater.failed(message)
         else:
             await updater.complete(message)
 
+    async def _invoke(self, task_id: str, request: StageContentRequest) -> WorkerCompletion:
+        owner = asyncio.current_task()
+        if owner is None or task_id in self._invocations:
+            raise RuntimeError("A2A Task is already executing")
+        self._invocations[task_id] = owner
+        try:
+            return await self._worker.invoke(request)
+        finally:
+            self._invocations.pop(task_id, None)
+
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         del event_queue
-        if context.call_context.tenant == self._worker.allocation_id:
-            self._worker.cancel_active()
+        if context.call_context.tenant != self._worker.allocation_id or not context.task_id:
+            return
+        # Cancel only the invocation this A2A Task started; a concurrent Task
+        # rejected as busy must never cancel another Task's active invocation.
+        owner = self._invocations.get(context.task_id)
+        if owner is not None:
+            self._worker.cancel_active(owner)
 
 
 class AllocationA2AGateway:

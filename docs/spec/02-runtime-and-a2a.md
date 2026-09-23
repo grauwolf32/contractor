@@ -851,6 +851,14 @@ The transport layer does not plan work or assemble results. The in-process
 Worker runtime owns Task semantics while the surrounding Runtime Agent owns
 transport, allocation and lease checks.
 
+Every executed Task reaches a terminal state with a Contractor result. An
+exception escaping the Worker invocation becomes a bounded retryable
+`worker_execution_failed` WorkerCompletion on a `failed` Task, never a Task left
+`working` or a provider/exception message. `CancelTask` cancels only the Worker
+invocation started by that Task ID; cancelling a Task that was rejected as
+`worker_busy`, already finished or never ran leaves the active invocation of
+another Task untouched.
+
 ## Protocol ownership
 
 The private control protocol owns registration, heartbeat, reservation,

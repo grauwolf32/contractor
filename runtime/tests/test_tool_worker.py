@@ -570,7 +570,11 @@ def test_tool_deadline_cancel_abort_and_replay(tmp_path, mode):
         task = asyncio.create_task(runtime.invoke(request(spec)))
         await asyncio.wait_for(tool.started.wait(), 1)
         if mode == "cancel":
-            runtime.cancel_active()
+            # Another A2A Task's request cannot cancel this invocation.
+            runtime.cancel_active(asyncio.current_task())
+            await asyncio.sleep(0)
+            assert not task.done() and not tool.cancelled.is_set()
+            runtime.cancel_active(task)
         elif mode == "abort":
             await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
         if mode == "deadline":
