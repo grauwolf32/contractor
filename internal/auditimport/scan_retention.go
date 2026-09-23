@@ -59,14 +59,8 @@ func (i *Importer) retainScanRecovery(
 			SourceProvenance: provenance, DisplayRef: "member:" + item.ContentMemberID,
 		})
 	}
-	disposition := auditstore.CollectionExecutionFailed
-	retryable := !scanHistoryNeedsRecovery(history)
-	switch *execution.TerminalOutcome {
-	case auditstore.TerminalSucceeded:
-		disposition = auditstore.CollectionMissingOutput
-	case auditstore.TerminalCancelled:
-		disposition, retryable = auditstore.CollectionExecutionCancelled, false
-	}
+	disposition := scanRecoveryDisposition(execution)
+	retryable := disposition != auditstore.CollectionExecutionCancelled && !scanHistoryNeedsRecovery(history)
 	item := auditstore.CollectionItem{
 		ExecutionItemID: member.member.ExecutionItemID, Disposition: disposition,
 		Retryable: retryable, FinalDisposition: finalDisposition(disposition), Coverage: coverage,
@@ -75,8 +69,7 @@ func (i *Importer) retainScanRecovery(
 	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
 		// A concurrent writer consumed the budget the snapshot admitted.
 		return i.collectTechnical(ctx, claim, execution, []preparedMember{member},
-			auditstore.CollectionExecutionFailed, false, "evidence-budget-exhausted",
-			auditstore.CoverageInconclusive)
+			disposition, false, "evidence-budget-exhausted", auditstore.CoverageInconclusive)
 	}
 	return changed, err
 }

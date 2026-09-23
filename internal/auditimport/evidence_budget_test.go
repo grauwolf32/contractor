@@ -72,6 +72,22 @@ func TestImporterSettlesRoleEvidenceBudgetExhaustedAtCommit(t *testing.T) {
 	}
 }
 
+// The collection gate admits execution-failed only for failed Runs, so a
+// budget receipt for a recovered scan must follow the terminal outcome.
+func TestScanRecoveryDispositionFollowsTerminalOutcome(t *testing.T) {
+	for outcome, want := range map[auditstore.TerminalOutcome]auditstore.CollectionDisposition{
+		auditstore.TerminalSucceeded:        auditstore.CollectionMissingOutput,
+		auditstore.TerminalFailed:           auditstore.CollectionExecutionFailed,
+		auditstore.TerminalSubmissionFailed: auditstore.CollectionExecutionFailed,
+		auditstore.TerminalCancelled:        auditstore.CollectionExecutionCancelled,
+	} {
+		execution := auditstore.Execution{TerminalOutcome: &outcome}
+		if got := scanRecoveryDisposition(execution); got != want {
+			t.Errorf("scan recovery disposition for %s = %s, want %s", outcome, got, want)
+		}
+	}
+}
+
 // storeChargedBytes mirrors the collection transaction: each distinct
 // retained revision is charged once, however many links cite it.
 func storeChargedBytes(links []auditstore.ArtifactLink) int64 {
