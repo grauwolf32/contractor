@@ -462,6 +462,9 @@ release semantics. The later release idempotently confirms that teardown and
 removes any residual bounded state; ordinary success leaves no mirror or cache.
 Abort, lost lease, failed prepare and process shutdown cancel analysis, kill
 and reap the child, and remove the mirror before a slot can become reusable.
+Mirror materialization runs in an uninterruptible worker thread: cancellation,
+however often repeated, waits for it, registers any written mirror with the
+session and only then propagates as cancellation rather than a Toolset error.
 Tool close is idempotent and composes with the allocation-wide bounded cleanup
 task in [10](10-runtime-filesystems-and-edit-tools.md). Failure to confirm child
 termination or mirror cleanup leaves the Runtime fenced; it cannot return an

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import secrets
@@ -245,8 +246,7 @@ class TrailmarkChildHost:
                 await self._stop_locked(remove_mirror=True)
             deadline = asyncio.get_running_loop().time() + self._build_timeout_seconds
             try:
-                mirror = await _materialize_snapshot_cancellation_safe(snapshot, self._scratch_root)
-                self._mirror = mirror
+                mirror = await self._materialize_locked(snapshot)
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:
                     raise TrailmarkHostError("code_analysis_build_timeout", retryable=True)
@@ -262,7 +262,10 @@ class TrailmarkChildHost:
                 )
                 return _build_result(result, mirror)
             except asyncio.CancelledError:
-                await self._cleanup_after_failure_locked()
+                # Unconfirmed teardown keeps the child/mirror registered, so
+                # close() retries and fences; cancellation still propagates.
+                with contextlib.suppress(TrailmarkHostError):
+                    await self._cleanup_after_failure_locked()
                 raise
             except TrailmarkHostError:
                 await self._cleanup_after_failure_locked()
@@ -270,6 +273,34 @@ class TrailmarkChildHost:
             except Exception:
                 await self._cleanup_after_failure_locked()
                 raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
+
+    async def _materialize_locked(self, snapshot: WorkspaceSnapshot) -> _PreparedMirror:
+        """Write the mirror off-loop and register it before honoring cancellation.
+
+        The worker thread cannot be interrupted, so cancellation waits for it
+        however often it is repeated. A completed mirror is registered with the
+        host first; the caller's cleanup then removes it, or leaves it for
+        close() to retry and fence if removal cannot be confirmed.
+        """
+
+        task = asyncio.create_task(
+            asyncio.to_thread(_materialize_snapshot, snapshot, self._scratch_root),
+            name="trailmark-mirror-materialize",
+        )
+        cancellation: asyncio.CancelledError | None = None
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError as error:
+                cancellation = error
+            except Exception:
+                pass
+        if not task.cancelled() and task.exception() is None:
+            self._mirror = task.result()
+        if cancellation is not None:
+            # A failed materialization already removed its partial mirror.
+            raise cancellation
+        return task.result()
 
     async def summary(self) -> GraphBuildResult:
         async with self._lock:
@@ -882,24 +913,6 @@ def _materialize_snapshot(snapshot: WorkspaceSnapshot, scratch_root: Path) -> _P
         return _PreparedMirror(mirror, snapshot.digest, coverage)
     except BaseException:
         shutil.rmtree(mirror, ignore_errors=True)
-        raise
-
-
-async def _materialize_snapshot_cancellation_safe(
-    snapshot: WorkspaceSnapshot, scratch_root: Path
-) -> _PreparedMirror:
-    task = asyncio.create_task(
-        asyncio.to_thread(_materialize_snapshot, snapshot, scratch_root),
-        name="trailmark-mirror-materialize",
-    )
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        try:
-            mirror = await task
-            await asyncio.to_thread(_remove_mirror, mirror.path, scratch_root)
-        except Exception:
-            raise TrailmarkHostError("code_analysis_engine_failed") from None
         raise
 
 
