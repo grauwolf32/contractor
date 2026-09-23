@@ -314,8 +314,21 @@ describe("RunEventsManager", () => {
 
     socket?.message(lifecycleEvent("run-ui-1", "run-1", "45"));
     expect(first.resyncs).toEqual(["sequence_gap"]);
-    expect(second.resyncs).toEqual(["sequence_gap"]);
-    expect(socket?.closed?.[0]).toBe(1002);
+    expect(first.states).toEqual(["connecting", "live", "resyncing"]);
+    expect(JSON.parse(socket?.sent.at(-1) ?? "{}")).toMatchObject({
+      type: "unsubscribe",
+      subscriptionId: "run-ui-1",
+    });
+
+    // The gap belongs to one stream: the other subscription stays live on
+    // the same socket and late frames of the cancelled one are ignored.
+    socket?.message(lifecycleEvent("run-ui-1", "run-1", "46"));
+    socket?.message(lifecycleEvent("run-ui-2", "run-2", "9"));
+    expect(first.lifecycle).toHaveBeenCalledTimes(1);
+    expect(second.lifecycle).toHaveBeenCalledTimes(1);
+    expect(second.resyncs).toEqual([]);
+    expect(second.states).toEqual(["connecting", "live"]);
+    expect(socket?.closed).toBeUndefined();
   });
 
   it("adds a second Run subscription to an already-open socket", () => {
@@ -397,16 +410,19 @@ describe("RunEventsManager", () => {
     expect(run.states).toEqual(["connecting", "live"]);
   });
 
-  it("resynchronizes every projection on generation mismatch", () => {
+  it("resynchronizes only the affected projection on generation mismatch", () => {
     FakeWebSocket.instances = [];
     const current = callbacks();
+    const other = callbacks();
     const manager = new RunEventsManager("http://127.0.0.1:8080", {
       WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
     });
     manager.subscribeRun("run-1", cursor("4"), current.value);
+    manager.subscribeRun("run-2", cursor("2"), other.value);
     const socket = FakeWebSocket.instances[0];
     socket?.open();
     socket?.message(subscribed("run-ui-1", "run-1", "4"));
+    socket?.message(subscribed("run-ui-2", "run-2", "2"));
     const changedGeneration = plannerEvent("run-ui-1", "run-1", "5");
     changedGeneration.cursor = {
       generation: "run-generation-2",
@@ -416,7 +432,99 @@ describe("RunEventsManager", () => {
 
     expect(current.resyncs).toEqual(["generation_changed"]);
     expect(current.states).toEqual(["connecting", "live", "resyncing"]);
-    expect(socket?.closed?.[0]).toBe(1002);
+    expect(other.resyncs).toEqual([]);
+    expect(other.states).toEqual(["connecting", "live"]);
+    expect(socket?.closed).toBeUndefined();
+  });
+
+  it("resynchronizes only the subscription named by an error frame", () => {
+    FakeWebSocket.instances = [];
+    const failed = callbacks();
+    const retained = callbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    const subscription = manager.subscribeRun(
+      "run-1",
+      cursor("4"),
+      failed.value,
+    );
+    manager.subscribeRun("run-2", cursor("2"), retained.value);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.message(subscribed("run-ui-1", "run-1", "4"));
+    socket.message(subscribed("run-ui-2", "run-2", "2"));
+    socket.message({
+      version: "contractor.events.v1",
+      type: "error",
+      subscriptionId: "run-ui-1",
+      code: "overloaded",
+      message: "Run stream is temporarily unavailable",
+      retryable: true,
+    });
+
+    expect(failed.errors).toEqual(["Run stream is temporarily unavailable"]);
+    expect(failed.resyncs).toEqual(["subscription_error"]);
+    expect(retained.errors).toEqual([]);
+    expect(retained.resyncs).toEqual([]);
+    expect(socket.closed).toBeUndefined();
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+      type: "unsubscribe",
+      subscriptionId: "run-ui-1",
+    });
+    // The Server already ended that subscription and answers not_found.
+    socket.message({
+      version: "contractor.events.v1",
+      type: "error",
+      subscriptionId: "run-ui-1",
+      code: "not_found",
+      message: "subscription was not found",
+      retryable: false,
+    });
+    expect(retained.resyncs).toEqual([]);
+    expect(failed.errors).toHaveLength(1);
+
+    // The owner resumes under a fresh ID on the same socket.
+    subscription.resume(cursor("6"));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+      type: "subscribe",
+      subscriptionId: "run-ui-3",
+      stream: { kind: "run", id: "run-1" },
+      after: cursor("6"),
+    });
+    socket.message(subscribed("run-ui-3", "run-1", "6"));
+    socket.message(lifecycleEvent("run-ui-3", "run-1", "7"));
+    socket.message(lifecycleEvent("run-ui-2", "run-2", "3"));
+    expect(failed.states.at(-1)).toBe("live");
+    expect(failed.lifecycle).toHaveBeenCalledOnce();
+    expect(retained.lifecycle).toHaveBeenCalledOnce();
+    manager.close();
+  });
+
+  it("resets every subscription for a connection-level error frame", () => {
+    FakeWebSocket.instances = [];
+    const first = callbacks();
+    const second = callbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    manager.subscribeRun("run-1", cursor("4"), first.value);
+    manager.subscribeRun("run-2", cursor("2"), second.value);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.message(subscribed("run-ui-1", "run-1", "4"));
+    socket.message({
+      version: "contractor.events.v1",
+      type: "error",
+      code: "invalid_frame",
+      message: "frame does not satisfy the protocol",
+      retryable: false,
+    });
+
+    expect(first.resyncs).toEqual(["subscription_error"]);
+    expect(second.resyncs).toEqual(["subscription_error"]);
+    expect(socket.closed?.[0]).toBe(1002);
   });
 
   it("honors explicit resync frames and treats unknown frames as protocol gaps", () => {
@@ -535,11 +643,31 @@ describe("RunEventsManager", () => {
     first?.message(subscribed("run-ui-1", "run-1", "4"));
     first?.message(plannerEvent("run-ui-1", "run-1", "5"));
     expect(current.resyncs).toEqual(["projection_gap"]);
+    expect(first?.closed).toBeUndefined();
+    expect(JSON.parse(first?.sent.at(-1) ?? "{}")).toMatchObject({
+      type: "unsubscribe",
+      subscriptionId: "run-ui-1",
+    });
 
     subscription.resume(cursor("7"));
-    const resumed = FakeWebSocket.instances[1];
-    resumed?.open();
-    expect(JSON.parse(resumed?.sent[0] ?? "{}").after).toEqual(cursor("7"));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(JSON.parse(first?.sent.at(-1) ?? "{}")).toMatchObject({
+      type: "subscribe",
+      subscriptionId: "run-ui-2",
+      after: cursor("7"),
+    });
+    // Frames still queued for the cancelled ID and its acknowledgement do
+    // not disturb the resumed subscription.
+    first?.message(plannerEvent("run-ui-1", "run-1", "6"));
+    first?.message({
+      version: "contractor.events.v1",
+      type: "unsubscribed",
+      subscriptionId: "run-ui-1",
+    });
+    first?.message(subscribed("run-ui-2", "run-1", "7"));
+    expect(current.resyncs).toEqual(["projection_gap"]);
+    expect(current.states.at(-1)).toBe("live");
+    expect(first?.closed).toBeUndefined();
   });
 
   it("waits for unsubscribe acknowledgement before closing the idle socket", () => {

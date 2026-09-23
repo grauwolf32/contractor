@@ -429,13 +429,18 @@ describe("Runs Queue view", () => {
     );
 
     await waitFor(() => expect(queueReads).toBeGreaterThan(readsBeforeResync));
-    await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(2));
-    const replacement = QueueWebSocket.instances[1];
-    act(() => replacement?.open());
-    expect(JSON.parse(replacement?.sent[0] ?? "{}")).toMatchObject({
-      stream: { kind: "run", id: "run-live" },
-      after: { generation: "events-run-live", sequence: "1" },
-    });
+    // Only that subscription is resynchronized; it resumes on the same socket.
+    await waitFor(() =>
+      expect(JSON.parse(socket?.sent.at(-1) ?? "{}")).toMatchObject({
+        type: "subscribe",
+        stream: { kind: "run", id: "run-live" },
+        after: { generation: "events-run-live", sequence: "1" },
+      }),
+    );
+    expect(JSON.parse(socket?.sent.at(-1) ?? "{}").subscriptionId).not.toBe(
+      subscription.subscriptionId,
+    );
+    expect(QueueWebSocket.instances).toHaveLength(1);
   });
 
   it("opens Queue deep links with active filters", async () => {
