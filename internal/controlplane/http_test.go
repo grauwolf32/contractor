@@ -39,6 +39,8 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	unauthenticated := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/private/v1/agents/register", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
+	// An unauthenticated caller cannot choose its logged correlation ID.
+	request.Header.Set("X-Request-ID", "attacker-chosen")
 	handler.ServeHTTP(unauthenticated, request)
 	if unauthenticated.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", unauthenticated.Code)

@@ -582,7 +582,11 @@ ensures they remain closed and erases their retained settings secrets.
 Every public and private HTTP response carries one bounded `X-Request-ID`.
 Public ingress always generates its own value. Private Control Plane, lifecycle,
 Artifact and A2A hops propagate one syntactically valid incoming value and
-replace missing, duplicated or malformed values. REST error objects repeat it
+replace missing, duplicated or malformed values. Server's private Control
+Plane and Artifact APIs propagate it only from a peer that presented a
+verified Runtime Agent certificate; a request that fails mTLS gets a generated
+value, so an unauthenticated caller cannot choose its logged ID. REST error
+objects repeat it
 as `requestId`; A2A retains its protocol error envelope and carries correlation
 in the HTTP header.
 

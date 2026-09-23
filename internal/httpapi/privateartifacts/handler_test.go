@@ -406,6 +406,30 @@ func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	}
 }
 
+func TestPrivateArtifactTrustsIncomingRequestIDOnlyAfterMTLS(t *testing.T) {
+	repository := newMemoryRepository()
+	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
+
+	untrusted := httptest.NewRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil)
+	untrusted.Header.Set("X-Request-ID", "attacker-chosen")
+	untrustedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(untrustedResponse, untrusted)
+	if untrustedResponse.Code != http.StatusUnauthorized ||
+		untrustedResponse.Header().Get("X-Request-ID") != "artifact-request-fixed" ||
+		strings.Contains(untrustedResponse.Body.String(), "attacker-chosen") {
+		t.Fatalf("unauthenticated request ID = %q: %s",
+			untrustedResponse.Header().Get("X-Request-ID"), untrustedResponse.Body.String())
+	}
+
+	trusted := trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil)
+	trusted.Header.Set("X-Request-ID", "runtime:request-1")
+	trustedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(trustedResponse, trusted)
+	if trustedResponse.Code != http.StatusOK || trustedResponse.Header().Get("X-Request-ID") != "runtime:request-1" {
+		t.Fatalf("mTLS request ID = %d %q", trustedResponse.Code, trustedResponse.Header().Get("X-Request-ID"))
+	}
+}
+
 func TestPrivateArtifactGrantBindsPrincipalAndInstanceBeforeBodyRead(t *testing.T) {
 	repository := newMemoryRepository()
 	registry := &fakeRegistry{grant: testGrant("run-a")}

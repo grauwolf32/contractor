@@ -65,7 +65,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/", current.notFound)
 	return requestid.Middleware(current.requireMTLS(mux), requestid.Options{
 		Generator: dependencies.NewRequestID, Logger: dependencies.Logger,
-		Boundary: "artifact-private-api", TrustIncoming: true,
+		Boundary: "artifact-private-api", TrustIncoming: mtls.HasVerifiedRuntimeAgent,
 	}), nil
 }
 

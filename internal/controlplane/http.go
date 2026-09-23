@@ -58,7 +58,7 @@ func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, e
 	mux.HandleFunc("/", handler.notFound)
 	return requestid.Middleware(handler.requireMTLS(mux), requestid.Options{
 		Generator: options.NewRequestID, Logger: options.Logger,
-		Boundary: "control-plane-private-api", TrustIncoming: true,
+		Boundary: "control-plane-private-api", TrustIncoming: mtls.HasVerifiedRuntimeAgent,
 	}), nil
 }
 
