@@ -10,11 +10,20 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/zipdirectory"
 )
 
 func Validate(payload []byte, expectedName string) (*Package, error) {
 	if len(payload) > MaximumArchiveBytes {
 		return nil, validationError(CodeLimitExceeded, "")
+	}
+	// Count actual directory records before zip.NewReader allocates one
+	// zip.File per record; the advertised entry count is untrusted.
+	if _, err := zipdirectory.Check(payload, MaximumEntries); errors.Is(err, zipdirectory.ErrLimit) {
+		return nil, validationError(CodeLimitExceeded, "")
+	} else if err != nil {
+		return nil, validationError(CodeArchiveInvalid, "")
 	}
 	reader, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {

@@ -198,9 +198,14 @@ most 1 MiB. Text members are valid UTF-8 and have no NUL. In addition:
 - total declared and actually streamed decompressed bytes are at most 32 MiB.
 
 The decompressed budget is enforced while streaming, not only from the
-attacker-controlled central directory. Server and Runtime never silently drop
-a forbidden member. Every package digest is lowercase `sha256:<64 hex>` over
-the exact ZIP payload bytes, not a normalized directory tree.
+attacker-controlled central directory. The Server counts the actual
+central-directory records against the entry limit before it parses any member,
+so neither an understated nor an oversized directory is materialized first.
+Every bounded package fits a single-disk classic ZIP; the Server rejects ZIP64
+directories and data after the end record as `skill_archive_invalid`. Server
+and Runtime never silently drop a forbidden member. Every package digest is
+lowercase `sha256:<64 hex>` over the exact ZIP payload bytes, not a normalized
+directory tree.
 
 The repository authoring helper emits a single canonical representation:
 lexicographically ordered regular files using ZIP Store, fixed DOS-epoch
