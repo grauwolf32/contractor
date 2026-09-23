@@ -26,6 +26,7 @@ from contractor_runtime.projectfs.storage import (
     workspace_digest,
 )
 from contractor_runtime.settings import WorkspaceLimits
+from contractor_runtime.threads import to_thread_until_done
 
 WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"
@@ -176,7 +177,15 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
     async def import_state(self, payload: bytes) -> None:
         async with self._lock:
             self._require_open()
-            candidate = decode_workspace_state(payload, self._source, self._limits)
+            # Linear in the state size, but still too long for the event loop
+            # that must keep sending lease heartbeats.
+            candidate = await to_thread_until_done(
+                decode_workspace_state,
+                payload,
+                self._source,
+                self._limits,
+                name="workspace-state-import",
+            )
             self._tree = candidate
             self._checkpoint = candidate.clone()
 
@@ -352,7 +361,9 @@ def decode_workspace_state(
         result = source.clone()
         for operation in operations:
             _apply_operation(result, operation)
-            _validate_tree(result, limits)
+        # Operations check their own structure; limits bind only the result.
+        # Validating the whole tree after each operation was quadratic.
+        _validate_tree(result, limits)
     except WorkspaceStorageError:
         raise WorkspaceStateError("workspace_state_invalid") from None
     if document["resultWorkspaceDigest"] != workspace_digest(result.directories, result.text_files):
@@ -373,9 +384,12 @@ def canonical_overlay_operations(
         if result.kind(path) is None or result.kind(path) != source.kind(path)
     }
     deletions: list[str] = []
+    deleted: set[str] = set()
     for path in sorted(deletion_candidates, key=lambda value: (value.count("/"), value)):
-        if not any(_within(path, parent) for parent in deletions):
+        # Shallower paths come first, so a covering deletion is an ancestor.
+        if not any(parent in deleted for parent in parent_paths(path)):
             deletions.append(path)
+            deleted.add(path)
 
     working = source.clone()
     operations: list[OverlayOperation] = []
@@ -512,6 +526,12 @@ def _require_parent_directory(
 
 
 def _remove_subtree(tree: ManagedWorkspaceTree, path: str) -> None:
+    if path and path not in tree.directories:
+        # Only a directory has descendants; avoid scanning the whole tree.
+        tree.text_files.pop(path, None)
+        tree.binary_paths.discard(path)
+        tree.stored_binary_paths.discard(path)
+        return
     selected = {candidate for candidate in tree.paths() if _within(candidate, path)}
     tree.directories.difference_update(selected)
     for candidate in selected:

@@ -168,7 +168,13 @@ async def hydrate_workspace(
                 stored_binary_paths=set(accumulator.stored_binary_paths),
             )
             try:
-                result_tree = decode_workspace_state(value.data, source_tree, limits)
+                result_tree = await to_thread_until_done(
+                    decode_workspace_state,
+                    value.data,
+                    source_tree,
+                    limits,
+                    name="workspace-state-import",
+                )
                 try:
                     await to_thread_until_done(
                         lambda: _materialize_state(storage, content_root, source_tree, result_tree),

@@ -482,9 +482,11 @@ needed, is a separate artifact/media type.
 `baseWorkspaceDigest` hashes the canonical managed-text projection of exact
 hydrated sources `S`; `resultWorkspaceDigest` hashes the reconstructed managed
 text projection after operations. Imported state must match the actual base
-and recompute its result digest before it is applied. State does not contain a
-previous Artifact revision: revision is an ArtifactStore concern hidden from
-the model.
+and recompute its result digest before it is applied. Each operation is
+checked structurally as it is replayed; workspace limits bind the reconstructed
+result once, not intermediate replay states. Decoding runs off the Runtime event
+loop. State does not contain a previous Artifact revision: revision is an
+ArtifactStore concern hidden from the model.
 
 One state artifact is self-contained relative to sources. Given `S` and state
 revision 8, revision 7 is unnecessary.
