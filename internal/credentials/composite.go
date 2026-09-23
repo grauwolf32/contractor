@@ -3,12 +3,17 @@ package credentials
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
+// CompositeProvider searches every configured Resolver and rejects identities
+// that more than one of them claims. Provider failures keep their cause behind
+// a static message: callers classify storage, serialization and context
+// failures through errors.Is/As and SQLState, while Error() never renders the
+// provider's text.
 type CompositeProvider struct {
 	providers []Resolver
 }
@@ -40,7 +45,7 @@ func (p *CompositeProvider) LookupLLMCredential(
 			return config.CredentialMetadata{}, ErrRecoveryRequired
 		}
 		if err != nil {
-			return config.CredentialMetadata{}, fmt.Errorf("lookup LLM credential")
+			return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup LLM credential", err)
 		}
 		if found {
 			return config.CredentialMetadata{}, ErrConflict
@@ -66,7 +71,7 @@ func (p *CompositeProvider) ResolveLLMCredential(
 			continue
 		}
 		if err != nil {
-			return contracts.SecretString{}, fmt.Errorf("resolve LLM credential")
+			return contracts.SecretString{}, persistencepostgres.WrapError("resolve LLM credential", err)
 		}
 		if selected != nil {
 			return contracts.SecretString{}, ErrConflict
@@ -85,7 +90,7 @@ func (p *CompositeProvider) ResolveLLMCredential(
 			errors.Is(err, ErrCrypto) || errors.Is(err, ErrKeyUnavailable) {
 			return contracts.SecretString{}, err
 		}
-		return contracts.SecretString{}, errors.New("resolve LLM credential")
+		return contracts.SecretString{}, persistencepostgres.WrapError("resolve LLM credential", err)
 	}
 	return result, nil
 }

@@ -71,3 +71,59 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 		})
 	}
 }
+
+type failingCredentialRecords struct{ err error }
+
+func (r failingCredentialRecords) GetCredential(context.Context, string) (credentials.Record, error) {
+	return credentials.Record{}, r.err
+}
+
+// The production resolver composes development and managed providers; its
+// errors must keep storage and context causes so transient failures retry.
+func TestCompositeCredentialFailuresKeepRetryableCauses(t *testing.T) {
+	const secret = "credential-secret-in-provider-error"
+	development, err := credentials.NewStaticProvider(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name  string
+		err   error
+		cause string
+	}{
+		{"serialization", &pgconn.PgError{Code: "40001", Message: secret}, "storage_unavailable"},
+		{"deadlock", &pgconn.PgError{Code: "40P01", Message: secret}, "storage_unavailable"},
+		{"connection", &pgconn.PgError{Code: "08006", Message: secret}, "storage_unavailable"},
+		{"shutdown", context.Canceled, "context_ended"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			managed, err := credentials.NewEncryptedProvider(failingCredentialRecords{test.err}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			composite, err := credentials.NewCompositeProvider(development, managed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var logs bytes.Buffer
+			s := &Scheduler{options: Options{
+				Logger: slog.New(slog.NewTextHandler(&logs, nil)), Credentials: composite,
+			}}
+			_, resolveErr := s.resolveCredential(t.Context(), workflowconfig.ResolvedConsumerExecutionConfig{
+				LLMGateway: &contracts.ResolvedLLMGatewayConfig{},
+				Credential: &contracts.LLMCredentialRef{CredentialID: "managed-credential"},
+			})
+			if resolveErr == nil || strings.Contains(resolveErr.Error(), secret) {
+				t.Fatalf("credential error = %v", resolveErr)
+			}
+			failure := s.credentialFailure(
+				runstore.WorkflowRun{RunID: "run-1"}, runstore.StageExecution{StageExecutionID: "stage-1"},
+				"config_unavailable", "Execution configuration is unavailable", resolveErr,
+			)
+			if !failure.Retryable || !strings.Contains(logs.String(), "cause="+test.cause) ||
+				strings.Contains(logs.String(), secret) {
+				t.Fatalf("failure = %+v, log = %q", failure, logs.String())
+			}
+		})
+	}
+}
