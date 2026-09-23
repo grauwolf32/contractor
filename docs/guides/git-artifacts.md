@@ -69,7 +69,10 @@ there are at most 50,000 objects, 50 delta levels and 10,000 advertised refs.
 The snapshot permits at most 10,000 entries, 64 MiB expanded content, 4 MiB per
 file and 512 UTF-8 bytes per path. The generated ZIP also has a 64 MiB cap.
 Symlinks, submodules, LFS pointers, unsafe paths and an empty file tree fail the
-whole import. Files retain their contents, use stable ordering/timestamps and
+whole import; for a symlink, submodule or LFS pointer, the
+`git_content_unsupported` message names the kind and path of the first one.
+Unlike `contractor source push`, which skips submodules of a local working tree,
+import never omits tracked content. Files retain their contents, use stable ordering/timestamps and
 ordinary 0644 permissions. Private HTTPS tokens, arbitrary commit-ID fetches,
 sparse checkout, history browsing, automatic refresh and Git writes are deferred.
 

@@ -61,8 +61,17 @@ func TestBuildRejectsSymlink(t *testing.T) {
 	if err := os.Symlink("target", filepath.Join(root, "link")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
-	if _, err := Build(root, Options{IncludeIgnored: true}); err == nil {
-		t.Fatal("symlink was accepted")
+	_, err := Build(root, Options{IncludeIgnored: true})
+	if err == nil || !strings.Contains(err.Error(), "link is a symbolic link") || !strings.Contains(err.Error(), ".contractorignore") {
+		t.Fatalf("symlink error = %v, want the path and the .contractorignore remedy", err)
+	}
+	writeTestFile(t, filepath.Join(root, ".contractorignore"), "/link\n")
+	bundle, err := Build(root, Options{IncludeIgnored: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths := bundleEntryNames(t, bundle); !reflect.DeepEqual(paths, []string{".contractorignore", "target"}) {
+		t.Fatalf("paths = %v", paths)
 	}
 }
 

@@ -103,10 +103,14 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 					return ErrBudget
 				}
 				if bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\n")) || bytes.HasPrefix(blob.data, []byte("version https://git-lfs.github.com/spec/v1\r\n")) {
-					return ErrContent
+					return &UnsupportedEntryError{Kind: "Git LFS pointer", Path: path}
 				}
 				total += len(blob.data)
 				files = append(files, sourceFile{name: path, data: blob.data})
+			case "120000":
+				return &UnsupportedEntryError{Kind: "symbolic link", Path: path}
+			case "160000":
+				return &UnsupportedEntryError{Kind: "submodule", Path: path}
 			default:
 				return ErrContent
 			}

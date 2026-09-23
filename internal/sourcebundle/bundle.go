@@ -300,8 +300,11 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 		if err != nil {
 			return nil, 0, fmt.Errorf("inspect source member %s: %w", portable, err)
 		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, 0, fmt.Errorf("source member %s is not a regular file", portable)
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, 0, fmt.Errorf("source member %s is a symbolic link, which source push does not upload; exclude it with .contractorignore", portable)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, 0, fmt.Errorf("source member %s is not a regular file; exclude it with .contractorignore", portable)
 		}
 		if len(files) >= MaxEntries {
 			return nil, 0, fmt.Errorf("source exceeds the %d file limit", MaxEntries)

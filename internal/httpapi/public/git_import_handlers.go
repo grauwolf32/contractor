@@ -78,6 +78,11 @@ func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (h *handler) gitImportError(w http.ResponseWriter, err error) {
+	var unsupported *gitimport.UnsupportedEntryError
+	if errors.As(err, &unsupported) {
+		h.writeError(w, http.StatusUnprocessableEntity, "git_content_unsupported", unsupported.Error(), false)
+		return
+	}
 	for _, item := range []struct {
 		err           error
 		status        int

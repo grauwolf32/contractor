@@ -28,6 +28,27 @@ func (c *snapshotClientFixture) Fetch(ctx context.Context, remote gitimport.Remo
 	return c.fetch(ctx, remote, ref, key)
 }
 
+func TestGitImportErrorNamesUnsupportedEntry(t *testing.T) {
+	response := httptest.NewRecorder()
+	(&handler{}).gitImportError(response, &gitimport.UnsupportedEntryError{Kind: "submodule", Path: "vendor/module"})
+	var body errorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusUnprocessableEntity || body.Code != "git_content_unsupported" ||
+		!strings.Contains(body.Message, `submodule at "vendor/module"`) {
+		t.Fatalf("unsupported entry = %d %+v", response.Code, body)
+	}
+	response = httptest.NewRecorder()
+	(&handler{}).gitImportError(response, gitimport.ErrContent)
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusUnprocessableEntity || body.Message != "Git snapshot contains unsupported or invalid content" {
+		t.Fatalf("generic content error = %d %+v", response.Code, body)
+	}
+}
+
 func TestGitImportPublicationAndAdmission(t *testing.T) {
 	for _, backend := range []artifacts.BlobBackend{artifacts.BlobPostgres, artifacts.BlobFilesystem} {
 		t.Run(string(backend), func(t *testing.T) {
