@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
@@ -132,7 +133,9 @@ class ReadTextArtifactTool(_BaseTextTool):
     description = """Read a bounded UTF-8 line window from an artifact in this Workflow Run.
 
     Output is limited to 128 KiB; inspect truncated and partialLine before treating
-    the window as complete.
+    the window as complete. Page with nextStartLine and nextLineOffset: a line
+    longer than the output limit is returned in parts, continued by passing
+    line_offset.
 
     Args:
         namespace: Artifact namespace.
@@ -141,10 +144,13 @@ class ReadTextArtifactTool(_BaseTextTool):
             exact revision supplied in Stage context when available.
         start_line: First line to read, 1-based and inclusive; defaults to 1.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+        line_offset: UTF-8 byte offset into start_line to continue a partial
+            line; use the returned nextLineOffset. Defaults to 0.
 
     Returns:
-        Exact artifact metadata, text, startLine, endLine, totalLines, truncated
-        and partialLine. Non-UTF-8 content is rejected.
+        Exact artifact metadata, text, startLine, endLine, totalLines, truncated,
+        partialLine, and nextStartLine/nextLineOffset (null when the artifact
+        has been read to its end). Non-UTF-8 content is rejected.
     """
 
     async def __call__(
@@ -154,6 +160,7 @@ class ReadTextArtifactTool(_BaseTextTool):
         revision: str | None = None,
         start_line: int = 1,
         max_lines: int = DEFAULT_TEXT_READ_LINES,
+        line_offset: int = 0,
     ) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
         arguments = {
@@ -162,10 +169,13 @@ class ReadTextArtifactTool(_BaseTextTool):
             "revision": revision,
             "start_line": start_line,
             "max_lines": max_lines,
+            "line_offset": line_offset,
         }
         try:
             require_model_visible_binding(namespace, name)
             _validate_line_window(start_line, max_lines)
+            if isinstance(line_offset, bool) or not isinstance(line_offset, int) or line_offset < 0:
+                raise ToolInputError("line_offset must be a non-negative integer")
             value = await self._client.read_artifact(
                 ArtifactRef(namespace=namespace, name=name, revision=revision)
             )
@@ -177,9 +187,10 @@ class ReadTextArtifactTool(_BaseTextTool):
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
                 raise ToolInputError("start_line exceeds artifact line count")
-            selected, end_line, partial_line = _bounded_lines(
-                lines, start_line=start_line, max_lines=max_lines
+            window = _bounded_lines(
+                lines, start_line=start_line, max_lines=max_lines, line_offset=line_offset
             )
+            selected, end_line, partial_line = window.text, window.end_line, window.partial_line
             truncated = partial_line or end_line < total_lines
             result = {
                 "artifact": value.artifact.model_dump(by_alias=True),
@@ -191,6 +202,8 @@ class ReadTextArtifactTool(_BaseTextTool):
                 "text": selected,
                 "truncated": truncated,
                 "partialLine": partial_line,
+                "nextStartLine": window.next_start_line if truncated else None,
+                "nextLineOffset": window.next_line_offset if truncated else None,
             }
             self._success(
                 arguments,
@@ -300,29 +313,51 @@ def _validate_line_window(start_line: int, max_lines: int) -> None:
         raise ToolInputError(f"max_lines must be between 1 and {MAX_TEXT_READ_LINES}")
 
 
-def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:
+@dataclass(frozen=True)
+class _LineWindow:
+    text: str
+    end_line: int
+    partial_line: bool
+    next_start_line: int
+    next_line_offset: int
+
+
+def _bounded_lines(
+    lines: list[str], *, start_line: int, max_lines: int, line_offset: int = 0
+) -> _LineWindow:
     if not lines:
-        return "", 0, False
-    window = lines[start_line - 1 : start_line - 1 + max_lines]
-    result: list[str] = []
+        if line_offset:
+            raise ToolInputError("line_offset exceeds the line length")
+        return _LineWindow("", 0, False, 1, 0)
+    first = lines[start_line - 1].encode("utf-8")
+    if line_offset and line_offset >= len(first):
+        raise ToolInputError("line_offset exceeds the line length")
+    if line_offset and (first[line_offset] & 0xC0) == 0x80:
+        raise ToolInputError("line_offset must start a UTF-8 character")
+    window = [
+        first[line_offset:],
+        *(line.encode("utf-8") for line in lines[start_line : start_line - 1 + max_lines]),
+    ]
+    result: list[bytes] = []
     size = 0
-    partial_line = False
-    for line in window:
-        encoded = line.encode("utf-8")
+    for encoded in window:
         remaining = MAX_VISIBLE_TEXT_BYTES - size
         if len(encoded) <= remaining:
-            result.append(line)
+            result.append(encoded)
             size += len(encoded)
             continue
-        if not result and remaining > 0:
-            result.append(encoded[:remaining].decode("utf-8", errors="ignore"))
-            partial_line = True
+        if not result:
+            # Cut on a UTF-8 boundary so the continuation offset starts a character.
+            cut = remaining
+            while cut > 0 and (encoded[cut] & 0xC0) == 0x80:
+                cut -= 1
+            consumed = line_offset + cut
+            return _LineWindow(
+                encoded[:cut].decode("utf-8"), start_line, True, start_line, consumed
+            )
         break
-    complete_lines = len(result) - (1 if partial_line else 0)
-    end_line = start_line + complete_lines - 1
-    if partial_line:
-        end_line = start_line
-    return "".join(result), end_line, partial_line
+    end_line = start_line + len(result) - 1
+    return _LineWindow(b"".join(result).decode("utf-8"), end_line, False, end_line + 1, 0)
 
 
 def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:
