@@ -37,6 +37,21 @@ func newGitKeyFixture(t *testing.T, keys GitKeySettings) handlerFixture {
 	)
 }
 
+func TestGitKeyRejectsUnsupportedMethods(t *testing.T) {
+	keys := &recordingGitKeys{}
+	fixture := newGitKeyFixture(t, keys)
+	for _, method := range []string{http.MethodPost, http.MethodPatch} {
+		request := authenticatedRequest(method, "/v1/settings/git-key", bytes.NewReader([]byte(`{"privateKey":"x"}`)))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusMethodNotAllowed ||
+			!strings.Contains(response.Body.String(), `"method_not_allowed"`) || keys.replaced != 0 {
+			t.Fatalf("%s Git key = %d: %s", method, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestGitKeyOversizedBodyIsRequestTooLarge(t *testing.T) {
 	keys := &recordingGitKeys{}
 	fixture := newGitKeyFixture(t, keys)
