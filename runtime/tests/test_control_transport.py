@@ -9,154 +9,13 @@ import pytest
 
 from contractor_runtime import control_client
 from contractor_runtime.control_client import (
-    MAX_CONTROL_HEADER_BYTES,
-    MAX_CONTROL_HEADERS,
     MAX_CONTROL_RESPONSE_BYTES,
     ControlClientError,
     ControlHTTPError,
     MTLSJSONTransport,
-    _read_response_body,
-    _read_response_head,
 )
 
 type FakeConnection = Callable[[], tuple[asyncio.StreamReader, Mock]]
-
-
-def response_reader(data: bytes) -> asyncio.StreamReader:
-    reader = asyncio.StreamReader()
-    reader.feed_data(data)
-    reader.feed_eof()
-    return reader
-
-
-@pytest.mark.parametrize("count", [MAX_CONTROL_HEADERS, MAX_CONTROL_HEADERS + 1])
-def test_response_header_count_limit(count: int) -> None:
-    async def scenario() -> None:
-        data = b"HTTP/1.1 200 OK\r\n"
-        data += b"".join(f"X-Header-{index}: value\r\n".encode() for index in range(count))
-        reader = response_reader(data + b"\r\n")
-        if count > MAX_CONTROL_HEADERS:
-            with pytest.raises(ControlClientError, match="too many"):
-                await _read_response_head(reader)
-        else:
-            status, headers = await _read_response_head(reader)
-            assert status == 200
-            assert len(headers) == count
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("extra_bytes", [0, 1])
-def test_response_header_byte_limit(extra_bytes: int) -> None:
-    async def scenario() -> None:
-        prefix = b"HTTP/1.1 200 OK\r\nX-Value: "
-        suffix = b"\r\n\r\n"
-        value = b"x" * (MAX_CONTROL_HEADER_BYTES - len(prefix) - len(suffix) + extra_bytes)
-        reader = response_reader(prefix + value + suffix)
-        if extra_bytes:
-            with pytest.raises(ControlClientError, match="oversized"):
-                await _read_response_head(reader)
-        else:
-            assert await _read_response_head(reader) == (200, {"x-value": value.decode()})
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize(
-    "data",
-    [
-        b"HTTP/1.1 +200 OK\r\n\r\n",
-        b"HTTP/1.1 0200 OK\r\n\r\n",
-        b"HTTP/1.1 2_00 OK\r\n\r\n",
-        b"HTTP/1.1 \xff OK\r\n\r\n",
-        b"HTTP/1.1 200 OK\n\n",
-        b"HTTP/1.1 200 OK\r\nContent-Length : 0\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\nBad Header: value\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\n\xff: value\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\nX-Value: private\x00token\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\ncontent-length: 0\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\nX-Value: " + b"x" * (64 * 1024) + b"\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\n",
-    ],
-)
-def test_invalid_response_headers_raise_control_error(data: bytes) -> None:
-    async def scenario() -> None:
-        with pytest.raises(ControlClientError):
-            await _read_response_head(response_reader(data))
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize(
-    ("headers", "body"),
-    [
-        ({"content-length": "2"}, b"{}"),
-        ({"transfer-encoding": "ChUnKeD"}, b"1;name=value\r\n{\r\n1\r\n}\r\n0\r\n\r\n"),
-        ({}, b"{}"),
-    ],
-)
-def test_supported_response_framing(headers: dict[str, str], body: bytes) -> None:
-    async def scenario() -> None:
-        assert await _read_response_body(response_reader(body), headers) == b"{}"
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize(
-    ("headers", "body"),
-    [
-        ({"content-length": "+2"}, b"{}"),
-        ({"content-length": "0_2"}, b"{}"),
-        ({"content-length": "-1"}, b"{}"),
-        ({"content-length": "\u00b2"}, b"{}"),
-        ({"content-length": "9" * 5000}, b"{}"),
-        ({"content-length": "3"}, b"{}"),
-        ({"transfer-encoding": ""}, b"{}"),
-        ({"transfer-encoding": "gzip"}, b"{}"),
-        ({"transfer-encoding": "chunked", "content-length": "2"}, b"2\r\n{}\r\n0\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"+2\r\n{}\r\n0\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"0x2\r\n{}\r\n0\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"0_2\r\n{}\r\n0\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"2\n{}\r\n0\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"0\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"3\r\n{}"),
-        ({"transfer-encoding": "chunked"}, b"2\r\n{}xx0\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"0\r\nX-Trailer: value\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"0\r\n" + b"x" * (64 * 1024) + b"\r\n\r\n"),
-        ({"transfer-encoding": "chunked"}, b"0\r\n"),
-        ({"transfer-encoding": "chunked"}, b"2;" + b"x" * (64 * 1024) + b"\r\n{}\r\n0\r\n\r\n"),
-    ],
-)
-def test_invalid_response_body_raises_control_error(headers: dict[str, str], body: bytes) -> None:
-    async def scenario() -> None:
-        with pytest.raises(ControlClientError):
-            await _read_response_body(response_reader(body), headers)
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("framing", ["content-length", "chunked", "close"])
-@pytest.mark.parametrize("extra_bytes", [0, 1])
-def test_response_size_limit(framing: str, extra_bytes: int) -> None:
-    async def scenario() -> None:
-        body = b"x" * (MAX_CONTROL_RESPONSE_BYTES + extra_bytes)
-        headers: dict[str, str] = {}
-        encoded = body
-        if framing == "content-length":
-            headers["content-length"] = str(len(body))
-        elif framing == "chunked":
-            headers["transfer-encoding"] = "chunked"
-            # Split the body to check the cumulative limit across chunks.
-            encoded = b"1\r\nx\r\n" + f"{len(body) - 1:x}\r\n".encode()
-            encoded += body[1:] + b"\r\n0\r\n\r\n"
-        reader = response_reader(encoded)
-        if extra_bytes:
-            with pytest.raises(ControlClientError, match="too large"):
-                await _read_response_body(reader, headers)
-        else:
-            assert await _read_response_body(reader, headers) == body
-
-    asyncio.run(scenario())
 
 
 @pytest.fixture
@@ -289,6 +148,34 @@ def test_request_timeout_covers_sending_and_receiving_together(
         writer.drain.side_effect = delayed_drain
         transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 0.05)
         with pytest.raises(TimeoutError):
+            await transport.post_json("/heartbeat", {})
+        writer.close.assert_called_once()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("response", "match"),
+    [
+        (b"HTTP/1.1 200 OK\r\nContent-Length: +2\r\n\r\n{}", "content length"),
+        (b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n-0\r\n\r\n", "chunk size"),
+        (
+            b"HTTP/1.1 200 OK\r\nContent-Length: "
+            + str(MAX_CONTROL_RESPONSE_BYTES + 1).encode()
+            + b"\r\n\r\n",
+            "Control Plane response is too large",
+        ),
+    ],
+)
+def test_malformed_response_raises_control_error(
+    response: bytes, match: str, connection: FakeConnection
+) -> None:
+    async def scenario() -> None:
+        reader, writer = connection()
+        reader.feed_data(response)
+        reader.feed_eof()
+        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
+        with pytest.raises(ControlClientError, match=match):
             await transport.post_json("/heartbeat", {})
         writer.close.assert_called_once()
 

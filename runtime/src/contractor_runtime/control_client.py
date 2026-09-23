@@ -6,15 +6,14 @@ import asyncio
 import json
 import logging
 import random
-import re
 import ssl
-import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import quote, urlsplit
 
+from contractor_runtime import _https
 from contractor_runtime.backoff import bounded_backoff
 from contractor_runtime.contracts import (
     AgentRegistrationResponse,
@@ -31,12 +30,8 @@ from contractor_runtime.state import ProcessState, RuntimeState
 logger = logging.getLogger(__name__)
 
 MAX_CONTROL_RESPONSE_BYTES = 1 << 20
-MAX_CONTROL_HEADERS = 64
-MAX_CONTROL_HEADER_BYTES = 64 * 1024
-MAX_CONTROL_LINE_BYTES = 8192
-CONNECTION_CLOSE_TIMEOUT_SECONDS = 0.5
-
-_HTTP_FIELD_NAME = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+MAX_CONTROL_HEADERS = _https.MAX_RESPONSE_HEADERS
+MAX_CONTROL_HEADER_BYTES = _https.MAX_RESPONSE_HEADER_BYTES
 
 
 class ControlTransport(Protocol):
@@ -70,10 +65,9 @@ class ControlTiming:
 class MTLSJSONTransport:
     """Minimal HTTPS/1.1 transport with a pre-request URI SAN role check.
 
-    A generic HTTP client verifies chain and hostname but does not expose a
-    portable hook between TLS completion and the first request byte. This
-    transport intentionally opens a fresh bounded connection per control call,
-    verifies the Control Plane role, and only then writes the HTTP request.
+    Each control call opens a fresh bounded connection through the shared
+    private exchange, which verifies the Control Plane role before the first
+    request byte is written.
     """
 
     def __init__(self, base_url: str, context: ssl.SSLContext, timeout_seconds: float) -> None:
@@ -98,48 +92,37 @@ class MTLSJSONTransport:
 
     async def post_json(self, path: str, payload: Mapping[str, Any]) -> bytes:
         request = self._encode_request(path, payload)
-        writer: asyncio.StreamWriter | None = None
         try:
-            # The timeout covers the entire exchange, including TLS setup.
-            async with asyncio.timeout(self._timeout):
-                reader, writer = await asyncio.open_connection(
-                    self._host,
-                    self._port,
-                    ssl=self._context,
-                    server_hostname=self._host,
-                    limit=MAX_CONTROL_HEADER_BYTES,
-                )
-                ssl_object = writer.get_extra_info("ssl_object")
-                if not isinstance(ssl_object, ssl.SSLObject | ssl.SSLSocket):
-                    raise ssl.SSLCertVerificationError("private connection has no TLS peer")
-                verify_control_plane_peer(ssl_object)
-                writer.write(request)
-                await writer.drain()
-                status, headers = await _read_response_head(reader)
-                response_body = await _read_response_body(reader, headers)
-        finally:
-            if writer is not None:
-                await _close_connection(writer, self._timeout)
-        if not 200 <= status < 300:
-            raise ControlHTTPError(status)
-        return response_body
+            response = await _https.exchange(
+                self._host,
+                self._port,
+                self._context,
+                request,
+                timeout_seconds=self._timeout,
+                max_response_bytes=MAX_CONTROL_RESPONSE_BYTES,
+                verify_peer=verify_control_plane_peer,
+            )
+        except _https.HTTPResponseTooLargeError:
+            raise ControlClientError("Control Plane response is too large") from None
+        except _https.HTTPResponseError as error:
+            raise ControlClientError(str(error)) from None
+        if not 200 <= response.status_code < 300:
+            raise ControlHTTPError(response.status_code)
+        return response.body
 
     def _encode_request(self, path: str, payload: Mapping[str, Any]) -> bytes:
         if not path.startswith("/") or "?" in path or "#" in path or not _is_visible_ascii(path):
             raise ValueError("private control path must be an absolute ASCII path without query")
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        target = self._base_path + path
-        host_name = f"[{self._host}]" if ":" in self._host else self._host
-        host = host_name if self._port == 443 else f"{host_name}:{self._port}"
-        return (
-            f"POST {target} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            "Content-Type: application/json\r\n"
-            f"Content-Length: {len(body)}\r\n"
-            "Accept: application/json\r\n"
-            f"X-Request-ID: request_{uuid.uuid4().hex}\r\n"
-            "Connection: close\r\n\r\n"
-        ).encode("ascii") + body
+        headers = {
+            "Host": _https.host_header(self._host, self._port),
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+            "Accept": "application/json",
+            "X-Request-ID": _https.new_request_id(),
+            "Connection": "close",
+        }
+        return _https.encode_request("POST", self._base_path + path, headers, body)
 
 
 class ControlClient:
@@ -368,124 +351,3 @@ def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:
 
 def _is_visible_ascii(value: str) -> bool:
     return all(" " < character < "\x7f" for character in value)
-
-
-async def _close_connection(writer: asyncio.StreamWriter, timeout_seconds: float) -> None:
-    writer.close()
-    current_task = asyncio.current_task()
-    if current_task is not None and current_task.cancelling():
-        writer.transport.abort()
-        return
-    try:
-        await asyncio.wait_for(
-            writer.wait_closed(), timeout=min(CONNECTION_CLOSE_TIMEOUT_SECONDS, timeout_seconds)
-        )
-    except asyncio.CancelledError:
-        writer.transport.abort()
-        raise
-    except Exception:
-        writer.transport.abort()
-
-
-async def _read_http_line(reader: asyncio.StreamReader, *, limit: int, error: str) -> bytes:
-    try:
-        line = await reader.readline()
-    except ValueError:
-        # StreamReader raises ValueError when its own line limit is exceeded.
-        raise ControlClientError(error) from None
-    if len(line) > limit or not line.endswith(b"\r\n"):
-        raise ControlClientError(error)
-    return line
-
-
-async def _read_exactly(reader: asyncio.StreamReader, length: int) -> bytes:
-    try:
-        return await reader.readexactly(length)
-    except asyncio.IncompleteReadError:
-        raise ControlClientError("incomplete HTTP response body") from None
-
-
-async def _read_response_head(reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:
-    status_line = await _read_http_line(
-        reader, limit=MAX_CONTROL_LINE_BYTES, error="invalid HTTP status line"
-    )
-    parts = status_line[:-2].split(b" ", 2)
-    if len(parts) != 3 or parts[0] not in {b"HTTP/1.0", b"HTTP/1.1"}:
-        raise ControlClientError("invalid HTTP status line")
-    if len(parts[1]) != 3 or not parts[1].isdigit():
-        raise ControlClientError("invalid HTTP status code")
-    status = int(parts[1])
-    if not 100 <= status <= 599:
-        raise ControlClientError("invalid HTTP status code")
-    headers: dict[str, str] = {}
-    total = len(status_line)
-    while True:
-        line = await _read_http_line(
-            reader,
-            limit=MAX_CONTROL_HEADER_BYTES - total,
-            error="invalid or oversized HTTP response headers",
-        )
-        total += len(line)
-        if line == b"\r\n":
-            return status, headers
-        if len(headers) >= MAX_CONTROL_HEADERS:
-            raise ControlClientError("too many HTTP response headers")
-        name, separator, value = line[:-2].partition(b":")
-        if not separator or not _HTTP_FIELD_NAME.fullmatch(name):
-            raise ControlClientError("invalid HTTP response header")
-        key = name.decode("ascii").lower()
-        if key in headers:
-            raise ControlClientError("invalid or duplicate HTTP response header")
-        if any((byte < 32 and byte != 9) or byte == 127 for byte in value):
-            raise ControlClientError("invalid HTTP response header value")
-        headers[key] = value.decode("latin-1").strip(" \t")
-
-
-async def _read_response_body(reader: asyncio.StreamReader, headers: Mapping[str, str]) -> bytes:
-    if "transfer-encoding" in headers:
-        if "content-length" in headers:
-            raise ControlClientError("ambiguous HTTP response framing")
-        transfer_encoding = headers["transfer-encoding"].lower()
-        if transfer_encoding != "chunked":
-            raise ControlClientError("unsupported HTTP transfer encoding")
-        return await _read_chunked_body(reader)
-    if "content-length" in headers:
-        raw_length = headers["content-length"]
-        if not raw_length.isascii() or not raw_length.isdecimal():
-            raise ControlClientError("invalid HTTP content length")
-        try:
-            length = int(raw_length)
-        except ValueError:
-            raise ControlClientError("invalid HTTP content length") from None
-        if length > MAX_CONTROL_RESPONSE_BYTES:
-            raise ControlClientError("Control Plane response is too large")
-        return await _read_exactly(reader, length)
-    result = bytearray()
-    while True:
-        chunk = await reader.read(min(64 * 1024, MAX_CONTROL_RESPONSE_BYTES + 1 - len(result)))
-        if not chunk:
-            return bytes(result)
-        result.extend(chunk)
-        if len(result) > MAX_CONTROL_RESPONSE_BYTES:
-            raise ControlClientError("Control Plane response is too large")
-
-
-async def _read_chunked_body(reader: asyncio.StreamReader) -> bytes:
-    result = bytearray()
-    while True:
-        size_line = await _read_http_line(
-            reader, limit=MAX_CONTROL_LINE_BYTES, error="invalid chunk size"
-        )
-        raw_size = size_line[:-2].partition(b";")[0].rstrip(b" \t")
-        if not re.fullmatch(rb"[0-9a-fA-F]+", raw_size):
-            raise ControlClientError("invalid chunk size")
-        size = int(raw_size, 16)
-        if len(result) + size > MAX_CONTROL_RESPONSE_BYTES:
-            raise ControlClientError("Control Plane response is too large")
-        if size == 0:
-            if await _read_exactly(reader, 2) != b"\r\n":
-                raise ControlClientError("chunked trailers are not supported")
-            return bytes(result)
-        result.extend(await _read_exactly(reader, size))
-        if await _read_exactly(reader, 2) != b"\r\n":
-            raise ControlClientError("invalid chunk delimiter")
