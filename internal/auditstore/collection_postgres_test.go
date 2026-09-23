@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -54,6 +55,135 @@ func TestPostgresCollectionReportsEvidenceBudgetExhaustion(t *testing.T) {
 	if err != nil || audit.RetainedEvidenceBytes != 0 {
 		t.Fatalf("budget receipt charged evidence = (%+v, %v)", audit, err)
 	}
+}
+
+func TestPostgresCollectionExpiresStaleFindingTriageRequests(t *testing.T) {
+	f := newCollectingAuditFixture(t, "triage", 1<<20)
+	proposal := testExact("audit-findings", "candidate-triage", "proposal-r1")
+	proposal.MediaType = "application/json"
+	proposal.SizeBytes = 128
+	findingID := insertAuditChildFinding(t, f, "receipt-triage", proposal)
+	if _, err := f.pool.Exec(f.ctx, `
+INSERT INTO audit_review_requests (
+    request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+    subject_revision, subject_digest, requested_actions, idempotency_key, request_digest
+) VALUES ('review-triage', $1, $2, 'finding', $2, 'finding-triage', 1, $3,
+          '["true_positive","false_positive"]'::jsonb, 'review-triage', $3)`,
+		f.audit.AuditID, findingID, testDigest("8")); err != nil {
+		t.Fatal(err)
+	}
+	result := testExact("audit-triage", "result", "result-r1")
+	if _, inserted, err := f.store.Collect(f.ctx, CollectParams{
+		Claim: f.claim, ReceiptID: "receipt-collection-triage", ExecutionID: f.execution.ExecutionID,
+		Disposition: CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
+		Retained: []ArtifactLink{{
+			LogicalKey: "result/" + f.memberID, Artifact: result,
+			SourceProvenance: json.RawMessage(`{"runId":"run-triage"}`),
+		}},
+		Items: []CollectionItem{{
+			ExecutionItemID: f.memberID, Disposition: CollectionAccepted,
+			FinalDisposition: FinalAccepted, Result: &result,
+			Coverage: Coverage{Status: CoverageSatisfied, Requested: []string{}, Completed: []string{}, Gaps: []string{}},
+			FindingAssociations: []FindingAssociation{{
+				AssessmentID: "assessment-triage", ReceiptID: "receipt-triage",
+				Proposal: proposal, SemanticAssessment: "supported",
+			}},
+		}},
+	}); err != nil || !inserted {
+		t.Fatalf("accepted collection = (%t, %v)", inserted, err)
+	}
+	var requestState string
+	var requestRevision, findingRevision int
+	if err := f.pool.QueryRow(f.ctx, `
+SELECT request.state, request.revision, finding.revision
+  FROM audit_review_requests AS request
+  JOIN audit_findings AS finding USING (finding_id)
+ WHERE request.request_id = 'review-triage'`).Scan(
+		&requestState, &requestRevision, &findingRevision,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if requestState != "expired" || requestRevision != 2 || findingRevision != 2 {
+		t.Fatalf("stale triage request = %s revision %d, finding revision %d",
+			requestState, requestRevision, findingRevision)
+	}
+	audit, err := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
+	if err != nil || audit.Revision != audit.EventSequence {
+		t.Fatalf("Audit revision/event sequence = (%+v, %v)", audit, err)
+	}
+	events, err := f.store.ListEvents(f.ctx, f.audit.AuditID, 0, MaxPageSize)
+	if err != nil || len(events) < 2 {
+		t.Fatalf("Audit events = (%+v, %v)", events, err)
+	}
+	for index, event := range events {
+		if event.Sequence != uint64(index+1) {
+			t.Fatalf("Audit event %d has sequence %d", index, event.Sequence)
+		}
+	}
+	collected, expired := events[len(events)-2], events[len(events)-1]
+	if collected.Kind != "execution.collected" || expired.Kind != "review.expired" ||
+		expired.EntityID != "review-triage" ||
+		!strings.Contains(string(expired.Summary), `"findingId": "`+findingID+`"`) {
+		t.Fatalf("collection events = %+v, %+v (%s)", collected, expired, expired.Summary)
+	}
+}
+
+// insertAuditChildFinding records a proposal receipt from the fixture's child
+// Run and its Audit hold, which admits the finding the collection assesses.
+func insertAuditChildFinding(
+	t *testing.T, f collectingAuditFixture, receiptID string, proposal ExactArtifact,
+) string {
+	t.Helper()
+	proposalJSON, err := json.Marshal(proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposalRefJSON, err := json.Marshal(proposal.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `
+INSERT INTO finding_proposal_receipts (
+    receipt_id, proposal_id, allocation_id, runtime_agent_id,
+    runtime_instance_id, stage_execution_id, logical_agent_name,
+    invocation_id, submission_id, client_key, request_digest,
+    run_id, owner_id, project_id, audit_execution_id, audit_id, audit_role,
+    workflow_name, workflow_version, workflow_schema_version,
+    workflow_configuration_ref, workflow_closure_digest,
+    proposal_ref, proposal_digest, proposal_media_type,
+    proposal_size_bytes, evidence
+) VALUES (
+    $1, $1 || '-proposal', $1 || '-allocation', 'runtime-agent', 'runtime-instance',
+    'stage-execution', 'worker', 'invocation', $1 || '-submission', 'candidate', $2,
+    $3, $4, $5, $6, $7, 'check',
+    'audit-check', '1', 'contractor/v1alpha1',
+    '{"name":"audit-check","version":"1"}'::jsonb, $8,
+    $9::jsonb, $10, 'application/json', $11, '[]'::jsonb
+)`,
+		receiptID, testDigest("d"), *f.execution.RunID, f.audit.OwnerID, f.project.ProjectID,
+		f.execution.ExecutionID, f.audit.AuditID, testDigest("e"),
+		proposalRefJSON, proposal.Digest, proposal.SizeBytes,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `
+INSERT INTO finding_proposal_retention (receipt_id) VALUES ($1)`, receiptID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `
+INSERT INTO finding_proposal_audit_holds (
+    receipt_id, audit_id, project_id, proposal_ref, evidence
+) VALUES ($1, $2, $3, $4::jsonb, '[]'::jsonb)`,
+		receiptID, f.audit.AuditID, f.project.ProjectID, proposalJSON); err != nil {
+		t.Fatal(err)
+	}
+	var findingID string
+	if err := f.pool.QueryRow(f.ctx, `
+SELECT finding_id FROM audit_findings WHERE audit_id = $1 AND first_receipt_id = $2`,
+		f.audit.AuditID, receiptID).Scan(&findingID); err != nil {
+		t.Fatal(err)
+	}
+	return findingID
 }
 
 type collectingAuditFixture struct {

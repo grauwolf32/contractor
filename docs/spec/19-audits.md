@@ -1311,6 +1311,10 @@ finding review endpoint; a completed request is never reopened or overwritten.
 Corrections never rewrite the proposal, check result, earlier assessment or
 decision. A new assessment cannot
 silently carry forward an earlier confirmation: it requires renewed triage.
+Collecting a check result that assesses a finding advances its revision and
+expires, in the same transaction, every pending finding-triage request for the
+earlier revision, recording one `review.expired` event per request; such a
+request could otherwise never be decided.
 
 Review remains possible after Audit execution completes until deletion begins;
 it does not restart execution. Finding and Audit revisions advance on visible
