@@ -237,6 +237,77 @@ describe("Runs Queue view", () => {
     );
   });
 
+  it("drops the page cursor when a tab link changes the filters", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue/control") {
+          return queueControlResponse();
+        }
+        if (url.pathname !== "/v1/queue") {
+          throw new Error(`unexpected ${request.method} ${url.pathname}`);
+        }
+        requests.push(url);
+        if (url.searchParams.get("cursor") === "running-2") {
+          return apiResponse({
+            items: [queueItem("run-running-2")],
+            page: { hasMore: false },
+          });
+        }
+        if (url.searchParams.get("state") === "running") {
+          return apiResponse({
+            items: [queueItem("run-running-1")],
+            page: { hasMore: true, nextCursor: "running-2" },
+          });
+        }
+        return apiResponse({
+          items: [queueItem("run-any", "initializing")],
+          page: { hasMore: false },
+        });
+      }),
+    );
+    const { router } = renderQueueApplication(api, "/runs?state=running");
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("link", { name: "run-running-1" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByRole("link", { name: "run-running-2" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.search).toBe(
+      "?state=running&cursor=running-2",
+    );
+
+    const views = screen.getByRole("navigation", { name: "Run views" });
+    await user.click(within(views).getByRole("link", { name: "Queue" }));
+    expect(
+      await screen.findByRole("link", { name: "run-any" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.search).toBe("");
+    expect(requests.at(-1)?.searchParams.has("state")).toBe(false);
+    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(
+      screen.queryByRole("navigation", { name: "Queue pages" }),
+    ).toBeNull();
+
+    // History restores the filter together with the cursor issued for it.
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(
+      await screen.findByRole("link", { name: "run-running-2" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
+  });
+
   it("removes a terminal Run after its lifecycle event", async () => {
     let terminal = false;
     let queueReads = 0;

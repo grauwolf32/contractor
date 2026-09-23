@@ -613,6 +613,74 @@ describe("Run routes", () => {
     expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
   });
 
+  it("drops the completed page cursor when the tab link clears the filters", async () => {
+    const requests: URL[] = [];
+    const completedRun = (runId: string) => ({
+      runId,
+      workflow: "openapi-from-workspace@5",
+      state: "failed",
+      labels: {},
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedAt: "2026-08-31T12:01:00Z",
+      finishedAt: "2026-08-31T12:01:00Z",
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/runs") {
+          requests.push(url);
+          if (url.searchParams.get("cursor") === "failed-2") {
+            return apiResponse({
+              items: [completedRun("run-failed-2")],
+              page: { hasMore: false },
+            });
+          }
+          if (url.searchParams.get("state") === "failed") {
+            return apiResponse({
+              items: [completedRun("run-failed-1")],
+              page: { hasMore: true, nextCursor: "failed-2" },
+            });
+          }
+          return apiResponse({
+            items: [{ ...completedRun("run-any"), state: "succeeded" }],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    const { router } = renderRunApplication(
+      api,
+      "/runs?view=completed&state=failed",
+    );
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("link", { name: "run-failed-1" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByRole("link", { name: "run-failed-2" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.search).toBe(
+      "?view=completed&state=failed&cursor=failed-2",
+    );
+
+    const views = screen.getByRole("navigation", { name: "Run views" });
+    await user.click(within(views).getByRole("link", { name: "Completed" }));
+    expect(
+      await screen.findByRole("link", { name: "run-any" }),
+    ).toBeInTheDocument();
+    expect(requests.at(-1)?.searchParams.has("state")).toBe(false);
+    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(screen.queryByRole("navigation", { name: "Run pages" })).toBeNull();
+  });
+
   it("honors a deep-linked Run state filter", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(

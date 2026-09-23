@@ -140,9 +140,10 @@ export function QueuePanel() {
   const membership = QUEUE_MEMBERSHIPS.find(
     (candidate) => candidate === requestedMembership,
   ) as QueueMembership | undefined;
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
+  // Page cursors live in the URL next to the filters they were issued for,
+  // so any navigation that changes the filters (tab links, history) drops
+  // them together.
+  const cursors = searchParams.getAll("cursor");
   const cursor = cursors.at(-1);
   const query = useQuery({
     queryKey: queryKeys.queue.list(state, membership, cursor),
@@ -175,13 +176,20 @@ export function QueuePanel() {
 
   function replaceFilter(name: "state" | "membership", value: string): void {
     const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
     if (value === "") {
       next.delete(name);
     } else {
       next.set(name, value);
     }
     setSearchParams(next, { replace: true });
-    setCursors([undefined]);
+  }
+
+  function changePage(nextCursors: readonly string[]): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
+    for (const value of nextCursors) next.append("cursor", value);
+    setSearchParams(next, { preventScrollReset: true });
   }
 
   return (
@@ -355,17 +363,13 @@ export function QueuePanel() {
 
       <CursorControls
         label="Queue pages"
-        canGoBack={cursors.length > 1}
+        canGoBack={cursors.length > 0}
         {...(query.data?.page.hasMore === true &&
         query.data.page.nextCursor !== undefined
           ? { nextCursor: query.data.page.nextCursor }
           : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        onBack={() => changePage(cursors.slice(0, -1))}
+        onNext={(next) => changePage([...cursors, next])}
       />
     </div>
   );
