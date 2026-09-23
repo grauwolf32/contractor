@@ -173,11 +173,22 @@ WHERE owner_id=$1
 	if err != nil {
 		return Receipt{}, err
 	}
-	_, err = s.db.Exec(ctx, `
+	// The advisory lock does not refresh a REPEATABLE READ snapshot taken
+	// before it was granted. There, DO NOTHING turns a receipt committed after
+	// the snapshot into a serialization failure, which the caller retries into
+	// a replay, rather than a unique violation reported as a member conflict.
+	tag, err := s.db.Exec(ctx, `
 INSERT INTO eval_mutation_receipts(owner_id, project_id, resource_id, operation, operation_key, request_sha256, expected_revision, response)
 VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT DO NOTHING
 `, scope.OwnerID, scope.ProjectID, resource, operation, id.Key, id.RequestSHA256, id.ExpectedRevision, response)
-	return Receipt{Response: response}, normalize(err)
+	if err != nil {
+		return Receipt{}, normalize(err)
+	}
+	if tag.RowsAffected() != 1 {
+		return Receipt{}, evaldomain.Failure("eval_member_conflict")
+	}
+	return Receipt{Response: response}, nil
 }
 
 func (s *Store) Get(ctx context.Context, owner, id string) (Experiment, error) {
