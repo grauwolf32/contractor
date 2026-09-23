@@ -309,6 +309,45 @@ def test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details(
     assert "synthetic command output" not in rendered
 
 
+def test_negative_probe_results_are_logged_as_unavailable(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class NegativeRuntime(StubADKWorkerRuntimeFactory):
+        ref = "negative@1"
+
+        async def probe(self) -> bool:
+            return False
+
+    factories = FactoryRegistry(
+        worker_runtimes={
+            "adk@1": StubADKWorkerRuntimeFactory(),
+            "negative@1": NegativeRuntime(),
+        },
+        sandbox_profiles={"local-workdir@1": PassingSandbox()},
+        toolsets={"empty@1": EmptyToolset()},
+    )
+
+    async def scenario() -> None:
+        with caplog.at_level(logging.INFO, logger="contractor_runtime.capabilities"):
+            snapshot = await discover_capabilities(factories)
+        assert snapshot.runtimes == ("adk@1",)
+        assert snapshot.toolsets == ()
+
+    asyncio.run(scenario())
+    outcomes = {
+        (record.capabilityKind, record.capabilityRef): record.probeOutcome
+        for record in caplog.records
+        if hasattr(record, "probeOutcome")
+    }
+    assert outcomes == {
+        ("runtime", "adk@1"): "available",
+        ("runtime", "negative@1"): "unavailable",
+        ("sandbox", "local-workdir@1"): "available",
+        ("toolset", "empty@1"): "unavailable",
+    }
+
+
 def test_missing_core_capability_stops_registration_with_safe_error(tmp_path: Path) -> None:
     secret = "sandbox-probe-secret"
     factories = FactoryRegistry(

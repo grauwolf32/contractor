@@ -155,7 +155,11 @@ Before submitting the workflow, check the Runtime Agent in Operations (or
 `GET /v1/operations/runtime-agents`): it must be registered and available with
 `podman@1`, `code-execution@1` / `exec_command`, and local/direct workspace
 capacity. Startup logs report `Runtime Podman effective policy verified` only
-after cleanup. Enabled settings alone, a listening port, or `systemctl active`
+after cleanup, with the verified image digest and limits as structured
+`podman*` JSON fields. Each capability probe line carries `capabilityRef`,
+`capabilityKind`, `probeOutcome` (`available`, `unavailable`, `failed`,
+`timeout` or `total_timeout`) and `durationMs`; the JSON formatter emits only
+these reviewed extra fields. Enabled settings alone, a listening port, or `systemctl active`
 are not positive capabilities. Missing optional prerequisites omit the paired
 capabilities; unconfirmed recovery/cleanup prevents registration entirely.
 
