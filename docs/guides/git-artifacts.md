@@ -72,8 +72,8 @@ Symlinks, submodules, LFS pointers, unsafe paths and an empty file tree fail the
 whole import; for a symlink, submodule or LFS pointer, the
 `git_content_unsupported` message names the kind and path of the first one.
 Unlike `contractor source push`, which skips submodules of a local working tree,
-import never omits tracked content. Files retain their contents, use stable ordering/timestamps and
-ordinary 0644 permissions. Private HTTPS tokens, arbitrary commit-ID fetches,
+import never omits tracked content. Files retain their contents, use stable
+ordering/timestamps and ordinary 0644 permissions. Private HTTPS tokens, arbitrary commit-ID fetches,
 sparse checkout, history browsing, automatic refresh and Git writes are deferred.
 
 Creation uses `If-None-Match: *`; replacement requires explicit consent and an
