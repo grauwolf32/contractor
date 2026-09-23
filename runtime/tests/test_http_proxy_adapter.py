@@ -20,7 +20,10 @@ from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
 from contractor_runtime.adapters import AdapterHandles
-from contractor_runtime.adapters.host import RuntimeAdapterBuildContext
+from contractor_runtime.adapters.host import (
+    RuntimeAdapterBuildContext,
+    RuntimeAdapterMetricsState,
+)
 from contractor_runtime.adapters.http_proxy import (
     HTTPProxyAdapter,
     HTTPProxyAdapterFactory,
@@ -29,6 +32,7 @@ from contractor_runtime.adapters.http_proxy import (
     ProxySubprocessError,
     ProxySubprocessLauncher,
     ProxyTargetDenied,
+    _ObservedProxyTransport,
 )
 from contractor_runtime.contracts import HTTPProxySettings
 from contractor_runtime.factories import FactoryRegistry
@@ -280,6 +284,51 @@ def test_proxy_handle_preserves_target_http_errors_as_responses() -> None:
             assert response.text == "target unavailable"
             assert adapter.metrics.operations == 1
             assert adapter.metrics.failed_operations == 0
+            await adapter.close()
+
+    asyncio.run(scenario())
+
+
+def test_only_a_plain_http_407_is_attributed_to_the_proxy() -> None:
+    class Always407(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            return httpx.Response(407, content=b"target says 407", request=request)
+
+    async def scenario() -> None:
+        metrics = RuntimeAdapterMetricsState()
+        client = httpx.AsyncClient(transport=_ObservedProxyTransport(Always407(), metrics))
+        handle = ProxyHTTPClient(client, metrics=metrics)
+        # Over HTTPS a proxy 407 fails CONNECT inside httpcore, so a 407
+        # response came through the tunnel from the target.
+        target = await handle.stream_request(
+            "GET", "https://public.example/", target_policy=TargetPolicy()
+        )
+        assert target.status_code == 407
+        await target.aclose()
+        assert (metrics.operations, metrics.failed_operations) == (1, 0)
+        # A forwarded plain-HTTP request cannot tell the two apart; fail closed.
+        with pytest.raises(ProxyRequestError):
+            await handle.request("GET", "http://public.example/", target_policy=TargetPolicy())
+        assert (metrics.operations, metrics.failed_operations) == (2, 1)
+        await client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_https_connect_rejected_by_the_proxy_is_a_route_failure() -> None:
+    async def scenario() -> None:
+        async with fake_proxy(auth_failure_response) as proxy:
+            adapter = HTTPProxyAdapter(
+                adapter_context(), proxy_settings(proxy.url, targets=["tool-http"])
+            )
+            handle = adapter.handles.tool_http
+            assert isinstance(handle, ProxyHTTPClient)
+            with pytest.raises(ProxyRequestError):
+                await handle.request(
+                    "GET", "https://public.example/tunnel", target_policy=TargetPolicy()
+                )
+            assert proxy.requests[0].target == "public.example:443"
+            assert adapter.metrics.failed_operations == 1
             await adapter.close()
 
     asyncio.run(scenario())

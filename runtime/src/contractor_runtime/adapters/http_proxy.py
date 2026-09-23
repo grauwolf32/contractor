@@ -93,10 +93,8 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise ProxyRequestError from None
         # A target 4xx/5xx is application data for model-facing HTTP tools.
-        # 407 is the only response status that unambiguously belongs to the
-        # configured forward-proxy hop; tunnel/routing failures surface as
-        # transport exceptions above.
-        if response.status_code == 407:
+        # Tunnel/routing failures surface as transport exceptions above.
+        if _proxy_rejected(request, response):
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             await response.aclose()
             raise ProxyRequestError from None
@@ -154,7 +152,7 @@ class ProxyHTTPClient:
         self._require_permitted(url, target_policy)
         try:
             response = await self.async_client.request(method, url, **kwargs)
-            if response.status_code == 407:
+            if _proxy_rejected(response.request, response):
                 await response.aclose()
                 raise ProxyRequestError
             return response
@@ -188,7 +186,7 @@ class ProxyHTTPClient:
             request_observer(request)
         try:
             response = await client.send(request, stream=True, follow_redirects=False)
-            if response.status_code == 407:
+            if _proxy_rejected(request, response):
                 await response.aclose()
                 raise ProxyRequestError
             return response
@@ -590,6 +588,17 @@ class HTTPProxyAdapter:
 
     def __repr__(self) -> str:
         return f"HTTPProxyAdapter(ref={self.ref!r}, closed={self._closed!r})"
+
+
+def _proxy_rejected(request: httpx.Request, response: httpx.Response) -> bool:
+    """Whether a response is the forward proxy refusing the request.
+
+    A plain-HTTP request is forwarded, so its 407 may come from the proxy and
+    fails closed. An HTTPS request tunnels through CONNECT, where httpcore
+    raises for any non-2xx proxy answer; a 407 response is the target's.
+    """
+
+    return response.status_code == 407 and request.url.scheme == "http"
 
 
 def _httpx_proxy(

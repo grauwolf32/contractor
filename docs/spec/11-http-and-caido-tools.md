@@ -211,7 +211,10 @@ itself, ends retrying: the last response is returned as data, or the transport
 failure as `http_request_failed`.
 The target's 4xx/5xx response is a valid response record, not an adapter
 failure. This requires the proxy handle to expose response status rather than
-collapsing it into transport failure.
+collapsing it into transport failure. Only a `407` answering a forwarded
+plain-HTTP request is treated as the proxy refusing the route, because it may
+come from either hop. For HTTPS the proxy's refusal fails the `CONNECT` tunnel
+before any request is sent, so a `407` response is the target's own record.
 
 The response record contains request ID/tag, method, final URL, status,
 content type/length, safe response headers, body kind, at most 8192 characters
