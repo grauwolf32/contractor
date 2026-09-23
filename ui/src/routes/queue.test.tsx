@@ -443,6 +443,163 @@ describe("Runs Queue view", () => {
     expect(QueueWebSocket.instances).toHaveLength(1);
   });
 
+  it("retries live subscriptions later when the resync read fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let failReads = false;
+      let queueReads = 0;
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const url = new URL(request.url);
+          if (url.pathname === "/v1/auth/session") {
+            return apiResponse(session);
+          }
+          if (url.pathname === "/v1/queue/control") {
+            return queueControlResponse();
+          }
+          if (url.pathname === "/v1/queue") {
+            queueReads += 1;
+            if (failReads) {
+              failReads = false;
+              return new Response(
+                JSON.stringify({
+                  code: "unavailable",
+                  message: "Queue unavailable",
+                  retryable: true,
+                }),
+                {
+                  status: 503,
+                  headers: {
+                    "content-type": "application/json",
+                    "X-Contractor-API-Version": "contractor.public.v1",
+                  },
+                },
+              );
+            }
+            return apiResponse({
+              items: [queueItem("run-live")],
+              page: { hasMore: false },
+            });
+          }
+          throw new Error(`unexpected ${request.method} ${url.pathname}`);
+        }),
+      );
+      renderQueueApplication(api);
+
+      expect(
+        await screen.findByRole("link", { name: "run-live" }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
+      const socket = QueueWebSocket.instances[0]!;
+      act(() => socket.open());
+      const subscription = JSON.parse(socket.sent[0] ?? "{}");
+      act(() =>
+        socket.message({
+          version: "contractor.events.v1",
+          type: "subscribed",
+          subscriptionId: subscription.subscriptionId,
+          stream: subscription.stream,
+          cursor: subscription.after,
+        }),
+      );
+      failReads = true;
+      const readsBeforeResync = queueReads;
+      act(() =>
+        socket.message({
+          version: "contractor.events.v1",
+          type: "resync_required",
+          subscriptionId: subscription.subscriptionId,
+          stream: subscription.stream,
+          reason: "sequence_gap",
+        }),
+      );
+      await waitFor(() => expect(queueReads).toBe(readsBeforeResync + 1));
+      const subscribes = () =>
+        socket.sent
+          .map((frame) => JSON.parse(frame))
+          .filter((frame) => frame.type === "subscribe");
+      expect(subscribes()).toHaveLength(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      await waitFor(() => expect(subscribes()).toHaveLength(2));
+      expect(subscribes().at(-1)).toMatchObject({
+        stream: { kind: "run", id: "run-live" },
+        after: { generation: "events-run-live", sequence: "1" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resubscribes after the Server refuses the live session", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const url = new URL(request.url);
+          if (url.pathname === "/v1/auth/session") {
+            return apiResponse(session);
+          }
+          if (url.pathname === "/v1/queue/control") {
+            return queueControlResponse();
+          }
+          if (url.pathname === "/v1/queue") {
+            return apiResponse({
+              items: [queueItem("run-live")],
+              page: { hasMore: false },
+            });
+          }
+          throw new Error(`unexpected ${request.method} ${url.pathname}`);
+        }),
+      );
+      renderQueueApplication(api);
+
+      expect(
+        await screen.findByRole("link", { name: "run-live" }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(1));
+      const socket = QueueWebSocket.instances[0]!;
+      act(() => socket.open());
+      const subscription = JSON.parse(socket.sent[0] ?? "{}");
+      act(() =>
+        socket.message({
+          version: "contractor.events.v1",
+          type: "subscribed",
+          subscriptionId: subscription.subscriptionId,
+          stream: subscription.stream,
+          cursor: subscription.after,
+        }),
+      );
+      // The Server's session check closes the socket with 1008; the manager
+      // does not reconnect or request a resync on its own.
+      act(() => socket.close(1008));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(QueueWebSocket.instances).toHaveLength(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      await waitFor(() => expect(QueueWebSocket.instances).toHaveLength(2));
+      const replacement = QueueWebSocket.instances[1]!;
+      act(() => replacement.open());
+      expect(JSON.parse(replacement.sent[0] ?? "{}")).toMatchObject({
+        type: "subscribe",
+        stream: { kind: "run", id: "run-live" },
+        after: { generation: "events-run-live", sequence: "1" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("opens Queue deep links with active filters", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(
