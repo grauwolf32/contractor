@@ -40,6 +40,11 @@ import { RefreshButton } from "../../../app/refresh-button";
 import { ProjectSectionActions } from "../navigation";
 
 const INITIAL_CURSOR = null;
+// The Project Artifact API filters by exact namespace only, not by media
+// type, so the form pages through the inventory itself. It loads at most this
+// many pages on its own and offers the rest on request instead of
+// downloading a large Project's whole inventory every time it opens.
+const ARTIFACT_AUTOLOAD_PAGES = 4;
 
 function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
   return page.page.hasMore ? (page.page.nextCursor ?? undefined) : undefined;
@@ -120,15 +125,22 @@ function AuditCreateForm({
     isFetching: isFetchingArtifacts,
     isError: artifactLoadFailed,
   } = artifacts;
+  const loadedArtifactPages = artifacts.data?.pages.length ?? 0;
+  const autoloadingArtifacts =
+    hasNextArtifactPage &&
+    !artifactLoadFailed &&
+    loadedArtifactPages < ARTIFACT_AUTOLOAD_PAGES;
+  // The page count is a dependency too: a fast page can finish before its
+  // fetching state is ever rendered, which alone would not re-run the effect.
   useEffect(() => {
-    if (hasNextArtifactPage && !isFetchingArtifacts && !artifactLoadFailed) {
+    if (autoloadingArtifacts && !isFetchingArtifacts) {
       void fetchNextArtifactPage();
     }
   }, [
-    artifactLoadFailed,
+    autoloadingArtifacts,
     fetchNextArtifactPage,
-    hasNextArtifactPage,
     isFetchingArtifacts,
+    loadedArtifactPages,
   ]);
   const profileItems = useMemo(() => {
     const families = new Map<string, AuditProfile[]>();
@@ -369,10 +381,25 @@ function AuditCreateForm({
             <fieldset className="audit-input-fields">
               <legend>Project inputs</legend>
               {artifacts.isPending ||
-              (artifacts.hasNextPage && !artifacts.isError) ? (
+              autoloadingArtifacts ||
+              artifacts.isFetchingNextPage ? (
                 <p className="loading-copy" role="status">
                   Loading Project Artifacts…
                 </p>
+              ) : artifacts.hasNextPage && !artifacts.isError ? (
+                <div className="notice">
+                  <p>
+                    Showing the first {artifactItems.length} Project Artifacts.
+                    Load more to choose from the rest.
+                  </p>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => void artifacts.fetchNextPage()}
+                  >
+                    Load more Project Artifacts
+                  </button>
+                </div>
               ) : null}
               {artifacts.error === null ? null : (
                 <>
