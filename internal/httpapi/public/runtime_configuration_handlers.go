@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -517,12 +518,11 @@ func runtimeLabelDeletePrecondition(r *http.Request) (uint64, error) {
 }
 
 func parseRuntimeRevisionETag(raw string) (uint64, error) {
-	value := strings.TrimSpace(raw)
-	if strings.HasPrefix(value, "W/") || strings.Contains(value, ",") {
+	revision, err := httpx.ParseStrongETag(raw)
+	switch {
+	case errors.Is(err, httpx.ErrWeakETag):
 		return 0, fmt.Errorf("%w: binding revision requires one strong ETag", errInvalidRequest)
-	}
-	revision, err := strconv.Unquote(value)
-	if err != nil || revision == "" {
+	case err != nil:
 		return 0, fmt.Errorf("%w: binding revision must be quoted", errInvalidRequest)
 	}
 	parsed, err := strconv.ParseUint(revision, 10, 64)

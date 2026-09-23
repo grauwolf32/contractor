@@ -6,15 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 const maxJSONRequestSize = 1 << 20
@@ -66,17 +65,11 @@ func decodeStrictPublicJSON(data []byte, target any) error {
 }
 
 func requestMediaType(r *http.Request) (string, error) {
-	values := r.Header.Values("Content-Type")
-	if len(values) != 1 {
-		return "", fmt.Errorf("%w: exactly one Content-Type is required", errInvalidRequest)
-	}
-	mediaType, parameters, err := mime.ParseMediaType(values[0])
-	if err != nil || len(parameters) != 0 || mediaType != strings.ToLower(mediaType) {
-		return "", fmt.Errorf("%w: Content-Type must be lowercase type/subtype without parameters", errInvalidRequest)
-	}
-	return mediaType, nil
+	return httpx.RequestMediaType(errInvalidRequest, r)
 }
 
+// readArtifactBody deliberately differs from the private adapter: it keeps
+// the read cause and does not special-case negative lengths.
 func readArtifactBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	if r.ContentLength > artifacts.MaxPayloadSize {
 		return nil, artifacts.ErrPayloadTooLarge
@@ -111,51 +104,24 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 	if len(ifMatch) != 1 {
 		return nil, fmt.Errorf("%w: exactly one If-Match value is allowed", errInvalidRequest)
 	}
-	value := strings.TrimSpace(ifMatch[0])
-	if strings.HasPrefix(value, "W/") || strings.Contains(value, ",") {
+	revision, err := httpx.ParseStrongETag(ifMatch[0])
+	switch {
+	case errors.Is(err, httpx.ErrWeakETag):
 		return nil, fmt.Errorf("%w: If-Match requires one strong revision ETag", errInvalidRequest)
-	}
-	revision, err := strconv.Unquote(value)
-	if err != nil || revision == "" {
+	case err != nil:
 		return nil, fmt.Errorf("%w: If-Match requires one quoted revision", errInvalidRequest)
 	}
 	return &revision, nil
 }
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {
-	return exactQueryWithRepeated(raw, "", 0, allowed...)
+	return httpx.ExactQuery(errInvalidRequest, raw, allowed...)
 }
 
 func exactQueryWithRepeated(
 	raw string, repeatedKey string, maximum int, allowed ...string,
 ) (url.Values, error) {
-	values, err := url.ParseQuery(raw)
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid query string", errInvalidRequest)
-	}
-	accepted := make(map[string]struct{}, len(allowed))
-	for _, key := range allowed {
-		accepted[key] = struct{}{}
-	}
-	for key, entries := range values {
-		if repeatedKey != "" && key == repeatedKey {
-			if len(entries) == 0 || len(entries) > maximum {
-				return nil, fmt.Errorf("%w: repeated query parameter exceeds its bound", errInvalidRequest)
-			}
-			continue
-		}
-		if _, ok := accepted[key]; !ok || len(entries) != 1 {
-			return nil, fmt.Errorf("%w: unsupported or repeated query parameter", errInvalidRequest)
-		}
-	}
-	return values, nil
-}
-
-func quotedETag(revision *string) string {
-	if revision == nil {
-		return ""
-	}
-	return strconv.Quote(*revision)
+	return httpx.ExactQueryWithRepeated(errInvalidRequest, raw, repeatedKey, maximum, allowed...)
 }
 
 func validatePublicArtifactName(value string) error {

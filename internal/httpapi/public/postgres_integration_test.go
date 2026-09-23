@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -162,7 +163,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	}
 	update := authenticatedRequest(http.MethodPut, "/v1/artifacts/projects/source", bytes.NewReader([]byte("new user revision")))
 	update.Header.Set("Content-Type", "text/plain")
-	update.Header.Set("If-Match", quotedETag(current.Ref.Revision))
+	update.Header.Set("If-Match", httpx.QuotedETag(current.Ref.Revision))
 	updateResponse := httptest.NewRecorder()
 	handler.ServeHTTP(updateResponse, update)
 	if updateResponse.Code != http.StatusOK {
@@ -221,7 +222,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	downloadResponse := httptest.NewRecorder()
 	handler.ServeHTTP(downloadResponse, download)
 	if downloadResponse.Code != http.StatusOK || downloadResponse.Body.String() != "final bytes" ||
-		downloadResponse.Header().Get("ETag") != quotedETag(outputRef.Revision) ||
+		downloadResponse.Header().Get("ETag") != httpx.QuotedETag(outputRef.Revision) ||
 		downloadResponse.Header().Get("Content-Type") != "text/plain" {
 		t.Fatalf("download = status %d, headers %v, body %q", downloadResponse.Code, downloadResponse.Header(), downloadResponse.Body.String())
 	}

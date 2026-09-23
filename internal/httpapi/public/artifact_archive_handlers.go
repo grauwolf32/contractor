@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpreview"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 type artifactArchiveResponse struct {
@@ -131,13 +132,13 @@ func (h *handler) getArtifactArchive(w http.ResponseWriter, r *http.Request, res
 			h.handleArchiveError(w, err)
 			return
 		}
-		w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+		w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 		writeJSON(w, http.StatusOK, artifactArchiveFileResponse{
 			Artifact: result.Ref, Path: query.Get("path"), Size: len(text), Text: text,
 		})
 		return
 	}
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	writeJSON(w, http.StatusOK, artifactArchiveResponse{Artifact: result.Ref, Entries: archive.Entries})
 }
 

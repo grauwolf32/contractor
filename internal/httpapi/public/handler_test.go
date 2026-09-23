@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -1834,7 +1835,7 @@ func TestRunOutputDownloadRequiresOwnerAndReturnsExactMetadata(t *testing.T) {
 	request := authenticatedRequest(http.MethodGet, "/v1/runs/run-owned/outputs/result", bytes.NewReader(nil))
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK || response.Body.String() != "finished" || response.Header().Get("ETag") != quotedETag(bound.TargetRef.Revision) {
+	if response.Code != http.StatusOK || response.Body.String() != "finished" || response.Header().Get("ETag") != httpx.QuotedETag(bound.TargetRef.Revision) {
 		t.Fatalf("output = status %d, ETag %q, body %q", response.Code, response.Header().Get("ETag"), response.Body.String())
 	}
 

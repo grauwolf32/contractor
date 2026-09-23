@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
@@ -447,7 +448,7 @@ func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	w.Header().Set("Content-Disposition", "attachment")
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(result.Payload.Data)
@@ -506,7 +507,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	if expectedRevision != nil {
 		status = http.StatusOK
 	}
-	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
 	writeJSON(w, status, artifactWriteResponse{
 		Artifact:  result.Ref,
 		MediaType: result.MediaType,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 type GitImportService interface {
@@ -69,7 +70,7 @@ func (h *handler) importGitArtifact(w http.ResponseWriter, r *http.Request) {
 		if expected != nil {
 			status = http.StatusOK
 		}
-		w.Header().Set("ETag", quotedETag(result.Artifact.Revision))
+		w.Header().Set("ETag", httpx.QuotedETag(result.Artifact.Revision))
 		writeJSON(w, status, result)
 	})
 	if err != nil {
