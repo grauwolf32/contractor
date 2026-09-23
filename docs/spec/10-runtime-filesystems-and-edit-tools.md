@@ -267,8 +267,9 @@ ZIP hydration rejects the whole allocation for:
 - duplicate normalized paths and file/directory type conflicts;
 - symlink, hard-link, device, socket, FIFO or other special entries;
 - a target escape or overlap after prefixing;
-- declared/observed size mismatch, compression bomb, file/count/depth/expanded
-  byte bound, or deadline exhaustion.
+- declared/observed size mismatch, corrupt compressed data (a non-retryable
+  `workspace_source_invalid`, whichever codec reports it), compression bomb,
+  file/count/depth/expanded byte bound, or deadline exhaustion.
 
 `maxFiles` bounds the complete normalized managed tree: regular files,
 explicit directories and directories implied by nested member names all count.

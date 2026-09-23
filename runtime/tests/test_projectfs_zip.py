@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import stat
+import struct
 import unicodedata
 import zipfile
 from datetime import UTC, datetime
@@ -131,6 +132,28 @@ def test_zip_rejects_links_special_files_and_unicode_normalized_duplicates(
         tmp_path,
         archive({composed: b"one", decomposed: b"two"}),
     )
+
+
+@pytest.mark.parametrize(
+    ("compression", "intact_prefix"),
+    [(zipfile.ZIP_DEFLATED, 0), (zipfile.ZIP_BZIP2, 4), (zipfile.ZIP_LZMA, 9)],
+)
+def test_corrupt_compressed_member_is_an_invalid_source_not_a_retryable_failure(
+    tmp_path: Path, compression: int, intact_prefix: int
+) -> None:
+    # zlib.error, lzma.LZMAError and bz2's OSError all describe the archive,
+    # never local capacity: the source is invalid and must not be retried.
+    info = zipfile.ZipInfo("src/data.txt")
+    info.compress_type = compression
+    info.external_attr = (stat.S_IFREG | 0o644) << 16
+    payload = bytearray(archive_infos([(info, b"".join(b"line %d\n" % i for i in range(512)))]))
+    with zipfile.ZipFile(io.BytesIO(bytes(payload))) as bundle:
+        stored = bundle.infolist()[0]
+    name_length, extra_length = struct.unpack_from("<HH", payload, stored.header_offset + 26)
+    start = stored.header_offset + 30 + name_length + extra_length + intact_prefix
+    end = stored.header_offset + 30 + name_length + extra_length + stored.compress_size
+    payload[start:end] = b"\xa5" * (end - start)
+    assert_invalid_and_clean(tmp_path, bytes(payload), "workspace_source_invalid")
 
 
 def test_zip_limits_are_exact_and_compression_bombs_fail_closed(tmp_path: Path) -> None:

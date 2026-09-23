@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import codecs
 import io
+import lzma
 import stat
 import time
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -38,6 +40,16 @@ WORKSPACE_SOURCE_MEDIA_TYPE = "application/zip"
 _CHUNK_BYTES = 64 * 1024
 _MAX_COMPRESSION_RATIO = 1000
 _RATIO_FLOOR_BYTES = 1 << 20
+# Decompressing a corrupt member: zlib/lzma raise their own errors, bz2 an
+# OSError, zipfile BadZipFile (CRC) or EOFError (truncated stream).
+_CORRUPT_MEMBER_ERRORS = (
+    zlib.error,
+    lzma.LZMAError,
+    OSError,
+    EOFError,
+    zipfile.BadZipFile,
+    NotImplementedError,
+)
 
 
 class ArtifactReader(Protocol):
@@ -372,7 +384,12 @@ def _extract_file(
         with archive.open(info, mode="r") as source:
             while True:
                 _check_deadline(deadline)
-                chunk = source.read(_CHUNK_BYTES)
+                try:
+                    chunk = source.read(_CHUNK_BYTES)
+                except _CORRUPT_MEMBER_ERRORS:
+                    # The payload is in memory: a read failure is corrupt input
+                    # (bz2 reports it as OSError), never local capacity.
+                    raise _invalid_source() from None
                 if not chunk:
                     break
                 observed += len(chunk)
