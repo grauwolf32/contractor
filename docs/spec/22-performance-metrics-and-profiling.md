@@ -419,7 +419,10 @@ attempt details through the same safe projection, without creating another store
 mutex collection. Enabling it exposes a dedicated explicit HTTP mux on the
 configured numeric loopback address only. Reject wildcard/non-loopback addresses
 and invalid ports; an explicitly enabled listener that cannot bind fails startup
-cleanly. Stop it through the same bounded Server shutdown lifecycle.
+cleanly. Stop it through the same bounded Server shutdown lifecycle. The mux
+answers 403 unless the request `Host` is a loopback IP literal or `localhost`
+(with an optional port), so a browser page cannot reach it through DNS
+rebinding.
 
 Public/private application muxes never serve `/debug/pprof/*`, regardless of
 settings. Do not serve `http.DefaultServeMux`: importing `net/http/pprof` registers
