@@ -1,6 +1,8 @@
 package lease_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -77,6 +79,10 @@ func TestRuntimeRestartIsWithheldUntilOldAuthorityIsReleased(t *testing.T) {
 	restarted := newRuntime(
 		"runtime-restarted", oldRuntime.controlURL, oldRuntime.a2aURL, clock,
 	)
+	// A real restart keeps the certificate principal, and the Control Plane
+	// admits it only after the previous process's control lease has expired.
+	restarted.principal = oldRuntime.principal
+	clock.Advance(confirmedLease + time.Second)
 	registerRuntime(t, registry, restarted, clock)
 
 	assertSingleLoss(t, registry.PollAllocationLosses(), allocationID)
@@ -132,6 +138,7 @@ type runtimeHarness struct {
 	allocation *string
 	workerLive bool
 	clock      *faultClock
+	principal  controlplane.AuthenticatedPrincipal
 }
 
 func newRuntime(
@@ -143,6 +150,16 @@ func newRuntime(
 		a2aURL:     a2aURL,
 		state:      contracts.AgentIdle,
 		clock:      clock,
+		principal:  runtimePrincipal(instanceID),
+	}
+}
+
+// runtimePrincipal derives a distinct certificate principal per harness
+// instance; a restart test copies the predecessor's principal explicitly.
+func runtimePrincipal(instanceID string) controlplane.AuthenticatedPrincipal {
+	sum := sha256.Sum256([]byte("lease-test-principal\x00" + instanceID))
+	return controlplane.AuthenticatedPrincipal{
+		RuntimeAgentID: hex.EncodeToString(sum[:]), Labels: []string{}, LabelRevision: 1,
 	}
 }
 
@@ -228,7 +245,7 @@ func registerRuntime(
 	clock *faultClock,
 ) {
 	t.Helper()
-	_, err := registry.Register(contracts.AgentRegistration{
+	_, err := registry.RegisterAuthenticated(runtime.principal, contracts.AgentRegistration{
 		InitialLabels:            []string{},
 		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
@@ -255,7 +272,7 @@ func sendHeartbeat(
 	deliverResponse bool,
 ) {
 	t.Helper()
-	response, err := registry.Heartbeat(runtime.heartbeat(echoed))
+	response, err := registry.HeartbeatAuthenticated(runtime.principal.RuntimeAgentID, runtime.heartbeat(echoed))
 	if err != nil {
 		t.Fatal(err)
 	}
