@@ -833,7 +833,10 @@ outcome reaches the calling tool unchanged: any exit code (a validator exits 1
 for findings), a timeout or an output-limit breach is reported by that tool as
 it would be without a proxy. Only failing to prepare, launch or clean up the
 route is an adapter failure, `proxy_subprocess_failed`, and counts as a failed
-adapter operation.
+adapter operation. Each child runs in a task the launcher owns: cancelling the
+calling tool stops the child before the call ends, and closing the adapter
+stops running children and removes their CA files without cancelling the
+calling tool's own task, whose call then fails with `proxy_subprocess_failed`.
 
 The `v1alpha1` generic subprocess environment can carry unauthenticated or
 Basic-authenticated proxy URLs. It cannot faithfully encode Bearer proxy

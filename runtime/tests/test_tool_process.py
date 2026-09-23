@@ -194,7 +194,56 @@ def test_proxy_async_process_keeps_private_routing_and_rejects_bearer(monkeypatc
     asyncio.run(scenario())
 
 
-def test_proxy_async_close_cancels_child_before_erasing_its_ca(tmp_path: Path) -> None:
+def test_proxy_async_close_stops_the_child_not_the_calling_task(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        marker = tmp_path / "child-pid"
+        launcher = _launcher(combined_ca_bundle=b"private CA fixture")
+
+        async def caller() -> str:
+            try:
+                await launcher.run_async(
+                    [
+                        sys.executable,
+                        "-c",
+                        "import os,time; from pathlib import Path; "
+                        "assert Path(os.environ['SSL_CERT_FILE']).exists(); "
+                        f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
+                    ]
+                )
+            except ProxySubprocessError:
+                # The caller's own task keeps running after the route closes.
+                await asyncio.sleep(0)
+                return "closed"
+            return "completed"
+
+        task = asyncio.create_task(caller())
+        try:
+            async with asyncio.timeout(3):
+                while not marker.exists():
+                    await asyncio.sleep(0.01)
+            roots = launcher.active_temporary_roots
+            assert len(roots) == 1 and roots[0].exists()
+            await asyncio.wait_for(launcher.aclose(), 3)
+            assert await asyncio.wait_for(task, 3) == "closed"
+            assert not task.cancelled()
+            assert not Path(f"/proc/{int(marker.read_text())}").exists()
+            assert launcher.active_temporary_roots == ()
+            assert not roots[0].exists()
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            await launcher.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_proxy_async_cancellation_survives_a_failed_ca_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import contractor_runtime.adapters.http_proxy as http_proxy
+
+    remove = http_proxy._remove_private_root
+
     async def scenario() -> None:
         marker = tmp_path / "child-pid"
         launcher = _launcher(combined_ca_bundle=b"private CA fixture")
@@ -204,27 +253,23 @@ def test_proxy_async_close_cancels_child_before_erasing_its_ca(tmp_path: Path) -
                     sys.executable,
                     "-c",
                     "import os,time; from pathlib import Path; "
-                    "assert Path(os.environ['SSL_CERT_FILE']).exists(); "
                     f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
                 ]
             )
         )
-        try:
-            async with asyncio.timeout(3):
-                while not marker.exists():
-                    await asyncio.sleep(0.01)
-            roots = launcher.active_temporary_roots
-            assert len(roots) == 1 and roots[0].exists()
-            await asyncio.wait_for(launcher.aclose(), 3)
-            with pytest.raises(asyncio.CancelledError):
-                await task
-            assert not Path(f"/proc/{int(marker.read_text())}").exists()
-            assert launcher.active_temporary_roots == ()
-            assert not roots[0].exists()
-        finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-            await launcher.aclose()
+        async with asyncio.timeout(3):
+            while not marker.exists():
+                await asyncio.sleep(0.01)
+        monkeypatch.setattr(http_proxy, "_remove_private_root", lambda _root: False)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 3)
+        assert not Path(f"/proc/{int(marker.read_text())}").exists()
+        # The unremoved root stays owned by the launcher until close removes it.
+        assert len(launcher.active_temporary_roots) == 1
+        monkeypatch.setattr(http_proxy, "_remove_private_root", remove)
+        await launcher.aclose()
+        assert launcher.active_temporary_roots == ()
 
     asyncio.run(scenario())
 

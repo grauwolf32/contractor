@@ -261,8 +261,6 @@ class ProxySubprocessLauncher:
             self._timeout_seconds,
             self._timeout_seconds if timeout is None else max(0.001, timeout),
         )
-        task = asyncio.current_task()
-        assert task is not None
         with self._lock:
             if self._closed:
                 raise ProxySubprocessError
@@ -271,34 +269,45 @@ class ProxySubprocessLauncher:
             except Exception:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
                 raise ProxySubprocessError from None
-            self._async_tasks.add(task)
-        try:
-            result = await run_command(
-                selected_command,
-                input=input,
-                cwd=cwd,
-                env=child_env,
-                timeout=selected_timeout,
-                max_output_bytes=max_output_bytes,
+            # The child runs in its own task: close() stops it without
+            # cancelling the calling tool's task, which may own other work.
+            child = asyncio.create_task(
+                run_command(
+                    selected_command,
+                    input=input,
+                    cwd=cwd,
+                    env=child_env,
+                    timeout=selected_timeout,
+                    max_output_bytes=max_output_bytes,
+                ),
+                name="proxy-subprocess",
             )
+            self._async_tasks.add(child)
+            child.add_done_callback(self._forget_task)
+        try:
+            # Cancelling the caller cancels the awaited child; the caller resumes
+            # only after run_command has stopped the process group.
+            result = await child
         except asyncio.CancelledError:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise
+            # A root that cannot be removed stays tracked; close() retries it.
+            # Its failure never replaces the caller's cancellation.
+            self._remove_temporary_root(ca_root)
+            caller = asyncio.current_task()
+            if caller is not None and caller.cancelling():
+                raise
+            # close() stopped the child while the caller itself runs on.
+            raise ProxySubprocessError from None
         except (ProcessTimeoutError, ProcessOutputLimitError):
             # The route launched and supervised the child; its outcome is the caller's.
-            self._metrics.record_operation(succeeded=True)
+            self._finish(ca_root)
             raise
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            self._remove_temporary_root(ca_root)
             raise ProxySubprocessError from None
-        finally:
-            with self._lock:
-                self._async_tasks.discard(task)
-            if ca_root is not None and not self._remove_temporary_root(ca_root):
-                self._metrics.record_operation(succeeded=False, error_code="request_failed")
-                raise ProxySubprocessError from None
         # Any exit code is the child's answer (a validator exits 1 for issues).
-        self._metrics.record_operation(succeeded=True)
+        self._finish(ca_root)
         return result
 
     async def aclose(self) -> None:
@@ -308,7 +317,19 @@ class ProxySubprocessLauncher:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        with self._lock:
+            self._async_tasks.difference_update(tasks)
         self.close()
+
+    def _forget_task(self, task: asyncio.Task) -> None:
+        with self._lock:
+            self._async_tasks.discard(task)
+
+    def _finish(self, ca_root: Path | None) -> None:
+        if not self._remove_temporary_root(ca_root):
+            self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise ProxySubprocessError from None
+        self._metrics.record_operation(succeeded=True)
 
     def close(self) -> None:
         with self._lock:
@@ -388,7 +409,11 @@ class ProxySubprocessLauncher:
             environment["SSL_CERT_FILE"] = str(bundle)
         return environment, ca_root
 
-    def _remove_temporary_root(self, root: Path) -> bool:
+    def _remove_temporary_root(self, root: Path | None) -> bool:
+        with self._lock:
+            if root is None or root not in self._temporary_roots:
+                # close() already removed every root it owned.
+                return True
         removed = _remove_private_root(root)
         if removed:
             with self._lock:
