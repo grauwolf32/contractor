@@ -2414,6 +2414,10 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 			stage.State = runstore.StageExecutionState(ended.Outcome)
 		case runstore.StageAborting:
 			stage.State = runstore.StageExecutionState(stage.Termination.Outcome)
+		case runstore.StageFinalizing:
+			accepted := cloneStageResult(*stage.CandidateResult)
+			stage.AcceptedResult = &accepted
+			stage.State = runstore.StageExecutionState(accepted.Outcome)
 		}
 	}
 	p.store.run.State, p.store.run.StateReason = nextRunState, reason

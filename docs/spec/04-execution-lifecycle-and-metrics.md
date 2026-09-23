@@ -797,6 +797,14 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
 - `finalizing` with a durable candidate and pinned versions reissues the same
   idempotent finalization, then accepts the candidate even if reports remain
   incomplete;
+- durable state the Scheduler cannot progress (`scheduler_state_invalid` or
+  `unsupported_workflow_shape`) ends the Run as `failed`, or `cancelled` once
+  cancellation owns it, in one transaction with every active StageExecution:
+  `preparing` and `running` become `interrupted` with that code, `aborting`
+  commits its stored StageTermination, and `finalizing` accepts its durable
+  candidate without Workflow progression or output binding, exactly as during
+  cancellation. Every Stage is then terminal, so terminal recovery drains and
+  releases its allocations and the Run can later be deleted;
 - `preparing` or `running` without a candidate enters `aborting`; Scheduler
   records a retryable interrupted StageTermination, remaining allocations stop
   or become lost at the abort deadline, and Workflow Scheduler then chooses the

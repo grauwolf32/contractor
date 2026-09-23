@@ -346,10 +346,12 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 	})
 }
 
-// FailRunWithActiveStages ends a Run the Scheduler cannot progress. Its
-// preparing, running and aborting Stages end in the same transaction, so
-// terminal allocation recovery releases what they still hold. A finalizing
-// Stage keeps its immutable candidate and cannot be interrupted.
+// FailRunWithActiveStages ends a Run the Scheduler cannot progress. Every
+// active Stage becomes terminal in the same transaction, so terminal
+// allocation recovery releases what it still holds: preparing and running
+// Stages are interrupted, aborting Stages commit their stored termination, and
+// a finalizing Stage, which already won its result race, accepts its durable
+// candidate without Workflow progression or output binding.
 func (p *PostgresPersistence) FailRunWithActiveStages(
 	ctx context.Context,
 	runID string,
@@ -397,6 +399,20 @@ SET state = stage_termination->>'outcome',
     updated_at = clock_timestamp()
 WHERE run_id = $1 AND state = 'aborting'`, runID); err != nil {
 			return fmt.Errorf("complete aborting StageExecutions: %w", err)
+		}
+		// A StageTermination cannot replace a durable candidate, so accept it
+		// as cancellation does; missing finalization reports stay incomplete.
+		if _, err := tx.Exec(ctx, `
+UPDATE stage_executions
+SET state = candidate_stage_result->>'outcome',
+    state_reason_code = 'result_accepted',
+    state_reason_message = '',
+    accepted_result_schema_version = candidate_result_schema_version,
+    accepted_stage_result = candidate_stage_result,
+    terminal_at = clock_timestamp(),
+    updated_at = clock_timestamp()
+WHERE run_id = $1 AND state = 'finalizing'`, runID); err != nil {
+			return fmt.Errorf("accept finalizing StageExecutions: %w", err)
 		}
 		_, err := runstore.NewPostgresStore(tx).TransitionRun(ctx, runID, expectedRunState, nextRunState, reason)
 		return err
