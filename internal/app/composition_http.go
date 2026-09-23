@@ -43,7 +43,7 @@ func configureHTTP(
 	evals evalServices,
 	logger *slog.Logger,
 ) (serverHandlers, error) {
-	gitClient, err := gitimport.NewClient(cfg.GitImport)
+	gitClient, err := gitimport.NewClient(cfg.GitImport, logger)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Git reader: %w", err)
 	}

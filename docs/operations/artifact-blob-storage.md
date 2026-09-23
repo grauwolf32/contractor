@@ -111,7 +111,9 @@ read-only root and no Artifact or `/tmp` volume. `/managed` is an independent
 not payload storage. Immutable operator configs are baked into `/configs`.
 Prepare a static `CGO_ENABLED=0 go build -o contractor-server
 ./cmd/contractor-server` binary and your config tree in a build context, then
-build with [Containerfile](../../deploy/artifact-blobs/Containerfile).
+build with [Containerfile](../../deploy/artifact-blobs/Containerfile). It copies
+only the public CA bundle from a digest-pinned Alpine stage so HTTPS Git imports
+can verify remotes; add a private CA to that bundle if your remotes need one.
 
 Before deploying, provide `contractor-database` (key `url`) and
 `contractor-server-credentials` (keys `local-auth.yaml`, `credential-master-key`,

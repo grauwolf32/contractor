@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,7 +46,7 @@ func TestRemotePolicy(t *testing.T) {
 	if absolute.Path != "/team/repo.git" {
 		t.Fatalf("absolute SCP path changed: %+v", absolute)
 	}
-	client, _ := NewClient(Config{AllowedRemotes: []string{"127.0.0.1:443"}})
+	client, _ := NewClient(Config{AllowedRemotes: []string{"127.0.0.1:443"}}, nil)
 	if _, err := client.dial(context.Background(), "tcp", "127.0.0.1:443"); !errors.Is(err, ErrDestination) {
 		t.Fatalf("loopback: %v", err)
 	}
@@ -83,10 +84,15 @@ func TestHTTPSRejectsRedirectAndUntrustedTLS(t *testing.T) {
 	}))
 	defer server.Close()
 	remote, _ := ParseRemote(server.URL + "/repo")
-	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}})
+	var logs bytes.Buffer
+	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}}, slog.New(slog.NewTextHandler(&logs, nil)))
 	client.allowLoopback = true
-	if _, err := client.Fetch(context.Background(), remote, "", nil); err == nil {
-		t.Fatal("untrusted TLS succeeded")
+	_, err := client.Fetch(context.Background(), remote, "", nil)
+	if err != ErrRemote {
+		t.Fatalf("untrusted TLS: %v", err)
+	}
+	if !strings.Contains(logs.String(), "certificate") {
+		t.Fatalf("masked cause was not logged: %s", logs.String())
 	}
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 	if _, err := client.Fetch(context.Background(), remote, "", nil); !errors.Is(err, ErrRemote) {
@@ -214,7 +220,7 @@ func TestNetworkCancellation(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(started); <-r.Context().Done() }))
 	defer server.Close()
 	remote, _ := ParseRemote(server.URL + "/repo")
-	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}})
+	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
 	client.allowLoopback = true
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 	ctx, cancel := context.WithCancel(context.Background())
