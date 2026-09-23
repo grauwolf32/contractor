@@ -103,18 +103,12 @@ func (h *handler) listFindingProposals(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ReceiptID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	items, page, err := paginate(h, items, limit, cursorKind, func(last findingintake.Receipt) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ReceiptID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, findingProposalPageResponse{Items: items, Page: page})
 }

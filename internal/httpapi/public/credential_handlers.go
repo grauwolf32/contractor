@@ -32,16 +32,12 @@ func (h *handler) listCredentials(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(records) > limit {
-		records = records[:limit]
-		next, cursorErr := h.encodePageCursor("credentials", records[len(records)-1].CredentialID)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	records, page, err := paginate(h, records, limit, "credentials", func(last credentials.Record) []string {
+		return []string{last.CredentialID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, credentialPageResponse{Items: records, Page: page})
 }

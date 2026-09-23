@@ -34,18 +34,12 @@ func (h *handler) listRuntimeAgentPrincipals(w http.ResponseWriter, r *http.Requ
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(principals) > limit {
-		principals = principals[:limit]
-		next, cursorErr := h.encodePageCursor(
-			"runtime-agent-principals", principals[len(principals)-1].Principal.RuntimeAgentID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	principals, page, err := paginate(h, principals, limit, "runtime-agent-principals", func(last controlplane.RuntimeAgentPrincipalProjection) []string {
+		return []string{last.Principal.RuntimeAgentID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]runtimeAgentPrincipalResponse, len(principals))
 	for index := range principals {

@@ -49,17 +49,12 @@ func (h *handler) listRuntimeConfigs(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(versions) > limit {
-		versions = versions[:limit]
-		last := versions[len(versions)-1].Ref
-		next, cursorErr := h.encodePageCursor("runtime-configs", last.Name, last.Version)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	versions, page, err := paginate(h, versions, limit, "runtime-configs", func(last runtimeconfig.Version) []string {
+		return []string{last.Ref.Name, last.Ref.Version}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]runtimeConfigResourceResponse, len(versions))
 	for index := range versions {
@@ -164,16 +159,12 @@ func (h *handler) listRuntimeLabels(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(bindings) > limit {
-		bindings = bindings[:limit]
-		next, cursorErr := h.encodePageCursor("runtime-labels", bindings[len(bindings)-1].Label)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	bindings, page, err := paginate(h, bindings, limit, "runtime-labels", func(last runtimeconfig.Binding) []string {
+		return []string{last.Label}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]runtimeLabelResponse, len(bindings))
 	for index := range bindings {
@@ -351,16 +342,12 @@ func (h *handler) listRuntimeCredentials(w http.ResponseWriter, r *http.Request)
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		next, cursorErr := h.encodePageCursor("runtime-credentials", items[len(items)-1].CredentialID)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, "runtime-credentials", func(last credentials.RuntimeCredentialMetadata) []string {
+		return []string{last.CredentialID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, runtimeCredentialPageResponse{Items: items, Page: page})
 }

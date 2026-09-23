@@ -247,16 +247,12 @@ func (h *handler) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1].Ref
-		next, cursorErr := h.encodePageCursor("audit-profiles", last.Name+"@"+last.Version)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	items, page, err := paginate(h, items, limit, "audit-profiles", func(last auditProfileResponse) []string {
+		return []string{last.Ref.Name + "@" + last.Ref.Version}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, auditProfilePageResponse{Items: items, Page: page})
 }
@@ -406,16 +402,12 @@ func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(audits) > limit {
-		audits = audits[:limit]
-		last := audits[len(audits)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.AuditID)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	audits, page, err := paginate(h, audits, limit, cursorKind, func(last auditstore.Audit) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.AuditID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]auditResponse, 0, len(audits))
 	for _, audit := range audits {
@@ -742,16 +734,12 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(coverage) > limit {
-		coverage = coverage[:limit]
-		last := coverage[len(coverage)-1]
-		next, cursorErr := h.encodePageCursor(cursorKind, strconv.Itoa(last.Ordinal))
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore, page.NextCursor = true, &next
+	coverage, page, err := paginate(h, coverage, limit, cursorKind, func(last auditstore.CoverageRow) []string {
+		return []string{strconv.Itoa(last.Ordinal)}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]auditCoverageResponse, len(coverage))
 	for index, row := range coverage {

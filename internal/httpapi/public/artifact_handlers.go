@@ -249,17 +249,12 @@ func (h *handler) listArtifactBindings(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1].Ref
-		next, cursorErr := h.encodePageCursor(cursorKind, last.Namespace, last.Name)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+		return []string{last.Ref.Namespace, last.Ref.Name}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
 }
@@ -314,19 +309,12 @@ func (h *handler) listArtifactVersionsFromStore(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), *last.Ref.Revision,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), *last.Ref.Revision}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
 }
@@ -397,20 +385,18 @@ func (h *handler) listArtifactLineageFromStore(
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, selectedRevision, last.CreatedAt.UTC().Format(time.RFC3339Nano),
-			*last.Target.Revision, *last.Source.Revision, last.Kind,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
+	items, page, err := paginate(h, items, limit, cursorKind, func(last artifacts.LineageEdge) []string {
+		return []string{
+			selectedRevision,
+			last.CreatedAt.UTC().Format(time.RFC3339Nano),
+			*last.Target.Revision,
+			*last.Source.Revision,
+			last.Kind,
 		}
-		page.HasMore = true
-		page.NextCursor = &next
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, artifactLineagePageResponse{Items: items, Page: page})
 }

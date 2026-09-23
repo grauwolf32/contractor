@@ -62,22 +62,16 @@ func (h *handler) listAgentTemplateWorkflowBindings(w http.ResponseWriter, r *ht
 		afterBinding = &after
 	}
 	pageItems := index.Page(afterBinding, limit+1)
-	page := pageInfoResponse{}
-	if len(pageItems) > limit {
-		pageItems = pageItems[:limit]
-		last := pageItems[len(pageItems)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind,
-			last.Workflow.Name+"@"+last.Workflow.Version,
+	pageItems, page, err := paginate(h, pageItems, limit, cursorKind, func(last config.AgentTemplateWorkflowBinding) []string {
+		return []string{
+			last.Workflow.Name + "@" + last.Workflow.Version,
 			last.Stage,
 			last.LogicalWorker,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
 		}
-		page.HasMore = true
-		page.NextCursor = &next
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	writeJSON(w, http.StatusOK, agentTemplateWorkflowBindingPageResponse{
 		Items: pageItems, Page: page,

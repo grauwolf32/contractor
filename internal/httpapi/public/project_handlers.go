@@ -104,19 +104,12 @@ func (h *handler) listProjects(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(projects) > limit {
-		projects = projects[:limit]
-		last := projects[len(projects)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ProjectID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	projects, page, err := paginate(h, projects, limit, cursorKind, func(last projectstore.Project) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.ProjectID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]projectResponse, 0, len(projects))
 	for _, project := range projects {

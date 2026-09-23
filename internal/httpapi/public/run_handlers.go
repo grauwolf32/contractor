@@ -102,19 +102,12 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 		h.handleError(w, err)
 		return
 	}
-	page := pageInfoResponse{}
-	if len(runs) > limit {
-		runs = runs[:limit]
-		last := runs[len(runs)-1]
-		next, cursorErr := h.encodePageCursor(
-			cursorKind, last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID,
-		)
-		if cursorErr != nil {
-			h.handleError(w, cursorErr)
-			return
-		}
-		page.HasMore = true
-		page.NextCursor = &next
+	runs, page, err := paginate(h, runs, limit, cursorKind, func(last runstore.WorkflowRunSummary) []string {
+		return []string{last.CreatedAt.UTC().Format(time.RFC3339Nano), last.RunID}
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
 	items := make([]runSummaryResponse, 0, len(runs))
 	for _, run := range runs {
