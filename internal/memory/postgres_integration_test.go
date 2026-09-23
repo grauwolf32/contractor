@@ -1,12 +1,14 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"reflect"
 	"strings"
@@ -144,6 +146,45 @@ func TestPostgresPlannerMemoryCommitAmbiguityReplaysExactMutation(t *testing.T) 
 				}
 			})
 		}
+	}
+}
+
+func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedMemoryPool(t, ctx)
+	if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, logger))
+	runID, stageID := "run-memory-dedup", "stage-memory-dedup"
+	createRunningMemoryStage(t, ctx, pool, runID, stageID)
+	store, err := NewPostgresStore(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := Binding{RunID: runID, StageExecutionID: stageID, Namespace: "builder"}
+	payload := artifacts.Payload{MediaType: MediaType, Data: encodedTestNote(t, "shared", "same bytes", 0)}
+	for _, name := range []string{"memory.first", "memory.second"} {
+		target := artifacts.ArtifactRef{Namespace: "builder", Name: name}
+		if _, err := store.Write(ctx, binding, target, payload, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	if err != nil || report.Referenced != 1 || report.Orphans != 0 || report.Missing != 0 {
+		t.Fatalf("blob files after deduplicated Planner write = %+v, %v", report, err)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("deduplicated Planner write logged: %s", logs.String())
 	}
 }
 

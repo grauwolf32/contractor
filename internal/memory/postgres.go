@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -115,7 +116,9 @@ func withActiveStage[T any](
 	if ctx == nil || ctx.Err() != nil {
 		return result, ErrAccessForbidden
 	}
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	// The commit-aware transaction lets Artifact writes remove an unused
+	// deduplication candidate after a definite commit.
+	tx, err := postgres.BeginTx(ctx, pool, pgx.TxOptions{})
 	if err != nil {
 		if ctx.Err() != nil {
 			return result, ErrAccessForbidden

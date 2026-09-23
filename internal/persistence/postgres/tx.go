@@ -27,11 +27,10 @@ func InTx(
 	options pgx.TxOptions,
 	fn func(pgx.Tx) error,
 ) (err error) {
-	rawTx, err := pool.BeginTx(ctx, options)
+	tx, err := BeginTx(ctx, pool, options)
 	if err != nil {
 		return WrapError("begin PostgreSQL transaction", err)
 	}
-	tx := &commitTx{Tx: rawTx}
 	defer func() {
 		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
@@ -51,4 +50,15 @@ func InTx(
 		return WrapError("commit PostgreSQL transaction", err)
 	}
 	return nil
+}
+
+// BeginTx starts a transaction for a caller that must own and classify its
+// commit itself. Like InTx, the transaction runs AfterCommit effects only after
+// a definite commit; the caller must Commit or Rollback it.
+func BeginTx(ctx context.Context, pool *pgxpool.Pool, options pgx.TxOptions) (pgx.Tx, error) {
+	tx, err := pool.BeginTx(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	return &commitTx{Tx: tx}, nil
 }
