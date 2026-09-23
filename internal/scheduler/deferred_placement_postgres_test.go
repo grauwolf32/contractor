@@ -165,6 +165,58 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()+interval '1 hour',clock_
 	h.requireSingleSucceededStage(t, ctx)
 }
 
+// A paused owner's pending Run must not pin a durable placement that
+// AdmitStage then rejects: that would hold Runtime slots for the whole pause.
+func TestPostgresQueuePauseDoesNotPlacePendingStage(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	if _, err := h.pool.Exec(ctx, `
+UPDATE workflow_runs SET state = 'pending', started_at = NULL, state_reason_code = 'awaiting_admission'
+WHERE run_id = 'run-1'`); err != nil {
+		t.Fatal(err)
+	}
+	allocator := h.workers.allocator
+	allocator.reserveError = controlplane.ErrInsufficientCapacity
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("capacity-deferred RunOnce = (%v, %v)", worked, err)
+	}
+	setPaused := func(paused bool) {
+		t.Helper()
+		control, err := h.store.GetOwnerQueueControl(ctx, "user-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: paused,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setPaused(true)
+	allocator.reserveError = nil
+	reserveCalls := allocator.reserveCalls
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("paused RunOnce = (%v, %v)", worked, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing ||
+		executions[0].AdmittedAt != nil {
+		t.Fatalf("paused StageExecutions = (%v, %v)", stageExecutionStates(executions), err)
+	}
+	allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 0 || allocator.reserveCalls != reserveCalls || len(allocator.grants) != 0 {
+		t.Fatalf("paused placement = allocations:%d reserves:%d grants:%d err:%v",
+			len(allocations), allocator.reserveCalls-reserveCalls, len(allocator.grants), err)
+	}
+
+	setPaused(false)
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("resumed RunOnce = (%v, %v)", worked, err)
+	}
+	h.requireSingleSucceededStage(t, ctx)
+}
+
 type failOnceAdmitPersistence struct {
 	AtomicPersistence
 	failed bool

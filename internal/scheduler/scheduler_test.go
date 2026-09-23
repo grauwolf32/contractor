@@ -1598,6 +1598,36 @@ func TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext(t *testi
 	}
 }
 
+// A pending Run's Stage can exist before its owner pauses (capacity deferral
+// or manual continuation). Placement must not pin Runtime slots for the
+// whole pause only for AdmitStage to reject it afterwards.
+func TestSchedulerOwnerQueuePauseDoesNotPlacePendingStage(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.store.run.State = runstore.RunPending
+	harness.store.stages = []runstore.StageExecution{harness.persistedExecution(t, runstore.StagePreparing)}
+	harness.persistence.queuePaused = true
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("paused pending RunOnce = (%v, %v), want deferred", worked, err)
+	}
+	if harness.store.queueProbes != 1 || harness.allocator.reserveCalls != 0 ||
+		len(harness.allocator.grants) != 0 || len(harness.store.allocations) != 0 ||
+		harness.store.stages[0].AdmittedAt != nil || harness.store.run.State != runstore.RunPending {
+		t.Fatalf("paused placement = probes:%d reserves:%d grants:%d allocations:%d admitted:%v run:%s",
+			harness.store.queueProbes, harness.allocator.reserveCalls, len(harness.allocator.grants),
+			len(harness.store.allocations), harness.store.stages[0].AdmittedAt, harness.store.run.State)
+	}
+
+	harness.persistence.queuePaused = false
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
+		harness.allocator.reserveCalls != 1 {
+		t.Fatalf("resumed pending RunOnce = (%v, %v), run=%s reserves=%d",
+			worked, err, harness.store.run.State, harness.allocator.reserveCalls)
+	}
+}
+
 func TestSchedulerOwnerQueuePauseDoesNotBlockCancellation(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.persistence.queuePaused = true
@@ -1804,6 +1834,7 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	}
 	planners := &memoryPlannerRegistry{store: store, result: result, events: events}
 	persistence := &memoryAtomicPersistence{store: store, allocator: allocator, events: events, outputs: map[string]contracts.ArtifactRef{}}
+	store.queuePaused = &persistence.queuePaused
 	planners.onRun = func() {
 		persistence.stageStates = append(persistence.stageStates, runstore.StageRunning)
 	}
@@ -1936,6 +1967,9 @@ type memorySchedulerStore struct {
 	claimID        string
 	claimCalls     int
 	events         *eventRecorder
+	// queuePaused aliases the owner Queue gate enforced by memory persistence.
+	queuePaused *bool
+	queueProbes int
 }
 
 type memoryRunSkillInitializer struct {
@@ -1997,6 +2031,11 @@ func (s *memorySchedulerStore) GetRun(_ context.Context, runID string) (runstore
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
 	}
 	return s.run, nil
+}
+
+func (s *memorySchedulerStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
+	s.queueProbes++
+	return runstore.OwnerQueueControl{OwnerID: ownerID, Paused: s.queuePaused != nil && *s.queuePaused}, nil
 }
 
 func (s *memorySchedulerStore) TransitionRun(
@@ -2914,6 +2953,9 @@ func (p *memoryAtomicPersistence) AdmitStage(_ context.Context, runID, stageID s
 	}
 	for i := range p.store.stages {
 		if p.store.stages[i].StageExecutionID == stageID {
+			if p.store.run.State == runstore.RunPending && p.queuePaused {
+				return runstore.StageExecution{}, runstore.ErrQueuePaused
+			}
 			if p.store.stages[i].AdmittedAt == nil {
 				now := p.allocator.clock.now
 				p.store.stages[i].AdmittedAt = &now

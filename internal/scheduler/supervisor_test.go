@@ -386,6 +386,10 @@ func (s *laneTestStore) GetRun(ctx context.Context, runID string) (runstore.Work
 	}
 }
 
+func (s *laneTestStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
+	return runstore.OwnerQueueControl{OwnerID: ownerID}, nil
+}
+
 func (s *laneTestStore) deferRuns(runIDs ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

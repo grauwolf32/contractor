@@ -68,6 +68,11 @@ Pausing has drain semantics:
 - A semantic Stage already admitted before the pause linearization point may
   finish normally, including finalization and release.
 - Scheduler must not admit the owner's next normal Stage after pause commits.
+- A pending Run's not-yet-admitted Stage, such as a manual continuation or a
+  capacity-deferred attempt created before the pause, reserves no Runtime slot
+  while paused: Scheduler reads the gate before placement, like lack of
+  capacity, and admission still rechecks it atomically. Only a placement that
+  became durable before a concurrent pause commit stays reserved until resume.
 - Cancellation, abort, recovery of an already admitted Stage and allocation
   release continue while paused. Result acceptance and output publication also
   continue when they do not admit another Stage. A Project deletion request can
