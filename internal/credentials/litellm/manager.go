@@ -133,7 +133,7 @@ func (m *Manager) Create(
 	if err != nil {
 		return credentials.GeneratedCredential{}, err
 	}
-	defer wipe(response)
+	defer clear(response)
 	if status != http.StatusOK {
 		return credentials.GeneratedCredential{}, credentials.ErrGatewayUnavailable
 	}
@@ -300,7 +300,7 @@ func (m *Manager) delete(
 	if err != nil {
 		return err
 	}
-	defer wipe(response)
+	defer clear(response)
 	switch status {
 	case http.StatusOK:
 		var decoded deleteKeyResponse

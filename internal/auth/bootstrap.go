@@ -49,7 +49,7 @@ func LoadBootstrap(path string) (Bootstrap, error) {
 	if err != nil {
 		return Bootstrap{}, err
 	}
-	defer wipe(data)
+	defer clear(data)
 	var documents []bootstrapDocument
 	if err := yaml.Load(
 		data,

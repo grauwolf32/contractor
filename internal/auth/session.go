@@ -280,12 +280,12 @@ func (s *Service) createSession(now time.Time) (Login, error) {
 	if _, err := io.ReadFull(s.random, cookieBytes); err != nil {
 		return Login{}, fmt.Errorf("generate browser session: %w", err)
 	}
-	defer wipe(cookieBytes)
+	defer clear(cookieBytes)
 	csrfBytes := make([]byte, CSRFTokenBytes)
 	if _, err := io.ReadFull(s.random, csrfBytes); err != nil {
 		return Login{}, fmt.Errorf("generate CSRF token: %w", err)
 	}
-	defer wipe(csrfBytes)
+	defer clear(csrfBytes)
 	if subtle.ConstantTimeCompare(cookieBytes, csrfBytes) == 1 {
 		return Login{}, fmt.Errorf("generate distinct browser session secrets")
 	}
@@ -364,10 +364,10 @@ func cookieDigest(value string) ([sha256.Size]byte, error) {
 	}
 	decoded, err := base64.RawURLEncoding.Strict().DecodeString(value)
 	if err != nil || len(decoded) != SessionTokenBytes || base64.RawURLEncoding.EncodeToString(decoded) != value {
-		wipe(decoded)
+		clear(decoded)
 		return [sha256.Size]byte{}, ErrInvalidSession
 	}
-	wipe(decoded)
+	clear(decoded)
 	return sha256.Sum256([]byte(value)), nil
 }
 

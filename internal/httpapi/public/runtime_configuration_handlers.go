@@ -111,7 +111,7 @@ func (h *handler) publishRuntimeConfig(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	defer wipePublicBytes(body)
+	defer clear(body)
 	result, err := h.dependencies.RuntimeConfigs.Publish(
 		r.Context(), body, idempotencyKey, principalUserID(r.Context()),
 	)

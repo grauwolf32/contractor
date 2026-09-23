@@ -82,7 +82,7 @@ func LoadAdminBindings(path string, gateways GatewayLookup) (*AdminBindings, err
 	if err != nil {
 		return nil, err
 	}
-	defer wipe(documentBytes)
+	defer clear(documentBytes)
 	var documents []bindingDocument
 	if err := yaml.Load(
 		documentBytes,
@@ -143,7 +143,7 @@ func loadAdminKey(path string) (adminKey, error) {
 	if err != nil {
 		return adminKey{}, err
 	}
-	defer wipe(data)
+	defer clear(data)
 	if len(data) > 0 && data[len(data)-1] == '\n' {
 		data = data[:len(data)-1]
 	}
@@ -170,11 +170,5 @@ func readSecureFile(path string, maximumBytes int64, forbiddenPermissions os.Fil
 		return nil, fmt.Errorf("%w: %s file is unsafe or outside its size bound", credentials.ErrManagerUnavailable, kind)
 	default:
 		return nil, fmt.Errorf("%w: read bounded %s file", credentials.ErrManagerUnavailable, kind)
-	}
-}
-
-func wipe(value []byte) {
-	for index := range value {
-		value[index] = 0
 	}
 }

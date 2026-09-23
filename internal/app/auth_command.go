@@ -52,7 +52,7 @@ func runAuthHashPassword(args []string, prompt passwordPrompt, output io.Writer)
 	if err != nil {
 		return errors.New("read password from terminal")
 	}
-	defer wipeCommandBytes(first)
+	defer clear(first)
 	if err := auth.ValidatePassword(first); err != nil {
 		return errors.New("password must contain 12 through 1024 UTF-8 bytes")
 	}
@@ -60,7 +60,7 @@ func runAuthHashPassword(args []string, prompt passwordPrompt, output io.Writer)
 	if err != nil {
 		return errors.New("read repeated password from terminal")
 	}
-	defer wipeCommandBytes(second)
+	defer clear(second)
 	if len(first) != len(second) || subtle.ConstantTimeCompare(first, second) != 1 {
 		return errors.New("passwords do not match")
 	}
@@ -76,10 +76,4 @@ func runAuthHashPassword(args []string, prompt passwordPrompt, output io.Writer)
 		return errors.New("write local-auth bootstrap")
 	}
 	return nil
-}
-
-func wipeCommandBytes(value []byte) {
-	for index := range value {
-		value[index] = 0
-	}
 }

@@ -18,9 +18,7 @@ func LoadTokenCipher(path string) (*TokenCipher, error) {
 		return nil, err
 	}
 	result, err := NewTokenCipher(key)
-	for index := range key {
-		key[index] = 0
-	}
+	clear(key)
 	if err != nil {
 		return nil, ErrKeyUnavailable
 	}
@@ -38,7 +36,7 @@ func loadMasterKey(path string) ([]byte, error) {
 	default:
 		return nil, ErrKeyUnavailable
 	}
-	defer wipeBytes(encoded)
+	defer clear(encoded)
 	if encoded[len(encoded)-1] == '\n' {
 		encoded = encoded[:len(encoded)-1]
 	}
@@ -48,16 +46,10 @@ func loadMasterKey(path string) ([]byte, error) {
 	decoded := make([]byte, base64.StdEncoding.DecodedLen(len(encoded)))
 	decodedLength, err := base64.StdEncoding.Strict().Decode(decoded, encoded)
 	if err != nil || decodedLength != 32 {
-		wipeBytes(decoded)
+		clear(decoded)
 		return nil, ErrKeyUnavailable
 	}
 	return decoded[:decodedLength], nil
-}
-
-func wipeBytes(value []byte) {
-	for index := range value {
-		value[index] = 0
-	}
 }
 
 func RequireTokenCipher(path string, activeCredentials int64) (*TokenCipher, error) {
