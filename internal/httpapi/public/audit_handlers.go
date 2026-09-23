@@ -211,10 +211,6 @@ func (h *handler) listAuditProfiles(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		h.handleError(w, err)
@@ -260,10 +256,6 @@ func (h *handler) getAuditProfile(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -284,10 +276,6 @@ func (h *handler) getAuditProfile(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) createAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -342,10 +330,6 @@ func (h *handler) createAudit(w http.ResponseWriter, r *http.Request) {
 func (h *handler) listProjectAudits(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	projectID := r.PathValue("projectId")
@@ -425,10 +409,6 @@ func (h *handler) getAudit(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -448,10 +428,6 @@ func (h *handler) getAudit(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -522,10 +498,6 @@ func (h *handler) deleteAudit(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action string, status int) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -592,10 +564,6 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 func (h *handler) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "state", "subject")
@@ -689,10 +657,6 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round")
 	if err != nil {
 		h.handleError(w, err)
@@ -754,10 +718,6 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 func (h *handler) getAuditReport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
-		return
-	}
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
 		return
 	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {

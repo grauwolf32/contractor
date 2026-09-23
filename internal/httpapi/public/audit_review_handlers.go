@@ -421,10 +421,6 @@ func (h *handler) decodeAuditPageCursor(value, kind, expected string) ([]string,
 
 func (h *handler) getAuditWorkspace(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -439,10 +435,6 @@ func (h *handler) getAuditWorkspace(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) getAuditReview(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if h.dependencies.Audits == nil {
-		h.handleError(w, fmt.Errorf("Audit service is not configured"))
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
