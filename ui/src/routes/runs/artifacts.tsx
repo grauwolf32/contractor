@@ -40,6 +40,7 @@ import {
 } from "./output-model";
 import "./outputs.css";
 import { RefreshButton } from "../../app/refresh-button";
+import { useDocumentTitle } from "../../app/document-title";
 import { RecordedTime } from "../../app/recorded-time";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
@@ -629,6 +630,7 @@ export function RunArtifactDetailRoute() {
       }),
     enabled: valid,
   });
+  useDocumentTitle(valid ? `${namespace}/${name} · Run` : "Run Artifact");
   if (!valid) {
     return (
       <section className="route-page">

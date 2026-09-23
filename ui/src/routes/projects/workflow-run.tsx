@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
+import { useDocumentTitle } from "../../app/document-title";
 import { getProject, PROJECT_ID_PATTERN } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import {
@@ -29,6 +30,9 @@ export function ProjectWorkflowRunRoute() {
     queryFn: () => getWorkflow(api, name, version),
     enabled: valid,
   });
+  useDocumentTitle(
+    valid ? `Configure Run · ${name}@${version}` : "Configure Run",
+  );
   const backPath =
     project.data?.kind === "evaluation"
       ? `/evals/${encodeURIComponent(projectId)}`

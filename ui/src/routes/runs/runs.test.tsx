@@ -670,6 +670,7 @@ describe("Run routes", () => {
     expect(router.state.location.search).toBe(
       "?view=completed&state=failed&cursor=failed-2",
     );
+    expect(document.title).toBe("Completed · Runs · Contractor");
 
     const views = screen.getByRole("navigation", { name: "Run views" });
     await user.click(within(views).getByRole("link", { name: "Completed" }));
@@ -1067,6 +1068,53 @@ describe("Run routes", () => {
     ).toBeInTheDocument();
     expect(detailReads).toBe(2);
     expect(RouteWebSocket.instances).toHaveLength(1);
+  });
+
+  it("titles the Run detail, Run Artifact and Runs pages", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) {
+          return shared;
+        }
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/runs/run-router") {
+          return apiResponse(runFixture({ eventCursor: undefined }));
+        }
+        if (url.pathname === "/v1/runs/run-router/artifacts/inputs/source") {
+          return apiResponse({
+            artifact: {
+              namespace: "inputs",
+              name: "source",
+              revision: "input-r1",
+            },
+            mediaType: "application/zip",
+            sizeBytes: 3,
+            digest,
+            createdAt: "2026-08-31T12:00:00Z",
+          });
+        }
+        return apiResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderRunApplication(api, "/runs/run-router");
+    await waitFor(() =>
+      expect(document.title).toBe("router-analysis@1 · Run · Contractor"),
+    );
+    await act(async () => {
+      await router.navigate("/runs/run-router/artifacts/inputs/source");
+    });
+    await waitFor(() =>
+      expect(document.title).toBe("inputs/source · Run · Contractor"),
+    );
+    await act(async () => {
+      await router.navigate("/runs");
+    });
+    await waitFor(() =>
+      expect(document.title).toBe("Queue · Runs · Contractor"),
+    );
   });
 
   it("reconciles a cancellation race without an optimistic terminal state", async () => {
