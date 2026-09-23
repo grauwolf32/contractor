@@ -141,6 +141,23 @@ def test_read_text_artifact_pages_through_an_oversized_line(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
+def test_read_text_artifact_numbers_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        # Only \r\n, \r and \n end lines; other Unicode separators are content.
+        document = "a\fb\x1cc\x85d\u2028e\u2029f\vg\r\nsecond\rthird\n"
+        source = client.seed("inputs", "log", "text/plain", document.encode())
+        tools = await make_tools(tmp_path, client, WorkerState())
+        read = tools["read_text_artifact"]
+        whole = await read("inputs", "log", source.revision)
+        assert whole["totalLines"] == 3 and whole["text"] == document
+        second = await read("inputs", "log", source.revision, start_line=2, max_lines=1)
+        assert second["text"] == "second\r"
+        assert second["nextStartLine"] == 3
+
+    asyncio.run(scenario())
+
+
 def test_text_tools_reject_invalid_windows_utf8_and_oversize(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
