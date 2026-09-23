@@ -252,7 +252,7 @@ class _CaidoSession:
             )
             selected = _exact_object(data, {"createScope"})
             result = _exact_object(selected["createScope"], {"error", "scope"})
-            domain_error = _domain_error(result["error"], typename=False)
+            domain_error = _domain_error(result["error"])
             if domain_error is not None:
                 return {"status": "rejected", "error_code": domain_error}
             if result["scope"] is None:
@@ -1329,19 +1329,21 @@ def _scope(value: object) -> dict[str, Any]:
     }
 
 
-def _domain_error(value: object, *, typename: bool) -> str | None:
+def _domain_error(value: object) -> str | None:
+    """Return a user error's code, or its __typename for a type without a code.
+
+    Every error selection includes __typename, so a user error type the
+    operation has no fragment for is still a bounded rejection, not an empty
+    object that fails as an invalid response.
+    """
+
     if value is None:
         return None
     error = _object(value)
-    if typename:
-        expected = {"__typename", "code"} if "code" in error else {"__typename"}
-    else:
-        expected = {"code"}
-    _exact_object(error, expected)
-    if typename:
-        selected_typename = _safe_enum(error["__typename"])
-        if "code" not in error or error["code"] is None:
-            return selected_typename
+    _exact_object(error, {"__typename", "code"} if "code" in error else {"__typename"})
+    selected_typename = _safe_enum(error["__typename"])
+    if "code" not in error or error["code"] is None:
+        return selected_typename
     return _safe_enum(error["code"])
 
 
@@ -1362,7 +1364,7 @@ def _replay_session(data: object) -> dict[str, Any]:
 def _replay_start(data: object) -> dict[str, Any]:
     selected = _exact_object(data, {"startReplayTask"})
     payload = _exact_object(selected["startReplayTask"], {"error", "task"})
-    error_code = _domain_error(payload["error"], typename=False)
+    error_code = _domain_error(payload["error"])
     if error_code is not None:
         return {"error_code": error_code, "task_id": None, "entry_id": None}
     if payload["task"] is None:
@@ -1432,7 +1434,7 @@ def _automate_update(
 ) -> dict[str, Any]:
     selected = _exact_object(data, {"updateAutomateSession"})
     payload = _exact_object(selected["updateAutomateSession"], {"error", "session"})
-    error_code = _domain_error(payload["error"], typename=False)
+    error_code = _domain_error(payload["error"])
     if error_code is not None:
         return {"error_code": error_code}
     if payload["session"] is None:
@@ -1476,7 +1478,7 @@ def _automate_start(data: object) -> dict[str, Any]:
 def _convert_workflow_result(data: object) -> dict[str, Any]:
     selected = _exact_object(data, {"runConvertWorkflow"})
     payload = _exact_object(selected["runConvertWorkflow"], {"output", "error"})
-    error_code = _domain_error(payload["error"], typename=True)
+    error_code = _domain_error(payload["error"])
     if payload["output"] is not None and not isinstance(payload["output"], str):
         raise CaidoToolError("caido_response_invalid")
     if error_code is None and payload["output"] is None:
@@ -1487,7 +1489,7 @@ def _convert_workflow_result(data: object) -> dict[str, Any]:
 def _active_workflow_result(data: object, expected_workflow_id: str) -> dict[str, Any]:
     selected = _exact_object(data, {"runActiveWorkflow"})
     payload = _exact_object(selected["runActiveWorkflow"], {"task", "error"})
-    error_code = _domain_error(payload["error"], typename=True)
+    error_code = _domain_error(payload["error"])
     if error_code is not None:
         return {"task_id": None, "error_code": error_code}
     if payload["task"] is None:

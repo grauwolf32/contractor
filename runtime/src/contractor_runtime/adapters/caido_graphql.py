@@ -106,8 +106,8 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
             operation_name="CreateScope",
             document=(
                 "mutation CreateScope($input: CreateScopeInput!) { createScope(input: $input) { "
-                "error { ... on InvalidGlobTermsUserError { code } ... on OtherUserError { code } "
-                "} scope { id name allowlist denylist } } }"
+                "error { __typename ... on InvalidGlobTermsUserError { code } ... on "
+                "OtherUserError { code } } scope { id name allowlist denylist } } }"
             ),
         ),
         "findings_by_offset": _StaticOperation(
@@ -192,16 +192,16 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
             operation_name="StartReplayTask",
             document=(
                 "mutation StartReplayTask($sessionId: ID!, $input: StartReplayTaskInput!) { "
-                "startReplayTask(sessionId: $sessionId, input: $input) { error { ... on "
-                "TaskInProgressUserError { code } ... on OtherUserError { code } } task { id "
-                "replayEntry { id } } } }"
+                "startReplayTask(sessionId: $sessionId, input: $input) { error { __typename "
+                "... on TaskInProgressUserError { code } ... on OtherUserError { code } } task { "
+                "id replayEntry { id } } } }"
             ),
         ),
         "update_automate_session": _StaticOperation(
             operation_name="UpdateAutomateSession",
             document=(
                 "mutation UpdateAutomateSession($id: ID!, $input: UpdateAutomateSessionInput!) { "
-                "updateAutomateSession(id: $id, input: $input) { error { ... on "
+                "updateAutomateSession(id: $id, input: $input) { error { __typename ... on "
                 "PermissionDeniedUserError { code } ... on OtherUserError { code } } session { id "
                 "name settings { placeholders { start end } strategy } } } }"
             ),

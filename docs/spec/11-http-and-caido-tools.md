@@ -400,7 +400,10 @@ retry in the first implementation. Every returned object has an exact
 operation-specific shape, and identities returned for an ID-addressed query or
 mutation must match the requested/session identity before they are exposed.
 
-Known Caido domain failures become bounded tool results. Transport, JSON,
+Known Caido domain failures become bounded tool results. Every user-error
+selection includes `__typename`, so a user error type without its own fragment
+(for example one added by a newer Caido) is still a `rejected` result whose
+`error_code` is that type name rather than an invalid response. Transport, JSON,
 GraphQL and schema errors return a stable code and retryability without echoing
 endpoint, bearer token, raw query, variables or arbitrary server text.
 
