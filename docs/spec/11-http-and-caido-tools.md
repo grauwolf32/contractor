@@ -114,7 +114,11 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 - at most 64 bounded headers and query keys;
 - `body_type`: `none|json|form|text`, with at most 1 MiB encoded request body;
 - timeout 1..120 seconds, capped by allocation settings; when omitted, it is
-  `min(allocation request timeout, 120 seconds)`;
+  `min(allocation request timeout, 120 seconds)`. It is one deadline for the
+  whole call: connecting, sending and reading every redirect hop and retry,
+  retry waits, and reading the complete response body. The same value also
+  bounds each individual network operation. Expiry fails with the retryable
+  `http_request_failed`; storing the body artifact afterwards is not included;
 - `follow_redirects`, with at most 10 redirects; every hop is parsed, stripped
   of its fragment and checked against the target policy again.
 

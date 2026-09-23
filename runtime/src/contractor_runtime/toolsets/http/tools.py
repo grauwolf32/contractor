@@ -356,24 +356,35 @@ class _HTTPSession:
             # cookies left by a cancelled/failed prior call must never affect
             # the next request.
             self._clear_transport_cookies()
-            (
-                response,
-                final_method,
-                final_url,
-                redirects,
-                retries,
-                candidate_cookies,
-            ) = await self._send_following(
-                method=selected_method,
-                url=selected_url,
-                headers=merged_headers,
-                payload=payload,
-                timeout_seconds=selected_timeout,
-                follow_redirects=follow_redirects,
-                attempts=captured.attempts,
-            )
+            # The tool timeout is one deadline for every hop, retry and the
+            # complete body read, so a trickling target cannot hold the session
+            # lock indefinitely. The body artifact write is not included.
+            deadline = asyncio.get_running_loop().time() + selected_timeout
             try:
-                body_bytes = await _read_response_body(response)
+                async with asyncio.timeout_at(deadline):
+                    (
+                        response,
+                        final_method,
+                        final_url,
+                        redirects,
+                        retries,
+                        candidate_cookies,
+                    ) = await self._send_following(
+                        method=selected_method,
+                        url=selected_url,
+                        headers=merged_headers,
+                        payload=payload,
+                        timeout_seconds=selected_timeout,
+                        follow_redirects=follow_redirects,
+                        attempts=captured.attempts,
+                    )
+                    try:
+                        body_bytes = await _read_response_body(response)
+                    finally:
+                        await response.aclose()
+            except TimeoutError:
+                raise HTTPToolError("http_request_failed") from None
+            try:
                 content_type = _content_type(response.headers)
                 body_kind, preview, envelope = _encode_body(content_type, body_bytes)
                 artifact: ArtifactRef | None = None
@@ -425,8 +436,6 @@ class _HTTPSession:
                 raise
             except (ArtifactTransportError, ValueError, TypeError):
                 raise HTTPToolError("http_request_failed") from None
-            finally:
-                await response.aclose()
 
     async def _send_following(
         self,
@@ -866,8 +875,9 @@ class HTTPRequestTool(_HTTPTool):
         body: Payload shaped according to body_type.
         body_type: "none" for no body, "json" for JSON data, "form" for a field
             mapping, or "text" for a string; defaults to "none".
-        timeout: Positive timeout in seconds within the configured runtime cap;
-            omit to use that cap.
+        timeout: Overall deadline in seconds for the whole call (every redirect,
+            retry and the complete response body), within the configured runtime
+            cap; omit to use that cap.
         follow_redirects: Follow redirects up to the request limit; defaults to true.
 
     Returns:

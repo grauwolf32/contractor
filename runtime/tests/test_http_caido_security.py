@@ -373,3 +373,33 @@ def caido_client(handler: Any) -> CaidoGraphQLClient:
         metrics=RuntimeAdapterMetricsState(),
         transport=httpx.MockTransport(handler),
     )
+
+
+def test_http_timeout_is_one_deadline_for_a_trickling_response(tmp_path: Path) -> None:
+    async def trickle():
+        yield b"x"
+        while True:
+            # Each byte arrives well within any per-read timeout.
+            await asyncio.sleep(0.05)
+            yield b"x"
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=trickle(), headers={"content-type": "text/plain"}, request=request
+        )
+
+    async def scenario() -> None:
+        artifacts = FakeArtifactClient()
+        tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(HTTPToolError) as failure:
+            await tools["http_request"]("https://target.example/slow", timeout=1)
+        elapsed = asyncio.get_running_loop().time() - started
+        assert failure.value.code == "http_request_failed"
+        assert 0.9 <= elapsed < 3
+        assert artifacts.writes == 0
+        # The session lock was released at the deadline.
+        assert await asyncio.wait_for(tools["http_history"](), 1) == []
+        await close_tools(tools)
+
+    asyncio.run(scenario())
