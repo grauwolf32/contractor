@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -180,7 +181,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			return writeErr
 		}
 		proposal := ExactArtifact{
-			Ref: written.Ref, Digest: digestBytes(canonical.proposalBytes),
+			Ref: written.Ref, Digest: auditdomain.DigestBytes(canonical.proposalBytes),
 			MediaType: written.MediaType, SizeBytes: written.Size,
 		}
 		if err := artifactService.PinExact(
@@ -268,7 +269,7 @@ SELECT EXISTS (
 		AllocationID: grant.AllocationID, LogicalAgentName: grant.LogicalAgentName,
 		Workflow: WorkflowOrigin{
 			Name: run.WorkflowName, Version: run.WorkflowVersion,
-			SchemaVersion: run.WorkflowSchemaVersion, ClosureDigest: digestBytes(run.WorkflowSnapshot),
+			SchemaVersion: run.WorkflowSchemaVersion, ClosureDigest: auditdomain.DigestBytes(run.WorkflowSnapshot),
 		},
 	}
 	origin.Workflow.ConfigurationRef.Name = run.WorkflowName

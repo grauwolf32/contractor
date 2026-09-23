@@ -625,7 +625,7 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 			t.Fatal(err)
 		}
 		return auditstore.ExactArtifact{
-			Ref: written.Ref, Digest: digestBytes([]byte(content)), MediaType: written.MediaType, SizeBytes: written.Size,
+			Ref: written.Ref, Digest: auditdomain.DigestBytes([]byte(content)), MediaType: written.MediaType, SizeBytes: written.Size,
 		}
 	}
 	provenance := json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`)
@@ -1168,7 +1168,7 @@ func seedAuditFinding(
 		t.Fatal(err)
 	}
 	proposal := findingintake.ExactArtifact{
-		Ref: written.Ref, Digest: digestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size,
+		Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size,
 	}
 	proposalJSON, _ := json.Marshal(proposal)
 	proposalRefJSON, _ := json.Marshal(proposal.Ref)

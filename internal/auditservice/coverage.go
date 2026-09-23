@@ -63,7 +63,7 @@ func (s *Service) describeCoverage(ctx context.Context, projectID string, rows [
 		}
 		for index, read := range reads {
 			key := batch[index]
-			if read.Payload.MediaType != auditdomain.PackageMediaType || digestBytes(read.Payload.Data) != refs[key].Digest {
+			if read.Payload.MediaType != auditdomain.PackageMediaType || auditdomain.DigestBytes(read.Payload.Data) != refs[key].Digest {
 				return artifacts.ErrArtifactIntegrity
 			}
 			if len(tasks[key]) != 0 {

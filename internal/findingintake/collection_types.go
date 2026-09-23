@@ -102,5 +102,5 @@ func canonicalCollectionRequest(input PublishCollectionRequest) (PublishCollecti
 	if err != nil {
 		return PublishCollectionRequest{}, "", err
 	}
-	return result, digestBytes(encoded), nil
+	return result, auditdomain.DigestBytes(encoded), nil
 }

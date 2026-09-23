@@ -203,7 +203,7 @@ func (i *Importer) collectSucceededRole(
 			ctx, run.RunID, descriptor, snapshot.Audit.ProjectID,
 			contracts.ArtifactRef{
 				Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID),
-				Name: deterministicID(
+				Name: auditdomain.DeterministicID(
 					"role-output", snapshot.Round.RoundID, execution.WorkflowRole,
 					execution.ExecutionID, logicalName,
 				),
@@ -234,7 +234,7 @@ func (i *Importer) collectSucceededRole(
 			WorkflowRole: execution.WorkflowRole, RoleAttempt: *execution.RoleAttempt,
 			RunID: run.RunID, WorkflowName: run.WorkflowName,
 			WorkflowVersion: run.WorkflowVersion,
-			WorkflowDigest:  digestBytes(run.WorkflowSnapshot),
+			WorkflowDigest:  auditdomain.DigestBytes(run.WorkflowSnapshot),
 			LogicalOutput:   logicalName, WorkflowOutput: slotName, SourceOutput: descriptor,
 		})
 		if encodeErr != nil {
@@ -528,10 +528,10 @@ func (i *Importer) commitCollection(
 		return false, err
 	}
 	_, _, err = i.store.Collect(ctx, auditstore.CollectParams{
-		Claim: claim, ReceiptID: deterministicID("receipt", execution.ExecutionID),
+		Claim: claim, ReceiptID: auditdomain.DeterministicID("receipt", execution.ExecutionID),
 		ExecutionID: execution.ExecutionID, Disposition: disposition,
 		SourceOutput: source, Retained: nonNilLinks(retained), ErrorCode: errorCode,
-		RequestDigest: digestBytes(encoded), Items: items,
+		RequestDigest: auditdomain.DigestBytes(encoded), Items: items,
 	})
 	return err == nil, err
 }
@@ -782,7 +782,7 @@ func collectionProvenance(
 		ExecutionID: execution.ExecutionID, ExecutionItemID: member.member.ExecutionItemID,
 		ItemID: member.item.ItemID, ItemKey: member.item.ItemKey, ItemAttempt: member.member.ItemAttempt,
 		RunID: run.RunID, WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
-		WorkflowSchemaVersion: run.WorkflowSchemaVersion, WorkflowClosureDigest: digestBytes(run.WorkflowSnapshot),
+		WorkflowSchemaVersion: run.WorkflowSchemaVersion, WorkflowClosureDigest: auditdomain.DigestBytes(run.WorkflowSnapshot),
 		ExecutionManifest: execution.Manifest, Task: member.member.Task,
 		TaskSource: member.origin, SourceOutput: source,
 	})
@@ -950,13 +950,4 @@ func nonNilLinks(values []auditstore.ArtifactLink) []auditstore.ArtifactLink {
 		return []auditstore.ArtifactLink{}
 	}
 	return values
-}
-
-func deterministicID(prefix string, values ...string) string {
-	identity := []byte("contractor.audit.identity.v1\x00" + prefix)
-	for _, value := range values {
-		identity = append(identity, 0)
-		identity = append(identity, value...)
-	}
-	return prefix + "-" + digestBytes(identity)[len("sha256:"):]
 }

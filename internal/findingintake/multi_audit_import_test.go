@@ -20,12 +20,12 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 	const secondAudit = "second-import-audit"
 	_, _, err := auditstore.NewPostgresStore(f.pool).CreateDraft(f.ctx, auditstore.CreateDraftParams{
 		AuditID: secondAudit, OwnerID: f.request.OwnerID, ProjectID: "delete-project",
-		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: digestBytes([]byte("profile"))},
+		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: auditdomain.DigestBytes([]byte("profile"))},
 		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
 		InputSelection:  json.RawMessage(`{}`),
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
 			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
-		IdempotencyKey: secondAudit, RequestDigest: digestBytes([]byte(secondAudit)),
+		IdempotencyKey: secondAudit, RequestDigest: auditdomain.DigestBytes([]byte(secondAudit)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 	}
 	if _, _, err := audits.RequestDelete(f.ctx, auditstore.DeleteParams{
 		OwnerID: f.request.OwnerID, AuditID: first.AuditID, ExpectedRevision: first.Revision,
-		IdempotencyKey: "delete-first", RequestDigest: digestBytes([]byte("delete-first")),
+		IdempotencyKey: "delete-first", RequestDigest: auditdomain.DigestBytes([]byte("delete-first")),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestPostgresDirectAssessmentReplayRequiresAuditScopedIdentity(t *testing.T)
 			if historical {
 				storedID = deterministicID("direct-assessment", input.ReceiptID)
 			}
-			resultDigest, contractDigest := digestBytes([]byte("result")), digestBytes([]byte("contract"))
+			resultDigest, contractDigest := auditdomain.DigestBytes([]byte("result")), auditdomain.DigestBytes([]byte("contract"))
 			if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_finding_assessments (
  assessment_id, finding_id, audit_id, receipt_id, semantic_assessment,
  result_ref, result_digest, direct_verification, contract_ref, contract_digest)
@@ -143,9 +143,9 @@ FROM audit_findings WHERE audit_id=$2 AND first_receipt_id=$3`, storedID, input.
 					case "assessment":
 						semantic = "refuted"
 					case "result":
-						result = digestBytes([]byte("other-result"))
+						result = auditdomain.DigestBytes([]byte("other-result"))
 					case "contract":
-						contract = digestBytes([]byte("other-contract"))
+						contract = auditdomain.DigestBytes([]byte("other-contract"))
 					case "receipt":
 						changedInput.ReceiptID = "other-receipt"
 					}

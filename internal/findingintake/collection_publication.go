@@ -81,7 +81,7 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 			if err != nil {
 				return err
 			}
-			exact := ExactArtifact{Ref: written.Ref, Digest: digestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size}
+			exact := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size}
 			receipt, err := json.Marshal(collectionPublication{Schema: collectionPublicationSchema, RequestDigest: requestDigest, Artifact: exact})
 			if err != nil {
 				return err
@@ -346,7 +346,7 @@ func (b *collectionDocuments) add(ctx context.Context, scope auditdomain.Finding
 	if err != nil {
 		return "", err
 	}
-	if int64(len(read.Payload.Data)) != exact.SizeBytes || read.Payload.MediaType != exact.MediaType || digestBytes(read.Payload.Data) != exact.Digest {
+	if int64(len(read.Payload.Data)) != exact.SizeBytes || read.Payload.MediaType != exact.MediaType || auditdomain.DigestBytes(read.Payload.Data) != exact.Digest {
 		return "", artifacts.ErrArtifactIntegrity
 	}
 	doc.ID = id

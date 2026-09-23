@@ -116,7 +116,7 @@ func (s *Service) PrepareNextRound(
 		ctx, projectArtifacts,
 		contracts.ArtifactRef{
 			Namespace: namespace,
-			Name:      deterministicID("proposal-inventory", snapshot.Audit.AuditID, digestBytes(sourceBytes)),
+			Name:      auditdomain.DeterministicID("proposal-inventory", snapshot.Audit.AuditID, auditdomain.DigestBytes(sourceBytes)),
 		},
 		artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: sourceBytes},
 	)
@@ -169,7 +169,7 @@ func (s *Service) PrepareNextRound(
 		if !exists || proposal.Digest != task.Finding.ProposalDigest {
 			return auditstore.AcceptRoundParams{}, nil, errors.New("next Round proposal descriptor drifted")
 		}
-		itemID := deterministicID(
+		itemID := auditdomain.DeterministicID(
 			"item", snapshot.Audit.AuditID, fmt.Sprint(roundOrdinal), item.ItemKey,
 		)
 		approvalKind, approvalDigest, state, err := materializedItemApproval(
@@ -203,7 +203,7 @@ func (s *Service) PrepareNextRound(
 			}},
 		}
 	}
-	roundID := deterministicID("round", snapshot.Audit.AuditID, fmt.Sprint(roundOrdinal))
+	roundID := auditdomain.DeterministicID("round", snapshot.Audit.AuditID, fmt.Sprint(roundOrdinal))
 	return auditstore.AcceptRoundParams{
 		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
 		PreviousRoundID: snapshot.Round.RoundID, RoundID: roundID,

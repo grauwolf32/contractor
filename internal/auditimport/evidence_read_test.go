@@ -93,7 +93,7 @@ func configureExternalEvidence(t *testing.T, harness *importHarness) *evidenceRe
 	access := &evidenceReadArtifacts{
 		ArtifactAccess: harness.artifacts,
 		descriptor: auditstore.ExactArtifact{
-			Ref: ref, Digest: digestBytes([]byte("evidence")), MediaType: "text/plain", SizeBytes: 8,
+			Ref: ref, Digest: auditdomain.DigestBytes([]byte("evidence")), MediaType: "text/plain", SizeBytes: 8,
 		},
 	}
 	harness.importer.artifacts = access

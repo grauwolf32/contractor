@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -249,8 +250,8 @@ func (s *Service) GetReport(
 		summary.Artifact.MediaType != "text/markdown" ||
 		machineRead.Payload.MediaType != machine.Artifact.MediaType ||
 		summaryRead.Payload.MediaType != summary.Artifact.MediaType ||
-		digestBytes(machineRead.Payload.Data) != machine.Artifact.Digest ||
-		digestBytes(summaryRead.Payload.Data) != summary.Artifact.Digest ||
+		auditdomain.DigestBytes(machineRead.Payload.Data) != machine.Artifact.Digest ||
+		auditdomain.DigestBytes(summaryRead.Payload.Data) != summary.Artifact.Digest ||
 		int64(len(machineRead.Payload.Data)) != machine.Artifact.SizeBytes ||
 		int64(len(summaryRead.Payload.Data)) != summary.Artifact.SizeBytes ||
 		!json.Valid(machineRead.Payload.Data) || len(summaryRead.Payload.Data) > auditstore.MaxSummaryBytes ||

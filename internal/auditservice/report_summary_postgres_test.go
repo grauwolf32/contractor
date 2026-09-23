@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/jackc/pgx/v5"
@@ -91,7 +92,7 @@ func testLegacyCommittedReportRejection(t *testing.T, ctx context.Context, pool 
 	if err != nil {
 		t.Fatal(err)
 	}
-	plain := auditstore.ExactArtifact{Ref: written.Ref, Digest: digestBytes(payload), MediaType: "text/plain", SizeBytes: written.Size}
+	plain := auditstore.ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(payload), MediaType: "text/plain", SizeBytes: written.Size}
 	mislabeled := plain
 	mislabeled.MediaType = "text/markdown"
 	install := func(artifact auditstore.ExactArtifact) {

@@ -33,7 +33,7 @@ func TestReportPreservesExplicitLocationsAndUnknownSubject(t *testing.T) {
 	revision := "proposal-r1"
 	artifact := auditstore.ExactArtifact{
 		Ref:    contracts.ArtifactRef{Namespace: "findings", Name: "proposal", Revision: &revision},
-		Digest: digestBytes(payload), SizeBytes: int64(len(payload)), MediaType: "application/json",
+		Digest: auditdomain.DigestBytes(payload), SizeBytes: int64(len(payload)), MediaType: "application/json",
 	}
 	store := &fakeImportStore{findings: []auditstore.ReportFinding{{FindingID: "finding-1", State: "proposed", FirstProposal: artifact, Revision: 1}}}
 	access := &fakeImportArtifacts{project: map[string][]byte{refKey(artifact.Ref): payload}}

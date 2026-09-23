@@ -82,7 +82,7 @@ func testFindingInventoryDocument(t *testing.T) FindingInventoryDocument {
 			ReceiptID: "receipt-a",
 			Proposal: FindingInventoryArtifact{
 				Ref:    contracts.ArtifactRef{Namespace: "audit-a", Name: "proposal-a", Revision: &revision},
-				Digest: digestBytes(encoded), MediaType: JSONMediaType, SizeBytes: int64(len(encoded)),
+				Digest: DigestBytes(encoded), MediaType: JSONMediaType, SizeBytes: int64(len(encoded)),
 			},
 			Document: document, SelectedCheckOrdinals: []int{0, 1},
 		}},

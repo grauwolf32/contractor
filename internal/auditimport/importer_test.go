@@ -35,7 +35,7 @@ func TestImporterAcceptsExactFrozenResultAndEvidence(t *testing.T) {
 		len(collected.Retained) != 2 || collected.RequestDigest == "" {
 		t.Fatalf("accepted collection = %+v", collected)
 	}
-	if collected.Items[0].Result.Ref.Namespace != deterministicID("audit", harness.snapshot.Audit.AuditID) {
+	if collected.Items[0].Result.Ref.Namespace != auditdomain.DeterministicID("audit", harness.snapshot.Audit.AuditID) {
 		t.Fatalf("accepted result was not retained in protected namespace: %+v", collected.Items[0].Result)
 	}
 }
@@ -118,7 +118,7 @@ func TestImporterBatchKeepsFindingProposalOnItsExactMember(t *testing.T) {
 			Ref: contracts.ArtifactRef{
 				Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
 			},
-			Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+			Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
 		},
 	}
 	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{proposal}}
@@ -161,7 +161,7 @@ func TestImporterBatchRejectsProposalAliasedAcrossMembers(t *testing.T) {
 			Ref: contracts.ArtifactRef{
 				Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
 			},
-			Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+			Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
 		},
 	}}}
 	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
@@ -187,7 +187,7 @@ func TestImporterRecordsInvalidAndMissingSucceededOutputs(t *testing.T) {
 	t.Run("invalid", func(t *testing.T) {
 		harness := newImportHarness(t)
 		harness.artifacts.runPayload = []byte("not a package")
-		harness.artifacts.runDescriptor.Digest = digestBytes(harness.artifacts.runPayload)
+		harness.artifacts.runDescriptor.Digest = auditdomain.DigestBytes(harness.artifacts.runPayload)
 		harness.artifacts.runDescriptor.SizeBytes = int64(len(harness.artifacts.runPayload))
 		worked, err := harness.importer.Collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
 		if err != nil || !worked || harness.store.collected.Disposition != auditstore.CollectionInvalidResult ||
@@ -274,7 +274,7 @@ func TestImporterRetainsNamedRoleOutputsWithExactProvenance(t *testing.T) {
 		!strings.Contains(string(link.SourceProvenance), `"workflowRole":"inventory"`) {
 		t.Fatalf("retained discovery output = %+v", link)
 	}
-	wantTarget := deterministicID(
+	wantTarget := auditdomain.DeterministicID(
 		"role-output", round.RoundID, "inventory", harness.execution.ExecutionID, "result",
 	)
 	if len(harness.artifacts.retainedTargets) != 1 ||
@@ -465,7 +465,7 @@ func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T)
 			Ref: contracts.ArtifactRef{
 				Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
 			},
-			Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+			Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
 		},
 	}
 	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{proposal}}
@@ -508,7 +508,7 @@ func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
 		Ref: contracts.ArtifactRef{
 			Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
 		},
-		Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+		Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
 	}
 	proposalDocument := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-1",
@@ -567,7 +567,7 @@ func TestImporterBatchAllowsDistinctTaskChecksFromOneProposalReceipt(t *testing.
 		Ref: contracts.ArtifactRef{
 			Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
 		},
-		Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+		Digest: auditdomain.DigestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
 	}
 	proposalDocument := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-1",
@@ -638,7 +638,7 @@ func TestImporterConvertsPermanentPinnedContractFailureToReceipt(t *testing.T) {
 	harness := newImportHarness(t)
 	corrupt := []byte("not an Audit task package")
 	harness.artifacts.project[refKey(harness.store.members[0].Task.Ref)] = corrupt
-	digest := digestBytes(corrupt)
+	digest := auditdomain.DigestBytes(corrupt)
 	harness.store.members[0].Task.Digest = digest
 	harness.snapshot.Items[0].Task.Digest = digest
 
@@ -675,7 +675,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 	taskRevision := "task-report"
 	task := auditstore.ExactArtifact{
 		Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "task", Revision: &taskRevision},
-		Digest: digestBytes([]byte("task")), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
+		Digest: auditdomain.DigestBytes([]byte("task")), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
 	}
 	disposition := auditstore.FinalExcluded
 	item := auditstore.Item{
@@ -709,7 +709,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		Ref: contracts.ArtifactRef{
 			Namespace: "audit-test", Name: "proposal-report", Revision: &proposalRevision,
 		},
-		Digest: digestBytes(proposalBytes), MediaType: "application/json", SizeBytes: int64(len(proposalBytes)),
+		Digest: auditdomain.DigestBytes(proposalBytes), MediaType: "application/json", SizeBytes: int64(len(proposalBytes)),
 	}
 	analystSeverity := "high"
 	store := &fakeImportStore{
@@ -720,7 +720,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 				Revision: 3, Decision: &auditstore.ReportFindingDecision{
 					DecisionID: "decision-report", ActorID: "owner-report", Verdict: "true_positive",
 					Severity: &analystSeverity, Rationale: "Confirmed against retained evidence.",
-					SubjectRevision: 2, SubjectDigest: digestBytes([]byte("finding-subject")), CreatedAt: time.Unix(90, 0),
+					SubjectRevision: 2, SubjectDigest: auditdomain.DigestBytes([]byte("finding-subject")), CreatedAt: time.Unix(90, 0),
 				}},
 			{FindingID: "finding-proposed", State: "proposed", FirstProposal: proposalArtifact, Revision: 1},
 		},
@@ -745,7 +745,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 			RoundID: roundID, AuditID: item.AuditID, Ordinal: 1,
 			Manifest: auditstore.ExactArtifact{
 				Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "round", Revision: &manifestRevision},
-				Digest: digestBytes([]byte("round")),
+				Digest: auditdomain.DigestBytes([]byte("round")),
 			},
 			State: auditstore.RoundClosed, ExpectedItemCount: 1, Revision: 3,
 		},
@@ -810,7 +810,7 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 			RoundID: roundID, AuditID: auditID, Ordinal: roundOrdinal + 1,
 			Manifest: auditstore.ExactArtifact{
 				Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: roundID, Revision: &manifestRevision},
-				Digest: digestBytes([]byte(roundID)),
+				Digest: auditdomain.DigestBytes([]byte(roundID)),
 			},
 			State: auditstore.RoundClosed, ExpectedItemCount: count, Revision: 3,
 		})
@@ -822,7 +822,7 @@ func TestImporterFinalizesReportAcrossEveryRound(t *testing.T) {
 				ItemKey: itemID, Ordinal: ordinal, Kind: "checklist", SubjectKey: itemID,
 				Task: auditstore.ExactArtifact{
 					Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "task", Revision: &taskRevision},
-					Digest: digestBytes([]byte(itemID)), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
+					Digest: auditdomain.DigestBytes([]byte(itemID)), MediaType: auditdomain.PackageMediaType, SizeBytes: 4,
 				},
 				WorkflowRole: "check", State: auditstore.ItemSettled, FinalDisposition: &disposition,
 			}
@@ -1038,7 +1038,7 @@ func configureSecondBatchMember(
 	if err != nil {
 		t.Fatal(err)
 	}
-	harness.execution.Manifest.Digest = digestBytes(manifestBytes)
+	harness.execution.Manifest.Digest = auditdomain.DigestBytes(manifestBytes)
 	harness.execution.Manifest.SizeBytes = int64(len(manifestBytes))
 	harness.artifacts.project[refKey(harness.execution.Manifest.Ref)] = manifestBytes
 
@@ -1146,8 +1146,8 @@ func newImportHarness(t *testing.T) importHarness {
 	taskDocument := auditdomain.ItemTask{
 		Schema: auditdomain.TaskSchema, ItemKey: "check-1", Kind: "checklist",
 		SubjectKey: "check-1", WorkflowRole: "check",
-		SourceContentDigest: digestBytes([]byte("checklist")), SourceMediaType: "application/json",
-		SourceRef: sourceRef, CanonicalInventoryDigest: digestBytes([]byte("inventory")),
+		SourceContentDigest: auditdomain.DigestBytes([]byte("checklist")), SourceMediaType: "application/json",
+		SourceRef: sourceRef, CanonicalInventoryDigest: auditdomain.DigestBytes([]byte("inventory")),
 		Checklist: &auditdomain.ChecklistTask{
 			Version: "1", Statement: "Verify source evidence", Applicability: "always",
 			AllowedMethods: []string{"static"}, RequiredEvidence: []string{"source"}, ReviewPolicy: "automatic",
@@ -1178,7 +1178,7 @@ func newImportHarness(t *testing.T) importHarness {
 	}
 	manifestDescriptor := auditstore.ExactArtifact{
 		Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "manifest", Revision: &manifestRevision},
-		Digest: digestBytes(manifestBytes), MediaType: "application/json", SizeBytes: int64(len(manifestBytes)),
+		Digest: auditdomain.DigestBytes(manifestBytes), MediaType: "application/json", SizeBytes: int64(len(manifestBytes)),
 	}
 	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
 		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: manifestDescriptor.Digest,
@@ -1384,7 +1384,7 @@ func rebuildHarnessResult(
 	t.Helper()
 	manifestBytes := harness.artifacts.project[refKey(harness.execution.Manifest.Ref)]
 	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
-		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: digestBytes(manifestBytes),
+		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: auditdomain.DigestBytes(manifestBytes),
 		Results: []auditdomain.CheckResult{{
 			ItemKey: "check-1", SubjectKey: "check-1", Assessment: "satisfied",
 			Summary: "The required evidence is present.", EvidenceIDs: []string{"ev-1"},
@@ -1434,8 +1434,8 @@ func configureFindingTaskResult(
 	taskDocument := auditdomain.ItemTask{
 		Schema: auditdomain.TaskSchema, ItemKey: "finding-check-1", Kind: "finding-verification",
 		SubjectKey: document.Subject.Key, WorkflowRole: "check",
-		SourceContentDigest: digestBytes([]byte("inventory")), SourceMediaType: "application/json",
-		SourceRef: sourceRef, CanonicalInventoryDigest: digestBytes([]byte("canonical-inventory")),
+		SourceContentDigest: auditdomain.DigestBytes([]byte("inventory")), SourceMediaType: "application/json",
+		SourceRef: sourceRef, CanonicalInventoryDigest: auditdomain.DigestBytes([]byte("canonical-inventory")),
 		Finding: &auditdomain.FindingTask{
 			ReceiptID: "finding-receipt", ProposalRef: proposal.Ref, ProposalDigest: proposal.Digest,
 			ProposedCheckOrdinal: 0, Objective: document.ProposedChecks[0].Objective,
@@ -1477,7 +1477,7 @@ func configureFindingTaskResult(
 	harness.artifacts.project = map[string][]byte{
 		refKey(task.Ref): taskPayload, refKey(harness.execution.Manifest.Ref): manifestBytes,
 	}
-	harness.execution.Manifest.Digest = digestBytes(manifestBytes)
+	harness.execution.Manifest.Digest = auditdomain.DigestBytes(manifestBytes)
 	harness.execution.Manifest.SizeBytes = int64(len(manifestBytes))
 	harness.store.members[0].Task = task
 	harness.store.members[0].Inputs = []auditstore.ExactArtifact{}
@@ -1590,7 +1590,7 @@ func appendSecondFindingTaskResult(
 	if err != nil {
 		t.Fatal(err)
 	}
-	harness.execution.Manifest.Digest = digestBytes(manifestBytes)
+	harness.execution.Manifest.Digest = auditdomain.DigestBytes(manifestBytes)
 	harness.execution.Manifest.SizeBytes = int64(len(manifestBytes))
 	harness.artifacts.project[refKey(harness.execution.Manifest.Ref)] = manifestBytes
 
@@ -1650,7 +1650,7 @@ func appendSecondFindingTaskResult(
 
 func (f *fakeImportArtifacts) ReadProjectExact(_ context.Context, _ string, artifact auditstore.ExactArtifact) ([]byte, error) {
 	value, exists := f.project[refKey(artifact.Ref)]
-	if !exists || digestBytes(value) != artifact.Digest {
+	if !exists || auditdomain.DigestBytes(value) != artifact.Digest {
 		return nil, artifacts.ErrArtifactNotFound
 	}
 	return append([]byte{}, value...), nil
@@ -1679,7 +1679,7 @@ func (f *fakeImportArtifacts) PutImmutableProject(_ context.Context, _ string, t
 	revision := "revision-" + target.Name
 	target.Revision = &revision
 	return auditstore.ExactArtifact{
-		Ref: target, Digest: digestBytes(payload.Data), MediaType: payload.MediaType,
+		Ref: target, Digest: auditdomain.DigestBytes(payload.Data), MediaType: payload.MediaType,
 		SizeBytes: int64(len(payload.Data)),
 	}, nil
 }

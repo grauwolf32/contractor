@@ -270,7 +270,7 @@ func TestFindingCollectionRejectsMissingAndForgedContents(t *testing.T) {
 						continue
 					}
 					body := []byte(`{"schema":"not-a-proposal"}`)
-					doc.Digest, doc.SizeBytes = digestBytes(body), int64(len(body))
+					doc.Digest, doc.SizeBytes = DigestBytes(body), int64(len(body))
 					var err error
 					doc.ID, err = FindingCollectionDocumentID(doc)
 					if err != nil {

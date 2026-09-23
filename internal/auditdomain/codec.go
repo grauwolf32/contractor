@@ -108,7 +108,7 @@ func DigestExecutionManifest(value ExecutionManifest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return digestBytes(encoded), nil
+	return DigestBytes(encoded), nil
 }
 
 // ValidateResultSet verifies complete, exact membership. It returns no partial
@@ -305,7 +305,7 @@ func validateFindingInventory(value FindingInventoryDocument) error {
 			return invalid(CodeInventoryInvalid, "finding_inventory.proposals")
 		}
 		encoded, err := EncodeFindingProposal(proposal.Document)
-		if err != nil || digestBytes(encoded) != proposal.Proposal.Digest ||
+		if err != nil || DigestBytes(encoded) != proposal.Proposal.Digest ||
 			int64(len(encoded)) != proposal.Proposal.SizeBytes {
 			return invalid(CodeInventoryInvalid, "finding_inventory.proposal")
 		}

@@ -63,7 +63,7 @@ func tryAcceptDirectVerification(
 		return nil
 	}
 	if run.OwnerID == "" || run.ProjectID == nil || *run.ProjectID != input.ProjectID ||
-		run.RunID != input.RunID || digestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
+		run.RunID != input.RunID || auditdomain.DigestBytes(run.WorkflowSnapshot) != input.WorkflowClosureDigest {
 		return artifacts.ErrArtifactIntegrity
 	}
 	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
@@ -97,7 +97,7 @@ func tryAcceptDirectVerification(
 	}
 	if read.Payload.MediaType != descriptor.MediaType ||
 		int64(len(read.Payload.Data)) != descriptor.Size ||
-		digestBytes(read.Payload.Data) != descriptor.Digest {
+		auditdomain.DigestBytes(read.Payload.Data) != descriptor.Digest {
 		return artifacts.ErrArtifactIntegrity
 	}
 	document, err := auditdomain.DecodeDirectVerificationSet(read.Payload.Data)
@@ -139,7 +139,7 @@ func tryAcceptDirectVerification(
 	assessmentID := deterministicID("direct-assessment", input.AuditID, input.ReceiptID)
 	if replayed, err := directAssessmentReplay(
 		ctx, tx, assessmentID, input, verification.Assessment,
-		descriptor.Digest, digestBytes(contractBytes),
+		descriptor.Digest, auditdomain.DigestBytes(contractBytes),
 	); err != nil || replayed {
 		return err
 	}
@@ -182,7 +182,7 @@ SELECT retained_evidence_bytes + $2 <= max_evidence_bytes
 		return err
 	}
 	contractArtifact := ExactArtifact{
-		Ref: contractWrite.Ref, Digest: digestBytes(contractBytes),
+		Ref: contractWrite.Ref, Digest: auditdomain.DigestBytes(contractBytes),
 		MediaType: contractWrite.MediaType, SizeBytes: contractWrite.Size,
 	}
 	return commitDirectVerification(
@@ -238,7 +238,7 @@ func readExactFindingProposal(
 	}
 	if read.Payload.MediaType != expected.MediaType ||
 		int64(len(read.Payload.Data)) != expected.SizeBytes ||
-		digestBytes(read.Payload.Data) != expected.Digest {
+		auditdomain.DigestBytes(read.Payload.Data) != expected.Digest {
 		return auditdomain.FindingProposal{}, artifacts.ErrArtifactIntegrity
 	}
 	proposal, err := auditdomain.DecodeFindingProposal(read.Payload.Data)

@@ -3,12 +3,11 @@ package auditcontroller
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -45,7 +44,7 @@ func (a *ProjectArtifactAccess) ReadProjectExact(
 		return artifacts.Payload{}, err
 	}
 	if !sameExactRef(result.Ref, descriptor.Ref) ||
-		digestBytes(result.Payload.Data) != descriptor.Digest ||
+		auditdomain.DigestBytes(result.Payload.Data) != descriptor.Digest ||
 		result.Payload.MediaType != descriptor.MediaType ||
 		int64(len(result.Payload.Data)) != descriptor.SizeBytes {
 		return artifacts.Payload{}, fmt.Errorf("%w: exact Project artifact content changed", ErrInvalidSubmission)
@@ -78,7 +77,7 @@ func (a *ProjectArtifactAccess) PutImmutableProject(
 	write, err := store.Write(ctx, target, payload, nil)
 	if err == nil {
 		return auditstore.ExactArtifact{
-			Ref: write.Ref, Digest: digestBytes(payload.Data),
+			Ref: write.Ref, Digest: auditdomain.DigestBytes(payload.Data),
 			MediaType: write.MediaType, SizeBytes: write.Size,
 		}, nil
 	}
@@ -95,7 +94,7 @@ func (a *ProjectArtifactAccess) PutImmutableProject(
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision", ErrInvalidSubmission)
 	}
 	return auditstore.ExactArtifact{
-		Ref: current.Ref, Digest: digestBytes(current.Payload.Data),
+		Ref: current.Ref, Digest: auditdomain.DigestBytes(current.Payload.Data),
 		MediaType: current.Payload.MediaType, SizeBytes: int64(len(current.Payload.Data)),
 	}, nil
 }
@@ -120,9 +119,4 @@ func (a *ProjectArtifactAccess) ResolveProjectExact(
 	descriptor.MediaType = metadata.MediaType
 	descriptor.SizeBytes = metadata.Size
 	return descriptor, nil
-}
-
-func digestBytes(value []byte) string {
-	digest := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(digest[:])
 }

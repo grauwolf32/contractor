@@ -201,7 +201,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
 	}
 	return canonicalSubmission{
-		request: input, proposalBytes: proposalBytes, digest: digestBytes(encoded),
+		request: input, proposalBytes: proposalBytes, digest: auditdomain.DigestBytes(encoded),
 	}, nil
 }
 
@@ -221,11 +221,6 @@ func deterministicID(prefix string, values ...string) string {
 	}
 	digest := sha256.Sum256([]byte(input))
 	return prefix + "-" + hex.EncodeToString(digest[:])
-}
-
-func digestBytes(value []byte) string {
-	digest := sha256.Sum256(value)
-	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 func validIdentity(value string) bool {

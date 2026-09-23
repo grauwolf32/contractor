@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -137,7 +138,7 @@ func TestImporterPendingReportReviewSurvivesRunDeletion(t *testing.T) {
 				OwnerID: "owner", AuditID: f.id, RequestID: candidate.RequestID,
 				ExpectedRequestRevision: review.Revision, DecisionID: f.id + "-decision",
 				Action: action, Rationale: "Review the exact retained report after source deletion.",
-				IdempotencyKey: f.id + "-decision", RequestDigest: digestBytes([]byte(f.id + string(action))),
+				IdempotencyKey: f.id + "-decision", RequestDigest: auditdomain.DigestBytes([]byte(f.id + string(action))),
 			}
 			decision, err := service.DecideActionReview(f.ctx, params)
 			mustCompletion(t, err)

@@ -77,7 +77,7 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence := findingintake.ExactArtifact{Ref: write.Ref, Digest: digestBytes([]byte("same evidence")), MediaType: write.MediaType, SizeBytes: write.Size}
+	evidence := findingintake.ExactArtifact{Ref: write.Ref, Digest: auditdomain.DigestBytes([]byte("same evidence")), MediaType: write.MediaType, SizeBytes: write.Size}
 	if missingEvidence {
 		evidence.Ref.Name = "missing"
 	}
@@ -103,7 +103,7 @@ workflow_schema_version, workflow_configuration_ref, workflow_closure_digest, pr
 ) VALUES ($1,$2,$3,'runtime','instance','stage','worker',$4,$5,$6,$7,$8,$9,'source','1','contractor/v1alpha1',
 '{"name":"source","version":"1"}',$7,$10,$11,'application/json',$12,$13)`,
 		"receipt-"+suffix, "proposal-"+suffix, "allocation-"+suffix, "invocation-"+suffix, "submission-"+suffix, suffix,
-		serviceTestDigest(suffix), runID, owner, ref, digestBytes(body), written.Size, evidenceJSON)
+		serviceTestDigest(suffix), runID, owner, ref, auditdomain.DigestBytes(body), written.Size, evidenceJSON)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestFindingCollectionPublicationRunRetentionAndReplay(t *testing.T) {
 	}
 	reader, _ := service.Run("reader")
 	retained, err := reader.Read(ctx, fork.TargetRef)
-	if err != nil || digestBytes(retained.Payload.Data) != result.Artifact.Digest {
+	if err != nil || auditdomain.DigestBytes(retained.Payload.Data) != result.Artifact.Digest {
 		t.Fatalf("consumer ZIP after deletion: %v", err)
 	}
 	replay, err := publisher.PublishCollection(ctx, params)

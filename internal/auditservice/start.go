@@ -277,7 +277,7 @@ func (s *Service) startInTransaction(
 				},
 			}
 		}
-		itemID := deterministicID("item", audit.AuditID, item.ItemKey)
+		itemID := auditdomain.DeterministicID("item", audit.AuditID, item.ItemKey)
 		approvalKind, approvalDigest, initialState, err := materializedItemApproval(
 			audit.AuditID, profile, itemID, item, taskArtifacts[index],
 		)
@@ -306,7 +306,7 @@ func (s *Service) startInTransaction(
 	if deadlineSeconds > 0 {
 		deadline = s.now().UTC().Add(timeDurationSeconds(deadlineSeconds))
 	}
-	roundID := deterministicID("round", audit.AuditID, "1")
+	roundID := auditdomain.DeterministicID("round", audit.AuditID, "1")
 	started, created, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
 		OwnerID: params.OwnerID, AuditID: audit.AuditID,
 		ExpectedRevision: params.ExpectedRevision,
@@ -379,7 +379,7 @@ func materializedItemApproval(
 	if err != nil {
 		return "", "", "", err
 	}
-	return kind, digestBytes(encoded), auditstore.ItemAwaitingReview, nil
+	return kind, auditdomain.DigestBytes(encoded), auditstore.ItemAwaitingReview, nil
 }
 
 func (s *Service) validateProfileDependencies(
@@ -450,7 +450,7 @@ func readAndVerifyInputs(
 		}
 		if read.Ref.Revision == nil || selected.Ref.Revision == nil ||
 			*read.Ref.Revision != *selected.Ref.Revision || read.Payload.MediaType != selected.MediaType ||
-			int64(len(read.Payload.Data)) != selected.SizeBytes || digestBytes(read.Payload.Data) != selected.Digest {
+			int64(len(read.Payload.Data)) != selected.SizeBytes || auditdomain.DigestBytes(read.Payload.Data) != selected.Digest {
 			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation", ErrInvalid)
 		}
 		result[name] = read
@@ -512,7 +512,7 @@ func buildInventory(
 			return auditdomain.Inventory{}, fmt.Errorf("%w: scan settings input is missing or invalid", ErrInvalid)
 		}
 		return auditdomain.BuildOpenAPIScanInventory(source.Payload.Data, source.Payload.MediaType, settings.Payload.Data,
-			auditdomain.ExactInput{Name: profile.Inventory.Settings.Name, Ref: settings.Ref, Digest: digestBytes(settings.Payload.Data)}, options)
+			auditdomain.ExactInput{Name: profile.Inventory.Settings.Name, Ref: settings.Ref, Digest: auditdomain.DigestBytes(settings.Payload.Data)}, options)
 	case "checklist@1":
 		if source.Payload.MediaType == auditdomain.PackageMediaType {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: checklist packages are not supported by this Server", ErrInvalid)
@@ -546,7 +546,7 @@ func writeTaskPackages(
 		if err != nil {
 			return nil, auditdomain.ExecutionManifest{}, err
 		}
-		if task.PackageDigest != digestBytes(task.Package) || write.SizeBytes != int64(len(task.Package)) ||
+		if task.PackageDigest != auditdomain.DigestBytes(task.Package) || write.SizeBytes != int64(len(task.Package)) ||
 			write.MediaType != auditdomain.PackageMediaType {
 			return nil, auditdomain.ExecutionManifest{}, errors.New("stored Audit task package failed integrity validation")
 		}
@@ -613,7 +613,7 @@ func writeRoundPackage(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	packageID := deterministicID("worklist", digestBytes(execution), inventory.CanonicalInventoryDigest)
+	packageID := auditdomain.DeterministicID("worklist", auditdomain.DigestBytes(execution), inventory.CanonicalInventoryDigest)
 	payload, validated, err := auditdomain.BuildPackage(
 		packageID, auditdomain.PackageKindWorklist, "", []auditdomain.PackageInput{
 			{ID: "coverage", Path: "coverage.json", MediaType: "application/json", Data: coverage},
@@ -631,7 +631,7 @@ func writeRoundPackage(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	if validated.Digest != digestBytes(payload) || write.SizeBytes != int64(len(payload)) {
+	if validated.Digest != auditdomain.DigestBytes(payload) || write.SizeBytes != int64(len(payload)) {
 		return auditstore.ExactArtifact{}, errors.New("stored Audit worklist package failed integrity validation")
 	}
 	return auditstore.ExactArtifact{
@@ -649,7 +649,7 @@ func writeImmutableArtifact(
 	written, err := store.Write(ctx, target, payload, nil)
 	if err == nil {
 		return auditstore.ExactArtifact{
-			Ref: written.Ref, Digest: digestBytes(payload.Data),
+			Ref: written.Ref, Digest: auditdomain.DigestBytes(payload.Data),
 			MediaType: written.MediaType, SizeBytes: written.Size,
 		}, nil
 	}
@@ -664,7 +664,7 @@ func writeImmutableArtifact(
 		return auditstore.ExactArtifact{}, artifacts.ErrArtifactConflict
 	}
 	return auditstore.ExactArtifact{
-		Ref: current.Ref, Digest: digestBytes(current.Payload.Data),
+		Ref: current.Ref, Digest: auditdomain.DigestBytes(current.Payload.Data),
 		MediaType: current.Payload.MediaType, SizeBytes: int64(len(current.Payload.Data)),
 	}, nil
 }
