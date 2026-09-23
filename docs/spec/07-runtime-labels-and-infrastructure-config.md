@@ -828,7 +828,12 @@ For `tool-subprocess`, the bounded launcher constructs a child-only
 after process exit and treats every proxy-auth value as secret. Private
 Contractor hosts are in the bypass set and the child receives no Runtime client
 certificate, Artifact grant or Control Plane token unless its separate selected
-tool contract explicitly requires an allocation-scoped handle.
+tool contract explicitly requires an allocation-scoped handle. The child's own
+outcome reaches the calling tool unchanged: any exit code (a validator exits 1
+for findings), a timeout or an output-limit breach is reported by that tool as
+it would be without a proxy. Only failing to prepare, launch or clean up the
+route is an adapter failure, `proxy_subprocess_failed`, and counts as a failed
+adapter operation.
 
 The `v1alpha1` generic subprocess environment can carry unauthenticated or
 Basic-authenticated proxy URLs. It cannot faithfully encode Bearer proxy

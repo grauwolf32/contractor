@@ -22,7 +22,11 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeAdapterRef
-from contractor_runtime.toolsets.common.process import run_command
+from contractor_runtime.toolsets.common.process import (
+    ProcessOutputLimitError,
+    ProcessTimeoutError,
+    run_command,
+)
 from contractor_runtime.toolsets.common.target_policy import TargetDenied, TargetPolicy
 
 MAX_SUBPROCESS_ARGUMENTS = 128
@@ -239,7 +243,13 @@ class ProxySubprocessLauncher:
         timeout: float | None = None,
         max_output_bytes: int = MAX_SUBPROCESS_OUTPUT_BYTES,
     ) -> subprocess.CompletedProcess[bytes]:
-        """Run with the same private route and own cancellation through child exit."""
+        """Run with the same private route and own cancellation through child exit.
+
+        The child's own outcome reaches the caller unchanged: a completed process
+        with any exit code, ProcessTimeoutError or ProcessOutputLimitError. Only
+        failures to prepare, launch or clean up the route are adapter failures
+        and become ProxySubprocessError.
+        """
         selected_command = _validate_command(command)
         if input is not None and not isinstance(input, bytes):
             raise ProxySubprocessError
@@ -274,6 +284,10 @@ class ProxySubprocessLauncher:
         except asyncio.CancelledError:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise
+        except (ProcessTimeoutError, ProcessOutputLimitError):
+            # The route launched and supervised the child; its outcome is the caller's.
+            self._metrics.record_operation(succeeded=True)
+            raise
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise ProxySubprocessError from None
@@ -283,10 +297,8 @@ class ProxySubprocessLauncher:
             if ca_root is not None and not self._remove_temporary_root(ca_root):
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
                 raise ProxySubprocessError from None
-        succeeded = result.returncode == 0
-        self._metrics.record_operation(
-            succeeded=succeeded, error_code=None if succeeded else "request_failed"
-        )
+        # Any exit code is the child's answer (a validator exits 1 for issues).
+        self._metrics.record_operation(succeeded=True)
         return result
 
     async def aclose(self) -> None:

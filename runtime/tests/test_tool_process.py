@@ -16,7 +16,13 @@ import pytest
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.http_proxy import ProxySubprocessError, ProxySubprocessLauncher
 from contractor_runtime.toolsets.common import process as process_module
-from contractor_runtime.toolsets.common.process import run_command
+from contractor_runtime.toolsets.common.process import (
+    ProcessOutputLimitError,
+    ProcessTimeoutError,
+    run_command,
+)
+from contractor_runtime.toolsets.likec4 import tools as likec4_module
+from contractor_runtime.toolsets.openapi import tools as openapi_module
 
 
 def test_bounded_process_transfers_stdin_and_does_not_inherit_environment(monkeypatch) -> None:
@@ -223,6 +229,60 @@ def test_proxy_async_close_cancels_child_before_erasing_its_ca(tmp_path: Path) -
     asyncio.run(scenario())
 
 
+def test_proxy_async_child_outcomes_reach_the_caller_unwrapped() -> None:
+    async def scenario() -> None:
+        launcher = _launcher(combined_ca_bundle=b"private CA fixture")
+        with pytest.raises(ProcessTimeoutError) as timed_out:
+            await launcher.run_async(
+                [sys.executable, "-c", "import time; print('partial', flush=True); time.sleep(60)"],
+                timeout=0.3,
+            )
+        assert timed_out.value.stdout == b"partial\n"
+        with pytest.raises(ProcessOutputLimitError):
+            await launcher.run_async(
+                [sys.executable, "-c", "print('x' * 5000)"], max_output_bytes=1000
+            )
+        # A non-zero exit is the child's answer (a validator reporting issues),
+        # not an adapter failure.
+        issues = await launcher.run_async([sys.executable, "-c", "import sys; sys.exit(1)"])
+        assert issues.returncode == 1
+        assert launcher.active_temporary_roots == ()
+        assert launcher._metrics.operations == 3
+        assert launcher._metrics.failed_operations == 0
+        await launcher.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("outcome", ["timeout", "oversized"])
+def test_proxied_validators_report_timeout_and_oversized_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: str
+) -> None:
+    body = "import time; time.sleep(60)" if outcome == "timeout" else "print('x' * 3_000_000)"
+    executable = tmp_path / "validator"
+    executable.write_text(f"#!{sys.executable}\n{body}\n")
+    executable.chmod(0o700)
+    monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: str(executable))
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: str(executable))
+    monkeypatch.setattr(openapi_module, "MAX_VACUUM_OUTPUT_BYTES", 1000)
+    monkeypatch.setattr(likec4_module, "MAX_VALIDATOR_OUTPUT_BYTES", 1000)
+
+    async def scenario() -> None:
+        launcher = _launcher(timeout_seconds=0.5)
+        vacuum = await openapi_module._run_vacuum("openapi: 3.0.3", launcher)
+        likec4 = await likec4_module._run_likec4("model {}", tmp_path, launcher)
+        await launcher.aclose()
+        return vacuum, likec4
+
+    vacuum, likec4 = asyncio.run(scenario())
+    if outcome == "timeout":
+        assert vacuum["executionError"] == "Vacuum validation timed out"
+        assert likec4["executionError"] == "LikeC4 validation timed out"
+    else:
+        assert vacuum["executionError"] == "Vacuum could not be executed"
+        assert likec4["executionError"] == "LikeC4 returned oversized output"
+
+
 def _launcher(**settings) -> ProxySubprocessLauncher:
     return ProxySubprocessLauncher(
         proxy_url="http://proxy.invalid:8080",
@@ -230,6 +290,6 @@ def _launcher(**settings) -> ProxySubprocessLauncher:
         bearer_token=settings.get("bearer_token"),
         combined_ca_bundle=settings.get("combined_ca_bundle"),
         bypass_hosts=(),
-        timeout_seconds=30,
+        timeout_seconds=settings.get("timeout_seconds", 30),
         metrics=RuntimeAdapterMetricsState(),
     )
