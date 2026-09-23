@@ -435,6 +435,33 @@ def test_authority_4xx_and_invalid_decisions_stop_without_retry():
     asyncio.run(scenario())
 
 
+def test_complete_server_decision_shape_is_the_strict_wire_contract():
+    from contractor_runtime.llm.recovery import RecoveryStoppedError
+
+    blocked = (
+        b'{"allowed":false,"code":"model_unavailable","retryAfterSeconds":30,'
+        b'"requestTimeoutSeconds":60,"requiresRetry":true}'
+    )
+
+    async def scenario():
+        client, _ = recovery_client([blocked], FakeClock())
+        decision = await client.update("worker", "req", "acquire")
+        assert decision.allowed is False
+        assert decision.code == "model_unavailable"
+        assert decision.requires_retry is True
+        assert decision.retry_after_seconds == 30
+        for body in (
+            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":1}',
+            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":1,'
+            b'"requiresRetry":false,"unknown":1}',
+        ):
+            client, _ = recovery_client([body], FakeClock())
+            with pytest.raises(RecoveryStoppedError, match="invalid decision"):
+                await client.update("worker", "req", "acquire")
+
+    asyncio.run(scenario())
+
+
 def test_authority_retries_are_logged_rate_limited_and_counted(caplog):
     from contractor_runtime.llm.recovery import AUTHORITY_RETRY_LOG_INTERVAL_SECONDS
 

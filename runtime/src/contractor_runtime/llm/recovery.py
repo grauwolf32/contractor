@@ -38,6 +38,15 @@ class RecoveryStoppedError(RuntimeError):
 
 
 class RecoveryDecision(WireModel):
+    """The Server's gatewayrecovery.Decision, decoded strictly and completely.
+
+    ``code`` and ``requires_retry`` are status for the Run page; a Runtime (like
+    the Server's own Planner participant) acts only on ``allowed`` and the two
+    timings. They stay declared because the strict wire model forbids unknown
+    members and the Server always sends ``requiresRetry``: dropping them would
+    make every decision undecodable and stop model recovery.
+    """
+
     allowed: bool = Field(strict=True)
     code: str | None = None
     retry_after_seconds: float = Field(ge=0, allow_inf_nan=False)

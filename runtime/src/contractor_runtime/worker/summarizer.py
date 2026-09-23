@@ -208,7 +208,6 @@ class TerminalSummarizer:
         instructions: str | None = None,
         instrumentation: RuntimeInstrumentation | None = None,
     ) -> None:
-        self._delegate = model
         self._policy = policy
         self._instructions = _SYSTEM_INSTRUCTION if instructions is None else instructions
         self._model = _OneShotModel(model)
@@ -307,9 +306,8 @@ class TerminalSummarizer:
                     user_id=user_id,
                     session_id=session_id,
                 )
-            clear = getattr(self._delegate, "clear_credentials", None)
-            if callable(clear):
-                clear()
+            # The caller owns the isolated summary model and closes it, which
+            # erases its Gateway credential; nothing model-specific happens here.
 
 
 def build_summarizer_prompt(
