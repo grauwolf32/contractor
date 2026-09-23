@@ -245,7 +245,9 @@ Session cookies/default headers/auth live only in allocation memory. They are
 available to sequential A2A tasks on the same allocation and are erased on
 release/abort/lease loss. Ambient session authentication is not serialized to an artifact. A request
 explicitly selected by a HTTP finding retains its actual target headers/body
-inside that proposal, including Authorization and Cookie; see
+inside that proposal, including Authorization and Cookie, except that the
+project target credential Runtime injects is captured as the marker
+`[runtime-target-credential]`; see
 [the finding evidence contract](27-findings-tools-and-collections.md#selected-http-evidence). `http_session_get` returns only `auth_kind`, redacted
 sensitive headers and cookie names/count; cookie values are not model-visible
 after being set.

@@ -12,6 +12,9 @@ import httpx
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.http.limits import MAX_HISTORY
 
+# Captured in place of the project target credential that Runtime injects.
+RUNTIME_TARGET_CREDENTIAL = "[runtime-target-credential]"
+
 
 def capture_headers(headers: httpx.Headers) -> list[dict[str, str]]:
     """Preserve duplicates and header bytes using the HTTP Latin-1 mapping."""
@@ -32,10 +35,22 @@ class CapturedAttempt:
     error: Literal["transport_error", "cancelled"] | None = None
 
     @classmethod
-    def from_request(cls, request: httpx.Request) -> CapturedAttempt:
-        return cls(
-            request.method, str(request.url), capture_headers(request.headers), request.content
-        )
+    def from_request(
+        cls, request: httpx.Request, *, target_credential: bool = False
+    ) -> CapturedAttempt:
+        """Capture the request as sent.
+
+        With ``target_credential`` the Authorization header is the project
+        target credential Runtime injected. The model never sees it and finding
+        evidence is model-readable, so a marker is retained instead.
+        """
+
+        headers = capture_headers(request.headers)
+        if target_credential:
+            for row in headers:
+                if row["name"].lower() == "authorization":
+                    row["value"] = RUNTIME_TARGET_CREDENTIAL
+        return cls(request.method, str(request.url), headers, request.content)
 
     def header_pairs(self) -> list[tuple[str, str]]:
         return [(row["name"], row["value"]) for row in self.headers]

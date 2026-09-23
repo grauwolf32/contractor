@@ -574,16 +574,6 @@ class _HTTPSession:
         attempts = kwargs.pop("capture_attempts")
         attempt: CapturedAttempt | None = None
 
-        def observe(request: httpx.Request) -> None:
-            nonlocal attempt
-            captured = CapturedAttempt.from_request(request)
-            if header_block_bytes(captured.header_pairs()) > MAX_HEADER_BYTES:
-                # Session cookies or auth grew the block past what finding
-                # evidence retains; refuse before anything is sent.
-                raise HTTPToolError("http_request_invalid")
-            attempt = captured
-            attempts.append(attempt)
-
         headers = dict(kwargs.pop("headers"))
         allow_session_auth = bool(kwargs.pop("allow_session_auth", True))
         allow_session_cookies = bool(kwargs.pop("allow_session_cookies", True))
@@ -591,11 +581,13 @@ class _HTTPSession:
         # httpx merges its own jar into build_request even when cookies is omitted.
         # Never let a redirect/retry response bypass the allocation cookie policy.
         self._clear_transport_cookies()
-        if (
+        target_credential = (
             self._target_origin is not None
             and self._target_authorization is not None
             and _origin(url) == self._target_origin
-        ):
+        )
+        if target_credential:
+            assert self._target_authorization is not None
             headers = {
                 name: value for name, value in headers.items() if name.lower() != "authorization"
             }
@@ -613,6 +605,17 @@ class _HTTPSession:
         kwargs["headers"] = headers
         if allow_session_cookies:
             kwargs["cookies"] = request_cookies
+
+        def observe(request: httpx.Request) -> None:
+            nonlocal attempt
+            captured = CapturedAttempt.from_request(request, target_credential=target_credential)
+            if header_block_bytes(captured.header_pairs()) > MAX_HEADER_BYTES:
+                # Session cookies or auth grew the block past what finding
+                # evidence retains; refuse before anything is sent.
+                raise HTTPToolError("http_request_invalid")
+            attempt = captured
+            attempts.append(attempt)
+
         try:
             if self._proxy is not None:
                 response = await self._proxy.stream_request(

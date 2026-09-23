@@ -266,7 +266,9 @@ in the same Stage receive no target setting. The typed resolved value is put ins
 `AllocationSpec.runtimeSettings`. It travels over mTLS, remains
 allocation-private in Runtime memory and is erased on finalize, abort, release
 or lease loss. It is never rendered into Planner/Worker prompts, ADK State,
-events, metrics, errors or durable sessions.
+events, metrics, errors or durable sessions. HTTP finding evidence captures the
+marker `[runtime-target-credential]` in place of the injected Authorization
+value.
 
 At Runtime, configured target authorization replaces a model-supplied
 `Authorization` header only on that exact origin. It is not injected on another

@@ -451,6 +451,11 @@ references. There is no new artifact for every outgoing request. Selected target
 Authorization/Cookie headers and request bodies are retained in full in the
 proposal; they are not added to history summaries, metrics or serialized worker
 state. Private transport credentials remain outside the target request capture.
+The project target credential that Runtime injects on the target origin
+([17](17-projects-and-queue.md)) is never known to the model, and proposals are
+model-readable, so its `Authorization` value is captured as the marker
+`[runtime-target-credential]`. Values the model supplied or set in its session
+are its own and are retained as sent.
 
 Limits mirror existing HTTP bounds: 1 MiB outgoing body per attempt, 64 KiB per
 header block and at most ten redirects plus three attempts (13 total records).
