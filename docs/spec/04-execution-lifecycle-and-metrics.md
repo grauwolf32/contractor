@@ -768,7 +768,12 @@ selects only a bounded least-recently-attempted batch of incomplete terminal
 releases. It retries each still-live allocation independently, so one member of
 a partially released multi-Agent Stage cannot hide another; a cleanup error is
 reported and retried but never prevents Scheduler from claiming an unrelated
-WorkflowRun.
+WorkflowRun. Retrying cannot repair a live grant whose provenance differs from
+the terminal durable allocation. Because allocation IDs are never reused,
+recovery reports the divergence, write-fences that grant and releases it once
+the Stage the grant names is terminal or unknown. A grant still named by an
+active Stage is left to that Stage's own release; the durable row is then
+marked released because the grant no longer exists.
 
 The corresponding outbound Runtime release calls are concurrent and use
 independent bounded request contexts. Registry authority is removed only for a

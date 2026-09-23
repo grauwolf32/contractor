@@ -1045,6 +1045,61 @@ func TestTerminalReleaseRecoverySkipsStageOwnedByRunLane(t *testing.T) {
 	}
 }
 
+// A live grant whose provenance differs from its terminal durable row cannot
+// be repaired by retrying. Recovery fences and releases it once no active
+// Stage can own it, instead of retrying and logging it on every poll forever.
+func TestTerminalReleaseRecoveryReleasesDivergedGrantWithoutActiveOwner(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		liveStage  string
+		otherState runstore.StageExecutionState
+		released   bool
+	}{
+		{name: "same terminal Stage", liveStage: "stage-recovery", released: true},
+		{name: "other terminal Stage", liveStage: "stage-other", otherState: runstore.StageFailed, released: true},
+		{name: "unknown Stage", liveStage: "stage-unknown", released: true},
+		{name: "other active Stage", liveStage: "stage-other", otherState: runstore.StageRunning},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := newSchedulerHarness(t)
+			execution := harness.persistedExecution(t, runstore.StageSucceeded)
+			harness.store.stages = []runstore.StageExecution{execution}
+			if test.otherState != "" {
+				other := harness.persistedExecution(t, test.otherState)
+				other.StageExecutionID = "stage-other"
+				harness.store.stages = append(harness.store.stages, other)
+			}
+			harness.store.run.State = runstore.RunSucceeded
+			harness.installRecordedReservation(execution.StageExecutionID)
+			live := harness.allocator.cached[0]
+			allocationID := live.Grant.AllocationID
+			live.Grant.RuntimeInstanceID = "runtime-diverged"
+			live.Grant.StageExecutionID = test.liveStage
+			live.Grant.WriteFenced = false
+			harness.allocator.cached[0] = live
+			harness.allocator.grants[allocationID] = live.Grant
+			delete(harness.allocator.fenced, allocationID)
+
+			worked, err := harness.scheduler.recoverTerminalRelease(context.Background())
+			_, liveErr := harness.allocator.GetGrant(allocationID)
+			releasedRow := harness.store.allocations[0].ReleaseCompletedAt != nil
+			if test.released {
+				if !worked || err != nil || !errors.Is(liveErr, controlplane.ErrAllocationNotFound) || !releasedRow ||
+					!harness.allocator.fenced[allocationID] || harness.workers.releaseCalls != 1 {
+					t.Fatalf("diverged release = (%v, %v), live=%v row=%t fenced=%t releases=%d",
+						worked, err, liveErr, releasedRow, harness.allocator.fenced[allocationID], harness.workers.releaseCalls)
+				}
+				return
+			}
+			if !worked || err == nil || liveErr != nil || releasedRow ||
+				harness.allocator.fenced[allocationID] || harness.workers.releaseCalls != 0 {
+				t.Fatalf("actively owned diverged grant = (%v, %v), live=%v row=%t fenced=%t releases=%d",
+					worked, err, liveErr, releasedRow, harness.allocator.fenced[allocationID], harness.workers.releaseCalls)
+			}
+		})
+	}
+}
+
 func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
 	resolved := reservation.ResolvedRuntimeConfig
 	return runstore.StageAllocation{
