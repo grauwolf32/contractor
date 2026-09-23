@@ -34,6 +34,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
 from contractor_runtime.workspace import AllocationWorkspace
@@ -230,7 +231,7 @@ class _LikeC4Session:
         _validate_line_window(start_line, max_lines)
         async with self._lock:
             content, artifact = self._require_document()
-            lines = content.splitlines(keepends=True)
+            lines = split_lines(content, keepends=True)
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
                 raise ToolInputError("start_line exceeds LikeC4 document line count")

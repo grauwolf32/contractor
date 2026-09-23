@@ -41,6 +41,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -307,7 +308,7 @@ class _SourceArchiveSession:
             content = await self._guard.run(
                 lambda: self._read_file(source), deadline=self._deadline()
             )
-            lines = content.splitlines(keepends=True)
+            lines = split_lines(content, keepends=True)
             if lines and start_line > len(lines):
                 raise ToolInputError("start_line exceeds source file line count")
             selected, end_line, partial_line = _bounded_lines(
@@ -389,7 +390,7 @@ class _SourceArchiveSession:
             content = self._read_file(source)
             scanned_bytes += source.size
             scanned_files += 1
-            for line_number, line in enumerate(content.splitlines(), start=1):
+            for line_number, line in enumerate(split_lines(content), start=1):
                 if time.monotonic() >= deadline:
                     truncated = True
                     break

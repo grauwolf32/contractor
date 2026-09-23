@@ -340,6 +340,19 @@ def test_read_is_line_and_utf8_bounded(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_read_numbers_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("model {\x0c\u2028}\r\nviews {\x85}\rspec {}\n")
+        result = await tools["read_likec4"](start_line=2)
+        assert result["totalLines"] == 3
+        assert result["text"] == "views {\x85}\rspec {}\n"
+        assert (result["endLine"], result["truncated"]) == (3, False)
+
+    asyncio.run(scenario())
+
+
 def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
