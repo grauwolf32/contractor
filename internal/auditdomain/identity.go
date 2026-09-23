@@ -3,13 +3,14 @@ package auditdomain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 // DigestBytes returns the "sha256:<hex>" content digest used for exact Audit
 // artifacts, documents, and request identities.
 func DigestBytes(data []byte) string {
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return contentdigest.Bytes(data)
 }
 
 // DeterministicID derives a stable "<prefix>-<hex>" identity from the Audit

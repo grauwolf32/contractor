@@ -1,8 +1,6 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 type findingPageResponse struct {
@@ -390,8 +389,7 @@ func reviewRequestDigest(kind string, identity ...any) string {
 		Kind     string `json:"kind"`
 		Identity []any  `json:"identity"`
 	}{Schema: "contractor.audit.review-request.v1", Kind: kind, Identity: identity})
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes(encoded)
 }
 
 // Continuations bind owner, filters and Audit revision. A caller may also pin

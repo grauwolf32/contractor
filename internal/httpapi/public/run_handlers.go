@@ -1,8 +1,6 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -306,12 +305,7 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 	if len(metadataLabels) != 0 {
 		canonical["labels"] = metadataLabels
 	}
-	encoded, err := json.Marshal(canonical)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
+	return contentdigest.JSON(canonical)
 }
 
 func createRunRequestDigestForProject(request createRunRequest, projectID *string) (string, error) {
@@ -319,16 +313,11 @@ func createRunRequestDigestForProject(request createRunRequest, projectID *strin
 	if err != nil || projectID == nil {
 		return requestDigest, err
 	}
-	encoded, err := json.Marshal(map[string]string{
+	return contentdigest.JSON(map[string]string{
 		"sourceScope":      "project",
 		"projectId":        *projectID,
 		"runRequestDigest": requestDigest,
 	})
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
 func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {

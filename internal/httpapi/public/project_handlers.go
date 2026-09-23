@@ -1,15 +1,13 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
@@ -247,7 +245,7 @@ func (h *handler) deleteProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func projectRequestDigest(request createProjectRequest) (string, error) {
-	encoded, err := json.Marshal(struct {
+	digest, err := contentdigest.JSON(struct {
 		Kind        projectstore.Kind `json:"kind"`
 		Name        string            `json:"name"`
 		Description string            `json:"description"`
@@ -255,8 +253,7 @@ func projectRequestDigest(request createProjectRequest) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode Project request: %w", err)
 	}
-	sum := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return digest, nil
 }
 
 func writeProject(w http.ResponseWriter, status int, project projectstore.Project) {

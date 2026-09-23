@@ -1,8 +1,6 @@
 package public
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -452,7 +451,7 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auditID := r.PathValue("auditId")
-	digest := auditStartRequestDigest(auditID, revision, seconds)
+	digest := auditRequestDigest("", auditID, revision, seconds)
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision,
 		IdempotencyKey: key, RequestDigest: digest, DeadlineSeconds: seconds,
@@ -530,7 +529,7 @@ func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action str
 	params := auditservice.MutationParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
 		ExpectedRevision: revision, IdempotencyKey: key,
-		RequestDigest:   auditMutationRequestDigest(action, r.PathValue("auditId"), revision, seconds),
+		RequestDigest:   auditRequestDigest(action, r.PathValue("auditId"), revision, seconds),
 		DeadlineSeconds: seconds,
 	}
 	var result auditservice.MutationResult
@@ -864,33 +863,24 @@ func createAuditRequestDigest(projectID string, request createAuditRequest) (str
 		RuntimeLabels []string                         `json:"runtimeLabels"`
 		Scope         auditservice.Scope               `json:"scope"`
 	}{projectID, request.Profile, request.Inputs, labels, request.Scope}
-	encoded, err := json.Marshal(canonical)
+	digest, err := contentdigest.JSON(canonical)
 	if err != nil {
 		return "", nil, err
 	}
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:]), labels, nil
+	return digest, labels, nil
 }
 
-func auditStartRequestDigest(auditID string, revision uint64, seconds ...*int) string {
+// auditRequestDigest binds a start (empty action) or lifecycle mutation.
+// Start digests predate the action field, so it is omitted when empty to keep
+// stored start digests replayable.
+func auditRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
 	encoded, _ := json.Marshal(struct {
-		AuditID         string `json:"auditId"`
-		Revision        uint64 `json:"revision"`
-		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
-	}{auditID, revision, firstTimeLimit(seconds)})
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
-}
-
-func auditMutationRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
-	encoded, _ := json.Marshal(struct {
-		Action          string `json:"action"`
+		Action          string `json:"action,omitempty"`
 		AuditID         string `json:"auditId"`
 		Revision        uint64 `json:"revision"`
 		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
 	}{action, auditID, revision, firstTimeLimit(seconds)})
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes(encoded)
 }
 
 func requireEmptyBody(w http.ResponseWriter, r *http.Request) error {
