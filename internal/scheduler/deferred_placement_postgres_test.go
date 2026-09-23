@@ -165,6 +165,58 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()+interval '1 hour',clock_
 	h.requireSingleSucceededStage(t, ctx)
 }
 
+// A paused owner's pending Run must not pin a durable placement that
+// AdmitStage then rejects: that would hold Runtime slots for the whole pause.
+func TestPostgresQueuePauseDoesNotPlacePendingStage(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	h := newDeferredPlacementHarness(t, ctx, nil)
+	if _, err := h.pool.Exec(ctx, `
+UPDATE workflow_runs SET state = 'pending', started_at = NULL, state_reason_code = 'awaiting_admission'
+WHERE run_id = 'run-1'`); err != nil {
+		t.Fatal(err)
+	}
+	allocator := h.workers.allocator
+	allocator.reserveError = controlplane.ErrInsufficientCapacity
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("capacity-deferred RunOnce = (%v, %v)", worked, err)
+	}
+	setPaused := func(paused bool) {
+		t.Helper()
+		control, err := h.store.GetOwnerQueueControl(ctx, "user-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: paused,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setPaused(true)
+	allocator.reserveError = nil
+	reserveCalls := allocator.reserveCalls
+	if worked, err := h.scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
+		t.Fatalf("paused RunOnce = (%v, %v)", worked, err)
+	}
+	executions, err := h.store.ListStageExecutions(ctx, "run-1")
+	if err != nil || len(executions) != 1 || executions[0].State != runstore.StagePreparing ||
+		executions[0].AdmittedAt != nil {
+		t.Fatalf("paused StageExecutions = (%v, %v)", stageExecutionStates(executions), err)
+	}
+	allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != 0 || allocator.reserveCalls != reserveCalls || len(allocator.grants) != 0 {
+		t.Fatalf("paused placement = allocations:%d reserves:%d grants:%d err:%v",
+			len(allocations), allocator.reserveCalls-reserveCalls, len(allocator.grants), err)
+	}
+
+	setPaused(false)
+	if worked, err := h.scheduler.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("resumed RunOnce = (%v, %v)", worked, err)
+	}
+	h.requireSingleSucceededStage(t, ctx)
+}
+
 type failOnceAdmitPersistence struct {
 	AtomicPersistence
 	failed bool
@@ -256,6 +308,90 @@ func TestPostgresFailActiveRunTerminatesStageAndReleasesAllocations(t *testing.T
 			}
 			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
 				t.Fatalf("allocation grant after recovery = %v", err)
+			}
+		})
+	}
+}
+
+func stageExecutionStates(executions []runstore.StageExecution) []runstore.StageExecutionState {
+	states := make([]runstore.StageExecutionState, 0, len(executions))
+	for _, execution := range executions {
+		states = append(states, execution.State)
+	}
+	return states
+}
+
+type failOnceResultCommitPersistence struct {
+	AtomicPersistence
+	failed bool
+}
+
+func (p *failOnceResultCommitPersistence) CommitResultProgression(ctx context.Context, value ResultProgression) error {
+	if !p.failed {
+		p.failed = true
+		return errors.New("transient result commit failure")
+	}
+	return p.AtomicPersistence.CommitResultProgression(ctx, value)
+}
+
+// A finalizing Stage already won its result race, so failing the Run accepts
+// that immutable candidate instead of leaving a non-terminal Stage whose
+// allocations terminal recovery would never release.
+func TestPostgresFailActiveRunAcceptsFinalizingCandidateAndReleasesAllocations(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		cancel   bool
+		runState runstore.WorkflowRunState
+	}{
+		{"failed", false, runstore.RunFailed},
+		{"cancelling", true, runstore.RunCancelled},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			failing := &failOnceResultCommitPersistence{}
+			h := newDeferredPlacementHarness(t, ctx, func(persistence AtomicPersistence) AtomicPersistence {
+				failing.AtomicPersistence = persistence
+				return failing
+			})
+			if worked, err := h.scheduler.RunOnce(ctx); err == nil || !worked || !failing.failed {
+				t.Fatalf("interrupted result commit RunOnce = (%v, %v)", worked, err)
+			}
+			executions, err := h.store.ListStageExecutions(ctx, "run-1")
+			if err != nil || len(executions) != 1 || executions[0].State != runstore.StageFinalizing {
+				t.Fatalf("StageExecutions before Run failure = (%v, %v)", stageExecutionStates(executions), err)
+			}
+			if test.cancel {
+				if _, err := h.store.RequestRunCancellation(ctx, "run-1", runstore.WorkflowRunCancellation{
+					Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.scheduler.failInvalidRunState(ctx, "run-1", errors.New("invalid state")); err != nil {
+				t.Fatal(err)
+			}
+			run, err := h.store.GetRun(ctx, "run-1")
+			if err != nil || run.State != test.runState {
+				t.Fatalf("Run = (%s %+v, %v)", run.State, run.StateReason, err)
+			}
+			executions, err = h.store.ListStageExecutions(ctx, "run-1")
+			if err != nil || len(executions) != 1 || executions[0].State != runstore.StageSucceeded ||
+				executions[0].AcceptedResult == nil || executions[0].Termination != nil {
+				t.Fatalf("StageExecutions after Run failure = (%v, %v)", stageExecutionStates(executions), err)
+			}
+			if _, err := h.scheduler.RunOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			allocations, err := h.store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+			if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
+				t.Fatalf("Stage allocations after recovery = (%+v, %v)", allocations, err)
+			}
+			if _, err := h.workers.allocator.GetGrant(allocations[0].AllocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
+				t.Fatalf("allocation grant after recovery = %v", err)
+			}
+			if err := h.store.DeleteReleasedTerminalRun(ctx, "user-1", "run-1"); err != nil {
+				t.Fatalf("delete released terminal Run: %v", err)
 			}
 		})
 	}

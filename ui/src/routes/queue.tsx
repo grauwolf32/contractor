@@ -22,6 +22,10 @@ import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
+// Live subscriptions left waiting by a failed resync, or by a live session
+// the Server refused, are retried at the Queue's own polling pace so neither
+// a failing read nor a refused socket can spin.
+const LIVE_RETRY_DELAY_MS = 10_000;
 
 function compactRunId(runId: string): string {
   return runId.length <= 24
@@ -88,8 +92,16 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
   useEffect(() => {
     let active = true;
     let resyncing = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const invalidate = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.queue.all });
+    };
+    const resubscribe = () => {
+      if (active) setResyncs((count) => count + 1);
+    };
+    const resubscribeLater = () => {
+      if (!active || retry !== undefined) return;
+      retry = setTimeout(resubscribe, LIVE_RETRY_DELAY_MS);
     };
     const resync = () => {
       if (resyncing) return;
@@ -99,10 +111,7 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
           { queryKey: queryKeys.queue.all },
           { throwOnError: true },
         )
-        .then(() => {
-          if (active) setResyncs((count) => count + 1);
-        })
-        .catch(() => undefined);
+        .then(resubscribe, resubscribeLater);
     };
     const subscriptions = targets.map((target) =>
       events.subscribeRun(
@@ -112,13 +121,19 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
           onPlannerEvent: () => true,
           onLifecycleEvent: invalidate,
           onResync: resync,
-          onStateChange: () => undefined,
+          // The manager stops without a resync request after the Server
+          // refuses the live session (close 1008); a still-valid session
+          // resubscribes, an expired one surfaces through the Queue reads.
+          onStateChange: (state) => {
+            if (state === "error") resubscribeLater();
+          },
           onError: () => undefined,
         },
       ),
     );
     return () => {
       active = false;
+      clearTimeout(retry);
       for (const subscription of subscriptions) {
         subscription.unsubscribe();
       }
@@ -140,9 +155,10 @@ export function QueuePanel() {
   const membership = QUEUE_MEMBERSHIPS.find(
     (candidate) => candidate === requestedMembership,
   ) as QueueMembership | undefined;
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
+  // Page cursors live in the URL next to the filters they were issued for,
+  // so any navigation that changes the filters (tab links, history) drops
+  // them together.
+  const cursors = searchParams.getAll("cursor");
   const cursor = cursors.at(-1);
   const query = useQuery({
     queryKey: queryKeys.queue.list(state, membership, cursor),
@@ -175,13 +191,20 @@ export function QueuePanel() {
 
   function replaceFilter(name: "state" | "membership", value: string): void {
     const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
     if (value === "") {
       next.delete(name);
     } else {
       next.set(name, value);
     }
     setSearchParams(next, { replace: true });
-    setCursors([undefined]);
+  }
+
+  function changePage(nextCursors: readonly string[]): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
+    for (const value of nextCursors) next.append("cursor", value);
+    setSearchParams(next, { preventScrollReset: true });
   }
 
   return (
@@ -355,17 +378,13 @@ export function QueuePanel() {
 
       <CursorControls
         label="Queue pages"
-        canGoBack={cursors.length > 1}
+        canGoBack={cursors.length > 0}
         {...(query.data?.page.hasMore === true &&
         query.data.page.nextCursor !== undefined
           ? { nextCursor: query.data.page.nextCursor }
           : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        onBack={() => changePage(cursors.slice(0, -1))}
+        onNext={(next) => changePage([...cursors, next])}
       />
     </div>
   );

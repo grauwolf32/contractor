@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import stat
+import struct
 import unicodedata
 import zipfile
 from datetime import UTC, datetime
@@ -131,6 +132,68 @@ def test_zip_rejects_links_special_files_and_unicode_normalized_duplicates(
         tmp_path,
         archive({composed: b"one", decomposed: b"two"}),
     )
+
+
+@pytest.mark.parametrize(
+    ("compression", "intact_prefix"),
+    [(zipfile.ZIP_DEFLATED, 0), (zipfile.ZIP_BZIP2, 4), (zipfile.ZIP_LZMA, 9)],
+)
+def test_corrupt_compressed_member_is_an_invalid_source_not_a_retryable_failure(
+    tmp_path: Path, compression: int, intact_prefix: int
+) -> None:
+    # zlib.error, lzma.LZMAError and bz2's OSError all describe the archive,
+    # never local capacity: the source is invalid and must not be retried.
+    info = zipfile.ZipInfo("src/data.txt")
+    info.compress_type = compression
+    info.external_attr = (stat.S_IFREG | 0o644) << 16
+    payload = bytearray(archive_infos([(info, b"".join(b"line %d\n" % i for i in range(512)))]))
+    with zipfile.ZipFile(io.BytesIO(bytes(payload))) as bundle:
+        stored = bundle.infolist()[0]
+    name_length, extra_length = struct.unpack_from("<HH", payload, stored.header_offset + 26)
+    start = stored.header_offset + 30 + name_length + extra_length + intact_prefix
+    end = stored.header_offset + 30 + name_length + extra_length + stored.compress_size
+    payload[start:end] = b"\xa5" * (end - start)
+    assert_invalid_and_clean(tmp_path, bytes(payload), "workspace_source_invalid")
+
+
+def test_local_hydration_keeps_execute_bits_but_never_setid_or_write_bits(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        members = []
+        for name, mode in [
+            ("gradlew", 0o755),
+            ("configure", 0o744),
+            ("README.md", 0o644),
+            ("setuid", 0o4755),
+            ("world", 0o777),
+            ("windows.bin", 0),
+        ]:
+            info = zipfile.ZipInfo(name)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = ((stat.S_IFREG | mode) << 16) if mode else 0
+            members.append((info, b"#!/bin/sh\nexit 0\n"))
+        spec, reader = workspace_inputs([("source", "", archive_infos(members))])
+        provider = LocalWorkspaceProvider(settings("local", tmp_path / "local"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="modes",
+            timeout_seconds=5,
+        )
+        root = Path(session.storage.root) / "run_workdir"
+        modes = {path.name: stat.S_IMODE(path.stat().st_mode) for path in root.iterdir()}
+        plain = modes["README.md"]
+        assert not plain & 0o111 and not modes["windows.bin"] & 0o111
+        for name in ("gradlew", "setuid", "world"):
+            assert modes[name] == plain | ((plain & 0o444) >> 2)
+        assert modes["configure"] == plain | stat.S_IXUSR
+        assert all(mode & 0o7000 == 0 for mode in modes.values())
+        await session.close()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
 
 
 def test_zip_limits_are_exact_and_compression_bombs_fail_closed(tmp_path: Path) -> None:

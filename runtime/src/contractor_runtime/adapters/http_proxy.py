@@ -22,7 +22,12 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import HTTPProxySettings, RuntimeAdapterRef
-from contractor_runtime.toolsets.common.process import run_command
+from contractor_runtime.toolsets.common.process import (
+    ProcessOutputLimitError,
+    ProcessTimeoutError,
+    run_command,
+)
+from contractor_runtime.toolsets.common.target_policy import TargetDenied, TargetPolicy
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -47,6 +52,10 @@ _ALLOWED_CHILD_ENV = frozenset(
 class ProxyRequestError(RuntimeError):
     def __init__(self) -> None:
         super().__init__("allocation proxy request failed")
+
+
+class ProxyTargetDenied(ProxyRequestError):
+    """The target policy refused the destination before any network I/O."""
 
 
 class ProxySubprocessError(RuntimeError):
@@ -84,10 +93,8 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise ProxyRequestError from None
         # A target 4xx/5xx is application data for model-facing HTTP tools.
-        # 407 is the only response status that unambiguously belongs to the
-        # configured forward-proxy hop; tunnel/routing failures surface as
-        # transport exceptions above.
-        if response.status_code == 407:
+        # Tunnel/routing failures surface as transport exceptions above.
+        if _proxy_rejected(request, response):
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             await response.aclose()
             raise ProxyRequestError from None
@@ -102,17 +109,21 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
 
 
 class ProxyHTTPClient:
-    """Narrow allocation handle; callers cannot change proxy routing."""
+    """Narrow allocation handle; callers cannot change proxy routing.
+
+    Tool requests name the allocation's shared target policy. The proxy resolves
+    target names itself, so the route applies the policy's name, literal-address
+    and Runtime endpoint checks before any network I/O; loopback is reachable
+    only where that policy allows it (project target or operator network).
+    """
 
     def __init__(
         self,
         client: httpx.AsyncClient,
         *,
-        forbidden_hosts: Sequence[str] = (),
         metrics: RuntimeAdapterMetricsState | None = None,
     ) -> None:
         self._client: httpx.AsyncClient | None = client
-        self._forbidden_hosts = frozenset(forbidden_hosts)
         self._metrics = metrics
 
     @property
@@ -122,15 +133,26 @@ class ProxyHTTPClient:
             raise ProxyRequestError
         return client
 
-    async def request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
-        parsed = urlsplit(url)
-        if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
+    def _require_permitted(self, url: str, target_policy: TargetPolicy) -> None:
+        try:
+            target_policy.check_url(url)
+        except TargetDenied:
             if self._metrics is not None:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise ProxyRequestError
+            raise ProxyTargetDenied from None
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        target_policy: TargetPolicy,
+        **kwargs: object,
+    ) -> httpx.Response:
+        self._require_permitted(url, target_policy)
         try:
             response = await self.async_client.request(method, url, **kwargs)
-            if response.status_code == 407:
+            if _proxy_rejected(response.request, response):
                 await response.aclose()
                 raise ProxyRequestError
             return response
@@ -146,23 +168,25 @@ class ProxyHTTPClient:
         method: str,
         url: str,
         *,
+        target_policy: TargetPolicy,
         request_observer: Callable[[httpx.Request], None] | None = None,
         **kwargs: object,
     ) -> httpx.Response:
         """Send one routed request without buffering its response body."""
 
-        parsed = urlsplit(url)
-        if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
-            if self._metrics is not None:
-                self._metrics.record_operation(succeeded=False, error_code="request_failed")
-            raise ProxyRequestError
+        self._require_permitted(url, target_policy)
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
-            if request_observer is not None:
-                request_observer(request)
+        except Exception:
+            raise ProxyRequestError from None
+        if request_observer is not None:
+            # The caller inspects the exact request before any network I/O;
+            # its refusal propagates unchanged.
+            request_observer(request)
+        try:
             response = await client.send(request, stream=True, follow_redirects=False)
-            if response.status_code == 407:
+            if _proxy_rejected(request, response):
                 await response.aclose()
                 raise ProxyRequestError
             return response
@@ -180,7 +204,6 @@ class ProxyHTTPClient:
 
     def detach(self) -> None:
         self._client = None
-        self._forbidden_hosts = frozenset()
         self._metrics = None
 
     def __repr__(self) -> str:
@@ -223,7 +246,13 @@ class ProxySubprocessLauncher:
         timeout: float | None = None,
         max_output_bytes: int = MAX_SUBPROCESS_OUTPUT_BYTES,
     ) -> subprocess.CompletedProcess[bytes]:
-        """Run with the same private route and own cancellation through child exit."""
+        """Run with the same private route and own cancellation through child exit.
+
+        The child's own outcome reaches the caller unchanged: a completed process
+        with any exit code, ProcessTimeoutError or ProcessOutputLimitError. Only
+        failures to prepare, launch or clean up the route are adapter failures
+        and become ProxySubprocessError.
+        """
         selected_command = _validate_command(command)
         if input is not None and not isinstance(input, bytes):
             raise ProxySubprocessError
@@ -235,8 +264,6 @@ class ProxySubprocessLauncher:
             self._timeout_seconds,
             self._timeout_seconds if timeout is None else max(0.001, timeout),
         )
-        task = asyncio.current_task()
-        assert task is not None
         with self._lock:
             if self._closed:
                 raise ProxySubprocessError
@@ -245,32 +272,45 @@ class ProxySubprocessLauncher:
             except Exception:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
                 raise ProxySubprocessError from None
-            self._async_tasks.add(task)
-        try:
-            result = await run_command(
-                selected_command,
-                input=input,
-                cwd=cwd,
-                env=child_env,
-                timeout=selected_timeout,
-                max_output_bytes=max_output_bytes,
+            # The child runs in its own task: close() stops it without
+            # cancelling the calling tool's task, which may own other work.
+            child = asyncio.create_task(
+                run_command(
+                    selected_command,
+                    input=input,
+                    cwd=cwd,
+                    env=child_env,
+                    timeout=selected_timeout,
+                    max_output_bytes=max_output_bytes,
+                ),
+                name="proxy-subprocess",
             )
+            self._async_tasks.add(child)
+            child.add_done_callback(self._forget_task)
+        try:
+            # Cancelling the caller cancels the awaited child; the caller resumes
+            # only after run_command has stopped the process group.
+            result = await child
         except asyncio.CancelledError:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            # A root that cannot be removed stays tracked; close() retries it.
+            # Its failure never replaces the caller's cancellation.
+            self._remove_temporary_root(ca_root)
+            caller = asyncio.current_task()
+            if caller is not None and caller.cancelling():
+                raise
+            # close() stopped the child while the caller itself runs on.
+            raise ProxySubprocessError from None
+        except (ProcessTimeoutError, ProcessOutputLimitError):
+            # The route launched and supervised the child; its outcome is the caller's.
+            self._finish(ca_root)
             raise
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            self._remove_temporary_root(ca_root)
             raise ProxySubprocessError from None
-        finally:
-            with self._lock:
-                self._async_tasks.discard(task)
-            if ca_root is not None and not self._remove_temporary_root(ca_root):
-                self._metrics.record_operation(succeeded=False, error_code="request_failed")
-                raise ProxySubprocessError from None
-        succeeded = result.returncode == 0
-        self._metrics.record_operation(
-            succeeded=succeeded, error_code=None if succeeded else "request_failed"
-        )
+        # Any exit code is the child's answer (a validator exits 1 for issues).
+        self._finish(ca_root)
         return result
 
     async def aclose(self) -> None:
@@ -280,7 +320,19 @@ class ProxySubprocessLauncher:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        with self._lock:
+            self._async_tasks.difference_update(tasks)
         self.close()
+
+    def _forget_task(self, task: asyncio.Task) -> None:
+        with self._lock:
+            self._async_tasks.discard(task)
+
+    def _finish(self, ca_root: Path | None) -> None:
+        if not self._remove_temporary_root(ca_root):
+            self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise ProxySubprocessError from None
+        self._metrics.record_operation(succeeded=True)
 
     def close(self) -> None:
         with self._lock:
@@ -360,7 +412,11 @@ class ProxySubprocessLauncher:
             environment["SSL_CERT_FILE"] = str(bundle)
         return environment, ca_root
 
-    def _remove_temporary_root(self, root: Path) -> bool:
+    def _remove_temporary_root(self, root: Path | None) -> bool:
+        with self._lock:
+            if root is None or root not in self._temporary_roots:
+                # close() already removed every root it owned.
+                return True
         removed = _remove_private_root(root)
         if removed:
             with self._lock:
@@ -439,13 +495,7 @@ class HTTPProxyAdapter:
             else None
         )
         tool_http = (
-            self._new_http_client(
-                proxy,
-                tls_context,
-                timeout,
-                limits,
-                forbidden_hosts=context.private_bypass_hosts,
-            )
+            self._new_http_client(proxy, tls_context, timeout, limits)
             if "tool-http" in settings.targets
             else None
         )
@@ -482,8 +532,6 @@ class HTTPProxyAdapter:
         tls_context: ssl.SSLContext,
         timeout: httpx.Timeout,
         limits: httpx.Limits,
-        *,
-        forbidden_hosts: Sequence[str] = (),
     ) -> ProxyHTTPClient:
         transport = httpx.AsyncHTTPTransport(
             verify=tls_context,
@@ -501,7 +549,6 @@ class HTTPProxyAdapter:
                 timeout=timeout,
                 limits=limits,
             ),
-            forbidden_hosts=forbidden_hosts,
             metrics=self.metrics,
         )
         self._clients.append(handle)
@@ -541,6 +588,17 @@ class HTTPProxyAdapter:
 
     def __repr__(self) -> str:
         return f"HTTPProxyAdapter(ref={self.ref!r}, closed={self._closed!r})"
+
+
+def _proxy_rejected(request: httpx.Request, response: httpx.Response) -> bool:
+    """Whether a response is the forward proxy refusing the request.
+
+    A plain-HTTP request is forwarded, so its 407 may come from the proxy and
+    fails closed. An HTTPS request tunnels through CONNECT, where httpcore
+    raises for any non-2xx proxy answer; a 407 response is the target's.
+    """
+
+    return response.status_code == 407 and request.url.scheme == "http"
 
 
 def _httpx_proxy(

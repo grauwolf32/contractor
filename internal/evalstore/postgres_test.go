@@ -164,12 +164,16 @@ func planDigest(t *testing.T, pool *pgxpool.Pool, e Experiment) string {
 }
 func admit(t *testing.T, pool *pgxpool.Pool, e Experiment, member string, claim *Claim, key string) (Receipt, error) {
 	t.Helper()
-	doc := freeze(t, "Submission", evaldomain.Submission{PlanSHA256: planDigest(t, pool, e)})
+	// Read the digest before opening the transaction: a second pool
+	// connection taken while every connection holds a transaction deadlocks
+	// the concurrent callers on hosts where the pool is small.
+	digest := planDigest(t, pool, e)
+	doc := freeze(t, "Submission", evaldomain.Submission{PlanSHA256: digest})
 	m := mutation(t, key, 0, doc)
 	var out Receipt
 	err := transaction(pool, func(s *Store) error {
 		var err error
-		out, err = s.Admit(context.Background(), Admission{Scope{e.OwnerID, e.ProjectID}, e.ID, member, planDigest(t, pool, e), claim, m})
+		out, err = s.Admit(context.Background(), Admission{Scope{e.OwnerID, e.ProjectID}, e.ID, member, digest, claim, m})
 		return err
 	})
 	return out, err

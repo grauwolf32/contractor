@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -98,6 +99,67 @@ func TestRemoteHTTPRequiresExplicitOptIn(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("remote HTTP was accepted")
+	}
+}
+
+func TestTransportLeavesCallerRequestUnchanged(t *testing.T) {
+	var seen http.Header
+	transport := &checkedTransport{
+		base: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			seen = request.Header.Clone()
+			header := http.Header{}
+			header.Set(APIVersionHeader, APIVersion)
+			return &http.Response{StatusCode: http.StatusNoContent, Header: header, Body: http.NoBody, Request: request}, nil
+		}),
+		origin: "http://127.0.0.1:8080", token: "secret", userAgent: "contractor-test",
+	}
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1:8080/v1/workflows", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("X-Caller", "kept")
+	response, err := transport.RoundTrip(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if seen.Get("Authorization") != "Bearer secret" || seen.Get("User-Agent") != "contractor-test" ||
+		seen.Get("X-Caller") != "kept" {
+		t.Fatalf("sent headers = %v", seen)
+	}
+	if len(request.Header) != 1 || request.Header.Get("X-Caller") != "kept" {
+		t.Fatalf("caller request headers were modified: %v", request.Header)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
+
+// The Server accepts bearer tokens of 1 through 4096 bytes; a longer token
+// must fail locally instead of producing an unexplained 401.
+func TestTokenBoundMatchesServer(t *testing.T) {
+	longest := strings.Repeat("t", 4096)
+	if _, err := New(Options{Server: "http://127.0.0.1:8080", Token: longest, Timeout: time.Second}); err != nil {
+		t.Fatalf("4096-byte token rejected: %v", err)
+	}
+	if _, err := New(Options{Server: "http://127.0.0.1:8080", Token: longest + "t", Timeout: time.Second}); err == nil {
+		t.Fatal("4097-byte token accepted")
+	}
+	directory := t.TempDir()
+	withLineEnding := filepath.Join(directory, "token")
+	if err := os.WriteFile(withLineEnding, []byte(longest+"\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if token, err := ReadTokenFile(withLineEnding); err != nil || token != longest {
+		t.Fatalf("token file with CRLF = %d bytes, %v", len(token), err)
+	}
+	tooLong := filepath.Join(directory, "long-token")
+	if err := os.WriteFile(tooLong, []byte(longest+"t\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadTokenFile(tooLong); err == nil {
+		t.Fatal("4097-byte token file accepted")
 	}
 }
 

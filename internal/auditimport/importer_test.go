@@ -1272,6 +1272,8 @@ type fakeImportStore struct {
 	counts    auditstore.CollectionDispositionCounts
 	committed auditstore.CommitReportParams
 	proposed  auditstore.ProposeReportParams
+	// collectErr, when set, rejects a Collect call before it is recorded.
+	collectErr func(auditstore.CollectParams) error
 }
 
 func (f *fakeImportStore) ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error) {
@@ -1299,6 +1301,11 @@ func (f *fakeImportStore) ListReportFindings(context.Context, string) ([]auditst
 	return append([]auditstore.ReportFinding{}, f.findings...), nil
 }
 func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
+	if f.collectErr != nil {
+		if err := f.collectErr(params); err != nil {
+			return auditstore.CollectionReceipt{}, false, err
+		}
+	}
 	f.collected = params
 	return auditstore.CollectionReceipt{}, true, nil
 }

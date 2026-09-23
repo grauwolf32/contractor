@@ -22,6 +22,7 @@ from contractor_runtime.sandbox.podman.workroots import check_root_policy
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings, parse_settings
 from contractor_runtime.state import RuntimeState
+from contractor_runtime.toolsets.common.target_policy import TargetPolicyConfig
 from contractor_runtime.workspace import cleanup_orphan_workdirs
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ async def _serve(
         ),
         enabled_runtime_adapters=settings.enabled_runtime_adapters,
         workspace_settings=settings.workspace,
+        target_policy=_target_policy(settings),
         execution_lifecycle=lifecycle,
     )
     allocation_service = AllocationService(
@@ -211,6 +213,23 @@ async def _serve(
             for handled_signal in handled_signals:
                 loop.remove_signal_handler(handled_signal)
         logger.info("runtime agent stopped")
+
+
+def _target_policy(settings: Settings) -> TargetPolicyConfig:
+    """Runtime-owned endpoints plus operator networks for model-selected targets."""
+
+    listen_host = f"[{settings.host}]" if ":" in settings.host else settings.host
+    protected = [
+        settings.control_plane_url,
+        settings.advertised_control_url,
+        settings.advertised_a2a_url,
+    ]
+    if settings.port:
+        protected.append(f"https://{listen_host}:{settings.port}")
+    return TargetPolicyConfig(
+        protected_urls=tuple(protected),
+        allowed_networks=settings.allowed_target_networks,
+    )
 
 
 async def _wait_until_listening(

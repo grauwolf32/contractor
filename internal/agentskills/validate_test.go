@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -174,6 +175,35 @@ func TestEntryCountAndExpandedAggregateLimits(t *testing.T) {
 	aggregate[len(aggregate)-1].data = block
 	if _, err := Validate(makeTestZIP(t, zip.Deflate, aggregate), "limits"); ErrorCode(err) != CodeLimitExceeded {
 		t.Fatalf("aggregate overflow error = %v", err)
+	}
+}
+
+func TestEntryCountIsBoundedBeforeZIPAllocation(t *testing.T) {
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	// A classic (non-ZIP64) directory bomb well below the stored limit.
+	for range 60_000 {
+		if _, err := writer.CreateHeader(&zip.FileHeader{Name: "a", Method: zip.Store}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data := archive.Bytes()
+	if len(data) > MaximumArchiveBytes {
+		t.Fatalf("fixture is %d bytes", len(data))
+	}
+	// Lie about both record counts: the preflight must count actual records.
+	binary.LittleEndian.PutUint16(data[len(data)-14:], 1)
+	binary.LittleEndian.PutUint16(data[len(data)-12:], 1)
+	var err error
+	allocations := testing.AllocsPerRun(1, func() { _, err = Validate(data, "bomb") })
+	if ErrorCode(err) != CodeLimitExceeded {
+		t.Fatalf("directory bomb error = %v", err)
+	}
+	if allocations > 100 {
+		t.Fatalf("directory bomb allocated %.0f times before rejection", allocations)
 	}
 }
 

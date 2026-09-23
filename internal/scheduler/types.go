@@ -42,6 +42,7 @@ type Store interface {
 	RenewRunClaim(context.Context, string, string, time.Duration) error
 	ReleaseRunClaim(context.Context, string, string) error
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
+	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
 	TransitionRun(
 		context.Context,
 		string,

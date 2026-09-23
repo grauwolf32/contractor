@@ -53,13 +53,19 @@ def test_unsupported_external_types_cannot_use_stale_memory_or_escape(
                     finally:
                         os.close(descriptor)
                     (root / "sock").rename(target)
+                # Listed as an opaque leaf; the rest of the tree stays usable.
+                current = await asyncio.wait_for(session.snapshot(), timeout=1)
+                assert "src/a.txt" in current.binary_paths
+                assert all(file.path != "src/a.txt" for file in current.files)
+                await session.write_text("unrelated.txt", "still writable")
                 for operation in (
-                    session.snapshot,
                     lambda: session.read_text("src/a.txt"),
                     lambda: session.write_text("src/a.txt", "unsafe"),
+                    lambda: session.update_text("src/a.txt", lambda text: text),
                     lambda: session.copy_path("src", "copied", recursive=True),
                     lambda: session.move_path("src", "moved"),
                     lambda: session.delete_path("src", recursive=True),
+                    lambda: session.delete_path("src/a.txt"),
                 ):
                     with pytest.raises(WorkspaceStorageError) as failure:
                         await asyncio.wait_for(operation(), timeout=1)

@@ -45,8 +45,14 @@ class Owner:
         self.attach_fail = False
         self.backend = LifecycleBackend(self.settings, engine=self.engine, attach=self.attach)
         self.lifecycle = PodmanLifecycle(self.settings, start=self.start)
-        self.lease = time.monotonic() + 60
-        self.lifecycle.bind_health(lambda: self.lease, lambda: None)
+        # Like LeaseWatchdog.confirmed_deadline under steady heartbeats: the
+        # confirmed lease keeps moving forward, it is never a fixed snapshot.
+        self.lease_seconds = 60.0
+        self.lease_lost = False
+        self.lifecycle.bind_health(
+            lambda: None if self.lease_lost else time.monotonic() + self.lease_seconds,
+            lambda: None,
+        )
         self.task = None
         self.client = None
 

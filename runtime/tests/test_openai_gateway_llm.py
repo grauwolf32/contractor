@@ -549,22 +549,25 @@ def test_gateway_http_failures_preserve_safe_retryability(status, code, retryabl
 
 
 @pytest.mark.parametrize(
-    "payload,error_type",
+    "payload,error_type,received",
     [
-        ("not JSON", "InvalidGatewayResponse"),
-        ("null", "InvalidGatewayResponse"),
-        ('{"choices":[]}', "InvalidGatewayResponse"),
-        ('{"choices":[{"message":"invalid"}]}', "InvalidGatewayResponse"),
-        ('{"choices":[{"message":{"tool_calls":[null]}}]}', "InvalidGatewayToolCall"),
+        ("not JSON", "InvalidGatewayResponse", False),
+        ("null", "InvalidGatewayResponse", True),
+        ('{"choices":[]}', "InvalidGatewayResponse", True),
+        ('{"choices":[{"message":"invalid"}]}', "InvalidGatewayResponse", True),
+        ('{"choices":[{"message":{"tool_calls":[null]}}]}', "InvalidGatewayToolCall", True),
         (
             '{"choices":[{"message":{"tool_calls":[{"function":{"name":"tool",'
             '"arguments":"[]"}}]}}]}',
             "InvalidGatewayToolArguments",
+            True,
         ),
-        ('{"choices":[{"message":{"content":"ok"}}],"usage":[]}', "InvalidGatewayUsage"),
+        ('{"choices":[{"message":{"content":"ok"}}],"usage":[]}', "InvalidGatewayUsage", True),
     ],
 )
-def test_malformed_gateway_responses_fail_without_transport_retries(payload, error_type) -> None:
+def test_malformed_gateway_responses_fail_without_transport_retries(
+    payload, error_type, received
+) -> None:
     async def scenario() -> None:
         calls = 0
 
@@ -586,9 +589,62 @@ def test_malformed_gateway_responses_fail_without_transport_retries(payload, err
                     pass
             assert calls == 1
             assert captured.value.provider_error_type == error_type
+            assert captured.value.response_received is received
+            assert captured.value.usage_metadata is None
             assert captured.value.__context__ is None
             assert captured.value.__cause__ is None
             await model.close()
+
+    asyncio.run(scenario())
+
+
+def test_rejected_gateway_response_keeps_only_its_numeric_usage() -> None:
+    payload = {
+        "choices": [
+            {
+                "finish_reason": "tool_calls",
+                "message": {
+                    "content": SECRET,
+                    "tool_calls": [
+                        {"id": "call-1", "function": {"name": "tool", "arguments": '{"path":'}}
+                    ],
+                },
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 21,
+            "completion_tokens": 9,
+            "total_tokens": 30,
+            "prompt_tokens_details": {"cached_tokens": 4},
+        },
+    }
+
+    async def scenario() -> None:
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=payload)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+            )
+            model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle)
+            with pytest.raises(GatewayModelError) as captured:
+                async for _ in model.generate_content_async(LlmRequest()):
+                    pass
+            await model.close()
+        error = captured.value
+        assert error.provider_error_type == "InvalidGatewayToolArguments"
+        assert error.response_received is True
+        assert error.usage_metadata is not None
+        assert error.usage_metadata.prompt_token_count == 21
+        assert error.usage_metadata.candidates_token_count == 9
+        assert error.usage_metadata.total_token_count == 30
+        assert error.usage_metadata.cached_content_token_count == 4
+        assert error.__context__ is None and error.__cause__ is None
+        assert SECRET not in repr(error.__dict__)
 
     asyncio.run(scenario())
 

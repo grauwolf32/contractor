@@ -31,7 +31,13 @@ _FINISH_REASON = {
 
 
 class GatewayModelError(RuntimeError):
-    """Secret-free boundary error for failures below the model adapter."""
+    """Secret-free boundary error for failures below the model adapter.
+
+    ``response_received`` marks a Gateway response the adapter rejected (for
+    example invalid tool-call JSON): the provider already spent tokens, so the
+    parsed numeric ``usage_metadata`` (or ``None`` when unavailable) must still
+    be accounted. No response content is retained.
+    """
 
     def __init__(
         self,
@@ -39,10 +45,14 @@ class GatewayModelError(RuntimeError):
         *,
         retryable: bool = True,
         failure: GatewayFailure | None = None,
+        response_received: bool = False,
+        usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
     ) -> None:
         self.provider_error_type = provider_error_type
         self.retryable = retryable
         self.failure = failure
+        self.response_received = response_received
+        self.usage_metadata = usage_metadata if response_received else None
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
@@ -81,6 +91,9 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         retryable = False
         failure = None
         response: LlmResponse | None = None
+        completion: Any = None
+        received = False
+        usage: types.GenerateContentResponseUsageMetadata | None = None
         try:
             if stream:
                 raise _AdapterFailure("StreamingUnsupported")
@@ -95,6 +108,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 completion = await self._client_handle.complete(
                     _completion_request(self.model, llm_request)
                 )
+            received = True
             response = _to_llm_response(completion)
         except asyncio.CancelledError:
             raise
@@ -102,11 +116,18 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
             provider_error_type = _safe_error_type(error)
             retryable = _retryable_gateway_error(error)
             failure = error.failure if isinstance(error, GatewayRequestError) else None
+            if received:
+                usage = _rejected_response_usage(completion)
+        completion = None
         if provider_error_type is not None:
             # Raise outside the except suite so the provider exception is not
             # retained through __context__ and cannot keep headers/body alive.
             raise GatewayModelError(
-                provider_error_type, retryable=retryable, failure=failure
+                provider_error_type,
+                retryable=retryable,
+                failure=failure,
+                response_received=received,
+                usage_metadata=usage,
             ) from None
         if response is None:  # Defensive: every non-error call must produce one response.
             raise GatewayModelError("InvalidGatewayResponse") from None
@@ -502,6 +523,19 @@ def _usage_metadata(usage: Any) -> types.GenerateContentResponseUsageMetadata | 
         cached_content_token_count=prompt_details.get("cached_tokens"),
         thoughts_token_count=completion_details.get("reasoning_tokens"),
     )
+
+
+def _rejected_response_usage(
+    completion: Any,
+) -> types.GenerateContentResponseUsageMetadata | None:
+    """Keep only numeric usage from a response the adapter could not accept."""
+
+    if not isinstance(completion, Mapping):
+        return None
+    try:
+        return _usage_metadata(completion.get("usage"))
+    except Exception:
+        return None
 
 
 def _map_finish_reason(value: Any) -> types.FinishReason | None:

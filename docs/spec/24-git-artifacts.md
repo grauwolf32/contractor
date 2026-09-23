@@ -67,6 +67,8 @@ Git configuration, `.gitignore` rules to already tracked files, or host-specific
 source-directory bundling rules. Reject unsafe paths, symlink entries,
 submodules and recognizable Git LFS pointer entries with explicit unsupported
 content errors; do not silently omit them or claim their targets were fetched.
+For a symlink, submodule or LFS pointer, the `git_content_unsupported` message
+names the entry kind and its tree path.
 LFS object download, recursive submodules and sparse/subdirectory imports are
 outside the first slice. Empty source trees are rejected.
 

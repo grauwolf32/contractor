@@ -524,6 +524,105 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	}
 }
 
+func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+	profiles := loadAuditServiceProfiles(t)
+	gateway, err := profiles.LLMGateway("test-gateway@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lookup := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
+	service, err := New(Options{
+		Pool: pool, Profiles: profiles,
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+		),
+		CredentialGuard: &countingCredentialGuard{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cipher, err := managedcredentials.NewTokenCipher([]byte(strings.Repeat("k", 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeCredentials, err := managedcredentials.NewRuntimeCredentialService(managedcredentials.RuntimeCredentialServiceOptions{
+		Pool: pool, Cipher: cipher, Usage: managedcredentials.NewRuntimeCredentialRepository(pool),
+		Barrier: managedcredentials.NewLifecycleBarrier(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	material, err := managedcredentials.NewHTTPOriginBearerCredential("origin-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimeCredentials.Create(ctx, managedcredentials.RuntimeCredentialCreateRequest{
+		CredentialID: "foreign-origin", Material: material,
+		IdempotencyKey: "create-foreign-origin", ActorID: "another-owner",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-target-audit", OwnerID: "owner-target-audit", Kind: projectstore.KindProject,
+		Name: "Target Audit", IdempotencyKey: "project-target-audit", RequestDigest: serviceTestDigest("target-project"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stored before ownership enforcement, or by a principal that has since
+	// lost the Operations capability.
+	project, err = projects.Update(ctx, projectstore.UpdateParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+		Name: project.Name, HTTPTarget: &contracts.HTTPOriginTargetRef{
+			URL: "https://attacker.example.test",
+			Credential: &contracts.RuntimeCredentialRef{
+				CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checklist := writeChecklist(t, ctx, projectArtifacts, "target", "automatic")
+	draft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-target", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile:        ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:         map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
+		Scope:          Scope{Objective: "Exercise Project target credential ownership"},
+		IdempotencyKey: "create-target-audit", RequestDigest: serviceTestDigest("target-create"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Start(ctx, StartParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
+		IdempotencyKey: "start-target-owner", RequestDigest: serviceTestDigest("target-start-owner"),
+	}); !errors.Is(err, managedcredentials.ErrRuntimeCredentialNotFound) {
+		t.Fatalf("start with another owner's credential = %v", err)
+	}
+	started, err := service.Start(ctx, StartParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
+		IdempotencyKey: "start-target-operations", RequestDigest: serviceTestDigest("target-start-operations"),
+		OperationsPrincipal: true,
+	})
+	if err != nil || started.Audit.State != auditstore.AuditActive {
+		t.Fatalf("start by an Operations principal = (%+v, %v)", started.Audit, err)
+	}
+}
+
 func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -693,21 +792,26 @@ UPDATE audit_review_requests
 		t.Fatal(err)
 	}
 	if err := validateAndApplyReportDecision(
-		ctx, rejectTx, audit.AuditID, candidate.RequestID, audit.AuditID,
+		ctx, rejectTx, audit.AuditID, waiting.Revision, candidate.RequestID, audit.AuditID,
 		int64(candidate.SubjectRevision), candidate.SubjectDigest, ReviewReject,
 	); err != nil {
 		_ = rejectTx.Rollback(ctx)
 		t.Fatalf("reject exact report candidate: %v", err)
 	}
-	var rejectedState auditstore.AuditState
-	var rejectedReason *string
-	if err := rejectTx.QueryRow(ctx, `
-SELECT state, stop_reason_code FROM audits WHERE audit_id = $1`, audit.AuditID).Scan(
-		&rejectedState, &rejectedReason,
-	); err != nil || rejectedState != auditstore.AuditFailed || rejectedReason == nil ||
-		*rejectedReason != "report_rejected" {
+	rejected, err := auditstore.NewPostgresStore(rejectTx).Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || rejected.State != auditstore.AuditFailed || rejected.StopReason == nil ||
+		rejected.StopReason.Code != "report_rejected" || rejected.Revision != waiting.Revision+1 ||
+		rejected.Revision != rejected.EventSequence {
 		_ = rejectTx.Rollback(ctx)
-		t.Fatalf("rejected report transaction = (%s, %v, %v)", rejectedState, rejectedReason, err)
+		t.Fatalf("rejected report transaction = (%+v, %v)", rejected, err)
+	}
+	rejectEvents, err := auditstore.NewPostgresStore(rejectTx).ListEvents(
+		ctx, audit.AuditID, rejected.EventSequence-1, 1,
+	)
+	if err != nil || len(rejectEvents) != 1 || rejectEvents[0].Kind != "audit.state_changed" ||
+		!strings.Contains(string(rejectEvents[0].Summary), `"to": "failed"`) {
+		_ = rejectTx.Rollback(ctx)
+		t.Fatalf("rejected report event = (%+v, %v)", rejectEvents, err)
 	}
 	if err := rejectTx.Rollback(ctx); err != nil {
 		t.Fatal(err)
@@ -755,8 +859,15 @@ SELECT state, stop_reason_code FROM audits WHERE audit_id = $1`, audit.AuditID).
 		t.Fatalf("approve report = (%+v, %v)", decision, err)
 	}
 	completed, err := store.Get(ctx, project.OwnerID, audit.AuditID)
-	if err != nil || completed.State != auditstore.AuditCompleted {
+	if err != nil || completed.State != auditstore.AuditCompleted ||
+		completed.Revision != completed.EventSequence {
 		t.Fatalf("completed report Audit = (%+v, %v)", completed, err)
+	}
+	acceptEvents, err := store.ListEvents(ctx, audit.AuditID, completed.EventSequence-2, 2)
+	if err != nil || len(acceptEvents) != 2 || acceptEvents[0].Kind != "audit.report_committed" ||
+		!strings.Contains(string(acceptEvents[0].Summary), candidate.SubjectDigest) ||
+		acceptEvents[1].Kind != "review.decided" {
+		t.Fatalf("accepted report events = (%+v, %v)", acceptEvents, err)
 	}
 	for _, key := range []string{auditstore.ReportMachineLogicalKey, auditstore.ReportSummaryLogicalKey} {
 		if _, err := store.GetArtifactLink(ctx, audit.AuditID, key); err != nil {
@@ -910,7 +1021,11 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	if !errors.Is(err, auditstore.ErrConflict) {
 		t.Fatalf("duplicate cycle error = %v", err)
 	}
-	now = now.Add(defaultReviewTTL + time.Second)
+	if _, err := pool.Exec(ctx, `
+UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 second'
+ WHERE request_id = $1`, secondReview.Request.RequestID); err != nil {
+		t.Fatal(err)
+	}
 	_, err = service.DecideFinding(ctx, DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
 		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-expired",

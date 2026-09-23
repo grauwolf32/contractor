@@ -157,8 +157,13 @@ func (s *Scheduler) recoverTerminalExecution(
 			continue
 		}
 		if err := verifyTerminalReleaseReservation(execution, allocation, reservation); err != nil {
-			failures = append(failures, err)
-			continue
+			// Retrying cannot repair diverged provenance. Release the live grant
+			// once no active Stage can own it; otherwise that Stage's own
+			// release removes it and this row is then marked released.
+			if releaseErr := s.claimDivergedTerminalGrant(ctx, execution, reservation); releaseErr != nil {
+				failures = append(failures, errors.Join(err, releaseErr))
+				continue
+			}
 		}
 		reservations = append(reservations, reservation)
 	}
@@ -166,6 +171,51 @@ func (s *Scheduler) recoverTerminalExecution(
 		failures = append(failures, s.releaseTerminalOwned(execution.StageExecutionID, reservations))
 	}
 	return worked, errors.Join(failures...)
+}
+
+var errDivergedGrantOwned = errors.New("live allocation is still owned by an active StageExecution")
+
+// claimDivergedTerminalGrant decides whether a live grant whose provenance
+// differs from a terminal Stage's durable allocation may be released by that
+// Stage's recovery. Allocation IDs are never reused, so the grant is safe to
+// release when the Stage it names is this terminal Stage, another terminal
+// Stage or unknown. It is write-fenced first, like every terminal release.
+func (s *Scheduler) claimDivergedTerminalGrant(
+	ctx context.Context,
+	execution runstore.StageExecution,
+	reservation controlplane.Reservation,
+) error {
+	grant := reservation.Grant
+	if grant.StageExecutionID != execution.StageExecutionID {
+		lookupContext, cancelLookup := context.WithTimeout(ctx, s.options.OperationTimeout)
+		owner, err := s.store.GetStageExecution(lookupContext, grant.StageExecutionID)
+		cancelLookup()
+		if err != nil && !errors.Is(err, runstore.ErrNotFound) {
+			return err
+		}
+		if err == nil && !terminalStageExecution(owner.State) {
+			return errDivergedGrantOwned
+		}
+	}
+	if err := s.allocator.SetWriteFence(grant.AllocationID); err != nil {
+		return err
+	}
+	s.options.Logger.Error(
+		"releasing fenced live allocation whose provenance differs from its terminal StageExecution",
+		"stage_execution_id", execution.StageExecutionID,
+		"allocation_id", grant.AllocationID,
+		"live_stage_execution_id", grant.StageExecutionID,
+	)
+	return nil
+}
+
+func terminalStageExecution(state runstore.StageExecutionState) bool {
+	switch state {
+	case runstore.StageSucceeded, runstore.StageFailed, runstore.StageInterrupted, runstore.StageCancelled:
+		return true
+	default:
+		return false
+	}
 }
 
 func verifyTerminalReleaseReservation(

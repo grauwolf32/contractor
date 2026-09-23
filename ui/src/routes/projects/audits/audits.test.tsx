@@ -795,6 +795,39 @@ describe("Project Audit routes", () => {
     ).toBeEnabled();
   });
 
+  it("loads a bounded number of Project Artifact pages before asking for more", async () => {
+    const loadArtifacts = vi.fn((url: URL) => {
+      const page = Number(url.searchParams.get("cursor") ?? "0");
+      return jsonResponse({
+        items: [
+          {
+            ...sourceArtifact,
+            artifact: { ...sourceArtifact.artifact, name: `source-${page}` },
+          },
+        ],
+        page: { hasMore: true, nextCursor: String(page + 1) },
+      });
+    });
+    const user = await openAuditCreateForm({ loadArtifacts });
+    const loadMore = await screen.findByRole("button", {
+      name: "Load more Project Artifacts",
+    });
+    expect(loadArtifacts).toHaveBeenCalledTimes(4);
+    expect(
+      screen.getByText(/Showing the first 4 Project Artifacts/),
+    ).toBeVisible();
+    expect(screen.queryByText("Loading Project Artifacts…")).toBeNull();
+    // A partial inventory is never treated as a unique match.
+    expect(screen.getByLabelText("Input source")).toHaveValue("");
+
+    await user.click(loadMore);
+    await screen.findByText(/Showing the first 5 Project Artifacts/);
+    expect(loadArtifacts).toHaveBeenCalledTimes(5);
+    expect(
+      within(screen.getByLabelText("Input source")).getAllByRole("option"),
+    ).toHaveLength(6);
+  });
+
   it("does not treat a partial Project inventory as unique when a later page fails", async () => {
     let retry = false;
     const loadArtifacts = vi.fn((url: URL) => {

@@ -108,14 +108,25 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 
 `http_request` accepts:
 
-- `url`: absolute `http` or `https` URL, no userinfo or fragment;
+- `url`: absolute `http` or `https` URL without userinfo; a `#fragment` is
+  client-side state and is removed before the request is sent;
 - `method`: `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`;
-- at most 64 bounded headers and query keys;
+- at most 64 bounded headers and query keys. Session default headers plus
+  request headers total at most 48 KiB; the rest of the 64 KiB header block
+  that finding evidence retains is reserved for headers Runtime adds (request
+  tag, `Host`, session `Authorization`, client defaults). A request whose
+  complete header block, including session cookies and authorization, would
+  still exceed 64 KiB fails `http_request_invalid` before it is sent, so every
+  sent request can be selected as evidence;
 - `body_type`: `none|json|form|text`, with at most 1 MiB encoded request body;
 - timeout 1..120 seconds, capped by allocation settings; when omitted, it is
-  `min(allocation request timeout, 120 seconds)`;
-- `follow_redirects`, with at most 10 redirects and scheme validation at each
-  hop.
+  `min(allocation request timeout, 120 seconds)`. It is one deadline for the
+  whole call: connecting, sending and reading every redirect hop and retry,
+  retry waits, and reading the complete response body. The same value also
+  bounds each individual network operation. Expiry fails with the retryable
+  `http_request_failed`; storing the body artifact afterwards is not included;
+- `follow_redirects`, with at most 10 redirects; every hop is parsed, stripped
+  of its fragment and checked against the target policy again.
 
 The initial callable shape intentionally remains compatible with the migrated
 Skills: `http_request(url, method, headers, query, body, body_type, timeout,
@@ -127,38 +138,83 @@ session view contains only `auth_kind`, non-sensitive default-header values,
 redaction markers for sensitive headers, cookie names/count and history count.
 
 Hop-by-hop headers, `Host`, `Content-Length`, proxy authentication and CR/LF
-header injection are rejected. Exact configured Contractor infrastructure
-origins (LLM Gateway, Artifact API, telemetry collector, forward proxy and
-Caido control API), `localhost` names and loopback/link-local/unspecified IP
-literals are always denied. Other egress is intentionally the deployment's
-responsibility: this Toolset exists to contact model-selected application
-targets. A resolved `tool-http` proxy route is mandatory routing, not a hint;
-failure never falls back to direct network.
+header injection are rejected. A resolved `tool-http` proxy route is mandatory
+routing, not a hint; failure never falls back to direct network.
+
+### Target policy
+
+`http-tools@1` and every `scan@1` operation share one Runtime target policy
+(`toolsets/common/target_policy.py`). It classifies IP addresses, not URL text.
+A literal host is first normalized the way resolvers read it: shortened,
+single-number, octal and hexadecimal IPv4 forms (`127.1`, `2130706433`,
+`0x7f000001`, `0`), IPv4-mapped IPv6 and the NAT64 well-known prefix
+`64:ff9b::/96` all classify as the IPv4 address they reach. A host whose final
+label is numeric but which is not valid IPv4 is denied rather than guessed.
+
+| Destination | Decision |
+|---|---|
+| Runtime service endpoints: LLM Gateway, Artifact API, telemetry collector, forward proxy, Caido control API, Control Plane, advertised control/A2A URLs and the private listener | Always denied, by host name plus port and by every resolved address plus port. A loopback or unspecified endpoint address protects every loopback address on that port. |
+| Cloud metadata: `169.254.169.254`, `169.254.170.2`, `169.254.170.23`, `100.100.100.200`, `fd00:ec2::254`, `fd00:ec2::23`, and the names `metadata`, `metadata.goog`, `metadata.google.internal`, `instance-data`, `instance-data.ec2.internal` | Always denied. |
+| Unspecified, `0.0.0.0/8`, multicast and reserved (including IPv4 `240.0.0.0/4` and broadcast) | Always denied. |
+| Loopback (`127.0.0.0/8`, `::1`) and link-local (`169.254.0.0/16`, `fe80::/10`) | Denied, unless the allocation's project HTTP target (`httpOriginTarget`) resolves to that exact address and port, or an operator-allowed target network contains it. |
+| Private networks (RFC 1918, shared address space `100.64.0.0/10`, IPv6 unique local `fc00::/7`), other non-global ranges and global addresses | Allowed. |
+
+Internal application targets usually live on private networks, so those need
+no setting; only the destinations above that reach the Runtime host itself or
+its link are gated. Additional allowed networks are an immutable Runtime Agent
+startup setting: `--allowed-target-network CIDR` (repeatable) or the
+comma-separated `CONTRACTOR_ALLOWED_TARGET_NETWORKS`, at most 64 strict CIDR
+networks. They are for same-host deployments and local evaluations, for example
+`127.0.0.0/8` when targets run beside the Runtime. They never unlock a Runtime
+service endpoint, a metadata address or another always-denied destination. A
+project target on loopback needs no operator setting: its own origin is allowed
+for the allocation that receives it.
+
+Every denial, whether found before sending, at connect time or by the proxy
+route, is the non-retryable `http_target_denied`; scanners report
+`scan_target_denied`, or `scan_target_unresolved` when the host did not resolve.
 
 ### Egress and DNS boundary
 
-The preceding checks are application-layer defense in depth, not a network
-sandbox. The Runtime does not resolve a hostname before every call, pin its
-addresses, reject RFC1918/ULA results, or prove that two names do not reach the
-same service. Consequently DNS rebinding and a public hostname resolving to a
-private address are outside the Toolset's guarantee. Every redirect is parsed
-and checked again, and allocation auth/cookies are stripped on a cross-origin
-hop, but the same DNS boundary applies to that new hostname.
+The direct client resolves the host once per TCP connection inside its network
+backend, checks every candidate address, and connects only to a permitted one.
+There is no second lookup, so DNS rebinding cannot swap the checked address for
+another one. HTTPS still verifies the certificate against the URL host name.
+Redirect hops and retries open connections through the same check.
 
-When a deployment needs a closed target policy, it must assign a mandatory
-`tool-http` route and enforce DNS/address/allowlist policy at that forward
-proxy, and/or restrict the Runtime's network namespace. When no route is
-resolved, the Runtime intentionally has the OS identity's direct egress. Both
-paths use normal TLS certificate and endpoint-name verification; neither
+With a `tool-http` route, the forward proxy resolves target names; the Runtime
+does not resolve them locally because proxy-only names are valid there. It still
+applies every literal-address, name and Runtime endpoint check above before
+sending. The route handle has no host list of its own: every tool request names
+the allocation's target policy and the handle refuses a denied destination
+before any network I/O. A same-host target on `localhost`, `127.0.0.1` or `::1`
+behind a local proxy such as Caido is therefore reachable exactly when the
+policy allows it, as the project target's origin or inside an allowed target
+network, while Runtime endpoints, including the proxy and Caido endpoints on
+their loopback ports, and metadata stay refused. Loopback then means the
+proxy's host; allow it only when the proxy runs beside the Runtime. DNS-based
+address policy for proxied names belongs to that proxy. Deployments needing a
+closed network boundary beyond this policy enforce it at the proxy and/or
+restrict the Runtime's network namespace.
+Both paths use normal TLS certificate and endpoint-name verification; neither
 supports an agent-selected `verify=false`. The proxy endpoint itself is
 Control-Plane configuration and cannot be changed by a tool argument.
 
 Retries are bounded to idempotent methods by default and cover transport
 failure plus `408`, `425`, `429`, `500`, `502`, `503`, `504`. A non-idempotent
 request is not retried unless a future explicit idempotency contract is added.
+At most two retries follow the first attempt. The first waits 0.25 seconds and
+the second 0.5 seconds; a target's `Retry-After` (delta seconds or HTTP date)
+of at most 5 seconds replaces a shorter wait. A longer `Retry-After`, or a
+wait that would leave the retry less of the call deadline than the wait
+itself, ends retrying: the last response is returned as data, or the transport
+failure as `http_request_failed`.
 The target's 4xx/5xx response is a valid response record, not an adapter
 failure. This requires the proxy handle to expose response status rather than
-collapsing it into transport failure.
+collapsing it into transport failure. Only a `407` answering a forwarded
+plain-HTTP request is treated as the proxy refusing the route, because it may
+come from either hop. For HTTPS the proxy's refusal fails the `CONNECT` tunnel
+before any request is sent, so a `407` response is the target's own record.
 
 The response record contains request ID/tag, method, final URL, status,
 content type/length, safe response headers, body kind, at most 8192 characters
@@ -168,8 +224,12 @@ from returned headers and retained metrics.
 
 The complete body is streamed with a 16 MiB hard limit into an ordinary
 artifact in the allocation's logical namespace using media type
-`application/vnd.contractor.http-body+json`. Text is stored as UTF-8 text;
-arbitrary bytes use base64. Internal names are collision-resistant and the
+`application/vnd.contractor.http-body+json`. The limit applies separately to
+the bytes received and to the decoded body. `gzip` and `deflate` content
+codings are decoded incrementally, so compressed data never inflates past the
+limit in memory; any other content coding is stored as received. Text is
+stored as UTF-8 text; arbitrary bytes use base64. Internal names are
+collision-resistant and the
 exact returned ref is retained in allocation memory. `http_read_body` accepts
 only a request ID created by that allocation, never an arbitrary ArtifactRef.
 The JSON envelope itself must also fit the Artifact plane's 64 MiB payload
@@ -188,7 +248,9 @@ Session cookies/default headers/auth live only in allocation memory. They are
 available to sequential A2A tasks on the same allocation and are erased on
 release/abort/lease loss. Ambient session authentication is not serialized to an artifact. A request
 explicitly selected by a HTTP finding retains its actual target headers/body
-inside that proposal, including Authorization and Cookie; see
+inside that proposal, including Authorization and Cookie, except that the
+project target credential Runtime injects is captured as the marker
+`[runtime-target-credential]`; see
 [the finding evidence contract](27-findings-tools-and-collections.md#selected-http-evidence). `http_session_get` returns only `auth_kind`, redacted
 sensitive headers and cookie names/count; cookie values are not model-visible
 after being set.
@@ -211,8 +273,12 @@ unreferenced reserved binding; it cannot be recovered through
 The httpx transport cookie jar is scratch state: allocation-owned cookies are
 the authoritative copy and transport cookies are cleared before every hop,
 including redirects and retries on direct and proxied requests. Same-origin
-response cookies and deletions are applied to prospective request state;
-cross-origin hops receive no session cookies or authorization. Prospective
+response cookies and deletions are applied to prospective request state.
+Each redirect hop is compared with the originally requested origin: a hop on
+another origin receives no session cookies, session authorization or sensitive
+request header (`Authorization`, `Cookie`, and any name containing `api-key`,
+`auth-token` or `access-token`), and a later hop back on the original origin
+receives them again. Prospective
 cookies become session state only after the full request and body Artifact
 write succeed. Every response is closed, including when its redirect target
 is malformed or forbidden.
@@ -271,7 +337,7 @@ Common first limits:
 
 | Resource | Limit |
 |---|---:|
-| one GraphQL response | 16 MiB |
+| one GraphQL response, received and decoded | 16 MiB |
 | raw request supplied to replay/workflow | 1 MiB |
 | inline raw preview | 8192 characters |
 | history/results/findings page | 100 entries |
@@ -337,7 +403,10 @@ retry in the first implementation. Every returned object has an exact
 operation-specific shape, and identities returned for an ID-addressed query or
 mutation must match the requested/session identity before they are exposed.
 
-Known Caido domain failures become bounded tool results. Transport, JSON,
+Known Caido domain failures become bounded tool results. Every user-error
+selection includes `__typename`, so a user error type without its own fragment
+(for example one added by a newer Caido) is still a `rejected` result whose
+`error_code` is that type name rather than an invalid response. Transport, JSON,
 GraphQL and schema errors return a stable code and retryability without echoing
 endpoint, bearer token, raw query, variables or arbitrary server text.
 
@@ -415,7 +484,9 @@ Stable errors include:
 
 - arbitrary GraphQL queries or user-defined Caido schema extensions;
 - automatic PAT-to-access-token exchange and refresh;
-- Server-side HTTP allow/deny policy editor, DNS pinning or network sandbox;
+- Server-side HTTP allow/deny policy editor or network sandbox;
+- per-Run allowed target networks in RuntimeConfig labels (the operator setting
+  is per Runtime Agent process);
 - streaming multi-gigabyte downloads and binary artifact chunking;
 - automatic Skill-to-Toolset dependency installation;
 - UI-specific Caido panels or HTTP history browser;
@@ -430,7 +501,10 @@ Stable errors include:
 4. Generic HTTP response status is data; transport/routing failure is an error.
 5. Caido GraphQL is static-operation-only and bounded at every input/output.
 6. Allocation teardown erases all session credentials and client handles.
-7. Application URL checks do not claim DNS or private-network isolation; a
-   deployment requiring it uses mandatory proxy/network policy.
+7. Target policy classifies resolved addresses: direct HTTP connects only to a
+   checked address, Runtime endpoints and metadata are never reachable, and
+   loopback/link-local destinations need the project target or an operator
+   network. Proxied name resolution and scanner re-resolution remain outside
+   that pin; a deployment requiring a closed boundary uses proxy/network policy.
 8. Reserved HTTP/Caido IDs and tags are monotonic and never reused after an
    ambiguous or cancelled operation.

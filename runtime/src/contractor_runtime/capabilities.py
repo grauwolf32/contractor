@@ -302,8 +302,21 @@ async def _probe_one(
     except Exception:
         _log_probe(ref, kind, "failed", _duration_ms(started, time.monotonic()))
         return None
-    _log_probe(ref, kind, "available", _duration_ms(started, time.monotonic()))
+    _log_probe(
+        ref,
+        kind,
+        "available" if _probe_positive(kind, result) else "unavailable",
+        _duration_ms(started, time.monotonic()),
+    )
     return result
+
+
+def _probe_positive(kind: str, result: object) -> bool:
+    # Mirrors what discover_capabilities accepts: toolsets advertise a non-empty
+    # tool set, every other factory kind exactly True.
+    if kind == "toolset":
+        return isinstance(result, (set, frozenset)) and bool(result)
+    return result is True
 
 
 def _duration_ms(started: float, finished: float) -> int:

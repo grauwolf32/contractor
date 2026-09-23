@@ -184,6 +184,113 @@ def test_cancellation_waits_for_materialization_then_removes_source_residue(
     asyncio.run(scenario())
 
 
+def test_repeated_cancellation_during_materialization_leaks_no_mirror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    original = host_module._materialize_snapshot
+
+    def delayed(snapshot: WorkspaceSnapshot, scratch_root: Path) -> host_module._PreparedMirror:
+        started.set()
+        assert release.wait(timeout=5)
+        try:
+            return original(snapshot, scratch_root)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(host_module, "_materialize_snapshot", delayed)
+
+    async def scenario() -> None:
+        host = TrailmarkChildHost(tmp_path)
+        operation = asyncio.create_task(host.build(_snapshot()))
+        assert await asyncio.to_thread(started.wait, 2)
+        for _ in range(3):
+            operation.cancel()
+            await asyncio.sleep(0)
+            assert not operation.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+        assert finished.is_set()
+        # Removed as part of the cancelled build, not only by a later close().
+        assert list(tmp_path.iterdir()) == []
+        await host.close()
+        assert host.mirror_exists is False
+
+    asyncio.run(scenario())
+
+
+def test_cancellation_is_not_replaced_by_a_materialization_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def failing(snapshot: WorkspaceSnapshot, scratch_root: Path) -> host_module._PreparedMirror:
+        started.set()
+        assert release.wait(timeout=5)
+        raise OSError("scratch is full")
+
+    monkeypatch.setattr(host_module, "_materialize_snapshot", failing)
+
+    async def scenario() -> None:
+        host = TrailmarkChildHost(tmp_path)
+        operation = asyncio.create_task(host.build(_snapshot()))
+        assert await asyncio.to_thread(started.wait, 2)
+        operation.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+        await host.close()
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_build_keeps_an_unremovable_mirror_fenced_until_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    original = host_module._materialize_snapshot
+    original_remove = host_module._remove_mirror
+
+    def delayed(snapshot: WorkspaceSnapshot, scratch_root: Path) -> host_module._PreparedMirror:
+        started.set()
+        assert release.wait(timeout=5)
+        return original(snapshot, scratch_root)
+
+    def refuse(path: Path, scratch_root: Path) -> None:
+        raise OSError("busy")
+
+    monkeypatch.setattr(host_module, "_materialize_snapshot", delayed)
+    monkeypatch.setattr(host_module, "_remove_mirror", refuse)
+
+    async def scenario() -> None:
+        host = TrailmarkChildHost(tmp_path)
+        operation = asyncio.create_task(host.build(_snapshot()))
+        assert await asyncio.to_thread(started.wait, 2)
+        operation.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await operation
+        assert host.mirror_exists is True
+        with pytest.raises(TrailmarkHostError) as fenced:
+            await host.close()
+        assert fenced.value.code == "code_analysis_engine_failed"
+
+        monkeypatch.setattr(host_module, "_remove_mirror", original_remove)
+        await host.close()
+        assert host.mirror_exists is False
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
 def _fault_host(
     root: Path,
     mode: str,

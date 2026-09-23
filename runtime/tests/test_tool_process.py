@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import os
+import signal
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -12,7 +16,13 @@ import pytest
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.http_proxy import ProxySubprocessError, ProxySubprocessLauncher
 from contractor_runtime.toolsets.common import process as process_module
-from contractor_runtime.toolsets.common.process import run_command
+from contractor_runtime.toolsets.common.process import (
+    ProcessOutputLimitError,
+    ProcessTimeoutError,
+    run_command,
+)
+from contractor_runtime.toolsets.likec4 import tools as likec4_module
+from contractor_runtime.toolsets.openapi import tools as openapi_module
 
 
 def test_bounded_process_transfers_stdin_and_does_not_inherit_environment(monkeypatch) -> None:
@@ -102,6 +112,54 @@ def test_repeated_cancellation_joins_child_even_during_spawn_or_cleanup(
     asyncio.run(scenario())
 
 
+def _detached_holder(marker: Path) -> list[str]:
+    # The descendant leaves the process group but keeps the stdout pipe open.
+    return [
+        "sh",
+        "-c",
+        f"setsid sh -c 'echo $$ > {marker}; exec sleep 30' & echo started; wait",
+    ]
+
+
+def _kill_detached(marker: Path) -> None:
+    if marker.exists():
+        with contextlib.suppress(ProcessLookupError, ValueError):
+            os.kill(int(marker.read_text()), signal.SIGKILL)
+
+
+@pytest.mark.parametrize("ending", ["timeout", "cancel"])
+def test_detached_descendant_holding_pipes_cannot_stall_stop(tmp_path: Path, ending: str) -> None:
+    marker = tmp_path / "holder-pid"
+
+    async def scenario() -> None:
+        started = time.monotonic()
+        task = asyncio.create_task(
+            run_command(
+                _detached_holder(marker),
+                env={"PATH": "/usr/bin:/bin"},
+                timeout=1 if ending == "timeout" else 30,
+                max_output_bytes=1024,
+            )
+        )
+        if ending == "timeout":
+            with pytest.raises(process_module.ProcessTimeoutError) as raised:
+                await asyncio.wait_for(task, 5)
+            assert raised.value.output == b"started\n"
+        else:
+            async with asyncio.timeout(3):
+                while not marker.exists():
+                    await asyncio.sleep(0.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 5)
+        assert time.monotonic() - started < 5
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        _kill_detached(marker)
+
+
 def test_proxy_async_process_keeps_private_routing_and_rejects_bearer(monkeypatch) -> None:
     monkeypatch.setenv("HTTPS_PROXY", "http://ambient.invalid:9999")
     monkeypatch.setenv("CONTRACTOR_TEST_SECRET", "must-not-reach-child")
@@ -136,21 +194,29 @@ def test_proxy_async_process_keeps_private_routing_and_rejects_bearer(monkeypatc
     asyncio.run(scenario())
 
 
-def test_proxy_async_close_cancels_child_before_erasing_its_ca(tmp_path: Path) -> None:
+def test_proxy_async_close_stops_the_child_not_the_calling_task(tmp_path: Path) -> None:
     async def scenario() -> None:
         marker = tmp_path / "child-pid"
         launcher = _launcher(combined_ca_bundle=b"private CA fixture")
-        task = asyncio.create_task(
-            launcher.run_async(
-                [
-                    sys.executable,
-                    "-c",
-                    "import os,time; from pathlib import Path; "
-                    "assert Path(os.environ['SSL_CERT_FILE']).exists(); "
-                    f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
-                ]
-            )
-        )
+
+        async def caller() -> str:
+            try:
+                await launcher.run_async(
+                    [
+                        sys.executable,
+                        "-c",
+                        "import os,time; from pathlib import Path; "
+                        "assert Path(os.environ['SSL_CERT_FILE']).exists(); "
+                        f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
+                    ]
+                )
+            except ProxySubprocessError:
+                # The caller's own task keeps running after the route closes.
+                await asyncio.sleep(0)
+                return "closed"
+            return "completed"
+
+        task = asyncio.create_task(caller())
         try:
             async with asyncio.timeout(3):
                 while not marker.exists():
@@ -158,8 +224,8 @@ def test_proxy_async_close_cancels_child_before_erasing_its_ca(tmp_path: Path) -
             roots = launcher.active_temporary_roots
             assert len(roots) == 1 and roots[0].exists()
             await asyncio.wait_for(launcher.aclose(), 3)
-            with pytest.raises(asyncio.CancelledError):
-                await task
+            assert await asyncio.wait_for(task, 3) == "closed"
+            assert not task.cancelled()
             assert not Path(f"/proc/{int(marker.read_text())}").exists()
             assert launcher.active_temporary_roots == ()
             assert not roots[0].exists()
@@ -171,6 +237,97 @@ def test_proxy_async_close_cancels_child_before_erasing_its_ca(tmp_path: Path) -
     asyncio.run(scenario())
 
 
+def test_proxy_async_cancellation_survives_a_failed_ca_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import contractor_runtime.adapters.http_proxy as http_proxy
+
+    remove = http_proxy._remove_private_root
+
+    async def scenario() -> None:
+        marker = tmp_path / "child-pid"
+        launcher = _launcher(combined_ca_bundle=b"private CA fixture")
+        task = asyncio.create_task(
+            launcher.run_async(
+                [
+                    sys.executable,
+                    "-c",
+                    "import os,time; from pathlib import Path; "
+                    f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
+                ]
+            )
+        )
+        async with asyncio.timeout(3):
+            while not marker.exists():
+                await asyncio.sleep(0.01)
+        monkeypatch.setattr(http_proxy, "_remove_private_root", lambda _root: False)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 3)
+        assert not Path(f"/proc/{int(marker.read_text())}").exists()
+        # The unremoved root stays owned by the launcher until close removes it.
+        assert len(launcher.active_temporary_roots) == 1
+        monkeypatch.setattr(http_proxy, "_remove_private_root", remove)
+        await launcher.aclose()
+        assert launcher.active_temporary_roots == ()
+
+    asyncio.run(scenario())
+
+
+def test_proxy_async_child_outcomes_reach_the_caller_unwrapped() -> None:
+    async def scenario() -> None:
+        launcher = _launcher(combined_ca_bundle=b"private CA fixture")
+        with pytest.raises(ProcessTimeoutError) as timed_out:
+            await launcher.run_async(
+                [sys.executable, "-c", "import time; print('partial', flush=True); time.sleep(60)"],
+                timeout=0.3,
+            )
+        assert timed_out.value.stdout == b"partial\n"
+        with pytest.raises(ProcessOutputLimitError):
+            await launcher.run_async(
+                [sys.executable, "-c", "print('x' * 5000)"], max_output_bytes=1000
+            )
+        # A non-zero exit is the child's answer (a validator reporting issues),
+        # not an adapter failure.
+        issues = await launcher.run_async([sys.executable, "-c", "import sys; sys.exit(1)"])
+        assert issues.returncode == 1
+        assert launcher.active_temporary_roots == ()
+        assert launcher._metrics.operations == 3
+        assert launcher._metrics.failed_operations == 0
+        await launcher.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("outcome", ["timeout", "oversized"])
+def test_proxied_validators_report_timeout_and_oversized_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: str
+) -> None:
+    body = "import time; time.sleep(60)" if outcome == "timeout" else "print('x' * 3_000_000)"
+    executable = tmp_path / "validator"
+    executable.write_text(f"#!{sys.executable}\n{body}\n")
+    executable.chmod(0o700)
+    monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: str(executable))
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: str(executable))
+    monkeypatch.setattr(openapi_module, "MAX_VACUUM_OUTPUT_BYTES", 1000)
+    monkeypatch.setattr(likec4_module, "MAX_VALIDATOR_OUTPUT_BYTES", 1000)
+
+    async def scenario() -> None:
+        launcher = _launcher(timeout_seconds=0.5)
+        vacuum = await openapi_module._run_vacuum("openapi: 3.0.3", launcher)
+        likec4 = await likec4_module._run_likec4("model {}", tmp_path, launcher)
+        await launcher.aclose()
+        return vacuum, likec4
+
+    vacuum, likec4 = asyncio.run(scenario())
+    if outcome == "timeout":
+        assert vacuum["executionError"] == "Vacuum validation timed out"
+        assert likec4["executionError"] == "LikeC4 validation timed out"
+    else:
+        assert vacuum["executionError"] == "Vacuum could not be executed"
+        assert likec4["executionError"] == "LikeC4 returned oversized output"
+
+
 def _launcher(**settings) -> ProxySubprocessLauncher:
     return ProxySubprocessLauncher(
         proxy_url="http://proxy.invalid:8080",
@@ -178,6 +335,6 @@ def _launcher(**settings) -> ProxySubprocessLauncher:
         bearer_token=settings.get("bearer_token"),
         combined_ca_bundle=settings.get("combined_ca_bundle"),
         bypass_hosts=(),
-        timeout_seconds=30,
+        timeout_seconds=settings.get("timeout_seconds", 30),
         metrics=RuntimeAdapterMetricsState(),
     )

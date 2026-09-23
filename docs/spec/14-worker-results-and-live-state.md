@@ -247,6 +247,17 @@ Deterministic size, secret-retention and
 invalid binding violations are non-retryable. Workflow policy, not Runtime,
 decides whether that flag causes another attempt.
 
+The secret-retention scan (`unsafe_worker_result`) covers every allocation
+RuntimeSettings credential: the LLM Gateway token, telemetry header values,
+HTTP proxy credentials, the Caido bearer token and the credentials Runtime
+injects for the HTTP origin target. Endpoints and CA bundles are not
+credentials and results may name them (a same-host deployment audits services
+next to its own); the Agent Card check additionally rejects those. A
+value of at least 16 UTF-8 bytes is rejected anywhere in the result text; a
+shorter value, such as a proxy username, only when it is the whole text, so an
+ordinary word cannot fail a result. The LLM Gateway token is rejected at any
+length.
+
 ## One instrumentation plugin, separate reducers
 
 An ADK Worker uses one Contractor `WorkerInstrumentationPlugin`, registered on

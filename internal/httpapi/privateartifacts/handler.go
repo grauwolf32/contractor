@@ -39,7 +39,10 @@ type FindingIntake interface {
 	Submit(context.Context, controlplane.AllocationGrant, findingintake.Submission) (findingintake.Receipt, bool, error)
 }
 
-type handler struct{ dependencies Dependencies }
+type handler struct {
+	dependencies Dependencies
+	recovery     gatewayRecoveryUpdater
+}
 
 type authenticatedRuntime struct {
 	principalID string
@@ -53,6 +56,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		return nil, errors.New("private Artifact API dependencies are incomplete")
 	}
 	current := &handler{dependencies: dependencies}
+	if dependencies.GatewayRecovery != nil {
+		current.recovery = dependencies.GatewayRecovery
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts", current.listArtifacts)
@@ -65,7 +71,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/", current.notFound)
 	return requestid.Middleware(current.requireMTLS(mux), requestid.Options{
 		Generator: dependencies.NewRequestID, Logger: dependencies.Logger,
-		Boundary: "artifact-private-api", TrustIncoming: true,
+		Boundary: "artifact-private-api", TrustIncoming: mtls.HasVerifiedRuntimeAgent,
 	}), nil
 }
 

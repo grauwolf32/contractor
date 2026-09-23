@@ -776,6 +776,17 @@ type CommitReportParams struct {
 
 type ProposeReportParams = CommitReportParams
 
+// ReportDecisionParams identifies the exact frozen report candidate an owner
+// decided. The decision runs inside the review transaction, which already
+// holds the Audit and review request locks, so it carries no claim.
+type ReportDecisionParams struct {
+	AuditID               string
+	ExpectedAuditRevision uint64
+	RequestID             string
+	SubjectRevision       uint64
+	SubjectDigest         string
+}
+
 type ReportCandidate struct {
 	RequestID       string
 	RoundID         string

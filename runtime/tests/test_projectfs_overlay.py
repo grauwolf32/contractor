@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,7 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
     overlay,
 )
+from contractor_runtime.projectfs.storage import ManagedWorkspaceTree
 from contractor_runtime.settings import WorkspaceLimits
 
 
@@ -196,6 +199,105 @@ def test_overlay_write_limits_hold_across_writes_without_revalidating_tree(
         with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
             await session.write_text("f.txt", "u" * 6)
         assert await session.changed_paths() == ("e.txt", "f.txt")
+
+        await session.close()
+        await provider.cleanup(session.storage)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is required to apply the patch")
+def test_workspace_diff_is_a_patch_git_applies_exactly(tmp_path: Path) -> None:
+    before = ManagedWorkspaceTree(
+        directories={"dir"},
+        text_files={
+            "grows.txt": "one\ntwo",
+            "shrinks.txt": "one\ntwo\n",
+            "separators.txt": "a\fb\x1cc\x1dd\x1ee\x85f\u2028g\u2029h\vi\n",
+            "progress.log": "fetch 10%\rfetch 20%\ndone\n",
+            "crlf.txt": "x\r\ny\r\n",
+            "dir/removed.txt": "gone",
+        },
+        binary_paths={"image.bin"},
+    )
+    after = ManagedWorkspaceTree(
+        directories={"dir"},
+        text_files={
+            "grows.txt": "one\ntwo\nthree",
+            "shrinks.txt": "one\ntwo",
+            "separators.txt": "a\fb\x1cc\x1dd\x1ee\x85f\u2028g\u2029H\vi\n",
+            "progress.log": "fetch 10%\rfetch 30%\ndone\n",
+            "crlf.txt": "x\r\nY\r\n",
+            "dir/created.txt": "new",
+        },
+    )
+    patch = overlay._workspace_diff(before, after, "", overlay.MAX_DIFF_BYTES, 0).text
+    assert patch.count("\\ No newline at end of file\n") == 5
+    assert "Binary path changed: image.bin\n" in patch
+    # Hunks count only LF-terminated lines: other separators stay in content.
+    assert "@@ -1 +1 @@" in patch and "@@ -1,2 +1,2 @@" in patch
+
+    work = tmp_path / "work"
+    for path, text in before.text_files.items():
+        (work / path).parent.mkdir(parents=True, exist_ok=True)
+        (work / path).write_bytes(text.encode("utf-8"))
+    (tmp_path / "change.patch").write_bytes(patch.encode("utf-8"))
+    applied = subprocess.run(
+        ["git", "apply", "--whitespace=nowarn", str(tmp_path / "change.patch")],
+        cwd=work,
+        capture_output=True,
+        check=False,
+    )
+    assert applied.returncode == 0, applied.stderr
+    assert not (work / "dir/removed.txt").exists()
+    for path, text in after.text_files.items():
+        assert (work / path).read_bytes() == text.encode("utf-8"), path
+
+
+def test_rolling_back_one_file_restores_parents_deleted_after_checkpoint() -> None:
+    async def scenario() -> None:
+        spec, reader = workspace_inputs(
+            [
+                (
+                    "source",
+                    "",
+                    archive(
+                        {
+                            "dir/a.txt": b"a\n",
+                            "dir/b.txt": b"b\n",
+                            "deep/er/c.txt": b"c\n",
+                            "kind/d.txt": b"d\n",
+                        }
+                    ),
+                )
+            ]
+        )
+        spec.mode = "overlay"
+        provider = MemoryWorkspaceProvider(settings("memory"))
+        session = await hydrate_workspace(
+            provider=provider,
+            spec=spec,
+            artifact_reader=reader,
+            allocation_id="rollback-parents",
+            timeout_seconds=5,
+        )
+        assert isinstance(session, OverlayWorkspaceSession)
+        await session.delete_path("dir", recursive=True)
+        await session.delete_path("deep", recursive=True)
+
+        await session.rollback_changes("dir/a.txt")
+        assert await session.read_text("dir/a.txt") == "a\n"
+        assert await session.changed_paths() == ("deep", "deep/er", "deep/er/c.txt", "dir/b.txt")
+        await session.rollback_changes("deep/er/c.txt")
+        assert await session.read_text("deep/er/c.txt") == "c\n"
+        assert await session.changed_paths() == ("dir/b.txt",)
+
+        # A parent that became a file is not silently replaced.
+        await session.delete_path("kind", recursive=True)
+        await session.write_text("kind", "now a file\n")
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+            await session.rollback_changes("kind/d.txt")
+        assert await session.read_text("kind") == "now a file\n"
 
         await session.close()
         await provider.cleanup(session.storage)

@@ -22,6 +22,14 @@ Runtime must advertise `tool@1`, `local-workdir@1` and the selected `scan@1`
 operation. Missing binaries prevent placement on that Runtime. See
 [scanner provisioning](../../runtime/README.md#cli-scanners).
 
+Targets must pass the Runtime
+[target policy](../../docs/spec/11-http-and-caido-tools.md#target-policy):
+loopback and link-local hosts return `scan_target_denied` unless the Runtime
+was started with a matching `--allowed-target-network`, such as `127.0.0.0/8`
+for a target on the same host. Private-network and public hosts need no
+setting. Runtime service endpoints and cloud metadata addresses are never
+scanned.
+
 Reports contain the scanner observation, exact input artifact refs and an
 input digest. An empty or truncated report does not establish that a target
 is clean. Repeated delivery within one StageExecution reuses its durable
@@ -34,7 +42,8 @@ receipt; an unknown outcome requires an explicit new execution to scan again.
 no string parameters. `sqlmap-scan@1` binds that artifact to the typed
 `request_ref` argument, sets level/risk to 1 and a Worker timeout of 300 seconds,
 and publishes the `report` output. Runtime must have a working `sqlmap` binary
-on `PATH`. A configured subprocess proxy returns `scan_proxy_unsupported`.
+on `PATH`. A configured `tool-http` or `tool-subprocess` proxy route returns
+`scan_proxy_unsupported`.
 
 Save this example as `request.json`, replacing the URL with the intended
 target and supplying the headers/body that the endpoint needs:
@@ -103,7 +112,7 @@ thread and may retry a failed request once outside its payload rate limiter.
 Runtime must advertise `scan_ffuf`, independently probed with `ffuf -V`; other
 scanner binaries are not required for this Workflow. Provision the executable
 on the Runtime service's `PATH` and restart the Runtime after installation.
-The same direct-routing limitation applies: a configured subprocess proxy
+The same direct-routing limitation applies: a configured tool proxy route
 returns `scan_proxy_unsupported`, without silently bypassing the proxy. Runtime
 never installs scanners during a Run.
 

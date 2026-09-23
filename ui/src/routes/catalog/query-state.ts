@@ -18,11 +18,28 @@ export function useCatalogQueryState() {
     base: committedSearch,
     value: committedSearch,
   });
-  const draftSearch =
-    draft.base === committedSearch ? draft.value : committedSearch;
+  // The draft belongs to the committed query it was typed against. When the
+  // URL query changes, a draft that normalizes to the new query is this
+  // draft's own debounced commit and keeps its text as typed (for example a
+  // trailing space before the next word); any other change replaces it.
+  let current = draft;
+  if (draft.base !== committedSearch) {
+    current = {
+      base: committedSearch,
+      value:
+        draft.value.trim() === committedSearch ? draft.value : committedSearch,
+    };
+    setDraft(current);
+  }
+  const draftSearch = current.value;
 
   useEffect(() => {
-    if (draftSearch === committedSearch) return;
+    if (
+      draftSearch === committedSearch ||
+      draftSearch.trim() === committedSearch
+    ) {
+      return;
+    }
     const timer = window.setTimeout(() => {
       const next = new URLSearchParams(serializedSearchParams);
       const normalized = draftSearch.trim();

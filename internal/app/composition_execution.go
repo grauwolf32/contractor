@@ -167,7 +167,11 @@ func configureWorkflows(
 		pool,
 		runstore.NewPostgresStore(pool),
 		workflowScheduler,
-		projectlifecycle.Options{OperationTimeout: cfg.Operations.ProjectLifecycle.OperationTimeout, ClaimDuration: cfg.Operations.ProjectLifecycle.ClaimDuration, Logger: logger},
+		projectlifecycle.Options{
+			OperationTimeout: cfg.Operations.ProjectLifecycle.OperationTimeout,
+			PurgeTimeout:     cfg.Operations.ProjectLifecycle.PurgeTimeout,
+			ClaimDuration:    cfg.Operations.ProjectLifecycle.ClaimDuration, Logger: logger,
+		},
 	)
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure Project deletion controller: %w", err)

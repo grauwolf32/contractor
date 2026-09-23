@@ -42,6 +42,11 @@ contractor --output json run get run_123
 contractor --output name workflow list
 ```
 
+`--timeout` (or `CONTRACTOR_TIMEOUT`, default `30s`) bounds each request. For
+`source push`, `artifact put`/`get` and `run output` it instead bounds each
+period without progress, from connecting through the last body byte, so a large
+Artifact may take longer on a slow link while a stalled transfer still fails.
+
 Cleartext HTTP is accepted by default only for IP-literal loopback origins.
 Use `--allow-http` explicitly for another development origin. Redirects and a
 Server with an incompatible `X-Contractor-API-Version` are rejected.
@@ -76,13 +81,16 @@ Use the [configuration catalog](../../configs/README.md) to choose another Workf
 working tree it includes tracked files, working-tree changes, and untracked
 non-ignored files. `.gitignore` and an optional `.contractorignore` are
 honored. `--include-ignored` disables the Git ignore filter;
-`.contractorignore` still applies. Submodules and nested Git repositories
-are skipped. Symbolic and special files are rejected. The bundle matches the
-runtime source limits: at most 10,000 files, 4 MiB per file, 64 MiB expanded,
-and 512-byte paths, and the final ZIP is bounded by the Server's 64 MiB
-Artifact limit. If the
-binding exists, the command reads its current revision and performs a CAS
-update.
+`.contractorignore` still applies. The root `.contractorignore` uses
+`.gitignore` syntax but is evaluated on its own: it also excludes tracked or
+force-added files, and no `.gitignore` rule or negation can re-include a path
+it excludes. Submodules and nested Git repositories are skipped, and the
+command reports how many. Symbolic links and special files are rejected, never
+followed; the error names the first one, which `.contractorignore` can
+exclude. The bundle matches the runtime source limits: at most 10,000 files,
+4 MiB per file, 64 MiB expanded, and 512-byte paths, and the final ZIP is
+bounded by the Server's 64 MiB Artifact limit. If the binding exists, the
+command reads its current revision and performs a CAS update.
 
 Artifact commands work with UserScope by default. Select ProjectScope or
 RunScope with `--project` or `--run`:

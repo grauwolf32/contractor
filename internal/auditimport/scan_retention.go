@@ -3,6 +3,7 @@ package auditimport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -58,17 +59,17 @@ func (i *Importer) retainScanRecovery(
 			SourceProvenance: provenance, DisplayRef: "member:" + item.ContentMemberID,
 		})
 	}
-	disposition := auditstore.CollectionExecutionFailed
-	retryable := !scanHistoryNeedsRecovery(history)
-	switch *execution.TerminalOutcome {
-	case auditstore.TerminalSucceeded:
-		disposition = auditstore.CollectionMissingOutput
-	case auditstore.TerminalCancelled:
-		disposition, retryable = auditstore.CollectionExecutionCancelled, false
-	}
+	disposition := scanRecoveryDisposition(execution)
+	retryable := disposition != auditstore.CollectionExecutionCancelled && !scanHistoryNeedsRecovery(history)
 	item := auditstore.CollectionItem{
 		ExecutionItemID: member.member.ExecutionItemID, Disposition: disposition,
 		Retryable: retryable, FinalDisposition: finalDisposition(disposition), Coverage: coverage,
 	}
-	return i.commitCollection(ctx, claim, execution, disposition, nil, links, &code, []auditstore.CollectionItem{item})
+	changed, err := i.commitCollection(ctx, claim, execution, disposition, nil, links, &code, []auditstore.CollectionItem{item})
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		// A concurrent writer consumed the budget the snapshot admitted.
+		return i.collectTechnical(ctx, claim, execution, []preparedMember{member},
+			disposition, false, "evidence-budget-exhausted", auditstore.CoverageInconclusive)
+	}
+	return changed, err
 }

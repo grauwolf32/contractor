@@ -34,6 +34,12 @@ responses cannot reopen it. Repeated failure reports are idempotent even when
 other invocations report failures between retries. The automatic window is bounded;
 manual retry reopens it, while cancellation and the admitted Stage wall-clock
 limit remain effective. Terminated invocations relinquish their recovery waits.
+A Runtime call that abandons a granted attempt, through cancellation or an
+unexpected failure at any point before its terminal update is acknowledged
+(including while reporting the outcome), re-delivers that idempotent update as a
+bounded best effort, so the leased probe is not held until it expires; an
+attempt abandoned before any outcome reports `finished`. Cancellation before a
+grant is known sends nothing and leaves an unknown lease to its expiry.
 This does not persist or restore an ADK session after Runtime process loss.
 
 Failure classification has two layers. Status rules belong to the
@@ -768,7 +774,12 @@ selects only a bounded least-recently-attempted batch of incomplete terminal
 releases. It retries each still-live allocation independently, so one member of
 a partially released multi-Agent Stage cannot hide another; a cleanup error is
 reported and retried but never prevents Scheduler from claiming an unrelated
-WorkflowRun.
+WorkflowRun. Retrying cannot repair a live grant whose provenance differs from
+the terminal durable allocation. Because allocation IDs are never reused,
+recovery reports the divergence, write-fences that grant and releases it once
+the Stage the grant names is terminal or unknown. A grant still named by an
+active Stage is left to that Stage's own release; the durable row is then
+marked released because the grant no longer exists.
 
 The corresponding outbound Runtime release calls are concurrent and use
 independent bounded request contexts. Registry authority is removed only for a
@@ -797,6 +808,14 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
 - `finalizing` with a durable candidate and pinned versions reissues the same
   idempotent finalization, then accepts the candidate even if reports remain
   incomplete;
+- durable state the Scheduler cannot progress (`scheduler_state_invalid` or
+  `unsupported_workflow_shape`) ends the Run as `failed`, or `cancelled` once
+  cancellation owns it, in one transaction with every active StageExecution:
+  `preparing` and `running` become `interrupted` with that code, `aborting`
+  commits its stored StageTermination, and `finalizing` accepts its durable
+  candidate without Workflow progression or output binding, exactly as during
+  cancellation. Every Stage is then terminal, so terminal recovery drains and
+  releases its allocations and the Run can later be deleted;
 - `preparing` or `running` without a candidate enters `aborting`; Scheduler
   records a retryable interrupted StageTermination, remaining allocations stop
   or become lost at the abort deadline, and Workflow Scheduler then chooses the

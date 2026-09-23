@@ -254,9 +254,16 @@ func (i *Importer) collectSucceededRole(
 	if source == nil {
 		return false, fmt.Errorf("%w: role has no output contract", ErrPermanent)
 	}
-	return i.commitCollection(
+	changed, err := i.commitCollection(
 		ctx, claim, execution, auditstore.CollectionAccepted, source, links, nil, nil,
 	)
+	if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+		// A concurrent writer consumed the budget the snapshot admitted.
+		code := "evidence-budget-exhausted"
+		return i.commitCollection(ctx, claim, execution,
+			auditstore.CollectionInvalidResult, source, nil, &code, nil)
+	}
+	return changed, err
 }
 
 func sortedStringKeys[T any](values map[string]T) []string {
@@ -906,6 +913,10 @@ func sortedEvidenceIDs(values map[string]validatedEvidence) []string {
 	return result
 }
 
+// retainedEvidenceFits charges each distinct exact source revision once.
+// retainCheckResults copies each distinct source to exactly one retained
+// revision, and the collection transaction charges each distinct retained
+// revision once, so this check and the store's budget gate agree.
 func retainedEvidenceFits(
 	audit auditstore.Audit,
 	result auditstore.ExactArtifact,
@@ -922,7 +933,7 @@ func retainedEvidenceFits(
 		if artifact.Ref.Revision == nil || artifact.SizeBytes < 0 {
 			return false
 		}
-		key := artifact.Ref.Namespace + "\x00" + artifact.Ref.Name + "\x00" + *artifact.Ref.Revision
+		key := exactRefKey(artifact.Ref)
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -933,6 +944,12 @@ func retainedEvidenceFits(
 		remaining -= artifact.SizeBytes
 	}
 	return true
+}
+
+// exactRefKey identifies one exact revision. Callers have already required
+// an exact ref.
+func exactRefKey(ref contracts.ArtifactRef) string {
+	return ref.Namespace + "\x00" + ref.Name + "\x00" + *ref.Revision
 }
 
 func externalEvidenceArtifacts(values map[string]validatedEvidence) []auditstore.ExactArtifact {

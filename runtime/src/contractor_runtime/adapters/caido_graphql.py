@@ -21,6 +21,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import CaidoSettings, RuntimeAdapterRef
+from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
 MAX_CAIDO_VARIABLE_BYTES = 4 * 1024 * 1024
@@ -105,8 +106,8 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
             operation_name="CreateScope",
             document=(
                 "mutation CreateScope($input: CreateScopeInput!) { createScope(input: $input) { "
-                "error { ... on InvalidGlobTermsUserError { code } ... on OtherUserError { code } "
-                "} scope { id name allowlist denylist } } }"
+                "error { __typename ... on InvalidGlobTermsUserError { code } ... on "
+                "OtherUserError { code } } scope { id name allowlist denylist } } }"
             ),
         ),
         "findings_by_offset": _StaticOperation(
@@ -191,16 +192,16 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
             operation_name="StartReplayTask",
             document=(
                 "mutation StartReplayTask($sessionId: ID!, $input: StartReplayTaskInput!) { "
-                "startReplayTask(sessionId: $sessionId, input: $input) { error { ... on "
-                "TaskInProgressUserError { code } ... on OtherUserError { code } } task { id "
-                "replayEntry { id } } } }"
+                "startReplayTask(sessionId: $sessionId, input: $input) { error { __typename "
+                "... on TaskInProgressUserError { code } ... on OtherUserError { code } } task { "
+                "id replayEntry { id } } } }"
             ),
         ),
         "update_automate_session": _StaticOperation(
             operation_name="UpdateAutomateSession",
             document=(
                 "mutation UpdateAutomateSession($id: ID!, $input: UpdateAutomateSessionInput!) { "
-                "updateAutomateSession(id: $id, input: $input) { error { ... on "
+                "updateAutomateSession(id: $id, input: $input) { error { __typename ... on "
                 "PermissionDeniedUserError { code } ... on OtherUserError { code } } session { id "
                 "name settings { placeholders { start end } strategy } } } }"
             ),
@@ -514,14 +515,11 @@ async def _read_bounded_response(response: httpx.Response) -> bytes:
             raise CaidoClientError("caido_response_invalid", retryable=False)
         if content_length > MAX_CAIDO_RESPONSE_BYTES:
             raise CaidoClientError("caido_response_too_large", retryable=False)
-    chunks: list[bytes] = []
-    total = 0
-    async for chunk in response.aiter_bytes():
-        total += len(chunk)
-        if total > MAX_CAIDO_RESPONSE_BYTES:
-            raise CaidoClientError("caido_response_too_large", retryable=False)
-        chunks.append(chunk)
-    return b"".join(chunks)
+    try:
+        # Bounds both the received bytes and incremental gzip/deflate decoding.
+        return await read_limited_body(response, MAX_CAIDO_RESPONSE_BYTES)
+    except BodyTooLarge:
+        raise CaidoClientError("caido_response_too_large", retryable=False) from None
 
 
 def _decode_response(raw: bytes) -> dict[str, Any]:
@@ -531,7 +529,8 @@ def _decode_response(raw: bytes) -> dict[str, Any]:
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+        # Nesting beyond the parser's recursion limit is malformed, not transient.
         raise CaidoClientError("caido_response_invalid", retryable=False) from None
     _validate_response_shape(decoded)
     assert isinstance(decoded, dict)

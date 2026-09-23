@@ -41,10 +41,14 @@ export function SessionProvider({
     retry: false,
     staleTime: 30_000,
   });
-  const loginMutation = useMutation({
+  // Mutation results are new objects on every render; only their stable
+  // `mutateAsync` may feed the memoized context value.
+  const { mutateAsync: requestLogin, isPending: isLoggingIn } = useMutation({
     mutationFn: (body: LoginRequest) => api.login(body),
   });
-  const logoutMutation = useMutation({ mutationFn: () => api.logout() });
+  const { mutateAsync: requestLogout, isPending: isLoggingOut } = useMutation({
+    mutationFn: () => api.logout(),
+  });
 
   const clearSession = useCallback(async () => {
     await queryClient.cancelQueries();
@@ -65,29 +69,29 @@ export function SessionProvider({
 
   const login = useCallback(
     async (body: LoginRequest) => {
-      const session = await loginMutation.mutateAsync(body);
+      const session = await requestLogin(body);
       queryClient.setQueryData(queryKeys.session, session);
       return session;
     },
-    [loginMutation, queryClient],
+    [requestLogin, queryClient],
   );
   const logout = useCallback(async () => {
     try {
-      await logoutMutation.mutateAsync();
+      await requestLogout();
       await clearSession();
     } catch (error) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.session });
       throw error;
     }
-  }, [logoutMutation, queryClient, clearSession]);
+  }, [requestLogout, queryClient, clearSession]);
 
   const value = useMemo<SessionContextValue>(
     () => ({
       session: sessionQuery.data,
       error: sessionQuery.error,
       isLoading: sessionQuery.isPending,
-      isLoggingIn: loginMutation.isPending,
-      isLoggingOut: logoutMutation.isPending,
+      isLoggingIn,
+      isLoggingOut,
       login,
       logout,
     }),
@@ -95,8 +99,8 @@ export function SessionProvider({
       sessionQuery.data,
       sessionQuery.error,
       sessionQuery.isPending,
-      loginMutation.isPending,
-      logoutMutation.isPending,
+      isLoggingIn,
+      isLoggingOut,
       login,
       logout,
     ],

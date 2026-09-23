@@ -28,6 +28,9 @@ from contractor_runtime.contracts import (
     AgentTemplateRef,
     ArtifactRef,
     ArtifactWriteResult,
+    CaidoSettings,
+    HTTPOriginTargetSettings,
+    HTTPProxySettings,
     ModelPolicyRef,
     ResolvedAgentTemplate,
     ResolvedInstructions,
@@ -35,6 +38,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     SandboxProfileRef,
     StageContentRequest,
+    TelemetrySettings,
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
@@ -48,7 +52,7 @@ from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGat
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
-from contractor_runtime.worker.runtime import AdkWorkerRuntime
+from contractor_runtime.worker.runtime import AdkWorkerRuntime, _summarizer_secrets
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -316,6 +320,61 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry() -> None:
+    from google.adk.tools import FunctionTool
+
+    from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
+    from contractor_runtime.toolsets.code_execution.tools import ExecCommandTool
+    from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
+    from contractor_runtime.worker.runtime import requires_content_free_telemetry
+
+    async def plain() -> dict[str, bool]:
+        return {"ok": True}
+
+    declared = DeclaredSensitiveTool()
+    assert not requires_content_free_telemetry({})
+    assert not requires_content_free_telemetry({"plain": plain, "read_artifact": plain})
+    assert requires_content_free_telemetry({"declared_probe": declared})
+    assert requires_content_free_telemetry({"wrapped": FunctionTool(declared)})
+    assert ExecCommandTool.contractor_sensitive_output is True
+    for name in HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES:
+        assert requires_content_free_telemetry({"plain": plain, name: plain})
+
+
+@pytest.mark.parametrize("tool_name", ["http_request", "caido_replay", "declared_probe", "probe"])
+def test_adk_worker_suppresses_captured_content_for_sensitive_output_tools(
+    tmp_path: Path, tool_name: str
+) -> None:
+    async def probe() -> dict[str, str]:
+        return {"traffic": "tool-output-canary"}
+
+    tool = DeclaredSensitiveTool() if tool_name == "declared_probe" else probe
+    sensitive = tool_name != "probe"
+
+    async def scenario() -> None:
+        instrumentation = CapturingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {tool_name: tool},
+            scripted_model(
+                [tool_call(tool_name, {}, call_id="sensitive-call"), terminal_text("Reviewed")]
+            ),
+            instrumentation=instrumentation,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert any(span.name == "contractor.worker.tool" for span in instrumentation.spans)
+        captured = repr(instrumentation.content)
+        assert ("tool-output-canary" in captured) is not sensitive
+        assert bool(instrumentation.content) is not sensitive
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_adk_worker_treats_terminal_text_as_opaque_and_blocks_secrets(
     tmp_path: Path,
 ) -> None:
@@ -357,6 +416,130 @@ def test_adk_worker_treats_terminal_text_as_opaque_and_blocks_secrets(
         await secret_runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
+
+
+PROXY_PASSWORD = "recognizable-proxy-password"
+CAIDO_TOKEN = "recognizable-caido-bearer-token"
+TELEMETRY_HEADER = "Bearer recognizable-telemetry-header"
+ORIGIN_TOKEN = "recognizable-origin-target-token"
+
+
+def private_runtime_settings() -> RuntimeSettings:
+    return runtime_settings().model_copy(
+        update={
+            "telemetry": TelemetrySettings(
+                adapter="otlp-http@1",
+                endpoint="https://telemetry.example/v1/traces",
+                headers={"Authorization": TELEMETRY_HEADER},
+                captureContent=False,
+                flushTimeoutSeconds=1,
+            ),
+            "http_proxy": HTTPProxySettings(
+                adapter="http-proxy@1",
+                proxyUrl="https://proxy.example",
+                basicAuth={"username": "worker", "password": PROXY_PASSWORD},
+                targets=["tool-http"],
+            ),
+            "caido": CaidoSettings(
+                adapter="caido-graphql@1",
+                endpoint="https://caido.example",
+                bearerToken=CAIDO_TOKEN,
+                requestTimeoutSeconds=5,
+            ),
+            "http_origin_target": HTTPOriginTargetSettings(
+                url="https://app.example/", bearerToken=ORIGIN_TOKEN
+            ),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "value", ["https://caido.example", "https://proxy.example", "https://telemetry.example"]
+)
+def test_adk_worker_results_may_name_runtime_endpoints(tmp_path: Path, value: str) -> None:
+    # Endpoints are not credentials: a same-host audit may legitimately name
+    # a service that shares the Runtime's host.
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(f"Observed service at {value}/health")]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "value", [PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN, SECRET]
+)
+def test_adk_worker_blocks_every_runtime_settings_secret_in_results(
+    tmp_path: Path, value: str
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(f"Observed credential {value} in traffic")]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "unsafe_worker_result"
+        assert value not in completion.model_dump_json(by_alias=True)
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_keeps_results_that_only_mention_short_setting_values(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        text = "The worker account and https://app.example/ target were reviewed"
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text(text)]),
+            settings=private_runtime_settings(),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        assert completion.result is not None
+        assert completion.result.result == text
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_summarizer_secrets_cover_runtime_settings_credentials(tmp_path: Path) -> None:
+    context = replace(
+        build_context(tmp_path, WorkerState(), {}), runtime_settings=private_runtime_settings()
+    )
+
+    secrets = _summarizer_secrets(context)
+
+    for value in (SECRET, PROXY_PASSWORD, CAIDO_TOKEN, TELEMETRY_HEADER, ORIGIN_TOKEN):
+        assert value in secrets
+    assert "https://proxy.example" in secrets
+    assert "worker" not in secrets
+    assert "https://app.example/" not in secrets
+    assert str(tmp_path) in secrets
 
 
 @pytest.mark.parametrize(
@@ -447,6 +630,140 @@ def test_adk_worker_maps_unhandled_model_error_to_safe_worker_failure(tmp_path: 
         assert snapshot["lastCompletedInvocation"]["phase"] == "failed"
         assert SECRET not in completion.model_dump_json(by_alias=True)
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_count_runtime_defects_as_model_errors(tmp_path: Path) -> None:
+    class FailingExporter:
+        reserved_slots: frozenset[str] = frozenset()
+
+        async def export(self, outcome: object) -> object:
+            del outcome
+            raise RuntimeError("exporter invariant violated")
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
+        runtime._workspace_exporter = FailingExporter()  # type: ignore[assignment]
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        assert "llm_errors" not in state.metrics.counters
+        snapshot = await state.snapshot()
+        invocation = snapshot["lastCompletedInvocation"]
+        assert invocation["invocationId"] == completion.invocation_id
+        assert invocation["metrics"]["modelErrors"] == 0
+        assert invocation["metrics"]["modelCalls"] == 2
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_counts_a_gateway_error_missed_by_model_callbacks_once(
+    tmp_path: Path,
+) -> None:
+    class FailingExporter:
+        reserved_slots: frozenset[str] = frozenset()
+
+        async def export(self, outcome: object) -> object:
+            del outcome
+            raise GatewayModelError("APIConnectionError", retryable=True)
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([terminal_text("ok")]))
+        runtime._workspace_exporter = FailingExporter()  # type: ignore[assignment]
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_gateway_unavailable"
+        assert state.metrics.counters["llm_errors"] == 1
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def _chat_completion(message: dict[str, object], total_tokens: int) -> dict[str, object]:
+    return {
+        "choices": [{"finish_reason": "stop", "message": message}],
+        "usage": {
+            "prompt_tokens": total_tokens - 5,
+            "completion_tokens": 5,
+            "total_tokens": total_tokens,
+        },
+    }
+
+
+REJECTED_TOOL_CALL = {
+    "content": None,
+    "tool_calls": [{"id": "call-1", "function": {"name": "tool", "arguments": '{"path":'}}],
+}
+
+
+@pytest.mark.parametrize(
+    ("phase", "max_total_tokens", "expected_code", "expected_tokens"),
+    [
+        ("main", 32768, "worker_gateway_unavailable", 30),
+        ("main", 20, "worker_budget_exhausted", 30),
+        ("result_finalizer", 32768, "worker_gateway_unavailable", 42),
+    ],
+)
+def test_adk_worker_accounts_usage_of_a_rejected_gateway_response(
+    tmp_path: Path,
+    phase: str,
+    max_total_tokens: int,
+    expected_code: str,
+    expected_tokens: int,
+) -> None:
+    responses = (
+        [_chat_completion(REJECTED_TOOL_CALL, 30)]
+        if phase == "main"
+        else [_chat_completion({"content": "done"}, 12), _chat_completion(REJECTED_TOOL_CALL, 30)]
+    )
+
+    async def gateway(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=responses.pop(0))
+
+    async def scenario() -> None:
+        state = WorkerState()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            model = OpenAICompatibleGatewayLlm(
+                model="worker-model",
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.example/v1",
+                    api_key=SECRET,
+                    timeout_seconds=1,
+                    http_client=http,
+                ),
+            )
+            runtime = await create_runtime(
+                tmp_path, state, {}, model, max_total_tokens=max_total_tokens
+            )
+
+            completion = await runtime.invoke(stage_request())
+
+            assert completion.failure is not None
+            assert completion.failure.code == expected_code
+            assert state.metrics.counters["llm_errors"] == 1
+            assert state.metrics.counters["total_tokens"] == expected_tokens
+            budget = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1
+            ).metrics.worker_budget
+            assert budget is not None
+            assert budget.observed_total_tokens == expected_tokens
+            assert budget.token_usage_unavailable == 0
+            snapshot = await state.snapshot()
+            metrics = snapshot["lastCompletedInvocation"]["metrics"]
+            assert metrics["totalTokens"] == expected_tokens
+            assert metrics["modelErrors"] == 1
+            assert SECRET not in completion.model_dump_json(by_alias=True)
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
@@ -1585,6 +1902,54 @@ def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
     asyncio.run(scenario())
 
 
+def test_terminal_summarizer_accounts_usage_of_a_rejected_gateway_response(
+    tmp_path: Path,
+) -> None:
+    class RejectedSummaryModel(BaseLlm):
+        async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
+            del stream
+            if False:
+                yield None
+            raise GatewayModelError(
+                "InvalidGatewayToolArguments",
+                response_received=True,
+                usage_metadata=types.GenerateContentResponseUsageMetadata(
+                    prompt_token_count=20, candidates_token_count=5, total_token_count=25
+                ),
+            )
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            scripted_model([tool_call("probe", {}, call_id="rejected-probe")]),
+            summary_model=RejectedSummaryModel(model="worker-summary-model"),
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.input_tokens == 20
+        assert summary.output_tokens == 5
+        assert summary.total_tokens == 25
+        assert summary.token_usage_unavailable == 0
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_terminal_summarizer_enforces_its_independent_total_budget(
     tmp_path: Path,
 ) -> None:
@@ -1718,6 +2083,31 @@ def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
         assert state.metrics.final_outcome == "cancelled"
         assert state.metrics.counters["llm_calls"] == 1
         assert SECRET not in repr(state.metrics)
+
+    asyncio.run(scenario())
+
+
+def test_cancel_active_ignores_a_task_that_does_not_own_the_invocation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("Too late")], block=True)
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), timeout=1)
+        other = asyncio.current_task()
+        assert other is not None
+
+        runtime.cancel_active(other)
+        await asyncio.sleep(0)
+        assert not invocation.done()
+
+        runtime.cancel_active(invocation)
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert state.metrics.final_outcome == "cancelled"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
@@ -1930,10 +2320,13 @@ async def create_runtime(
     context_window_tokens: int = 131_072,
     context_window_ratio: float = 0.9,
     session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
+    settings: RuntimeSettings | None = None,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
     context = replace(context, worker_session_mode=session_mode)
+    if settings is not None:
+        context = replace(context, runtime_settings=settings)
     if instrumentation is not None:
         context = replace(
             context,
@@ -2239,3 +2632,46 @@ class RefExposingTool:
     async def __call__(self) -> dict[str, bool]:
         self._observations += 1
         return {"ok": True}
+
+
+class CapturingInstrumentation(RecordingInstrumentation):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content: list[tuple[str, str]] = []
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        span = CapturingSpan(name, attributes or {}, self.content)
+        self.spans.append(span)
+        return span
+
+
+class CapturingSpan(RecordingSpan):
+    capture_content = True
+
+    def __init__(
+        self,
+        name: str,
+        attributes: dict[str, TelemetryAttribute],
+        content: list[tuple[str, str]],
+    ) -> None:
+        super().__init__(name, attributes)
+        self._content = content
+
+    def set_content(self, kind: str, value: str) -> None:
+        self._content.append((kind, value))
+
+
+class DeclaredSensitiveTool:
+    contractor_sensitive_output = True
+
+    def __init__(self) -> None:
+        self.__name__ = "declared_probe"
+        self.__doc__ = "Return captured traffic."
+
+    async def __call__(self) -> dict[str, str]:
+        return {"traffic": "tool-output-canary"}

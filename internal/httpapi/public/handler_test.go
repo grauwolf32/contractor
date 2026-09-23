@@ -273,6 +273,124 @@ func TestProjectHTTPTargetUsesSafeCredentialReferenceAndCASDetach(t *testing.T) 
 	}
 }
 
+func TestProjectHTTPTargetRejectsAnotherOwnersCredential(t *testing.T) {
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	userOnly := auth.Principal{UserID: "user-2", Username: "user", Capabilities: []string{auth.CapabilityUser}}
+	operations := userOnly
+	operations.Capabilities = []string{auth.CapabilityUser, auth.CapabilityOperations}
+	for _, test := range []struct {
+		name       string
+		principal  auth.Principal
+		createdBy  string
+		wantStatus int
+	}{
+		{"foreign credential", userOnly, "user-1", http.StatusNotFound},
+		{"own credential", userOnly, "user-2", http.StatusOK},
+		{"operations principal", operations, "user-1", http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			fixture.runtimeCredentials.records["origin"] = credentials.RuntimeCredentialMetadata{
+				CredentialID: "origin", Kind: credentials.RuntimeCredentialOriginBearer,
+				CreatedBy: test.createdBy, CreatedAt: now,
+			}
+			fixture.projects.projects["project-target"] = projectstore.Project{
+				ProjectID: "project-target", OwnerID: "user-2", Kind: projectstore.KindProject,
+				Lifecycle: projectstore.LifecycleActive, Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+			}
+			current := &handler{dependencies: Dependencies{
+				Projects: fixture.projects, RuntimeCredentials: fixture.runtimeCredentials,
+			}}
+			request := httptest.NewRequest(http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(
+				`{"httpTarget":{"url":"https://attacker.example.test","credential":{"credentialId":"origin","kind":"http-origin-bearer@1"}}}`,
+			)))
+			request.SetPathValue("projectId", "project-target")
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("If-Match", `"1"`)
+			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
+			response := httptest.NewRecorder()
+			current.updateProject(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("attach = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
+			}
+			stored := fixture.projects.projects["project-target"]
+			if attached := stored.HTTPTarget != nil; attached != (test.wantStatus == http.StatusOK) {
+				t.Fatalf("stored Project target = %+v", stored.HTTPTarget)
+			}
+		})
+	}
+}
+
+// A target attached before ownership was enforced, or by a principal that
+// has since lost the Operations capability, is not pinned into a new Run.
+func TestProjectRunRechecksHTTPTargetCredentialUse(t *testing.T) {
+	userOnly := auth.Principal{UserID: "user-2", Username: "user", Capabilities: []string{auth.CapabilityUser}}
+	operations := userOnly
+	operations.Capabilities = []string{auth.CapabilityUser, auth.CapabilityOperations}
+	for _, test := range []struct {
+		name       string
+		principal  auth.Principal
+		wantStatus int
+	}{
+		{"user only", userOnly, http.StatusNotFound},
+		{"operations principal", operations, http.StatusAccepted},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			if _, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+				ProjectID: "project-two", OwnerID: "user-2", Kind: projectstore.KindProject,
+				Name: "Workspace", IdempotencyKey: "project-two", RequestDigest: "sha256:project-two",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			fixture.runtimeCredentials.records["foreign-origin"] = credentials.RuntimeCredentialMetadata{
+				CredentialID: "foreign-origin", Kind: credentials.RuntimeCredentialOriginBearer,
+				CreatedBy: "user-1", CreatedAt: time.Now(),
+			}
+			configured := fixture.projects.projects["project-two"]
+			configured.HTTPTarget = &contracts.HTTPOriginTargetRef{
+				URL: "https://attacker.example.test",
+				Credential: &contracts.RuntimeCredentialRef{
+					CredentialID: "foreign-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+				},
+			}
+			fixture.projects.projects["project-two"] = configured
+			project, err := fixture.artifacts.Project("project-two")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := project.Write(
+				t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+				artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+			); err != nil {
+				t.Fatal(err)
+			}
+			dependencies := Dependencies{
+				Config: fixture.configs, Credentials: fixture.credentials, ManagedCredentials: fixture.credentials,
+				RuntimeCredentials: fixture.runtimeCredentials, Projects: fixture.projects,
+				NewID: func(prefix string) (string, error) { return prefix + "fixed", nil },
+			}
+			dependencies.RunCreator = newTestRunCreator(t, dependencies, fixture.runs, fixture.unit, true)
+			current := &handler{dependencies: dependencies}
+			request := httptest.NewRequest(http.MethodPost, "/v1/projects/project-two/runs", bytes.NewReader([]byte(
+				`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`,
+			)))
+			request.SetPathValue("projectId", "project-two")
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set(idempotencyKeyHeader, "project-run-two")
+			request = request.WithContext(auth.WithPrincipal(request.Context(), test.principal))
+			response := httptest.NewRecorder()
+			current.createProjectRun(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("create Project Run = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
+			}
+			if _, created := fixture.runs.runs["run_fixed"]; created != (test.wantStatus == http.StatusAccepted) {
+				t.Fatalf("Run created = %v", created)
+			}
+		})
+	}
+}
+
 func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	createProject := authenticatedRequest(

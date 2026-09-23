@@ -14,13 +14,16 @@ import (
 
 // PutRecord validates under the same owner and experiment locks as its durable
 // receipt. A lost-response replay returns before re-observing mutable evidence.
+// The snapshot predates the idempotency lock, so a concurrent identical request
+// fails with a serialization error; the database-only attempt is retried with
+// a fresh snapshot that sees, and replays, the winner's receipt.
 func (s *Service) PutRecord(ctx context.Context, scope evalstore.Scope, id, member string, doc evaldomain.Frozen, mutation evaldomain.MutationIdentity) (evalstore.Receipt, error) {
 	operation, ok := map[string]string{"ResultInput": "result", "AssessmentInput": "assessment", "CheckRequest": "assessment"}[doc.Kind()]
 	if !ok {
 		return evalstore.Receipt{}, evaldomain.Failure("eval_invalid")
 	}
 	var receipt evalstore.Receipt
-	err := pg.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+	err := pg.InTxWithRetry(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		st := evalstore.NewTxStore(tx)
 		var err error
 		receipt, err = st.PutRecord(ctx, evalstore.RecordParams{

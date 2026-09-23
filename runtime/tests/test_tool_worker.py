@@ -13,6 +13,7 @@ from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
 from a2a.utils.constants import TransportProtocol
 from google.protobuf.json_format import ParseDict
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_a2a_server import data_request, send
 
 from contractor_runtime.allocation import AllocationService, WorkerState
@@ -569,7 +570,11 @@ def test_tool_deadline_cancel_abort_and_replay(tmp_path, mode):
         task = asyncio.create_task(runtime.invoke(request(spec)))
         await asyncio.wait_for(tool.started.wait(), 1)
         if mode == "cancel":
-            runtime.cancel_active()
+            # Another A2A Task's request cannot cancel this invocation.
+            runtime.cancel_active(asyncio.current_task())
+            await asyncio.sleep(0)
+            assert not task.done() and not tool.cancelled.is_set()
+            runtime.cancel_active(task)
         elif mode == "abort":
             await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
         if mode == "deadline":
@@ -636,6 +641,7 @@ def test_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monkeypatch
         factories = built_in_factories(
             tmp_path / "work",
             artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, store),
+            target_policy=SCAN_TEST_POLICY,
         )
         capabilities = CapabilitySnapshot.create(
             runtimes=("tool@1",),
@@ -773,6 +779,7 @@ async def scanner_allocation(tmp_path, store, spec):
     factories = built_in_factories(
         tmp_path / "work",
         artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, store),
+        target_policy=SCAN_TEST_POLICY,
     )
     state = RuntimeState(
         capabilities=CapabilitySnapshot.create(

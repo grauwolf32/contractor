@@ -242,6 +242,69 @@ func TestPostgresResumeWaitsForAllocationRelease(t *testing.T) {
 	}
 }
 
+// Resume pins StageContext artifacts in name order, like every other pinning
+// site, so concurrent transactions take Artifact locks in one order.
+func TestPostgresResumePinsStageContextInNameOrder(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	runID := "run-resume-pin-order"
+	run := createTestRun(t, ctx, store, runID)
+	if _, err := store.TransitionRun(ctx, runID, RunInitializing, RunRunning, Reason{Code: "started"}); err != nil {
+		t.Fatal(err)
+	}
+	scoped, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageContext := make(map[string]PinnedContextArtifact)
+	want := make([]string, 0, 12)
+	for index := 0; index < 12; index++ {
+		name := fmt.Sprintf("context-%02d", index)
+		written, err := scoped.Write(ctx, contracts.ArtifactRef{Namespace: "analysis", Name: name},
+			artifacts.Payload{MediaType: "text/plain", Data: []byte(name)}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ref := written.Ref
+		stageContext[name] = PinnedContextArtifact{Required: true, Artifact: &ref}
+		want = append(want, "resumed-stage:"+name)
+	}
+	stageID := runID + "-stage"
+	if _, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext:              StageContextSnapshot{Parameters: run.Parameters, Artifacts: stageContext},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	failResumeStage(t, ctx, store, runID, stageID)
+	if _, err := store.ResumeFailedRun(ctx, "user-1", runID, stageID, "resumed-stage"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pool.Query(ctx, `
+SELECT pin_id FROM artifact_pins
+WHERE pin_kind = 'stage_context' AND pin_id LIKE 'resumed-stage:%'
+ORDER BY created_at`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := make([]string, 0, len(want))
+	for rows.Next() {
+		var pinID string
+		if err := rows.Scan(&pinID); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, pinID)
+	}
+	if err := rows.Err(); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("resumed StageContext pin order = (%v, %v), want %v", got, err, want)
+	}
+}
+
 func TestPostgresResumeRejectsIneligibleRunsAndRollsBack(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

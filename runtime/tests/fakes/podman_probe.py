@@ -110,7 +110,7 @@ class Commands:
     def __init__(self, fences, cli):
         self.fences, self.cli = fences, cli
 
-    async def run(self, identity, command, cwd, *, deadline):
+    async def run(self, identity, command, cwd, *, deadline, revoked=None):
         fence = self.fences[identity.container_id]
         if self.cli.failure == "execution":
             return CommandCapture(2, b"untrusted private output", b"", 24, 0)

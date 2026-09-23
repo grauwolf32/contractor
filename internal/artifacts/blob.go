@@ -40,6 +40,9 @@ type BlobObject struct {
 type BlobStore interface {
 	Store(context.Context, []byte) (BlobObject, error)
 	Read(context.Context, BlobObject) ([]byte, error)
+	// Check confirms that a stored object is still present with its recorded
+	// size without reading its payload; only Read verifies the digest.
+	Check(context.Context, BlobObject) error
 	Delete(context.Context, BlobObject) error
 }
 
@@ -106,6 +109,14 @@ func (PostgresBlobStore) Read(ctx context.Context, object BlobObject) ([]byte, e
 		return nil, err
 	}
 	return object.Inline, nil
+}
+
+// Inline bytes travel with the object; Read verifies them.
+func (PostgresBlobStore) Check(ctx context.Context, object BlobObject) error {
+	if object.Backend != BlobPostgres || object.Key != "" {
+		return ErrArtifactIntegrity
+	}
+	return ctx.Err()
 }
 
 // Deletion of inline bytes is owned by the registry DELETE, never a second I/O.

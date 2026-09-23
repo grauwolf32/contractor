@@ -50,6 +50,13 @@ func (s *Scheduler) liveOrNewReservations(
 			return reservations, false, errControlPlaneAllocationLost
 		}
 	}
+	if len(recorded) == 0 && execution.AdmittedAt == nil && run.State == runstore.RunPending {
+		// AdmitStage rechecks the pause atomically, but only after placement
+		// is durable. Probe first so a paused owner pins no Runtime slot.
+		if err := s.requireOwnerQueueRunning(ctx, run.OwnerID); err != nil {
+			return nil, false, err
+		}
+	}
 	reservations, err := s.allocator.ReserveAllContext(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 		RunMetadataLabels: run.MetadataLabels.Clone(),
@@ -76,6 +83,19 @@ func (s *Scheduler) liveOrNewReservations(
 		}
 	}
 	return reservations, len(recorded) == 0, nil
+}
+
+func (s *Scheduler) requireOwnerQueueRunning(ctx context.Context, ownerID string) error {
+	probeContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	control, err := s.store.GetOwnerQueueControl(probeContext, ownerID)
+	cancel()
+	if err != nil {
+		return err
+	}
+	if control.Paused {
+		return runstore.ErrQueuePaused
+	}
+	return nil
 }
 
 func (s *Scheduler) recordReservations(

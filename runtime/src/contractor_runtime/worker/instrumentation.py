@@ -249,17 +249,27 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._is_active(callback_context.invocation_id) or not self._pending_models:
                 return
             span = self._pending_models.pop(0)
-            if type(error).__name__ == "WorkerBudgetExceeded":
-                _end_span(span, outcome="rejected", attributes={"error.type": type(error).__name__})
-            else:
-                _end_span(
-                    span,
-                    outcome="failed",
-                    attributes={"error.type": _safe_error_type(error)},
-                )
-                self._metrics.record_model_error(error)
-                self._require_reducer().record_model_error()
-            await self._publish_locked(callback_context)
+            try:
+                if type(error).__name__ == "WorkerBudgetExceeded":
+                    _end_span(
+                        span, outcome="rejected", attributes={"error.type": type(error).__name__}
+                    )
+                else:
+                    received, usage = _rejected_response_usage(error)
+                    _end_span(
+                        span,
+                        outcome="failed",
+                        attributes={
+                            "error.type": _safe_error_type(error),
+                            **_usage_attributes(usage),
+                        },
+                    )
+                    self._metrics.record_model_error(error)
+                    self._require_reducer().record_model_error()
+                    if received:
+                        self._record_spent_usage_locked(usage)
+            finally:
+                await self._publish_locked(callback_context)
 
     async def before_result_finalizer_call(self, *, invocation_id: str) -> None:
         """Account the isolated ADK finalizer in the normal Worker budget."""
@@ -325,30 +335,38 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
                 return
             span = self._pending_auxiliary_models.pop(phase)
-            if isinstance(error, asyncio.CancelledError):
-                _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
-            elif type(error).__name__ == "WorkerBudgetExceeded":
-                _end_span(
-                    span,
-                    outcome="rejected",
-                    attributes={
-                        "error.type": type(error).__name__,
-                        "model.phase": phase,
-                    },
-                )
-            else:
-                safe_error = error if isinstance(error, Exception) else RuntimeError("model failed")
-                _end_span(
-                    span,
-                    outcome="failed",
-                    attributes={
-                        "error.type": _safe_error_type(safe_error),
-                        "model.phase": phase,
-                    },
-                )
-                self._metrics.record_model_error(safe_error)
-                self._require_reducer().record_model_error()
-            await self._publish_locked(None)
+            try:
+                if isinstance(error, asyncio.CancelledError):
+                    _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
+                elif type(error).__name__ == "WorkerBudgetExceeded":
+                    _end_span(
+                        span,
+                        outcome="rejected",
+                        attributes={
+                            "error.type": type(error).__name__,
+                            "model.phase": phase,
+                        },
+                    )
+                else:
+                    safe_error = (
+                        error if isinstance(error, Exception) else RuntimeError("model failed")
+                    )
+                    received, usage = _rejected_response_usage(safe_error)
+                    _end_span(
+                        span,
+                        outcome="failed",
+                        attributes={
+                            "error.type": _safe_error_type(safe_error),
+                            "model.phase": phase,
+                            **_usage_attributes(usage),
+                        },
+                    )
+                    self._metrics.record_model_error(safe_error)
+                    self._require_reducer().record_model_error()
+                    if received:
+                        self._record_spent_usage_locked(usage)
+            finally:
+                await self._publish_locked(None)
 
     async def before_tool_callback(
         self,
@@ -479,6 +497,18 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 result=None,
             )
             return _safe_tool_response(pending.name, error)
+
+    def _record_spent_usage_locked(self, usage: Any | None) -> None:
+        """Account a Gateway response that was received but rejected.
+
+        The provider already spent these tokens, exactly as for an accepted
+        response; the budget may therefore report exhaustion.
+        """
+        self._metrics.record_model_usage(usage)
+        self._require_reducer().record_model_usage(usage)
+        budget = self._budget()
+        if budget is not None:
+            budget.after_model_response(usage)
 
     async def record_unhandled_model_error(self, error: Exception) -> None:
         async with self._lock:
@@ -745,6 +775,14 @@ def _end_span(
         span.end(outcome=outcome, attributes=attributes)
     except Exception:
         return
+
+
+def _rejected_response_usage(error: BaseException) -> tuple[bool, Any | None]:
+    """Return whether a model error carries a received response and its usage."""
+
+    if getattr(error, "response_received", False) is not True:
+        return False, None
+    return True, getattr(error, "usage_metadata", None)
 
 
 def _usage_attributes(usage: Any | None) -> dict[str, int]:

@@ -87,10 +87,24 @@ func (i *Importer) collectScanRecovery(
 	}
 	remainingBytes := snapshot.Audit.Limits.MaxEvidenceBytes - snapshot.Audit.RetainedEvidenceBytes
 	if int64(len(assembled.Package)) > remainingBytes {
-		return i.collectTechnical(ctx, claim, execution, members, auditstore.CollectionExecutionFailed,
+		return i.collectTechnical(ctx, claim, execution, members, scanRecoveryDisposition(execution),
 			false, "evidence-budget-exhausted", auditstore.CoverageInconclusive)
 	}
 	return i.retainScanRecovery(ctx, claim, snapshot, execution, members[0], history, assembled.Package, code)
+}
+
+// scanRecoveryDisposition is the technical disposition the collection gate
+// admits for the execution's terminal outcome. A disposition the gate rejects
+// would leave the execution collecting forever.
+func scanRecoveryDisposition(execution auditstore.Execution) auditstore.CollectionDisposition {
+	switch *execution.TerminalOutcome {
+	case auditstore.TerminalSucceeded:
+		return auditstore.CollectionMissingOutput
+	case auditstore.TerminalCancelled:
+		return auditstore.CollectionExecutionCancelled
+	default:
+		return auditstore.CollectionExecutionFailed
+	}
 }
 
 func (i *Importer) scanRecoveryReader(runID string) auditscan.ArtifactReader {

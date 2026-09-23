@@ -531,7 +531,10 @@ def test_domain_rejection_is_bounded_and_mismatched_identity_is_invalid(
         if operation == "CreateScope":
             data = {
                 "createScope": {
-                    "error": {"code": "InvalidGlobTerms"},
+                    "error": {
+                        "__typename": "InvalidGlobTermsUserError",
+                        "code": "InvalidGlobTerms",
+                    },
                     "scope": None,
                 }
             }
@@ -568,3 +571,87 @@ def test_domain_rejection_is_bounded_and_mismatched_identity_is_invalid(
         await handle.close()
 
     asyncio.run(scenario())
+
+
+def test_unlisted_user_error_types_are_rejections_not_invalid_responses(
+    tmp_path: Path,
+) -> None:
+    automate_raw = b"POST /fuzz HTTP/1.1\r\nHost: target.example\r\n\r\nTARGET=value"
+
+    def user_error(query: str) -> dict[str, Any]:
+        # GraphQL returns only selected members: an error type without its own
+        # fragment is an empty object unless __typename is selected.
+        return {"__typename": "FutureUserError"} if "__typename" in query else {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        operation = payload["operationName"]
+        query = payload["query"]
+        if operation == "CreateScope":
+            data = {"createScope": {"error": user_error(query), "scope": None}}
+        elif operation == "CreateReplaySession":
+            data = {
+                "createReplaySession": {
+                    "session": {"id": "replay", "name": "replay", "activeEntry": None}
+                }
+            }
+        elif operation == "StartReplayTask":
+            data = {"startReplayTask": {"error": user_error(query), "task": None}}
+        elif operation == "RequestDetail":
+            data = {"request": request_detail(automate_raw, b"HTTP/1.1 200 OK\r\n\r\n")}
+        elif operation == "CreateAutomateSession":
+            data = {
+                "createAutomateSession": {
+                    "session": {"id": "automate", "name": "scan", "settings": {"strategy": "ALL"}}
+                }
+            }
+        elif operation == "UpdateAutomateSession":
+            data = {"updateAutomateSession": {"error": user_error(query), "session": None}}
+        else:
+            raise AssertionError(f"unexpected operation {operation}")
+        return httpx.Response(200, json={"data": data}, request=request)
+
+    async def scenario() -> None:
+        tools, _state, handle = await create_tools(
+            tmp_path,
+            handler,
+            FakeArtifactClient(),
+            selected={"caido_scope", "caido_replay", "caido_automate_run"},
+        )
+        scope = await tools["caido_scope"](action="create", name="target")
+        assert scope == {"status": "rejected", "error_code": "FutureUserError"}
+        replay = await tools["caido_replay"](
+            raw_request="GET / HTTP/1.1\r\nHost: target.example\r\n\r\n",
+            host="target.example",
+            port=443,
+            is_tls=True,
+        )
+        assert (replay["status"], replay["error_code"]) == ("rejected", "FutureUserError")
+        automate = await tools["caido_automate_run"](
+            "request-1", targets=["TARGET"], payloads=["one"]
+        )
+        assert (automate["status"], automate["error_code"]) == ("rejected", "FutureUserError")
+        await handle.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # LF-framed head whose body contains CRLF CRLF.
+        (
+            b"POST /x HTTP/1.1\nHost: t\n\nbody\r\n\r\nmore",
+            b"POST /x HTTP/1.1\nX-Request-Id: tag-1\nHost: t\n\nbody\r\n\r\nmore",
+        ),
+        # CRLF-framed head whose body contains LF LF.
+        (
+            b"POST /x HTTP/1.1\r\nHost: t\r\n\r\nbody\n\nmore",
+            b"POST /x HTTP/1.1\r\nX-Request-Id: tag-1\r\nHost: t\r\n\r\nbody\n\nmore",
+        ),
+    ],
+)
+def test_request_tag_framing_follows_the_first_header_terminator(raw, expected) -> None:
+    tagged, (start, end) = caido_module._inject_request_tag(raw, "tag-1")
+    assert tagged == expected
+    assert tagged[start:end] == b"X-Request-Id: tag-1"

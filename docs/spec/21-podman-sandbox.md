@@ -201,6 +201,12 @@ with structured argv and no host shell. `cwd` uses the existing normalized
 workspace-relative path grammar; `""` selects `/workspace`. It cannot select a
 host path or a directory outside the mounted project through a link.
 
+`timeout_seconds` ranges from 1 to the operator command maximum (300 seconds by
+default, at most 3600). The tool description advertises that maximum and the
+cleanup reserve (stop grace plus one second, at most half the budget) taken from
+the same budget. A larger value is rejected as `sandbox_invalid_command` before
+launch; it is neither clamped silently nor fatal to the allocation.
+
 Runtime supplies a private allocation-owned execution handle only to selected
 execution tools. This is a sandbox channel, not the existing host
 `runtime-subprocess-launcher`: existing validators must not automatically move
@@ -215,8 +221,10 @@ persistent shell cwd/environment, Python globals or background services.
 
 There is at most one active command per allocation. Waiting for the workspace
 operation lock is bounded by the command's effective deadline. The deadline is
-the minimum of requested/operator limits and the applicable invocation/lease
-bounds; the command cannot extend a lease or a shutdown grace period.
+the minimum of requested/operator limits and the applicable invocation bound.
+The confirmed control lease is enforced continuously instead of as a deadline
+snapshot: the command cannot extend a lease or a shutdown grace period, and
+lease loss revokes it immediately.
 
 Each completed command returns a bounded structured observation:
 
@@ -257,10 +265,14 @@ more specific cause. Neither classification is derived from workload output.
 
 The command budget includes workspace-lock wait and a reserved cleanup window;
 the process can therefore be stopped before `timeout_seconds` elapses. The
-effective deadline is the minimum of the request, operator policy, supplied
-execution deadline and confirmed control lease. Invocation cancellation revokes
-execution immediately; the current StageContentRequest has no additional
-wall-clock deadline field.
+effective deadline is the minimum of the request, operator policy and supplied
+execution deadline. The confirmed control lease is not part of that minimum:
+heartbeats keep renewing it while a command runs, so capping by the lease
+remaining at launch would stop long commands after one lease window. Instead,
+lease loss revokes the allocation during the command: the owner aborts the
+launch at once and the guardian kills the container scope. Invocation
+cancellation revokes execution immediately; the current StageContentRequest has
+no additional wall-clock deadline field.
 
 Files intended to outlive allocation release are explicitly written as ordinary
 Run artifacts through existing Artifact tools and grants while writes remain
@@ -386,7 +398,9 @@ exclude command text, output, host paths and secrets. Bounded command/output
 content belongs only to the existing authorized tool observation surfaces.
 Execution-enabled Workers use metadata-only instrumentation even when an
 operator has opted into content capture: later model requests, result finalizers
-and summaries may contain earlier command/output content too.
+and summaries may contain earlier command/output content too. `exec_command`
+declares this through the shared sensitive-output tool attribute in
+[07](07-runtime-labels-and-infrastructure-config.md).
 
 ## Future skill mounts
 

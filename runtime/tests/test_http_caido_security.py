@@ -21,7 +21,7 @@ from contractor_runtime.toolsets.http.tools import HTTPToolError
 def test_session_header_and_cookie_limits_apply_to_atomic_merged_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(http_tools, "MAX_HEADER_BYTES", 24)
+    monkeypatch.setattr(http_tools, "MAX_REQUEST_HEADER_BYTES", 24)
     monkeypatch.setattr(http_tools, "MAX_COOKIES", 2)
     transport_calls = 0
 
@@ -119,11 +119,20 @@ def test_url_header_query_and_body_injection_fail_before_transport(tmp_path: Pat
         request = tools["http_request"]
         cases: list[tuple[dict[str, Any], str]] = [
             ({"url": "https://user:password@target.example/"}, "http_request_invalid"),
-            ({"url": "https://target.example/#fragment"}, "http_request_invalid"),
             ({"url": "http://localhost/"}, "http_target_denied"),
             ({"url": "http://service.localhost/"}, "http_target_denied"),
             ({"url": "http://127.0.0.1/"}, "http_target_denied"),
             ({"url": "http://[::1]/"}, "http_target_denied"),
+            ({"url": "http://127.1/"}, "http_target_denied"),
+            ({"url": "http://2130706433/"}, "http_target_denied"),
+            ({"url": "http://0x7f000001/"}, "http_target_denied"),
+            ({"url": "http://0/"}, "http_target_denied"),
+            ({"url": "http://[::ffff:127.0.0.1]/"}, "http_target_denied"),
+            ({"url": "http://169.254.169.254/"}, "http_target_denied"),
+            ({"url": "http://[fd00:ec2::254]/"}, "http_target_denied"),
+            ({"url": "http://metadata.google.internal/"}, "http_target_denied"),
+            ({"url": "http://169.254.10.10/"}, "http_target_denied"),
+            ({"url": "http://[fe80::1]/"}, "http_target_denied"),
             ({"url": "https://gateway.example/private"}, "http_target_denied"),
             ({"url": "https://control.example/private/v1/run"}, "http_target_denied"),
             (
@@ -364,3 +373,48 @@ def caido_client(handler: Any) -> CaidoGraphQLClient:
         metrics=RuntimeAdapterMetricsState(),
         transport=httpx.MockTransport(handler),
     )
+
+
+def test_http_timeout_is_one_deadline_for_a_trickling_response(tmp_path: Path) -> None:
+    async def trickle():
+        yield b"x"
+        while True:
+            # Each byte arrives well within any per-read timeout.
+            await asyncio.sleep(0.05)
+            yield b"x"
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=trickle(), headers={"content-type": "text/plain"}, request=request
+        )
+
+    async def scenario() -> None:
+        artifacts = FakeArtifactClient()
+        tools, _state = await create_tools(tmp_path, handler, artifacts=artifacts)
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(HTTPToolError) as failure:
+            await tools["http_request"]("https://target.example/slow", timeout=1)
+        elapsed = asyncio.get_running_loop().time() - started
+        assert failure.value.code == "http_request_failed"
+        assert 0.9 <= elapsed < 3
+        assert artifacts.writes == 0
+        # The session lock was released at the deadline.
+        assert await asyncio.wait_for(tools["http_history"](), 1) == []
+        await close_tools(tools)
+
+    asyncio.run(scenario())
+
+
+def test_caido_deeply_nested_json_is_an_invalid_response_not_a_retry() -> None:
+    # Far deeper than the parser recursion limit, well within the size limit.
+    nested = b'{"data":' + b"[" * 200_000 + b"]" * 200_000 + b"}"
+
+    async def scenario() -> None:
+        client = caido_client(lambda request: httpx.Response(200, content=nested, request=request))
+        with pytest.raises(CaidoClientError) as failure:
+            await client.execute("scopes")
+        assert failure.value.code == "caido_response_invalid"
+        assert failure.value.retryable is False
+        await client.close()
+
+    asyncio.run(scenario())

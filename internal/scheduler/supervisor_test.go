@@ -122,6 +122,52 @@ func TestSchedulerSupervisorFailsClosedAndShutdownReleasesClaim(t *testing.T) {
 	})
 }
 
+type claimHandoffStore struct {
+	*memorySchedulerStore
+	onRelease func(runID string)
+}
+
+func (s *claimHandoffStore) ReleaseRunClaim(ctx context.Context, runID, claimID string) error {
+	err := s.memorySchedulerStore.ReleaseRunClaim(ctx, runID, claimID)
+	s.onRelease(runID)
+	return err
+}
+
+// Releasing a claim lets another lane of this process claim the same Run.
+// The finishing lane must stop routing interrupts to itself before release
+// and must not remove the next lane's cancellation afterwards.
+func TestSchedulerReleasedClaimKeepsNextLaneCancellable(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	store := &claimHandoffStore{memorySchedulerStore: harness.store}
+	scheduler, err := New(
+		store, harness.persistence, harness.artifacts, harness.allocator,
+		harness.workers, harness.planners, harness.scheduler.options,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nextCause error
+	registeredAtRelease := false
+	store.onRelease = func(runID string) {
+		scheduler.activeMu.Lock()
+		_, registeredAtRelease = scheduler.active[runID]
+		scheduler.activeMu.Unlock()
+		scheduler.registerActiveRun(runID, "claim-next-lane", func(cause error) { nextCause = cause })
+	}
+
+	worked, err := scheduler.RunOnce(context.Background())
+	if err != nil || !worked {
+		t.Fatalf("RunOnce = (%v, %v)", worked, err)
+	}
+	if registeredAtRelease {
+		t.Fatal("released claim still routed in-process interrupts to the finished lane")
+	}
+	scheduler.Cancel("run-1")
+	if !errors.Is(nextCause, ErrRunCancellationRequested) {
+		t.Fatalf("next lane cancellation cause = %v", nextCause)
+	}
+}
+
 func TestSchedulerSupervisorRotatesDeferredOwnerWithoutHotLoop(t *testing.T) {
 	poll := 250 * time.Millisecond
 	store := newLaneTestStore("paused-run-1", "paused-run-2", "runnable-run")
@@ -384,6 +430,10 @@ func (s *laneTestStore) GetRun(ctx context.Context, runID string) (runstore.Work
 	case <-gate:
 		return runstore.WorkflowRun{RunID: runID, State: runstore.RunSucceeded}, nil
 	}
+}
+
+func (s *laneTestStore) GetOwnerQueueControl(_ context.Context, ownerID string) (runstore.OwnerQueueControl, error) {
+	return runstore.OwnerQueueControl{OwnerID: ownerID}, nil
 }
 
 func (s *laneTestStore) deferRuns(runIDs ...string) {

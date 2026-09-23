@@ -26,11 +26,14 @@ from contractor_runtime.projectfs.storage import (
     workspace_digest,
 )
 from contractor_runtime.settings import WorkspaceLimits
+from contractor_runtime.threads import to_thread_until_done
+from contractor_runtime.toolsets.common.lines import split_patch_lines
 
 WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"
 WORKSPACE_OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json"
 MAX_DIFF_BYTES = 1 << 20
+_NO_NEWLINE = "\\ No newline at end of file\n"
 MAX_WORKSPACE_EXPORT_BYTES = 16 << 20
 
 
@@ -176,7 +179,15 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
     async def import_state(self, payload: bytes) -> None:
         async with self._lock:
             self._require_open()
-            candidate = decode_workspace_state(payload, self._source, self._limits)
+            # Linear in the state size, but still too long for the event loop
+            # that must keep sending lease heartbeats.
+            candidate = await to_thread_until_done(
+                decode_workspace_state,
+                payload,
+                self._source,
+                self._limits,
+                name="workspace-state-import",
+            )
             self._tree = candidate
             self._checkpoint = candidate.clone()
 
@@ -240,6 +251,15 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
                 raise WorkspaceStorageError("workspace_not_found")
             candidate = self._tree.clone()
             _remove_subtree(candidate, normalized)
+            if self._checkpoint.kind(normalized) is not None:
+                # Parents deleted after the checkpoint come back with the path;
+                # one that has since become a file is not silently replaced.
+                for parent in parent_paths(normalized):
+                    kind = candidate.kind(parent)
+                    if kind is None:
+                        candidate.directories.add(parent)
+                    elif kind != "directory":
+                        raise WorkspaceStorageError("workspace_type_conflict")
             _copy_subtree(self._checkpoint, candidate, normalized)
             _validate_tree(candidate, self._limits)
             self._tree = candidate
@@ -352,7 +372,9 @@ def decode_workspace_state(
         result = source.clone()
         for operation in operations:
             _apply_operation(result, operation)
-            _validate_tree(result, limits)
+        # Operations check their own structure; limits bind only the result.
+        # Validating the whole tree after each operation was quadratic.
+        _validate_tree(result, limits)
     except WorkspaceStorageError:
         raise WorkspaceStateError("workspace_state_invalid") from None
     if document["resultWorkspaceDigest"] != workspace_digest(result.directories, result.text_files):
@@ -373,9 +395,12 @@ def canonical_overlay_operations(
         if result.kind(path) is None or result.kind(path) != source.kind(path)
     }
     deletions: list[str] = []
+    deleted: set[str] = set()
     for path in sorted(deletion_candidates, key=lambda value: (value.count("/"), value)):
-        if not any(_within(path, parent) for parent in deletions):
+        # Shallower paths come first, so a covering deletion is an ancestor.
+        if not any(parent in deleted for parent in parent_paths(path)):
             deletions.append(path)
+            deleted.add(path)
 
     working = source.clone()
     operations: list[OverlayOperation] = []
@@ -512,6 +537,12 @@ def _require_parent_directory(
 
 
 def _remove_subtree(tree: ManagedWorkspaceTree, path: str) -> None:
+    if path and path not in tree.directories:
+        # Only a directory has descendants; avoid scanning the whole tree.
+        tree.text_files.pop(path, None)
+        tree.binary_paths.discard(path)
+        tree.stored_binary_paths.discard(path)
+        return
     selected = {candidate for candidate in tree.paths() if _within(candidate, path)}
     tree.directories.difference_update(selected)
     for candidate in selected:
@@ -595,7 +626,9 @@ def _workspace_diff(
         lines = _path_diff(before, after, path)
         for line in lines:
             if not line.endswith("\n"):
-                line += "\n"
+                # Only a content line can lack LF: that side of the file ends
+                # without a newline, which a valid patch must say explicitly.
+                line += "\n" + _NO_NEWLINE
             encoded = line.encode("utf-8")
             if remaining_skip:
                 if remaining_skip >= len(encoded):
@@ -638,14 +671,14 @@ def _path_diff(
     if before_kind == "directory" and after_kind == "directory":
         return ()
     if before_kind == "binary" or after_kind == "binary":
-        return (f"Binary path changed: {path}",)
+        return (f"Binary path changed: {path}\n",)
     before_text = before.text_files.get(path)
     after_text = after.text_files.get(path)
     if before_text is None and after_text is None:
         return ()
     return difflib.unified_diff(
-        [] if before_text is None else before_text.splitlines(keepends=True),
-        [] if after_text is None else after_text.splitlines(keepends=True),
+        [] if before_text is None else split_patch_lines(before_text),
+        [] if after_text is None else split_patch_lines(after_text),
         fromfile="/dev/null" if before_text is None else f"a/{path}",
         tofile="/dev/null" if after_text is None else f"b/{path}",
         lineterm="\n",

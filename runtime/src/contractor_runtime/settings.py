@@ -17,6 +17,7 @@ from contractor_runtime.sandbox.podman.settings import (
     add_podman_arguments,
     podman_settings,
 )
+from contractor_runtime.toolsets.common.target_policy import IPNetwork, parse_allowed_networks
 
 DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS = 30.0
 
@@ -57,6 +58,7 @@ class Settings:
     enabled_runtime_adapters: tuple[str, ...] | None = None
     workspace: WorkspaceSettings | None = None
     podman: PodmanSettings = field(default_factory=PodmanSettings)
+    allowed_target_networks: tuple[IPNetwork, ...] = ()
     host: str = "127.0.0.1"
     port: int = 9443
     heartbeat_interval_seconds: float = 10.0
@@ -88,6 +90,7 @@ def parse_settings(
     parser.add_argument("--private-key-file", default=values.get("CONTRACTOR_PRIVATE_KEY_FILE"))
     parser.add_argument("--initial-label", action="append", default=None)
     parser.add_argument("--runtime-adapter", action="append", default=None)
+    parser.add_argument("--allowed-target-network", action="append", default=None)
     parser.add_argument(
         "--workspace-storage",
         choices=("local", "memory"),
@@ -191,6 +194,7 @@ def parse_settings(
         parser.error("--work-root must not be a filesystem root")
     initial_labels = _initial_labels(parser, args.initial_label, values)
     enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
+    allowed_target_networks = _allowed_target_networks(parser, args.allowed_target_network, values)
     workspace = _workspace_settings(parser, args)
     podman = podman_settings(parser, args)
     if podman.enabled and (workspace is None or workspace.storage != "local"):
@@ -207,6 +211,7 @@ def parse_settings(
         enabled_runtime_adapters=enabled_runtime_adapters,
         workspace=workspace,
         podman=podman,
+        allowed_target_networks=allowed_target_networks,
         host=host,
         port=port,
         heartbeat_interval_seconds=heartbeat,
@@ -316,6 +321,30 @@ def _runtime_adapters(
     if unknown:
         parser.error("--runtime-adapter must name a supported built-in adapter")
     return tuple(sorted(candidates))
+
+
+def _allowed_target_networks(
+    parser: argparse.ArgumentParser,
+    cli_values: list[str] | None,
+    environ: Mapping[str, str],
+) -> tuple[IPNetwork, ...]:
+    """Additional operator CIDRs that model-selected HTTP and scanner targets may reach.
+
+    Private networks are reachable without them. Loopback and link-local
+    destinations are otherwise denied unless they are the allocation's project
+    HTTP target. Runtime service endpoints and cloud metadata addresses stay
+    denied even inside these networks.
+    """
+
+    if cli_values is None:
+        raw = environ.get("CONTRACTOR_ALLOWED_TARGET_NETWORKS", "")
+        candidates = [] if raw == "" else raw.split(",")
+    else:
+        candidates = cli_values
+    try:
+        return parse_allowed_networks(candidates)
+    except ValueError as error:
+        parser.error(f"--allowed-target-network: {error}")
 
 
 def _workspace_settings(

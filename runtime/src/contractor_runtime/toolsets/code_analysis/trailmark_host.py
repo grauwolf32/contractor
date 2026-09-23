@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import secrets
@@ -73,6 +74,7 @@ class GraphCoverage:
     binary_files: int
     unsupported_source_files: int
     oversized_files: int
+    excluded_files: int
     parse_errors: int
     reasons: tuple[str, ...]
 
@@ -87,6 +89,7 @@ class GraphCoverage:
             "binaryFiles": self.binary_files,
             "unsupportedSourceFiles": self.unsupported_source_files,
             "oversizedFiles": self.oversized_files,
+            "excludedFiles": self.excluded_files,
             "parseErrors": self.parse_errors,
             "incomplete": self.incomplete,
             "reasons": list(self.reasons),
@@ -243,8 +246,7 @@ class TrailmarkChildHost:
                 await self._stop_locked(remove_mirror=True)
             deadline = asyncio.get_running_loop().time() + self._build_timeout_seconds
             try:
-                mirror = await _materialize_snapshot_cancellation_safe(snapshot, self._scratch_root)
-                self._mirror = mirror
+                mirror = await self._materialize_locked(snapshot)
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:
                     raise TrailmarkHostError("code_analysis_build_timeout", retryable=True)
@@ -260,7 +262,10 @@ class TrailmarkChildHost:
                 )
                 return _build_result(result, mirror)
             except asyncio.CancelledError:
-                await self._cleanup_after_failure_locked()
+                # Unconfirmed teardown keeps the child/mirror registered, so
+                # close() retries and fences; cancellation still propagates.
+                with contextlib.suppress(TrailmarkHostError):
+                    await self._cleanup_after_failure_locked()
                 raise
             except TrailmarkHostError:
                 await self._cleanup_after_failure_locked()
@@ -268,6 +273,34 @@ class TrailmarkChildHost:
             except Exception:
                 await self._cleanup_after_failure_locked()
                 raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
+
+    async def _materialize_locked(self, snapshot: WorkspaceSnapshot) -> _PreparedMirror:
+        """Write the mirror off-loop and register it before honoring cancellation.
+
+        The worker thread cannot be interrupted, so cancellation waits for it
+        however often it is repeated. A completed mirror is registered with the
+        host first; the caller's cleanup then removes it, or leaves it for
+        close() to retry and fence if removal cannot be confirmed.
+        """
+
+        task = asyncio.create_task(
+            asyncio.to_thread(_materialize_snapshot, snapshot, self._scratch_root),
+            name="trailmark-mirror-materialize",
+        )
+        cancellation: asyncio.CancelledError | None = None
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError as error:
+                cancellation = error
+            except Exception:
+                pass
+        if not task.cancelled() and task.exception() is None:
+            self._mirror = task.result()
+        if cancellation is not None:
+            # A failed materialization already removed its partial mirror.
+            raise cancellation
+        return task.result()
 
     async def summary(self) -> GraphBuildResult:
         async with self._lock:
@@ -610,6 +643,11 @@ class TrailmarkChildHost:
                     ) from None
         except _ChildResponseError:
             raise
+        except _DefinitelyUnprocessed:
+            # The replacement child died before the replay's rebuild could be
+            # handed off. That is the one allowed recovery attempt.
+            await self._stop_locked(remove_mirror=True)
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
         except TimeoutError:
             await self._stop_locked(remove_mirror=True)
             raise TrailmarkHostError(timeout_code, retryable=True) from None
@@ -878,39 +916,27 @@ def _materialize_snapshot(snapshot: WorkspaceSnapshot, scratch_root: Path) -> _P
         raise
 
 
-async def _materialize_snapshot_cancellation_safe(
-    snapshot: WorkspaceSnapshot, scratch_root: Path
-) -> _PreparedMirror:
-    task = asyncio.create_task(
-        asyncio.to_thread(_materialize_snapshot, snapshot, scratch_root),
-        name="trailmark-mirror-materialize",
-    )
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        try:
-            mirror = await task
-            await asyncio.to_thread(_remove_mirror, mirror.path, scratch_root)
-        except Exception:
-            raise TrailmarkHostError("code_analysis_engine_failed") from None
-        raise
-
-
 def _admit_snapshot(
     snapshot: WorkspaceSnapshot,
 ) -> tuple[tuple[WorkspaceTextFile, ...], GraphCoverage]:
     supported: list[WorkspaceTextFile] = []
     unsupported = 0
     oversized = 0
+    excluded = 0
     for item in sorted(snapshot.files, key=lambda candidate: candidate.path):
-        suffix = PurePosixPath(item.path).suffix
-        if suffix in language_support.GRAPH_EXTENSION_LANGUAGES:
-            if item.size > MAX_GRAPH_FILE_BYTES:
-                oversized += 1
-            else:
-                supported.append(item)
-        elif language_support.detect_language(item.path) is not None:
+        graph_source = PurePosixPath(item.path).suffix in language_support.GRAPH_EXTENSION_LANGUAGES
+        if not graph_source and language_support.detect_language(item.path) is None:
+            continue
+        # Trailmark would never parse these, so they must not consume the
+        # mirror's file/byte budget ahead of the sources it does analyze.
+        if language_support.graph_walk_excluded(item.path):
+            excluded += 1
+        elif not graph_source:
             unsupported += 1
+        elif item.size > MAX_GRAPH_FILE_BYTES:
+            oversized += 1
+        else:
+            supported.append(item)
 
     reasons: set[str] = set()
     if len(supported) > MAX_GRAPH_FILES:
@@ -931,6 +957,10 @@ def _admit_snapshot(
         binary_files=len(snapshot.binary_paths),
         unsupported_source_files=unsupported,
         oversized_files=oversized,
+        excluded_files=excluded,
+        # Trailmark 0.5.0's public graph carries no per-file syntax-error
+        # signal (its tree-sitter parsers recover silently), so there is no
+        # parse-error count to surface for graph coverage.
         parse_errors=0,
         reasons=tuple(sorted(reasons)),
     )

@@ -298,10 +298,16 @@ SELECT count(*) FROM audit_artifact_links
 	if err != nil || !changed || paused.State != AuditPaused || paused.StopReason == nil || paused.StopReason.Code != "owner_paused" {
 		t.Fatalf("pause Audit = (%+v, %t, %v)", paused, changed, err)
 	}
-	resumed, changed, err := store.Transition(ctx, TransitionParams{
+	if _, _, err := store.Transition(ctx, TransitionParams{
 		OwnerID: create.OwnerID, AuditID: create.AuditID,
 		ExpectedRevision: paused.Revision, ExpectedState: AuditPaused, TargetState: AuditActive,
-		IdempotencyKey: "audit-resume", RequestDigest: testDigest("d"),
+		IdempotencyKey: "audit-plain-resume", RequestDigest: testDigest("d"),
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("plain paused-to-active transition error = %v, want Resume only", err)
+	}
+	resumed, changed, err := store.Resume(ctx, ResumeParams{
+		OwnerID: create.OwnerID, AuditID: create.AuditID, ExpectedRevision: paused.Revision,
+		DeadlineAt: paused.DeadlineAt, IdempotencyKey: "audit-resume", RequestDigest: testDigest("d"),
 	})
 	if err != nil || !changed || resumed.State != AuditActive || resumed.StopReason != nil {
 		t.Fatalf("resume Audit = (%+v, %t, %v)", resumed, changed, err)
@@ -525,10 +531,10 @@ SELECT count(*) FROM audit_artifact_links
 	if _, err := pool.Exec(ctx, `DELETE FROM workflow_runs WHERE run_id = 'run-three'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = store.Transition(ctx, TransitionParams{
-		OwnerID: create.OwnerID, AuditID: create.AuditID,
-		ExpectedRevision: pausedWithIntent.Revision, ExpectedState: AuditPaused, TargetState: AuditActive,
-		IdempotencyKey: "audit-resume-before-bind", RequestDigest: testDigest("1"),
+	if _, _, err = store.Resume(ctx, ResumeParams{
+		OwnerID: create.OwnerID, AuditID: create.AuditID, ExpectedRevision: pausedWithIntent.Revision,
+		DeadlineAt: pausedWithIntent.DeadlineAt, IdempotencyKey: "audit-resume-before-bind",
+		RequestDigest: testDigest("1"),
 	}); err != nil {
 		t.Fatal(err)
 	}

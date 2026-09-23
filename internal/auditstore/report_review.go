@@ -257,6 +257,139 @@ SELECT EXISTS (SELECT 1 FROM terminal)`, claim.AuditID, claim.HolderID,
 	return false, nil
 }
 
+// AcceptReportCandidate publishes the exact links of the frozen report
+// candidate an owner accepted and completes the Audit. It records the same
+// audit.report_committed event as CommitReport, carrying the candidate's
+// report request digest.
+func (s *PostgresStore) AcceptReportCandidate(
+	ctx context.Context, params ReportDecisionParams,
+) (Audit, error) {
+	if err := validateReportDecision(params); err != nil {
+		return Audit{}, err
+	}
+	candidate, err := s.GetReportCandidate(ctx, params.AuditID)
+	if err != nil {
+		return Audit{}, err
+	}
+	if candidate.RequestID != params.RequestID || candidate.SubjectRevision != params.SubjectRevision ||
+		candidate.SubjectDigest != params.SubjectDigest {
+		return Audit{}, ErrPrecondition
+	}
+	audit, err := scanAudit(s.db.QueryRow(ctx, `
+WITH link_input AS MATERIALIZED (
+    SELECT * FROM jsonb_to_recordset($5::jsonb) AS link(
+        logical_key text, artifact_ref jsonb, artifact_digest text,
+        media_type text, size_bytes bigint, source_provenance jsonb, display_ref text
+    )
+), gate AS MATERIALIZED (
+    SELECT audit.audit_id
+      FROM audits AS audit
+      JOIN audit_report_candidates AS candidate USING (audit_id)
+     WHERE audit.audit_id = $1 AND audit.revision = $2
+       AND audit.state = 'waiting_review'
+       AND candidate.request_id = $3 AND candidate.subject_digest = $4
+       AND NOT EXISTS (
+           SELECT 1 FROM audit_artifact_links AS existing
+            WHERE existing.audit_id = audit.audit_id
+              AND existing.logical_key IN ('report/machine', 'report/summary')
+       )
+     FOR UPDATE OF audit, candidate
+), inserted_links AS (
+    INSERT INTO audit_artifact_links (
+        audit_id, logical_key, artifact_ref, artifact_digest,
+        media_type, size_bytes, source_provenance, display_ref
+    )
+    SELECT gate.audit_id, link.logical_key, link.artifact_ref,
+           link.artifact_digest, link.media_type, link.size_bytes,
+           link.source_provenance, link.display_ref
+      FROM gate CROSS JOIN link_input AS link
+    RETURNING audit_id
+), changed AS (
+    UPDATE audits AS audit
+       SET state = 'completed', dispatch_state = 'closed', hold_state = 'released',
+           stop_reason_code = CASE WHEN audit.stop_reason_code = 'round_complete'
+                                   THEN NULL ELSE audit.stop_reason_code END,
+           stop_reason_message = CASE WHEN audit.stop_reason_code = 'round_complete'
+                                      THEN NULL ELSE audit.stop_reason_message END,
+           finished_at = clock_timestamp(),
+           revision = audit.revision + 1,
+           next_event_sequence = audit.next_event_sequence + 1,
+           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
+      FROM gate
+     WHERE audit.audit_id = gate.audit_id
+       AND (SELECT count(*) FROM inserted_links) = 2
+    RETURNING audit.*
+), event_row AS (
+    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
+    SELECT audit_id, next_event_sequence - 1, 'audit.report_committed', audit_id, revision,
+           jsonb_build_object('requestDigest', $4::text)
+      FROM changed
+)
+SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+		params.AuditID, int64(params.ExpectedAuditRevision), params.RequestID,
+		params.SubjectDigest, encodeReportLinks(candidate.Machine, candidate.Summary),
+	))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Audit{}, ErrPrecondition
+	}
+	if err != nil {
+		return Audit{}, fmt.Errorf("accept Audit report candidate: %w", err)
+	}
+	return audit, nil
+}
+
+// RejectReportCandidate fails the Audit whose frozen report candidate an owner
+// rejected, recording the audit.state_changed event of a terminal transition.
+func (s *PostgresStore) RejectReportCandidate(
+	ctx context.Context, params ReportDecisionParams,
+) (Audit, error) {
+	if err := validateReportDecision(params); err != nil {
+		return Audit{}, err
+	}
+	audit, err := scanAudit(s.db.QueryRow(ctx, `
+WITH gate AS MATERIALIZED (
+    SELECT audit.audit_id
+      FROM audits AS audit
+      JOIN audit_report_candidates AS candidate USING (audit_id)
+     WHERE audit.audit_id = $1 AND audit.revision = $2
+       AND audit.state = 'waiting_review'
+       AND candidate.request_id = $3 AND candidate.subject_revision = $4
+       AND candidate.subject_digest = $5
+     FOR UPDATE OF audit, candidate
+), changed AS (
+    UPDATE audits AS audit
+       SET state = 'failed', dispatch_state = 'closed', hold_state = 'released',
+           stop_reason_code = 'report_rejected',
+           stop_reason_message = 'The exact proposed Audit report was rejected by its owner.',
+           finished_at = clock_timestamp(),
+           revision = audit.revision + 1,
+           next_event_sequence = audit.next_event_sequence + 1,
+           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
+      FROM gate
+     WHERE audit.audit_id = gate.audit_id
+    RETURNING audit.*
+), event_row AS (
+    INSERT INTO audit_events (audit_id, sequence_number, kind, entity_id, entity_revision, summary)
+    SELECT audit_id, next_event_sequence - 1, 'audit.state_changed', audit_id, revision,
+           jsonb_build_object('from', 'waiting_review', 'to', 'failed')
+      FROM changed
+)
+SELECT `+prefixedAuditColumns("changed")+` FROM changed`,
+		params.AuditID, int64(params.ExpectedAuditRevision), params.RequestID,
+		int64(params.SubjectRevision), params.SubjectDigest,
+	))
+	if errors.Is(err, pgx.ErrNoRows) {
+		if _, candidateErr := s.GetReportCandidate(ctx, params.AuditID); candidateErr != nil {
+			return Audit{}, candidateErr
+		}
+		return Audit{}, ErrPrecondition
+	}
+	if err != nil {
+		return Audit{}, fmt.Errorf("reject Audit report candidate: %w", err)
+	}
+	return audit, nil
+}
+
 // ValidateReportCandidateLinks requires current exact report descriptors before
 // reading or approving a retained candidate.
 func ValidateReportCandidateLinks(machine, summary ArtifactLink) error {

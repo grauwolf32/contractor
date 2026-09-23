@@ -79,6 +79,30 @@ def test_invalid_runtime_adapter_allowlist_is_rejected(tmp_path: Path, value: st
         )
 
 
+def test_allowed_target_networks_use_environment_and_cli_override(tmp_path: Path) -> None:
+    defaulted = parse_settings(base_arguments(tmp_path), {})
+    assert defaulted.allowed_target_networks == ()
+    configured = parse_settings(
+        base_arguments(tmp_path),
+        {"CONTRACTOR_ALLOWED_TARGET_NETWORKS": "127.0.0.0/8,::1/128"},
+    )
+    assert [str(value) for value in configured.allowed_target_networks] == [
+        "127.0.0.0/8",
+        "::1/128",
+    ]
+    overridden = parse_settings(
+        [*base_arguments(tmp_path), "--allowed-target-network", "10.20.0.0/16"],
+        {"CONTRACTOR_ALLOWED_TARGET_NETWORKS": "127.0.0.0/8"},
+    )
+    assert [str(value) for value in overridden.allowed_target_networks] == ["10.20.0.0/16"]
+
+
+@pytest.mark.parametrize("value", ["localhost", "10.0.0.1/8", "10.0.0.0/33", "10.0.0.0/8,"])
+def test_invalid_allowed_target_networks_are_rejected(tmp_path: Path, value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_settings(base_arguments(tmp_path), {"CONTRACTOR_ALLOWED_TARGET_NETWORKS": value})
+
+
 @pytest.mark.parametrize(
     "labels",
     [

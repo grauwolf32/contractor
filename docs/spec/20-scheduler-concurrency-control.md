@@ -145,7 +145,12 @@ lanes. Each lane repeatedly:
 2. registers that Run for in-process cancellation;
 3. renews the exact claim while progressing it;
 4. executes one bounded Run/Stage lifecycle attempt;
-5. releases the claim before selecting more work.
+5. removes its own cancellation registration, then releases the claim before
+   selecting more work.
+
+The registration is keyed by the exact claim: once released, another lane of
+the same process may claim the Run, and the finishing lane can neither shadow
+nor remove that lane's cancellation or allocation-loss interrupt.
 
 Cancelling Planner execution does not cancel claim renewal: the same lane owns
 the Run throughout cancellation and allocation-loss cleanup. Losing the claim

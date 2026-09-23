@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -138,6 +139,14 @@ func RuntimeAgentIDFromConnection(state *tls.ConnectionState) (string, error) {
 		return "", fmt.Errorf("%w: verified chain has no leaf", ErrRuntimeAgentIdentity)
 	}
 	return RuntimeAgentID(state.VerifiedChains[0][0])
+}
+
+// HasVerifiedRuntimeAgent reports whether the request's connection presented a
+// verified Runtime Agent certificate. Private boundaries use it to honor
+// peer-supplied request metadata only from an authenticated Runtime Agent.
+func HasVerifiedRuntimeAgent(r *http.Request) bool {
+	_, err := RuntimeAgentIDFromConnection(r.TLS)
+	return err == nil
 }
 
 // BindRuntimeAgentPrincipal clones a normal endpoint-verifying client config

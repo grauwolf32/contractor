@@ -843,6 +843,7 @@ class _CodeAnalysisSession:
             "binary_files": graph.coverage.binary_files,
             "unsupported_source_files": graph.coverage.unsupported_source_files,
             "oversized_files": graph.coverage.oversized_files,
+            "excluded_files": graph.coverage.excluded_files,
             "parse_errors": graph.coverage.parse_errors,
             "graph_builds": self._graph_builds,
             "graph_rebuilds": self._graph_rebuilds,
@@ -920,7 +921,7 @@ class _CodeAnalysisSession:
                 break
             coverage.analyzed_files += 1
             coverage.analyzed_bytes += item.size
-            if needle is not None:
+            if needle is not None and self._needs_text_prefilter(item.path):
                 contains = await to_thread_until_done(
                     _contains_casefold,
                     item.text,
@@ -937,7 +938,7 @@ class _CodeAnalysisSession:
             parsed, cache_hit = await self._symbols_for_file(
                 item,
                 language,
-                remaining + 1,
+                remaining + 1 if search_symbol is None else MAX_COMPACT_SYMBOLS + 1,
             )
             cache_hits += int(cache_hit)
             cache_misses += int(not cache_hit)
@@ -946,10 +947,22 @@ class _CodeAnalysisSession:
                 coverage.reasons.add("parse_errors")
             if parsed.long_names_skipped:
                 coverage.reasons.add("symbol_name_limit")
-            admitted = parsed.symbols[:remaining]
+            # A search retains and counts only matching definitions, so a file
+            # reached through the cache contributes exactly what a freshly
+            # prefiltered and parsed copy of it would.
+            selected = (
+                parsed.symbols
+                if search_symbol is None
+                else tuple(
+                    symbol
+                    for symbol in parsed.symbols
+                    if _symbol_matches(symbol.name, search_symbol)
+                )
+            )
+            admitted = selected[:remaining]
             symbols.extend(admitted)
             seen_symbols += len(admitted)
-            if parsed.symbol_limit_reached or len(parsed.symbols) > remaining:
+            if parsed.symbol_limit_reached or len(selected) > remaining:
                 coverage.reasons.add("symbol_limit")
                 break
 
@@ -958,6 +971,18 @@ class _CodeAnalysisSession:
             coverage,
             _ScanStats(cache_hits, cache_misses, cache_invalidations),
         )
+
+    def _needs_text_prefilter(self, path: str) -> bool:
+        """Return whether search_def must scan this file's text for the needle.
+
+        A defined name is a substring of its source, so cached symbols alone
+        decide whether a clean cached file can match. The text is consulted
+        only for uncached files and for cached files whose parse-error or
+        long-name flags count in coverage only when they contain the needle.
+        """
+
+        cached = self._file_cache.get(path)
+        return cached is None or cached.parse_error or cached.long_names_skipped
 
     async def _symbols_for_file(
         self,
@@ -1325,8 +1350,10 @@ class PathsBetweenTool(_BaseCodeAnalysisTool):
         limit: Maximum paths to return, from 1 to 50; defaults to 20.
 
     Returns:
-        Path items, truncated and coverage. An empty result means no path was
-        found within the graph coverage and traversal limits.
+        Path items, truncated and coverage. truncated is true when more paths
+        exist or the bounded search stopped early; narrow the symbols or depth.
+        An empty non-truncated result means no path was found within the graph
+        coverage and max_depth.
     """
 
     async def __call__(
@@ -1366,8 +1393,10 @@ class EntrypointPathsToTool(_BaseCodeAnalysisTool):
         limit: Maximum paths to return, from 1 to 50; defaults to 20.
 
     Returns:
-        Path items, truncated and coverage. An empty result does not establish
-        unreachability beyond the analyzed graph and traversal limits.
+        Path items, truncated and coverage. truncated is true when more paths
+        exist or the bounded search stopped early; narrow the depth instead.
+        An empty result does not establish unreachability beyond the analyzed
+        graph, max_depth or a truncated search.
     """
 
     async def __call__(

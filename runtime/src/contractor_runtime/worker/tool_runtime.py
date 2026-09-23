@@ -151,6 +151,7 @@ class ToolWorkerRuntime:
         self._state = context.state
         self.allocation_id = context.allocation_id
         self._active: asyncio.Task | None = None
+        self._active_owner: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._accepting = True
         self._cache: OrderedDict[str, tuple[str, WorkerCompletion]] = OrderedDict()
@@ -280,6 +281,7 @@ class ToolWorkerRuntime:
                 )
             return completion.model_copy(deep=True)
         async with self._lock:
+            self._active_owner = asyncio.current_task()
             self._active = asyncio.create_task(self._run(request, arguments, target, key, digest))
             try:
                 result = await self._active
@@ -289,6 +291,7 @@ class ToolWorkerRuntime:
                 return result
             finally:
                 self._active = None
+                self._active_owner = None
 
     async def _run(self, request, arguments, target, key, digest):
         invocation_id = "tool-" + key
@@ -509,8 +512,8 @@ class ToolWorkerRuntime:
             ),
         )
 
-    def cancel_active(self) -> None:
-        if self._active is not None:
+    def cancel_active(self, owner: asyncio.Task) -> None:
+        if self._active is not None and self._active_owner is owner:
             self._active.cancel()
 
     async def finalize(self, deadline: datetime) -> None:

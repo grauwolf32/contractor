@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 import codecs
 import io
+import lzma
+import os
 import stat
 import time
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -38,6 +41,16 @@ WORKSPACE_SOURCE_MEDIA_TYPE = "application/zip"
 _CHUNK_BYTES = 64 * 1024
 _MAX_COMPRESSION_RATIO = 1000
 _RATIO_FLOOR_BYTES = 1 << 20
+# Decompressing a corrupt member: zlib/lzma raise their own errors, bz2 an
+# OSError, zipfile BadZipFile (CRC) or EOFError (truncated stream).
+_CORRUPT_MEMBER_ERRORS = (
+    zlib.error,
+    lzma.LZMAError,
+    OSError,
+    EOFError,
+    zipfile.BadZipFile,
+    NotImplementedError,
+)
 
 
 class ArtifactReader(Protocol):
@@ -168,7 +181,13 @@ async def hydrate_workspace(
                 stored_binary_paths=set(accumulator.stored_binary_paths),
             )
             try:
-                result_tree = decode_workspace_state(value.data, source_tree, limits)
+                result_tree = await to_thread_until_done(
+                    decode_workspace_state,
+                    value.data,
+                    source_tree,
+                    limits,
+                    name="workspace-state-import",
+                )
                 try:
                     await to_thread_until_done(
                         lambda: _materialize_state(storage, content_root, source_tree, result_tree),
@@ -366,7 +385,12 @@ def _extract_file(
         with archive.open(info, mode="r") as source:
             while True:
                 _check_deadline(deadline)
-                chunk = source.read(_CHUNK_BYTES)
+                try:
+                    chunk = source.read(_CHUNK_BYTES)
+                except _CORRUPT_MEMBER_ERRORS:
+                    # The payload is in memory: a read failure is corrupt input
+                    # (bz2 reports it as OSError), never local capacity.
+                    raise _invalid_source() from None
                 if not chunk:
                     break
                 observed += len(chunk)
@@ -386,6 +410,8 @@ def _extract_file(
                             text_parts.clear()
         if observed != info.file_size:
             raise _invalid_source()
+        if local_output is not None:
+            _apply_execute_bits(local_output.fileno(), info)
         if text_candidate:
             try:
                 text_parts.append(decoder.decode(b"", final=True))
@@ -408,6 +434,18 @@ def _extract_file(
     finally:
         if local_output is not None:
             local_output.close()
+
+
+def _apply_execute_bits(descriptor: int, info: zipfile.ZipInfo) -> None:
+    """Keep ``./gradlew``-style scripts runnable in a local direct workspace.
+
+    Only the archive's execute bits are honoured, and only for classes that can
+    already read the file; setuid/setgid/sticky and write bits never are.
+    """
+    executable = (info.external_attr >> 16) & 0o111
+    if executable:
+        current = stat.S_IMODE(os.fstat(descriptor).st_mode)
+        os.fchmod(descriptor, current | (executable & ((current & 0o444) >> 2)))
 
 
 def _backend_path(root: str, relative: str) -> str:

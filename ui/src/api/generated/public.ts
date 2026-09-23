@@ -1895,7 +1895,13 @@ export interface paths {
         get: operations["getRuntimeCredential"];
         put?: never;
         post?: never;
-        /** Delete one unreferenced Runtime adapter credential */
+        /**
+         * Delete one unreferenced Runtime adapter credential
+         * @description Deletion leaves a durable tombstone for the credential ID, so repeating
+         *     it is idempotent without an Idempotency-Key and answers 204 with
+         *     `Idempotency-Replayed: true`. A supplied key is validated but not bound
+         *     to the request.
+         */
         delete: operations["deleteRuntimeCredential"];
         options?: never;
         head?: never;
@@ -5929,7 +5935,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Artifact exceeds the 64 MiB limit */
+        /** @description Request body or artifact exceeds its size limit */
         Error413: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
@@ -5989,6 +5995,8 @@ export interface components {
         FindingId: components["schemas"]["ResourceId"];
         ReviewRequestId: components["schemas"]["ResourceId"];
         IdempotencyKey: string;
+        /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
+        OptionalIdempotencyKey: string;
         IfMatch: string;
         RequiredIfMatch: string;
         RequiredQueueControlIfMatch: string;
@@ -7591,6 +7599,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ArtifactUnavailable"];
         };
@@ -7753,6 +7762,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            413: components["responses"]["PayloadTooLarge"];
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
         };
@@ -7921,6 +7931,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -8029,6 +8040,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -8362,6 +8374,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["CredentialRecoveryRequired"];
         };
@@ -8546,6 +8559,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -8746,6 +8760,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["CredentialRecoveryRequired"];
         };
@@ -8963,6 +8978,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -9168,6 +9184,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -9249,6 +9266,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -9342,6 +9360,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -9445,6 +9464,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["CredentialRecoveryRequired"];
         };
@@ -9566,6 +9586,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -9609,6 +9630,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -9662,6 +9684,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -10259,6 +10282,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -10417,6 +10441,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -10538,6 +10563,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -10632,6 +10658,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -10666,8 +10693,9 @@ export interface operations {
     deleteRuntimeCredential: {
         parameters: {
             query?: never;
-            header: {
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            header?: {
+                /** @description Accepted for uniform mutation headers; the operation is idempotent by resource identity and does not bind the key. */
+                "Idempotency-Key"?: components["parameters"]["OptionalIdempotencyKey"];
                 /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
                 Origin?: components["parameters"]["OptionalOrigin"];
                 /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
@@ -10815,6 +10843,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -10880,6 +10909,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
             503: components["responses"]["CredentialRecoveryRequired"];
@@ -11003,6 +11033,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
             415: components["responses"]["UnsupportedMediaType"];
             500: components["responses"]["InternalError"];
         };

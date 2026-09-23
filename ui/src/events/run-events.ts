@@ -926,8 +926,7 @@ export class RunEventsManager {
   ): RunEventSubscription {
     safeIdentifier(runId);
     validateCursor(after);
-    const id = `run-ui-${this.#nextSubscription}`;
-    this.#nextSubscription += 1;
+    const id = this.#subscriptionId("run");
     const record: RunSubscriptionRecord = {
       kind: "run",
       id,
@@ -977,8 +976,7 @@ export class RunEventsManager {
       sequence: after.revision,
     };
     validateCursor(initialCursor);
-    const id = `operations-ui-${this.#nextSubscription}`;
-    this.#nextSubscription += 1;
+    const id = this.#subscriptionId("operations");
     const record: OperationsSubscriptionRecord = {
       kind: "operations",
       id,
@@ -1020,6 +1018,12 @@ export class RunEventsManager {
         this.#unsubscribe(record);
       },
     };
+  }
+
+  #subscriptionId(kind: SubscriptionRecord["kind"]): string {
+    const id = `${kind}-ui-${this.#nextSubscription}`;
+    this.#nextSubscription += 1;
+    return id;
   }
 
   close(): void {
@@ -1188,7 +1192,7 @@ export class RunEventsManager {
       return;
     }
     if (frame.cursor.generation !== record.cursor.generation) {
-      this.#resyncAll("generation_changed");
+      this.#resyncSubscription(record, "generation_changed");
       return;
     }
     const current = BigInt(frame.cursor.sequence);
@@ -1197,7 +1201,7 @@ export class RunEventsManager {
       return;
     }
     if (current !== previous + 1n) {
-      this.#resyncAll("sequence_gap");
+      this.#resyncSubscription(record, "sequence_gap");
       return;
     }
     try {
@@ -1221,7 +1225,7 @@ export class RunEventsManager {
           data: frame.data,
         });
         if (!accepted) {
-          this.#resyncAll("projection_gap");
+          this.#resyncSubscription(record, "projection_gap");
           return;
         }
       } else if (frame.kind === "lifecycle.changed") {
@@ -1239,7 +1243,7 @@ export class RunEventsManager {
         return;
       }
     } catch {
-      this.#resyncAll("projection_gap");
+      this.#resyncSubscription(record, "projection_gap");
       return;
     }
     record.cursor = copyCursor(frame.cursor);
@@ -1257,7 +1261,7 @@ export class RunEventsManager {
     if (record.phase === "closing") {
       return;
     }
-    this.#resyncAll(frame.reason);
+    this.#resyncSubscription(record, frame.reason);
   }
 
   #errorFrame(frame: ErrorFrame): void {
@@ -1278,6 +1282,8 @@ export class RunEventsManager {
       }
       if (record !== undefined) {
         record.callbacks.onError(frame.message);
+        this.#resyncSubscription(record, "subscription_error");
+        return;
       }
     } else {
       for (const record of this.#subscriptions.values()) {
@@ -1342,6 +1348,43 @@ export class RunEventsManager {
       this.#cancelSchedule?.(this.#reconnectHandle);
       this.#reconnectHandle = undefined;
     }
+  }
+
+  /**
+   * Sends one subscription back to its owner for an authoritative baseline
+   * while the socket and every other subscription stay live. Protocol
+   * violations still reset the whole socket through `#resyncAll`.
+   */
+  #resyncSubscription(
+    record: SubscriptionRecord,
+    reason: RunResyncReason,
+  ): void {
+    const connection = this.#connection;
+    if (
+      connection?.socket.readyState === 1 &&
+      (record.phase === "subscribed" ||
+        (record.phase === "pending" && record.requestedCursor !== undefined))
+    ) {
+      // The Server may still pump the old subscription, or not have released
+      // its ID yet. Cancel it and keep a closing record under the old ID so
+      // its late frames and the reply (unsubscribed or not_found) stay
+      // harmless; the owner resumes under a fresh ID.
+      try {
+        connection.unsubscribe(record.id);
+      } catch {
+        this.#resyncAll("protocol_error");
+        return;
+      }
+      this.#subscriptions.set(record.id, { ...record, phase: "closing" });
+    } else {
+      this.#subscriptions.delete(record.id);
+    }
+    record.id = this.#subscriptionId(record.kind);
+    record.phase = "waiting";
+    delete record.requestedCursor;
+    this.#subscriptions.set(record.id, record);
+    record.callbacks.onStateChange("resyncing");
+    record.callbacks.onResync(reason);
   }
 
   #resyncAll(reason: RunResyncReason): void {

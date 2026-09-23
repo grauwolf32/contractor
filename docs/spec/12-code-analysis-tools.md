@@ -217,16 +217,18 @@ same semantic strength on every Runtime that advertises it:
 | Trailmark child address space | 1 GiB |
 | path results returned by one traversal | 50 |
 | call-path depth | 20 nodes |
+| successor examinations by one path query, across all sources | 1,000,000 |
 | parent/child protocol request | 16 KiB |
 | parent/child protocol response | 2 MiB |
 
 Workspace path and total hydration limits still apply first. Source candidates
-recognized by the selected engine are ordered by normalized relative path,
-then admitted until the file/byte ceilings are reached. A file above the
-per-file ceiling is skipped. This makes partial coverage deterministic instead
-of depending on filesystem walk order. `unsupportedSourceFiles` counts files
-recognized by the other v1 engine's source-extension registry but unsupported
-by the selected one; unknown non-source files are ignored.
+recognized by the selected engine, outside directories that engine never
+walks, are ordered by normalized relative path, then admitted until the
+file/byte ceilings are reached. A file above the per-file ceiling is skipped.
+This makes partial coverage deterministic instead of depending on filesystem
+walk order. `unsupportedSourceFiles` counts files recognized by the other v1
+engine's source-extension registry but unsupported by the selected one; unknown
+non-source files are ignored.
 
 Every successful analysis response includes bounded coverage metadata:
 
@@ -252,6 +254,17 @@ are drawn from `file_limit`, `byte_limit`, `symbol_limit`, `symbol_name_limit`, 
 coverage boundaries and do not alone make the supported-language result
 incomplete. Unknown non-source files are ignored rather than counted.
 
+Graph coverage additionally reports `excludedFiles`: recognized source files
+below a directory that the pinned Trailmark walk never enters (`.git`, `.hg`,
+`.svn`, `node_modules`, `__pycache__`, `.venv`, `venv`, `.tox`, `.mypy_cache`,
+`.pytest_cache`, `.ruff_cache`, `build`, `dist`, `.eggs`, `vendor` and every
+other directory whose name starts with `.`). They are applied before the
+file/byte ceilings, are never copied into the mirror and, like binary and
+unsupported files, do not alone make the result incomplete. The reviewed
+directory list is pinned with the engine version. Trailmark 0.5.0's public
+graph exposes no per-file syntax-error signal, so graph `parseErrors` is
+always `0`; tree-sitter recovers and the affected definitions are simply absent.
+
 Collection responses use `items`, `nextCursor`, `truncated` and
 `observedTotal`. `observedTotal` counts the complete bounded result set, not an
 unexamined suffix when `coverage.incomplete` is true. Cursors are opaque,
@@ -262,10 +275,11 @@ item. No operation silently cuts off results.
 
 Path traversals are different: they stop traversal after finding `limit + 1`
 paths, return at most `limit`, set `truncated` when another path was observed,
-or when another path would exceed the encoded response ceiling, and do not
-claim a total. They intentionally have no cursor because continuing an
-exponential traversal would retain unbounded frontier state; callers narrow the
-symbols or depth instead.
+when another path would exceed the encoded response ceiling, or when the fixed
+traversal-step budget ended the search before it completed, and do not claim a
+total. They intentionally have no cursor because continuing an exponential
+traversal would retain unbounded frontier state; callers narrow the symbols or
+depth instead.
 
 ## Shallow Tree-sitter surface
 
@@ -298,7 +312,13 @@ search_def(symbol, path="", language="", cursor="", limit=50)
 
 For efficiency, the implementation first performs a bounded case-folded text
 prefilter for the bare symbol, then parses only candidate files and validates
-actual definition nodes. Results are sorted by path, start line, column, name
+actual definition nodes. A file whose compact symbols are already cached skips
+the text scan: a definition name is part of its source, so the cached rows
+decide the match. Only a cached file with a parse-error or long-name flag is
+still scanned, because those flags count in coverage only when the file
+contains the symbol. Search retains and counts only matching definitions
+toward the compact-symbol ceiling, so results are identical with or without
+the cache. Results are sorted by path, start line, column, name
 and node type. Each row contains `name`, `path`, `line`, `endLine`, `column`,
 `nodeType`, `language` and an optional definition preview capped at 12 lines
 and 4 KiB. A caller can use `filesystem@1/read_file` for more context.
@@ -340,7 +360,8 @@ On the first graph call for a digest, the Runtime:
 1. takes the exact current `WorkspaceSnapshot`;
 2. creates a uniquely named mirror below the allocation's private scratch
    directory;
-3. writes only admitted managed UTF-8 files at normalized relative paths;
+3. writes only admitted managed UTF-8 files at normalized relative paths,
+   omitting directories the pinned Trailmark walk skips;
 4. starts one child with direct argv, no shell, a sanitized environment and no
    Allocation RuntimeSettings, LLM/API credentials or Artifact grant;
 5. has the child build a public Trailmark `CodeGraph` from that mirror in
@@ -414,6 +435,17 @@ not invoke those unbounded operations. The child performs its own deterministic
 depth-limited traversal over the retained CodeGraph call edges and stops after
 `limit + 1` results.
 
+Before descending, the child runs one reverse breadth-first search from the
+target, bounded by `max_depth`, and never enters a successor whose shortest
+call distance to the target exceeds the remaining depth. An unreachable or
+too-distant target, including one queried from every entrypoint, therefore
+costs no path enumeration. Shortest-distance pruning cannot drop a valid simple
+path but cannot rule out a shortest route blocked by nodes already on the
+current path, so every path query also shares one successor-examination budget
+across all of its sources. Exhausting it returns the paths found so far with
+`truncated: true` well before the query deadline, so the child and its mirror
+are retained for the next call.
+
 ## Child failure and lifecycle
 
 The child is lazy: selecting a graph tool does not build a repository graph at
@@ -436,6 +468,9 @@ release semantics. The later release idempotently confirms that teardown and
 removes any residual bounded state; ordinary success leaves no mirror or cache.
 Abort, lost lease, failed prepare and process shutdown cancel analysis, kill
 and reap the child, and remove the mirror before a slot can become reusable.
+Mirror materialization runs in an uninterruptible worker thread: cancellation,
+however often repeated, waits for it, registers any written mirror with the
+session and only then propagates as cancellation rather than a Toolset error.
 Tool close is idempotent and composes with the allocation-wide bounded cleanup
 task in [10](10-runtime-filesystems-and-edit-tools.md). Failure to confirm child
 termination or mirror cleanup leaves the Runtime fenced; it cannot return an
@@ -548,8 +583,9 @@ Toolset**:
 7. Duplicate symbol names produce multiple `find_symbol` candidates; every
    graph relationship query accepts only one returned opaque ID.
 8. Adversarial high-branching graphs prove path traversal stops at `limit + 1`
-   and depth, response and deadline bounds without first materializing all
-   simple paths.
+   and depth, response, step and deadline bounds without first materializing
+   all simple paths; an unreachable target in a dense cyclic graph answers
+   without enumeration.
 9. File/byte/symbol/parser limits produce deterministic explicit incomplete
    coverage; pagination never claims an exact total for unexamined data.
 10. Binary, unsupported, oversized, malformed and polyglot fixtures preserve

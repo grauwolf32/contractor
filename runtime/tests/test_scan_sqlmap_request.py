@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_scan_http_request import request_document
 from test_scan_toolset import executable
 
@@ -62,7 +63,8 @@ async def make_sqlmap(tmp_path, transport):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     factory = scan.ScanToolsetFactory(
-        artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, transport)
+        artifact_client_factory=lambda allocation, settings: ArtifactClient(allocation, transport),
+        target_policy=SCAN_TEST_POLICY,
     )
     state = WorkerState()
     tools = await factory.create_selected(
@@ -217,6 +219,34 @@ def test_invalid_artifact_is_rejected_before_launch(tmp_path, monkeypatch, optio
             assert not caught.value.retryable
             assert "canary" not in str(caught.value)
             assert transport.calls == 1
+            assert_failed_call_is_private(state, tmp_path)
+        finally:
+            await tool.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/latest?id=7",
+        "http://[fd00:ec2::254]/latest?id=7",
+        "https://artifacts.invalid/private?id=7",
+    ],
+)
+def test_request_artifact_destination_is_checked_before_launch(tmp_path, monkeypatch, url):
+    forbid_launch(tmp_path, monkeypatch)
+
+    async def scenario():
+        transport = RequestTransport(json.dumps(request_document(url=url)).encode())
+        tool, state = await make_sqlmap(tmp_path, transport)
+        try:
+            result = await tool(request_ref=REQUEST_REF)
+            assert result["status"] == "failed"
+            assert result["errorCode"] == "scan_target_denied"
+            assert result["requestArtifact"] == REQUEST_REF
+            assert transport.calls == 1
+            assert "canary" not in repr(result)
             assert_failed_call_is_private(state, tmp_path)
         finally:
             await tool.close()

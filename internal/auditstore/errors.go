@@ -15,6 +15,10 @@ var (
 	ErrProjectDeleting = errors.New("auditstore Project is deleting")
 	ErrClaimLost       = errors.New("auditstore Controller claim is stale")
 	ErrNoWork          = errors.New("auditstore has no claimable work")
+	// ErrEvidenceBudgetExhausted is the collection precondition failure caused
+	// by the retained evidence budget. The budget only grows, so the same
+	// collection request can never succeed and needs a terminal receipt.
+	ErrEvidenceBudgetExhausted = fmt.Errorf("%w: Audit evidence budget is exhausted", ErrPrecondition)
 )
 
 func invalidf(format string, arguments ...any) error {

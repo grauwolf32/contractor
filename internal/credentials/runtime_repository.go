@@ -394,6 +394,26 @@ func (r *RuntimeCredentialRepository) ValidateRuntimeCredential(
 	return validateAllowedRuntimeKinds(record.Metadata.Kind, allowedKinds)
 }
 
+// ValidateRuntimeCredentialUse additionally requires that user may reference
+// the credential from owner-scoped configuration. A credential the user may
+// not use is reported exactly like a missing one, so its existence is not
+// disclosed. The caller must already hold the shared reference side.
+func (r *RuntimeCredentialRepository) ValidateRuntimeCredentialUse(
+	ctx context.Context, user RuntimeCredentialUser, credentialID string, allowedKinds ...string,
+) error {
+	record, err := r.GetActiveRecord(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+	if err := validateAllowedRuntimeKinds(record.Metadata.Kind, allowedKinds); err != nil {
+		return err
+	}
+	if !user.MayUse(record.Metadata) {
+		return ErrRuntimeCredentialNotFound
+	}
+	return nil
+}
+
 const runtimeCredentialRecordSelect = `
 SELECT c.credential_id, c.credential_kind, c.created_by, c.created_at,
        c.encryption_schema_version, c.key_id, c.nonce, c.ciphertext

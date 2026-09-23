@@ -720,7 +720,16 @@ an `invalid-result`. One evidence record belongs to exactly one result item; an
 evidence ID cannot be used to attribute one observation to several batch
 members. Evidence may instead reference an exact revision in the
 same RunScope. The importer never follows a path or accepts an unversioned or
-foreign-scope reference. Finding intake retains every trusted child-Run
+foreign-scope reference. Each distinct referenced revision is retained once:
+evidence records citing the same revision share one Audit copy, and a record
+citing the frozen result output shares the retained result. The evidence budget
+therefore charges every distinct retained revision exactly once, both when the
+importer checks it and when the collection transaction enforces it. A result
+whose retained revisions exceed `maxEvidenceBytes`, including after a
+concurrent writer consumed the remaining budget, commits a non-retryable
+`invalid-result` receipt with `evidence-budget-exhausted` that links and
+charges no retained revision, rather than leaving the execution collecting.
+Finding intake retains every trusted child-Run
 proposal in the Audit inbox before committing the collection receipt,
 including proposals from technically failed Runs. A non-empty `proposals`
 association contains exact `(invocation_id, client_key)` selections injected
@@ -953,7 +962,9 @@ collection updates while paused. The admission clock includes owner Queue
 waiting; an Audit pause freezes it. Waiting for a frozen report decision uses
 that decision's own expiry rather than the Audit admission clock.
 
-Only a `paused` Audit can resume. Terminal `completed`, `failed` and `cancelled`
+Only a `paused` Audit can resume, and Resume is its only way back to
+`active`: no plain owner transition bypasses Resume's checks and renewals.
+Terminal `completed`, `failed` and `cancelled`
 Audits remain final, including historical records whose stop reason is
 `deadline_exhausted`. Resume requires an active Project, a pinned baseline and either a current Round
 or a persisted preparation/inventory phase, with no frozen report candidate. Accepted items, receipts, evidence and baseline bytes
@@ -1168,7 +1179,10 @@ not promise that increasing `batchSize` reduces cost or latency.
 
 PostgreSQL is authoritative. The Controller periodically claims and reconciles
 a bounded number of nonterminal Audits. Process-local notifications are wake
-hints only; loss, duplication, or reordering cannot prevent progress.
+hints only; loss, duplication, or reordering cannot prevent progress. A paused
+Audit only observes and collects Runs it already submitted, so it is claimed
+only while it has a submitted or collecting execution. Cancel and delete move
+it out of `paused`, so their cleanup is always claimable.
 
 Start always creates the deterministic accepted first inventory. If the pinned
 profile has discovery roles, Controller executes each role exactly once (or by
@@ -1265,7 +1279,11 @@ Resume replaces expired requests with fresh exact-subject requests for eligible
 unfinished work, requiring a new decision. Before creating an authorized
 execution intent, PostgreSQL rechecks that the item is still ready,
 the exact request was accepted, its digest still matches, and its expiry is
-absent or in the future. Rejecting an item settles it as excluded; an expired
+absent or in the future. Every review expiry, whether the Controller, an owner
+decision, finding-review creation or Resume judges it, compares against the
+PostgreSQL clock under the request's lock, and the default finding-triage
+window starts at that clock, so process clock skew cannot end or extend human
+authority. Rejecting an item settles it as excluded; an expired
 request cannot authorize later execution. A decision never rewrites original
 observations.
 
@@ -1273,7 +1291,10 @@ Human report acceptance uses a frozen candidate rather than regenerating bytes
 after review. The request pins the candidate digest and pre-publication Audit
 revision. Acceptance atomically publishes the two exact report links and marks
 the Audit completed; rejection or bounded expiry records a stable terminal
-reason. A non-expired report request is excluded from Controller claims, while
+reason. Each is an ordinary revisioned Audit transition: acceptance records
+the same `audit.report_committed` event as an automatic report commit,
+rejection records `audit.state_changed` to `failed`, and the owner's decision
+then records `review.decided`. A non-expired report request is excluded from Controller claims, while
 an expired request becomes claimable solely for deterministic cleanup.
 
 ### 14.1 Analyst verdict and severity
@@ -1302,6 +1323,10 @@ finding review endpoint; a completed request is never reopened or overwritten.
 Corrections never rewrite the proposal, check result, earlier assessment or
 decision. A new assessment cannot
 silently carry forward an earlier confirmation: it requires renewed triage.
+Collecting a check result that assesses a finding advances its revision and
+expires, in the same transaction, every pending finding-triage request for the
+earlier revision, recording one `review.expired` event per request; such a
+request could otherwise never be decided.
 
 Review remains possible after Audit execution completes until deletion begins;
 it does not restart execution. Finding and Audit revisions advance on visible
@@ -1565,7 +1590,9 @@ that Audit's records. Finding and direct-assessment IDs are opaque and scoped
 to the destination Audit. Direct-assessment replay supports only the current
 Audit-and-receipt identity; historical receipt-only IDs are not replay aliases.
 Deleting one destination does not release another destination's retained
-evidence or change its finding decisions.
+evidence or change its finding decisions. A receipt read through one Audit
+lists only that Audit's own hold and, after source Run deletion, reads the
+proposal from that Audit's retained copy, never from another destination's.
 
 Run deletion and creation of a destination proposal hold serialize on the source
 Run before taking Audit, receipt/retention and Artifact locks. Deletion locks

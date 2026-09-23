@@ -37,7 +37,7 @@ type Scheduler struct {
 	options     Options
 	wake        chan struct{}
 	activeMu    sync.Mutex
-	active      map[string]context.CancelCauseFunc
+	active      map[string]activeRunClaim
 	idMu        sync.Mutex
 	clockMu     sync.Mutex
 	runMu       sync.Mutex
@@ -72,7 +72,7 @@ func New(
 	return &Scheduler{
 		store: store, persistence: persistence, artifacts: artifactResolver,
 		allocator: allocator, workers: workers, planners: planners, options: options,
-		wake: make(chan struct{}, 1), active: make(map[string]context.CancelCauseFunc),
+		wake: make(chan struct{}, 1), active: make(map[string]activeRunClaim),
 		releasing: make(map[string]struct{}),
 	}, nil
 }
@@ -148,11 +148,35 @@ func (s *Scheduler) Cancel(runID string) {
 
 func (s *Scheduler) interruptRun(runID string, cause error) {
 	s.activeMu.Lock()
-	cancel := s.active[runID]
+	current, ok := s.active[runID]
 	s.activeMu.Unlock()
-	if cancel != nil {
-		cancel(cause)
+	if ok {
+		current.cancel(cause)
 	}
+}
+
+// activeRunClaim routes in-process interrupts to the lane holding one exact
+// durable claim of a Run.
+type activeRunClaim struct {
+	claimID string
+	cancel  context.CancelCauseFunc
+}
+
+func (s *Scheduler) registerActiveRun(runID, claimID string, cancel context.CancelCauseFunc) {
+	s.activeMu.Lock()
+	s.active[runID] = activeRunClaim{claimID: claimID, cancel: cancel}
+	s.activeMu.Unlock()
+}
+
+// unregisterActiveRun removes only this claim's entry. After a claim is
+// released another lane may already have claimed the Run and registered its
+// own cancellation, which must stay reachable.
+func (s *Scheduler) unregisterActiveRun(runID, claimID string) {
+	s.activeMu.Lock()
+	if current, ok := s.active[runID]; ok && current.claimID == claimID {
+		delete(s.active, runID)
+	}
+	s.activeMu.Unlock()
 }
 
 func (s *Scheduler) newID(prefix string) (string, error) {

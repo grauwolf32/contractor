@@ -970,13 +970,16 @@ func TestExpiredAllocationOwnerIsRetainedUntilRelease(t *testing.T) {
 }
 
 func TestAllocationFreeSupersededProcessIsRetiredImmediately(t *testing.T) {
-	registry := newTestRegistry(t, newTestClock())
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	principal := testPrincipal("d")
 	oldRegistration := testRegistration("superseded-idle")
-	registerReadyWith(t, registry, oldRegistration)
+	registerReadyAs(t, registry, principal, oldRegistration)
+	clock.Advance(61 * time.Second)
 	replacement := testRegistration("replacement-idle")
 	replacement.ControlURL = oldRegistration.ControlURL
 	replacement.A2AURL = oldRegistration.A2AURL
-	if _, err := registry.Register(replacement); err != nil {
+	if _, err := registry.RegisterAuthenticated(principal, replacement); err != nil {
 		t.Fatal(err)
 	}
 	if _, present := registry.agents[oldRegistration.InstanceID]; present {
@@ -985,7 +988,9 @@ func TestAllocationFreeSupersededProcessIsRetiredImmediately(t *testing.T) {
 	if _, present := registry.agents[replacement.InstanceID]; !present {
 		t.Fatal("replacement process is absent")
 	}
-	response, err := registry.Heartbeat(heartbeat(oldRegistration.InstanceID, 3, 2))
+	response, err := registry.HeartbeatAuthenticated(
+		principal.RuntimeAgentID, heartbeat(oldRegistration.InstanceID, 3, 2),
+	)
 	if err != nil || response.Action != contracts.ActionReregister {
 		t.Fatalf("superseded process heartbeat = (%+v, %v)", response, err)
 	}
@@ -994,8 +999,9 @@ func TestAllocationFreeSupersededProcessIsRetiredImmediately(t *testing.T) {
 func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)
+	principal := testPrincipal("e")
 	oldRegistration := testRegistration("agent-old")
-	registerReadyWith(t, registry, oldRegistration)
+	registerReadyAs(t, registry, principal, oldRegistration)
 	reservations, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-old", StageExecutionID: "stage-old",
 		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
@@ -1004,13 +1010,19 @@ func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t
 		t.Fatal(err)
 	}
 
+	// A restart under the same principal is admitted only once the previous
+	// process's control lease has expired.
+	clock.Advance(61 * time.Second)
 	restarted := testRegistration("agent-new")
 	restarted.ControlURL = oldRegistration.ControlURL
 	restarted.A2AURL = oldRegistration.A2AURL
-	registerReadyWith(t, registry, restarted)
+	registerReadyAs(t, registry, principal, restarted)
 	losses := registry.PollAllocationLosses()
-	if len(losses) != 1 || losses[0].Reason != LossRuntimeRestarted {
+	if len(losses) != 1 || losses[0].AllocationID != reservations[0].Grant.AllocationID {
 		t.Fatalf("restart losses = %+v", losses)
+	}
+	if old := registry.agents[oldRegistration.InstanceID]; old == nil || !old.superseded {
+		t.Fatal("restarted process did not supersede its predecessor on the same endpoint")
 	}
 	_, err = registry.ReserveAll(ReservationRequest{
 		RunID: "run-new", StageExecutionID: "stage-new",
@@ -1028,6 +1040,44 @@ func TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased(t
 	})
 	if err != nil || available[0].Grant.RuntimeInstanceID != "agent-new" {
 		t.Fatalf("new instance after reconciliation = (%+v, %v)", available, err)
+	}
+}
+
+// Endpoints are bound to their registrant's certificate, so an authenticated
+// Runtime Agent that registers another principal's endpoint cannot supersede
+// that live process or revoke its allocation.
+func TestForeignPrincipalEndpointRegistrationDoesNotSupersedeLiveAgent(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	victim := testRegistration("agent-victim")
+	registerReadyAs(t, registry, testPrincipal("f"), victim)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-victim", StageExecutionID: "stage-victim",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	intruder := testRegistration("agent-intruder")
+	intruder.ControlURL = victim.ControlURL
+	intruder.A2AURL = victim.A2AURL
+	if _, err := registry.RegisterAuthenticated(testPrincipal("9"), intruder); err != nil {
+		t.Fatalf("overlapping foreign registration: %v", err)
+	}
+	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
+		t.Fatalf("foreign registration revoked allocations: %+v", losses)
+	}
+	grant, err := registry.GetGrant(reservations[0].Grant.AllocationID)
+	if err != nil || grant.Lost || grant.WriteFenced {
+		t.Fatalf("victim grant after foreign registration = (%+v, %v)", grant, err)
+	}
+	entry := registry.agents[victim.InstanceID]
+	if entry == nil || entry.superseded || entry.allocationLost {
+		t.Fatal("foreign registration superseded the live victim process")
+	}
+	if blocked := registry.agents[intruder.InstanceID].blockedByInstanceID; blocked != nil {
+		t.Fatalf("foreign registration was linked to the victim process %q", *blocked)
 	}
 }
 
@@ -1204,6 +1254,31 @@ func heartbeat(instanceID string, sequence, echoed uint64) contracts.AgentHeartb
 func registerReady(t *testing.T, registry *InMemoryRegistry, instanceID string) {
 	t.Helper()
 	registerReadyWith(t, registry, testRegistration(instanceID))
+}
+
+func testPrincipal(fill string) AuthenticatedPrincipal {
+	return AuthenticatedPrincipal{RuntimeAgentID: strings.Repeat(fill, 64), Labels: []string{}, LabelRevision: 1}
+}
+
+// registerReadyAs registers one process under an explicit certificate
+// principal, as the private mTLS API does, and confirms its control lease.
+func registerReadyAs(
+	t *testing.T,
+	registry *InMemoryRegistry,
+	principal AuthenticatedPrincipal,
+	registration contracts.AgentRegistration,
+) {
+	t.Helper()
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatal(err)
+	}
+	for sequence := uint64(1); sequence <= 2; sequence++ {
+		if _, err := registry.HeartbeatAuthenticated(
+			principal.RuntimeAgentID, heartbeat(registration.InstanceID, sequence, sequence-1),
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func registerReadyWith(t *testing.T, registry *InMemoryRegistry, registration contracts.AgentRegistration) {

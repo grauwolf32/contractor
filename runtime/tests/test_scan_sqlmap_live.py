@@ -11,6 +11,7 @@ from contextlib import suppress
 from types import SimpleNamespace
 
 import pytest
+from target_policy_fixtures import SCAN_TEST_POLICY
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
@@ -120,7 +121,9 @@ def test_installed_sqlmap_preserves_prepared_request_on_wire(tmp_path, scheme, m
             workspace.mkdir()
             state = WorkerState()
             factory = ScanToolsetFactory(
-                lambda *_: SimpleNamespace(read_artifact=read_artifact), scanners=[SQLMapTool]
+                lambda *_: SimpleNamespace(read_artifact=read_artifact),
+                scanners=[SQLMapTool],
+                target_policy=SCAN_TEST_POLICY,
             )
             tools = await factory.create_selected(
                 selected=["scan_sqlmap"],

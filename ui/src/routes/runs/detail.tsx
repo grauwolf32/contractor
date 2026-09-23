@@ -35,6 +35,7 @@ import { useLiveRunProjection } from "./live";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
+import { useDocumentTitle } from "../../app/document-title";
 import { RecordedTime } from "../../app/recorded-time";
 
 function compactMetric(value: number): string {
@@ -850,6 +851,9 @@ export function RunDetailRoute() {
     queryFn: () => getRun(api, runId),
     enabled: valid,
   });
+  useDocumentTitle(
+    query.data === undefined ? "Run" : `${query.data.workflow} · Run`,
+  );
 
   async function copyRunId(): Promise<void> {
     setCopyError(undefined);

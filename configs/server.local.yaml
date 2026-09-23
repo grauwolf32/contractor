@@ -26,6 +26,7 @@ spec:
   projectLifecycle:
     operationTimeout: 30s
     claimDuration: 1m
+    purgeTimeout: 2m
   auditController:
     pollInterval: 1s
     claimLease: 30s

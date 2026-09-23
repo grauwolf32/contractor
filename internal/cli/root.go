@@ -76,6 +76,7 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 		return c.runContext(ctx, store, printer, commandArgs, options.timeout)
 	}
 
+	options.transfer = transferCommand(command, commandArgs)
 	client, selected, err := c.client(options, store)
 	if err != nil {
 		return err
@@ -110,9 +111,28 @@ type globalOptions struct {
 	allowHTTP   bool
 	output      string
 	timeout     time.Duration
+	transfer    bool
 	caFileSet   bool
 	tokenSet    bool
 	httpSet     bool
+}
+
+// transferCommand reports whether a command moves an Artifact body, whose
+// duration grows with its size. Its --timeout bounds inactivity instead of
+// the whole request.
+func transferCommand(command string, args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch command {
+	case "source":
+		return args[0] == "push"
+	case "artifact", "artifacts":
+		return args[0] == "put" || args[0] == "upload" || args[0] == "get" || args[0] == "download"
+	case "run", "runs":
+		return args[0] == "output"
+	}
+	return false
 }
 
 func (c *CLI) parseGlobal(args []string) (globalOptions, string, []string, error) {
@@ -150,7 +170,7 @@ func (c *CLI) parseGlobal(args []string) (globalOptions, string, []string, error
 	flags.StringVar(&options.tokenFile, "token-file", options.tokenFile, "file containing the bearer token")
 	flags.BoolVar(&options.allowHTTP, "allow-http", options.allowHTTP, "allow cleartext HTTP to a non-loopback Server")
 	flags.StringVar(&options.output, "output", options.output, "output format: table, json, or name")
-	flags.DurationVar(&options.timeout, "timeout", options.timeout, "per-request timeout")
+	flags.DurationVar(&options.timeout, "timeout", options.timeout, "per-request timeout; for Artifact transfers, the longest time without progress")
 	flags.Usage = c.writeRootUsage
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -218,7 +238,7 @@ func (c *CLI) client(options globalOptions, store *ContextStore) (*publicclient.
 	}
 	client, err := publicclient.New(publicclient.Options{
 		Server: options.server, Token: token, CAFile: options.caFile,
-		AllowHTTP: options.allowHTTP, Timeout: options.timeout,
+		AllowHTTP: options.allowHTTP, Timeout: options.timeout, Transfer: options.transfer,
 		UserAgent: "contractor-cli/" + Version,
 	})
 	return client, selected, err

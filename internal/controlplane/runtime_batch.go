@@ -79,14 +79,20 @@ func (c *RuntimeBatchController) PrepareAll(
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
+	// Validate the whole settings map before any Runtime call; a mismatch
+	// found mid-batch would leave earlier Agents prepared and active.
+	for _, reservation := range reservations {
+		if _, ok := settings[reservation.Grant.LogicalAgentName]; !ok {
+			return nil, fmt.Errorf("missing execution settings for logical Agent %q", reservation.Grant.LogicalAgentName)
+		}
+	}
+	if len(settings) != len(reservations) {
+		return nil, errors.New("Worker execution settings contain an unknown logical Agent")
+	}
 	handles := make(map[string]contracts.WorkerHandle, len(reservations))
 	for _, reservation := range reservations {
 		logicalName := reservation.Grant.LogicalAgentName
-		resolved, ok := settings[logicalName]
-		if !ok {
-			return nil, fmt.Errorf("missing execution settings for logical Agent %q", logicalName)
-		}
-		handle, err := c.runtime.Prepare(ctx, reservation, resolved)
+		handle, err := c.runtime.Prepare(ctx, reservation, settings[logicalName])
 		if err != nil {
 			prepareErr := fmt.Errorf("prepare logical Agent %q: %w", reservation.Grant.LogicalAgentName, err)
 			cleanupErr := c.cleanupFailedPrepare(reservations)
@@ -100,9 +106,6 @@ func (c *RuntimeBatchController) PrepareAll(
 			return nil, errors.Join(prepareErr, cleanupErr)
 		}
 		handles[reservation.Grant.LogicalAgentName] = handle
-	}
-	if len(settings) != len(reservations) {
-		return nil, errors.New("Worker execution settings contain an unknown logical Agent")
 	}
 	return handles, nil
 }

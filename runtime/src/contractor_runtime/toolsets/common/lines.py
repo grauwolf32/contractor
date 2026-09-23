@@ -25,6 +25,20 @@ def split_lines(text: str, keepends: bool = False) -> list[str]:
     return lines
 
 
+def split_patch_lines(text: str) -> list[str]:
+    """Split into unified-diff lines, keeping ends, the way ``git`` does.
+
+    Like ``split_lines`` no Unicode separator ends a line and ``\\r\\n`` stays
+    one line. Unlike it, a lone ``\\r`` is content too: a patch can only break
+    lines at ``\\n``, so splitting there would produce a patch that does not
+    apply. A last line without ``\\n`` is returned without an end.
+    """
+
+    lines = text.split("\n")
+    last = lines.pop()
+    return [f"{line}\n" for line in lines] + ([last] if last else [])
+
+
 def newline_style(text: str) -> str:
     """Return the first line break in ``text``, defaulting to ``\\n``."""
 

@@ -13,7 +13,7 @@ from collections.abc import Generator, Mapping
 from typing import Any
 
 import uvicorn
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -28,7 +28,10 @@ from contractor_runtime.contracts import (
     AbortAllocationRequest,
     FinalizeAllocationRequest,
     PrepareAllocationRequest,
+    PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
+    WireModel,
+    decode_private,
 )
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
@@ -249,7 +252,7 @@ def create_app(
                 headers={"Cache-Control": "no-store"},
             )
 
-    async def lifecycle_call[RequestModel: BaseModel](
+    async def lifecycle_call[RequestModel: WireModel](
         request: Request,
         model: type[RequestModel],
         operation: str,
@@ -385,7 +388,7 @@ def _agent_state_request_has_body(request: Request) -> bool:
         return True
 
 
-async def _decode_request[RequestModel: BaseModel](
+async def _decode_request[RequestModel: WireModel](
     request: Request, model: type[RequestModel]
 ) -> RequestModel:
     content_types = request.headers.getlist("content-type")
@@ -406,7 +409,13 @@ async def _decode_request[RequestModel: BaseModel](
             raise _invalid_request()
     if not body:
         raise _invalid_request()
-    return model.model_validate_json(bytes(body))
+    # The same strict private codec as registration and heartbeat: duplicate
+    # keys (for example a second secret-bearing RuntimeSettings member), a
+    # foreign apiVersion and non-standard JSON constants are all rejected.
+    try:
+        return decode_private(model, bytes(body))
+    except PrivateProtocolDecodeError:
+        raise _invalid_request() from None
 
 
 def _invalid_request() -> AllocationError:

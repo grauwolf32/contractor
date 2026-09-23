@@ -85,7 +85,8 @@ func TestLoginBodyIsBoundedBeforePasswordVerification(t *testing.T) {
 			// syntax error. Repeated overflow must not spend failed-login attempts.
 			for attempt := range 6 {
 				response, body := postLoginHTTP(t, server, overLimit, testBrowserOrigin, chunked)
-				if response.StatusCode != http.StatusBadRequest || len(response.Cookies()) != 0 {
+				if response.StatusCode != http.StatusRequestEntityTooLarge ||
+					!bytes.Contains(body, []byte(`"request_too_large"`)) || len(response.Cookies()) != 0 {
 					t.Fatalf("oversized attempt %d = %d: %s", attempt, response.StatusCode, body)
 				}
 			}

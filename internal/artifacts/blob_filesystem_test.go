@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,5 +124,83 @@ func TestFilesystemBlobUnwritableRoot(t *testing.T) {
 	defer os.Chmod(path, 0700)
 	if _, err := OpenFilesystemBlobStore(context.Background(), path); err == nil {
 		t.Fatal("unwritable root accepted")
+	}
+}
+
+func TestFilesystemBlobFlushesBeforePublishing(t *testing.T) {
+	ctx := context.Background()
+	path := t.TempDir()
+	s, err := OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	// Drop the probe's empty shard so the next Store must create its shard.
+	shards, err := os.ReadDir(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, shard := range shards {
+		if err := os.Remove(filepath.Join(path, shard.Name())); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var flushed []string
+	s.sync = func(f *os.File) error {
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		name := filepath.Base(f.Name())
+		if info.Mode().IsRegular() {
+			published, err := filepath.Glob(filepath.Join(path, "*", strings.TrimPrefix(name, ".staging-")))
+			if err != nil || len(published) != 0 || info.Size() != int64(len("durable")) {
+				t.Errorf("file flush %s saw published=%v size=%d", name, published, info.Size())
+			}
+			name = "file"
+		}
+		flushed = append(flushed, name)
+		return f.Sync()
+	}
+	object, err := s.Store(ctx, []byte("durable"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expected := []string{".", "file", object.Key[:2]}; strings.Join(flushed, ",") != strings.Join(expected, ",") {
+		t.Fatalf("flushes = %v, want %v", flushed, expected)
+	}
+
+	for shard := range 256 {
+		if err := os.Mkdir(filepath.Join(path, fmt.Sprintf("%02x", shard)), 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+			t.Fatal(err)
+		}
+	}
+	flushed = nil
+	object, err = s.Store(ctx, []byte("durable"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expected := []string{"file", object.Key[:2]}; strings.Join(flushed, ",") != strings.Join(expected, ",") {
+		t.Fatalf("flushes into an existing shard = %v, want %v", flushed, expected)
+	}
+
+	s.sync = func(f *os.File) error {
+		if info, err := f.Stat(); err == nil && info.IsDir() {
+			return errors.New("injected directory flush failure")
+		}
+		return nil
+	}
+	if _, err := s.Store(ctx, []byte("durable")); err == nil {
+		t.Fatal("Store succeeded after a failed directory flush")
+	}
+	files := 0
+	err = filepath.WalkDir(path, func(_ string, entry os.DirEntry, err error) error {
+		if err == nil && !entry.IsDir() {
+			files++
+		}
+		return err
+	})
+	if err != nil || files != 2 {
+		t.Fatalf("files after failed flush = %d, %v; want the two published generations", files, err)
 	}
 }

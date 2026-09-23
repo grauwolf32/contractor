@@ -29,7 +29,7 @@ kind: ServerConfig
 spec:
   scheduler: {operationTimeout: 37s, finalizationTimeout: 13s, abortTimeout: 11s}
   runtimeLifecycle: {cleanupTimeout: 17s}
-  projectLifecycle: {operationTimeout: 19s, claimDuration: 71s}
+  projectLifecycle: {operationTimeout: 19s, claimDuration: 71s, purgeTimeout: 5m}
   auditController: {pollInterval: 3s, claimLease: 45s, operationTimeout: 12s, claimBatch: 9}
   database: {connectTimeout: 4s, acquireTimeout: 3s, queryTimeout: 23s, statementTimeout: 16s, lockTimeout: 4s, idleTransactionTimeout: 31s}
   llmRecovery: {requestTimeout: 75s, initialDelay: 2s, maxDelay: 40s, automaticWindow: 6m}
@@ -44,7 +44,7 @@ spec:
 		LLMRecovery:          gatewayrecovery.Policy{RequestTimeout: 75 * time.Second, InitialDelay: 2 * time.Second, MaxDelay: 40 * time.Second, AutomaticWindow: 6 * time.Minute},
 		Scheduler:            SchedulerSettings{37 * time.Second, 13 * time.Second, 11 * time.Second},
 		RuntimeLifecycle:     RuntimeLifecycleSettings{17 * time.Second},
-		ProjectLifecycle:     ProjectLifecycleSettings{19 * time.Second, 71 * time.Second},
+		ProjectLifecycle:     ProjectLifecycleSettings{19 * time.Second, 71 * time.Second, 5 * time.Minute},
 		AuditController:      AuditControllerSettings{3 * time.Second, 45 * time.Second, 12 * time.Second, 9},
 		Database:             DatabaseSettings{4 * time.Second, 3 * time.Second, 23 * time.Second, 16 * time.Second, 4 * time.Second, 31 * time.Second},
 		A2A:                  A2ASettings{250 * time.Millisecond},
@@ -103,6 +103,7 @@ spec:
 		"database: {queryTimeout: 0s}", "database: {acquireTimeout: 1ns}",
 		"projectLifecycle: {operationTimeout: 1m}",
 		"projectLifecycle: {operationTimeout: 1ns, claimDuration: 2ns}",
+		"projectLifecycle: {purgeTimeout: 0s}",
 		"credentialManagement: {connectTimeout: 61s}", "credentialManagement: {requestTimeout: 121s}",
 	} {
 		t.Run(spec, func(t *testing.T) {

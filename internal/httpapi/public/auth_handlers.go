@@ -7,11 +7,13 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auth"
+	"github.com/grauwolf32/contractor/internal/credentials"
 )
 
 // A supported 1024-byte password can expand to 6144 JSON bytes. With a
@@ -314,4 +316,17 @@ func principalUserID(ctx context.Context) string {
 		return ""
 	}
 	return principal.UserID
+}
+
+// runtimeCredentialUser describes the authenticated principal's authority to
+// reference Runtime credentials from its owner-scoped configuration.
+func runtimeCredentialUser(ctx context.Context) credentials.RuntimeCredentialUser {
+	principal, ok := auth.PrincipalFromContext(ctx)
+	if !ok {
+		return credentials.RuntimeCredentialUser{}
+	}
+	return credentials.RuntimeCredentialUser{
+		UserID:     principal.UserID,
+		Operations: slices.Contains(principal.Capabilities, auth.CapabilityOperations),
+	}
 }

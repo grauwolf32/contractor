@@ -39,8 +39,8 @@ contractor server run \
 
 There is deliberately no environment variable or command-line literal for the
 key bytes. The file must contain RFC 4648 base64 for exactly 32 bytes, with at
-most one trailing newline, and must not be a symlink or readable by group or
-world. The flag is optional while no encrypted credential rows exist; once one
+most one trailing newline, must not be a symlink or readable by group or
+world, and must be owned by the user Server runs as (or root). The flag is optional while no encrypted credential rows exist; once one
 exists, a missing file or a key whose fingerprint differs from the stored rows
 makes Server startup fail before accepting traffic.
 

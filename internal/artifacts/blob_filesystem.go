@@ -18,7 +18,11 @@ var stagingKeyPattern = regexp.MustCompile(`^\.staging-[0-9a-f]{32}$`)
 
 // FilesystemBlobStore owns a descriptor rooted at the configured directory.
 // Close is called only after all Server request/background work has drained.
-type FilesystemBlobStore struct{ root *os.Root }
+type FilesystemBlobStore struct {
+	root *os.Root
+	// sync, when set, replaces (*os.File).Sync so tests can observe flushes.
+	sync func(*os.File) error
+}
 
 func OpenFilesystemBlobStore(ctx context.Context, path string) (*FilesystemBlobStore, error) {
 	if _, err := ValidateBlobConfig(string(BlobFilesystem), path); err != nil {
@@ -72,7 +76,11 @@ func (s *FilesystemBlobStore) Store(ctx context.Context, data []byte) (result Bl
 		return result, err
 	}
 	shard := id[:2]
-	if err := s.root.Mkdir(shard, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+	if err := s.root.Mkdir(shard, 0700); err == nil {
+		if err := s.syncDirectory("."); err != nil {
+			return result, err
+		}
+	} else if !errors.Is(err, os.ErrExist) {
 		return result, blobIOError(err)
 	}
 	if err := s.checkDirectory(shard); err != nil {
@@ -100,6 +108,11 @@ func (s *FilesystemBlobStore) Store(ctx context.Context, data []byte) (result Bl
 		_, _ = hash.Write(data[offset:end])
 		offset = end
 	}
+	// Flush the bytes and the published directory entry before the caller's
+	// registry transaction can commit a reference to this key.
+	if err := s.flush(f); err != nil {
+		return result, blobIOError(err)
+	}
 	if err := f.Close(); err != nil {
 		return result, blobIOError(err)
 	}
@@ -111,25 +124,56 @@ func (s *FilesystemBlobStore) Store(ctx context.Context, data []byte) (result Bl
 	if err := s.root.Link(staging, key); err != nil {
 		return result, blobIOError(err)
 	}
+	if err := s.syncDirectory(shard); err != nil {
+		// No registry row can reference the fresh generation yet.
+		_ = s.root.Remove(key)
+		return result, err
+	}
 	return BlobObject{Backend: BlobFilesystem, Key: key, Digest: hash.Sum(nil), Size: int64(len(data))}, nil
 }
 
-func (s *FilesystemBlobStore) Read(ctx context.Context, object BlobObject) ([]byte, error) {
+func (s *FilesystemBlobStore) syncDirectory(name string) error {
+	directory, err := s.root.Open(name)
+	if err != nil {
+		return blobIOError(err)
+	}
+	defer directory.Close()
+	if err := s.flush(directory); err != nil {
+		return blobIOError(err)
+	}
+	return nil
+}
+
+func (s *FilesystemBlobStore) flush(f *os.File) error {
+	if s.sync != nil {
+		return s.sync(f)
+	}
+	return f.Sync()
+}
+
+func (s *FilesystemBlobStore) Check(ctx context.Context, object BlobObject) error {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	if object.Backend != BlobFilesystem || !blobKeyPattern.MatchString(object.Key) || object.Size < 0 || object.Size > MaxPayloadSize {
-		return nil, ErrArtifactIntegrity
+		return ErrArtifactIntegrity
 	}
 	if err := s.checkDirectory(object.Key[:2]); err != nil {
-		return nil, err
+		return err
 	}
 	info, err := s.root.Lstat(object.Key)
 	if err != nil {
-		return nil, blobIOError(err)
+		return blobIOError(err)
 	}
 	if !info.Mode().IsRegular() || info.Size() != object.Size {
-		return nil, ErrArtifactIntegrity
+		return ErrArtifactIntegrity
+	}
+	return nil
+}
+
+func (s *FilesystemBlobStore) Read(ctx context.Context, object BlobObject) ([]byte, error) {
+	if err := s.Check(ctx, object); err != nil {
+		return nil, err
 	}
 	f, err := s.root.OpenFile(object.Key, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {

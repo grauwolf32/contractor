@@ -16,6 +16,7 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
 )
 from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.taint_annotations.tools import (
     EXPORTED_TOOLS,
     MAX_SOURCE_FILE_BYTES,
@@ -390,6 +391,60 @@ def test_line_indexing_ignores_non_newline_separators(tmp_path: Path) -> None:
             "def handler(req):\n"
             "    return req\n"
         )
+
+    asyncio.run(scenario())
+
+
+def test_lone_carriage_returns_number_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        # Doubled CR before each LF: read_file numbers "\r" and "\r\n" as two
+        # breaks, while parser rows count only "\n".
+        source = "def other():\r\r\n    pass\r\r\ndef handler(req):\r\r\n    return req\r\r\n"
+        writer = MemoryWriter({"app.py": source})
+        tools, _ = await make_tools(tmp_path, writer)
+        assert split_lines(source)[4] == "def handler(req):"
+        with pytest.raises(TaintAnnotationError) as parser_row:
+            await tools["annotate_validate"]("app.py", "handler", "req", "schema", 3)
+        assert parser_row.value.code == "taint_annotation_target_not_found"
+
+        result = await tools["annotate_validate"]("app.py", "handler", "req", "schema", 5)
+        assert result["annotationLine"] == 5
+        assert result["definitionLine"] == 6
+        updated = await writer.read_text("app.py")
+        assert updated == (
+            "def other():\r\r\n"
+            "    pass\r\r\n"
+            "# @validate arg=req kind=schema\r\n"
+            "def handler(req):\r\r\n"
+            "    return req\r\r\n"
+        )
+        lines = split_lines(updated)
+        assert lines[result["annotationLine"] - 1] == "# @validate arg=req kind=schema"
+        assert lines[result["definitionLine"] - 1] == "def handler(req):"
+
+        replay = await tools["annotate_validate"]("app.py", "handler", "req", "schema", 6)
+        assert replay["changed"] is False
+        assert replay["annotationLine"] == 5
+
+    asyncio.run(scenario())
+
+
+def test_carriage_return_only_file_gets_a_line_feed_terminated_comment(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter({"app.py": "def other():\r    pass\rdef handler(req):\r    pass\r"})
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_sink"]("app.py", "handler", "sql", definition_line=3)
+        assert result["annotationLine"] == 3
+        # A lone CR ends a read_file line but not a Python line comment, which
+        # would then swallow the definition below it.
+        assert await writer.read_text("app.py") == (
+            "def other():\r    pass\r# @sink kind=sql arg=unknown\ndef handler(req):\r    pass\r"
+        )
+        again = await tools["annotate_sink"]("app.py", "handler", "sql", definition_line=4)
+        assert again["changed"] is False
+        assert again["annotationLine"] == 3
 
     asyncio.run(scenario())
 

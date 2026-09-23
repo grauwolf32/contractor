@@ -7,7 +7,60 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
+
+// A REPEATABLE READ caller whose snapshot predates a concurrent receipt for the
+// same key must fail with a retryable serialization error, never a member
+// conflict, so that its retry observes and replays that receipt.
+func TestPostgresEvalRecordReceiptRaceIsRetryable(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	scope := setupProject(t, pool, "owner", "eval")
+	e := createExperiment(t, pool, scope, "experiment", "trace-1", "external-workflow")
+	var result evaldomain.ResultInput
+	if err := json.Unmarshal(fixture(t, "result", "ResultInput").Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	result.PlanSHA256 = planDigest(t, pool, e)
+	resultDoc := freeze(t, "ResultInput", result)
+	params := func(operation string, doc evaldomain.Frozen, identity evaldomain.MutationIdentity) RecordParams {
+		return RecordParams{Scope: scope, ExperimentID: e.ID, MemberID: result.MemberID, ActorID: scope.OwnerID, Operation: operation, Mutation: identity,
+			Build: func(Experiment) (evaldomain.Frozen, error) { return doc, nil }}
+	}
+	mustTx(t, pool, func(st *Store) error {
+		_, err := st.PutRecord(ctx, params("result", resultDoc, mutation(t, "result", 0, resultDoc)))
+		return err
+	})
+	var assessment evaldomain.AssessmentInput
+	if err := json.Unmarshal(fixture(t, "human-assessment", "AssessmentInput").Bytes(), &assessment); err != nil {
+		t.Fatal(err)
+	}
+	assessment.ResultSHA256 = resultDoc.Digest()
+	winner := freeze(t, "AssessmentInput", assessment)
+	identity := mutation(t, "review", 0, winner)
+	// A native check may build a different document for the same request.
+	assessment.Checks[0].Reason = "A document built from a later observation."
+	loser := freeze(t, "AssessmentInput", assessment)
+
+	stale, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stale.Rollback(ctx)
+	if _, err = stale.Exec(ctx, `SELECT 1`); err != nil {
+		t.Fatal(err)
+	}
+	mustTx(t, pool, func(st *Store) error {
+		_, err := st.PutRecord(ctx, params("assessment", winner, identity))
+		return err
+	})
+	_, err = NewTxStore(stale).PutRecord(ctx, params("assessment", loser, identity))
+	if !pg.IsTransactionConflict(err) {
+		t.Fatalf("stale receipt race = %v, want a serialization failure", err)
+	}
+}
 
 func TestPostgresEvalRecordRevisionsSelectionCASAndRetainedReview(t *testing.T) {
 	pool := testPool(t)

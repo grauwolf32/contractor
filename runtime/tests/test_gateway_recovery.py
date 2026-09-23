@@ -155,6 +155,83 @@ def test_cancelled_probe_releases_its_grant_before_propagating():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "status,terminal",
+    [
+        (200, ("succeeded", None, 0)),
+        (503, ("failed", "gateway_unavailable", 0)),
+        (400, ("finished", None, 0)),
+    ],
+)
+def test_cancellation_while_reporting_a_granted_outcome_redelivers_it(status, terminal):
+    class BlockingOutcome(Authority):
+        def __init__(self):
+            super().__init__()
+            self.blocked = asyncio.Event()
+
+        async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
+            decision = await super().update(model, request_id, action, code, retry_after_seconds)
+            if action != "acquire" and not self.blocked.is_set():
+                self.blocked.set()
+                await asyncio.Event().wait()
+            return decision
+
+    async def scenario():
+        authority = BlockingOutcome()
+
+        async def gateway(_request):
+            body = {"ok": True} if status == 200 else {"error": "unavailable"}
+            return httpx.Response(status, json=body)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            handle = new_gateway_client(
+                base_url="https://gateway.test/v1",
+                api_key=None,
+                timeout_seconds=1,
+                http_client=http,
+                recovery=authority,
+            )
+            task = asyncio.create_task(handle.complete({"model": "worker"}))
+            await asyncio.wait_for(authority.blocked.wait(), 1)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 1)
+        request_ids = {event[1] for event in authority.events}
+        assert len(request_ids) == 1
+        assert [event[2:] for event in authority.events] == [
+            ("acquire", None, 0),
+            terminal,
+            terminal,
+        ]
+
+    asyncio.run(scenario())
+
+
+def test_cancellation_before_a_grant_sends_no_release():
+    class BlockingAcquire(Authority):
+        async def update(self, model, request_id, action, code=None, retry_after_seconds=0):
+            await super().update(model, request_id, action, code, retry_after_seconds)
+            await asyncio.Event().wait()
+
+    async def scenario():
+        authority = BlockingAcquire()
+        handle = new_gateway_client(
+            base_url="https://gateway.test/v1",
+            api_key=None,
+            timeout_seconds=1,
+            recovery=authority,
+        )
+        task = asyncio.create_task(handle.complete({"model": "worker"}))
+        await asyncio.wait_for(authority.observed.wait(), 1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 1)
+        await handle.close()
+        assert [event[2] for event in authority.events] == ["acquire"]
+
+    asyncio.run(scenario())
+
+
 def test_unexpected_probe_failure_releases_grant_and_tolerates_lost_authority(monkeypatch):
     from contractor_runtime.artifacts import ArtifactTransportError
     from contractor_runtime.llm import client as client_module
@@ -354,6 +431,33 @@ def test_authority_4xx_and_invalid_decisions_stop_without_retry():
             with pytest.raises(RecoveryStoppedError, match=match):
                 await client.update("worker", "req", "finished")
             assert transport.calls == 1 and clock.sleeps == []
+
+    asyncio.run(scenario())
+
+
+def test_complete_server_decision_shape_is_the_strict_wire_contract():
+    from contractor_runtime.llm.recovery import RecoveryStoppedError
+
+    blocked = (
+        b'{"allowed":false,"code":"model_unavailable","retryAfterSeconds":30,'
+        b'"requestTimeoutSeconds":60,"requiresRetry":true}'
+    )
+
+    async def scenario():
+        client, _ = recovery_client([blocked], FakeClock())
+        decision = await client.update("worker", "req", "acquire")
+        assert decision.allowed is False
+        assert decision.code == "model_unavailable"
+        assert decision.requires_retry is True
+        assert decision.retry_after_seconds == 30
+        for body in (
+            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":1}',
+            b'{"allowed":true,"retryAfterSeconds":0,"requestTimeoutSeconds":1,'
+            b'"requiresRetry":false,"unknown":1}',
+        ):
+            client, _ = recovery_client([body], FakeClock())
+            with pytest.raises(RecoveryStoppedError, match="invalid decision"):
+                await client.update("worker", "req", "acquire")
 
     asyncio.run(scenario())
 

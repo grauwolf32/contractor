@@ -172,6 +172,18 @@ func (s *RuntimeCredentialService) ValidateRuntimeCredential(
 	return s.repository.ValidateRuntimeCredential(ctx, credentialID, allowedKinds...)
 }
 
+// ValidateRuntimeCredentialUse validates like ValidateRuntimeCredential and
+// also requires that user may reference the credential. It has the same
+// lifecycle-fence contract.
+func (s *RuntimeCredentialService) ValidateRuntimeCredentialUse(
+	ctx context.Context, user RuntimeCredentialUser, credentialID string, allowedKinds ...string,
+) error {
+	if s == nil || s.repository == nil {
+		return errors.New("Runtime credential service is not configured")
+	}
+	return s.repository.ValidateRuntimeCredentialUse(ctx, user, credentialID, allowedKinds...)
+}
+
 // ForRuntimeTransaction supplies metadata validation only. The caller keeps
 // WithCredentialReferences held through commit; the transaction owns all SQL.
 func (s *RuntimeCredentialService) ForRuntimeTransaction(tx pgx.Tx) (runtimeconfig.RuntimeCredentialValidator, error) {

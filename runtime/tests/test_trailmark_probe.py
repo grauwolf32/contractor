@@ -11,7 +11,11 @@ import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
-from contractor_runtime.toolsets.code_analysis.languages import GRAPH_EXTENSION_LANGUAGES
+from contractor_runtime.toolsets.code_analysis.languages import (
+    GRAPH_EXCLUDED_DIRECTORIES,
+    GRAPH_EXTENSION_LANGUAGES,
+    graph_walk_excluded,
+)
 from contractor_runtime.toolsets.code_analysis.tools import (
     CODE_ANALYSIS_REF,
     GRAPH_TOOLS,
@@ -35,6 +39,19 @@ def test_reviewed_graph_language_table_matches_pinned_public_api() -> None:
     assert ".sw" in GRAPH_EXTENSION_LANGUAGES
     assert ".sway" not in GRAPH_EXTENSION_LANGUAGES
     assert ".hrl" not in GRAPH_EXTENSION_LANGUAGES
+
+
+def test_reviewed_graph_walk_exclusions_match_pinned_parser_walk() -> None:
+    # Test-only reach into the pinned engine: the Runtime keeps a reviewed copy.
+    from trailmark.parsers._common import _EXCLUDED_DIRS, should_skip_dir
+
+    assert trailmark.__version__ == "0.5.0"
+    assert GRAPH_EXCLUDED_DIRECTORIES == _EXCLUDED_DIRS
+    for name in (*sorted(_EXCLUDED_DIRS), ".cache", ".trailmark", "src", "vendors", "Build"):
+        assert graph_walk_excluded(f"{name}/module.py") is should_skip_dir(name)
+        assert graph_walk_excluded(f"pkg/{name}/deep/module.py") is should_skip_dir(name)
+    assert graph_walk_excluded(".hidden.py") is False
+    assert graph_walk_excluded("pkg/.eslintrc.js") is False
 
 
 def test_local_probe_atomically_advertises_the_complete_graph_subset(tmp_path: Path) -> None:

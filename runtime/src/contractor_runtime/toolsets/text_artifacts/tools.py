@@ -25,6 +25,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -187,7 +188,8 @@ class ReadTextArtifactTool(_BaseTextTool):
                 content = value.data.decode("utf-8", errors="strict")
             except UnicodeDecodeError as error:
                 raise ToolInputError("artifact is not valid UTF-8") from error
-            lines = content.splitlines(keepends=True)
+            # Same boundaries as read_file and grep, so line numbers agree.
+            lines = split_lines(content, keepends=True)
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
                 raise ToolInputError("start_line exceeds artifact line count")

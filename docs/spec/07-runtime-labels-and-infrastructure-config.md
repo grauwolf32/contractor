@@ -828,7 +828,15 @@ For `tool-subprocess`, the bounded launcher constructs a child-only
 after process exit and treats every proxy-auth value as secret. Private
 Contractor hosts are in the bypass set and the child receives no Runtime client
 certificate, Artifact grant or Control Plane token unless its separate selected
-tool contract explicitly requires an allocation-scoped handle.
+tool contract explicitly requires an allocation-scoped handle. The child's own
+outcome reaches the calling tool unchanged: any exit code (a validator exits 1
+for findings), a timeout or an output-limit breach is reported by that tool as
+it would be without a proxy. Only failing to prepare, launch or clean up the
+route is an adapter failure, `proxy_subprocess_failed`, and counts as a failed
+adapter operation. Each child runs in a task the launcher owns: cancelling the
+calling tool stops the child before the call ends, and closing the adapter
+stops running children and removes their CA files without cancelling the
+calling tool's own task, whose call then fails with `proxy_subprocess_failed`.
 
 The `v1alpha1` generic subprocess environment can carry unauthenticated or
 Basic-authenticated proxy URLs. It cannot faithfully encode Bearer proxy
@@ -864,6 +872,14 @@ trusts the configured sink with unredacted content. Langfuse is currently treate
 as a trusted sink: no secret-content filter is applied. Secrets included in
 messages or tool results can therefore be exported. Automatic export of client
 configuration or authentication headers is not part of content capture.
+
+Tools whose results carry command output, captured HTTP traffic or HTTP session
+material declare sensitive output (`contractor_sensitive_output`). A Worker
+that selects any such tool uses metadata-only instrumentation for the whole
+allocation even when `captureContent=true`, because later model requests,
+result finalizers and summaries can repeat that output. `exec_command`
+declares it; until their toolsets declare it per tool, Runtime's central
+registry treats every `http-tools@1` and Caido tool the same way.
 
 Captured model input includes conversation messages, system instructions and
 tool declarations; output includes the model response. Worker tool spans include
@@ -986,6 +1002,10 @@ idempotency key plus `If-Match` with the current strong revision ETag; initial
 non-default binding creation uses `If-None-Match: *`. Delete is idempotent and
 also requires the current ETag when the resource exists. The default binding
 rejects delete. Stale revisions return `412` without mutation.
+Runtime-credential delete is idempotent through the credential's durable
+tombstone: a repeat returns `204` with `Idempotency-Replayed: true`. It
+accepts an `Idempotency-Key` for uniform client headers, validates its format,
+and neither requires nor records it.
 
 Runtime-credential create is write-only: the request contains the typed secret
 body, while success contains only safe metadata. To make response-loss replay

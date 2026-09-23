@@ -5,10 +5,13 @@ package profiling
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
 	httppprof "net/http/pprof"
+	"net/netip"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 const maxSymbolRequestBytes = 64 * 1024
@@ -56,6 +59,12 @@ func NewHandler() *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// A loopback listener alone does not stop DNS rebinding: a browser page on
+	// a hostile name that resolves to 127.0.0.1 still sends that name as Host.
+	if !loopbackHost(r.Host) {
+		http.Error(w, "profiling requires a loopback Host", http.StatusForbidden)
+		return
+	}
 	switch r.URL.Path {
 	case "/debug/pprof", "/debug/pprof/":
 		h.serveIndex(w, r)
@@ -180,6 +189,21 @@ func (h *Handler) serveSymbol(w http.ResponseWriter, r *http.Request) {
 		r.Body = io.NopCloser(bytes.NewReader(body))
 	}
 	httppprof.Symbol(w, r)
+}
+
+// loopbackHost accepts only a loopback IP literal or localhost, with an
+// optional port.
+func loopbackHost(host string) bool {
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		host = name
+	} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	address, err := netip.ParseAddr(host)
+	return err == nil && address.Zone() == "" && address.IsLoopback()
 }
 
 func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {

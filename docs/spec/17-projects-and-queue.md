@@ -244,6 +244,20 @@ its exact active ID/kind under the shared credential-reference fence. Deletion
 requires first detaching it from every Project and remains blocked while a
 nonterminal Run or unreleased allocation pins it.
 
+RuntimeCredentials are global rows, so attaching one also requires that the
+requesting principal may use it: the credential's `createdBy` is that
+principal's `userId`, or the principal holds the Operations capability, which
+already administers every RuntimeCredential. A credential the principal may not
+use is reported exactly like a missing one (`404 not_found`), so its existence
+is not disclosed. Project Run creation and Audit start re-check the same rule
+for the requesting owner before pinning the target, which also covers targets
+attached before the rule existed. Managed-eval Runs and Audits have no live
+principal and accept only credentials the owner created. The first slice's
+single local principal holds the Operations capability, so it may attach any
+credential; the rule separates owners once RBAC adds principals without it.
+Execution preparation does not repeat the check: it decrypts only the reference
+the Run pinned after this authorization.
+
 At Project Run creation, Server pins the safe URL and credential reference into
 the immutable Run input/configuration provenance, exposed safely as
 `projectHttpTarget`. After placement, Control Plane decrypts it only for a
@@ -252,11 +266,17 @@ in the same Stage receive no target setting. The typed resolved value is put ins
 `AllocationSpec.runtimeSettings`. It travels over mTLS, remains
 allocation-private in Runtime memory and is erased on finalize, abort, release
 or lease loss. It is never rendered into Planner/Worker prompts, ADK State,
-events, metrics, errors or durable sessions.
+events, metrics, errors or durable sessions. HTTP finding evidence captures the
+marker `[runtime-target-credential]` in place of the injected Authorization
+value.
 
 At Runtime, configured target authorization replaces a model-supplied
 `Authorization` header only on that exact origin. It is not injected on another
 port or subdomain and is removed before following a cross-origin redirect.
+The target origin also unlocks the Runtime
+[target policy](11-http-and-caido-tools.md#target-policy) for exactly the
+addresses it resolves to at allocation start and its port, so a loopback or
+link-local application target is reachable without widening access to its host.
 Model-visible HTTP session inspection reports neither the target nor its
 credential. Allocation cleanup clears the target URL, derived Authorization
 header and source secret before slot reuse.

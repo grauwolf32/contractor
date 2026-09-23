@@ -164,9 +164,29 @@ def test_current_type_conflicts_fail_before_any_mutation(tmp_path: Path, operati
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize(
-    "bound", ["max_files", "max_file_bytes", "max_expanded_bytes", "max_managed_text_bytes"]
-)
+def test_external_oversize_file_is_an_opaque_leaf_not_a_workspace_failure(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        limits = WorkspaceLimits(
+            max_files=10, max_file_bytes=20, max_expanded_bytes=100, max_managed_text_bytes=100
+        )
+        async with workspace(tmp_path, limits=limits) as (session, root):
+            (root / "build.log").write_bytes(b"x" * 21)
+            current = await session.snapshot()
+            assert "build.log" in current.binary_paths
+            await session.write_text("new", "fits")
+            assert (root / "new").read_bytes() == b"fits"
+            with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+                await session.read_text("build.log")
+            with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+                await session.write_text("build.log", "replace")
+            assert (root / "build.log").read_bytes() == b"x" * 21
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("bound", ["max_files", "max_expanded_bytes", "max_managed_text_bytes"])
 def test_external_quota_violation_has_no_stale_snapshot_or_unrelated_read(
     tmp_path: Path, bound: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

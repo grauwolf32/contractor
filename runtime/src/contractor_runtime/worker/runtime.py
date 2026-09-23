@@ -60,7 +60,13 @@ from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
 )
+from contractor_runtime.telemetry.execution import (
+    ContentFreeInstrumentation,
+    declares_sensitive_output,
+)
+from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
 from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.completion import (
     ContinueCompletion,
@@ -98,6 +104,20 @@ MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
 MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
 SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+# Central registry of tools whose results carry captured HTTP traffic or HTTP
+# session material but whose toolsets do not yet declare
+# ``contractor_sensitive_output`` themselves. Every tool exported by
+# http-tools@1 and the Caido toolset is covered, including tools added later.
+UNDECLARED_SENSITIVE_OUTPUT_TOOLS = frozenset(HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES)
+
+
+def requires_content_free_telemetry(tools: Mapping[str, Any]) -> bool:
+    """Whether any selected tool makes the whole Worker's telemetry content-free."""
+
+    return any(
+        name in UNDECLARED_SENSITIVE_OUTPUT_TOOLS or declares_sensitive_output(tool)
+        for name, tool in tools.items()
+    )
 
 
 class AdkWorkerRuntime:
@@ -121,9 +141,7 @@ class AdkWorkerRuntime:
         self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
-        if "exec_command" in context.tools and self._instrumentation is not None:
-            from contractor_runtime.telemetry.execution import ContentFreeInstrumentation
-
+        if self._instrumentation is not None and requires_content_free_telemetry(context.tools):
             self._instrumentation = ContentFreeInstrumentation(self._instrumentation)
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
@@ -460,12 +478,16 @@ class AdkWorkerRuntime:
             raise
         except Exception as error:
             sandbox_failure = self._worker_state.execution.failure
+            gateway_error = _gateway_model_error(error)
             if (
                 sandbox_failure is None
+                and gateway_error is not None
                 and self._metrics.counters.get("llm_errors", 0) == model_errors_before
             ):
-                await self._plugin.record_unhandled_model_error(error)
-            gateway_error = _gateway_model_error(error)
+                # Only a Gateway failure that bypassed the model callbacks is a
+                # model error. Exporter, State and instrumentation defects stay
+                # worker_execution_failed without inflating modelErrors.
+                await self._plugin.record_unhandled_model_error(gateway_error)
             if sandbox_failure is not None:
                 self._accepting = False
                 outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)
@@ -535,9 +557,14 @@ class AdkWorkerRuntime:
             stateRevision=state_snapshot["stateRevision"],
         )
 
-    def cancel_active(self) -> None:
+    def cancel_active(self, owner: asyncio.Task[Any]) -> None:
         task = self._active_task
-        if task is not None and task is not asyncio.current_task() and not task.done():
+        if (
+            task is not None
+            and task is owner
+            and task is not asyncio.current_task()
+            and not task.done()
+        ):
             task.cancel()
 
     async def finalize(self, deadline: datetime) -> None:
@@ -558,11 +585,7 @@ class AdkWorkerRuntime:
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
         prompt = _task_prompt(request)
-        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
-        gateway_token = (
-            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
-        )
-        summary_secrets = _summarizer_secrets(self._context, gateway_token)
+        summary_secrets = _summarizer_secrets(self._context)
         transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         completion = self._completion
@@ -781,11 +804,7 @@ class AdkWorkerRuntime:
             return _failure(
                 "worker_result_invalid", "Worker returned an invalid terminal result", True
             ), False
-        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
-        gateway_token = (
-            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
-        )
-        if gateway_token and gateway_token in candidate:
+        if _exposes_private_value(candidate, self._context):
             return _failure(
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             ), False
@@ -970,11 +989,7 @@ class AdkWorkerRuntime:
         Both private callers validate immediately before this synchronous call;
         no model/strategy-supplied identity, observations or slots are inherited.
         """
-        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
-        gateway_token = (
-            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
-        )
-        if gateway_token and gateway_token in validated_fields.result:
+        if _exposes_private_value(validated_fields.result, self._context):
             return _failure(
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             ), False
@@ -1268,16 +1283,52 @@ def _summary_prompt_boundary(
     return min(ratio_boundary, output_safe_boundary)
 
 
-def _summarizer_secrets(context: WorkerBuildContext, gateway_token: str) -> tuple[str, ...]:
+def _gateway_token(context: WorkerBuildContext) -> str:
+    token = context.runtime_settings.llm_gateway_token
+    return token.get_secret_value() if token is not None else ""
+
+
+def _exposes_private_value(text: str, context: WorkerBuildContext) -> bool:
+    """Whether Worker-authored text contains an allocation credential.
+
+    Covers every RuntimeSettings credential (Gateway token, telemetry headers,
+    proxy, Caido and HTTP origin target credentials) under the Agent Card
+    matching policy; the LLM Gateway token additionally matches at any length.
+    Endpoints are not credentials: a result may name them, for example when a
+    same-host deployment audits a service next to its own.
+    """
+
+    # Imported here: the allocation package builds Workers, so a module-level
+    # import would be circular.
+    from contractor_runtime.allocation.redaction import (
+        _contains_private_value,
+        _runtime_secret_values,
+    )
+
+    gateway_token = _gateway_token(context)
+    if gateway_token and gateway_token in text:
+        return True
+    return _contains_private_value(text, _runtime_secret_values(context.runtime_settings))
+
+
+def _summarizer_secrets(context: WorkerBuildContext) -> tuple[str, ...]:
     """Return allocation-private values that must not enter summarizer input."""
 
+    from contractor_runtime.allocation.redaction import (
+        _runtime_setting_values,
+        _substring_values,
+    )
+
     candidates = (
-        gateway_token,
+        _gateway_token(context),
+        *_substring_values(_runtime_setting_values(context.runtime_settings)),
         str(context.workspace.path),
         str(context.workspace.root),
     )
     # Replacing '/' would destroy every path-like value rather than protect a
-    # useful host path, so only non-root concrete paths are admitted.
+    # useful host path, so only non-root concrete paths are admitted. Short
+    # settings values (for example a proxy username) are not replaced inside
+    # ordinary transcript text for the same reason.
     return tuple(dict.fromkeys(value for value in candidates if len(value) > 1))
 
 

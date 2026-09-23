@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import shutil
 import stat
 import uuid
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -28,6 +31,8 @@ from contractor_runtime.settings import (
     WorkspaceLimits,
     WorkspaceSettings,
 )
+
+logger = logging.getLogger(__name__)
 
 LOCAL_DIRECTORY_PREFIX = "workspace-"
 LOCAL_OWNER_MARKER = ".contractor-workspace-owner"
@@ -224,12 +229,23 @@ def build_workspace_provider(
 
 
 def cleanup_stale_local_workspaces(root: Path) -> None:
-    """Remove only immediate, regular, marker-owned allocation directories."""
+    """Remove only immediate, regular, marker-owned allocation directories.
+
+    One undeletable predecessor must not block every later allocation: it is
+    retained with its marker, reported, and retried on the next start.
+    """
 
     _initialize_local_root(root)
+    retained = 0
     for candidate in root.iterdir():
         if _is_owned_directory(candidate):
-            shutil.rmtree(candidate)
+            try:
+                _remove_tree(candidate)
+            except OSError as error:
+                retained += 1
+                logger.warning("stale project workspace cleanup failed (%s)", type(error).__name__)
+    if retained:
+        logger.warning("retained %d stale project workspaces for a later start", retained)
 
 
 def _initialize_and_cleanup_local_root(root: Path) -> None:
@@ -241,7 +257,77 @@ def _remove_owned_local_workspace(path: Path) -> None:
         return
     if not _is_owned_directory(path):
         raise ValueError("refusing to remove an unowned project workspace")
-    shutil.rmtree(path)
+    _remove_tree(path)
+
+
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _remove_tree(path: Path) -> None:
+    """Remove a workspace tree that its workload may have made unreadable.
+
+    Sandbox commands run with the Runtime UID and can ``chmod 000`` their own
+    directories, which defeats ``shutil.rmtree``. Owner ``rwx`` is restored on
+    each directory before it is listed. Every step is relative to a pinned
+    directory descriptor and never follows a symbolic link.
+    """
+
+    parent = os.open(path.parent, _DIRECTORY_FLAGS)
+    try:
+        if not _is_directory_entry(parent, path.name):
+            with suppress(FileNotFoundError):
+                os.unlink(path.name, dir_fd=parent)
+            return
+        # Iterative: a workload-made deep tree cannot exhaust the Python stack.
+        stack = [_open_for_removal(parent, path.name)]
+        pending = stack[0][2]
+        if LOCAL_OWNER_MARKER in pending:
+            # Popped last: a partial failure leaves a marker-owned, retryable tree.
+            pending.remove(LOCAL_OWNER_MARKER)
+            pending.insert(0, LOCAL_OWNER_MARKER)
+        try:
+            while stack:
+                directory, name, pending = stack[-1]
+                if pending:
+                    child = pending.pop()
+                    if _is_directory_entry(directory, child):
+                        stack.append(_open_for_removal(directory, child))
+                    else:
+                        with suppress(FileNotFoundError):
+                            os.unlink(child, dir_fd=directory)
+                    continue
+                stack.pop()
+                os.close(directory)
+                owner = stack[-1][0] if stack else parent
+                os.rmdir(name, dir_fd=owner)
+        finally:
+            for directory, _name, _pending in stack:
+                os.close(directory)
+    finally:
+        os.close(parent)
+
+
+def _is_directory_entry(parent: int, name: str) -> bool:
+    try:
+        return stat.S_ISDIR(os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode)
+    except FileNotFoundError:
+        return False
+
+
+def _open_for_removal(parent: int, name: str) -> tuple[int, str, list[str]]:
+    mode = stat.S_IMODE(os.stat(name, dir_fd=parent, follow_symlinks=False).st_mode)
+    if mode & stat.S_IRWXU != stat.S_IRWXU:
+        try:
+            # fchmodat(AT_SYMLINK_NOFOLLOW) refuses an entry swapped for a link.
+            os.chmod(name, mode | stat.S_IRWXU, dir_fd=parent, follow_symlinks=False)
+        except (NotImplementedError, ValueError):
+            raise PermissionError("cannot restore workspace directory access") from None
+    directory = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent)
+    try:
+        return directory, name, os.listdir(directory)
+    except BaseException:
+        os.close(directory)
+        raise
 
 
 def _remove_memory_workspace(storage: ProjectWorkspaceStorage) -> None:

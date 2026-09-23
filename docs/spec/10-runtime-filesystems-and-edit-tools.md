@@ -267,8 +267,9 @@ ZIP hydration rejects the whole allocation for:
 - duplicate normalized paths and file/directory type conflicts;
 - symlink, hard-link, device, socket, FIFO or other special entries;
 - a target escape or overlap after prefixing;
-- declared/observed size mismatch, compression bomb, file/count/depth/expanded
-  byte bound, or deadline exhaustion.
+- declared/observed size mismatch, corrupt compressed data (a non-retryable
+  `workspace_source_invalid`, whichever codec reports it), compression bomb,
+  file/count/depth/expanded byte bound, or deadline exhaustion.
 
 `maxFiles` bounds the complete normalized managed tree: regular files,
 explicit directories and directories implied by nested member names all count.
@@ -277,6 +278,11 @@ beyond the capability advertised by the Runtime.
 
 Local storage retains ordinary binary regular files. Memory storage skips
 binary files and counts their bytes toward expanded input but not managed text.
+Local extraction honours a member's Unix execute bits (for classes that can
+read the file), so `./gradlew` or `./configure` stay runnable in the sandbox;
+it never applies setuid, setgid, sticky or extra write bits from an archive.
+A local direct copy keeps the source file's permission bits without set-id or
+sticky bits.
 A managed text file is strict UTF-8 with no NUL. In overlay mode only the text
 projection participates in overlay operations, state, diff and digests;
 reading or mutating an unmanaged binary path through text tools returns
@@ -386,18 +392,31 @@ directory. Descriptor-relative access or an equivalent mechanism must prevent
 path replacement from redirecting an operation outside that root;
 `resolve`-then-open or string-prefix checks alone are insufficient.
 
-Existing symlinks and multiply linked regular files fail preflight. They are
-not followed or interpreted as another host path. FIFOs, sockets and devices
-are rejected without blocking reads. Invalid or colliding normalized on-disk
-names produce a safe error, not silent renaming or omission from a complete
-snapshot. Ordinary binary files remain on disk and are classified as binary;
-text tools retain `binary_file_unsupported` for unsupported access.
+Complete acquisition records unsupported entries as opaque leaves instead of
+failing the whole workspace: symlinks, multiply linked regular files, FIFOs,
+sockets, devices, regular files larger than `maxFileBytes`, entries the
+Runtime may not open (a workload can revoke its own permissions) and entries
+whose on-disk names are not canonical (for example NFD, control characters).
+Tools such as `python -m venv` and `npm install` create such entries. Opaque
+leaves are listed like binary files and count toward `maxFiles`; a
+non-canonical name is listed under its NFC form with invalid characters
+replaced by U+FFFD. They are never opened, read, followed or interpreted as
+another host path, so a symlinked directory's contents are not listed and
+FIFOs never block. Reads, writes, copies, moves and deletions that touch an
+opaque leaf or a path below it fail with `workspace_type_conflict`; a scoped
+read of an oversize regular file keeps failing with `workspace_limit_exceeded`.
+On-disk names that project onto one listed path, or that cannot be listed
+within the path bounds, still fail complete acquisition with
+`workspace_path_invalid`, never silent renaming. Ordinary binary files remain
+on disk and are classified as binary; text tools retain
+`binary_file_unsupported` for unsupported access.
 
 Existing workspace limits apply to current-state acquisition and mutation
 preflight, not just archive input. Complete acquisition checks entry count,
-regular-file bytes and managed-text bytes; reads stay bounded if a file grows
-during acquisition. A violation yields `workspace_limit_exceeded`, not stale
-data, hidden partial success or automatic deletion of external outputs.
+the bytes of the regular files it reads (opaque leaves are not read) and
+managed-text bytes; reads stay bounded if a file grows during acquisition.
+A violation yields `workspace_limit_exceeded`, not stale data, hidden partial
+success or automatic deletion of external outputs.
 Build/dependency files are not silently excluded from the complete workspace
 contract. Scope-limited reads can remain available within their own bounds
 without constructing a complete snapshot.
@@ -441,7 +460,9 @@ and define conflict semantics separately.
 During one A2A invocation the Worker produces effective tree `F`:
 
 - `diff` and `changed_paths` describe `B -> F`;
-- `rollback_changes` restores `B`, not original sources `S`;
+- `rollback_changes` restores `B`, not original sources `S`; restoring one
+  path also recreates its parent directories deleted since `B`, but fails with
+  `workspace_type_conflict` instead of replacing a parent that became a file;
 - exported overlay state describes cumulative `S -> F`;
 - exported human diff describes the current invocation `B -> F`;
 - after a graceful terminal invocation and successful export, `F` becomes the
@@ -482,16 +503,21 @@ needed, is a separate artifact/media type.
 `baseWorkspaceDigest` hashes the canonical managed-text projection of exact
 hydrated sources `S`; `resultWorkspaceDigest` hashes the reconstructed managed
 text projection after operations. Imported state must match the actual base
-and recompute its result digest before it is applied. State does not contain a
-previous Artifact revision: revision is an ArtifactStore concern hidden from
-the model.
+and recompute its result digest before it is applied. Each operation is
+checked structurally as it is replayed; workspace limits bind the reconstructed
+result once, not intermediate replay states. Decoding runs off the Runtime event
+loop. State does not contain a previous Artifact revision: revision is an
+ArtifactStore concern hidden from the model.
 
 One state artifact is self-contained relative to sources. Given `S` and state
 revision 8, revision 7 is unnecessary.
 
 Human diff is deterministic UTF-8 unified diff with media type `text/x-diff`,
-relative paths, LF syntax and bounded context. It is for analysis and review,
-not authoritative reconstruction.
+relative paths, LF syntax and bounded context. As in git, only LF ends a line
+(CR, the CR of CRLF and Unicode separators such as form feed or U+2028 stay
+in their line), and a side without a final newline carries
+`\ No newline at end of file`, so the text changes apply with `git apply`. It
+is for analysis and review, not authoritative reconstruction.
 
 ## Model-visible Toolsets
 
@@ -617,7 +643,13 @@ work, without reusing the slot or deleting storage under active I/O.
   it must not block Scheduler progress for other Runtime Agents;
 - startup deletes only stale directories bearing a valid Contractor ownership
   marker immediately below the exact configured `workRoot`. It never performs
-  broad or marker-free recursive cleanup.
+  broad or marker-free recursive cleanup. A stale directory that cannot be
+  removed is logged and retained, marker included, for the next start; it
+  does not block initialization or later allocations;
+- local removal (release and startup) restores owner `rwx` on directories a
+  same-UID sandbox workload made inaccessible, works relative to pinned
+  directory descriptors, never follows links and removes the ownership marker
+  last.
 
 Potentially blocking local filesystem removal never runs on the Runtime
 Agent's asyncio event-loop thread. Release owns one allocation-wide cleanup

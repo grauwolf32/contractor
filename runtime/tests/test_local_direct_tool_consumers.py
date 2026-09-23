@@ -86,6 +86,50 @@ def test_filesystem_and_edits_see_external_create_write_rename_delete(tmp_path: 
     asyncio.run(scenario())
 
 
+def test_links_and_special_files_do_not_break_tree_tools(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with local_workspace(tmp_path) as (session, root):
+            state = WorkerState()
+            tools = await create_tools(
+                FilesystemToolsetFactory(),
+                session.reader_view(),
+                state,
+                tmp_path,
+                ["ls", "glob", "grep", "read_file"],
+            )
+            edits = await edit_tools(tmp_path, session.writer_view(), state, ["edit"])
+            outside = tmp_path / "outside"
+            outside.mkdir()
+            (outside / "leak.txt").write_bytes(b"source outside\n")
+            try:
+                # `python -m venv` and `npm install` leave links like these.
+                (root / "venv/bin").mkdir(parents=True)
+                (root / "venv/bin/python").symlink_to("/usr/bin/python3")
+                (root / "venv/lib64").symlink_to(outside, target_is_directory=True)
+                (root / "node_modules/.bin").mkdir(parents=True)
+                (root / "node_modules/.bin/tool").symlink_to("../tool.js")
+                os.mkfifo(root / "pipe")
+                listing = await tools["ls"]("venv/bin")
+                assert [item["path"] for item in listing["entries"]] == ["venv/bin/python"]
+                matched = await tools["glob"]("**/*")
+                paths = {item["path"] for item in matched["matches"]}
+                assert {"venv/lib64", "node_modules/.bin/tool", "pipe", "src/a.txt"} <= paths
+                assert not any(path.startswith("venv/lib64/") for path in paths)
+                found = await tools["grep"]("source")
+                assert {item["path"] for item in found["matches"]} == {"src/a.txt"}
+                await edits["edit"]("src/a.txt", "source", "edited")
+                assert (root / "src/a.txt").read_bytes() == b"edited\r\n"
+                with pytest.raises(FilesystemToolError, match="workspace_type_conflict"):
+                    await tools["read_file"]("venv/bin/python")
+                with pytest.raises(FilesystemToolError, match="workspace_type_conflict"):
+                    await tools["read_file"]("venv/lib64/leak.txt")
+            finally:
+                for tool in (*tools.values(), *edits.values()):
+                    await tool.close()
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("tool_name", ["ls", "glob", "grep"])
 def test_external_same_size_restored_mtime_invalidates_filesystem_cursor(
     tmp_path: Path, tool_name: str
@@ -136,6 +180,10 @@ def test_read_file_stays_scoped_when_an_external_file_exceeds_workspace_limits(
             )
             try:
                 (root / "oversized").write_bytes(b"x" * 65)
+                listed = await tools["ls"]()
+                assert "oversized" in {item["path"] for item in listed["entries"]}
+                (root / "bulk1").write_bytes(b"x" * 60)
+                (root / "bulk2").write_bytes(b"x" * 60)
                 with pytest.raises(FilesystemToolError, match="workspace_limit_exceeded"):
                     await tools["ls"]()
 

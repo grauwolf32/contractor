@@ -13,6 +13,7 @@ from contractor_runtime.sandbox.contracts import (
     SandboxContractError,
     SandboxErrorCode,
 )
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 from contractor_runtime.telemetry.execution import ContentFreeInstrumentation
 from contractor_runtime.toolsets.code_execution.tools import (
     CodeExecutionToolsetFactory,
@@ -86,6 +87,39 @@ def test_invalid_arguments_launch_nothing(args):
         result = await tool(**args)
         assert result["status"] == "failed" and result["exitCode"] is None
         assert executor.calls == [] and state.execution.failure is None
+
+    asyncio.run(scenario())
+
+
+def test_operator_maximum_is_advertised_and_larger_timeouts_are_rejected():
+    async def scenario():
+        policy = PodmanSettings(command_max_seconds=300, stop_grace_seconds=5)
+        factory = CodeExecutionToolsetFactory(settings=lambda: policy)
+        executor = Executor()
+        state = WorkerStateStore()
+        tools = await factory.create_selected(
+            selected=["exec_command"],
+            sandbox_executor=executor,
+            allocation_id="a",
+            run_id="r",
+            namespace="n",
+            runtime_settings=None,
+            workspace=None,
+            state=state,
+        )
+        tool = tools["exec_command"]
+        declaration = FunctionTool(tool)._get_declaration()
+        assert "from 1 to 300 seconds" in declaration.description
+        assert "up to 6 seconds kept for cleanup" in declaration.description
+        too_long = {"command": "make", "timeout_seconds": 301}
+        assert isinstance(tool.contractor_raw_argument_error(too_long), SandboxContractError)
+        result = await tool(**too_long)
+        assert result["errorCode"] == SandboxErrorCode.INVALID_COMMAND.value
+        assert executor.calls == [] and state.execution.failure is None
+        longest = {"command": "make", "timeout_seconds": 300}
+        assert tool.contractor_raw_argument_error(longest) is None
+        assert (await tool("make", timeout_seconds=300))["status"] == "completed"
+        assert executor.calls[0][0].timeout_seconds == 300
 
     asyncio.run(scenario())
 

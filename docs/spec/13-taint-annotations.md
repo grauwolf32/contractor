@@ -172,8 +172,17 @@ all exact structural matches, folds parser wrapper nodes belonging to one real
 declaration, and applies `definition_line` only after that deduplication. It
 never selects the first ambiguous result.
 
+Line numbers, both the `definition_line` selector and the returned
+`annotationLine`/`definitionLine`, use `filesystem@1/read_file` boundaries:
+CRLF, a lone CR and LF each end exactly one line, and other Unicode separators
+do not. They are derived from byte offsets rather than parser rows, which
+advance only at LF.
+
 The inserted comment uses the target declaration's indentation and existing
-file newline style. Marker selection is fixed:
+file newline style: the file's first LF-based break (`\r\n` or `\n`, with
+`\n` for a file without one). A lone CR is never used because several
+parser grammars, such as Python and Go, continue a line comment past it, so the
+comment would swallow the declaration. Marker selection is fixed:
 
 | Languages | Marker |
 |---|---|

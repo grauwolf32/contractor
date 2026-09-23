@@ -26,7 +26,11 @@ const (
 	APIVersion        = "contractor.public.v1"
 	APIVersionHeader  = "X-Contractor-API-Version"
 	maximumErrorBytes = 64 * 1024
-	maximumTokenBytes = 8 * 1024
+	// maximumTokenBytes matches the Server's bearer-token bound, so a token
+	// the Server would always reject is refused before any request.
+	maximumTokenBytes = 4096
+	// maximumTokenFileBytes admits one trailing CRLF after the longest token.
+	maximumTokenFileBytes = maximumTokenBytes + 2
 )
 
 type Options struct {
@@ -35,6 +39,10 @@ type Options struct {
 	CAFile    string
 	AllowHTTP bool
 	Timeout   time.Duration
+	// Transfer applies Timeout to every period without progress (connection,
+	// request body, response headers and response body) instead of to the
+	// whole exchange, so a large Artifact is not cut off on a slow link.
+	Transfer  bool
 	UserAgent string
 }
 
@@ -58,15 +66,20 @@ func New(options Options) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	var base http.RoundTripper = transport
+	timeout := options.Timeout
+	if options.Transfer {
+		base, timeout = &progressTransport{base: transport, timeout: options.Timeout}, 0
+	}
 	roundTripper := &checkedTransport{
-		base:      transport,
+		base:      base,
 		origin:    origin,
 		token:     options.Token,
 		userAgent: options.UserAgent,
 	}
 	httpClient := &http.Client{
 		Transport: roundTripper,
-		Timeout:   options.Timeout,
+		Timeout:   timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return errors.New("Contractor public API redirects are not allowed")
 		},
@@ -136,6 +149,9 @@ func (t *checkedTransport) RoundTrip(request *http.Request) (*http.Response, err
 		!strings.HasPrefix(request.URL.EscapedPath(), "/v1/") {
 		return nil, errors.New("public API request escaped the configured Server boundary")
 	}
+	// A RoundTripper must not modify the caller's request; add the
+	// credentials and fixed headers to a clone instead.
+	request = request.Clone(request.Context())
 	request.Header.Set("Authorization", "Bearer "+t.token)
 	request.Header.Set("Accept", "application/json")
 	if t.userAgent != "" {
@@ -261,12 +277,12 @@ func ReadTokenFile(path string) (string, error) {
 		return "", fmt.Errorf("open API token file: %w", err)
 	}
 	defer file.Close()
-	value, err := io.ReadAll(io.LimitReader(file, maximumTokenBytes+1))
+	value, err := io.ReadAll(io.LimitReader(file, maximumTokenFileBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("read API token file: %w", err)
 	}
-	if len(value) > maximumTokenBytes {
-		return "", errors.New("API token file exceeds 8 KiB")
+	if len(value) > maximumTokenFileBytes {
+		return "", errors.New("API token file exceeds 4096 bytes and a line ending")
 	}
 	value = bytes.TrimSuffix(value, []byte("\n"))
 	value = bytes.TrimSuffix(value, []byte("\r"))
@@ -279,7 +295,7 @@ func ReadTokenFile(path string) (string, error) {
 
 func validateToken(token string) error {
 	if token == "" || len(token) > maximumTokenBytes || strings.ContainsAny(token, "\x00\r\n") {
-		return errors.New("API token must contain 1 through 8192 bytes without NUL or newlines")
+		return errors.New("API token must contain 1 through 4096 bytes without NUL or newlines")
 	}
 	return nil
 }

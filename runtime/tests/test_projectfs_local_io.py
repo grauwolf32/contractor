@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import time
 import unicodedata
 from pathlib import Path
@@ -47,6 +48,30 @@ def test_read_write_copy_move_remove_use_actual_disk(tmp_path: Path) -> None:
     assert path.read_bytes() == b"edited\r\n"
 
 
+def test_copy_preserves_permission_bits_without_setid(tmp_path: Path) -> None:
+    root = tmp_path / "work"
+    fs = disk(root)
+    (root / "tools").mkdir()
+    (root / "tools/gradlew").write_bytes(b"#!/bin/sh\n")
+    (root / "tools/gradlew").chmod(0o755)
+    (root / "tools/setuid").write_bytes(b"#!/bin/sh\n")
+    (root / "tools/setuid").chmod(0o4750)
+    (root / "tools/notes").write_bytes(b"notes\n")
+    (root / "tools/notes").chmod(0o640)
+    fs.copy("tools", "copied", recursive=True, deadline=deadline())
+    fs.copy("tools/gradlew", "gradlew", deadline=deadline())
+    modes = {
+        path: stat.S_IMODE((root / path).stat().st_mode)
+        for path in ("copied/gradlew", "copied/setuid", "copied/notes", "gradlew")
+    }
+    assert modes == {
+        "copied/gradlew": 0o755,
+        "copied/setuid": 0o750,
+        "copied/notes": 0o640,
+        "gradlew": 0o755,
+    }
+
+
 @pytest.mark.parametrize("kind", ["symlink", "hardlink", "fifo"])
 def test_unsupported_leaf_preflight_never_reads_or_mutates_outside(
     tmp_path: Path,
@@ -67,14 +92,17 @@ def test_unsupported_leaf_preflight_never_reads_or_mutates_outside(
         lambda: fs.stat("bad", deadline=deadline()),
         lambda: fs.read("bad", deadline=deadline()),
         lambda: fs.write("bad", b"new", deadline=deadline()),
-        lambda: fs.scan(deadline=deadline()),
         lambda: fs.copy("bad", "copied", deadline=deadline()),
         lambda: fs.move("bad", "moved", deadline=deadline()),
         lambda: fs.remove("bad", deadline=deadline()),
     ]
     for operation in operations:
-        with pytest.raises(WorkspaceStorageError):
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
             operation()
+    # A complete scan lists it as an opaque leaf instead of failing.
+    tree = fs.scan(deadline=deadline())
+    assert tree.opaque_paths == {"bad"} and tree.entries["bad"].opaque
+    assert tree.texts == {} and tree.binary_paths == set()
     assert outside.read_bytes() == b"outside sentinel"
     assert leaf.lstat()
     assert not (root / "copied").exists()
@@ -149,8 +177,83 @@ def test_limits_deadline_names_and_binary_classification(tmp_path: Path) -> None
     (root / "a").unlink()
     (root / "b").unlink()
     (root / unicodedata.normalize("NFD", "café")).write_bytes(b"x")
+    tree = fs.scan(deadline=deadline())
+    # Listed under its NFC form, never addressed through it.
+    assert tree.opaque_paths == {"café"} and tree.texts == {}
+    with pytest.raises(WorkspaceStorageError, match="workspace_not_found"):
+        fs.read("café", deadline=deadline())
+    # Two on-disk names projecting onto one listed path remain ambiguous.
+    (root / "café").write_bytes(b"x")
     with pytest.raises(WorkspaceStorageError, match="workspace_path_invalid"):
         fs.scan(deadline=deadline())
+
+
+def test_scan_lists_unsupported_entries_as_opaque_leaves_without_following(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "work"
+    fs = disk(root, max_file_bytes=8)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret").write_bytes(b"sentinel")
+    # What `python -m venv` and `npm install` leave behind, plus odd entries.
+    (root / "venv/bin").mkdir(parents=True)
+    (root / "venv/bin/python").symlink_to("/usr/bin/python3")
+    (root / "venv/lib64").symlink_to(outside, target_is_directory=True)
+    (root / "node_modules/.bin").mkdir(parents=True)
+    (root / "node_modules/.bin/tool").symlink_to("../tool/cli.js")
+    (root / "node_modules/tool").mkdir()
+    (root / "node_modules/tool/cli.js").write_bytes(b"run()\n")
+    os.link(root / "node_modules/tool/cli.js", root / "node_modules/tool/linked.js")
+    os.mkfifo(root / "pipe")
+    (root / "big.log").write_bytes(b"x" * 9)
+    (root / "tab\tname").write_bytes(b"x")
+    (root / "c:drive").write_bytes(b"x")
+    (root / "src").mkdir()
+    (root / "src/main.py").write_bytes(b"print()\n")
+
+    tree = fs.scan(deadline=deadline())
+
+    assert tree.texts == {"src/main.py": "print()\n"}
+    assert tree.opaque_paths == {
+        "venv/bin/python",
+        "venv/lib64",
+        "node_modules/.bin/tool",
+        "node_modules/tool/cli.js",
+        "node_modules/tool/linked.js",
+        "pipe",
+        "big.log",
+        "tab\ufffdname",
+        "c\ufffddrive",
+    }
+    assert not any(path.startswith("venv/lib64/") for path in tree.entries)
+    assert tree.expanded_bytes == len(b"print()\n")
+    with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+        fs.remove("node_modules", recursive=True, deadline=deadline())
+    assert (root / "node_modules/.bin/tool").is_symlink()
+    assert (outside / "secret").read_bytes() == b"sentinel"
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses permission bits")
+def test_scan_lists_entries_a_workload_made_unreadable_as_opaque(tmp_path: Path) -> None:
+    root = tmp_path / "work"
+    fs = disk(root)
+    (root / "locked").mkdir()
+    (root / "locked/inner").write_bytes(b"x")
+    (root / "listable").mkdir()
+    (root / "listable/inner").write_bytes(b"x")
+    (root / "secret").write_bytes(b"x")
+    (root / "ok").write_bytes(b"ok")
+    (root / "locked").chmod(0o000)
+    (root / "listable").chmod(0o600)
+    (root / "secret").chmod(0o000)
+    try:
+        tree = fs.scan(deadline=deadline())
+        assert tree.opaque_paths == {"locked", "listable", "secret"}
+        assert tree.texts == {"ok": "ok"}
+    finally:
+        (root / "locked").chmod(0o700)
+        (root / "listable").chmod(0o700)
 
 
 def test_growing_or_replaced_file_fails_without_stale_fallback(

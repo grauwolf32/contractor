@@ -119,6 +119,14 @@ uv run contractor-runtime \
   --work-root ../.local/runtime/work
 ```
 
+HTTP and scanner tools refuse loopback and link-local targets by default;
+private-network and public targets are allowed. A Project HTTP target on this
+host is allowed for Runs of that Project. To reach other targets on this
+machine, directly or through a local Caido forward proxy, add
+`--allowed-target-network 127.0.0.0/8`; the Server, Runtime and proxy endpoints
+stay refused. See the
+[target policy](../spec/11-http-and-caido-tools.md#target-policy).
+
 The Server advertises the agreed heartbeat interval of 10 seconds and confirmed
 lease of 60 seconds. A new Runtime becomes placement-eligible after it echoes
 the first heartbeat acknowledgement, so allow roughly one heartbeat interval

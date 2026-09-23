@@ -282,6 +282,29 @@ func TestSnapshotContentAndDeterminism(t *testing.T) {
 	}
 }
 
+func TestSnapshotNamesUnsupportedEntries(t *testing.T) {
+	for _, tc := range []struct {
+		mode, name, kind string
+		data             []byte
+	}{
+		{"120000", "docs-link", "symbolic link", []byte("target")},
+		{"160000", "vendor-module", "submodule", nil},
+		{"100644", "model.bin", "Git LFS pointer", []byte("version https://git-lfs.github.com/spec/v1\noid sha256:x\n")},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
+			_, _, err := archiveSnapshot(context.Background(), objects, commit)
+			var unsupported *UnsupportedEntryError
+			if !errors.As(err, &unsupported) || !errors.Is(err, ErrContent) {
+				t.Fatalf("error = %v, want an UnsupportedEntryError matching ErrContent", err)
+			}
+			if unsupported.Kind != tc.kind || unsupported.Path != tc.name || !strings.Contains(err.Error(), `"`+tc.name+`"`) {
+				t.Fatalf("error = %+v (%v), want %s at %s", unsupported, err, tc.kind, tc.name)
+			}
+		})
+	}
+}
+
 func TestSnapshotEntryAndExpandedLimits(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

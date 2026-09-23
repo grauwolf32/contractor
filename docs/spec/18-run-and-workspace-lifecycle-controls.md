@@ -68,6 +68,11 @@ Pausing has drain semantics:
 - A semantic Stage already admitted before the pause linearization point may
   finish normally, including finalization and release.
 - Scheduler must not admit the owner's next normal Stage after pause commits.
+- A pending Run's not-yet-admitted Stage, such as a manual continuation or a
+  capacity-deferred attempt created before the pause, reserves no Runtime slot
+  while paused: Scheduler reads the gate before placement, like lack of
+  capacity, and admission still rechecks it atomically. Only a placement that
+  became durable before a concurrent pause commit stays reserved until resume.
 - Cancellation, abort, recovery of an already admitted Stage and allocation
   release continue while paused. Result acceptance and output publication also
   continue when they do not admit another Stage. A Project deletion request can
@@ -168,7 +173,11 @@ restart-safe controller repeatedly performs these phases:
 5. remove Project create-idempotency data and the Project row.
 
 The operation is monotonic, idempotent and retryable after a crash at every
-phase. Queue pause never blocks its cancellation, drain, release or cleanup
+phase. Claim bookkeeping and the cancellation/drain phases use the controller
+operation budget; each Run purge and the final ProjectScope purge use a
+separate, longer purge budget, and a purge claim's lease grows by the same
+amount. A failed attempt defers or releases its claim with a fresh bounded
+budget. Queue pause never blocks its cancellation, drain, release or cleanup
 work. UserScope artifacts, global Skills and referenced RuntimeCredential
 records are outside Project ownership and are retained; deleting the Project
 only removes their Project/Run references. No response claims completion while

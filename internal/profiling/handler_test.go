@@ -53,6 +53,33 @@ func TestHandlerExposesOnlyTheExplicitProfileAllowlist(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsNonLoopbackHost(t *testing.T) {
+	handler := NewHandler()
+	for _, host := range []string{
+		"127.0.0.1:6060", "127.0.0.1", "127.1.2.3:6060", "[::1]:6060", "[::1]", "localhost:6060", "LocalHost",
+	} {
+		probe := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+		probe.Host = host
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, probe)
+		if response.Code != http.StatusOK {
+			t.Fatalf("Host %q status = %d, want 200", host, response.Code)
+		}
+	}
+	for _, host := range []string{
+		"", "example.com", "rebind.example:6060", "localhost.example:6060", "10.0.0.1:6060",
+		"0.0.0.0:6060", "[fe80::1%25lo]:6060", "127.0.0.1.nip.io:6060",
+	} {
+		probe := httptest.NewRequest(http.MethodGet, "/debug/pprof/heap", nil)
+		probe.Host = host
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, probe)
+		if response.Code != http.StatusForbidden || strings.Contains(response.Body.String(), "heap profile") {
+			t.Fatalf("Host %q status = %d, want 403", host, response.Code)
+		}
+	}
+}
+
 func TestHandlerValidatesEveryDurationAndSnapshotQuery(t *testing.T) {
 	handler := NewHandler()
 	for _, target := range []string{
@@ -105,7 +132,7 @@ func TestTimedAndSnapshotCapacityDoesNotQueue(t *testing.T) {
 	profileContext, cancelProfile := context.WithCancel(context.Background())
 	profileDone := make(chan int, 1)
 	go func() {
-		request := httptest.NewRequest(http.MethodGet, "/debug/pprof/profile?seconds=60", nil).WithContext(profileContext)
+		request := loopbackRequest(http.MethodGet, "/debug/pprof/profile?seconds=60", nil).WithContext(profileContext)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		profileDone <- response.Code
@@ -124,7 +151,7 @@ func TestTimedAndSnapshotCapacityDoesNotQueue(t *testing.T) {
 	deltaContext, cancelDelta := context.WithCancel(context.Background())
 	deltaDone := make(chan int, 1)
 	go func() {
-		request := httptest.NewRequest(http.MethodGet, "/debug/pprof/heap?seconds=60", nil).WithContext(deltaContext)
+		request := loopbackRequest(http.MethodGet, "/debug/pprof/heap?seconds=60", nil).WithContext(deltaContext)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		deltaDone <- response.Code
@@ -172,10 +199,16 @@ func TestCPUAndTraceOutputIsReadableByGoTools(t *testing.T) {
 }
 
 func request(handler http.Handler, method string, target string, body io.Reader) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(method, target, body)
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
+	handler.ServeHTTP(response, loopbackRequest(method, target, body))
 	return response
+}
+
+// loopbackRequest replaces httptest's default example.com Host.
+func loopbackRequest(method string, target string, body io.Reader) *http.Request {
+	request := httptest.NewRequest(method, target, body)
+	request.Host = "127.0.0.1:6060"
+	return request
 }
 
 func waitForSlot(t *testing.T, slot requestSlot) {

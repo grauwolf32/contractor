@@ -613,6 +613,75 @@ describe("Run routes", () => {
     expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
   });
 
+  it("drops the completed page cursor when the tab link clears the filters", async () => {
+    const requests: URL[] = [];
+    const completedRun = (runId: string) => ({
+      runId,
+      workflow: "openapi-from-workspace@5",
+      state: "failed",
+      labels: {},
+      createdAt: "2026-08-31T12:00:00Z",
+      updatedAt: "2026-08-31T12:01:00Z",
+      finishedAt: "2026-08-31T12:01:00Z",
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/runs") {
+          requests.push(url);
+          if (url.searchParams.get("cursor") === "failed-2") {
+            return apiResponse({
+              items: [completedRun("run-failed-2")],
+              page: { hasMore: false },
+            });
+          }
+          if (url.searchParams.get("state") === "failed") {
+            return apiResponse({
+              items: [completedRun("run-failed-1")],
+              page: { hasMore: true, nextCursor: "failed-2" },
+            });
+          }
+          return apiResponse({
+            items: [{ ...completedRun("run-any"), state: "succeeded" }],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    const { router } = renderRunApplication(
+      api,
+      "/runs?view=completed&state=failed",
+    );
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("link", { name: "run-failed-1" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByRole("link", { name: "run-failed-2" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.search).toBe(
+      "?view=completed&state=failed&cursor=failed-2",
+    );
+    expect(document.title).toBe("Completed · Runs · Contractor");
+
+    const views = screen.getByRole("navigation", { name: "Run views" });
+    await user.click(within(views).getByRole("link", { name: "Completed" }));
+    expect(
+      await screen.findByRole("link", { name: "run-any" }),
+    ).toBeInTheDocument();
+    expect(requests.at(-1)?.searchParams.has("state")).toBe(false);
+    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(screen.queryByRole("navigation", { name: "Run pages" })).toBeNull();
+  });
+
   it("honors a deep-linked Run state filter", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(
@@ -893,6 +962,159 @@ describe("Run routes", () => {
     expect(
       view.container.querySelector(".run-triage .state-succeeded"),
     ).toBeNull();
+  });
+
+  it("follows a new attempt's first Planner fact without a projection resync", async () => {
+    let detailReads = 0;
+    let releaseRefetch!: () => void;
+    const refetchReleased = new Promise<void>((resolve) => {
+      releaseRefetch = resolve;
+    });
+    const retry = {
+      ...runFixture().attempts[0]!,
+      stageExecutionId: "stage-router-2",
+      objective: "Retry the architecture review.",
+      attempt: 2,
+      createdAt: "2026-08-31T12:02:00Z",
+      updatedAt: "2026-08-31T12:02:00Z",
+      plannerStartedAt: "2026-08-31T12:02:00Z",
+    };
+    delete retry.plan;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) {
+          return shared;
+        }
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/runs/run-router") {
+          detailReads += 1;
+          if (detailReads === 1) {
+            return apiResponse(runFixture());
+          }
+          await refetchReleased;
+          return apiResponse(
+            runFixture({
+              attempts: [
+                { ...runFixture().attempts[0]!, state: "failed" },
+                retry,
+              ],
+              activeStageExecutionId: "stage-router-2",
+              eventCursor: { generation: "run-generation-1", sequence: "12" },
+            }),
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderRunApplication(api, "/runs/run-router");
+    await waitFor(() => expect(RouteWebSocket.instances).toHaveLength(1));
+    const socket = RouteWebSocket.instances[0]!;
+    act(() => socket.open());
+    const subscription = JSON.parse(socket.sent[0] ?? "{}");
+    const frame = (sequence: string) => ({
+      version: "contractor.events.v1",
+      type: "event",
+      subscriptionId: subscription.subscriptionId,
+      stream: { kind: "run", id: "run-router" },
+      cursor: { generation: "run-generation-1", sequence },
+      occurredAt: "2026-08-31T12:02:00Z",
+    });
+    act(() => {
+      socket.message({
+        version: "contractor.events.v1",
+        type: "subscribed",
+        subscriptionId: subscription.subscriptionId,
+        stream: { kind: "run", id: "run-router" },
+        cursor: subscription.after,
+      });
+      // The Stage start commits its lifecycle hint and planner.started
+      // together; the Planner fact arrives before the Run refetch returns.
+      socket.message({
+        ...frame("11"),
+        kind: "lifecycle.changed",
+        data: {
+          runId: "run-router",
+          resource: "stageExecution",
+          stageExecutionId: "stage-router-2",
+          state: "running",
+        },
+      });
+      socket.message({
+        ...frame("12"),
+        kind: "planner.event",
+        data: {
+          stageExecutionId: "stage-router-2",
+          sessionId: "session-router-2",
+          invocationId: "invocation-router-2",
+          eventKind: "planner.started",
+        },
+      });
+    });
+    await waitFor(() => expect(detailReads).toBe(2));
+    expect(socket.readyState).toBe(1);
+    expect(screen.queryByText(/REST resync after/)).toBeNull();
+
+    await act(async () => {
+      releaseRefetch();
+      await refetchReleased;
+    });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Retry the architecture review.",
+      }),
+    ).toBeInTheDocument();
+    expect(detailReads).toBe(2);
+    expect(RouteWebSocket.instances).toHaveLength(1);
+  });
+
+  it("titles the Run detail, Run Artifact and Runs pages", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) {
+          return shared;
+        }
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/runs/run-router") {
+          return apiResponse(runFixture({ eventCursor: undefined }));
+        }
+        if (url.pathname === "/v1/runs/run-router/artifacts/inputs/source") {
+          return apiResponse({
+            artifact: {
+              namespace: "inputs",
+              name: "source",
+              revision: "input-r1",
+            },
+            mediaType: "application/zip",
+            sizeBytes: 3,
+            digest,
+            createdAt: "2026-08-31T12:00:00Z",
+          });
+        }
+        return apiResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    const { router } = renderRunApplication(api, "/runs/run-router");
+    await waitFor(() =>
+      expect(document.title).toBe("router-analysis@1 · Run · Contractor"),
+    );
+    await act(async () => {
+      await router.navigate("/runs/run-router/artifacts/inputs/source");
+    });
+    await waitFor(() =>
+      expect(document.title).toBe("inputs/source · Run · Contractor"),
+    );
+    await act(async () => {
+      await router.navigate("/runs");
+    });
+    await waitFor(() =>
+      expect(document.title).toBe("Queue · Runs · Contractor"),
+    );
   });
 
   it("reconciles a cancellation race without an optimistic terminal state", async () => {

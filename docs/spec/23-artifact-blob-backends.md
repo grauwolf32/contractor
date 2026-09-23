@@ -118,8 +118,9 @@ the [Kubernetes volume contract](https://kubernetes.io/docs/concepts/storage/vol
 
 1. Validate authority, request bounds and preconditions as early as possible.
 2. Write complete bytes under a unique staging name inside the blob root while
-   computing size/digest. Close and atomically publish a complete immutable
-   object in the same filesystem. Never expose a staging file to readers.
+   computing size/digest. Flush and close it, atomically publish a complete
+   immutable object in the same filesystem, and flush the directory entries
+   that publication created. Never expose a staging file to readers.
 3. In the authoritative short PostgreSQL transaction, recheck CAS and write
    fences, attach the exact object to the blob/version, and publish bindings.
    No transaction or pool connection is held during bulk file transfer.
@@ -137,12 +138,14 @@ writers attach only a complete verified winning object; losing files are
 best-effort removed. Scope forks continue to reuse the existing immutable blob.
 Use rooted filesystem operations and reject symlink/special-file escapes.
 
-Before deduplication, verify the candidate and any existing filesystem object,
-including size and digest. The publication statement may reuse only the exact
-physical key that was verified. If content is missing, or a concurrent writer
-has installed a different unverified key, atomically attach the complete upload
-candidate instead. Existing revisions referencing the same SHA then read the
-replacement bytes without changing logical revisions or content identity.
+Before deduplication, verify any existing filesystem object, including size
+and digest. The candidate's size and digest are computed from the bytes the
+Server wrote, so publication rechecks only that its file is still present with
+that size and never reads it back. The publication statement may reuse only the
+exact physical key that was verified. If content is missing, or a concurrent
+writer has installed a different unverified key, atomically attach the complete
+upload candidate instead. Existing revisions referencing the same SHA then read
+the replacement bytes without changing logical revisions or content identity.
 Corruption, permission/I/O errors and cancellation are not treated as absence.
 This applies to ordinary writes and Controller-generated Audit artifacts and
 preserves caller-owned transaction/rollback boundaries. Verification reads are
@@ -150,9 +153,12 @@ payload- and transfer-capacity-bounded; payload staging still precedes publicati
 Do not eagerly unlink a displaced generation: an in-flight reader may have
 already resolved that key. Such unreferenced files remain for offline cleanup.
 
-A process/pod/storage failure can leave an orphan or lose bytes. No distributed
-transaction, durable upload-intent queue, automatic reconstruction, background
-reconciliation service or power-loss durability guarantee is required here.
+A process/pod/storage failure can leave an orphan or lose bytes. The flushes in
+step 2 keep an operating-system crash on a durable volume from leaving a
+committed reference to an empty or unpublished object; they do not make an
+ephemeral volume durable. No distributed transaction, durable upload-intent
+queue, automatic reconstruction, background reconciliation service or
+power-loss durability guarantee is required here.
 Atomic visibility during normal operation is still required. Missing or corrupt
 referenced content produces an explicit non-success Artifact error, never an
 empty successful response, silent revision replacement or automatic Git refetch.

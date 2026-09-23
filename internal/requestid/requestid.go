@@ -26,15 +26,20 @@ var (
 type contextKey struct{}
 
 type Options struct {
-	Generator     func() (string, error)
-	Logger        *slog.Logger
-	Boundary      string
-	TrustIncoming bool
+	Generator func() (string, error)
+	Logger    *slog.Logger
+	Boundary  string
+	// TrustIncoming reports whether this request comes from an authenticated
+	// peer whose own X-Request-ID may be honored, for example one presenting a
+	// verified mTLS client certificate. Nil never trusts an incoming value, so
+	// an unauthenticated caller cannot choose the ID logged for its request.
+	TrustIncoming func(*http.Request) bool
 }
 
 // Middleware assigns one safe correlation ID before authentication, exposes it
 // in the response, and records it for server-side 5xx diagnostics. An incoming
-// value is honored only on explicitly trusted private boundaries.
+// value is honored only on explicitly trusted private boundaries, and only for
+// requests TrustIncoming accepts.
 func Middleware(next http.Handler, options Options) http.Handler {
 	if options.Generator == nil {
 		options.Generator = New
@@ -47,7 +52,7 @@ func Middleware(next http.Handler, options Options) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		identifier := ""
-		if options.TrustIncoming {
+		if options.TrustIncoming != nil && options.TrustIncoming(r) {
 			values := r.Header.Values(Header)
 			if len(values) == 1 && Valid(values[0]) {
 				identifier = values[0]

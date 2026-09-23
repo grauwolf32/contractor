@@ -1,6 +1,7 @@
 import { Link, Navigate, useLocation, useSearchParams } from "react-router";
 
 import { TERMINAL_RUN_STATES } from "../../api/runs";
+import { useDocumentTitle } from "../../app/document-title";
 import { legacyRunConfigurationDestination } from "../../app/navigation";
 import { QueuePanel } from "../queue";
 import { CompletedRunsPanel } from "./list";
@@ -15,6 +16,7 @@ export function RunsRoute() {
   const completed =
     requestedView === "completed" ||
     (requestedView === null && terminalStateDeepLink);
+  useDocumentTitle(completed ? "Completed · Runs" : "Queue · Runs");
 
   return (
     <section className="route-page runs-page">

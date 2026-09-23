@@ -88,11 +88,19 @@ class PodmanCommand:
         self.executable = executable
 
     async def run(
-        self, identity: SandboxIdentity, command: str, cwd: str, *, deadline: float
+        self,
+        identity: SandboxIdentity,
+        command: str,
+        cwd: str,
+        *,
+        deadline: float,
+        revoked: asyncio.Event | None = None,
     ) -> CommandCapture:
+        """``revoked`` (lost lease, reject, Runtime EOF) aborts before ``deadline``."""
         remaining(deadline)
         capture = _Capture(self.settings)
         transport = None
+        revocation = None
         try:
             transport, _ = await asyncio.get_running_loop().subprocess_exec(
                 lambda: capture,
@@ -121,16 +129,29 @@ class PodmanCommand:
                 cwd="/",
                 start_new_session=True,
             )
+            waiters: set[asyncio.Future] = {capture.finished}
+            if revoked is not None:
+                revocation = asyncio.ensure_future(revoked.wait())
+                waiters.add(revocation)
             try:
-                await asyncio.wait_for(
-                    asyncio.shield(capture.finished), max(0, deadline - time.monotonic())
+                # asyncio.wait never cancels the futures it watches.
+                await asyncio.wait(
+                    waiters,
+                    timeout=max(0, deadline - time.monotonic()),
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
-            except TimeoutError:
-                capture.abort(SandboxErrorCode.TIMEOUT)
+                if not capture.finished.done():
+                    capture.abort(
+                        SandboxErrorCode.UNAVAILABLE
+                        if revoked is not None and revoked.is_set()
+                        else SandboxErrorCode.TIMEOUT
+                    )
             except asyncio.CancelledError:
                 capture.abort(SandboxErrorCode.OUTCOME_UNKNOWN)
                 raise
             finally:
+                if revocation is not None:
+                    revocation.cancel()
                 # The owner process retains this task until the exact CLI is
                 # reaped; this is not yet proof of container descendant cleanup.
                 await asyncio.shield(capture.exited)

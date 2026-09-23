@@ -472,9 +472,10 @@ export function CompletedRunsPanel() {
   const state = TERMINAL_RUN_STATES.find(
     (candidate) => candidate === requestedState,
   ) as WorkflowRunState | undefined;
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
+  // Page cursors live in the URL next to the filters they were issued for,
+  // so any navigation that changes the filters (tab links, history) drops
+  // them together.
+  const cursors = searchParams.getAll("cursor");
   const [deleteTarget, setDeleteTarget] = useState<string | undefined>();
   const cursor = cursors.at(-1);
   const encodedLabelSelectors = searchParams.getAll("label");
@@ -507,12 +508,19 @@ export function CompletedRunsPanel() {
   ): void {
     const normalized = normalizeRunMetadataLabelSelectors(nextSelectors);
     const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
     next.delete("label");
     for (const selector of normalized) {
       next.append("label", selectorToken(selector));
     }
     setSearchParams(next, { replace: true });
-    setCursors([undefined]);
+  }
+
+  function changePage(nextCursors: readonly string[]): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete("cursor");
+    for (const value of nextCursors) next.append("cursor", value);
+    setSearchParams(next, { preventScrollReset: true });
   }
 
   return (
@@ -529,13 +537,13 @@ export function CompletedRunsPanel() {
               onChange={(event) => {
                 const selected = event.target.value as WorkflowRunState | "";
                 const next = new URLSearchParams(searchParams);
+                next.delete("cursor");
                 if (selected === "") {
                   next.delete("state");
                 } else {
                   next.set("state", selected);
                 }
                 setSearchParams(next, { replace: true });
-                setCursors([undefined]);
               }}
             >
               <option value="">All states</option>
@@ -606,17 +614,13 @@ export function CompletedRunsPanel() {
       )}
       <CursorControls
         label="Run pages"
-        canGoBack={cursors.length > 1}
+        canGoBack={cursors.length > 0}
         {...(query.data?.page.hasMore === true &&
         query.data.page.nextCursor !== undefined
           ? { nextCursor: query.data.page.nextCursor }
           : {})}
-        onBack={() =>
-          setCursors((current) =>
-            current.slice(0, Math.max(1, current.length - 1)),
-          )
-        }
-        onNext={(next) => setCursors((current) => [...current, next])}
+        onBack={() => changePage(cursors.slice(0, -1))}
+        onNext={(next) => changePage([...cursors, next])}
       />
       {deleteTarget === undefined ? null : (
         <DeleteRunDialog

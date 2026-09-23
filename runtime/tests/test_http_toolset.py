@@ -380,10 +380,15 @@ def test_oversized_response_and_proxy_auth_failure_leave_no_body_selection(
             settings=proxy_runtime_settings(),
             adapter_handles=AdapterHandles(tool_http=proxy),
         )
+        # A forwarded plain-HTTP 407 may be the proxy's own refusal.
         with pytest.raises(HTTPToolError) as failed:
-            await proxied["http_request"]("https://target.example/private")
+            await proxied["http_request"]("http://target.example/private")
         assert failed.value.code == "http_request_failed"
         assert artifacts.writes == 0
+        # Through an HTTPS tunnel the proxy cannot answer 407; it is target data.
+        tunneled = await proxied["http_request"]("https://target.example/private")
+        assert tunneled["status"] == 407
+        assert tunneled["retries"] == 0
         await client.aclose()
 
     asyncio.run(scenario())

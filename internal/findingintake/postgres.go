@@ -229,6 +229,9 @@ func (s *Service) listAuditInbox(
 // can reach it through the requested Audit. It deliberately uses the same
 // source/Audit-hold hydration path as inbox listing, so deleted source Runs do
 // not weaken integrity checks or provenance.
+// GetAuditReceipt reads one receipt admitted to the owner's Audit. It exposes
+// only that Audit's own hold and, after source Run deletion, reads the
+// proposal from that hold's retained copy.
 func (s *Service) GetAuditReceipt(
 	ctx context.Context,
 	ownerID, auditID, receiptID string,
@@ -255,6 +258,14 @@ SELECT receipt.receipt_id
 	receipt, err := readReceiptByID(ctx, s.pool, admittedID)
 	if err != nil {
 		return Receipt{}, err
+	}
+	holds, err := s.readAuditHoldsBatch(ctx, ownerID, auditID, []string{admittedID})
+	if err != nil {
+		return Receipt{}, err
+	}
+	receipt.AuditHolds = holds[admittedID]
+	if receipt.AuditHolds == nil {
+		receipt.AuditHolds = []AuditHold{}
 	}
 	values, err := s.hydrateReceiptDocuments(ctx, []Receipt{receipt})
 	if err != nil {

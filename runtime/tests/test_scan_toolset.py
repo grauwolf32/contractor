@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import ipaddress
 import json
 import shutil
 import sys
@@ -9,14 +10,20 @@ from pathlib import Path
 
 import pytest
 from google.adk.tools import FunctionTool
+from target_policy_fixtures import SCAN_TEST_POLICY
 
 import contractor_runtime.toolsets.scan.process as process_module
 import contractor_runtime.toolsets.scan.tools as scan
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.capabilities import discover_capabilities
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import HTTPProxySettings, RuntimeSettings
 from contractor_runtime.factories import FactoryRegistry, StubADKWorkerRuntimeFactory
+from contractor_runtime.toolsets.common.target_policy import (
+    TargetPolicyConfig,
+    TargetUnresolved,
+    parse_allowed_networks,
+)
 from contractor_runtime.toolsets.scan.process import run_process
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
@@ -83,7 +90,9 @@ async def make_tools(tmp_path, *, selected=None, proxy=False, scanners=scan.SCAN
     workspace.mkdir(exist_ok=True)
     templates = tmp_path / "templates"
     templates.mkdir(exist_ok=True)
-    factory = scan.ScanToolsetFactory(templates_directory=templates, scanners=scanners)
+    factory = scan.ScanToolsetFactory(
+        templates_directory=templates, scanners=scanners, target_policy=SCAN_TEST_POLICY
+    )
     state = WorkerState()
     tools = await factory.create_selected(
         selected=sorted(factory.exported_tools) if selected is None else selected,
@@ -318,6 +327,146 @@ def test_proxy_missing_binary_and_missing_templates_are_explicit(tmp_path, monke
         (tmp_path / "naabu").unlink()
         assert (await tools["scan_naabu"]("target.invalid"))["errorCode"] == "scanner_unavailable"
         assert list((tmp_path / "workspace").iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+async def make_policy_tools(tmp_path, *, networks=(), http_proxy=None):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+    templates = tmp_path / "templates"
+    templates.mkdir(exist_ok=True)
+    table = {
+        "rebind.example": "127.0.0.1",
+        "gateway.internal": "10.0.0.7",
+        "artifacts.internal": "10.0.0.8",
+        "app.example": "93.184.215.14",
+    }
+
+    async def resolver(host, port):
+        if host not in table:
+            raise TargetUnresolved
+        return (ipaddress.ip_address(table[host]),)
+
+    factory = scan.ScanToolsetFactory(
+        templates_directory=templates,
+        target_policy=TargetPolicyConfig(
+            allowed_networks=parse_allowed_networks(networks), resolver=resolver
+        ),
+    )
+    state = WorkerState()
+    tools = await factory.create_selected(
+        selected=sorted(factory.exported_tools),
+        allocation_id="allocation",
+        run_id="run",
+        namespace="scanner",
+        runtime_settings=RuntimeSettings(
+            llmGatewayUrl="https://gateway.internal",
+            artifactApiUrl="https://artifacts.internal:8443/private",
+            httpProxy=http_proxy,
+            requestTimeoutSeconds=60,
+        ),
+        workspace=AllocationWorkspace(root=tmp_path, path=workspace),
+        state=state,
+    )
+    return tools, state
+
+
+@pytest.mark.parametrize(
+    "name,arguments,code",
+    [
+        ("scan_nuclei", {"url": "http://127.1:8080/"}, "scan_target_denied"),
+        ("scan_nuclei", {"url": "http://2130706433/"}, "scan_target_denied"),
+        ("scan_nuclei", {"url": "http://metadata.google.internal/"}, "scan_target_denied"),
+        ("scan_nuclei", {"url": "http://rebind.example/"}, "scan_target_denied"),
+        ("scan_nuclei", {"url": "https://gateway.internal/"}, "scan_target_denied"),
+        ("scan_nuclei", {"url": "http://missing.example/"}, "scan_target_unresolved"),
+        ("scan_sqlmap", {"url": "http://[::ffff:169.254.169.254]/?id=1"}, "scan_target_denied"),
+        ("scan_katana", {"url": "http://169.254.10.10/"}, "scan_target_denied"),
+        ("scan_katana", {"url": "http://[fe80::1]/"}, "scan_target_denied"),
+        ("scan_naabu", {"host": "0x7f000001"}, "scan_target_denied"),
+        ("scan_naabu", {"host": "169.254.169.254"}, "scan_target_denied"),
+        ("scan_naabu", {"host": "rebind.example", "ports": "80"}, "scan_target_denied"),
+        (
+            "scan_ffuf",
+            {
+                "url": "http://127.0.0.1/FUZZ",
+                "wordlist_ref": {"namespace": "inputs", "name": "wordlist", "revision": "r1"},
+            },
+            "scan_target_denied",
+        ),
+    ],
+)
+def test_scan_destinations_are_checked_before_launch(name, arguments, code, tmp_path, monkeypatch):
+    install_echo_scanners(tmp_path, monkeypatch)
+
+    async def forbidden(*args, **kwargs):
+        pytest.fail("a denied destination launched a scanner")
+
+    monkeypatch.setattr(scan, "run_process", forbidden)
+
+    async def scenario():
+        tools, state = await make_policy_tools(tmp_path)
+        result = await tools[name](**arguments)
+        assert result["status"] == "failed"
+        assert result["errorCode"] == code
+        assert state.metrics.tool_calls[0].arguments == {}
+        assert list((tmp_path / "workspace").iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_private_scan_targets_need_no_operator_network(tmp_path, monkeypatch):
+    install_echo_scanners(tmp_path, monkeypatch)
+
+    async def scenario():
+        tools, _ = await make_policy_tools(tmp_path)
+        for url in ("http://10.0.0.5/", "http://192.168.1.10:8080/", "http://[fd00::5]/"):
+            result = await tools["scan_nuclei"](url)
+            assert result["status"] == "completed", url
+        # A Runtime endpoint inside a private network stays denied.
+        protected = await tools["scan_nuclei"]("https://10.0.0.8:8443/")
+        assert protected["errorCode"] == "scan_target_denied"
+
+    asyncio.run(scenario())
+
+
+def test_operator_networks_allow_scans_except_runtime_endpoints(tmp_path, monkeypatch):
+    install_echo_scanners(tmp_path, monkeypatch)
+
+    async def scenario():
+        tools, _ = await make_policy_tools(tmp_path, networks=("127.0.0.0/8",))
+        allowed = await tools["scan_nuclei"]("http://127.0.0.1:3000/")
+        assert allowed["status"] == "completed"
+        public = await tools["scan_naabu"]("app.example", ports="80,443")
+        assert public["status"] == "completed"
+        # Any selected port that reaches a Runtime endpoint denies the scan.
+        protected = await tools["scan_naabu"]("10.0.0.8", ports="8000-9000")
+        assert protected["errorCode"] == "scan_target_denied"
+        other = await tools["scan_naabu"]("10.0.0.8", ports="80")
+        assert other["status"] == "completed"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("targets", [["tool-http"], ["llm-gateway", "tool-http"]])
+def test_tool_http_proxy_route_fails_scanners_closed(tmp_path, monkeypatch, targets):
+    install_echo_scanners(tmp_path, monkeypatch)
+
+    async def forbidden(*args, **kwargs):
+        pytest.fail("a proxied allocation launched a direct scanner")
+
+    monkeypatch.setattr(scan, "run_process", forbidden)
+
+    async def scenario():
+        proxy = HTTPProxySettings(
+            adapter="http-proxy@1", proxyUrl="http://proxy.internal:3128", targets=targets
+        )
+        tools, _ = await make_policy_tools(tmp_path, http_proxy=proxy)
+        result = await tools["scan_nuclei"]("http://app.example/")
+        assert result["errorCode"] == "scan_proxy_unsupported"
+        result = await tools["scan_naabu"]("app.example")
+        assert result["errorCode"] == "scan_proxy_unsupported"
 
     asyncio.run(scenario())
 

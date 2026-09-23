@@ -109,3 +109,45 @@ describe("session query cancellation", () => {
     },
   );
 });
+
+describe("session context", () => {
+  it("keeps its value and callbacks stable across unrelated provider renders", async () => {
+    const api = {
+      getSession: vi.fn(async () => session),
+      login: vi.fn(async () => session),
+      logout: vi.fn(async () => undefined),
+    };
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const seen: Array<ReturnType<typeof useSession>> = [];
+    function Probe() {
+      const current = useSession();
+      seen.push(current);
+      return <p>{current.session?.csrfToken ?? "Signed out"}</p>;
+    }
+    const tree = () => (
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider api={api}>
+          <Probe />
+        </SessionProvider>
+      </QueryClientProvider>
+    );
+    const view = render(tree());
+    await screen.findByText(session.csrfToken);
+    const settled = seen.at(-1)!;
+    const renders = seen.length;
+
+    view.rerender(tree());
+    expect(seen.length).toBeGreaterThan(renders);
+    expect(seen.at(-1)!.login).toBe(settled.login);
+    expect(seen.at(-1)!.logout).toBe(settled.logout);
+    expect(seen.at(-1)).toBe(settled);
+
+    await act(async () => {
+      await seen.at(-1)!.login({ username: "owner", password: "password" });
+    });
+    expect(api.login).toHaveBeenCalledOnce();
+    expect(seen.at(-1)!.login).toBe(settled.login);
+  });
+});

@@ -38,15 +38,24 @@ func TestMiddlewareTrustsOnlyValidPrivateIncomingIDAndHasFallback(t *testing.T) 
 	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}), Options{
-		TrustIncoming: true,
+		TrustIncoming: func(r *http.Request) bool { return r.Header.Get("X-Test-Authenticated") == "yes" },
 		Generator:     func() (string, error) { return "", errors.New("entropy unavailable") },
 	})
 	trusted := httptest.NewRequest(http.MethodGet, "/", nil)
 	trusted.Header.Set(Header, "upstream:request-1")
+	trusted.Header.Set("X-Test-Authenticated", "yes")
 	trustedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(trustedResponse, trusted)
 	if trustedResponse.Header().Get(Header) != "upstream:request-1" {
 		t.Fatalf("trusted correlation ID = %q", trustedResponse.Header().Get(Header))
+	}
+
+	unauthenticated := httptest.NewRequest(http.MethodGet, "/", nil)
+	unauthenticated.Header.Set(Header, "upstream:request-1")
+	unauthenticatedResponse := httptest.NewRecorder()
+	handler.ServeHTTP(unauthenticatedResponse, unauthenticated)
+	if value := unauthenticatedResponse.Header().Get(Header); value == "upstream:request-1" || !Valid(value) {
+		t.Fatalf("untrusted request kept its incoming correlation ID %q", value)
 	}
 
 	invalid := httptest.NewRequest(http.MethodGet, "/", nil)

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,6 +23,7 @@ from contractor_runtime.projectfs import (
     encode_workspace_state,
     hydrate_workspace,
 )
+from contractor_runtime.projectfs import overlay as overlay_module
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 
 
@@ -198,6 +201,79 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
         await direct_provider.cleanup(direct.storage)
 
     asyncio.run(scenario())
+
+
+def test_state_import_validates_the_result_once_off_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        source = source_tree()
+        result = source.clone()
+        result.text_files.pop("remove.txt")
+        for index in range(60):
+            result.directories.add(f"generated/{index % 6}")
+            result.text_files[f"generated/{index % 6}/{index}.txt"] = f"{index}\n"
+        result.directories.add("generated")
+        payload = encode_workspace_state(source, result)
+        calls: list[int] = []
+        validate = overlay_module._validate_tree
+
+        def counted(tree: ManagedWorkspaceTree, bounds: WorkspaceLimits) -> None:
+            calls.append(threading.get_ident())
+            validate(tree, bounds)
+
+        monkeypatch.setattr(overlay_module, "_validate_tree", counted)
+        session = await overlay(source, "import")
+        await session.import_state(payload)
+        assert await session.snapshot() == result.snapshot()
+        assert len(calls) == 1 and calls[0] != threading.get_ident()
+
+    asyncio.run(scenario())
+
+
+def test_state_limits_bind_the_result_not_intermediate_operations() -> None:
+    source = ManagedWorkspaceTree(text_files={"b.txt": "x" * 1000})
+    bounds = WorkspaceLimits(
+        max_files=10, max_expanded_bytes=1 << 20, max_managed_text_bytes=1010, max_file_bytes=1000
+    )
+    # Canonical writes are path-ordered: growing a.txt precedes shrinking b.txt.
+    fits = source.clone()
+    fits.text_files["a.txt"] = "y" * 1000
+    fits.text_files["b.txt"] = "x"
+    assert decode_workspace_state(
+        encode_workspace_state(source, fits), source, bounds
+    ).snapshot() == (fits.snapshot())
+    too_large = source.clone()
+    too_large.text_files["a.txt"] = "y" * 1000
+    with pytest.raises(WorkspaceStateError, match="workspace_state_invalid"):
+        decode_workspace_state(encode_workspace_state(source, too_large), source, bounds)
+
+
+def test_state_import_scales_linearly_with_changed_paths() -> None:
+    source = ManagedWorkspaceTree()
+    for index in range(2000):
+        source.directories.add(f"old/{index % 40}")
+        source.text_files[f"old/{index % 40}/{index}.txt"] = f"{index}\n"
+    source.directories.add("old")
+    result = source.clone()
+    for index in range(2000):
+        if index % 2:
+            result.text_files.pop(f"old/{index % 40}/{index}.txt")
+        result.directories.add(f"new/{index % 40}")
+        result.text_files[f"new/{index % 40}/{index}.txt"] = f"{index}\n"
+    result.directories.add("new")
+    bounds = WorkspaceLimits(
+        max_files=10_000,
+        max_expanded_bytes=1 << 24,
+        max_managed_text_bytes=1 << 24,
+        max_file_bytes=1 << 10,
+    )
+    payload = encode_workspace_state(source, result)
+    started = time.monotonic()
+    decoded = decode_workspace_state(payload, source, bounds)
+    # Quadratic whole-tree validation took tens of seconds at this size.
+    assert time.monotonic() - started < 5
+    assert decoded.snapshot() == result.snapshot()
 
 
 async def overlay(source: ManagedWorkspaceTree, name: str) -> OverlayWorkspaceSession:

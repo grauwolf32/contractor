@@ -452,8 +452,10 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 	}
 	auditID := r.PathValue("auditId")
 	digest := auditRequestDigest("", auditID, revision, seconds)
+	credentialUser := runtimeCredentialUser(r.Context())
 	started, err := h.dependencies.Audits.Start(r.Context(), auditservice.StartParams{
-		OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision,
+		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		AuditID: auditID, ExpectedRevision: revision,
 		IdempotencyKey: key, RequestDigest: digest, DeadlineSeconds: seconds,
 	})
 	if err != nil {
@@ -921,6 +923,9 @@ func firstTimeLimit(values []*int) *int {
 
 func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if exceedsBodyLimit(err) {
+		return nil, fmt.Errorf("%w: Audit time limit body is too large", errRequestTooLarge)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid Audit time limit body", errInvalidRequest)
 	}

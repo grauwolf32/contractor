@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import ipaddress
 import json
 import math
 import re
@@ -15,23 +14,34 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal
-from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit
+from urllib.parse import parse_qsl, urldefrag, urlencode, urljoin, urlsplit
 
 import httpx
 from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.adapters.http_proxy import ProxyHTTPClient, ProxyRequestError
+from contractor_runtime.adapters.http_proxy import (
+    ProxyHTTPClient,
+    ProxyRequestError,
+    ProxyTargetDenied,
+)
+from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
     ArtifactClient,
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.target_policy import (
+    TargetDenied,
+    TargetPolicy,
+    TargetPolicyConfig,
+)
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, HTTPExchangeHistory
 from contractor_runtime.toolsets.http.limits import (
     MAX_ATTEMPTS,
@@ -46,9 +56,12 @@ from contractor_runtime.toolsets.http.limits import (
     MAX_READ_UNITS,
     MAX_REDIRECTS,
     MAX_REQUEST_BODY_BYTES,
+    MAX_REQUEST_HEADER_BYTES,
     MAX_RESPONSE_BODY_BYTES,
     MAX_URL_BYTES,
+    header_block_bytes,
 )
+from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
 HTTP_BODY_MEDIA_TYPE = "application/vnd.contractor.http-body+json"
@@ -57,6 +70,13 @@ BODY_SCHEMA_VERSION = "1.0"
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 _IDEMPOTENT_METHODS = frozenset({"GET", "PUT", "DELETE", "HEAD", "OPTIONS"})
 _RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+# The first retry waits this long and each later one twice as long. A target's
+# Retry-After replaces a shorter wait, up to the cap; a longer Retry-After or a
+# wait that would leave less than half the remaining deadline returns the last
+# response (or failure) instead of retrying.
+RETRY_BACKOFF_SECONDS = 0.25
+MAX_RETRY_AFTER_SECONDS = 5.0
+_retry_sleep = asyncio.sleep
 _BODY_TYPES = frozenset({"none", "json", "form", "text"})
 _SENSITIVE_HEADERS = frozenset(
     {"authorization", "cookie", "proxy-authorization", "proxy-connection", "set-cookie"}
@@ -127,14 +147,19 @@ class HTTPToolsetFactory:
         self,
         artifact_client_factory: ArtifactClientFactory | None = None,
         direct_client_factory: Callable[[], httpx.AsyncClient] | None = None,
+        *,
+        target_policy: TargetPolicyConfig | None = None,
     ) -> None:
         self._artifact_client_factory = artifact_client_factory or _unconfigured_client
-        self._direct_client_factory = direct_client_factory or _direct_client
+        # Tests may inject a fixed client; production clients enforce the
+        # allocation's target policy on every TCP connection.
+        self._direct_client_factory = direct_client_factory
+        self._target_policy = target_policy or TargetPolicyConfig()
 
     async def probe(self) -> frozenset[str]:
         client: httpx.AsyncClient | None = None
         try:
-            client = self._direct_client_factory()
+            client = self._new_direct_client(TargetPolicy())
         except Exception:
             return frozenset()
         finally:
@@ -171,14 +196,15 @@ class HTTPToolsetFactory:
         if proxy_required and proxy is None:
             raise RuntimeError("http-tools@1 requires the resolved tool-http proxy route")
 
+        policy = await self._target_policy.build(runtime_settings)
         direct_client = (
-            self._direct_client_factory() if request_selected and proxy is None else None
+            self._new_direct_client(policy) if request_selected and proxy is None else None
         )
         session = _HTTPSession(
             artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
             namespace=namespace,
             timeout_cap_seconds=runtime_settings.request_timeout_seconds,
-            forbidden_origins=_private_origins(runtime_settings),
+            target_policy=policy,
             secrets_for_metrics=_runtime_secrets(runtime_settings),
             proxy=proxy,
             direct_client=direct_client,
@@ -195,6 +221,11 @@ class HTTPToolsetFactory:
             "http_session_clear": lambda: HTTPSessionClearTool(session, metrics),
         }
         return {name: builders[name]() for name in selected}
+
+    def _new_direct_client(self, policy: TargetPolicy) -> httpx.AsyncClient:
+        if self._direct_client_factory is not None:
+            return self._direct_client_factory()
+        return _direct_client(policy)
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +290,7 @@ class _HTTPSession:
         artifact_client: ArtifactClient,
         namespace: str,
         timeout_cap_seconds: int,
-        forbidden_origins: frozenset[tuple[str, str, int]],
+        target_policy: TargetPolicy,
         secrets_for_metrics: tuple[str, ...],
         proxy: ProxyHTTPClient | None,
         direct_client: httpx.AsyncClient | None,
@@ -269,7 +300,7 @@ class _HTTPSession:
         self._artifact_client = artifact_client
         self._namespace = namespace
         self._timeout_cap_seconds = timeout_cap_seconds
-        self._forbidden_origins = forbidden_origins
+        self._target_policy = target_policy
         self._secrets_for_metrics = secrets_for_metrics
         self._proxy = proxy
         self._direct_client = direct_client
@@ -336,24 +367,36 @@ class _HTTPSession:
             # cookies left by a cancelled/failed prior call must never affect
             # the next request.
             self._clear_transport_cookies()
-            (
-                response,
-                final_method,
-                final_url,
-                redirects,
-                retries,
-                candidate_cookies,
-            ) = await self._send_following(
-                method=selected_method,
-                url=selected_url,
-                headers=merged_headers,
-                payload=payload,
-                timeout_seconds=selected_timeout,
-                follow_redirects=follow_redirects,
-                attempts=captured.attempts,
-            )
+            # The tool timeout is one deadline for every hop, retry and the
+            # complete body read, so a trickling target cannot hold the session
+            # lock indefinitely. The body artifact write is not included.
+            deadline = asyncio.get_running_loop().time() + selected_timeout
             try:
-                body_bytes = await _read_response_body(response)
+                async with asyncio.timeout_at(deadline):
+                    (
+                        response,
+                        final_method,
+                        final_url,
+                        redirects,
+                        retries,
+                        candidate_cookies,
+                    ) = await self._send_following(
+                        method=selected_method,
+                        url=selected_url,
+                        headers=merged_headers,
+                        payload=payload,
+                        timeout_seconds=selected_timeout,
+                        deadline=deadline,
+                        follow_redirects=follow_redirects,
+                        attempts=captured.attempts,
+                    )
+                    try:
+                        body_bytes = await _read_response_body(response)
+                    finally:
+                        await response.aclose()
+            except TimeoutError:
+                raise HTTPToolError("http_request_failed") from None
+            try:
                 content_type = _content_type(response.headers)
                 body_kind, preview, envelope = _encode_body(content_type, body_bytes)
                 artifact: ArtifactRef | None = None
@@ -405,8 +448,6 @@ class _HTTPSession:
                 raise
             except (ArtifactTransportError, ValueError, TypeError):
                 raise HTTPToolError("http_request_failed") from None
-            finally:
-                await response.aclose()
 
     async def _send_following(
         self,
@@ -416,6 +457,7 @@ class _HTTPSession:
         headers: dict[str, str],
         payload: bytes,
         timeout_seconds: float,
+        deadline: float,
         follow_redirects: bool,
         attempts: list[CapturedAttempt],
     ) -> tuple[httpx.Response, str, str, int, int, httpx.Cookies]:
@@ -427,19 +469,24 @@ class _HTTPSession:
         current_url = url
         current_headers = headers
         current_payload = payload
-        allow_session_auth = True
-        allow_session_cookies = True
+        original_origin = _origin(url)
         while True:
-            _validate_target(current_url, self._forbidden_origins)
+            _validate_target(current_url, self._target_policy)
+            # Each hop is compared with the requested origin, not the previous
+            # hop: a chain that leaves and returns regains the caller's
+            # credentials only for the original origin.
+            same_origin = _origin(current_url) == original_origin
             try:
                 response = await self._send_once(
                     current_method,
                     current_url,
-                    headers=current_headers,
+                    headers=(
+                        current_headers if same_origin else _without_sensitive(current_headers)
+                    ),
                     content=current_payload,
                     timeout=timeout_seconds,
-                    allow_session_auth=allow_session_auth,
-                    allow_session_cookies=allow_session_cookies,
+                    allow_session_auth=same_origin,
+                    allow_session_cookies=same_origin,
                     request_cookies=candidate_cookies,
                     capture_attempts=attempts,
                 )
@@ -447,9 +494,11 @@ class _HTTPSession:
                 raise
             except (ProxyRequestError, httpx.TransportError, httpx.TimeoutException):
                 if current_method in _IDEMPOTENT_METHODS and retries + 1 < MAX_ATTEMPTS:
-                    retries += 1
-                    await asyncio.sleep(0)
-                    continue
+                    delay = _retry_delay(retries + 1, None, deadline)
+                    if delay is not None:
+                        retries += 1
+                        await _retry_sleep(delay)
+                        continue
                 raise HTTPToolError("http_request_failed") from None
 
             handoff = False
@@ -464,8 +513,17 @@ class _HTTPSession:
                     and current_method in _IDEMPOTENT_METHODS
                     and retries + 1 < MAX_ATTEMPTS
                 ):
-                    retries += 1
-                    continue
+                    delay = _retry_delay(
+                        retries + 1,
+                        retry_after_seconds(response.headers.get("retry-after")),
+                        deadline,
+                    )
+                    if delay is not None:
+                        retries += 1
+                        # Release the connection before waiting.
+                        await response.aclose()
+                        await _retry_sleep(delay)
+                        continue
 
                 location = response.headers.get("location")
                 if not (
@@ -485,8 +543,11 @@ class _HTTPSession:
                 if redirects >= MAX_REDIRECTS:
                     raise HTTPToolError("http_request_failed")
 
-                next_url = urljoin(current_url, location)
-                _validate_target(next_url, self._forbidden_origins)
+                try:
+                    next_url = urldefrag(urljoin(current_url, location)).url
+                except ValueError:
+                    raise HTTPToolError("http_request_invalid") from None
+                _validate_target(next_url, self._target_policy)
                 next_method = current_method
                 next_payload = current_payload
                 next_headers = dict(current_headers)
@@ -500,14 +561,6 @@ class _HTTPSession:
                         for name, value in next_headers.items()
                         if name.lower() not in {"content-type", "content-encoding"}
                     }
-                if _origin(current_url) != _origin(next_url):
-                    next_headers = {
-                        name: value
-                        for name, value in next_headers.items()
-                        if name.lower() not in {"authorization", "cookie"}
-                    }
-                    allow_session_auth = False
-                    allow_session_cookies = False
                 current_url = next_url
                 current_method = next_method
                 current_payload = next_payload
@@ -521,11 +574,6 @@ class _HTTPSession:
         attempts = kwargs.pop("capture_attempts")
         attempt: CapturedAttempt | None = None
 
-        def observe(request: httpx.Request) -> None:
-            nonlocal attempt
-            attempt = CapturedAttempt.from_request(request)
-            attempts.append(attempt)
-
         headers = dict(kwargs.pop("headers"))
         allow_session_auth = bool(kwargs.pop("allow_session_auth", True))
         allow_session_cookies = bool(kwargs.pop("allow_session_cookies", True))
@@ -533,11 +581,13 @@ class _HTTPSession:
         # httpx merges its own jar into build_request even when cookies is omitted.
         # Never let a redirect/retry response bypass the allocation cookie policy.
         self._clear_transport_cookies()
-        if (
+        target_credential = (
             self._target_origin is not None
             and self._target_authorization is not None
             and _origin(url) == self._target_origin
-        ):
+        )
+        if target_credential:
+            assert self._target_authorization is not None
             headers = {
                 name: value for name, value in headers.items() if name.lower() != "authorization"
             }
@@ -555,10 +605,25 @@ class _HTTPSession:
         kwargs["headers"] = headers
         if allow_session_cookies:
             kwargs["cookies"] = request_cookies
+
+        def observe(request: httpx.Request) -> None:
+            nonlocal attempt
+            captured = CapturedAttempt.from_request(request, target_credential=target_credential)
+            if header_block_bytes(captured.header_pairs()) > MAX_HEADER_BYTES:
+                # Session cookies or auth grew the block past what finding
+                # evidence retains; refuse before anything is sent.
+                raise HTTPToolError("http_request_invalid")
+            attempt = captured
+            attempts.append(attempt)
+
         try:
             if self._proxy is not None:
                 response = await self._proxy.stream_request(
-                    method, url, request_observer=observe, **kwargs
+                    method,
+                    url,
+                    target_policy=self._target_policy,
+                    request_observer=observe,
+                    **kwargs,
                 )
             else:
                 client = self._direct_client
@@ -574,6 +639,13 @@ class _HTTPSession:
             if attempt is not None:
                 attempt.error = "cancelled"
             raise
+        except HTTPToolError:
+            raise
+        except (TargetDenied, ProxyTargetDenied):
+            # Connect-time and proxy-route denials share the pre-send code.
+            if attempt is not None:
+                attempt.error = "target_denied"
+            raise HTTPToolError("http_target_denied") from None
         except (httpx.HTTPError, ProxyRequestError):
             if attempt is not None:
                 attempt.error = "transport_error"
@@ -824,16 +896,24 @@ class HTTPRequestTool(_HTTPTool):
     more text or binary content. Request bodies are limited to 1 MiB and response
     bodies to 16 MiB.
 
+    Metadata and Runtime service destinations fail with http_target_denied, as
+    do loopback and link-local ones unless they are the project target or an
+    operator-allowed network. Redirects to another origin do not carry session
+    credentials or secret headers.
+
     Args:
-        url: Absolute HTTP or HTTPS URL.
+        url: Absolute HTTP or HTTPS URL; a #fragment is removed before sending.
         method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
-        headers: Per-request string headers merged over session defaults.
+        headers: Per-request string headers merged over session defaults; both
+            together at most 48 KiB. The complete header block sent, including
+            session cookies and auth, must stay within 64 KiB.
         query: Query parameter mapping.
         body: Payload shaped according to body_type.
         body_type: "none" for no body, "json" for JSON data, "form" for a field
             mapping, or "text" for a string; defaults to "none".
-        timeout: Positive timeout in seconds within the configured runtime cap;
-            omit to use that cap.
+        timeout: Overall deadline in seconds for the whole call (every redirect,
+            retry and the complete response body), within the configured runtime
+            cap; omit to use that cap.
         follow_redirects: Follow redirects up to the request limit; defaults to true.
 
     Returns:
@@ -1067,27 +1147,17 @@ class HTTPSessionClearTool(_HTTPTool):
             raise HTTPToolError("http_request_failed") from None
 
 
-def _direct_client() -> httpx.AsyncClient:
+def _direct_client(policy: TargetPolicy) -> httpx.AsyncClient:
+    limits = httpx.Limits(max_connections=4, max_keepalive_connections=2)
     return httpx.AsyncClient(
+        transport=PolicyHTTPTransport(policy, limits=limits),
         trust_env=False,
         follow_redirects=False,
-        limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
     )
 
 
 def _tool_http_proxy_required(settings: RuntimeSettings) -> bool:
     return settings.http_proxy is not None and "tool-http" in settings.http_proxy.targets
-
-
-def _private_origins(settings: RuntimeSettings) -> frozenset[tuple[str, str, int]]:
-    values = [settings.llm_gateway_url, settings.artifact_api_url]
-    if settings.telemetry is not None:
-        values.append(settings.telemetry.endpoint)
-    if settings.http_proxy is not None:
-        values.append(settings.http_proxy.proxy_url)
-    if settings.caido is not None:
-        values.append(settings.caido.endpoint)
-    return frozenset(_origin(value) for value in values)
 
 
 def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
@@ -1152,6 +1222,8 @@ def _method(value: object) -> str:
 def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
     if not isinstance(url, str) or not 1 <= _request_utf8_size(url) <= MAX_URL_BYTES:
         raise HTTPToolError("http_request_invalid")
+    # A fragment is client-side state that is never sent on the wire.
+    url = url.partition("#")[0]
     try:
         parsed = urlsplit(url)
         existing = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=False)
@@ -1169,9 +1241,8 @@ def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
     if added_query:
         # Existing percent escapes, duplicate/bare keys and separators are part
         # of the requested target. Decode only for counting, never for rewriting.
-        base, fragment_separator, fragment = url.partition("#")
-        separator = "&" if raw_query else "" if "?" in base else "?"
-        result = base + separator + added_query + fragment_separator + fragment
+        separator = "&" if raw_query else "" if "?" in url else "?"
+        result = url + separator + added_query
         raw_query += ("&" if raw_query else "") + added_query
     if len(raw_query.encode("utf-8")) > MAX_QUERY_BYTES:
         raise HTTPToolError("http_request_invalid")
@@ -1233,7 +1304,7 @@ def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
         if size > MAX_HEADER_VALUE_BYTES:
             raise HTTPToolError("http_request_invalid")
         total += len(name) + size
-        if total > MAX_HEADER_BYTES:
+        if total > MAX_REQUEST_HEADER_BYTES:
             raise HTTPToolError("http_request_invalid")
         seen.add(normalized)
         result[name] = raw_value
@@ -1248,13 +1319,7 @@ def _merge_headers(defaults: Mapping[str, str], request: Mapping[str, str]) -> d
         result[name.lower()] = (name, value)
     if len(result) > MAX_HEADERS:
         raise HTTPToolError("http_request_invalid")
-    if (
-        sum(
-            len(name.encode("ascii")) + len(value.encode("utf-8"))
-            for name, value in result.values()
-        )
-        > MAX_HEADER_BYTES
-    ):
+    if header_block_bytes(result.values()) > MAX_REQUEST_HEADER_BYTES:
         raise HTTPToolError("http_request_invalid")
     return {name: value for name, value in result.values()}
 
@@ -1305,7 +1370,22 @@ def _timeout(value: object, cap: int) -> float:
     return min(selected, float(cap))
 
 
-def _validate_target(url: str, forbidden: frozenset[tuple[str, str, int]]) -> None:
+def _retry_delay(retry: int, retry_after: float | None, deadline: float) -> float | None:
+    """Return the wait before retry number ``retry`` (1-based), or None to stop."""
+
+    delay = RETRY_BACKOFF_SECONDS * 2 ** (retry - 1)
+    if retry_after is not None:
+        if not math.isfinite(retry_after) or retry_after > MAX_RETRY_AFTER_SECONDS:
+            return None
+        delay = max(delay, retry_after)
+    remaining = deadline - asyncio.get_running_loop().time()
+    # Leave the retry itself at least as much time as the wait before it.
+    if delay * 2 > remaining:
+        return None
+    return delay
+
+
+def _validate_target(url: str, policy: TargetPolicy) -> None:
     try:
         parsed = urlsplit(url)
         if (
@@ -1316,20 +1396,21 @@ def _validate_target(url: str, forbidden: frozenset[tuple[str, str, int]]) -> No
             or parsed.fragment
         ):
             raise HTTPToolError("http_request_invalid")
-        selected_origin = _origin(url)
+        _origin(url)
     except HTTPToolError:
         raise
     except (UnicodeError, ValueError):
         raise HTTPToolError("http_request_invalid") from None
-    host = selected_origin[1]
-    denied = selected_origin in forbidden or host == "localhost" or host.endswith(".localhost")
+    # Literal and name checks run before every hop in both routes. A direct
+    # client repeats the address check on the resolved peer at connect time.
     try:
-        address = ipaddress.ip_address(host)
-        denied = denied or address.is_loopback or address.is_link_local or address.is_unspecified
-    except ValueError:
-        pass
-    if denied:
-        raise HTTPToolError("http_target_denied")
+        policy.check_url(url)
+    except TargetDenied:
+        raise HTTPToolError("http_target_denied") from None
+
+
+def _without_sensitive(headers: Mapping[str, str]) -> dict[str, str]:
+    return {name: value for name, value in headers.items() if not _is_sensitive_header(name)}
 
 
 def _origin(url: str) -> tuple[str, str, int]:
@@ -1341,17 +1422,13 @@ def _origin(url: str) -> tuple[str, str, int]:
 
 
 async def _read_response_body(response: httpx.Response) -> bytes:
-    result = bytearray()
+    # Bounds both the received bytes and incremental gzip/deflate decoding.
     try:
-        async for chunk in response.aiter_bytes():
-            if len(result) + len(chunk) > MAX_RESPONSE_BODY_BYTES:
-                raise HTTPToolError("http_response_too_large")
-            result.extend(chunk)
-    except HTTPToolError:
-        raise
+        return await read_limited_body(response, MAX_RESPONSE_BODY_BYTES)
+    except BodyTooLarge:
+        raise HTTPToolError("http_response_too_large") from None
     except (httpx.HTTPError, UnicodeError):
         raise HTTPToolError("http_request_failed") from None
-    return bytes(result)
 
 
 def _content_type(headers: httpx.Headers) -> str:

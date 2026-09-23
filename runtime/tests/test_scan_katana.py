@@ -7,6 +7,7 @@ import re
 from types import SimpleNamespace
 
 import pytest
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_scan_toolset import executable
 
 import contractor_runtime.toolsets.scan.tools as scan
@@ -165,7 +166,9 @@ class Artifacts:
 async def make_tool(tmp_path, artifacts):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    factory = scan.ScanToolsetFactory(lambda *_: artifacts, scanners=[scan.KatanaTool])
+    factory = scan.ScanToolsetFactory(
+        lambda *_: artifacts, scanners=[scan.KatanaTool], target_policy=SCAN_TEST_POLICY
+    )
     state = WorkerState()
     tools = await factory.create_selected(
         selected=["scan_katana"],

@@ -434,9 +434,13 @@ func (h *handler) deleteRuntimeCredential(w http.ResponseWriter, r *http.Request
 		h.handleError(w, errInvalidRequest)
 		return
 	}
-	if _, err := requireIdempotencyKey(r); err != nil {
-		h.handleError(w, err)
-		return
+	// The tombstone makes deletion idempotent by credential ID, so the key is
+	// optional and not bound; a supplied one must still be well formed.
+	if len(r.Header.Values(idempotencyKeyHeader)) != 0 {
+		if _, err := requireIdempotencyKey(r); err != nil {
+			h.handleError(w, err)
+			return
+		}
 	}
 	result, err := h.dependencies.RuntimeCredentials.Delete(
 		r.Context(), id, principalUserID(r.Context()),
@@ -521,14 +525,13 @@ func parseRuntimeRevisionETag(raw string) (uint64, error) {
 
 func readBoundedRuntimeJSON(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
 	if maximum <= 0 || r.ContentLength > maximum {
-		return nil, fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 	}
 	body := http.MaxBytesReader(w, r.Body, maximum)
 	data, err := io.ReadAll(body)
 	if err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
-			return nil, fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+		if exceedsBodyLimit(err) {
+			return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 		}
 		return nil, errors.New("read RuntimeConfig request")
 	}

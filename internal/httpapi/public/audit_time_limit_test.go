@@ -34,6 +34,11 @@ func TestAuditTimeLimitRequestAndIdempotency(t *testing.T) {
 			}
 		})
 	}
+	oversized := httptest.NewRequest("POST", "/", strings.NewReader(`{"deadlineSeconds":1`+strings.Repeat(" ", 1024)+`}`))
+	oversized.Header.Set("Content-Type", "application/json")
+	if _, err := readAuditTimeLimit(httptest.NewRecorder(), oversized); !errors.Is(err, errRequestTooLarge) {
+		t.Fatalf("oversized time limit error=%v", err)
+	}
 	if auditRequestDigest("", "audit", 1) == auditRequestDigest("", "audit", 1, timeLimitPointer(0)) {
 		t.Fatal("unlimited start shares default request digest")
 	}

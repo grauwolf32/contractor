@@ -134,7 +134,11 @@ The registered control and A2A endpoints must present a CA-valid leaf with the
 same SPKI fingerprint when Control Plane connects to them. Normal DNS/IP SAN
 verification still applies. A Runtime Agent cannot register another trusted
 agent's endpoint and cause Control Plane to deliver that allocation's
-RuntimeSettings or A2A traffic to the wrong peer.
+RuntimeSettings or A2A traffic to the wrong peer. Nor can it supersede that
+agent: only a later process of the same certificate principal replaces an
+earlier registration that shares its control or A2A endpoint. An overlapping
+endpoint registered by a different principal leaves the other process, its
+allocation and its control lease untouched.
 
 A restarted Runtime Agent under the same certificate principal registers with
 a new `instance_id` and retains the Control Plane's durable Agent labels. It
@@ -484,8 +488,11 @@ unavailable and an idempotent release retry repeats cleanup. A lost HTTP
 response is therefore safe: neither side can infer an idle slot. Before
 registering an idle slot after process startup, Runtime Agent also removes
 recognized orphan allocation directories
-under its dedicated configured work root. The profile does not add a process,
-container, filesystem-permission or network security boundary.
+under its dedicated configured work root. A directory is recognized only by an
+exact `allocation-<32 hex>` name plus a sibling owner marker that Runtime writes
+before creating it and removes after it; unmarked entries, including those left
+by releases before markers existed, are never removed. The profile does not add
+a process, container, filesystem-permission or network security boundary.
 
 ### RuntimeSettings from Control Plane
 
@@ -525,9 +532,13 @@ deadline can stop it earlier. Every attempt retains the same allocation-owned
 Gateway route and never falls back around a configured proxy. The series is one
 logical ModelPolicy call because Runtime receives at most one usable response.
 If a response was lost after the Gateway accepted it, however, repeated Gateway
-work and billing are possible and only the accepted final response's usage can
+work and billing are possible and only the final received response's usage can
 be added to the Worker token counters. Gateway-side quotas therefore remain the
-hard authority for all physical attempts.
+hard authority for all physical attempts. A received response that the adapter
+then rejects (invalid tool-call JSON, an unsupported part, an empty choice) is
+still a failed model call, but its reported usage is added to the Worker,
+invocation, budget and summarizer token counters like an accepted response;
+the boundary error keeps only those numeric counters, never response content.
 
 Transport retries honor `retry-after-ms`, numeric or HTTP-date `Retry-After`,
 and explicit `x-should-retry` overrides. Finite server delays over 120 seconds
@@ -575,7 +586,11 @@ ensures they remain closed and erases their retained settings secrets.
 Every public and private HTTP response carries one bounded `X-Request-ID`.
 Public ingress always generates its own value. Private Control Plane, lifecycle,
 Artifact and A2A hops propagate one syntactically valid incoming value and
-replace missing, duplicated or malformed values. REST error objects repeat it
+replace missing, duplicated or malformed values. Server's private Control
+Plane and Artifact APIs propagate it only from a peer that presented a
+verified Runtime Agent certificate; a request that fails mTLS gets a generated
+value, so an unauthenticated caller cannot choose its logged ID. REST error
+objects repeat it
 as `requestId`; A2A retains its protocol error envelope and carries correlation
 in the HTTP header.
 
@@ -839,6 +854,14 @@ The A2A endpoint responsibilities are limited to:
 The transport layer does not plan work or assemble results. The in-process
 Worker runtime owns Task semantics while the surrounding Runtime Agent owns
 transport, allocation and lease checks.
+
+Every executed Task reaches a terminal state with a Contractor result. An
+exception escaping the Worker invocation becomes a bounded retryable
+`worker_execution_failed` WorkerCompletion on a `failed` Task, never a Task left
+`working` or a provider/exception message. `CancelTask` cancels only the Worker
+invocation started by that Task ID; cancelling a Task that was rejected as
+`worker_busy`, already finished or never ran leaves the active invocation of
+another Task untouched.
 
 ## Protocol ownership
 

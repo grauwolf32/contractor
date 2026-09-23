@@ -10,13 +10,15 @@ import httpx
 import pytest
 from google.adk.tools import FunctionTool
 from google.genai import types
-from test_http_toolset import FakeArtifactClient, create_tools
+from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 from test_security_findings_toolset import FakeFindingClient, _settings, _workspace
 
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.llm.openai import _tools
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
-from contractor_runtime.toolsets.http.limits import MAX_HISTORY
+from contractor_runtime.toolsets.http.limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
+from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
 from contractor_runtime.toolsets.security_findings.collection import _proposal
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingsToolsetFactory,
@@ -203,6 +205,133 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         await http["http_session_clear"]()
         await http["http_request"].close()
         assert json.dumps(document) == retained
+
+    asyncio.run(scenario())
+
+
+def test_every_sent_request_fits_finding_evidence_header_limits(tmp_path):
+    async def scenario():
+        observed = []
+
+        async def handler(request):
+            observed.append(request)
+            return httpx.Response(200, text="ok", request=request)
+
+        http, state = await create_tools(tmp_path, handler)
+        client = FakeFindingClient()
+        tool = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+        # Maximal session Basic auth plus model headers at their own budget.
+        await http["http_session_set"](
+            auth={"kind": "basic", "username": "u" * 256, "password": "p" * 8192}
+        )
+        headers = {f"X-Fill-{index}": "v" * 8000 for index in range(6)}
+        filler = MAX_REQUEST_HEADER_BYTES - sum(len(k) + len(v) for k, v in headers.items())
+        headers["X-Last"] = "v" * (filler - len("X-Last"))
+        result = await http["http_request"](
+            "https://target.example/", headers=headers, tool_context=context()
+        )
+        await tool(
+            title="Finding",
+            description="Observed",
+            url="https://target.example/",
+            method="GET",
+            request_id=result["request_id"],
+            tool_context=context(),
+        )
+        attempt = client.requests[0]["proposal"]["http_exchange"]["attempts"][0]
+        assert len(attempt["headers"]) > len(headers)
+        assert _proposal(json.dumps(client.requests[0]["proposal"]).encode())
+
+        # Model headers beyond their budget are refused before sending.
+        headers["X-Extra"] = "v"
+        with pytest.raises(HTTPToolError) as invalid:
+            await http["http_request"]("https://target.example/", headers=headers)
+        assert invalid.value.code == "http_request_invalid"
+
+        # Session cookies can still grow the block; such a request is never sent.
+        await http["http_session_set"](cookies={f"c{index}": "x" * 8000 for index in range(7)})
+        with pytest.raises(HTTPToolError) as oversized:
+            await http["http_request"]("https://target.example/", headers={"X-A": "v" * 8000})
+        assert oversized.value.code == "http_request_invalid"
+        assert len(observed) == 1
+        await http["http_request"].close()
+
+    asyncio.run(scenario())
+
+
+def test_http_evidence_never_retains_the_runtime_target_credential(tmp_path):
+    target_secret = "project-target-secret"
+
+    async def scenario():
+        observed = []
+
+        async def handler(request):
+            observed.append(request)
+            if request.url.path == "/start":
+                return httpx.Response(
+                    302, headers={"Location": "https://other.example/next"}, request=request
+                )
+            if request.url.path == "/next":
+                return httpx.Response(
+                    302, headers={"Location": "https://target.example/end"}, request=request
+                )
+            return httpx.Response(200, text="ok", request=request)
+
+        def direct():
+            return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+
+        state = WorkerState()
+        factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient(), direct)
+        settings = RuntimeSettings(
+            llmGatewayUrl="https://gateway.example/v1",
+            artifactApiUrl="https://control.example/private/v1",
+            httpOriginTarget=HTTPOriginTargetSettings(
+                url="https://target.example/", bearerToken=target_secret
+            ),
+            requestTimeoutSeconds=30,
+        )
+        http = await make_tools(factory, tmp_path, state=state, settings=settings)
+        client = FakeFindingClient()
+        tool = await finding_tool(HTTPFindingsToolsetFactory, client, state)
+        result = await http["http_request"](
+            "https://target.example/start",
+            headers={"Authorization": "Bearer model-value"},
+            tool_context=context(),
+        )
+        other = await http["http_request"](
+            "https://other.example/own",
+            headers={"Authorization": "Bearer model-value"},
+            tool_context=context(),
+        )
+        for request_id, call in ((result["request_id"], "call-1"), (other["request_id"], "call-2")):
+            await tool(
+                title="Finding",
+                description="Observed",
+                url="https://target.example/start",
+                method="GET",
+                request_id=request_id,
+                tool_context=context(call),
+            )
+        # The target received the real credential on its own origin.
+        assert observed[0].headers["authorization"] == f"Bearer {target_secret}"
+        assert observed[2].headers["authorization"] == f"Bearer {target_secret}"
+        assert target_secret not in json.dumps(client.requests)
+
+        def authorization(attempt):
+            return [
+                row["value"] for row in attempt["headers"] if row["name"].lower() == "authorization"
+            ]
+
+        chain = client.requests[0]["proposal"]["http_exchange"]["attempts"]
+        assert [authorization(attempt) for attempt in chain] == [
+            ["[runtime-target-credential]"],
+            [],
+            ["[runtime-target-credential]"],
+        ]
+        # A credential the model supplied itself is evidence the model already knows.
+        own = client.requests[1]["proposal"]["http_exchange"]["attempts"]
+        assert authorization(own[0]) == ["Bearer model-value"]
+        await close_tools(http)
 
     asyncio.run(scenario())
 

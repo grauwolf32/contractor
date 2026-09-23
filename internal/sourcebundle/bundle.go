@@ -223,13 +223,22 @@ func applyContractorIgnore(root string, paths []string) ([]string, error) {
 	if output, err := exec.Command("git", "init", "--quiet", "--bare", gitDir).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("initialize ignore matcher: %w: %s", err, strings.TrimSpace(string(output)))
 	}
+	// An empty work tree has no .gitignore files, so core.excludesFile is the
+	// only pattern source. With the source root as work tree, -v would report a
+	// higher-priority .gitignore match or negation instead of .contractorignore.
+	// check-ignore --no-index matches paths lexically, so directory patterns
+	// still apply to the leading components of nested paths.
+	workTree := filepath.Join(temporary, "work-tree")
+	if err := os.Mkdir(workTree, 0o700); err != nil {
+		return nil, fmt.Errorf("create ignore matcher state: %w", err)
+	}
 	arguments := []string{
-		"--git-dir=" + gitDir, "--work-tree=" + root,
+		"--git-dir=" + gitDir, "--work-tree=" + workTree,
 		"-c", "core.excludesFile=" + ignorePath,
 		"check-ignore", "--no-index", "-v", "-z", "--stdin",
 	}
 	command := exec.Command("git", arguments...)
-	command.Dir = root
+	command.Dir = workTree
 	command.Stdin = bytes.NewReader(joinNUL(paths))
 	output, commandErr := command.Output()
 	if commandErr != nil {
@@ -291,8 +300,11 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 		if err != nil {
 			return nil, 0, fmt.Errorf("inspect source member %s: %w", portable, err)
 		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, 0, fmt.Errorf("source member %s is not a regular file", portable)
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, 0, fmt.Errorf("source member %s is a symbolic link, which source push does not upload; exclude it with .contractorignore", portable)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, 0, fmt.Errorf("source member %s is not a regular file; exclude it with .contractorignore", portable)
 		}
 		if len(files) >= MaxEntries {
 			return nil, 0, fmt.Errorf("source exceeds the %d file limit", MaxEntries)

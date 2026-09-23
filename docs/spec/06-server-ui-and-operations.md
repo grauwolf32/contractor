@@ -238,7 +238,9 @@ including them in this document. Incompatible changes require a new public API
 version; regenerating a client from an incompatible document does not make the
 change backward compatible. Every public JSON request body is bounded at 1 MiB
 unless a resource declares a smaller bound, such as the login body below;
-larger bodies are rejected as invalid requests.
+larger bodies are rejected with `413 request_too_large`, like an artifact over
+its 64 MiB limit (`413 artifact_too_large`), and never reach the handler's
+validation. Eval documents keep their own `422 eval_limit_exceeded` bound.
 
 The UI build pins the exact public contract and a deterministic TypeScript
 client generator. Generated DTO/client files are not hand-edited, and CI fails
@@ -679,6 +681,13 @@ each ciphertext, so a future keyring migration does not require a schema
 change. The fingerprint is not secret because the key has 256 bits of random
 entropy. The first slice accepts one active key and does not implement
 master-key rotation.
+
+This master key, the LLM Gateway admin binding and key files and the local-auth
+file below share one file check. Permission bits only restrict group and
+other access, so each file must also be owned by Server's effective UID or by
+root. Server checks the path, then opens it without following a symlink or
+waiting for a FIFO writer and re-checks the open handle, so a FIFO, device or
+file swapped in between is refused instead of blocking startup.
 
 When any credential row exists, Server startup requires the master key. A
 decryption/authentication failure is a bounded internal configuration error and
@@ -1192,7 +1201,9 @@ Run and Artifact mutations retain their existing idempotency, ownership and CAS
 requirements. Configuration publication, credential creation/deletion and
 RuntimeConfig/label/Agent-label administrative commands require
 their own idempotency keys, revision preconditions where specified and audit
-actor.
+actor. The one exception is RuntimeCredential deletion: its durable tombstone
+makes it idempotent by credential ID, so it accepts but neither requires nor
+binds an idempotency key.
 
 The API keeps configuration/credential mutations distinct from ordinary Run and
 Artifact use so later RBAC does not require changing domain semantics.

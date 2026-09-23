@@ -197,6 +197,61 @@ def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_search_and_read_number_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        # str.splitlines() would also break at the form feed, U+2028, NEL and
+        # vertical tab, numbering "seven" as line 8 instead of line 4.
+        content = "one\x0ctwo\u2028three\nfour\x85five\x0bsix\rsixth\r\nseven\n"
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"main.py": content}))
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+
+        found = await tools["search_source"]("seven")
+        assert [(item["path"], item["line"]) for item in found["matches"]] == [("main.py", 4)]
+        separated = await tools["search_source"]("three")
+        assert separated["matches"][0]["line"] == 1
+        assert separated["matches"][0]["text"] == "one\x0ctwo\u2028three"
+
+        read = await tools["read_source"]("main.py", start_line=2, max_lines=2)
+        assert read["totalLines"] == 4
+        assert read["text"] == "four\x85five\x0bsix\rsixth\r\n"
+        assert (read["startLine"], read["endLine"], read["truncated"]) == (2, 3, True)
+        with pytest.raises(ValueError, match="start_line"):
+            await tools["read_source"]("main.py", start_line=5)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "pattern,expected",
+    [
+        ("*", ["main.py"]),
+        ("**", ["main.py", "src/a.py", "src/x/a.py"]),
+        ("**/*", ["main.py", "src/a.py", "src/x/a.py"]),
+    ],
+)
+def test_single_star_matches_only_top_level_files(
+    tmp_path: Path, pattern: str, expected: list[str]
+) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        ref = client.seed(
+            "inputs",
+            "source",
+            "application/zip",
+            make_zip({"main.py": "hit\n", "src/a.py": "hit\n", "src/x/a.py": "hit\n"}),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        listed = await tools["list_source_files"](pattern)
+        assert [item["path"] for item in listed["files"]] == expected
+        found = await tools["search_source"]("hit", pattern)
+        assert [item["path"] for item in found["matches"]] == expected
+
+    asyncio.run(scenario())
+
+
 def test_search_deadline_is_checked_between_lines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1,6 +1,8 @@
 package privateartifacts
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +20,27 @@ func exactQuery(raw string, allowed ...string) (url.Values, error) {
 
 func requestMediaType(r *http.Request) (string, error) {
 	return httpx.RequestMediaType(errInvalidRequest, r)
+}
+
+// decodeBoundedJSON strictly decodes exactly one JSON value of at most maximum
+// bytes. Errors carry no body content; callers map them to their own codes.
+func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, target any) error {
+	if r.ContentLength < -1 || r.ContentLength > maximum {
+		return fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
+	if err != nil {
+		return fmt.Errorf("%w: read JSON body", errInvalidRequest)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("%w: decode JSON body", errInvalidRequest)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: JSON body has trailing data", errInvalidRequest)
+	}
+	return nil
 }
 
 // readArtifactBody deliberately differs from the public adapter: it also

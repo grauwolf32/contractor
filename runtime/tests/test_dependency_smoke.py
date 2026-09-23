@@ -126,5 +126,5 @@ class SmokeWorker:
     ) -> WorkerCompletion:
         raise AssertionError(f"smoke Worker must not reject: {code}, {message}, {retryable}")
 
-    def cancel_active(self) -> None:
-        return None
+    def cancel_active(self, owner: asyncio.Task[object]) -> None:
+        del owner

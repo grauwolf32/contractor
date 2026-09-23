@@ -218,8 +218,9 @@ states remain authoritative. There is no inferred heartbeat or server callback.
 
 Every mutating request uses a stable `Idempotency-Key`; mutable state transitions
 also require `If-Match`. Persist command intent before side effects and return a
-command receipt. Same key/body replays the receipt even after revision advances;
-changed body, plan digest or requested revision under that key is 409. Validate
+command receipt. Same key/body replays the receipt even after revision advances,
+including a retry that races the original request; changed body, plan digest or
+requested revision under that key is 409. Validate
 ownership/current deletion fence before accepting a new command. Missing CAS is
 428, stale CAS 412. A timed-out response is not an unaccepted command.
 

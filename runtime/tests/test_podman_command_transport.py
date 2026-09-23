@@ -111,3 +111,26 @@ def test_timeout_preserves_bounded_partial_output_and_reaps_cli(monkeypatch):
         assert result.error == SandboxErrorCode.TIMEOUT and result.stdout == b"partial"
 
     asyncio.run(scenario())
+
+
+def test_revocation_aborts_before_deadline_and_reaps_cli(monkeypatch):
+    async def scenario():
+        loop = asyncio.get_running_loop()
+        spawn = loop.subprocess_exec
+
+        async def scripted(factory, *args, **kwargs):
+            script = "import os,time; os.write(1,b'partial'); time.sleep(30)"
+            return await spawn(factory, sys.executable, "-I", "-c", script, **kwargs)
+
+        monkeypatch.setattr(loop, "subprocess_exec", scripted)
+        revoked = asyncio.Event()
+        loop.call_later(0.2, revoked.set)
+        started = time.monotonic()
+        result = await PodmanCommand(PodmanSettings()).run(
+            IDENTITY, "true", "", deadline=time.monotonic() + 30, revoked=revoked
+        )
+        assert time.monotonic() - started < 2
+        assert result.error == SandboxErrorCode.UNAVAILABLE and result.exit_code is None
+        assert result.stdout == b"partial"
+
+    asyncio.run(scenario())

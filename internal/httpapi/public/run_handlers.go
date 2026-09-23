@@ -217,9 +217,10 @@ func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, p
 		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
 		return
 	}
-	ownerID := principalUserID(r.Context())
+	credentialUser := runtimeCredentialUser(r.Context())
 	result, err := h.dependencies.RunCreator.CreatePublic(r.Context(), runservice.PublicCreateParams{
-		OwnerID: ownerID, ProjectID: projectID, Workflow: request.Workflow,
+		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		ProjectID: projectID, Workflow: request.Workflow,
 		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: []string(request.RuntimeLabels),
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
 		IdempotencyKey: idempotencyKey, RequestDigest: requestDigest,
@@ -822,13 +823,6 @@ func (h *handler) runArtifactsByNamespace(
 }
 
 func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return
@@ -847,12 +841,5 @@ func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	result, err := store.Read(r.Context(), contracts.ArtifactRef{
-		Namespace: "outputs", Name: r.PathValue("slot"),
-	})
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	writeArtifactBytes(w, result)
+	h.writeArtifactRead(w, r, store, contracts.ArtifactRef{Namespace: "outputs", Name: r.PathValue("slot")})
 }

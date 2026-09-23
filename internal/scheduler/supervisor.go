@@ -154,16 +154,8 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	defer cancelOwnership(nil)
 	ownershipContext = context.WithValue(ownershipContext, runOwnershipContextKey{}, ownershipContext)
 	executionContext, cancelExecution := context.WithCancelCause(ownershipContext)
-	s.activeMu.Lock()
-	s.active[run.RunID] = cancelExecution
-	s.activeMu.Unlock()
-	defer func() {
-		s.activeMu.Lock()
-		if current := s.active[run.RunID]; current != nil {
-			delete(s.active, run.RunID)
-		}
-		s.activeMu.Unlock()
-	}()
+	s.registerActiveRun(run.RunID, claimID, cancelExecution)
+	defer s.unregisterActiveRun(run.RunID, claimID)
 	stopRenewal := make(chan struct{})
 	renewalContext, cancelRenewal := context.WithCancel(ownershipContext)
 	defer cancelRenewal()
@@ -202,6 +194,9 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		err = errors.Join(cause, err)
 	}
 
+	// Once released, another lane of this process may claim the Run and
+	// register its own cancellation; this lane must not shadow or remove it.
+	s.unregisterActiveRun(run.RunID, claimID)
 	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
 	releaseErr := s.store.ReleaseRunClaim(releaseContext, run.RunID, claimID)
 	cancelRelease()

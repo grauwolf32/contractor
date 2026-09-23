@@ -10,9 +10,9 @@ import (
 
 type lifecycleAction string
 
+// Resume is not a plain lifecycle action; see Service.Resume.
 const (
 	lifecyclePause  lifecycleAction = "pause"
-	lifecycleResume lifecycleAction = "resume"
 	lifecycleCancel lifecycleAction = "cancel"
 )
 
@@ -88,10 +88,6 @@ func lifecycleTarget(
 	case lifecyclePause:
 		if state == auditstore.AuditActive || state == auditstore.AuditWaitingReview {
 			return auditstore.AuditPaused, nil, nil
-		}
-	case lifecycleResume:
-		if state == auditstore.AuditPaused {
-			return auditstore.AuditActive, nil, nil
 		}
 	case lifecycleCancel:
 		if state == auditstore.AuditActive || state == auditstore.AuditWaitingReview ||

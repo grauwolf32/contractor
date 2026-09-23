@@ -62,11 +62,13 @@ class PodmanExecutor:
         started = time.monotonic()
         allocation = self._allocation
         owner = allocation.owner
+        # Never cap by a snapshot of the confirmed lease: heartbeats renew it
+        # while the command runs. Each pulse re-checks it, and lease loss
+        # revokes the owner's authority and makes the guardian kill the scope.
         end = min(
             started + request.timeout_seconds,
             started + owner.settings.command_max_seconds,
             started + (deadline - datetime.now(UTC)).total_seconds(),
-            owner._lease_source() or 0.0,
         )
 
         async def operation():

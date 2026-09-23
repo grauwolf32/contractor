@@ -7,6 +7,8 @@ from pathlib import Path
 import httpx
 import pytest
 from a2a.client import ClientConfig, ClientFactory
+from a2a.server.agent_execution import RequestContext
+from a2a.server.context import ServerCallContext
 from a2a.types import (
     AgentCard,
     GetTaskRequest,
@@ -16,6 +18,7 @@ from a2a.types import (
     SendMessageConfiguration,
     SendMessageRequest,
     TaskState,
+    TaskStatusUpdateEvent,
 )
 from a2a.utils.constants import TransportProtocol
 from fakes.model import scripted_model, text_result
@@ -23,13 +26,16 @@ from fakes.spec import allocation_spec
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Value
 
-from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES
+from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES, ContractorAgentExecutor
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
+    StageContentRequest,
+    WorkerCompletion,
+    WorkerFailure,
 )
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.server import create_app
@@ -333,3 +339,133 @@ def text_request(allocation_id: str) -> SendMessageRequest:
             parts=[Part(text="not a StageContentRequest")],
         ),
     )
+
+
+EXECUTOR_ALLOCATION = "allocation-executor"
+
+
+class RecordingQueue:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    async def enqueue_event(self, event: object) -> None:
+        self.events.append(event)
+
+    def terminal(self) -> TaskStatusUpdateEvent:
+        updates = [event for event in self.events if isinstance(event, TaskStatusUpdateEvent)]
+        assert updates
+        return updates[-1]
+
+
+class ExecutorWorker:
+    allocation_id = EXECUTOR_ALLOCATION
+
+    def __init__(self) -> None:
+        self.invoke_error: Exception | None = None
+        self.failure_error: Exception | None = None
+        self.block = False
+        self.started = asyncio.Event()
+        self.active: asyncio.Task[object] | None = None
+        self.cancelled_owners: list[asyncio.Task[object]] = []
+        self.failures: list[tuple[str, bool]] = []
+
+    async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
+        del request
+        if self.active is not None:
+            return await self.failure_completion("worker_busy", "busy", retryable=True)
+        self.active = asyncio.current_task()
+        try:
+            self.started.set()
+            if self.block:
+                await asyncio.Event().wait()
+            if self.invoke_error is not None:
+                raise self.invoke_error
+            raise AssertionError("scenario must block or fail")
+        finally:
+            self.active = None
+
+    async def failure_completion(
+        self, code: str, message: str, *, retryable: bool = False
+    ) -> WorkerCompletion:
+        if self.failure_error is not None:
+            raise self.failure_error
+        self.failures.append((code, retryable))
+        return WorkerCompletion(
+            apiVersion=API_VERSION,
+            failure=WorkerFailure(code=code, message=message, retryable=retryable),
+            invocationId="worker-rejected-1",
+            stateRevision=1,
+        )
+
+    def cancel_active(self, owner: asyncio.Task[object]) -> None:
+        self.cancelled_owners.append(owner)
+        if self.active is not None and self.active is owner:
+            self.active.cancel()
+
+
+def executor_context(task_id: str) -> RequestContext:
+    return RequestContext(
+        call_context=ServerCallContext(tenant=EXECUTOR_ALLOCATION),
+        request=data_request(EXECUTOR_ALLOCATION, message_id=f"message-{task_id}"),
+        task_id=task_id,
+        context_id="context-1",
+    )
+
+
+def test_executor_turns_an_escaping_worker_error_into_a_failed_task() -> None:
+    async def scenario() -> None:
+        worker = ExecutorWorker()
+        worker.invoke_error = RuntimeError("Worker State did not produce a terminal revision")
+        executor = ContractorAgentExecutor(worker)  # type: ignore[arg-type]
+        queue = RecordingQueue()
+
+        await executor.execute(executor_context("task-1"), queue)  # type: ignore[arg-type]
+
+        status = queue.terminal().status
+        assert status.state == TaskState.TASK_STATE_FAILED
+        result = result_from_message(status.message)
+        assert result["failure"] == {
+            "code": "worker_execution_failed",
+            "message": "Worker execution failed",
+            "retryable": True,
+        }
+        assert "terminal revision" not in str(queue.events)
+        assert executor._invocations == {}
+
+        worker.failure_error = RuntimeError("State unavailable")
+        second = RecordingQueue()
+        await executor.execute(executor_context("task-2"), second)  # type: ignore[arg-type]
+        status = second.terminal().status
+        assert status.state == TaskState.TASK_STATE_FAILED
+        assert not status.HasField("message")
+
+    asyncio.run(scenario())
+
+
+def test_executor_cancel_targets_only_the_task_owning_the_invocation() -> None:
+    async def scenario() -> None:
+        worker = ExecutorWorker()
+        worker.block = True
+        executor = ContractorAgentExecutor(worker)  # type: ignore[arg-type]
+        active = asyncio.create_task(
+            executor.execute(executor_context("task-active"), RecordingQueue())  # type: ignore[arg-type]
+        )
+        await asyncio.wait_for(worker.started.wait(), timeout=1)
+
+        busy_queue = RecordingQueue()
+        await executor.execute(executor_context("task-busy"), busy_queue)  # type: ignore[arg-type]
+        assert result_from_message(busy_queue.terminal().status.message)["failure"]["code"] == (
+            "worker_busy"
+        )
+        for stale in ("task-busy", "task-unknown"):
+            await executor.cancel(executor_context(stale), RecordingQueue())  # type: ignore[arg-type]
+        await asyncio.sleep(0)
+        assert not active.done()
+
+        await executor.cancel(executor_context("task-active"), RecordingQueue())  # type: ignore[arg-type]
+        with pytest.raises(asyncio.CancelledError):
+            await active
+        assert worker.cancelled_owners == [active]
+        assert executor._invocations == {}
+
+    asyncio.run(scenario())

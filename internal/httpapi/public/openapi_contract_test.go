@@ -65,6 +65,13 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 			if implementation == "implemented" {
 				implemented = append(implemented, key)
 			}
+			// Bounded JSON bodies reject oversize input with 413
+			// request_too_large; Eval documents keep their own limit code.
+			if body := operation.RequestBody; body != nil && body.Value != nil &&
+				body.Value.Content.Get("application/json") != nil && !strings.Contains(path, "/eval-") &&
+				operation.Responses.Status(http.StatusRequestEntityTooLarge) == nil {
+				t.Errorf("%s accepts a bounded JSON body but documents no 413 response", key)
+			}
 			if previous, exists := operationIDs[operation.OperationID]; operation.OperationID == "" {
 				t.Errorf("%s has no operationId", key)
 			} else if exists {
@@ -415,6 +422,16 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	)
 	createProject.Header.Set("Content-Type", "application/json")
 	createProject.Header.Set("Idempotency-Key", "contract-create-project")
+	oversizedProject := newPublicContractRequest(
+		http.MethodPost, "/v1/projects",
+		[]byte(`{"kind":"project","name":"Oversized","description":"`+strings.Repeat("x", maxJSONRequestSize)+`"}`),
+	)
+	oversizedProject.Header.Set("Content-Type", "application/json")
+	oversizedProject.Header.Set("Idempotency-Key", "contract-oversized-project")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, oversizedProject, false); response.Code != http.StatusRequestEntityTooLarge ||
+		!strings.Contains(response.Body.String(), `"request_too_large"`) {
+		t.Fatalf("oversized Project = %d: %s", response.Code, response.Body.String())
+	}
 	createdProject := serveAndValidatePublicContract(t, router, fixture.handler, createProject, true)
 	if createdProject.Code != http.StatusCreated {
 		t.Fatalf("create Project = %d: %s", createdProject.Code, createdProject.Body.String())
@@ -709,6 +726,21 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	deleteRuntimeCredential.Header.Set("Idempotency-Key", "contract-delete-runtime-credential")
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteRuntimeCredential, true); response.Code != http.StatusNoContent {
 		t.Fatalf("delete Runtime credential = %d: %s", response.Code, response.Body.String())
+	}
+	// The tombstone, not a key, makes a repeated delete idempotent.
+	repeatRuntimeCredentialDelete := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-credentials/contract-otel", nil,
+	)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, repeatRuntimeCredentialDelete, true); response.Code != http.StatusNoContent ||
+		response.Header().Get("Idempotency-Replayed") != "true" {
+		t.Fatalf("repeat Runtime credential delete without key = %d: %s", response.Code, response.Body.String())
+	}
+	malformedRuntimeCredentialDelete := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-credentials/contract-otel", nil,
+	)
+	malformedRuntimeCredentialDelete.Header.Set("Idempotency-Key", "-malformed key")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, malformedRuntimeCredentialDelete, false); response.Code != http.StatusBadRequest {
+		t.Fatalf("Runtime credential delete with malformed key = %d: %s", response.Code, response.Body.String())
 	}
 
 	inUseBody, err := json.Marshal(createCredentialRequest{

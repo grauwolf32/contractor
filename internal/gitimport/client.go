@@ -39,6 +39,20 @@ var (
 	ErrContent     = errors.New("Git snapshot contains unsupported or invalid content")
 )
 
+// UnsupportedEntryError names a tracked entry that Git import rejects rather
+// than silently omitting. It matches ErrContent. The path is the repository's
+// own validated, bounded tree path, returned only to the requesting owner.
+type UnsupportedEntryError struct {
+	Kind string
+	Path string
+}
+
+func (e *UnsupportedEntryError) Error() string {
+	return fmt.Sprintf("Git snapshot contains a %s at %q; Git import does not support it", e.Kind, e.Path)
+}
+
+func (e *UnsupportedEntryError) Is(target error) bool { return target == ErrContent }
+
 type Remote struct {
 	URL     string
 	Scheme  string

@@ -34,6 +34,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -609,6 +610,8 @@ func (completionCredentials) LookupLLMCredential(context.Context, string) (confi
 	return config.CredentialMetadata{}, errors.New("no live credentials in completion fixtures")
 }
 func (completionCredentials) WithRunCreation(_ context.Context, fn func() error) error { return fn() }
-func (completionCredentials) ValidateRuntimeCredential(context.Context, string, ...string) error {
+func (completionCredentials) ValidateRuntimeCredentialUse(
+	context.Context, credentials.RuntimeCredentialUser, string, ...string,
+) error {
 	return nil
 }

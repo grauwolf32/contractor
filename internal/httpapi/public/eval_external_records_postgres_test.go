@@ -2,9 +2,12 @@ package public
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
@@ -105,5 +108,96 @@ func TestEvalPostgresExternalResultsRevisionsAndExplicitSelection(t *testing.T) 
 	var count int
 	if err = h.pool.QueryRow(t.Context(), "SELECT count(*) FROM workflow_runs").Scan(&count); err != nil || count != 1 || h.get(t, e.ID).State != evaldomain.StateRunning {
 		t.Fatal("external assessment dispatched or finalized executions", count, err)
+	}
+}
+
+// Two identical result requests take their REPEATABLE READ snapshots before
+// either commits; the second must replay the first's receipt, not conflict.
+func TestEvalPostgresConcurrentResultRetryReplaysReceipt(t *testing.T) {
+	h := newEvalAPIHarness(t)
+	e, manifest, _ := h.registerExternal(t, "workflow")
+	memberID := manifest.Members[0].MemberID
+	base := "/v1/eval-experiments/" + e.ID
+	h.request(t, "POST", base+"/members/"+memberID+"/submissions", evaldomain.Submission{PlanSHA256: *e.PlanSHA256}, "submit", "", 202)
+	h.tick(t)
+	h.finish(t, "workflow")
+	h.tick(t)
+	page := apiDecode[struct {
+		Items []evaldomain.MemberView `json:"items"`
+	}](t, h.request(t, "GET", base+"/members", nil, "", "", 200))
+	var member evaldomain.MemberView
+	for _, row := range page.Items {
+		if row.Member.ID == memberID {
+			member = row
+		}
+	}
+	if member.Execution == nil || member.Usage == nil {
+		t.Fatal("member execution was not collected", member)
+	}
+	raw, err := json.Marshal(evaldomain.ResultInput{
+		SchemaVersion: evaldomain.ResultSchemaVersion, PlanSHA256: *e.PlanSHA256, MemberID: memberID,
+		Source:    evaldomain.Source{System: "fixture", ID: "independent-collector"},
+		Execution: *member.Execution, Usage: *member.Usage,
+		Collection: evaldomain.Collection{Status: "complete", Gaps: []string{}},
+		Outputs:    map[string]evaldomain.Artifact{}, Evidence: []evaldomain.Evidence{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := evaldomain.Freeze("ResultInput", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutation, err := evaldomain.IdentifyMutation("concurrent-result", "", false, doc.Kind(), doc.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := evalstore.Scope{OwnerID: "user-1", ProjectID: "evaluation"}
+	lockKey, err := json.Marshal([]string{scope.OwnerID, scope.ProjectID, e.ID + ":" + memberID, "result", mutation.Key})
+	if err != nil {
+		t.Fatal(err)
+	}
+	holder, err := h.pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holder.Rollback(context.Background())
+	if _, err = holder.Exec(t.Context(), `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, string(lockKey)); err != nil {
+		t.Fatal(err)
+	}
+	type outcome struct {
+		receipt evalstore.Receipt
+		err     error
+	}
+	outcomes := make(chan outcome, 2)
+	for range 2 {
+		go func() {
+			receipt, err := h.service.PutRecord(t.Context(), scope, e.ID, memberID, doc, mutation)
+			outcomes <- outcome{receipt, err}
+		}()
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for waiting := 0; waiting != 2; {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d requests queued on the idempotency lock, want 2", waiting)
+		}
+		time.Sleep(10 * time.Millisecond)
+		if err = h.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM pg_locks
+WHERE locktype = 'advisory' AND NOT granted
+    AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+    AND ((classid::bigint << 32) | objid::bigint) = hashtextextended($1,0)`, string(lockKey)).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = holder.Commit(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	first, second := <-outcomes, <-outcomes
+	if first.err != nil || second.err != nil {
+		t.Fatalf("concurrent identical results: %v, %v", first.err, second.err)
+	}
+	if string(first.receipt.Response) != string(second.receipt.Response) || first.receipt.Replayed == second.receipt.Replayed {
+		t.Fatalf("receipts = %+v and %+v, want one original and one exact replay", first.receipt, second.receipt)
 	}
 }

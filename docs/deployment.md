@@ -193,6 +193,15 @@ before startup. Capabilities are probed once; restart the process after changing
 its tool environment. [Runtime configuration](operations/runtime-configuration.md)
 covers labels and adapter placement.
 
+HTTP and scanner tools reach public and private-network targets, but refuse
+loopback and link-local targets unless a Project HTTP target points there. When
+application targets live on the Runtime host, allow those networks explicitly
+with a repeatable `--allowed-target-network CIDR` (or
+`CONTRACTOR_ALLOWED_TARGET_NETWORKS`), for example `127.0.0.0/8`. Server,
+Runtime and other infrastructure endpoints and cloud metadata addresses remain
+refused even inside an allowed network; see the
+[target policy](spec/11-http-and-caido-tools.md#target-policy).
+
 Start the built UI behind its HTTPS proxy:
 
 ```shell

@@ -90,13 +90,6 @@ func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return
@@ -114,12 +107,7 @@ func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	result, err := store.Read(r.Context(), ref)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	writeArtifactBytes(w, result)
+	h.writeArtifactRead(w, r, store, ref)
 }
 
 func (h *handler) getRunArtifactMetadata(w http.ResponseWriter, r *http.Request) {
@@ -502,13 +490,6 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
-	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
-	if transferErr != nil {
-		h.handleError(w, transferErr)
-		return
-	}
-	defer releaseTransfer()
-	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return
@@ -527,7 +508,22 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	result, err := store.Read(r.Context(), ref)
+	h.writeArtifactRead(w, r, store, ref)
+}
+
+// writeArtifactRead holds one of the few global transfer slots only while the
+// payload is read and written, after method, ownership and route checks have
+// passed, so rejected requests cannot exhaust transfer capacity.
+func (h *handler) writeArtifactRead(
+	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, ref contracts.ArtifactRef,
+) {
+	ctx, releaseTransfer, err := artifacts.AcquireTransfer(r.Context())
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	defer releaseTransfer()
+	result, err := store.Read(ctx, ref)
 	if err != nil {
 		h.handleError(w, err)
 		return

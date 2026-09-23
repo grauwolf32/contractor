@@ -25,6 +25,10 @@ MAX_REQUEST_ID_CHARS = 64
 MAX_SYMBOLS_RESPONSE = 200
 MAX_PATHS_RESPONSE = 50
 MAX_PATH_DEPTH = 20
+# Successor examinations shared by every source of one path query. It keeps a
+# pathological graph well inside the parent's query deadline so the child and
+# its mirror survive; exhaustion is reported as a truncated traversal.
+MAX_TRAVERSAL_STEPS = 1_000_000
 MAX_MODEL_RESPONSE_BYTES = 256 * 1024
 MAX_NAME_CHARS = 256
 MAX_QUERY_CHARS = 256
@@ -36,6 +40,7 @@ _COVERAGE_KEYS = {
     "binaryFiles",
     "unsupportedSourceFiles",
     "oversizedFiles",
+    "excludedFiles",
     "parseErrors",
     "incomplete",
     "reasons",
@@ -68,6 +73,7 @@ class _TrailmarkAdapter:
         self._incoming: dict[str, tuple[tuple[str, str], ...]] = {}
         self._outgoing: dict[str, tuple[tuple[str, str], ...]] = {}
         self._call_adjacency: dict[str, tuple[str, ...]] = {}
+        self._reverse_call_adjacency: dict[str, tuple[str, ...]] = {}
         self._entrypoints: tuple[dict[str, Any], ...] = ()
         self._entrypoint_ids: tuple[str, ...] = ()
         self._complexities: tuple[dict[str, Any], ...] = ()
@@ -214,6 +220,7 @@ class _TrailmarkAdapter:
             key: tuple(sorted(values, key=lambda raw_id: _node_sort_key(raw_id, nodes)))
             for key, values in adjacency.items()
         }
+        self._reverse_call_adjacency = _reverse_adjacency(self._call_adjacency)
         self._entrypoints = tuple(row for _, row in entrypoint_pairs)
         self._entrypoint_ids = tuple(raw_id for raw_id, _ in entrypoint_pairs)
         self._complexities = tuple(row for _, row in complexities)
@@ -317,6 +324,7 @@ class _TrailmarkAdapter:
             target,
             max_depth=max_depth,
             limit=limit,
+            reverse_adjacency=self._reverse_call_adjacency,
         )
         rows = [[self._nodes[raw_id] for raw_id in path] for path in paths]
         assert self._coverage is not None
@@ -651,15 +659,37 @@ def _bounded_simple_paths(
     *,
     max_depth: int,
     limit: int,
+    reverse_adjacency: Mapping[str, tuple[str, ...]] | None = None,
+    max_steps: int = MAX_TRAVERSAL_STEPS,
 ) -> tuple[list[tuple[str, ...]], bool, int]:
-    """Enumerate at most limit+1 deterministic simple paths without a frontier cache."""
+    """Enumerate at most limit+1 deterministic simple paths without a frontier cache.
 
+    A depth-bounded reverse breadth-first search first records each node's
+    call distance to ``target``. The depth-first walk never descends into a
+    successor that cannot reach the target within the remaining depth, so an
+    unreachable or too-distant target costs no path enumeration. Pruning by
+    shortest distance cannot drop a valid simple path, but it cannot prune a
+    shortest route that is blocked by nodes already on the current path either;
+    ``max_steps`` bounds that residual exponential case and reports it as
+    ``truncated`` because the search did not complete.
+    """
+
+    if reverse_adjacency is None:
+        reverse_adjacency = _reverse_adjacency(adjacency)
+    distances = _distances_to_target(reverse_adjacency, target, max_depth - 1)
     paths: list[tuple[str, ...]] = []
     traversal_steps = 0
+    exhausted = False
+
+    def reaches_target(node: str, path_length: int) -> bool:
+        # path_length counts nodes including ``node``; the remaining distance
+        # adds one node per call edge.
+        distance = distances.get(node)
+        return distance is not None and path_length + distance <= max_depth
 
     def walk(node: str, path: list[str], visited: set[str]) -> None:
-        nonlocal traversal_steps
-        if len(paths) > limit:
+        nonlocal traversal_steps, exhausted
+        if len(paths) > limit or exhausted:
             return
         if node == target:
             paths.append(tuple(path))
@@ -667,22 +697,59 @@ def _bounded_simple_paths(
         if len(path) >= max_depth:
             return
         for successor in adjacency.get(node, ()):
+            if traversal_steps >= max_steps:
+                exhausted = True
+                return
             traversal_steps += 1
-            if successor in visited:
+            if successor in visited or not reaches_target(successor, len(path) + 1):
                 continue
             visited.add(successor)
             path.append(successor)
             walk(successor, path, visited)
             path.pop()
             visited.remove(successor)
-            if len(paths) > limit:
+            if len(paths) > limit or exhausted:
                 return
 
     for source in sources:
+        if not reaches_target(source, 1):
+            continue
         walk(source, [source], {source})
-        if len(paths) > limit:
+        if len(paths) > limit or exhausted:
             break
-    return paths[:limit], len(paths) > limit, traversal_steps
+    return paths[:limit], len(paths) > limit or exhausted, traversal_steps
+
+
+def _reverse_adjacency(
+    adjacency: Mapping[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    reverse: dict[str, list[str]] = {}
+    for source, successors in adjacency.items():
+        for successor in successors:
+            reverse.setdefault(successor, []).append(source)
+    return {key: tuple(values) for key, values in reverse.items()}
+
+
+def _distances_to_target(
+    reverse_adjacency: Mapping[str, tuple[str, ...]],
+    target: str,
+    max_edges: int,
+) -> dict[str, int]:
+    """Return call-edge distances to target for nodes within ``max_edges``."""
+
+    distances = {target: 0}
+    frontier = [target]
+    for distance in range(1, max_edges + 1):
+        following: list[str] = []
+        for node in frontier:
+            for predecessor in reverse_adjacency.get(node, ()):
+                if predecessor not in distances:
+                    distances[predecessor] = distance
+                    following.append(predecessor)
+        if not following:
+            break
+        frontier = following
+    return distances
 
 
 def _fit_path_rows(

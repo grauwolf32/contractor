@@ -25,13 +25,29 @@ for an allocation-isolated fsspec tree, add `--workspace-storage memory`.
 `CONTRACTOR_WORKSPACE_MAX_*` variables provide the equivalent immutable startup
 configuration. Physical roots are never registered with Control Plane.
 
+Model-selected HTTP requests and scanner targets pass one
+[target policy](../docs/spec/11-http-and-caido-tools.md#target-policy). Runtime
+service endpoints and cloud metadata addresses are always refused. Private
+networks (RFC 1918, `100.64.0.0/10`, IPv6 unique local) and public addresses
+are allowed. Loopback and link-local addresses are refused unless they are the
+allocation's project HTTP target or fall inside an additional allowed network.
+For same-host targets or local evaluations, allow them explicitly at startup,
+for example `--allowed-target-network 127.0.0.0/8` (repeatable) or
+`CONTRACTOR_ALLOWED_TARGET_NETWORKS=127.0.0.0/8,::1/128`. Values are strict CIDR
+networks, at most 64; the setting is immutable for the process. Requests routed
+through a `tool-http` forward proxy, such as a Caido instance on the same host,
+use the same policy; loopback then refers to the proxy's host.
+
 For `direct` on a local provider, the allocation's `run_workdir` is authoritative
 on disk. Completed external writes, creates, renames and deletes are visible to
 the next tool call without refresh, including same-size changes with restored
 timestamps. `read_file` acquires only the requested text; complete snapshots and
 derived analysis acquire the current bounded managed-text projection. Existing
-symlinks, hard links and special files are rejected. An oversized external tree
-can fail a complete acquisition without preventing an otherwise bounded read.
+symlinks, hard links, special files, files over the per-file limit, unreadable
+entries and non-NFC names are listed as opaque binary-like leaves: never opened
+or followed, and any operation touching them fails with
+`workspace_type_conflict`. An oversized external tree can fail a complete
+acquisition without preventing an otherwise bounded read.
 
 Filesystem calls share an operation-ownership guard and run blocking I/O off the
 event loop. Cancellation fences uncertain work but does not release its ownership:
@@ -142,7 +158,11 @@ Before submitting the workflow, check the Runtime Agent in Operations (or
 `GET /v1/operations/runtime-agents`): it must be registered and available with
 `podman@1`, `code-execution@1` / `exec_command`, and local/direct workspace
 capacity. Startup logs report `Runtime Podman effective policy verified` only
-after cleanup. Enabled settings alone, a listening port, or `systemctl active`
+after cleanup, with the verified image digest and limits as structured
+`podman*` JSON fields. Each capability probe line carries `capabilityRef`,
+`capabilityKind`, `probeOutcome` (`available`, `unavailable`, `failed`,
+`timeout` or `total_timeout`) and `durationMs`; the JSON formatter emits only
+these reviewed extra fields. Enabled settings alone, a listening port, or `systemctl active`
 are not positive capabilities. Missing optional prerequisites omit the paired
 capabilities; unconfirmed recovery/cleanup prevents registration entirely.
 
@@ -277,8 +297,10 @@ Calls use fixed argument arrays without a shell, a private allocation-local
 temporary directory and a minimal child environment. Calls within one toolset
 are serialized. The maximum deadline is 3600 seconds; timeout, cancellation,
 allocation close and output overflow terminate the process group before scratch
-cleanup. Combined process output is capped at 1 MiB, previews at 32 KiB per
-stream, and JSONL results at 100 records / 128 KiB. Every result carries process
+cleanup. A descendant that detached into another session cannot hold a call
+open: Runtime closes its pipe ends instead of waiting for their EOF. Combined
+process output is capped at 1 MiB, previews at 32 KiB per stream, and JSONL
+results at 100 records / 128 KiB. Every result carries process
 status, error code, exit code and truncation information. A completed process
 does not certify a clean target; partial results and SQLMap diagnostics require
 interpretation. Direct tool calls return observations; `tool@1` Workers persist
@@ -327,10 +349,17 @@ not successful empty results. `tool@1` publishes the ordinary artifact report.
 
 These fixed scanner processes run on the Runtime host and need network access.
 They do not use the offline Podman execution sandbox. The initial implementation
-rejects calls with `scan_proxy_unsupported` when a subprocess proxy is assigned;
-it never silently falls back to direct routing. Scanner arguments and output
-are excluded from tool metrics. Install binaries/templates as deployment
-dependencies; the Runtime does not install them during allocation.
+rejects calls with `scan_proxy_unsupported` when a `tool-http` or
+`tool-subprocess` proxy route is assigned, because scanners cannot use the
+tool HTTP route; it never silently falls back to direct routing. Before launch,
+the target host is resolved and every address must pass the target policy for
+every selected port; otherwise the call fails with `scan_target_denied`, or
+`scan_target_unresolved` when the host does not resolve. The scanner resolves
+the name again itself, so an answer that changes after the check (DNS
+rebinding) is not pinned; restrict the Runtime's network namespace when that
+matters. Scanner arguments and output are excluded from tool metrics. Install
+binaries/templates as deployment dependencies; the Runtime does not install
+them during allocation.
 
 To add a scanner, implement a `ScanTool` adapter (or `JSONLinesScanTool` for
 JSONL output) and register its class in `SCANNERS`. The adapter declares the

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -338,6 +339,73 @@ def test_read_is_line_and_utf8_bounded(tmp_path: Path) -> None:
             await tools["read_likec4"](start_line=10)
 
     asyncio.run(scenario())
+
+
+def test_read_numbers_lines_like_read_file(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("model {\x0c\u2028}\r\nviews {\x85}\rspec {}\n")
+        result = await tools["read_likec4"](start_line=2)
+        assert result["totalLines"] == 3
+        assert result["text"] == "views {\x85}\rspec {}\n"
+        assert (result["endLine"], result["truncated"]) == (3, False)
+
+    asyncio.run(scenario())
+
+
+def test_read_never_reports_a_later_line_as_partially_returned(tmp_path: Path) -> None:
+    limit = likec4_module.MAX_VISIBLE_UTF8_BYTES
+
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("a\n" + "b" * limit + "\nc\n")
+        first = await tools["read_likec4"]()
+        assert first["text"] == "a\n"
+        assert (first["endLine"], first["partialLine"], first["truncated"]) == (1, False, True)
+        # Continuing at endLine + 1 reaches the oversized line itself.
+        oversized = await tools["read_likec4"](start_line=first["endLine"] + 1)
+        assert oversized["text"] == "b" * limit
+        assert (oversized["endLine"], oversized["partialLine"]) == (2, True)
+        last = await tools["read_likec4"](start_line=3)
+        assert (last["text"], last["truncated"]) == ("c\n", False)
+
+        await tools["write_likec4"]("a" * (limit - 1) + "\nc\n")
+        filled = await tools["read_likec4"]()
+        assert filled["text"] == "a" * (limit - 1) + "\n"
+        assert (filled["endLine"], filled["partialLine"], filled["truncated"]) == (1, False, True)
+
+    asyncio.run(scenario())
+
+
+def test_json_fallback_is_bounded_and_rejects_deep_nesting() -> None:
+    assert likec4_module._extract_json('Update [notice] available\n{"errors": []}\n') == {
+        "errors": []
+    }
+    for text in ("[" * 200_000, "banner " + "{" * 200_000, "x" + "[" * 500_000):
+        started = time.monotonic()
+        with pytest.raises(ValueError):
+            likec4_module._extract_json(text)
+        assert time.monotonic() - started < 5
+
+
+def test_validation_reports_deeply_nested_output_as_invalid_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    monkeypatch.setattr(
+        likec4_module,
+        "run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [], 1, b"[" * 500_000, b""
+            )
+        ),
+    )
+    validation = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not validation["valid"]
+    assert validation["executionError"] == "LikeC4 returned invalid JSON"
 
 
 def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(

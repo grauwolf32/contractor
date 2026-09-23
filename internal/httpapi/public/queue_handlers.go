@@ -70,7 +70,9 @@ func (h *handler) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.dependencies.RunNotifier.Wake()
+	if h.dependencies.RunNotifier != nil {
+		h.dependencies.RunNotifier.Wake()
+	}
 	writeOwnerQueueControl(w, http.StatusOK, control)
 }
 

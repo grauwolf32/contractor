@@ -346,13 +346,11 @@ class _OpenAPISession:
     async def list_paths(self) -> dict[str, Any]:
         async with self._lock:
             document, artifact = self._require_document()
-            paths = sorted(document["paths"])
-            return {
-                "artifact": artifact.model_dump(by_alias=True),
-                "paths": paths[:MAX_LIST_ITEMS],
-                "total": len(paths),
-                "truncated": len(paths) > MAX_LIST_ITEMS,
-            }
+            return _bounded_name_listing(
+                {"artifact": artifact.model_dump(by_alias=True)},
+                "paths",
+                sorted(document["paths"]),
+            )
 
     async def get_path(self, path: str) -> dict[str, Any]:
         normalized = _validate_api_path(path)
@@ -405,14 +403,11 @@ class _OpenAPISession:
         normalized = _validate_component_section(section)
         async with self._lock:
             document, artifact = self._require_document()
-            values = sorted(document.get("components", {}).get(normalized, {}))
-            return {
-                "artifact": artifact.model_dump(by_alias=True),
-                "section": normalized,
-                "components": values[:MAX_LIST_ITEMS],
-                "total": len(values),
-                "truncated": len(values) > MAX_LIST_ITEMS,
-            }
+            return _bounded_name_listing(
+                {"artifact": artifact.model_dump(by_alias=True), "section": normalized},
+                "components",
+                sorted(document.get("components", {}).get(normalized, {})),
+            )
 
     async def get_component(self, section: str, name: str) -> dict[str, Any]:
         normalized = _validate_component_section(section)
@@ -643,7 +638,9 @@ class _OpenAPISession:
     ) -> None:
         for path_item in document["paths"].values():
             self._validate_evidence_from_paths(path_item["x-path-files"], project_evidence_paths)
-        for values in document.get("components", {}).values():
+        for section, values in document.get("components", {}).items():
+            if section.startswith("x-"):
+                continue
             for component in values.values():
                 self._validate_evidence_from_paths(
                     component["x-component-files"], project_evidence_paths
@@ -960,6 +957,8 @@ class ListOpenAPIPathsTool(_BaseOpenAPITool):
 
     Returns:
         Sorted path strings, total, truncated and the exact artifact reference.
+        At most 500 paths are listed, fewer when long paths reach the output
+        limit; truncated then marks the omitted suffix.
     """
 
     async def __call__(self) -> dict[str, Any]:
@@ -1055,6 +1054,8 @@ class ListOpenAPIComponentsTool(_BaseOpenAPITool):
 
     Returns:
         Sorted component names, section, total, truncated and exact artifact reference.
+        At most 500 names are listed, fewer when long names reach the output
+        limit; truncated then marks the omitted suffix.
     """
 
     async def __call__(self, section: str) -> dict[str, Any]:
@@ -1214,7 +1215,26 @@ class ValidateOpenAPITool(_BaseOpenAPITool):
 
 
 class _UniqueSafeLoader(yaml.SafeLoader):
-    pass
+    """SafeLoader with JSON-compatible scalar resolution.
+
+    JSON has no date type, so unquoted dates such as ``version: 2023-01-01``
+    stay strings instead of resolving to ``datetime.date``. An explicit
+    ``!!timestamp`` tag still produces a date and is rejected.
+    """
+
+
+_UniqueSafeLoader.yaml_implicit_resolvers = {
+    first: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
+# JSON object keys are strings, so a plain or quoted key such as ``200:``,
+# ``1.5:`` or ``on:`` keeps its source text instead of becoming an int, float
+# or bool. Keys with any other tag are constructed normally and must still be
+# strings.
+_JSON_SCALAR_KEY_TAGS = frozenset(
+    f"tag:yaml.org,2002:{name}" for name in ("str", "int", "float", "bool", "null")
+)
 
 
 class _NoAliasSafeDumper(yaml.SafeDumper):
@@ -1229,7 +1249,10 @@ def _construct_unique_mapping(
     loader.flatten_mapping(node)
     result: dict[Any, Any] = {}
     for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
+        if isinstance(key_node, yaml.ScalarNode) and key_node.tag in _JSON_SCALAR_KEY_TAGS:
+            key: Any = key_node.value
+        else:
+            key = loader.construct_object(key_node, deep=deep)
         try:
             duplicate = key in result
         except TypeError as error:
@@ -1336,9 +1359,12 @@ def _validate_document(document: dict[str, Any], *, require_provenance: bool) ->
     if not isinstance(components, dict):
         raise ToolInputError("OpenAPI components must be an object")
     for section, values in components.items():
+        if section.startswith("x-"):
+            # Specification Extensions are allowed on the Components Object
+            # and carry arbitrary JSON rather than named components.
+            continue
         if section not in ALLOWED_COMPONENT_SECTIONS:
-            # OpenAPI extensions can add x-* component-adjacent data, but an
-            # unknown component bucket is almost certainly a model mistake.
+            # An unknown component bucket is almost certainly a model mistake.
             raise ToolInputError(f"unsupported OpenAPI component section: {section}")
         if version.startswith("3.0.") and section == "pathItems":
             raise ToolInputError("OpenAPI components.pathItems requires OpenAPI 3.1")
@@ -1418,6 +1444,9 @@ def _validate_schema_shapes(document: dict[str, Any], version: str) -> None:
 
 
 def _validate_schema_shape(value: Any, version: str) -> None:
+    if isinstance(value, bool) and version.startswith("3.1."):
+        # OpenAPI 3.1 uses JSON Schema 2020-12, where true/false are schemas.
+        return
     if not isinstance(value, dict):
         raise ToolInputError("OpenAPI schema must be an object")
     schema_type = value.get("type")
@@ -1444,7 +1473,7 @@ def _validate_schema_shape(value: Any, version: str) -> None:
         if keyword in value and (
             not isinstance(members, list)
             or not members
-            or any(not isinstance(item, dict) for item in members)
+            or any(not _schema_value(item, version) for item in members)
         ):
             raise ToolInputError(f"OpenAPI schema {keyword} must contain at least one schema")
         if isinstance(members, list):
@@ -1460,6 +1489,10 @@ def _validate_schema_shape(value: Any, version: str) -> None:
         raise ToolInputError("OpenAPI schema additionalProperties must be a boolean or schema")
     if isinstance(additional, dict):
         _validate_schema_shape(additional, version)
+
+
+def _schema_value(value: Any, version: str) -> bool:
+    return isinstance(value, dict) or (isinstance(value, bool) and version.startswith("3.1."))
 
 
 def _validation_message(kind: str, error: ValidationError) -> str:
@@ -1493,7 +1526,12 @@ def _validate_local_refs(document: dict[str, Any]) -> None:
             token = encoded.replace("~1", "/").replace("~0", "~")
             if isinstance(current, dict) and token in current:
                 current = current[token]
-            elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
+            elif (
+                isinstance(current, list)
+                and token.isascii()
+                and token.isdigit()
+                and int(token) < len(current)
+            ):
                 current = current[int(token)]
             else:
                 raise ToolInputError(f"OpenAPI local reference is unresolved: {ref}")
@@ -1643,9 +1681,30 @@ def _require_nonempty(field: str, value: Any) -> None:
 
 
 def _bound_targeted_result(value: Any) -> None:
-    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    if len(encoded) > MAX_TARGETED_RESULT_BYTES:
+    if _encoded_size(value) > MAX_TARGETED_RESULT_BYTES:
         raise ToolInputError("targeted OpenAPI result exceeds the model output limit")
+
+
+def _encoded_size(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def _bounded_name_listing(envelope: dict[str, Any], field: str, names: list[str]) -> dict[str, Any]:
+    """Return the longest sorted prefix whose complete result fits model output."""
+
+    selected: list[str] = []
+    # "truncated": false is the longer encoding, so the sized envelope never
+    # grows when the final flag is filled in.
+    result = {**envelope, field: selected, "total": len(names), "truncated": False}
+    size = _encoded_size(result)
+    for name in names[:MAX_LIST_ITEMS]:
+        cost = _encoded_size(name) + (1 if selected else 0)
+        if size + cost > MAX_TARGETED_RESULT_BYTES:
+            break
+        selected.append(name)
+        size += cost
+    result["truncated"] = len(selected) < len(names)
+    return result
 
 
 def _document_state(
