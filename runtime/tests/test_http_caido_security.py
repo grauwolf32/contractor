@@ -403,3 +403,18 @@ def test_http_timeout_is_one_deadline_for_a_trickling_response(tmp_path: Path) -
         await close_tools(tools)
 
     asyncio.run(scenario())
+
+
+def test_caido_deeply_nested_json_is_an_invalid_response_not_a_retry() -> None:
+    # Far deeper than the parser recursion limit, well within the size limit.
+    nested = b'{"data":' + b"[" * 200_000 + b"]" * 200_000 + b"}"
+
+    async def scenario() -> None:
+        client = caido_client(lambda request: httpx.Response(200, content=nested, request=request))
+        with pytest.raises(CaidoClientError) as failure:
+            await client.execute("scopes")
+        assert failure.value.code == "caido_response_invalid"
+        assert failure.value.retryable is False
+        await client.close()
+
+    asyncio.run(scenario())

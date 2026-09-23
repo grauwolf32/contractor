@@ -529,7 +529,8 @@ def _decode_response(raw: bytes) -> dict[str, Any]:
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+        # Nesting beyond the parser's recursion limit is malformed, not transient.
         raise CaidoClientError("caido_response_invalid", retryable=False) from None
     _validate_response_shape(decoded)
     assert isinstance(decoded, dict)
