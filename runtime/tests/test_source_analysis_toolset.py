@@ -197,6 +197,39 @@ def test_search_and_read_validation_is_bounded(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_read_source_pages_through_an_oversized_line(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = ReadOnlyArtifactClient()
+        long_line = "ä" * (80 * 1024) + "\n"
+        ref = client.seed(
+            "inputs",
+            "source",
+            "application/zip",
+            make_zip({"bundle.min.js": "head\n" + long_line + "tail\n"}),
+        )
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        first = await tools["read_source"]("bundle.min.js")
+        assert first["text"] == "head\n"
+        assert (first["nextStartLine"], first["nextLineOffset"]) == (2, 0)
+        parts: list[str] = []
+        start, offset = 2, 0
+        while True:
+            page = await tools["read_source"](
+                "bundle.min.js", start_line=start, max_lines=1, line_offset=offset
+            )
+            parts.append(page["text"])
+            if not page["partialLine"]:
+                break
+            start, offset = page["nextStartLine"], page["nextLineOffset"]
+        assert "".join(parts) == long_line
+        last = await tools["read_source"]("bundle.min.js", start_line=3)
+        assert last["text"] == "tail\n"
+        assert (last["nextStartLine"], last["nextLineOffset"]) == (None, None)
+
+    asyncio.run(scenario())
+
+
 def test_search_deadline_is_checked_between_lines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

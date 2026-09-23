@@ -41,6 +41,11 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.lines import (
+    bounded_window,
+    split_lines,
+    validate_line_offset,
+)
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -293,9 +298,12 @@ class _SourceArchiveSession:
                 deadline=self._deadline(),
             )
 
-    async def read(self, path: str, start_line: int, max_lines: int) -> dict[str, Any]:
+    async def read(
+        self, path: str, start_line: int, max_lines: int, line_offset: int = 0
+    ) -> dict[str, Any]:
         normalized = _validate_requested_path(path)
         _validate_read_window(start_line, max_lines)
+        validate_line_offset(line_offset)
         async with self._lock:
             self._require_open()
             source = self._files.get(normalized)
@@ -307,21 +315,26 @@ class _SourceArchiveSession:
             content = await self._guard.run(
                 lambda: self._read_file(source), deadline=self._deadline()
             )
-            lines = content.splitlines(keepends=True)
+            lines = split_lines(content, keepends=True)
             if lines and start_line > len(lines):
                 raise ToolInputError("start_line exceeds source file line count")
-            selected, end_line, partial_line = _bounded_lines(
-                lines, start_line=start_line, max_lines=max_lines
+            window = bounded_window(
+                lines,
+                start_line=start_line,
+                max_lines=max_lines,
+                max_bytes=MAX_VISIBLE_READ_BYTES,
+                line_offset=line_offset,
             )
             return {
                 "path": normalized,
                 "size": source.size,
                 "totalLines": len(lines),
                 "startLine": start_line,
-                "endLine": end_line,
-                "text": selected,
-                "truncated": partial_line or end_line < len(lines),
-                "partialLine": partial_line,
+                "endLine": window.end_line,
+                "text": window.text,
+                "truncated": window.truncated(len(lines)),
+                "partialLine": window.partial_line,
+                **window.continuation(len(lines)),
             }
 
     async def close(self) -> None:
@@ -389,7 +402,7 @@ class _SourceArchiveSession:
             content = self._read_file(source)
             scanned_bytes += source.size
             scanned_files += 1
-            for line_number, line in enumerate(content.splitlines(), start=1):
+            for line_number, line in enumerate(split_lines(content), start=1):
                 if time.monotonic() >= deadline:
                     truncated = True
                     break
@@ -631,15 +644,20 @@ class ReadSourceTool(_BaseSourceTool):
     name = "read_source"
     description = """Read a UTF-8 line window from the archive opened by open_source_archive.
 
-    Output is limited to 128 KiB.
+    Output is limited to 128 KiB. Page with nextStartLine and nextLineOffset: a
+    line longer than the limit is returned in parts, continued by passing
+    line_offset.
 
     Args:
         path: Exact archive-relative file path from list_source_files or search_source.
         start_line: First line to read, 1-based and inclusive; defaults to 1.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+        line_offset: UTF-8 byte offset into start_line to continue a partial
+            line; use the returned nextLineOffset. Defaults to 0.
 
     Returns:
-        File metadata, text, startLine, endLine, totalLines, truncated and partialLine.
+        File metadata, text, startLine, endLine, totalLines, truncated,
+        partialLine, and nextStartLine/nextLineOffset (null at the end).
     """
 
     async def __call__(
@@ -647,11 +665,17 @@ class ReadSourceTool(_BaseSourceTool):
         path: str,
         start_line: int = 1,
         max_lines: int = DEFAULT_READ_LINES,
+        line_offset: int = 0,
     ) -> dict[str, Any]:
-        arguments = {"path": path, "start_line": start_line, "max_lines": max_lines}
+        arguments = {
+            "path": path,
+            "start_line": start_line,
+            "max_lines": max_lines,
+            "line_offset": line_offset,
+        }
         return await self._call(
             arguments,
-            self._session.read(path, start_line, max_lines),
+            self._session.read(path, start_line, max_lines, line_offset),
             lambda result: {
                 "path": result["path"],
                 "size": result["size"],
@@ -865,31 +889,6 @@ def _validate_read_window(start_line: int, max_lines: int) -> None:
         or max_lines > MAX_READ_LINES
     ):
         raise ToolInputError(f"max_lines must be between 1 and {MAX_READ_LINES}")
-
-
-def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:
-    if not lines:
-        return "", 0, False
-    window = lines[start_line - 1 : start_line - 1 + max_lines]
-    result: list[str] = []
-    size = 0
-    partial_line = False
-    for line in window:
-        encoded = line.encode("utf-8")
-        remaining = MAX_VISIBLE_READ_BYTES - size
-        if len(encoded) <= remaining:
-            result.append(line)
-            size += len(encoded)
-            continue
-        if not result and remaining > 0:
-            result.append(encoded[:remaining].decode("utf-8", errors="ignore"))
-            partial_line = True
-        break
-    complete_lines = len(result) - (1 if partial_line else 0)
-    end_line = start_line + complete_lines - 1
-    if partial_line:
-        end_line = start_line
-    return "".join(result), end_line, partial_line
 
 
 def _remove_path(path: Path) -> None:
