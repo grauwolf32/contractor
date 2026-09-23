@@ -73,6 +73,7 @@ class GraphCoverage:
     binary_files: int
     unsupported_source_files: int
     oversized_files: int
+    excluded_files: int
     parse_errors: int
     reasons: tuple[str, ...]
 
@@ -87,6 +88,7 @@ class GraphCoverage:
             "binaryFiles": self.binary_files,
             "unsupportedSourceFiles": self.unsupported_source_files,
             "oversizedFiles": self.oversized_files,
+            "excludedFiles": self.excluded_files,
             "parseErrors": self.parse_errors,
             "incomplete": self.incomplete,
             "reasons": list(self.reasons),
@@ -902,15 +904,21 @@ def _admit_snapshot(
     supported: list[WorkspaceTextFile] = []
     unsupported = 0
     oversized = 0
+    excluded = 0
     for item in sorted(snapshot.files, key=lambda candidate: candidate.path):
-        suffix = PurePosixPath(item.path).suffix
-        if suffix in language_support.GRAPH_EXTENSION_LANGUAGES:
-            if item.size > MAX_GRAPH_FILE_BYTES:
-                oversized += 1
-            else:
-                supported.append(item)
-        elif language_support.detect_language(item.path) is not None:
+        graph_source = PurePosixPath(item.path).suffix in language_support.GRAPH_EXTENSION_LANGUAGES
+        if not graph_source and language_support.detect_language(item.path) is None:
+            continue
+        # Trailmark would never parse these, so they must not consume the
+        # mirror's file/byte budget ahead of the sources it does analyze.
+        if language_support.graph_walk_excluded(item.path):
+            excluded += 1
+        elif not graph_source:
             unsupported += 1
+        elif item.size > MAX_GRAPH_FILE_BYTES:
+            oversized += 1
+        else:
+            supported.append(item)
 
     reasons: set[str] = set()
     if len(supported) > MAX_GRAPH_FILES:
@@ -931,6 +939,10 @@ def _admit_snapshot(
         binary_files=len(snapshot.binary_paths),
         unsupported_source_files=unsupported,
         oversized_files=oversized,
+        excluded_files=excluded,
+        # Trailmark 0.5.0's public graph carries no per-file syntax-error
+        # signal (its tree-sitter parsers recover silently), so there is no
+        # parse-error count to surface for graph coverage.
         parse_errors=0,
         reasons=tuple(sorted(reasons)),
     )

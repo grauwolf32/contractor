@@ -119,10 +119,66 @@ def test_mirror_admission_is_lexicographic_bounded_and_reports_coverage(
                 "binaryFiles": 1,
                 "unsupportedSourceFiles": 1,
                 "oversizedFiles": 1,
+                "excludedFiles": 0,
                 "parseErrors": 0,
                 "incomplete": True,
                 "reasons": ["file_limit"],
             }
+        finally:
+            await host.close()
+
+    asyncio.run(scenario())
+
+
+def test_mirror_admission_skips_directories_the_graph_engine_never_walks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Sorted admission reaches build/, node_modules/ and vendor/ before src/.
+    # Their files must not exhaust the budget that Trailmark's walk would
+    # then spend on nothing.
+    monkeypatch.setattr(host_module, "MAX_GRAPH_FILES", 1)
+    files = (
+        _file(".github/scripts/release.py", "def HiddenDirectory():\n    pass\n"),
+        _file("build/generated.py", "def BuildOutput():\n    pass\n"),
+        _file("node_modules/pkg/index.js", "function Dependency() {}\n"),
+        _file("node_modules/pkg/types.scala", "def ScalaDependency = 1\n"),
+        _file("pkg/vendor/lib.go", "package lib\nfunc Vendored() {}\n"),
+        _file("src/app.py", "def Application():\n    pass\n"),
+        _file("src/notes.md", "not source"),
+    )
+    snapshot = WorkspaceSnapshot(
+        directories=(),
+        files=files,
+        binary_paths=(),
+        digest="sha256:" + "3" * 64,
+    )
+
+    async def scenario() -> None:
+        host = TrailmarkChildHost(tmp_path / "scratch")
+        try:
+            result = await host.build(snapshot)
+            page = await host.symbols()
+            names = {item.name for item in page.items}
+            assert "Application" in names
+            assert not names & {"HiddenDirectory", "BuildOutput", "Dependency", "Vendored"}
+            assert result.coverage.wire() == {
+                "analyzedFiles": 1,
+                "analyzedBytes": files[5].size,
+                "binaryFiles": 0,
+                "unsupportedSourceFiles": 0,
+                "oversizedFiles": 0,
+                "excludedFiles": 5,
+                "parseErrors": 0,
+                "incomplete": False,
+                "reasons": [],
+            }
+            assert host._mirror is not None
+            mirrored = sorted(
+                path.relative_to(host._mirror.path).as_posix()
+                for path in host._mirror.path.rglob("*")
+                if path.is_file()
+            )
+            assert mirrored == [".trailmark/entrypoints.toml", "src/app.py"]
         finally:
             await host.close()
 

@@ -843,6 +843,7 @@ class _CodeAnalysisSession:
             "binary_files": graph.coverage.binary_files,
             "unsupported_source_files": graph.coverage.unsupported_source_files,
             "oversized_files": graph.coverage.oversized_files,
+            "excluded_files": graph.coverage.excluded_files,
             "parse_errors": graph.coverage.parse_errors,
             "graph_builds": self._graph_builds,
             "graph_rebuilds": self._graph_rebuilds,

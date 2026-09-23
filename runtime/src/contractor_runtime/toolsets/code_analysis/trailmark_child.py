@@ -40,6 +40,7 @@ _COVERAGE_KEYS = {
     "binaryFiles",
     "unsupportedSourceFiles",
     "oversizedFiles",
+    "excludedFiles",
     "parseErrors",
     "incomplete",
     "reasons",

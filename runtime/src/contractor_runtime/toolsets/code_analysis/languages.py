@@ -136,6 +136,32 @@ GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
 # ordinary non-source files.
 GRAPH_ONLY_SOURCE_EXTENSIONS = frozenset(GRAPH_EXTENSION_LANGUAGES) - frozenset(EXTENSION_LANGUAGES)
 
+# Reviewed copy of the pinned Trailmark 0.5.0 directory-walk exclusions
+# (``trailmark.parsers._common.should_skip_dir``): these exact names plus every
+# directory whose name starts with a dot. Trailmark never parses a file below
+# one of them, so the graph mirror neither copies nor budgets such files. Like
+# the extension table, it lives here instead of importing Trailmark internals
+# into the Runtime process; a Trailmark upgrade must re-review both.
+GRAPH_EXCLUDED_DIRECTORIES = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "build",
+        "dist",
+        ".eggs",
+        "vendor",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class NodeSpec:
@@ -354,6 +380,15 @@ def detect_language(path: str) -> Language | None:
 
 def graph_only_source(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in GRAPH_ONLY_SOURCE_EXTENSIONS
+
+
+def graph_walk_excluded(path: str) -> bool:
+    """Return whether the pinned graph engine's directory walk skips ``path``."""
+
+    return any(
+        part in GRAPH_EXCLUDED_DIRECTORIES or part.startswith(".")
+        for part in PurePosixPath(path).parts[:-1]
+    )
 
 
 def load_parser(language: Language) -> Parser:

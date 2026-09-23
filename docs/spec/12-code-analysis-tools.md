@@ -222,12 +222,13 @@ same semantic strength on every Runtime that advertises it:
 | parent/child protocol response | 2 MiB |
 
 Workspace path and total hydration limits still apply first. Source candidates
-recognized by the selected engine are ordered by normalized relative path,
-then admitted until the file/byte ceilings are reached. A file above the
-per-file ceiling is skipped. This makes partial coverage deterministic instead
-of depending on filesystem walk order. `unsupportedSourceFiles` counts files
-recognized by the other v1 engine's source-extension registry but unsupported
-by the selected one; unknown non-source files are ignored.
+recognized by the selected engine, outside directories that engine never
+walks, are ordered by normalized relative path, then admitted until the
+file/byte ceilings are reached. A file above the per-file ceiling is skipped.
+This makes partial coverage deterministic instead of depending on filesystem
+walk order. `unsupportedSourceFiles` counts files recognized by the other v1
+engine's source-extension registry but unsupported by the selected one; unknown
+non-source files are ignored.
 
 Every successful analysis response includes bounded coverage metadata:
 
@@ -252,6 +253,17 @@ are drawn from `file_limit`, `byte_limit`, `symbol_limit`, `symbol_name_limit`, 
 `parse_errors`. Binary and unsupported-language counts describe intentional
 coverage boundaries and do not alone make the supported-language result
 incomplete. Unknown non-source files are ignored rather than counted.
+
+Graph coverage additionally reports `excludedFiles`: recognized source files
+below a directory that the pinned Trailmark walk never enters (`.git`, `.hg`,
+`.svn`, `node_modules`, `__pycache__`, `.venv`, `venv`, `.tox`, `.mypy_cache`,
+`.pytest_cache`, `.ruff_cache`, `build`, `dist`, `.eggs`, `vendor` and every
+other directory whose name starts with `.`). They are applied before the
+file/byte ceilings, are never copied into the mirror and, like binary and
+unsupported files, do not alone make the result incomplete. The reviewed
+directory list is pinned with the engine version. Trailmark 0.5.0's public
+graph exposes no per-file syntax-error signal, so graph `parseErrors` is
+always `0`; tree-sitter recovers and the affected definitions are simply absent.
 
 Collection responses use `items`, `nextCursor`, `truncated` and
 `observedTotal`. `observedTotal` counts the complete bounded result set, not an
@@ -342,7 +354,8 @@ On the first graph call for a digest, the Runtime:
 1. takes the exact current `WorkspaceSnapshot`;
 2. creates a uniquely named mirror below the allocation's private scratch
    directory;
-3. writes only admitted managed UTF-8 files at normalized relative paths;
+3. writes only admitted managed UTF-8 files at normalized relative paths,
+   omitting directories the pinned Trailmark walk skips;
 4. starts one child with direct argv, no shell, a sanitized environment and no
    Allocation RuntimeSettings, LLM/API credentials or Artifact grant;
 5. has the child build a public Trailmark `CodeGraph` from that mirror in
