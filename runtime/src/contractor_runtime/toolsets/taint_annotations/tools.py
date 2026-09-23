@@ -23,7 +23,7 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
     dependency_versions_match,
 )
-from contractor_runtime.toolsets.common.lines import newline_style, split_lines
+from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.taint_annotations.languages import (
     AnnotationParseResult,
@@ -497,7 +497,7 @@ def _plan_mutation(
     marker = _COMMENT_MARKERS.get(language, "//")
     line = f"{indent}{marker} @{request.kind} {request.body}"
     encoded_line = line.encode("utf-8")
-    newline = newline_style(source).encode("ascii")
+    newline = _comment_newline(source).encode("ascii")
     if (
         len(encoded_line) > MAX_ANNOTATION_BYTES
         or len(source.encode("utf-8")) + len(encoded_line) + len(newline) > MAX_SOURCE_FILE_BYTES
@@ -530,7 +530,7 @@ def _apply_plan(
         for _, value in block
     ):
         raise TaintAnnotationError("taint_annotation_conflict")
-    newline = newline_style(source)
+    newline = _comment_newline(source)
     lines.insert(insertion_index, plan.line + newline)
     return "".join(lines), _result(
         request,
@@ -538,6 +538,18 @@ def _apply_plan(
         plan.target.definition_line + 1,
         True,
     )
+
+
+def _comment_newline(source: str) -> str:
+    """Return the LF-based line break the file uses for an inserted comment.
+
+    A lone CR ends a read_file line but not a line comment in several parser
+    grammars (Python, Go), so a comment ended by it would swallow the
+    definition below.
+    """
+
+    index = source.find("\n")
+    return "\r\n" if index > 0 and source[index - 1] == "\r" else "\n"
 
 
 def _annotation_block(

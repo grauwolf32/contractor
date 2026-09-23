@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass
 from types import MappingProxyType
 
 from tree_sitter import Node, Parser
 
 from contractor_runtime.toolsets.code_analysis.languages import Language, extract_node_name
+from contractor_runtime.toolsets.common.lines import split_lines
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +139,7 @@ def parse_annotation_targets(
 ) -> AnnotationParseResult:
     tree = parser.parse(source)
     root = tree.root_node
+    line_starts = _line_starts(source)
     targets: list[AnnotationTarget] = []
     stack: list[Node] = [root]
     while stack:
@@ -146,13 +149,13 @@ def parse_annotation_targets(
             name, name_node = candidate
             outer = _outer_declaration(node, language)
             outer = _syntax_prefix(outer, source, language)
-            definition_line = name_node.start_point[0] + 1
-            insertion_line = outer.start_point[0] + 1
+            definition_line = bisect_right(line_starts, name_node.start_byte)
+            insertion_line = bisect_right(line_starts, outer.start_byte)
             selector_lines = tuple(
                 sorted(
                     {
                         definition_line,
-                        node.start_point[0] + 1,
+                        bisect_right(line_starts, node.start_byte),
                         insertion_line,
                     }
                 )
@@ -170,6 +173,22 @@ def parse_annotation_targets(
             stack.append(node.children[index])
     targets.sort(key=lambda item: (item.insertion_line, item.definition_line, item.name))
     return AnnotationParseResult(tuple(targets), root.has_error)
+
+
+def _line_starts(source: bytes) -> list[int]:
+    """Return the byte offset of every line as read_file numbers them.
+
+    Tree-sitter rows advance only at LF, while read_file, edits and the
+    inserted annotation also end a line at a lone CR. Numbering from byte
+    offsets keeps model-supplied and returned line numbers in one scheme.
+    """
+
+    starts = [0]
+    offset = 0
+    for line in split_lines(source.decode("utf-8", errors="strict"), keepends=True):
+        offset += len(line.encode("utf-8"))
+        starts.append(offset)
+    return starts
 
 
 def _candidate(
