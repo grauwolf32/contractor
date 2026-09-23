@@ -372,6 +372,38 @@ def test_path_tools_use_exact_ids_depth_and_limit_plus_one(tmp_path: Path) -> No
     asyncio.run(scenario())
 
 
+def test_unreachable_target_in_dense_call_graph_answers_without_timeout(
+    tmp_path: Path,
+) -> None:
+    functions = "".join(
+        f"def f{index:02d}():\n"
+        + "".join(f"    f{(index + step) % 30:02d}()\n" for step in range(1, 5))
+        + "\n"
+        for index in range(30)
+    )
+    files = {"app.py": functions + "def target():\n    return 1\n\ndef main():\n    f00()\n"}
+
+    async def scenario() -> None:
+        tools, _, scratch = await _tools(tmp_path, MutableReader(files))
+        symbols = {
+            name: (await tools["find_symbol"](name))["items"][0]["symbolId"]
+            for name in ("f00", "target")
+        }
+        mirrors = tuple(scratch.glob("code-analysis-mirror-*"))
+        started = asyncio.get_running_loop().time()
+        between = await tools["paths_between"](symbols["f00"], symbols["target"])
+        from_entrypoints = await tools["entrypoint_paths_to"](symbols["target"])
+        assert asyncio.get_running_loop().time() - started < 5
+        assert between["items"] == [] and between["truncated"] is False
+        assert all(len(path) == 1 for path in from_entrypoints["items"])
+        assert from_entrypoints["truncated"] is False
+        # The child survived: no query timeout discarded the mirror.
+        assert tuple(scratch.glob("code-analysis-mirror-*")) == mirrors
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
 def test_entrypoint_paths_keep_duplicate_targets_exact(tmp_path: Path) -> None:
     files = {
         "a.py": "def target():\n    return 'a'\n\ndef main():\n    return target()\n",

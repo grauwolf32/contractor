@@ -1325,8 +1325,10 @@ class PathsBetweenTool(_BaseCodeAnalysisTool):
         limit: Maximum paths to return, from 1 to 50; defaults to 20.
 
     Returns:
-        Path items, truncated and coverage. An empty result means no path was
-        found within the graph coverage and traversal limits.
+        Path items, truncated and coverage. truncated is true when more paths
+        exist or the bounded search stopped early; narrow the symbols or depth.
+        An empty non-truncated result means no path was found within the graph
+        coverage and max_depth.
     """
 
     async def __call__(
@@ -1366,8 +1368,10 @@ class EntrypointPathsToTool(_BaseCodeAnalysisTool):
         limit: Maximum paths to return, from 1 to 50; defaults to 20.
 
     Returns:
-        Path items, truncated and coverage. An empty result does not establish
-        unreachability beyond the analyzed graph and traversal limits.
+        Path items, truncated and coverage. truncated is true when more paths
+        exist or the bounded search stopped early; narrow the depth instead.
+        An empty result does not establish unreachability beyond the analyzed
+        graph, max_depth or a truncated search.
     """
 
     async def __call__(

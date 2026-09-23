@@ -217,6 +217,7 @@ same semantic strength on every Runtime that advertises it:
 | Trailmark child address space | 1 GiB |
 | path results returned by one traversal | 50 |
 | call-path depth | 20 nodes |
+| successor examinations by one path query, across all sources | 1,000,000 |
 | parent/child protocol request | 16 KiB |
 | parent/child protocol response | 2 MiB |
 
@@ -262,10 +263,11 @@ item. No operation silently cuts off results.
 
 Path traversals are different: they stop traversal after finding `limit + 1`
 paths, return at most `limit`, set `truncated` when another path was observed,
-or when another path would exceed the encoded response ceiling, and do not
-claim a total. They intentionally have no cursor because continuing an
-exponential traversal would retain unbounded frontier state; callers narrow the
-symbols or depth instead.
+when another path would exceed the encoded response ceiling, or when the fixed
+traversal-step budget ended the search before it completed, and do not claim a
+total. They intentionally have no cursor because continuing an exponential
+traversal would retain unbounded frontier state; callers narrow the symbols or
+depth instead.
 
 ## Shallow Tree-sitter surface
 
@@ -414,6 +416,17 @@ not invoke those unbounded operations. The child performs its own deterministic
 depth-limited traversal over the retained CodeGraph call edges and stops after
 `limit + 1` results.
 
+Before descending, the child runs one reverse breadth-first search from the
+target, bounded by `max_depth`, and never enters a successor whose shortest
+call distance to the target exceeds the remaining depth. An unreachable or
+too-distant target, including one queried from every entrypoint, therefore
+costs no path enumeration. Shortest-distance pruning cannot drop a valid simple
+path but cannot rule out a shortest route blocked by nodes already on the
+current path, so every path query also shares one successor-examination budget
+across all of its sources. Exhausting it returns the paths found so far with
+`truncated: true` well before the query deadline, so the child and its mirror
+are retained for the next call.
+
 ## Child failure and lifecycle
 
 The child is lazy: selecting a graph tool does not build a repository graph at
@@ -548,8 +561,9 @@ Toolset**:
 7. Duplicate symbol names produce multiple `find_symbol` candidates; every
    graph relationship query accepts only one returned opaque ID.
 8. Adversarial high-branching graphs prove path traversal stops at `limit + 1`
-   and depth, response and deadline bounds without first materializing all
-   simple paths.
+   and depth, response, step and deadline bounds without first materializing
+   all simple paths; an unreachable target in a dense cyclic graph answers
+   without enumeration.
 9. File/byte/symbol/parser limits produce deterministic explicit incomplete
    coverage; pagination never claims an exact total for unexamined data.
 10. Binary, unsupported, oversized, malformed and polyglot fixtures preserve
