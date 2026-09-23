@@ -183,35 +183,42 @@ class GatewayClientHandle:
                 if not decision.allowed:
                     await sleep(decision.retry_after_seconds)
                     continue
+                # A grant exists from here until its terminal update is
+                # delivered. Cancellation or an unexpected failure anywhere in
+                # between, including while reporting the outcome, re-delivers
+                # that update so the Server does not hold the probe until it
+                # times out. An abandoned model call reports "finished".
+                terminal: tuple[str, str | None, float] = ("finished", None, 0)
                 error = None
                 try:
-                    async with asyncio.timeout(decision.request_timeout_seconds):
-                        result = await self._complete_transport(
-                            payload, 0, decision.request_timeout_seconds
+                    try:
+                        async with asyncio.timeout(decision.request_timeout_seconds):
+                            result = await self._complete_transport(
+                                payload, 0, decision.request_timeout_seconds
+                            )
+                    except GatewayRequestError as caught:
+                        error = caught
+                    except TimeoutError:
+                        error = GatewayRequestError(
+                            "APITimeoutError",
+                            retryable=True,
+                            failure=GatewayFailure("gateway_timeout", True),
                         )
-                except GatewayRequestError as caught:
-                    error = caught
-                except TimeoutError:
-                    error = GatewayRequestError(
-                        "APITimeoutError",
-                        retryable=True,
-                        failure=GatewayFailure("gateway_timeout", True),
-                    )
+                    if error is None:
+                        terminal = ("succeeded", None, 0)
+                    elif error.retryable and error.transport_retry_allowed:
+                        failure = error.failure or GatewayFailure("gateway_unavailable", True)
+                        terminal = ("failed", failure.code, error.retry_after_seconds)
+                    await recovery.update(model, request_id, *terminal)
+                except RecoveryStoppedError:
+                    raise
                 except (asyncio.CancelledError, Exception):
-                    # Cancellation or an unexpected failure must not leave the
-                    # granted probe held until the Server times it out.
-                    await asyncio.shield(_release_probe(recovery, model, request_id))
+                    await asyncio.shield(_release_probe(recovery, model, request_id, *terminal))
                     raise
                 if error is None:
-                    await recovery.update(model, request_id, "succeeded")
                     return result
-                if not error.retryable or not error.transport_retry_allowed:
-                    await recovery.update(model, request_id, "finished")
+                if terminal[0] == "finished":
                     raise error from None
-                failure = error.failure or GatewayFailure("gateway_unavailable", True)
-                await recovery.update(
-                    model, request_id, "failed", failure.code, error.retry_after_seconds
-                )
                 request_id = uuid.uuid4().hex
         except RecoveryStoppedError:
             # Losing the authority is not a provider failure: report it under
@@ -237,10 +244,19 @@ class GatewayClientHandle:
             await client.aclose()
 
 
-async def _release_probe(recovery: GatewayRecoveryClient, model: str, request_id: str) -> None:
+async def _release_probe(
+    recovery: GatewayRecoveryClient,
+    model: str,
+    request_id: str,
+    action: str = "finished",
+    code: str | None = None,
+    retry_after_seconds: float = 0,
+) -> None:
+    # Terminal updates are idempotent on the Server, so re-delivering one whose
+    # first attempt may already have arrived is safe.
     try:
         async with asyncio.timeout(RECOVERY_RELEASE_TIMEOUT_SECONDS):
-            await recovery.update(model, request_id, "finished")
+            await recovery.update(model, request_id, action, code, retry_after_seconds)
     except Exception:
         # Best effort: transport loss, a stopped authority or the bound
         # expiring must not replace the error that abandoned the call.

@@ -34,6 +34,12 @@ responses cannot reopen it. Repeated failure reports are idempotent even when
 other invocations report failures between retries. The automatic window is bounded;
 manual retry reopens it, while cancellation and the admitted Stage wall-clock
 limit remain effective. Terminated invocations relinquish their recovery waits.
+A Runtime call that abandons a granted attempt, through cancellation or an
+unexpected failure at any point before its terminal update is acknowledged
+(including while reporting the outcome), re-delivers that idempotent update as a
+bounded best effort, so the leased probe is not held until it expires; an
+attempt abandoned before any outcome reports `finished`. Cancellation before a
+grant is known sends nothing and leaves an unknown lease to its expiry.
 This does not persist or restore an ADK session after Runtime process loss.
 
 Failure classification has two layers. Status rules belong to the
