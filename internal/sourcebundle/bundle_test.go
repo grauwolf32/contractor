@@ -117,6 +117,31 @@ func TestBuildKeepsContractorIgnoreNegations(t *testing.T) {
 	assertBundlePaths(t, root, []string{".contractorignore", "keep.log"})
 }
 
+func TestBuildAppliesContractorIgnoreDespiteGitignoreMatches(t *testing.T) {
+	root := initGitRepository(t)
+	writeTestFile(t, filepath.Join(root, ".gitignore"), "*.env\n!public.key\nbuild/\n")
+	writeTestFile(t, filepath.Join(root, ".contractorignore"), "secret.env\npublic.key\ncache/\n")
+	writeTestFile(t, filepath.Join(root, "nested", ".gitignore"), "!*.env\n")
+	writeTestFile(t, filepath.Join(root, "kept.go"), "package kept")
+	writeTestFile(t, filepath.Join(root, "secret.env"), "overlapping .gitignore match")
+	writeTestFile(t, filepath.Join(root, "public.key"), "overridden by a .gitignore negation")
+	writeTestFile(t, filepath.Join(root, "nested", "secret.env"), "re-included by a nested .gitignore")
+	writeTestFile(t, filepath.Join(root, "nested", "cache", "entry"), "nested directory pattern")
+	writeTestFile(t, filepath.Join(root, "build", "cache", "output"), "inside a Git-ignored directory")
+	writeTestFile(t, filepath.Join(root, "build", "kept.txt"), "force-added")
+	gitAdd(t, root, "-f", "secret.env", "public.key", "nested/secret.env", "build/cache/output", "build/kept.txt")
+	expected := []string{".contractorignore", ".gitignore", "build/kept.txt", "kept.go", "nested/.gitignore"}
+	assertBundlePaths(t, root, expected)
+
+	bundle, err := Build(root, Options{IncludeIgnored: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths := bundleEntryNames(t, bundle); !reflect.DeepEqual(paths, expected) {
+		t.Fatalf("--include-ignored paths = %v, want %v", paths, expected)
+	}
+}
+
 func TestBuildSkipsSubmodulesAndNestedRepositories(t *testing.T) {
 	root := initGitRepository(t)
 	writeTestFile(t, filepath.Join(root, "kept.go"), "package kept")
@@ -201,6 +226,14 @@ func assertBundlePaths(t *testing.T, root string, expected []string) Bundle {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if paths := bundleEntryNames(t, bundle); !reflect.DeepEqual(paths, expected) {
+		t.Fatalf("paths = %v, want %v", paths, expected)
+	}
+	return bundle
+}
+
+func bundleEntryNames(t *testing.T, bundle Bundle) []string {
+	t.Helper()
 	reader, err := zip.NewReader(bytes.NewReader(bundle.Data), int64(len(bundle.Data)))
 	if err != nil {
 		t.Fatal(err)
@@ -210,10 +243,15 @@ func assertBundlePaths(t *testing.T, root string, expected []string) Bundle {
 		paths = append(paths, file.Name)
 	}
 	sort.Strings(paths)
-	if !reflect.DeepEqual(paths, expected) {
-		t.Fatalf("paths = %v, want %v", paths, expected)
+	return paths
+}
+
+func gitAdd(t *testing.T, root string, arguments ...string) {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", root, "add"}, arguments...)...)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, output)
 	}
-	return bundle
 }
 
 func writeTestFile(t *testing.T, path, content string) {
