@@ -45,6 +45,37 @@ func TestPrepareAllCleansEveryReservationAfterPartialFailure(t *testing.T) {
 	}
 }
 
+// Settings are validated as a whole before any Runtime call: a mismatch must
+// not leave earlier Agents prepared and active without cleanup.
+func TestPrepareAllRejectsMismatchedSettingsBeforePreparing(t *testing.T) {
+	template := testTemplate(t)
+	lease := time.Now().Add(time.Minute)
+	reservations := []Reservation{
+		testReservation("allocation_1", "first", "https://first.example", "https://first.example", template, lease),
+		testReservation("allocation_2", "second", "https://second.example", "https://second.example", template, lease),
+	}
+	for name, settings := range map[string]map[string]contracts.WorkerExecutionSettings{
+		"unknown": testWorkerExecutionSettings(template, testRuntimeSettings(), "first", "second", "third"),
+		"missing": testWorkerExecutionSettings(template, testRuntimeSettings(), "first"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			runtime := &recordingRuntime{}
+			registry := &recordingAllocationRegistry{}
+			controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			handles, err := controller.PrepareAll(context.Background(), reservations, settings)
+			if err == nil || handles != nil {
+				t.Fatalf("PrepareAll = (%+v, %v), want nil/error", handles, err)
+			}
+			if len(runtime.prepared) != 0 || len(registry.phases) != 0 {
+				t.Fatalf("mismatched settings reached Runtime: prepared=%v phases=%v", runtime.prepared, registry.phases)
+			}
+		})
+	}
+}
+
 func TestFinalizeAllFencesBeforeRuntimeAndReleaseRetainsFailedGrant(t *testing.T) {
 	runtime := &recordingRuntime{releaseFailure: map[string]error{"allocation_2": errors.New("unavailable")}}
 	registry := &recordingAllocationRegistry{}
