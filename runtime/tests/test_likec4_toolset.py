@@ -353,6 +353,31 @@ def test_read_numbers_lines_like_read_file(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_read_never_reports_a_later_line_as_partially_returned(tmp_path: Path) -> None:
+    limit = likec4_module.MAX_VISIBLE_UTF8_BYTES
+
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="architecture")
+        await tools["write_likec4"]("a\n" + "b" * limit + "\nc\n")
+        first = await tools["read_likec4"]()
+        assert first["text"] == "a\n"
+        assert (first["endLine"], first["partialLine"], first["truncated"]) == (1, False, True)
+        # Continuing at endLine + 1 reaches the oversized line itself.
+        oversized = await tools["read_likec4"](start_line=first["endLine"] + 1)
+        assert oversized["text"] == "b" * limit
+        assert (oversized["endLine"], oversized["partialLine"]) == (2, True)
+        last = await tools["read_likec4"](start_line=3)
+        assert (last["text"], last["truncated"]) == ("c\n", False)
+
+        await tools["write_likec4"]("a" * (limit - 1) + "\nc\n")
+        filled = await tools["read_likec4"]()
+        assert filled["text"] == "a" * (limit - 1) + "\n"
+        assert (filled["endLine"], filled["partialLine"], filled["truncated"]) == (1, False, True)
+
+    asyncio.run(scenario())
+
+
 def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

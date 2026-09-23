@@ -34,6 +34,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.common.process import ProcessOutputLimitError, run_command
@@ -235,8 +236,11 @@ class _LikeC4Session:
             total_lines = len(lines)
             if total_lines > 0 and start_line > total_lines:
                 raise ToolInputError("start_line exceeds LikeC4 document line count")
-            visible, end_line, partial_line = _bounded_lines(
-                lines, start_line=start_line, max_lines=max_lines
+            visible, end_line, partial_line = bounded_line_window(
+                lines,
+                start_line=start_line,
+                max_lines=max_lines,
+                max_bytes=MAX_VISIBLE_UTF8_BYTES,
             )
             return {
                 "artifact": artifact.model_dump(by_alias=True),
@@ -542,7 +546,9 @@ class ReadLikeC4Tool(_BaseLikeC4Tool):
     name = "read_likec4"
     description = """Read a line window from the current LikeC4 document.
 
-    Load or write the document first. Output is limited to 128 KiB.
+    Load or write the document first. Output is limited to 128 KiB. Continue at
+    endLine + 1; partialLine means one line alone exceeds the limit and only its
+    prefix is returned.
 
     Args:
         start_line: First line to read, 1-based and inclusive; defaults to 1.
@@ -879,29 +885,6 @@ def _validate_line_window(start_line: int, max_lines: int) -> None:
         raise ToolInputError("start_line must be a positive integer")
     if type(max_lines) is not int or not 1 <= max_lines <= MAX_READ_LINES:
         raise ToolInputError("max_lines must be an integer from 1 through 400")
-
-
-def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:
-    selected: list[str] = []
-    visible_bytes = 0
-    partial_line = False
-    end_line = start_line - 1
-    for line_number, line in enumerate(
-        lines[start_line - 1 : start_line - 1 + max_lines], start=start_line
-    ):
-        encoded = line.encode("utf-8")
-        remaining = MAX_VISIBLE_UTF8_BYTES - visible_bytes
-        if len(encoded) <= remaining:
-            selected.append(line)
-            visible_bytes += len(encoded)
-            end_line = line_number
-            continue
-        if remaining > 0:
-            selected.append(encoded[:remaining].decode("utf-8", errors="ignore"))
-            end_line = line_number
-        partial_line = True
-        break
-    return "".join(selected), end_line, partial_line
 
 
 def _document_state(

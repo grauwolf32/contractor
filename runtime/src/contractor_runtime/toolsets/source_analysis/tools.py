@@ -41,6 +41,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     gateway_secrets,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.line_window import bounded_line_window
 from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
@@ -311,8 +312,11 @@ class _SourceArchiveSession:
             lines = split_lines(content, keepends=True)
             if lines and start_line > len(lines):
                 raise ToolInputError("start_line exceeds source file line count")
-            selected, end_line, partial_line = _bounded_lines(
-                lines, start_line=start_line, max_lines=max_lines
+            selected, end_line, partial_line = bounded_line_window(
+                lines,
+                start_line=start_line,
+                max_lines=max_lines,
+                max_bytes=MAX_VISIBLE_READ_BYTES,
             )
             return {
                 "path": normalized,
@@ -632,7 +636,8 @@ class ReadSourceTool(_BaseSourceTool):
     name = "read_source"
     description = """Read a UTF-8 line window from the archive opened by open_source_archive.
 
-    Output is limited to 128 KiB.
+    Output is limited to 128 KiB. Continue at endLine + 1; partialLine means one
+    line alone exceeds the limit and only its prefix is returned.
 
     Args:
         path: Exact archive-relative file path from list_source_files or search_source.
@@ -866,31 +871,6 @@ def _validate_read_window(start_line: int, max_lines: int) -> None:
         or max_lines > MAX_READ_LINES
     ):
         raise ToolInputError(f"max_lines must be between 1 and {MAX_READ_LINES}")
-
-
-def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:
-    if not lines:
-        return "", 0, False
-    window = lines[start_line - 1 : start_line - 1 + max_lines]
-    result: list[str] = []
-    size = 0
-    partial_line = False
-    for line in window:
-        encoded = line.encode("utf-8")
-        remaining = MAX_VISIBLE_READ_BYTES - size
-        if len(encoded) <= remaining:
-            result.append(line)
-            size += len(encoded)
-            continue
-        if not result and remaining > 0:
-            result.append(encoded[:remaining].decode("utf-8", errors="ignore"))
-            partial_line = True
-        break
-    complete_lines = len(result) - (1 if partial_line else 0)
-    end_line = start_line + complete_lines - 1
-    if partial_line:
-        end_line = start_line
-    return "".join(result), end_line, partial_line
 
 
 def _remove_path(path: Path) -> None:
