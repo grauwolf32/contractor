@@ -266,18 +266,18 @@ func validateResume(params ResumeParams) error {
 		return err
 	}
 	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 ||
-		!transitionAllowed(AuditPaused, AuditActive) || !ownerTransitionAllowed(AuditPaused, AuditActive) {
+		!transitionAllowed(AuditPaused, AuditActive) {
 		return invalidf("Audit resume is invalid")
 	}
 	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
 }
 
+// ownerTransitionAllowed lists the plain owner transitions. Paused to active
+// is deliberately absent: only Resume may reopen dispatch, because it also
+// renews the hold, deadline and expired reviews behind the Project gate.
 func ownerTransitionAllowed(from, to AuditState) bool {
 	if to == AuditPaused {
 		return from == AuditActive || from == AuditWaitingReview
-	}
-	if from == AuditPaused && to == AuditActive {
-		return true
 	}
 	if to == AuditCancelling {
 		return from == AuditActive || from == AuditWaitingReview ||

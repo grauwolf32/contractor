@@ -962,7 +962,9 @@ collection updates while paused. The admission clock includes owner Queue
 waiting; an Audit pause freezes it. Waiting for a frozen report decision uses
 that decision's own expiry rather than the Audit admission clock.
 
-Only a `paused` Audit can resume. Terminal `completed`, `failed` and `cancelled`
+Only a `paused` Audit can resume, and Resume is its only way back to
+`active`: no plain owner transition bypasses Resume's checks and renewals.
+Terminal `completed`, `failed` and `cancelled`
 Audits remain final, including historical records whose stop reason is
 `deadline_exhausted`. Resume requires an active Project, a pinned baseline and either a current Round
 or a persisted preparation/inventory phase, with no frozen report candidate. Accepted items, receipts, evidence and baseline bytes

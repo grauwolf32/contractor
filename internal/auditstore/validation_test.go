@@ -35,6 +35,16 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 	if err := validateTransition(base); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("controller-only/invalid transition error = %v", err)
 	}
+	base.ExpectedState, base.TargetState = AuditPaused, AuditActive
+	if err := validateTransition(base); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("plain paused-to-active transition error = %v, want Resume only", err)
+	}
+	if err := validateResume(ResumeParams{
+		OwnerID: "owner", AuditID: "audit", ExpectedRevision: 2,
+		IdempotencyKey: "resume-1", RequestDigest: testDigest("2"),
+	}); err != nil {
+		t.Fatalf("valid Resume: %v", err)
+	}
 	trusted := TrustedTransitionParams{
 		AuditID: "audit", ExpectedRevision: 2,
 		ExpectedState: AuditWaitingReview, TargetState: AuditActive,
