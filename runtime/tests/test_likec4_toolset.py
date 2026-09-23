@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -376,6 +377,35 @@ def test_read_never_reports_a_later_line_as_partially_returned(tmp_path: Path) -
         assert (filled["endLine"], filled["partialLine"], filled["truncated"]) == (1, False, True)
 
     asyncio.run(scenario())
+
+
+def test_json_fallback_is_bounded_and_rejects_deep_nesting() -> None:
+    assert likec4_module._extract_json('Update [notice] available\n{"errors": []}\n') == {
+        "errors": []
+    }
+    for text in ("[" * 200_000, "banner " + "{" * 200_000, "x" + "[" * 500_000):
+        started = time.monotonic()
+        with pytest.raises(ValueError):
+            likec4_module._extract_json(text)
+        assert time.monotonic() - started < 5
+
+
+def test_validation_reports_deeply_nested_output_as_invalid_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    monkeypatch.setattr(
+        likec4_module,
+        "run_command",
+        AsyncMock(
+            side_effect=lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                [], 1, b"[" * 500_000, b""
+            )
+        ),
+    )
+    validation = asyncio.run(_run_likec4(BASE_DOCUMENT, tmp_path))
+    assert not validation["valid"]
+    assert validation["executionError"] == "LikeC4 returned invalid JSON"
 
 
 def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(

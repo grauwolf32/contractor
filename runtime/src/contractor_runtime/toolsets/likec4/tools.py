@@ -46,6 +46,8 @@ MAX_READ_LINES = 400
 DEFAULT_READ_LINES = 200
 MAX_REPLACE_OCCURRENCES = 100
 MAX_VALIDATOR_OUTPUT_BYTES = 1024 * 1024
+# Banner-tolerant JSON extraction tries at most this many candidate starts.
+MAX_JSON_FALLBACK_STARTS = 64
 MAX_VALIDATION_DIAGNOSTICS = 100
 MAX_DIAGNOSTIC_TEXT_BYTES = 4096
 MAX_DIAGNOSTIC_ITEMS = 32
@@ -765,19 +767,33 @@ async def _run_likec4(
 
 
 def _extract_json(text: str) -> Any:
-    stripped = text.strip()
+    """Decode CLI output that is JSON, possibly after a short text banner.
+
+    Each fallback start may scan the rest of the output, so only a bounded
+    number of ``[``/``{`` positions are tried. Nesting deeper than the decoder
+    supports is invalid output, not a Runtime failure.
+    """
+
     try:
-        return json.loads(stripped)
+        return json.loads(text.strip())
     except json.JSONDecodeError:
         pass
+    except RecursionError:
+        raise ValueError("LikeC4 output JSON is nested too deeply") from None
     decoder = json.JSONDecoder()
+    attempts = 0
     for index, character in enumerate(text):
         if character not in "[{":
             continue
+        if attempts >= MAX_JSON_FALLBACK_STARTS:
+            break
+        attempts += 1
         try:
             value, end = decoder.raw_decode(text, index)
         except json.JSONDecodeError:
             continue
+        except RecursionError:
+            raise ValueError("LikeC4 output JSON is nested too deeply") from None
         if not text[end:].strip():
             return value
     raise ValueError("LikeC4 output contains no complete JSON value")
