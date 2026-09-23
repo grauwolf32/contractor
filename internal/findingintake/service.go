@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -372,12 +371,3 @@ INSERT INTO finding_proposal_retention (receipt_id) VALUES ($1)`, receiptID); er
 	}
 	return nil
 }
-
-func receiptResponse(receipt Receipt, replayed bool) SubmissionResponse {
-	return SubmissionResponse{
-		APIVersion: APIVersion, ProposalID: receipt.ProposalID, ReceiptID: receipt.ReceiptID,
-		Proposal: receipt.Proposal, Replayed: replayed,
-	}
-}
-
-func nowUTC() time.Time { return time.Now().UTC() }

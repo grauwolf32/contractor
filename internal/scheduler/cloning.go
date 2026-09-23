@@ -45,14 +45,6 @@ func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
 	return result
 }
 
-func cloneCredentialRef(source *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	return &result
-}
-
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
 	result := source
 	if source.Temperature != nil {

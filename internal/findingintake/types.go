@@ -15,7 +15,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/controlplane"
 )
 
 const (
@@ -230,12 +229,4 @@ func validIdentity(value string) bool {
 func sameRef(left, right contracts.ArtifactRef) bool {
 	return left.Namespace == right.Namespace && left.Name == right.Name &&
 		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
-}
-
-func trustedGrantMatches(left, right controlplane.AllocationGrant) bool {
-	return left.AllocationID == right.AllocationID && left.RunID == right.RunID &&
-		left.StageExecutionID == right.StageExecutionID &&
-		left.RuntimeAgentID == right.RuntimeAgentID &&
-		left.RuntimeInstanceID == right.RuntimeInstanceID &&
-		left.LogicalAgentName == right.LogicalAgentName
 }

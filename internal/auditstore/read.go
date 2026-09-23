@@ -15,13 +15,6 @@ const roundColumns = `
 round_id, audit_id, ordinal, manifest_ref, manifest_digest,
 state, expected_item_count, revision, created_at, updated_at`
 
-const itemColumns = `
-item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-task_ref, task_digest, origin, workflow_role, state, approval_kind,
-approval_subject_digest, final_disposition,
-accepted_result_ref, accepted_result_digest, last_execution_item_id,
-created_at, updated_at`
-
 const executionColumns = `
 execution_id, audit_id, round_id, role, workflow_role, role_attempt,
 manifest_ref, manifest_digest, submission_key, request_digest, run_id,

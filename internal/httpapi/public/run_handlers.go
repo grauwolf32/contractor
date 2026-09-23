@@ -137,14 +137,6 @@ func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabe
 	return normalized, nil
 }
 
-func runListCursorKind(
-	state *runstore.WorkflowRunState,
-	lifecycle *runstore.WorkflowRunLifecycle,
-	selectors []runstore.RunMetadataLabelSelector,
-) string {
-	return runListCursorKindForProject(state, lifecycle, selectors, nil)
-}
-
 func runListCursorKindForProject(
 	state *runstore.WorkflowRunState,
 	lifecycle *runstore.WorkflowRunLifecycle,
