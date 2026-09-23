@@ -151,22 +151,29 @@ func (s *FilesystemBlobStore) flush(f *os.File) error {
 	return f.Sync()
 }
 
-func (s *FilesystemBlobStore) Read(ctx context.Context, object BlobObject) ([]byte, error) {
+func (s *FilesystemBlobStore) Check(ctx context.Context, object BlobObject) error {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	if object.Backend != BlobFilesystem || !blobKeyPattern.MatchString(object.Key) || object.Size < 0 || object.Size > MaxPayloadSize {
-		return nil, ErrArtifactIntegrity
+		return ErrArtifactIntegrity
 	}
 	if err := s.checkDirectory(object.Key[:2]); err != nil {
-		return nil, err
+		return err
 	}
 	info, err := s.root.Lstat(object.Key)
 	if err != nil {
-		return nil, blobIOError(err)
+		return blobIOError(err)
 	}
 	if !info.Mode().IsRegular() || info.Size() != object.Size {
-		return nil, ErrArtifactIntegrity
+		return ErrArtifactIntegrity
+	}
+	return nil
+}
+
+func (s *FilesystemBlobStore) Read(ctx context.Context, object BlobObject) ([]byte, error) {
+	if err := s.Check(ctx, object); err != nil {
+		return nil, err
 	}
 	f, err := s.root.OpenFile(object.Key, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {

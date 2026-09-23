@@ -23,7 +23,10 @@ func reusableBlobKey(ctx context.Context, db postgres.DBTX, candidate BlobObject
 	store := activeBlobStore(ctx)
 	// A preprepared payload may have lost its file before reaching publication.
 	// Never replace a missing reference with another unreadable candidate.
-	if _, err := store.Read(ctx, candidate); err != nil {
+	// Store derived the candidate's digest from the bytes it wrote, so only its
+	// presence and size need rechecking; this keeps every write from re-reading
+	// up to 64 MiB inside the caller's transaction.
+	if err := store.Check(ctx, candidate); err != nil {
 		return nil, err
 	}
 	var backend BlobBackend

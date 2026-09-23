@@ -138,11 +138,13 @@ writers attach only a complete verified winning object; losing files are
 best-effort removed. Scope forks continue to reuse the existing immutable blob.
 Use rooted filesystem operations and reject symlink/special-file escapes.
 
-Before deduplication, verify the candidate and any existing filesystem object,
-including size and digest. The publication statement may reuse only the exact
-physical key that was verified. If content is missing, or a concurrent writer
-has installed a different unverified key, atomically attach the complete upload
-candidate instead. Existing revisions referencing the same SHA then read the
+Before deduplication, verify any existing filesystem object, including size
+and digest. The candidate's size and digest are computed from the bytes the
+Server wrote, so publication rechecks only that its file is still present with
+that size and never reads it back. The publication statement may reuse only the
+exact physical key that was verified. If content is missing, or a concurrent
+writer has installed a different unverified key, atomically attach the complete
+upload candidate instead. Existing revisions referencing the same SHA then read the
 replacement bytes without changing logical revisions or content identity.
 Corruption, permission/I/O errors and cancellation are not treated as absence.
 This applies to ordinary writes and Controller-generated Audit artifacts and

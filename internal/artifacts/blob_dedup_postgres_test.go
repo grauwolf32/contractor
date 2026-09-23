@@ -245,6 +245,63 @@ func TestFilesystemDedupMissingPreparedCandidateIsNotPublished(t *testing.T) {
 	}
 }
 
+type recordingBlobRead struct {
+	BlobStore
+	mu    sync.Mutex
+	reads []string
+}
+
+func (s *recordingBlobRead) Read(ctx context.Context, object BlobObject) ([]byte, error) {
+	s.mu.Lock()
+	s.reads = append(s.reads, object.Key)
+	s.mu.Unlock()
+	return s.BlobStore.Read(ctx, object)
+}
+
+func TestFilesystemDedupReadsOnlyTheExistingObject(t *testing.T) {
+	f := newDedupFixture(t)
+	recording := &recordingBlobRead{BlobStore: f.files}
+	ctx := WithBlobRuntime(f.ctx, NewBlobRuntime(recording, nil))
+	unique := Payload{MediaType: "text/plain", Data: []byte("unique payload")}
+	if _, err := f.store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "unique"}, unique, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(recording.reads) != 0 {
+		t.Fatalf("write without a deduplication match read %v", recording.reads)
+	}
+	prepared, err := PreparePayload(ctx, f.payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "second"}, prepared, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(recording.reads) != 1 || recording.reads[0] != f.key {
+		t.Fatalf("deduplicated write read %v, want only the existing key %s", recording.reads, f.key)
+	}
+}
+
+func TestFilesystemDedupRejectsTruncatedPreparedCandidate(t *testing.T) {
+	f := newDedupFixture(t)
+	prepared, err := PreparePayload(f.ctx, Payload{MediaType: "text/plain", Data: []byte("prepared candidate")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = filepath.WalkDir(f.path, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || path == filepath.Join(f.path, f.key) {
+			return err
+		}
+		return os.Truncate(path, 1)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.store.Write(f.ctx, ArtifactRef{Namespace: "docs", Name: "not-published"}, prepared, nil)
+	if !errors.Is(err, ErrArtifactIntegrity) {
+		t.Fatalf("truncated candidate error = %v", err)
+	}
+}
+
 type pausedBlobRead struct {
 	BlobStore
 	key     string
