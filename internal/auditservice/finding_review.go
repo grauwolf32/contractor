@@ -83,13 +83,12 @@ SELECT request_id, request_digest
 			row.revision != params.ExpectedRevision {
 			return auditstore.ErrPrecondition
 		}
-		now := s.now().UTC()
 		if _, err := tx.Exec(ctx, `
 UPDATE audit_review_requests
    SET state = 'expired', revision = revision + 1,
        updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
  WHERE audit_id = $1 AND finding_id = $2 AND state = 'pending'
-   AND expires_at IS NOT NULL AND expires_at <= $3`, params.AuditID, params.FindingID, now); err != nil {
+   AND expires_at IS NOT NULL AND expires_at <= clock_timestamp()`, params.AuditID, params.FindingID); err != nil {
 			return err
 		}
 		subjectDigest := findingSubjectDigest(row)
@@ -106,23 +105,29 @@ SELECT request_id
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		expiresAt := now.Add(defaultReviewTTL)
+		var expiresAt *time.Time
 		if params.ExpiresAt != nil {
-			expiresAt = params.ExpiresAt.UTC()
+			value := params.ExpiresAt.UTC()
+			expiresAt = &value
 		}
 		actions, _ := json.Marshal([]AnalystVerdict{
 			VerdictTruePositive, VerdictFalsePositive, VerdictDuplicate,
 			VerdictReopen, VerdictNeedsEvidence,
 		})
 		requestID = params.RequestID
+		// The default window starts at the PostgreSQL clock that later decides
+		// whether the request has expired.
 		if _, err := tx.Exec(ctx, `
 INSERT INTO audit_review_requests (
     request_id, audit_id, finding_id, subject_kind, subject_id,
     kind, subject_revision, subject_digest,
     requested_actions, expires_at, idempotency_key, request_digest
-) VALUES ($1, $2, $3, 'finding', $3, 'finding-triage', $4, $5, $6, $7, $8, $9)`,
+) VALUES ($1, $2, $3, 'finding', $3, 'finding-triage', $4, $5, $6,
+          COALESCE($7::timestamptz, clock_timestamp() + $10::bigint * interval '1 second'),
+          $8, $9)`,
 			requestID, params.AuditID, params.FindingID, row.revision, subjectDigest,
-			actions, expiresAt, params.IdempotencyKey, params.RequestDigest); err != nil {
+			actions, expiresAt, params.IdempotencyKey, params.RequestDigest,
+			int64(defaultReviewTTL/time.Second)); err != nil {
 			if persistencepostgres.SQLState(err) == "23505" {
 				return auditstore.ErrConflict
 			}
@@ -219,17 +224,15 @@ SELECT audit.state,
 			request.Revision != params.ExpectedRequestRevision || request.Kind != FindingReviewKind {
 			return auditstore.ErrPrecondition
 		}
-		if request.ExpiresAt != nil && !s.now().UTC().Before(*request.ExpiresAt) {
-			if _, updateErr := tx.Exec(ctx, `
-UPDATE audit_review_requests SET state = 'expired', revision = revision + 1,
- updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE request_id = $1 AND state = 'pending'`, request.RequestID); updateErr != nil {
-				return updateErr
+		if request.ExpiresAt != nil {
+			if expired, err = expireReviewAtDatabaseTime(ctx, tx, request.RequestID); err != nil {
+				return err
 			}
+		}
+		if expired {
 			// Commit the expiry transition before reporting the failed decision.
 			// Returning ErrPrecondition from inside the transaction would roll the
 			// update back and leave the request permanently pending.
-			expired = true
 			return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.expired",
 				request.RequestID, nil, map[string]any{
 					"subjectKind": ReviewSubjectFinding,
@@ -837,6 +840,23 @@ func validateDuplicateTarget(
 		return auditstore.ErrConflict
 	}
 	return nil
+}
+
+// expireReviewAtDatabaseTime expires a pending request whose expiry has passed
+// by the PostgreSQL clock, which also decides expiry for the Controller and
+// execution authorization, so process clock skew cannot end or extend human
+// authority. The caller holds the request row lock.
+func expireReviewAtDatabaseTime(ctx context.Context, tx pgx.Tx, requestID string) (bool, error) {
+	tag, err := tx.Exec(ctx, `
+UPDATE audit_review_requests
+   SET state = 'expired', revision = revision + 1,
+       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE request_id = $1 AND state = 'pending'
+   AND expires_at IS NOT NULL AND expires_at <= clock_timestamp()`, requestID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
 }
 
 func appendAuditReviewEvent(

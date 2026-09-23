@@ -910,7 +910,11 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	if !errors.Is(err, auditstore.ErrConflict) {
 		t.Fatalf("duplicate cycle error = %v", err)
 	}
-	now = now.Add(defaultReviewTTL + time.Second)
+	if _, err := pool.Exec(ctx, `
+UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 second'
+ WHERE request_id = $1`, secondReview.Request.RequestID); err != nil {
+		t.Fatal(err)
+	}
 	_, err = service.DecideFinding(ctx, DecideFindingParams{
 		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
 		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-expired",

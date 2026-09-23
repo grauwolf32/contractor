@@ -83,15 +83,12 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
 		if json.Unmarshal(requestedJSON, &requested) != nil || !containsReviewAction(requested, params.Action) {
 			return auditstore.ErrPrecondition
 		}
-		if expiresAt != nil && !s.now().UTC().Before(*expiresAt) {
-			if _, err := tx.Exec(ctx, `
-UPDATE audit_review_requests
-   SET state = 'expired', revision = revision + 1,
-       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
- WHERE request_id = $1 AND state = 'pending'`, params.RequestID); err != nil {
+		if expiresAt != nil {
+			if expired, err = expireReviewAtDatabaseTime(ctx, tx, params.RequestID); err != nil {
 				return err
 			}
-			expired = true
+		}
+		if expired {
 			return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.expired",
 				params.RequestID, nil, map[string]any{
 					"subjectKind": subjectKind,

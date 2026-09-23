@@ -169,7 +169,7 @@ func TestAuditDeadlinePauseResumesAndRenewsExpiredReviews(t *testing.T) {
 			if _, err := pool.Exec(ctx, `UPDATE audits SET state='paused',paused_at=deadline_at,stop_reason_code='deadline_exhausted',stop_reason_message='Time limit reached' WHERE audit_id='audit-time'`); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at=$1 WHERE audit_id='audit-time'`, started.Audit.DeadlineAt); err != nil {
+			if _, err := pool.Exec(ctx, `UPDATE audit_review_requests SET expires_at=clock_timestamp()-interval '1 minute' WHERE audit_id='audit-time'`); err != nil {
 				t.Fatal(err)
 			}
 			params := MutationParams{OwnerID: started.Audit.OwnerID, AuditID: started.Audit.AuditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "resume-deadline", RequestDigest: serviceTestDigest("resume-deadline")}

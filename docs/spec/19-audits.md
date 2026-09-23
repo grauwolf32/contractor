@@ -1277,7 +1277,11 @@ Resume replaces expired requests with fresh exact-subject requests for eligible
 unfinished work, requiring a new decision. Before creating an authorized
 execution intent, PostgreSQL rechecks that the item is still ready,
 the exact request was accepted, its digest still matches, and its expiry is
-absent or in the future. Rejecting an item settles it as excluded; an expired
+absent or in the future. Every review expiry, whether the Controller, an owner
+decision, finding-review creation or Resume judges it, compares against the
+PostgreSQL clock under the request's lock, and the default finding-triage
+window starts at that clock, so process clock skew cannot end or extend human
+authority. Rejecting an item settles it as excluded; an expired
 request cannot authorize later execution. A decision never rewrites original
 observations.
 
