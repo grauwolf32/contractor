@@ -2498,6 +2498,12 @@ func (p *memoryAtomicPersistence) FailRunWithActiveStages(
 	if runID != p.store.run.RunID || p.store.run.State != expectedRunState {
 		return runstore.ErrConflict
 	}
+	for _, stage := range p.store.stages {
+		if stage.State == runstore.StageFinalizing && stage.CandidateResult == nil {
+			// PostgreSQL rejects a finalizing Stage without a candidate.
+			return errors.New("finalizing StageExecution has no candidate")
+		}
+	}
 	for index := range p.store.stages {
 		stage := &p.store.stages[index]
 		switch stage.State {
