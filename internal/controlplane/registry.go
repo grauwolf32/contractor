@@ -241,7 +241,12 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		issuedAcks:             make(map[uint64]struct{}), heartbeatResponses: make(map[uint64]contracts.HeartbeatResponse),
 	}
 	for instanceID, existing := range r.agents {
-		if existing.superseded || !sameRuntimeEndpoint(existing.registration, normalized) {
+		// Only a restart under the same certificate principal replaces an
+		// earlier process on its endpoint. Control Plane binds each endpoint to
+		// its registrant's SPKI, so another principal's overlapping endpoint
+		// cannot reach that process and must not revoke its allocation.
+		if existing.superseded || existing.principal.RuntimeAgentID != principal.RuntimeAgentID ||
+			!sameRuntimeEndpoint(existing.registration, normalized) {
 			continue
 		}
 		existing.superseded = true

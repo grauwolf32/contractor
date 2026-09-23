@@ -134,7 +134,11 @@ The registered control and A2A endpoints must present a CA-valid leaf with the
 same SPKI fingerprint when Control Plane connects to them. Normal DNS/IP SAN
 verification still applies. A Runtime Agent cannot register another trusted
 agent's endpoint and cause Control Plane to deliver that allocation's
-RuntimeSettings or A2A traffic to the wrong peer.
+RuntimeSettings or A2A traffic to the wrong peer. Nor can it supersede that
+agent: only a later process of the same certificate principal replaces an
+earlier registration that shares its control or A2A endpoint. An overlapping
+endpoint registered by a different principal leaves the other process, its
+allocation and its control lease untouched.
 
 A restarted Runtime Agent under the same certificate principal registers with
 a new `instance_id` and retains the Control Plane's durable Agent labels. It
