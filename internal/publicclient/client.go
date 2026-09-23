@@ -26,7 +26,11 @@ const (
 	APIVersion        = "contractor.public.v1"
 	APIVersionHeader  = "X-Contractor-API-Version"
 	maximumErrorBytes = 64 * 1024
-	maximumTokenBytes = 8 * 1024
+	// maximumTokenBytes matches the Server's bearer-token bound, so a token
+	// the Server would always reject is refused before any request.
+	maximumTokenBytes = 4096
+	// maximumTokenFileBytes admits one trailing CRLF after the longest token.
+	maximumTokenFileBytes = maximumTokenBytes + 2
 )
 
 type Options struct {
@@ -270,12 +274,12 @@ func ReadTokenFile(path string) (string, error) {
 		return "", fmt.Errorf("open API token file: %w", err)
 	}
 	defer file.Close()
-	value, err := io.ReadAll(io.LimitReader(file, maximumTokenBytes+1))
+	value, err := io.ReadAll(io.LimitReader(file, maximumTokenFileBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("read API token file: %w", err)
 	}
-	if len(value) > maximumTokenBytes {
-		return "", errors.New("API token file exceeds 8 KiB")
+	if len(value) > maximumTokenFileBytes {
+		return "", errors.New("API token file exceeds 4096 bytes and a line ending")
 	}
 	value = bytes.TrimSuffix(value, []byte("\n"))
 	value = bytes.TrimSuffix(value, []byte("\r"))
@@ -288,7 +292,7 @@ func ReadTokenFile(path string) (string, error) {
 
 func validateToken(token string) error {
 	if token == "" || len(token) > maximumTokenBytes || strings.ContainsAny(token, "\x00\r\n") {
-		return errors.New("API token must contain 1 through 8192 bytes without NUL or newlines")
+		return errors.New("API token must contain 1 through 4096 bytes without NUL or newlines")
 	}
 	return nil
 }
