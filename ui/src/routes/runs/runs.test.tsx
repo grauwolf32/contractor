@@ -963,6 +963,112 @@ describe("Run routes", () => {
     ).toBeNull();
   });
 
+  it("follows a new attempt's first Planner fact without a projection resync", async () => {
+    let detailReads = 0;
+    let releaseRefetch!: () => void;
+    const refetchReleased = new Promise<void>((resolve) => {
+      releaseRefetch = resolve;
+    });
+    const retry = {
+      ...runFixture().attempts[0]!,
+      stageExecutionId: "stage-router-2",
+      objective: "Retry the architecture review.",
+      attempt: 2,
+      createdAt: "2026-08-31T12:02:00Z",
+      updatedAt: "2026-08-31T12:02:00Z",
+      plannerStartedAt: "2026-08-31T12:02:00Z",
+    };
+    delete retry.plan;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) {
+          return shared;
+        }
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/runs/run-router") {
+          detailReads += 1;
+          if (detailReads === 1) {
+            return apiResponse(runFixture());
+          }
+          await refetchReleased;
+          return apiResponse(
+            runFixture({
+              attempts: [
+                { ...runFixture().attempts[0]!, state: "failed" },
+                retry,
+              ],
+              activeStageExecutionId: "stage-router-2",
+              eventCursor: { generation: "run-generation-1", sequence: "12" },
+            }),
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderRunApplication(api, "/runs/run-router");
+    await waitFor(() => expect(RouteWebSocket.instances).toHaveLength(1));
+    const socket = RouteWebSocket.instances[0]!;
+    act(() => socket.open());
+    const subscription = JSON.parse(socket.sent[0] ?? "{}");
+    const frame = (sequence: string) => ({
+      version: "contractor.events.v1",
+      type: "event",
+      subscriptionId: subscription.subscriptionId,
+      stream: { kind: "run", id: "run-router" },
+      cursor: { generation: "run-generation-1", sequence },
+      occurredAt: "2026-08-31T12:02:00Z",
+    });
+    act(() => {
+      socket.message({
+        version: "contractor.events.v1",
+        type: "subscribed",
+        subscriptionId: subscription.subscriptionId,
+        stream: { kind: "run", id: "run-router" },
+        cursor: subscription.after,
+      });
+      // The Stage start commits its lifecycle hint and planner.started
+      // together; the Planner fact arrives before the Run refetch returns.
+      socket.message({
+        ...frame("11"),
+        kind: "lifecycle.changed",
+        data: {
+          runId: "run-router",
+          resource: "stageExecution",
+          stageExecutionId: "stage-router-2",
+          state: "running",
+        },
+      });
+      socket.message({
+        ...frame("12"),
+        kind: "planner.event",
+        data: {
+          stageExecutionId: "stage-router-2",
+          sessionId: "session-router-2",
+          invocationId: "invocation-router-2",
+          eventKind: "planner.started",
+        },
+      });
+    });
+    await waitFor(() => expect(detailReads).toBe(2));
+    expect(socket.readyState).toBe(1);
+    expect(screen.queryByText(/REST resync after/)).toBeNull();
+
+    await act(async () => {
+      releaseRefetch();
+      await refetchReleased;
+    });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Retry the architecture review.",
+      }),
+    ).toBeInTheDocument();
+    expect(detailReads).toBe(2);
+    expect(RouteWebSocket.instances).toHaveLength(1);
+  });
+
   it("reconciles a cancellation race without an optimistic terminal state", async () => {
     let currentRun = runFixture({ eventCursor: undefined });
     let cancellationBody: unknown;

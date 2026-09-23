@@ -4,7 +4,11 @@ import type {
   PlannerEventData,
   RunEventEnvelope,
 } from "../../events/run-events";
-import { advancePlannerProjection, type PlannerProjection } from "./live";
+import {
+  advancePlannerProjection,
+  applyPlannerEvent,
+  type PlannerProjection,
+} from "./live";
 
 function event(data: PlannerEventData): RunEventEnvelope<PlannerEventData> {
   return {
@@ -148,5 +152,74 @@ describe("Planner live projection", () => {
     );
     expect(completed?.plan?.subtasks[0]?.status).toBe("succeeded");
     expect(completed?.dispatch).toBeUndefined();
+  });
+});
+
+describe("Planner projections per attempt", () => {
+  it("starts a new attempt from its first Planner fact", () => {
+    const planners = { "stage-1": initial };
+    const next = applyPlannerEvent(
+      planners,
+      event({
+        ...identity,
+        stageExecutionId: "stage-2",
+        eventKind: "planner.started",
+      }),
+    );
+    expect(next).toEqual({
+      "stage-1": initial,
+      "stage-2": {
+        lastEventKind: "planner.started",
+        lastOccurredAt: "2026-08-31T12:00:00Z",
+      },
+    });
+    expect(planners).toEqual({ "stage-1": initial });
+  });
+
+  it("still requires a baseline for a later fact of an unknown attempt", () => {
+    expect(
+      applyPlannerEvent(
+        { "stage-1": initial },
+        event({
+          ...identity,
+          stageExecutionId: "stage-2",
+          eventKind: "planner.activity",
+        }),
+      ),
+    ).toBeUndefined();
+    expect(
+      applyPlannerEvent(
+        {},
+        event({
+          ...identity,
+          stageExecutionId: "constructor",
+          eventKind: "planner.activity",
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("advances a known attempt and rejects a fact it cannot apply", () => {
+    expect(
+      applyPlannerEvent(
+        { "stage-1": initial },
+        event({ ...identity, eventKind: "planner.activity" }),
+      )?.["stage-1"],
+    ).toEqual({
+      ...initial,
+      lastEventKind: "planner.activity",
+      lastOccurredAt: "2026-08-31T12:00:00Z",
+    });
+    expect(
+      applyPlannerEvent(
+        { "stage-1": initial },
+        event({
+          ...identity,
+          eventKind: "planner.current_changed",
+          planRevision: 9,
+          subtaskId: "0",
+        }),
+      ),
+    ).toBeUndefined();
   });
 });

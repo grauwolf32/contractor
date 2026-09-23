@@ -177,6 +177,33 @@ export function advancePlannerProjection(
   }
 }
 
+/**
+ * Applies one Planner fact to the per-attempt projections, or returns
+ * `undefined` when it cannot be applied without an authoritative baseline.
+ */
+export function applyPlannerEvent(
+  planners: Readonly<Record<string, PlannerProjection>>,
+  event: RunEventEnvelope<PlannerEventData>,
+): Record<string, PlannerProjection> | undefined {
+  const stageExecutionId = event.data.stageExecutionId;
+  // A new attempt's first fact can arrive before the Run refetch that lists
+  // the attempt, so it starts an empty projection instead of counting as a
+  // gap. Any later fact for an attempt missing from the baseline still is.
+  const current = Object.hasOwn(planners, stageExecutionId)
+    ? planners[stageExecutionId]
+    : event.data.eventKind === "planner.started"
+      ? {}
+      : undefined;
+  if (current === undefined) {
+    return undefined;
+  }
+  const advanced = advancePlannerProjection(current, event);
+  if (advanced === undefined) {
+    return undefined;
+  }
+  return { ...planners, [stageExecutionId]: advanced };
+}
+
 export function useLiveRunProjection(run: RunStatus): LiveRunProjection {
   const manager = useRunEvents();
   const queryClient = useQueryClient();
@@ -203,19 +230,25 @@ export function useLiveRunProjection(run: RunStatus): LiveRunProjection {
     let active = true;
     const subscription = manager.subscribeRun(run.runId, eventCursor, {
       onPlannerEvent: (event) => {
-        const stageExecutionId = event.data.stageExecutionId;
-        const current = plannersRef.current[stageExecutionId];
-        if (current === undefined) {
+        const newAttempt = !Object.hasOwn(
+          plannersRef.current,
+          event.data.stageExecutionId,
+        );
+        const next = applyPlannerEvent(plannersRef.current, event);
+        if (next === undefined) {
           return false;
         }
-        const advanced = advancePlannerProjection(current, event);
-        if (advanced === undefined) {
-          return false;
-        }
-        const next = { ...plannersRef.current, [stageExecutionId]: advanced };
         plannersRef.current = next;
         if (active) {
           setPlanners(next);
+          if (newAttempt) {
+            // The attempt's lifecycle event normally started this refetch
+            // already; join it rather than restarting it.
+            void queryClient.invalidateQueries(
+              { queryKey: queryKeys.runs.detail(run.runId), exact: true },
+              { cancelRefetch: false },
+            );
+          }
         }
         return true;
       },
