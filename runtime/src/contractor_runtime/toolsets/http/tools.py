@@ -26,6 +26,7 @@ from contractor_runtime.adapters.http_proxy import (
     ProxyRequestError,
     ProxyTargetDenied,
 )
+from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
     ArtifactClient,
@@ -66,6 +67,13 @@ BODY_SCHEMA_VERSION = "1.0"
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 _IDEMPOTENT_METHODS = frozenset({"GET", "PUT", "DELETE", "HEAD", "OPTIONS"})
 _RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+# The first retry waits this long and each later one twice as long. A target's
+# Retry-After replaces a shorter wait, up to the cap; a longer Retry-After or a
+# wait that would leave less than half the remaining deadline returns the last
+# response (or failure) instead of retrying.
+RETRY_BACKOFF_SECONDS = 0.25
+MAX_RETRY_AFTER_SECONDS = 5.0
+_retry_sleep = asyncio.sleep
 _BODY_TYPES = frozenset({"none", "json", "form", "text"})
 _SENSITIVE_HEADERS = frozenset(
     {"authorization", "cookie", "proxy-authorization", "proxy-connection", "set-cookie"}
@@ -375,6 +383,7 @@ class _HTTPSession:
                         headers=merged_headers,
                         payload=payload,
                         timeout_seconds=selected_timeout,
+                        deadline=deadline,
                         follow_redirects=follow_redirects,
                         attempts=captured.attempts,
                     )
@@ -445,6 +454,7 @@ class _HTTPSession:
         headers: dict[str, str],
         payload: bytes,
         timeout_seconds: float,
+        deadline: float,
         follow_redirects: bool,
         attempts: list[CapturedAttempt],
     ) -> tuple[httpx.Response, str, str, int, int, httpx.Cookies]:
@@ -481,9 +491,11 @@ class _HTTPSession:
                 raise
             except (ProxyRequestError, httpx.TransportError, httpx.TimeoutException):
                 if current_method in _IDEMPOTENT_METHODS and retries + 1 < MAX_ATTEMPTS:
-                    retries += 1
-                    await asyncio.sleep(0)
-                    continue
+                    delay = _retry_delay(retries + 1, None, deadline)
+                    if delay is not None:
+                        retries += 1
+                        await _retry_sleep(delay)
+                        continue
                 raise HTTPToolError("http_request_failed") from None
 
             handoff = False
@@ -498,8 +510,17 @@ class _HTTPSession:
                     and current_method in _IDEMPOTENT_METHODS
                     and retries + 1 < MAX_ATTEMPTS
                 ):
-                    retries += 1
-                    continue
+                    delay = _retry_delay(
+                        retries + 1,
+                        retry_after_seconds(response.headers.get("retry-after")),
+                        deadline,
+                    )
+                    if delay is not None:
+                        retries += 1
+                        # Release the connection before waiting.
+                        await response.aclose()
+                        await _retry_sleep(delay)
+                        continue
 
                 location = response.headers.get("location")
                 if not (
@@ -1338,6 +1359,21 @@ def _timeout(value: object, cap: int) -> float:
     if not math.isfinite(selected) or selected < 1 or selected > 120:
         raise HTTPToolError("http_request_invalid")
     return min(selected, float(cap))
+
+
+def _retry_delay(retry: int, retry_after: float | None, deadline: float) -> float | None:
+    """Return the wait before retry number ``retry`` (1-based), or None to stop."""
+
+    delay = RETRY_BACKOFF_SECONDS * 2 ** (retry - 1)
+    if retry_after is not None:
+        if not math.isfinite(retry_after) or retry_after > MAX_RETRY_AFTER_SECONDS:
+            return None
+        delay = max(delay, retry_after)
+    remaining = deadline - asyncio.get_running_loop().time()
+    # Leave the retry itself at least as much time as the wait before it.
+    if delay * 2 > remaining:
+        return None
+    return delay
 
 
 def _validate_target(url: str, policy: TargetPolicy) -> None:

@@ -197,6 +197,12 @@ Control-Plane configuration and cannot be changed by a tool argument.
 Retries are bounded to idempotent methods by default and cover transport
 failure plus `408`, `425`, `429`, `500`, `502`, `503`, `504`. A non-idempotent
 request is not retried unless a future explicit idempotency contract is added.
+At most two retries follow the first attempt. The first waits 0.25 seconds and
+the second 0.5 seconds; a target's `Retry-After` (delta seconds or HTTP date)
+of at most 5 seconds replaces a shorter wait. A longer `Retry-After`, or a
+wait that would leave the retry less of the call deadline than the wait
+itself, ends retrying: the last response is returned as data, or the transport
+failure as `http_request_failed`.
 The target's 4xx/5xx response is a valid response record, not an adapter
 failure. This requires the proxy handle to expose response status rather than
 collapsing it into transport failure.
