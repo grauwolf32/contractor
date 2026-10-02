@@ -33,6 +33,7 @@ class ScriptedEngine:
         self.sequence = 0
         self.lost_create = False
         self.absent_create = False
+        self.create_result = None
         self.noop_stop = False
         self.noop_remove = False
         self.noop_start = False
@@ -68,6 +69,8 @@ class ScriptedEngine:
                 await self.resume.wait()
             if self.lost_create:
                 raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
+            if self.create_result is not None:
+                return self.create_result
             return CLIResult(125 if self.absent_create else 0, container_id.encode())
         if args[0] == "ps":
             if self.list_override is not None:
@@ -283,10 +286,89 @@ def test_create_timeout_or_cancellation_retains_operation_and_owner(tmp_path: Pa
     asyncio.run(scenario())
 
 
-def test_absent_uncertain_create_does_not_retry_or_release_owner(tmp_path: Path):
+@pytest.mark.parametrize("release", ["confirm", "close"])
+def test_failed_create_with_verified_absence_releases_pin_and_owner(tmp_path: Path, release):
     async def scenario():
         fake = ScriptedEngine()
         fake.absent_create = True
+        engine, root = setup(tmp_path, fake)
+        await engine.open(deadline=deadline())
+        with pytest.raises(SandboxContractError, match="sandbox_preparation_failed"):
+            await engine.create("allocation", root, deadline=deadline())
+        record = engine._records["allocation"]
+        pin_fd = record.content._fd
+        assert not record.attempted and fake.sequence == 1
+        assert any(
+            call[0] == "ps" and any("creation=" in arg for arg in call)
+            for call in fake.calls
+        )
+        if release == "confirm":
+            await engine.confirm_removed("allocation", deadline=deadline())
+            assert not engine._records
+        await engine.close(deadline=deadline())
+        with pytest.raises(OSError):
+            os.fstat(pin_fd)
+        successor, _ = setup(tmp_path, fake)
+        await successor.open(deadline=deadline())
+        await successor.close(deadline=deadline())
+
+    asyncio.run(scenario())
+
+
+def test_failed_create_discovery_error_remains_owned_until_later_confirmation(tmp_path: Path):
+    async def scenario():
+        fake = ScriptedEngine()
+        fake.absent_create = True
+        original = fake.run
+        failed_discovery = False
+
+        async def discovery_timeout(args, *, deadline):
+            nonlocal failed_discovery
+            if args[0] == "ps" and not failed_discovery:
+                failed_discovery = True
+                raise SandboxContractError(SandboxErrorCode.TIMEOUT)
+            return await original(args, deadline=deadline)
+
+        fake.run = discovery_timeout
+        engine, root = setup(tmp_path, fake)
+        await engine.open(deadline=deadline())
+        with pytest.raises(SandboxContractError, match="sandbox_timeout"):
+            await engine.create("allocation", root, deadline=deadline())
+        assert engine._records["allocation"].attempted
+        assert engine._records["allocation"].failed_exit
+        await engine.confirm_removed("allocation", deadline=deadline())
+        await engine.close(deadline=deadline())
+
+    asyncio.run(scenario())
+
+
+def test_nonzero_create_with_container_reconciles_exact_resource(tmp_path: Path):
+    async def scenario():
+        fake = ScriptedEngine()
+        fake.create_result = CLIResult(125)
+        engine, root = setup(tmp_path, fake)
+        await engine.open(deadline=deadline())
+        identity = await engine.create("allocation", root, deadline=deadline())
+        assert fake.sequence == 1 and identity.container_id in fake.containers
+        with pytest.raises(SandboxContractError, match="sandbox_cleanup_failed"):
+            await engine.close(deadline=deadline())
+        await engine.remove(identity, deadline=deadline())
+        await engine.close(deadline=deadline())
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("outcome", ["lost", "malformed", "signaled"])
+def test_absent_uncertain_create_does_not_retry_or_release_owner(tmp_path: Path, outcome):
+    async def scenario():
+        fake = ScriptedEngine()
+        fake.absent_create = True
+        if outcome == "lost":
+            fake.lost_create = True
+        elif outcome == "malformed":
+            fake.create_result = CLIResult(0, b"malformed")
+        else:
+            fake.create_result = CLIResult(-9)
         engine, root = setup(tmp_path, fake)
         await engine.open(deadline=deadline())
         for _ in range(2):
@@ -299,6 +381,8 @@ def test_absent_uncertain_create_does_not_retry_or_release_owner(tmp_path: Path)
         # first needing a successful create replay.
         args = next(call for call in fake.calls if call[0] == "create")
         fake.absent_create = False
+        fake.lost_create = False
+        fake.create_result = None
         await fake.run(args, deadline=deadline())
         (identity,) = await engine.discover(deadline=deadline())
         await engine.remove(identity, deadline=deadline())

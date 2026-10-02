@@ -47,6 +47,7 @@ class _Creation:
     creation_id: str
     content: ContentPin
     attempted: bool = False
+    failed_exit: bool = False
     identity: SandboxIdentity | None = None
 
 
@@ -162,6 +163,9 @@ class PodmanEngine:
             record.attempted = True
             try:
                 result = await self._call(self._create_arguments(record), deadline)
+                # A positive exit code is a completed local CLI failure. A
+                # signal, timeout or lost response is still ambiguous.
+                record.failed_exit = result.returncode > 0
                 if result.returncode != 0:
                     raise SandboxContractError(SandboxErrorCode.PREPARATION_FAILED)
                 container_id = result.stdout.decode("ascii").strip()
@@ -172,8 +176,9 @@ class PodmanEngine:
                     raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
                 record.identity = identity
             except (SandboxContractError, ValueError):
-                # A zero/failed/partial response is not proof of non-creation.
-                # Exhausted deadline leaves reconciliation for the next caller.
+                # A failed CLI may still have created the resource. Only its
+                # completed nonzero exit plus verified absence clears the attempt.
+                # Exhausted discovery leaves confirmation for cleanup.
                 return await self._reconcile(record, deadline)
             await asyncio.to_thread(record.content.verify)
             return identity
@@ -213,13 +218,13 @@ class PodmanEngine:
         async def operation():
             await self._ready()
             record = self._records.get(allocation_id)
-            if record is not None and record.attempted:
-                raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
+            if record is not None:
+                await self._confirm_no_pending_create(record, deadline)
             if any(item.allocation_id == allocation_id for item in await self._discover(deadline)):
                 raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
             if record is not None:
-                # A joined operation that never issued create is unambiguous;
-                # release its pin, unlike an absent *attempted* creation.
+                # Only an unattempted or conclusively failed create reaches
+                # here; retain pins for every other attempted creation.
                 await asyncio.to_thread(record.content.close)
                 del self._records[allocation_id]
 
@@ -329,8 +334,8 @@ class PodmanEngine:
                 return
             await asyncio.to_thread(self._owner_lock.verify)
             # Includes predecessor containers and attempts with an unknown ID.
-            if any(record.attempted for record in self._records.values()):
-                raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
+            for record in self._records.values():
+                await self._confirm_no_pending_create(record, deadline)
             if await self._discover(deadline):
                 raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
             for record in self._records.values():
@@ -448,6 +453,10 @@ class PodmanEngine:
 
     async def _reconcile(self, record: _Creation, deadline: float) -> SandboxIdentity:
         found = await self._discover(deadline, record.creation_id)
+        if not found and record.failed_exit:
+            record.attempted = False
+            record.failed_exit = False
+            raise SandboxContractError(SandboxErrorCode.PREPARATION_FAILED)
         if len(found) != 1 or found[0] != self._identity(record, found[0].container_id):
             # Absence after an uncertain create does not authorize another
             # create or releasing the owner. Keep the attempt fenced/owned.
@@ -455,6 +464,14 @@ class PodmanEngine:
         record.identity = found[0]
         await asyncio.to_thread(record.content.verify)
         return found[0]
+
+    async def _confirm_no_pending_create(self, record: _Creation, deadline: float) -> None:
+        if not record.attempted:
+            return
+        if not record.failed_exit or await self._discover(deadline, record.creation_id):
+            raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
+        record.attempted = False
+        record.failed_exit = False
 
     def _identity(self, record: _Creation, container_id: str) -> SandboxIdentity:
         return SandboxIdentity(

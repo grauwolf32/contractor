@@ -236,11 +236,28 @@ def test_cancelled_prepare_joins_late_create_before_removal(tmp_path):
     asyncio.run(scenario())
 
 
+def test_failed_create_cleans_allocation_without_forcing_process_exit(tmp_path):
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            service, state, spec, events, exits = await service_for(tmp_path, fixture)
+            fixture.cli.absent_create = True
+            with pytest.raises(AllocationError):
+                await service.prepare(spec)
+            assert exits == [] and events[-1] == "files"
+            assert fixture.cli.sequence == 1 and not fixture.cli.containers
+            assert not fixture.engine._records
+            assert service._context is None
+            assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
 def test_absent_uncertain_create_fences_until_exact_late_container_is_removed(tmp_path):
     async def scenario():
         async with owner(tmp_path) as fixture:
             service, state, spec, events, exits = await service_for(tmp_path, fixture)
             fixture.cli.absent_create = True
+            fixture.cli.lost_create = True
             with pytest.raises(AllocationError):
                 await service.prepare(spec)
             assert exits == [70] and "files" not in events
