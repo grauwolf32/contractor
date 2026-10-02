@@ -3,8 +3,8 @@ id: V68-001
 title: Keep Project finding review status accurate at bounded request cost
 milestone: audit-findings-ui-correctness
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: bf92a15163ae059bf53882e46d09ca96dc503b7a
 depends_on: [V66-008]
 languages: [typescript]
 goal: Show the current review for every loaded Project finding without a request per finding or stale-review lockout.
