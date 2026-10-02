@@ -78,6 +78,7 @@ export function createEvalFixture(
       etag: string | null;
     }[],
     lostCommand: false,
+    commandRaceOnce: false,
     lostAssessment: false,
     staleSelection: false,
     stalePairs: false,
@@ -290,6 +291,10 @@ export function createEvalFixture(
       );
     } else if (path.endsWith("/commands") && method === "POST") {
       if (e.controlMode !== "server") return error("eval_external_control");
+      if (fixture.commandRaceOnce) {
+        fixture.commandRaceOnce = false;
+        e.revision++;
+      }
       if (etag !== `"${e.revision}"`)
         return error("eval_revision_mismatch", 412);
       const command = body as unknown as EvalCommand;

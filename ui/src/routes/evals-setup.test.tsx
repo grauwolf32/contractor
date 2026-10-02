@@ -179,9 +179,81 @@ describe("Managed Evals setup", () => {
     await user.click(screen.getByRole("button", { name: "Confirm start" }));
     await screen.findByText("eval_revision_mismatch");
     expect(fixture.state.experiment.state).toBe("ready");
-    expect(
-      fixture.state.requests.find((r) => r.path.endsWith("/commands"))?.etag,
-    ).toBe('"1"');
+    const command = fixture.state.requests.find((r) =>
+      r.path.endsWith("/commands"),
+    );
+    expect(command?.etag).toBe('"1"');
+    expect(command?.body).toMatchObject({
+      kind: "start",
+      planSha256: fixture.state.experiment.planSha256,
+    });
+  });
+
+  it("confirms Cancel using the revision reached while its dialog was open", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    const user = userEvent.setup();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    fixture.state.experiment.revision += 3;
+    await user.click(screen.getByRole("button", { name: "Confirm cancel" }));
+    await screen.findByText("Cancel: completed.");
+    expect(fixture.state.experiment.state).toBe("cancelled");
+    const commands = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/commands"),
+    );
+    expect(commands).toHaveLength(1);
+    expect(commands[0]?.etag).toBe('"4"');
+    expect(commands[0]?.body).toMatchObject({
+      kind: "cancel",
+      planSha256: fixture.state.experiment.planSha256,
+    });
+  });
+
+  it("retries Pause once with a new key when progress races the command", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    fixture.state.commandRaceOnce = true;
+    const user = userEvent.setup();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    await screen.findByText("Pause: completed.");
+    expect(fixture.state.experiment.state).toBe("paused");
+    const commands = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/commands"),
+    );
+    expect(commands).toHaveLength(2);
+    expect(commands.map((request) => request.etag)).toEqual(['"1"', '"2"']);
+    expect(commands[1]?.key).not.toBe(commands[0]?.key);
+    expect(commands[1]?.body).toEqual(commands[0]?.body);
+  });
+
+  it("replays an uncertain Pause with its original key and revision", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    fixture.state.experiment.state = "running";
+    fixture.state.experiment.allowedCommands = ["pause", "cancel"];
+    fixture.state.lostCommand = true;
+    const user = userEvent.setup();
+    const view = start(fixture, "/evals/experiments/experiment-1/setup");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    await screen.findByText("Public API is unavailable");
+    const first = fixture.state.requests.find((request) =>
+      request.path.endsWith("/commands"),
+    )!;
+    view.unmount();
+    start(fixture, "/evals/experiments/experiment-1/setup");
+    await screen.findByText("Pause: completed.");
+    const commands = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/commands"),
+    );
+    expect(commands).toHaveLength(2);
+    expect(commands[1]).toMatchObject({
+      key: first.key,
+      etag: first.etag,
+      body: first.body,
+    });
   });
 
   it("blocks Prepare for unsaved changes and restores focus after dismissing cancellation", async () => {
