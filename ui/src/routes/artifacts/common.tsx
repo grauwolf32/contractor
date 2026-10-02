@@ -235,9 +235,11 @@ export function ArtifactWriteForm({
   fixedIdentity,
   fixedNamespace,
   fixedMediaType,
+  initialMediaType,
   excludedNamespace,
   expectedRevision,
   acceptedMediaTypes,
+  maximumBytes = MAXIMUM_ARTIFACT_BYTES,
   startOperation,
   submitLabel,
   headingId,
@@ -248,6 +250,7 @@ export function ArtifactWriteForm({
   fixedIdentity?: { namespace: string; name: string };
   fixedNamespace?: string;
   fixedMediaType?: string;
+  initialMediaType?: string;
   excludedNamespace?: {
     namespace: string;
     destination: string;
@@ -255,6 +258,7 @@ export function ArtifactWriteForm({
   };
   expectedRevision?: string;
   acceptedMediaTypes?: readonly string[];
+  maximumBytes?: number;
   /** Starts an upload and returns the signal that aborts it. */
   startOperation?: () => AbortSignal;
   submitLabel?: string;
@@ -274,8 +278,9 @@ export function ArtifactWriteForm({
   );
   const [name, setName] = useState(fixedIdentity?.name ?? "");
   const [mediaType, setMediaType] = useState(
-    fixedMediaType ?? "application/octet-stream",
+    fixedMediaType ?? initialMediaType ?? "application/octet-stream",
   );
+  const preserveMediaType = useRef(initialMediaType !== undefined);
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [excludedNamespaceError, setExcludedNamespaceError] = useState(false);
@@ -318,7 +323,9 @@ export function ArtifactWriteForm({
       setName(artifactFileStem(next.name));
     }
     if (fixedMediaType === undefined) {
-      setMediaType(inferredArtifactMediaType(next, mediaType));
+      setMediaType(
+        inferredArtifactMediaType(next, mediaType, preserveMediaType.current),
+      );
     }
   }
 
@@ -364,8 +371,10 @@ export function ArtifactWriteForm({
       setValidationError("Choose one local file to upload.");
       return;
     }
-    if (file.size > MAXIMUM_ARTIFACT_BYTES) {
-      setValidationError("Artifact exceeds the 64 MiB upload limit.");
+    if (file.size > maximumBytes) {
+      setValidationError(
+        `Artifact exceeds the ${maximumBytes / (1024 * 1024)} MiB upload limit.`,
+      );
       return;
     }
     mutation.mutate({
@@ -397,6 +406,7 @@ export function ArtifactWriteForm({
       <ArtifactFileDrop
         file={file}
         inputRevision={inputRevision}
+        maximumBytes={maximumBytes}
         onSelect={selectFile}
       />
       {acceptedMediaTypes === undefined ? null : (
@@ -430,7 +440,10 @@ export function ArtifactWriteForm({
         <ArtifactMediaTypeField
           disabled={fixedMediaType !== undefined}
           value={fixedMediaType ?? mediaType}
-          onChange={setMediaType}
+          onChange={(value) => {
+            preserveMediaType.current = true;
+            setMediaType(value);
+          }}
         />
       </div>
       {validationError === null ? null : (

@@ -1,5 +1,9 @@
 import { MEDIA_TYPE_PATTERN } from "../../api/artifacts";
 
+export const SKILL_ARCHIVE_MEDIA_TYPE =
+  "application/vnd.contractor.agent-skill+zip";
+export const MAXIMUM_SKILL_ARCHIVE_BYTES = 16 * 1024 * 1024;
+
 export function artifactFileStem(filename: string): string {
   const basename = filename.replace(/^.*[\\/]/, "");
   const extension = basename.lastIndexOf(".");
@@ -15,10 +19,11 @@ export function artifactFileStem(filename: string): string {
 export function inferredArtifactMediaType(
   file: File,
   fallback: string,
+  preserveFallback = false,
 ): string {
-  // A filename or browser MIME guess cannot identify the user's intended use
-  // of a text file. Keep an explicitly selected scanner wordlist semantic type.
-  if (fallback === "text/vnd.contractor.wordlist") {
+  // Browser MIME guesses cannot replace an existing binding's type or a type
+  // the user explicitly selected before choosing the file.
+  if (preserveFallback || fallback === "text/vnd.contractor.wordlist") {
     return fallback;
   }
   if (MEDIA_TYPE_PATTERN.test(file.type)) {

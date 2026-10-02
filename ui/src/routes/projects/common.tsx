@@ -150,6 +150,7 @@ export function ProjectArtifactWriteForm({
   fixedIdentity,
   fixedNamespace,
   fixedMediaType,
+  initialMediaType,
   acceptedMediaTypes,
   expectedRevision,
   submitLabel,
@@ -164,6 +165,7 @@ export function ProjectArtifactWriteForm({
   fixedIdentity?: { namespace: string; name: string };
   fixedNamespace?: string;
   fixedMediaType?: string;
+  initialMediaType?: string;
   acceptedMediaTypes?: readonly string[];
   expectedRevision?: string;
   submitLabel?: string;
@@ -188,7 +190,13 @@ export function ProjectArtifactWriteForm({
   );
   const [name, setName] = useState(fixedIdentity?.name ?? "");
   const [mediaType, setMediaType] = useState(
-    fixedMediaType ?? suggested?.mediaType ?? "application/octet-stream",
+    fixedMediaType ??
+      initialMediaType ??
+      suggested?.mediaType ??
+      "application/octet-stream",
+  );
+  const preserveMediaType = useRef(
+    initialMediaType !== undefined || suggested?.mediaType !== undefined,
   );
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -223,7 +231,9 @@ export function ProjectArtifactWriteForm({
       setName(artifactFileStem(next.name));
     }
     if (fixedMediaType === undefined) {
-      setMediaType(inferredArtifactMediaType(next, mediaType));
+      setMediaType(
+        inferredArtifactMediaType(next, mediaType, preserveMediaType.current),
+      );
     }
   }
 
@@ -338,7 +348,10 @@ export function ProjectArtifactWriteForm({
         <ArtifactMediaTypeField
           disabled={fixedMediaType !== undefined}
           value={fixedMediaType ?? mediaType}
-          onChange={setMediaType}
+          onChange={(value) => {
+            preserveMediaType.current = true;
+            setMediaType(value);
+          }}
         />
       </div>
       {validationError === null ? null : (

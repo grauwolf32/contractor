@@ -9,10 +9,12 @@ import {
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import { Dialog } from "../app/dialog";
-import { artifactFileStem } from "./artifacts/artifact-file";
+import {
+  artifactFileStem,
+  MAXIMUM_SKILL_ARCHIVE_BYTES,
+  SKILL_ARCHIVE_MEDIA_TYPE,
+} from "./artifacts/artifact-file";
 import { ArtifactFileDrop, ErrorNotice } from "./artifacts/common";
-
-const MAXIMUM_SKILL_ARCHIVE_BYTES = 16 * 1024 * 1024;
 
 export function SkillUploadDialog({
   onClose,
@@ -34,7 +36,7 @@ export function SkillUploadDialog({
       writeArtifact(api, {
         namespace: "skills",
         name,
-        mediaType: "application/vnd.contractor.agent-skill+zip",
+        mediaType: SKILL_ARCHIVE_MEDIA_TYPE,
         payload: file,
       }),
     onSuccess: async (result) => {
