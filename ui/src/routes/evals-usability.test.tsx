@@ -13,6 +13,7 @@ import {
   EVAL_FIXTURE_ORIGIN,
 } from "../test/evals-fixture";
 import pairs from "../../../api/testdata/evals/valid/pair-page.json";
+import { MAX_EVAL_DOCUMENT_BYTES } from "./evals/setup-model";
 
 beforeEach(() => {
   vi.stubGlobal("localStorage", new MemoryStorage());
@@ -36,6 +37,12 @@ function start(fixture: ReturnType<typeof createEvalFixture>, path: string) {
     ...render(<Application api={api} publicAPI={api} router={router} />),
     router,
   };
+}
+
+function datasetFile(raw: string): File {
+  const file = new File([raw], "dataset.json", { type: "application/json" });
+  Object.defineProperty(file, "text", { value: async () => raw });
+  return file;
 }
 
 it("retries the current pair page after a transient network failure", async () => {
@@ -211,6 +218,121 @@ it("preserves typed capability separators and saves separate dataset capabilitie
       cases: [expect.objectContaining({ requires: ["linux", "gpu"] })],
     });
   });
+});
+
+it("rejects an oversized dataset request before showing cases or sending POST", async () => {
+  const fixture = createEvalFixture();
+  const user = userEvent.setup();
+  start(fixture, "/evals/datasets?project=evaluation-1");
+  await user.click(
+    await screen.findByRole("button", { name: "Create or import dataset" }),
+  );
+  const dataset = structuredClone(fixture.state.dataset);
+  dataset.name = "Oversized import";
+  dataset.cases[0]!.task.objective = "x".repeat(MAX_EVAL_DOCUMENT_BYTES);
+  await user.upload(
+    screen.getByLabelText("Import dataset JSON"),
+    datasetFile(JSON.stringify(dataset)),
+  );
+
+  expect(
+    await screen.findByText(/1 MiB evaluation document limit/u),
+  ).toBeVisible();
+  expect(
+    screen.queryByText(/Oversized import · \d+ cases/u),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Save dataset revision" }),
+  ).not.toBeInTheDocument();
+  expect(
+    fixture.state.requests.some(
+      (request) =>
+        request.method === "POST" && request.path.endsWith("/eval-datasets"),
+    ),
+  ).toBe(false);
+});
+
+it("imports a pretty source over 1 MiB when its compact request fits", async () => {
+  const fixture = createEvalFixture();
+  const user = userEvent.setup();
+  start(fixture, "/evals/datasets?project=evaluation-1");
+  await user.click(
+    await screen.findByRole("button", { name: "Create or import dataset" }),
+  );
+  const dataset = structuredClone(fixture.state.dataset);
+  dataset.name = "Compact import";
+  const compactBytes = new TextEncoder().encode(JSON.stringify(dataset)).length;
+  const formattingBytes =
+    new TextEncoder().encode(JSON.stringify(dataset, null, 2)).length -
+    compactBytes;
+  dataset.cases[0]!.task.objective += "x".repeat(
+    MAX_EVAL_DOCUMENT_BYTES - compactBytes - Math.floor(formattingBytes / 2),
+  );
+  const source = JSON.stringify(dataset, null, 2);
+  const file = datasetFile(source);
+  expect(file.size).toBeGreaterThan(MAX_EVAL_DOCUMENT_BYTES);
+  expect(
+    new TextEncoder().encode(JSON.stringify({ ...dataset, privateChecks: [] }))
+      .length,
+  ).toBeLessThanOrEqual(MAX_EVAL_DOCUMENT_BYTES);
+  await user.upload(screen.getByLabelText("Import dataset JSON"), file);
+
+  expect(await screen.findByText(/Compact import · \d+ cases/u)).toBeVisible();
+  await user.click(
+    screen.getByRole("button", { name: "Save dataset revision" }),
+  );
+  await waitFor(() =>
+    expect(
+      fixture.state.requests.some(
+        (request) =>
+          request.method === "POST" && request.path.endsWith("/eval-datasets"),
+      ),
+    ).toBe(true),
+  );
+});
+
+it("blocks an imported dataset when selected private checks exceed 1 MiB", async () => {
+  const fixture = createEvalFixture();
+  const user = userEvent.setup();
+  start(fixture, "/evals/datasets?project=evaluation-1");
+  await user.click(
+    await screen.findByRole("button", { name: "Create or import dataset" }),
+  );
+  const dataset = structuredClone(fixture.state.dataset);
+  dataset.name = "Private-heavy import";
+  dataset.privateChecks = [
+    {
+      id: "long",
+      revision: "r1",
+      rubric: "x".repeat(MAX_EVAL_DOCUMENT_BYTES),
+      expected: {},
+    },
+  ];
+  await user.upload(
+    screen.getByLabelText("Import dataset JSON"),
+    datasetFile(JSON.stringify(dataset)),
+  );
+  expect(
+    await screen.findByText(/Private-heavy import · \d+ cases/u),
+  ).toBeVisible();
+
+  await user.click(
+    screen.getByLabelText(/Include private assessment rubrics/u),
+  );
+  expect(screen.getByText(/1 MiB evaluation document limit/u)).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Save dataset revision" }),
+  ).toBeDisabled();
+  expect(
+    screen.queryByText(/Private-heavy import · \d+ cases/u),
+  ).not.toBeInTheDocument();
+
+  await user.click(
+    screen.getByLabelText(/Include private assessment rubrics/u),
+  );
+  expect(
+    screen.getByRole("button", { name: "Save dataset revision" }),
+  ).toBeEnabled();
 });
 
 it("shows both arms against all expected attempts, including missing and unscored evidence", async () => {
