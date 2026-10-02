@@ -3,8 +3,8 @@ id: V83-001
 title: Balance unanswered shared-session tool calls in gateway requests
 milestone: shared-session-tool-call-recovery-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 937456cac24375792d32c3076849910a86b38aba
 depends_on: []
 languages: [python]
 goal: Keep later Worker invocations valid after budget exhaustion or cancellation leaves ADK tool calls unanswered.
@@ -25,3 +25,6 @@ acceptance_criteria:
   - {id: A4, text: Isolated sessions and observed tool counts remain unchanged.}
 tests:
   - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_openai_gateway_llm.py tests/test_adk_runtime.py, covers: [A1, A2, A3, A4]}
+verification:
+  python: Full Runtime pytest suite and focused ADK/gateway suites passed; Ruff check and format passed.
+  scenarios: Shared and isolated invocations after single/parallel tool-budget failure, cancelled in-flight tool execution, and exact preservation of real parallel tool responses.
