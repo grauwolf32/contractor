@@ -28,6 +28,11 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
+from contractor_runtime.toolsets.common.target_policy import (
+    TargetDenied,
+    TargetPolicy,
+    TargetPolicyConfig,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 CAIDO_EXCHANGE_MEDIA_TYPE = "application/vnd.contractor.caido-exchange+json"
@@ -93,6 +98,7 @@ _ERROR_RETRYABILITY = MappingProxyType(
     {
         "caido_not_configured": False,
         "caido_request_invalid": False,
+        "caido_target_denied": False,
         "caido_request_failed": True,
         "caido_response_invalid": False,
         "caido_response_too_large": False,
@@ -121,10 +127,12 @@ class CaidoToolsetFactory:
         self,
         artifact_client_factory: ArtifactClientFactory | None = None,
         *,
+        target_policy: TargetPolicyConfig | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._artifact_client_factory = artifact_client_factory or _unconfigured_client
+        self._target_policy = target_policy or TargetPolicyConfig()
         self._sleep = sleep
         self._monotonic = monotonic
 
@@ -154,11 +162,13 @@ class CaidoToolsetFactory:
         handle = adapter_handles.caido_graphql
         if not isinstance(handle, CaidoGraphQLClient):
             raise CaidoToolError("caido_not_configured")
+        policy = await self._target_policy.build(runtime_settings)
         session = _CaidoSession(
             handle=handle,
             artifact_client=self._artifact_client_factory(allocation_id, runtime_settings),
             namespace=namespace,
             metric_secrets=_runtime_secrets(runtime_settings),
+            target_policy=policy,
             sleep=self._sleep,
             monotonic=self._monotonic,
         )
@@ -185,6 +195,7 @@ class _CaidoSession:
         artifact_client: ArtifactClient,
         namespace: str,
         metric_secrets: tuple[str, ...],
+        target_policy: TargetPolicy,
         sleep: Callable[[float], Awaitable[None]],
         monotonic: Callable[[], float],
     ) -> None:
@@ -192,6 +203,7 @@ class _CaidoSession:
         self._artifact_client: ArtifactClient | None = artifact_client
         self._namespace = namespace
         self._metric_secrets = metric_secrets
+        self._target_policy = target_policy
         self._nonce = secrets.token_hex(8)
         self._next_artifact = 1
         self._next_action = 1
@@ -218,6 +230,12 @@ class _CaidoSession:
 
     def clear_artifact_observations(self) -> None:
         clear_artifact_observations(self._artifact_client)
+
+    def _require_target(self, host: str, port: int) -> None:
+        try:
+            self._target_policy.check_host(host, port)
+        except TargetDenied:
+            raise CaidoToolError("caido_target_denied") from None
 
     async def scopes(self) -> dict[str, Any]:
         async with self._lock:
@@ -329,8 +347,9 @@ class _CaidoSession:
                 raise CaidoToolError("caido_request_invalid")
             if _request_utf8_size(raw_request) > MAX_RAW_REQUEST_BYTES:
                 raise CaidoToolError("caido_request_invalid")
-            _connection_host(host)
-            _integer(port, minimum=1, maximum=65535, request=True)
+            self._require_target(
+                _connection_host(host), _integer(port, minimum=1, maximum=65535, request=True)
+            )
 
         async with self._lock:
             if selected_request_id:
@@ -349,6 +368,7 @@ class _CaidoSession:
                     "port": _required_integer(detail["port"], minimum=1, maximum=65535),
                     "isTLS": detail["is_tls"],
                 }
+                self._require_target(connection["host"], connection["port"])
                 source: dict[str, Any] = {"id": selected_request_id}
             else:
                 raw_bytes = raw_request.encode()
@@ -482,6 +502,7 @@ class _CaidoSession:
                 "port": _required_integer(detail["port"], minimum=1, maximum=65535),
                 "isTLS": detail["is_tls"],
             }
+            self._require_target(connection["host"], connection["port"])
             request_tag = self._next_request_tag()
             tagged, request_tag_span = _inject_request_tag(raw_bytes, request_tag)
             placeholders = _placeholder_offsets(
@@ -661,6 +682,22 @@ class _CaidoSession:
 
         async with self._lock:
             if selected_request:
+                detail_data = await self._execute("request_detail", {"id": selected_request})
+                _exact_object(detail_data, {"request"})
+                if detail_data["request"] is None:
+                    return {
+                        "kind": "active",
+                        "workflow_id": selected_workflow,
+                        "request_id": selected_request,
+                        "status": "not_found",
+                    }
+                detail = _request_detail(detail_data["request"])
+                if detail["id"] != selected_request:
+                    raise CaidoToolError("caido_response_invalid")
+                self._require_target(
+                    _connection_host(detail["host"]),
+                    _required_integer(detail["port"], minimum=1, maximum=65535),
+                )
                 data = await self._execute_mutation(
                     "run_active_workflow",
                     {"id": selected_workflow, "input": {"requestId": selected_request}},

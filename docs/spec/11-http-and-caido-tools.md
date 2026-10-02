@@ -143,7 +143,7 @@ routing, not a hint; failure never falls back to direct network.
 
 ### Target policy
 
-`http-tools@1` and every `scan@1` operation share one Runtime target policy
+`http-tools@1`, every `scan@1` operation and request-bound `caido@1` actions share one Runtime target policy
 (`toolsets/common/target_policy.py`). It classifies IP addresses, not URL text.
 A literal host is first normalized the way resolvers read it: shortened,
 single-number, octal and hexadecimal IPv4 forms (`127.1`, `2130706433`,
@@ -173,6 +173,10 @@ for the allocation that receives it.
 Every denial, whether found before sending, at connect time or by the proxy
 route, is the non-retryable `http_target_denied`; scanners report
 `scan_target_denied`, or `scan_target_unresolved` when the host did not resolve.
+Caido Replay, Automate and request-bound active workflows report the
+non-retryable `caido_target_denied` before any GraphQL mutation. Caido resolves
+captured or supplied target names, so Runtime checks their names and literal
+addresses without a separate target DNS lookup.
 
 ### Egress and DNS boundary
 
@@ -387,6 +391,10 @@ payload list may contain at most 1000 values and 1 MiB total; empty and control
 character payload strings remain valid fuzz inputs. Strategy is exactly
 `SEQUENTIAL|PARALLEL|MATRIX|ALL`, workers are 1..50, delay is 0..60000 ms,
 redirects are disabled and Caido request retries are configured to zero.
+Raw Replay connections, captured Replay and Automate connections, and captured
+requests passed to active workflows must pass the allocation target policy
+before their first mutation. A denied destination cannot be revived by a
+Caido scope rule or an allowed-target-network exception for a Runtime service.
 
 `caido_workflow_run` dispatches by mutually exclusive input: `request_id`
 starts an active workflow asynchronously, while non-empty UTF-8 `input` runs a

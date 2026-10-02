@@ -13,9 +13,19 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.security_findings.classification import cwe_reference
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingsToolsetFactory
 from contractor_runtime.toolsets.security_findings.locations import ExactEvidenceRef
 from contractor_runtime.workspace import AllocationWorkspace
+
+
+def test_cwe_reference_uses_the_bundled_classification() -> None:
+    assert cwe_reference("CWE-89") == [
+        {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-89"}
+    ]
+    with pytest.raises(ToolInputError, match="pinned CWE catalog"):
+        cwe_reference("CWE-999999")
 
 
 def test_finding_uses_runtime_identity_and_exact_evidence() -> None:

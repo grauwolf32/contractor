@@ -455,7 +455,9 @@ ASVS may both classify one finding. Unsupported tuples remain original refs
 with `classification_unmapped`; do not guess or discard them. Include referenced
 taxonomy entries with identities/versions, without embedding entire catalogs.
 Classification does not assert causal checklist origin; only trusted Audit
-backtrace establishes that origin.
+backtrace establishes that origin. Audit import retains only IDs from its
+byte-identical bundled `CWE@4.20` catalog, without treating CWE as a pinned
+Audit standard.
 
 The generic review/level policy is:
 

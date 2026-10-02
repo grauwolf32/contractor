@@ -174,6 +174,7 @@ async def create_tools(
     *,
     selected: set[str] | frozenset[str] | None = None,
     factory: CaidoToolsetFactory | None = None,
+    runtime_settings: RuntimeSettings | None = None,
 ) -> tuple[dict[str, Any], WorkerState, CaidoGraphQLClient]:
     metrics = RuntimeAdapterMetricsState()
     handle = CaidoGraphQLClient(
@@ -184,7 +185,7 @@ async def create_tools(
         metrics=metrics,
         transport=httpx.MockTransport(handler),
     )
-    settings = RuntimeSettings(
+    settings = runtime_settings or RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
         artifactApiUrl="https://control.example/private/v1",
