@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { usePublicAPI } from "../../api/context";
+import { queryKeys } from "../../api/query-keys";
 import { listWorkflows, type WorkflowSummary } from "../../api/workflows";
 
 export function useWorkflowInventory() {
   const api = usePublicAPI();
   return useQuery({
-    queryKey: ["workflows", "inventory"],
+    queryKey: queryKeys.workflows.inventory,
     queryFn: async ({ signal }) => {
       const items: WorkflowSummary[] = [];
       const cursors = new Set<string>();
