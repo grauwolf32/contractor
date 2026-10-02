@@ -396,6 +396,9 @@ explicit `CWE-NNN` weakness ID. The bundled catalog records MITRE's versioned XM
 archive URL, archive/XML SHA-256 and its weakness IDs. Unknown IDs fail locally;
 no live taxonomy lookup occurs. Updating the catalog/version requires reviewing
 the mapping and the external benchmark binding together.
+Audit import accepts known `CWE@4.20` references without pinning CWE as an
+Audit standard; they are incidental classifications and cannot satisfy an
+assigned checklist entry. Unknown CWE IDs and other versions are rejected.
 
 ### Typed locations
 

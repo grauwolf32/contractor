@@ -1,10 +1,12 @@
 package auditimport
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -50,6 +52,49 @@ func TestStandardProposalReferencesRequirePinnedExistingEntries(t *testing.T) {
 	}
 }
 
+func TestBundledCWEClassificationMatchesRuntime(t *testing.T) {
+	runtimeCatalog, err := os.ReadFile(filepath.Join(
+		"..", "..", "runtime", "src", "contractor_runtime", "toolsets",
+		"security_findings", "cwe_catalog.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(bundledCWECatalogJSON, runtimeCatalog) {
+		t.Fatal("Go and Runtime CWE catalogs differ")
+	}
+	catalog, err := bundledCWECatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if catalog.scheme != "CWE" || catalog.version != "4.20" {
+		t.Fatalf("unexpected bundled CWE identity: %s@%s", catalog.scheme, catalog.version)
+	}
+	proposal := auditdomain.FindingProposal{StandardRefs: []auditdomain.StandardReference{{
+		Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+	}}}
+	if err := validateProposalStandardRefs(proposal, nil); err != nil {
+		t.Fatalf("Runtime-produced CWE reference rejected: %v", err)
+	}
+	for _, invalid := range []auditdomain.StandardReference{
+		{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-999999"},
+		{Scheme: "CWE", Version: "4.19", RequirementID: "CWE-89"},
+	} {
+		proposal.StandardRefs = []auditdomain.StandardReference{invalid}
+		if err := validateProposalStandardRefs(proposal, nil); err == nil {
+			t.Fatalf("invalid CWE reference accepted: %+v", invalid)
+		}
+	}
+	proposal.StandardRefs = []auditdomain.StandardReference{{
+		Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+	}, {
+		Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+	}}
+	if err := validateProposalStandardRefs(proposal, nil); err == nil {
+		t.Fatal("duplicate CWE classification accepted")
+	}
+}
+
 func TestStandardTaskMatchesItsExactRetainedMapping(t *testing.T) {
 	pkg := top10ImportPackage(t)
 	revision := "standard-r1"
@@ -73,6 +118,15 @@ func TestStandardTaskMatchesItsExactRetainedMapping(t *testing.T) {
 	standard := indexRetainedStandard(pinned, pkg)
 	if !standardTaskMatchesPackage(task, standard) {
 		t.Fatal("exact generated task did not match retained mapping")
+	}
+	if err := validateMappedProposalStandards(task, auditdomain.FindingProposal{
+		StandardRefs: []auditdomain.StandardReference{{
+			Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+		}},
+	}, func() (retainedStandardIndex, error) {
+		return retainedStandardIndex{retainedStandardKey(pkg.Reference().Scheme, pkg.Reference().Version): standard}, nil
+	}); err == nil {
+		t.Fatal("CWE classification satisfied an assigned standard entry")
 	}
 	task.Standard.EntryIDs = []string{"A02:2025"}
 	if standardTaskMatchesPackage(task, standard) {
@@ -209,6 +263,11 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 			Digest: auditdomain.DigestBytes([]byte(name)), MediaType: "application/json", SizeBytes: int64(len(name)),
 		}
 		document := auditdomain.FindingProposal{StandardRefs: []auditdomain.StandardReference{{Scheme: pkg.Reference().Scheme, Version: pkg.Reference().Version, RequirementID: "A01:2025"}}}
+		if index == 0 {
+			document.StandardRefs = append(document.StandardRefs, auditdomain.StandardReference{
+				Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+			})
+		}
 		origin := findingintake.Origin{
 			RunID: *harness.execution.RunID,
 			Audit: &findingintake.AuditOrigin{AuditID: harness.execution.AuditID, ExecutionID: harness.execution.ExecutionID, Role: string(harness.execution.Role)},
@@ -232,6 +291,9 @@ func TestCollectionLoadsPinnedStandardsOncePerAttempt(t *testing.T) {
 		}
 		if got := len(harness.store.collected.Items[0].FindingAssociations); got != 2 {
 			t.Fatalf("associations=%d", got)
+		}
+		if len(findings.imports) != attempt*2 || len(findings.rejections) != 0 {
+			t.Fatalf("CWE proposal was not retained: imports=%d rejections=%v", len(findings.imports), findings.rejections)
 		}
 	}
 	harness.artifacts.project[standardKey] = []byte("corrupted pinned package")

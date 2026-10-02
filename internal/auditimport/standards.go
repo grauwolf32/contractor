@@ -117,15 +117,23 @@ func validateProposalStandardRefs(
 	seen := make(map[string]struct{}, len(document.StandardRefs))
 	for _, reference := range document.StandardRefs {
 		key := retainedStandardKey(reference.Scheme, reference.Version)
-		standard, exists := standards[key]
-		if !exists {
-			return errors.New("proposal names an unpinned standard")
-		}
 		identity := key + "\x00" + reference.RequirementID
 		if _, duplicate := seen[identity]; duplicate {
 			return errors.New("proposal repeats a standard reference")
 		}
 		seen[identity] = struct{}{}
+		if reference.Scheme == "CWE" {
+			// CWE is a bundled classification, not a pinnable Audit standard.
+			// It never satisfies the task's assigned causal entry checks below.
+			if err := validateCWEClassification(reference); err != nil {
+				return err
+			}
+			continue
+		}
+		standard, exists := standards[key]
+		if !exists {
+			return errors.New("proposal names an unpinned standard")
+		}
 		if _, exists := standard.entries[reference.RequirementID]; !exists {
 			return errors.New("proposal names an unknown standard entry")
 		}

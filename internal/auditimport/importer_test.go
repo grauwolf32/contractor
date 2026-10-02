@@ -423,6 +423,10 @@ func TestImporterRejectsOnlyTheInvalidFindingProposal(t *testing.T) {
 			document.StandardRefs = []auditdomain.StandardReference{{
 				Scheme: "unpinned", Version: "1", RequirementID: "invented",
 			}}
+		} else {
+			document.StandardRefs = []auditdomain.StandardReference{{
+				Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89",
+			}}
 		}
 		findings.receipts = append(findings.receipts, findingintake.Receipt{
 			ReceiptID: name, Document: document, Origin: origin,
