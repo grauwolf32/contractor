@@ -132,12 +132,6 @@ function requireExactRuntimeKeys(
   }
 }
 
-function requireResourceID(label: string, value: string): void {
-  if (!RESOURCE_ID_PATTERN.test(value)) {
-    throw new TypeError(`${label} is invalid`);
-  }
-}
-
 function requireConfigIdentity(name: string, version?: string): void {
   if (
     !CONFIG_ID_PATTERN.test(name) ||
@@ -1529,17 +1523,4 @@ export async function deleteRuntimeCredential(
 
 export function isConfigurationKind(value: string): value is ConfigurationKind {
   return CONFIGURATION_KINDS.some((kind) => kind === value);
-}
-
-export function isWritableConfigurationKind(
-  value: ConfigurationKind,
-): value is WritableConfigurationKind {
-  return WRITABLE_CONFIGURATION_KINDS.some((kind) => kind === value);
-}
-
-export function requireOperationsResourceID(
-  label: string,
-  value: string,
-): void {
-  requireResourceID(label, value);
 }

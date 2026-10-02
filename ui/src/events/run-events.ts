@@ -105,7 +105,6 @@ export interface OperationsEventCallbacks {
 }
 
 export interface RunEventSubscription {
-  resume(after: EventCursor): void;
   unsubscribe(): void;
 }
 
@@ -115,7 +114,6 @@ export interface OperationsSnapshotCursor {
 }
 
 export interface OperationsEventSubscription {
-  resume(after: OperationsSnapshotCursor): void;
   unsubscribe(): void;
 }
 
@@ -943,20 +941,6 @@ export class RunEventsManager {
     }
     let active = true;
     return {
-      resume: (cursor) => {
-        if (!active) {
-          return;
-        }
-        validateCursor(cursor);
-        record.cursor = copyCursor(cursor);
-        delete record.requestedCursor;
-        record.phase = "pending";
-        callbacks.onStateChange("connecting");
-        this.#ensureConnection();
-        if (this.#connection?.socket.readyState === 1) {
-          this.#sendSubscription(record);
-        }
-      },
       unsubscribe: () => {
         if (!active) {
           return;
@@ -992,24 +976,6 @@ export class RunEventsManager {
     }
     let active = true;
     return {
-      resume: (cursor) => {
-        if (!active) {
-          return;
-        }
-        const resumed = {
-          generation: cursor.generation,
-          sequence: cursor.revision,
-        };
-        validateCursor(resumed);
-        record.cursor = copyCursor(resumed);
-        delete record.requestedCursor;
-        record.phase = "pending";
-        callbacks.onStateChange("connecting");
-        this.#ensureConnection();
-        if (this.#connection?.socket.readyState === 1) {
-          this.#sendSubscription(record);
-        }
-      },
       unsubscribe: () => {
         if (!active) {
           return;
@@ -1368,7 +1334,8 @@ export class RunEventsManager {
       // The Server may still pump the old subscription, or not have released
       // its ID yet. Cancel it and keep a closing record under the old ID so
       // its late frames and the reply (unsubscribed or not_found) stay
-      // harmless; the owner resumes under a fresh ID.
+      // harmless; the owner unsubscribes and subscribes again after its REST
+      // baseline refetch.
       try {
         connection.unsubscribe(record.id);
       } catch {

@@ -484,17 +484,18 @@ describe("RunEventsManager", () => {
     expect(retained.resyncs).toEqual([]);
     expect(failed.errors).toHaveLength(1);
 
-    // The owner resumes under a fresh ID on the same socket.
-    subscription.resume(cursor("6"));
+    // The owner drops the old subscription after its REST baseline refetch.
+    subscription.unsubscribe();
+    manager.subscribeRun("run-1", cursor("6"), failed.value);
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
       type: "subscribe",
-      subscriptionId: "run-ui-3",
+      subscriptionId: "run-ui-4",
       stream: { kind: "run", id: "run-1" },
       after: cursor("6"),
     });
-    socket.message(subscribed("run-ui-3", "run-1", "6"));
-    socket.message(lifecycleEvent("run-ui-3", "run-1", "7"));
+    socket.message(subscribed("run-ui-4", "run-1", "6"));
+    socket.message(lifecycleEvent("run-ui-4", "run-1", "7"));
     socket.message(lifecycleEvent("run-ui-2", "run-2", "3"));
     expect(failed.states.at(-1)).toBe("live");
     expect(failed.lifecycle).toHaveBeenCalledOnce();
@@ -649,11 +650,12 @@ describe("RunEventsManager", () => {
       subscriptionId: "run-ui-1",
     });
 
-    subscription.resume(cursor("7"));
+    subscription.unsubscribe();
+    manager.subscribeRun("run-1", cursor("7"), current.value);
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(JSON.parse(first?.sent.at(-1) ?? "{}")).toMatchObject({
       type: "subscribe",
-      subscriptionId: "run-ui-2",
+      subscriptionId: "run-ui-3",
       after: cursor("7"),
     });
     // Frames still queued for the cancelled ID and its acknowledgement do
@@ -664,7 +666,7 @@ describe("RunEventsManager", () => {
       type: "unsubscribed",
       subscriptionId: "run-ui-1",
     });
-    first?.message(subscribed("run-ui-2", "run-1", "7"));
+    first?.message(subscribed("run-ui-3", "run-1", "7"));
     expect(current.resyncs).toEqual(["projection_gap"]);
     expect(current.states.at(-1)).toBe("live");
     expect(first?.closed).toBeUndefined();
