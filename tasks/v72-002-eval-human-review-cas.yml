@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V72-002
+title: Select human Eval assessments with current revision
+milestone: eval-revision-race-recovery-2026-10
+priority: P1
+status: completed
+implementation_commit: 551ebb7cef5a476c7815bce81c9872b131ec6296
+depends_on: []
+languages: [typescript]
+goal: Save human review decisions despite unrelated experiment progress.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/330
+  finding: >-
+    A human review reuses the experiment revision from when the panel opened,
+    so later selection 412 errors force the reader to discard typed decisions.
+scope:
+  in:
+    - Refresh the review context after the assessment is recorded and before selection.
+    - Refuse selection when the member's result changed.
+    - Offer a revision reload after 412 without clearing decisions or evidence choices.
+    - Replay the same assessment on retry rather than creating another record.
+  out:
+    - Change server selection CAS or assessment immutability.
+acceptance_criteria:
+  - id: A1
+    text: Unrelated experiment progress does not block a saved human assessment.
+  - id: A2
+    text: A later 412 can be reloaded and retried with all decisions retained.
+  - id: A3
+    text: Changed member evidence is not silently selected.
+tests:
+  - command: cd ui && vitest run src/routes/evals-comparison.test.tsx
+    covers: [A1, A2, A3]
+verification:
+  focused: Progress, 412 reload, decision retention, assessment replay and changed-result tests passed.
+  broad: Full UI suite passed (684 tests); TypeScript, ESLint, Prettier and production build passed.

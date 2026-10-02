@@ -7,6 +7,7 @@ import {
   commandEvalExperiment,
   EVAL_POLL_MS,
   getEvalCommand,
+  getEvalExperiment,
   type EvalCommand,
   type EvalCommandReceipt,
   type EvalExperiment,
@@ -35,6 +36,23 @@ const LABELS: Record<EvalCommand["kind"], string> = {
   finalize: "Finalize",
 };
 
+function needsCurrentRevision(kind: EvalCommand["kind"]): boolean {
+  return kind === "pause" || kind === "resume" || kind === "cancel";
+}
+
+function ensureCurrentStopIntent(
+  latest: EvalExperiment,
+  command: PendingCommand,
+) {
+  if (
+    latest.planSha256 !== (command.body.planSha256 ?? null) ||
+    !latest.allowedCommands.includes(command.body.kind)
+  )
+    throw new Error(
+      "The experiment changed and this action is no longer available. Reload its current state before trying again.",
+    );
+}
+
 export function EvalControls({
   experiment,
   disabled = false,
@@ -54,6 +72,8 @@ export function EvalControls({
     experiment: EvalExperiment;
   } | null>(null);
   const [storageError, setStorageError] = useState<Error | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const preparingRef = useRef(false);
   const heading = useId(),
     dismiss = useRef<HTMLButtonElement>(null);
   const [receipt, setReceipt] = useState<EvalCommandReceipt | null>(null);
@@ -82,15 +102,46 @@ export function EvalControls({
     await cache.invalidateQueries({ queryKey: ["evals", "list"] });
   }
   const send = useMutation({
-    mutationFn: (current: PendingCommand) =>
-      commandEvalExperiment(
-        api,
-        experiment.experimentId,
-        current.body,
-        current.key,
-        current.revision,
-      ),
-    onSuccess: (result, current) => settle(current, result),
+    mutationFn: async (current: PendingCommand) => {
+      const submit = (command: PendingCommand) =>
+        commandEvalExperiment(
+          api,
+          experiment.experimentId,
+          command.body,
+          command.key,
+          command.revision,
+        );
+      try {
+        return { result: await submit(current), command: current };
+      } catch (error) {
+        if (
+          !needsCurrentRevision(current.body.kind) ||
+          !(error instanceof PublicAPIError) ||
+          error.status !== 412 ||
+          error.code !== "eval_revision_mismatch"
+        )
+          throw error;
+        // A rejected CAS has not applied the command. Recheck intent and
+        // persist a new correlation before one retry; a lost response still
+        // replays the exact key, body and revision that were sent.
+        const latest = await getEvalExperiment(api, experiment.experimentId);
+        cache.setQueryData(
+          ["evals", "experiment", experiment.experimentId],
+          latest,
+        );
+        ensureCurrentStopIntent(latest, current);
+        const retry = {
+          ...current,
+          key: createMutationIdempotencyKey("eval"),
+          revision: latest.revision,
+        };
+        writeCommand(owner, experiment.experimentId, retry);
+        submitted.current = retry.key;
+        setPending(retry);
+        return { result: await submit(retry), command: retry };
+      }
+    },
+    onSuccess: ({ result, command }) => settle(command, result),
   });
   const commandId = pending?.commandId;
   const command = useQuery({
@@ -122,12 +173,23 @@ export function EvalControls({
     mutate(pending);
   }, [native, pending, mutate]);
   const error = send.error ?? command.error;
-  const busy = !!pending;
-  function execute(kind: EvalCommand["kind"], reviewed = experiment) {
+  const busy = !!pending || preparing;
+  async function execute(kind: EvalCommand["kind"], reviewed = experiment) {
+    if (preparingRef.current || pending) return;
+    preparingRef.current = true;
+    setPreparing(true);
     try {
+      const currentRevision = needsCurrentRevision(kind)
+        ? await getEvalExperiment(api, experiment.experimentId)
+        : reviewed;
+      if (needsCurrentRevision(kind))
+        cache.setQueryData(
+          ["evals", "experiment", experiment.experimentId],
+          currentRevision,
+        );
       const next: PendingCommand = {
         key: createMutationIdempotencyKey("eval"),
-        revision: reviewed.revision,
+        revision: currentRevision.revision,
         body: {
           kind,
           ...(kind !== "prepare" && kind !== "duplicate" && reviewed.planSha256
@@ -135,13 +197,24 @@ export function EvalControls({
             : {}),
         },
       };
-      writeCommand(owner, experiment.experimentId, next);
+      if (needsCurrentRevision(kind))
+        ensureCurrentStopIntent(currentRevision, next);
+      try {
+        writeCommand(owner, experiment.experimentId, next);
+      } catch {
+        throw new Error(RECOVERY_STORAGE_MESSAGE);
+      }
       setPending(next);
       setReceipt(null);
       setConfirm(null);
       setStorageError(null);
-    } catch {
-      setStorageError(new Error(RECOVERY_STORAGE_MESSAGE));
+    } catch (error) {
+      setStorageError(
+        error instanceof Error ? error : new Error(RECOVERY_STORAGE_MESSAGE),
+      );
+    } finally {
+      preparingRef.current = false;
+      setPreparing(false);
     }
   }
   async function recover() {
@@ -177,11 +250,11 @@ export function EvalControls({
                     : "secondary-button"
                 }
                 disabled={busy || disabled}
-                onClick={() =>
-                  kind === "start" || kind === "cancel"
-                    ? setConfirm({ kind, experiment })
-                    : execute(kind)
-                }
+                onClick={() => {
+                  if (kind === "start" || kind === "cancel")
+                    setConfirm({ kind, experiment });
+                  else void execute(kind);
+                }}
               >
                 {LABELS[kind]}
               </button>
@@ -196,7 +269,7 @@ export function EvalControls({
           review.
         </p>
       )}
-      {busy && !error ? (
+      {pending && !error ? (
         <p role="status">
           {pending?.body.kind}: {command.data?.state ?? "recovering receipt"}.
           Waiting for the server to confirm.
@@ -209,14 +282,27 @@ export function EvalControls({
       ) : null}
       <EvalError
         error={storageError ?? error}
-        reload={error ? () => void recover() : undefined}
+        reload={
+          storageError && storageError.message !== RECOVERY_STORAGE_MESSAGE
+            ? () => {
+                setStorageError(null);
+                void cache.invalidateQueries({
+                  queryKey: ["evals", "experiment", experiment.experimentId],
+                });
+              }
+            : error
+              ? () => void recover()
+              : undefined
+        }
       />
       {confirm ? (
         <Dialog
           className="project-dialog panel"
           labelledBy={heading}
           initialFocusRef={dismiss}
-          onRequestClose={() => setConfirm(null)}
+          onRequestClose={() => {
+            if (!preparingRef.current) setConfirm(null);
+          }}
         >
           <h2 id={heading}>{LABELS[confirm.kind]} experiment?</h2>
           {confirm.kind === "start" ? (
@@ -239,13 +325,15 @@ export function EvalControls({
               ref={dismiss}
               type="button"
               className="secondary-button"
+              disabled={preparing}
               onClick={() => setConfirm(null)}
             >
               Keep current state
             </button>
             <button
               type="button"
-              onClick={() => execute(confirm.kind, confirm.experiment)}
+              disabled={preparing}
+              onClick={() => void execute(confirm.kind, confirm.experiment)}
             >
               Confirm {LABELS[confirm.kind].toLowerCase()}
             </button>
