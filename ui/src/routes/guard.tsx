@@ -5,6 +5,7 @@ import { APICompatibilityError } from "../api/error";
 import { queryKeys } from "../api/query-keys";
 import { useSession } from "../auth/session";
 import { ErrorNotice } from "./artifacts/common";
+import { SessionConnectionError } from "./session-error";
 
 export function AuthenticatedRoute() {
   const { session, error, isLoading } = useSession();
@@ -29,13 +30,7 @@ export function AuthenticatedRoute() {
       session === undefined ||
       error instanceof APICompatibilityError)
   ) {
-    return (
-      <main className="centered-state">
-        <p className="eyebrow">Connection error</p>
-        <h1>Contractor Server is not compatible or unavailable</h1>
-        <p role="alert">{error.message}</p>
-      </main>
-    );
+    return <SessionConnectionError error={error} />;
   }
   if (session === null || session === undefined) {
     return (

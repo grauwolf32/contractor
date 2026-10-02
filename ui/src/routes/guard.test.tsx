@@ -6,11 +6,12 @@ import { RouterProvider } from "react-router/dom";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AuthSession } from "../api/client";
-import { APICompatibilityError } from "../api/error";
+import { APICompatibilityError, PublicAPIError } from "../api/error";
 import { queryKeys } from "../api/query-keys";
 import { createApplicationQueryClient } from "../app/query-client";
 import { SessionProvider, type SessionAPI } from "../auth/session";
 import { AuthenticatedRoute } from "./guard";
+import { LoginRoute } from "./login";
 
 const session: AuthSession = {
   principal: {
@@ -23,7 +24,7 @@ const session: AuthSession = {
   absoluteExpiresAt: "2026-09-21T12:00:00Z",
 };
 
-function renderGuard(getSession: SessionAPI["getSession"]) {
+function renderGuard(getSession: SessionAPI["getSession"], initialPath = "/") {
   const queryClient = createApplicationQueryClient();
   const api: SessionAPI = {
     getSession,
@@ -36,9 +37,9 @@ function renderGuard(getSession: SessionAPI["getSession"]) {
         element: <AuthenticatedRoute />,
         children: [{ path: "/", element: <h1>Protected page</h1> }],
       },
-      { path: "/login", element: <h1>Sign in</h1> },
+      { path: "/login", element: <LoginRoute /> },
     ],
-    { initialEntries: ["/"] },
+    { initialEntries: [initialPath] },
   );
   render(
     <QueryClientProvider client={queryClient}>
@@ -69,7 +70,7 @@ describe("AuthenticatedRoute", () => {
       screen.getByRole("heading", { name: "Protected page" }),
     ).toBeVisible();
     expect(
-      screen.queryByText("Contractor Server is not compatible or unavailable"),
+      screen.queryByText("Contractor Server is not compatible"),
     ).not.toBeInTheDocument();
     await userEvent
       .setup()
@@ -92,7 +93,7 @@ describe("AuthenticatedRoute", () => {
     );
     expect(
       await screen.findByRole("heading", {
-        name: "Contractor Server is not compatible or unavailable",
+        name: "Contractor Server is not compatible",
       }),
     ).toBeVisible();
     expect(
@@ -104,8 +105,78 @@ describe("AuthenticatedRoute", () => {
     renderGuard(vi.fn(async () => Promise.reject(new Error("offline"))));
     expect(
       await screen.findByRole("heading", {
-        name: "Contractor Server is not compatible or unavailable",
+        name: "Server unavailable",
       }),
     ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  });
+
+  it("recovers an authenticated route after a transient bootstrap failure", async () => {
+    const unavailable = new PublicAPIError({
+      status: 503,
+      code: "server_unavailable",
+      message: "Server unavailable",
+      retryable: true,
+    });
+    const getSession = vi
+      .fn<SessionAPI["getSession"]>()
+      .mockRejectedValueOnce(unavailable)
+      .mockResolvedValue(session);
+    renderGuard(getSession);
+    await screen.findByRole("heading", { name: "Protected page" });
+    expect(getSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers the login form after a transient bootstrap failure", async () => {
+    const unavailable = new PublicAPIError({
+      status: 503,
+      code: "server_unavailable",
+      message: "Server unavailable",
+      retryable: true,
+    });
+    const getSession = vi
+      .fn<SessionAPI["getSession"]>()
+      .mockRejectedValueOnce(unavailable)
+      .mockResolvedValue(null);
+    renderGuard(getSession, "/login");
+    await waitFor(() => expect(getSession).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled(),
+    );
+  });
+
+  it.each(["/", "/login"])(
+    "offers manual retry on the %s bootstrap error screen",
+    async (initialPath) => {
+      const getSession = vi
+        .fn<SessionAPI["getSession"]>()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(initialPath === "/" ? session : null);
+      renderGuard(getSession, initialPath);
+      expect(
+        await screen.findByRole("heading", { name: "Server unavailable" }),
+      ).toBeVisible();
+      await userEvent
+        .setup()
+        .click(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(getSession).toHaveBeenCalledTimes(2));
+      if (initialPath === "/") {
+        await screen.findByRole("heading", { name: "Protected page" });
+      } else {
+        expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+      }
+    },
+  );
+
+  it("never automatically retries an incompatible bootstrap response", async () => {
+    const getSession = vi
+      .fn<SessionAPI["getSession"]>()
+      .mockRejectedValue(new APICompatibilityError("contractor.public.v9"));
+    renderGuard(getSession);
+    await screen.findByRole("heading", {
+      name: "Contractor Server is not compatible",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(getSession).toHaveBeenCalledTimes(1);
   });
 });

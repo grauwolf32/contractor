@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V82-001
+title: Recover session bootstrap after transient Server errors
+milestone: ui-session-recovery-2026-10
+priority: P2
+status: completed
+implementation_commit: d04bfe7b937f1c93973f86347ca226c25f4a1f87
+depends_on: []
+languages: [typescript]
+goal: Let the UI recover from transient authentication-session fetch failures without a page reload.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/301
+  finding: An unversioned proxy 5xx is classified as API incompatibility and session bootstrap has neither bounded retry nor a manual control.
+scope:
+  in:
+    - Classify unversioned 5xx responses as retryable Server unavailability.
+    - Retry only retryable session failures with bounded backoff.
+    - Offer manual session retry on authenticated and login bootstrap error screens.
+    - Test transient recovery and preserve incompatible-version blocking.
+  out:
+    - Retry login mutations or genuine API version mismatches automatically.
+acceptance_criteria:
+  - {id: A1, text: Unversioned proxy 5xx yields a retryable non-compatibility error; wrong version remains incompatibility.}
+  - {id: A2, text: Authenticated and login routes recover after a transient first session failure.}
+  - {id: A3, text: Both bootstrap error screens offer Try again.}
+  - {id: A4, text: Compatibility errors are never automatically retried.}
+tests:
+  - {command: pnpm -C ui typecheck, covers: [A1, A2, A3, A4]}
+  - {command: pnpm -C ui test --run src/api/client.test.ts src/auth/session.test.tsx src/routes/guard.test.tsx, covers: [A1, A2, A3, A4]}
+verification:
+  ui: All 86 Vitest files and 694 tests passed; app and e2e TypeScript configurations passed; ESLint and Prettier passed.
+  scenarios: Verified unversioned 502 classification, wrong-version blocking, transient recovery on both routes, and manual retry on both bootstrap screens.

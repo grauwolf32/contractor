@@ -4,6 +4,7 @@ import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI, type AuthSession } from "../api/client";
+import { APICompatibilityError } from "../api/error";
 import { UI_VERSION } from "../build";
 import type { RuntimeConfig } from "../config/runtime-config";
 import type { SessionAPI } from "../auth/session";
@@ -90,7 +91,7 @@ describe("application session shell", () => {
   it("shows session bootstrap incompatibility on the login route", async () => {
     const api: SessionAPI = {
       getSession: vi.fn(async () => {
-        throw new Error("Server public API version is not supported");
+        throw new APICompatibilityError("contractor.public.v9");
       }),
       login: vi.fn(async () => session),
       logout: vi.fn(async () => undefined),
@@ -98,7 +99,7 @@ describe("application session shell", () => {
     renderApplication(api, "/login");
     expect(
       await screen.findByRole("heading", {
-        name: "Contractor Server is not compatible or unavailable",
+        name: "Contractor Server is not compatible",
       }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();

@@ -88,6 +88,43 @@ describe("PublicAPI", () => {
     );
   });
 
+  it("treats an unversioned proxy 502 as retryable unavailability", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response("<html>Bad Gateway</html>", {
+            status: 502,
+            headers: { "Content-Type": "text/html" },
+          }),
+      ),
+    );
+    const error = await api.getSession().catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(PublicAPIError);
+    expect(error).not.toBeInstanceOf(APICompatibilityError);
+    expect(error).toMatchObject({
+      status: 502,
+      code: "server_unavailable",
+      retryable: true,
+    });
+  });
+
+  it("keeps a wrong version header incompatible even on a 502", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response("<html>Bad Gateway</html>", {
+            status: 502,
+            headers: { "X-Contractor-API-Version": "contractor.public.v9" },
+          }),
+      ),
+    );
+    await expect(api.getSession()).rejects.toBeInstanceOf(
+      APICompatibilityError,
+    );
+  });
+
   it("bounds an oversized Server error before mapping it", async () => {
     const api = new PublicAPI(
       runtimeConfig,

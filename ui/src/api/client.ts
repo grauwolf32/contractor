@@ -140,6 +140,14 @@ export class PublicAPI {
         .get(PUBLIC_API_VERSION_HEADER)
         ?.split(",")
         .map((value) => value.trim());
+      if (values === undefined && response.status >= 500) {
+        await response.body?.cancel().catch(() => undefined);
+        throw publicAPIError(response.status, {
+          code: "server_unavailable",
+          message: "Server is temporarily unavailable. Try again.",
+          retryable: true,
+        });
+      }
       if (
         values === undefined ||
         values.length !== 1 ||
