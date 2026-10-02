@@ -3,8 +3,8 @@ id: V84-002
 title: Remove test-only Operations requests and unused Workflow presentation helper
 milestone: ui-api-dead-surface-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 985f5755e63e8f5b712de82761d7a81e3e933ae0
 depends_on: [V84-001]
 languages: [typescript]
 goal: Keep UI request tests focused on helpers the shipped pages actually use.
@@ -25,3 +25,7 @@ acceptance_criteria:
 tests:
   - {command: cd ui && ./node_modules/.bin/vitest run src/api/operations.test.ts src/routes/workflows, covers: [A2]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A2, A3]}

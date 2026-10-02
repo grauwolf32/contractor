@@ -3,8 +3,8 @@ id: V84-001
 title: Remove unused UI API exports, query keys and subscription resume API
 milestone: ui-api-dead-surface-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 04a8895c7ac5041986cf1e885abea01944850f5b
 depends_on: []
 languages: [typescript]
 goal: Match the UI API and event surface to the code production owners actually call.
@@ -25,3 +25,4 @@ acceptance_criteria:
 tests:
   - {command: cd ui && ./node_modules/.bin/vitest run src/events/run-events.test.ts, covers: [A2, A3]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A2]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3]}
