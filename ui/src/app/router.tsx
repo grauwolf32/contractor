@@ -75,7 +75,7 @@ export function applicationRoutes(): RouteObject[] {
                   lazy: {
                     element: async () => {
                       const { ProjectFindingsRoute } = await projectFindings();
-                      return <ProjectFindingsRoute embedded />;
+                      return <ProjectFindingsRoute />;
                     },
                   },
                 },

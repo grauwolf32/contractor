@@ -1,7 +1,7 @@
 import { useLocation, useSearchParams } from "react-router";
 import { WorkflowRunDrawer } from "../workflows/run-drawer";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
 import { useProjectArtifactInventory } from "./inventory";
@@ -10,7 +10,6 @@ import { getWorkflow } from "../../api/workflows";
 import { WorkflowCard } from "../workflows/card";
 import { useWorkflowFamilies } from "../workflows/families";
 import { useWorkflowInventory } from "../workflows/inventory";
-import { Dialog } from "../../app/dialog";
 import { artifactOptionKey } from "../../run-drafts/validation";
 import { ErrorNotice } from "../artifacts/common";
 import { WorkflowRunForm } from "../workflows/run-form";
@@ -32,10 +31,8 @@ function ProjectWorkflowLauncher({
   projectId,
   selection,
   onClose,
-  drawer,
 }: {
   projectId: string;
-  drawer: boolean;
   selection: WorkflowCompatibility;
   onClose: () => void;
 }) {
@@ -79,60 +76,27 @@ function ProjectWorkflowLauncher({
         projectId={projectId}
         initialArtifactSelections={selection.preselected}
         initialArtifacts={initialArtifacts}
-        presentation={drawer ? "drawer" : "page"}
+        presentation="drawer"
         {...(onSubmittingChange ? { onSubmittingChange } : {})}
       />
     );
   }
-  if (drawer)
-    return (
-      <WorkflowRunDrawer
-        workflow={selection.workflow}
-        projectId={projectId}
-        onClose={onClose}
-      >
-        {renderForm}
-      </WorkflowRunDrawer>
-    );
   return (
-    <Dialog
-      className="project-dialog project-workflow-dialog panel"
-      labelledBy="project-workflow-dialog-title"
-      onRequestClose={onClose}
+    <WorkflowRunDrawer
+      workflow={selection.workflow}
+      projectId={projectId}
+      onClose={onClose}
     >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Project Workflow</p>
-          <h2 id="project-workflow-dialog-title">
-            {workflowDisplayName(selection.workflow)}
-          </h2>
-          <code>{selector(selection)}</code>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Workflow Run dialog"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-      {renderForm()}
-    </Dialog>
+      {renderForm}
+    </WorkflowRunDrawer>
   );
 }
 
 export function ProjectWorkflowRecommendations({
   projectId,
-  focusRequest = 0,
-  drawer = false,
 }: {
   projectId: string;
-  focusRequest?: number;
-  drawer?: boolean;
 }) {
-  const section = useRef<HTMLElement>(null);
-  const handledFocusRequest = useRef(0);
   const [selection, setSelection] = useState<WorkflowCompatibility | null>(
     null,
   );
@@ -196,33 +160,9 @@ export function ProjectWorkflowRecommendations({
       ),
   );
 
-  useEffect(() => {
-    if (
-      focusRequest === 0 ||
-      focusRequest === handledFocusRequest.current ||
-      workflows.isPending ||
-      artifacts.isPending
-    ) {
-      return;
-    }
-    handledFocusRequest.current = focusRequest;
-    const region = section.current;
-    const target =
-      region?.querySelector<HTMLElement>(
-        'button[aria-label^="Run "]:not(:disabled), button[aria-label^="Configure "]:not(:disabled), .project-all-workflows > summary',
-      ) ?? region;
-    region?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-    target?.focus({ preventScroll: true });
-  }, [artifacts.isPending, focusRequest, workflows.isPending]);
-
   if (workflows.isPending || artifacts.isPending) {
     return (
-      <section
-        ref={section}
-        className="panel project-region"
-        id="project-workflows"
-        tabIndex={-1}
-      >
+      <section className="panel project-region" id="project-workflows">
         <p className="loading-copy" role="status">
           Matching Workflows to Project Artifacts…
         </p>
@@ -231,12 +171,7 @@ export function ProjectWorkflowRecommendations({
   }
   if (workflows.error !== null || artifacts.error !== null) {
     return (
-      <section
-        ref={section}
-        className="panel project-region"
-        id="project-workflows"
-        tabIndex={-1}
-      >
+      <section className="panel project-region" id="project-workflows">
         <p className="eyebrow">Workflow matching</p>
         <h3>Recommended Workflows</h3>
         <ErrorNotice error={workflows.error ?? artifacts.error} />
@@ -256,31 +191,12 @@ export function ProjectWorkflowRecommendations({
   }
 
   return (
-    <section
-      ref={section}
-      className="panel project-region"
-      id="project-workflows"
-      tabIndex={-1}
-    >
-      {drawer ? (
-        <ProjectSectionActions>
-          <span className="muted-copy">
-            {families.length} workflows · {workflows.data?.length ?? 0} versions
-          </span>
-        </ProjectSectionActions>
-      ) : (
-        <div className="section-heading">
-          <div>
-            <h3>Workflows</h3>
-            <p className="muted-copy">
-              Choose a Workflow and review its inputs before launching.
-            </p>
-          </div>
-          <span className="muted-copy">
-            {families.length} workflows · {workflows.data?.length ?? 0} versions
-          </span>
-        </div>
-      )}
+    <section className="panel project-region" id="project-workflows">
+      <ProjectSectionActions>
+        <span className="muted-copy">
+          {families.length} workflows · {workflows.data?.length ?? 0} versions
+        </span>
+      </ProjectSectionActions>
       <div className="workflow-discovery-toolbar">
         <div className="workflow-filter-tabs" aria-label="Workflow filters">
           {[
@@ -368,7 +284,6 @@ export function ProjectWorkflowRecommendations({
         <ProjectWorkflowLauncher
           projectId={projectId}
           selection={selection}
-          drawer={drawer}
           onClose={() => setSelection(null)}
         />
       )}

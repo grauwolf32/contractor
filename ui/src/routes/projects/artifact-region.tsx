@@ -6,13 +6,7 @@ import {
 } from "../artifacts/git-import-dialog";
 import type { GitImportResult } from "../../api/git-artifacts";
 import { useQuery } from "@tanstack/react-query";
-import {
-  forwardRef,
-  type FormEvent,
-  useImperativeHandle,
-  useState,
-  useId,
-} from "react";
+import { type FormEvent, useState, useId } from "react";
 import { useLocation, Link, useSearchParams } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
@@ -32,45 +26,16 @@ import {
   ProjectArtifactShortcutGrid,
   ProjectRegion,
 } from "./common";
-import {
-  PROJECT_ARTIFACT_SHORTCUTS,
-  type ShortcutDefinition,
-} from "./shortcuts";
+import type { ShortcutDefinition } from "./shortcuts";
 import { RefreshButton } from "../../app/refresh-button";
 
-function projectSourceShortcut(): ShortcutDefinition {
-  const shortcut = PROJECT_ARTIFACT_SHORTCUTS.find(
-    (candidate) => candidate.id === "sources",
-  );
-  if (shortcut === undefined) {
-    throw new Error("Project Sources shortcut is not configured");
-  }
-  return shortcut;
-}
-
-const SOURCE_SHORTCUT = projectSourceShortcut();
-
-export interface ProjectArtifactRegionHandle {
-  openSources: () => void;
-}
-
-export const ProjectArtifactRegion = forwardRef<
-  ProjectArtifactRegionHandle,
-  {
-    projectId: string;
-    detailRoot: "/projects" | "/evals";
-    compact?: boolean;
-  }
->(function ProjectArtifactRegion(
-  { projectId, detailRoot, compact = false },
-  ref,
-) {
+export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
   const [filters, setFilters] = useSearchParams();
   const location = useLocation();
   const addHeading = useId();
   const [addOpen, setAddOpen] = useState(
-    () => compact && filters.get("add") === "artifact",
+    () => filters.get("add") === "artifact",
   );
   function closeAdd() {
     setAddOpen(false);
@@ -122,17 +87,6 @@ export const ProjectArtifactRegion = forwardRef<
       }),
   });
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      openSources(): void {
-        setGitOpen(false);
-        setShortcut(SOURCE_SHORTCUT);
-      },
-    }),
-    [],
-  );
-
   function applyFilter(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     const candidate = String(
@@ -162,20 +116,11 @@ export const ProjectArtifactRegion = forwardRef<
       eyebrow="Project artifacts"
       title="Artifacts"
       id="project-artifacts"
-      compact={compact}
+      compact
       action={
         <div className="button-row project-region-actions">
-          <button
-            type="button"
-            onClick={() => {
-              if (compact) setAddOpen(true);
-              else {
-                setGitOpen(false);
-                setShortcut(SOURCE_SHORTCUT);
-              }
-            }}
-          >
-            {compact ? "Add artifact" : "Add sources"}
+          <button type="button" onClick={() => setAddOpen(true)}>
+            Add artifact
           </button>
           <RefreshButton
             isFetching={query.isFetching}
@@ -185,65 +130,49 @@ export const ProjectArtifactRegion = forwardRef<
         </div>
       }
     >
-      {compact ? (
-        addOpen ? (
-          <Dialog
-            className="project-dialog project-add-artifact-dialog panel"
-            labelledBy={addHeading}
-            onRequestClose={closeAdd}
-          >
-            <div className="project-dialog-heading">
-              <div>
-                <p className="eyebrow">Project materials</p>
-                <h2 id={addHeading}>Add artifact</h2>
-              </div>
-              <button
-                className="project-dialog-close"
-                type="button"
-                aria-label="Close artifact choices"
-                onClick={closeAdd}
-              >
-                ×
-              </button>
+      {addOpen ? (
+        <Dialog
+          className="project-dialog project-add-artifact-dialog panel"
+          labelledBy={addHeading}
+          onRequestClose={closeAdd}
+        >
+          <div className="project-dialog-heading">
+            <div>
+              <p className="eyebrow">Project materials</p>
+              <h2 id={addHeading}>Add artifact</h2>
             </div>
-            <p className="muted-copy">
-              Upload a file or import a Git repository into this project.
-            </p>
-            <ProjectArtifactShortcutGrid
-              onSelect={setShortcut}
-              onImportGit={() => setGitOpen(true)}
-            />
-          </Dialog>
-        ) : null
-      ) : (
-        <>
+            <button
+              className="project-dialog-close"
+              type="button"
+              aria-label="Close artifact choices"
+              onClick={closeAdd}
+            >
+              ×
+            </button>
+          </div>
           <p className="muted-copy">
-            Shortcuts suggest useful names and media types. Every field remains
-            editable, and Other accepts any supported Artifact.
+            Upload a file or import a Git repository into this project.
           </p>
           <ProjectArtifactShortcutGrid
             onSelect={setShortcut}
             onImportGit={() => setGitOpen(true)}
           />
-        </>
-      )}
+        </Dialog>
+      ) : null}
 
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Project Artifact revision stored.</strong>
           <ContextLink
             returnLabel="Project Artifacts"
-            {...(compact ? {} : { returnHash: "#project-artifacts" })}
-            to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
+            to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
           >
             Open {written.artifact.namespace}/{written.artifact.name}@
             {written.artifact.revision}
           </ContextLink>
-          {compact ? (
-            <Link to={`/projects/${encodeURIComponent(projectId)}/workflows`}>
-              Choose a Workflow for this project →
-            </Link>
-          ) : null}
+          <Link to={`/projects/${encodeURIComponent(projectId)}/workflows`}>
+            Choose a Workflow for this project →
+          </Link>
           {"gitSource" in written ? (
             <GitSourceDetails source={written.gitSource} />
           ) : null}
@@ -285,11 +214,7 @@ export const ProjectArtifactRegion = forwardRef<
         ) : query.data.items.length === 0 ? (
           <div className="compact-empty">
             <strong>No Artifact bindings in this view.</strong>
-            <p>
-              {compact
-                ? "Add an artifact to prepare the inputs for your next analysis."
-                : "Use a shortcut above to add a Project input."}
-            </p>
+            <p>Add an artifact to prepare the inputs for your next analysis.</p>
           </div>
         ) : (
           <div className="table-scroll">
@@ -309,10 +234,7 @@ export const ProjectArtifactRegion = forwardRef<
                     <td data-label="Binding">
                       <ContextLink
                         returnLabel="Project Artifacts"
-                        {...(compact
-                          ? {}
-                          : { returnHash: "#project-artifacts" })}
-                        to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
+                        to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.namespace}/{item.artifact.name}
                       </ContextLink>
@@ -367,4 +289,4 @@ export const ProjectArtifactRegion = forwardRef<
       )}
     </ProjectRegion>
   );
-});
+}
