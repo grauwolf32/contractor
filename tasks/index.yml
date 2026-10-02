@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: llm-credential-reference-safety-2026-10
+    exit_task: V76-001
+    outcome: >-
+      Validate LLM credential references before RuntimeConfig publication and
+      label binding, and prevent deletion while active labels reference them.
   - id: release-and-ui-guardrails-2026-10
     exit_task: V75-003
     outcome: >-
@@ -2661,6 +2666,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V76-001, file: v76-001-llm-credential-reference-safety.yml}
   - {id: V75-001, file: v75-001-database-hardening-gates.yml}
   - {id: V75-002, file: v75-002-eval-dataset-size.yml}
   - {id: V75-003, file: v75-003-audit-stop-reason-label.yml}
