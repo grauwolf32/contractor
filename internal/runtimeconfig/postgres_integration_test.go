@@ -12,12 +12,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type llmCredentialLookupFunc func(context.Context, string) (config.CredentialMetadata, error)
+
+func (f llmCredentialLookupFunc) LookupLLMCredential(ctx context.Context, id string) (config.CredentialMetadata, error) {
+	return f(ctx, id)
+}
 
 func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
@@ -61,7 +68,20 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	now := time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC)
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: resolver,
-		RuntimeCredentials:       allowRuntimeCredentialCatalog{},
+		RuntimeCredentials: allowRuntimeCredentialCatalog{},
+		TransactionLLMCredentials: TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (config.CredentialLookup, error) {
+			return llmCredentialLookupFunc(func(_ context.Context, id string) (config.CredentialMetadata, error) {
+				if id != "worker-local" {
+					return config.CredentialMetadata{}, errors.New("test LLM credential not found")
+				}
+				return config.CredentialMetadata{
+					Ref: contracts.LLMCredentialRef{CredentialID: id},
+					LLMGateway: contracts.LLMGatewayConfigRef{
+						GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
+					},
+				}, nil
+			}), nil
+		}),
 		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 		Now:                      func() time.Time { return now },
 	})
@@ -99,7 +119,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	// losing transaction must still replay the committed publication.
 	concurrentDocument := bytesReplace(
 		bytesReplace(document, `"name":"debug"`, `"name":"concurrent"`),
-		`"credential":"worker-local"`, `"credential":"concurrent-worker"`,
+		`,"credential":"worker-local"`, ``,
 	)
 	var concurrentCalls atomic.Int32
 	var resolvedTogether sync.WaitGroup

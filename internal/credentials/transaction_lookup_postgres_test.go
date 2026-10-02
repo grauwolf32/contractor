@@ -35,18 +35,28 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 	if err := repository.InsertCredential(ctx, record); err != nil {
 		t.Fatal(err)
 	}
+	development, err := NewStaticProvider(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	factory, err := NewTransactionLookupFactory(development)
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	resolver := runtimeconfig.GatewayResolverFunc(func(
+		context.Context, string,
+	) (contracts.ResolvedLLMGatewayConfig, error) {
+		return contracts.ResolvedLLMGatewayConfig{
+			Ref: record.LLMGateway, Protocol: contracts.OpenAICompatibleProtocol,
+			URL: "http://127.0.0.1:4000/v1",
+		}, nil
+	})
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
-		Pool: pool,
-		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(
-			context.Context, string,
-		) (contracts.ResolvedLLMGatewayConfig, error) {
-			return contracts.ResolvedLLMGatewayConfig{
-				Ref: record.LLMGateway, Protocol: contracts.OpenAICompatibleProtocol,
-				URL: "http://127.0.0.1:4000/v1",
-			}, nil
-		}),
-		RuntimeCredentials: transactionTestRuntimeCredentialCatalog{},
+		Pool:                      pool,
+		GatewayResolver:           resolver,
+		TransactionLLMCredentials: factory,
+		RuntimeCredentials:        transactionTestRuntimeCredentialCatalog{},
 		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(
 			func(string) bool { return true },
 		),
@@ -61,27 +71,36 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
   "metadata":{"name":"%s-config","version":"1"},
   "spec":{"worker":{"llmGateway":{"gateway":"%s@%s","credential":"%s"}}}
 }`, label, record.LLMGateway.GatewayID, record.LLMGateway.Version, credentialID))
-		published, publishErr := publisher.Publish(ctx, document, "publish-"+label, "operator")
-		if publishErr != nil {
-			t.Fatal(publishErr)
+		var published runtimeconfig.Version
+		if label == "missing" {
+			// Simulate a legacy version created before publication checked LLM credentials.
+			prepared, prepareErr := runtimeconfig.PreparePublication(document)
+			if prepareErr != nil {
+				t.Fatal(prepareErr)
+			}
+			published, prepareErr = prepared.Resolve(ctx, resolver)
+			if prepareErr != nil {
+				t.Fatal(prepareErr)
+			}
+			published.ActorID, published.CreatedAt = "operator", time.Now().UTC()
+			if _, prepareErr = runtimeconfig.NewRepository(pool).InsertVersion(ctx, published); prepareErr != nil {
+				t.Fatal(prepareErr)
+			}
+		} else {
+			result, publishErr := publisher.Publish(ctx, document, "publish-"+label, "operator")
+			if publishErr != nil {
+				t.Fatal(publishErr)
+			}
+			published = result.Version
 		}
 		if _, bindErr := runtimeconfig.NewRepository(pool).CreateBinding(
-			ctx, label, published.Version.Ref, "operator", time.Now().UTC(),
+			ctx, label, published.Ref, "operator", time.Now().UTC(),
 		); bindErr != nil {
 			t.Fatal(bindErr)
 		}
 	}
 	publishBinding("valid", record.CredentialID)
 	publishBinding("missing", "missing-transaction-worker")
-
-	development, err := NewStaticProvider(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	factory, err := NewTransactionLookupFactory(development)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	schema := pool.Config().ConnConfig.RuntimeParams["search_path"]
 	limitedURL := databaseURL
@@ -209,6 +228,10 @@ func (transactionTestRuntimeCredentialCatalog) WithCredentialReferences(
 	_ context.Context, fn func() error,
 ) error {
 	return fn()
+}
+
+func (c transactionTestRuntimeCredentialCatalog) ForRuntimeTransaction(pgx.Tx) (runtimeconfig.RuntimeCredentialValidator, error) {
+	return c, nil
 }
 
 func recordCredentialRef(record Record) contracts.LLMCredentialRef {

@@ -504,6 +504,7 @@ describe("Operations routes", () => {
                 details: {
                   kind: "credential_in_use",
                   runIds: ["run-openapi", "run-likec4"],
+                  bindingLabels: ["default", "debug"],
                 },
               },
               409,
@@ -533,6 +534,10 @@ describe("Operations routes", () => {
     expect(
       screen.getByRole("link", { name: "run-likec4" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "debug" })).toHaveAttribute(
+      "href",
+      "/operations/runtime-configs",
+    );
     expect(
       screen.getByText("active", { selector: ".state-badge" }),
     ).toBeInTheDocument();

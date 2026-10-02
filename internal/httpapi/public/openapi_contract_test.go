@@ -758,7 +758,9 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, createInUse, true); response.Code != http.StatusCreated {
 		t.Fatalf("create in-use credential = %d: %s", response.Code, response.Body.String())
 	}
-	fixture.credentials.deleteErr = &credentials.CredentialInUseError{RunIDs: []string{"run-contract"}}
+	fixture.credentials.deleteErr = &credentials.CredentialInUseError{
+		BindingLabels: []string{"default"},
+	}
 	deleteInUse := newPublicContractRequest(
 		http.MethodDelete, "/v1/operations/credentials/contract-in-use", nil,
 	)

@@ -19,6 +19,7 @@ type Publisher struct {
 	pool                     *pgxpool.Pool
 	resolver                 GatewayResolver
 	credentials              RuntimeCredentialCatalog
+	llmCredentials           TransactionLLMCredentialLookupFactory
 	plannerTelemetryAdapters PlannerTelemetryAdapterCatalog
 	now                      func() time.Time
 }
@@ -34,11 +35,12 @@ func (f PlannerTelemetryAdapterCatalogFunc) SupportsPlannerTelemetryAdapter(ref 
 }
 
 type PublisherOptions struct {
-	Pool                     *pgxpool.Pool
-	GatewayResolver          GatewayResolver
-	RuntimeCredentials       RuntimeCredentialCatalog
-	PlannerTelemetryAdapters PlannerTelemetryAdapterCatalog
-	Now                      func() time.Time
+	Pool                      *pgxpool.Pool
+	GatewayResolver           GatewayResolver
+	RuntimeCredentials        RuntimeCredentialCatalog
+	TransactionLLMCredentials TransactionLLMCredentialLookupFactory
+	PlannerTelemetryAdapters  PlannerTelemetryAdapterCatalog
+	Now                       func() time.Time
 }
 
 func NewPublisher(options PublisherOptions) (*Publisher, error) {
@@ -51,6 +53,7 @@ func NewPublisher(options PublisherOptions) (*Publisher, error) {
 	return &Publisher{
 		pool: options.Pool, resolver: options.GatewayResolver,
 		credentials:              options.RuntimeCredentials,
+		llmCredentials:           options.TransactionLLMCredentials,
 		plannerTelemetryAdapters: options.PlannerTelemetryAdapters,
 		now:                      options.Now,
 	}, nil
@@ -117,6 +120,9 @@ func (p *Publisher) Publish(ctx context.Context, document []byte, idempotencyKey
 			} else if found {
 				result = replay
 				return nil
+			}
+			if err := validateSpecLLMCredentialInTransaction(ctx, tx, version.Spec, p.llmCredentials); err != nil {
+				return err
 			}
 			_, insertErr := txRepository.InsertVersion(ctx, version)
 			if insertErr != nil {

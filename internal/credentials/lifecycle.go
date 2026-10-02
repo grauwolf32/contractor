@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -36,12 +37,13 @@ var (
 )
 
 type CredentialInUseError struct {
-	RunIDs   []string
-	AuditIDs []string
+	RunIDs        []string
+	AuditIDs      []string
+	BindingLabels []string
 }
 
 func (e *CredentialInUseError) Error() string {
-	return "LLM credential is pinned by a non-terminal WorkflowRun or Audit dispatch hold"
+	return "LLM credential is referenced by a non-terminal WorkflowRun, Audit dispatch hold or active RuntimeConfig label"
 }
 
 type GatewayLookup interface {
@@ -358,28 +360,59 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if err != nil {
 		return DeleteResult{}, err
 	}
-	if len(runIDs) != 0 || len(auditIDs) != 0 {
-		return DeleteResult{}, newCredentialInUseError(runIDs, auditIDs)
-	}
-	if _, _, err := s.resolveManager(record.LLMGateway); err != nil {
-		return DeleteResult{}, err
-	}
-	deletedAt := databaseTime(s.now())
-	storedRequest := deleteOperationRequest{
-		CredentialID: request.CredentialID, LLMGateway: record.LLMGateway,
-		RemoteKeyID: record.RemoteKeyID, ActorID: request.ActorID, DeletedAt: deletedAt,
-	}
-	operation, err := s.newOperation(
-		OperationDelete, request.CredentialID, request.IdempotencyKey, requestHash, storedRequest,
-	)
-	if err != nil {
-		return DeleteResult{}, err
-	}
 	// Once the prepared intent is durable, lookups of this credential fail
 	// until the operation completes. If the insert outcome is unknown, fence
 	// every new reference until a delete completes.
-	if err := s.repository.InsertOperation(ctx, operation); err != nil {
-		if !errors.Is(err, ErrConflict) && !errors.Is(err, ErrInvalid) {
+	var operation Operation
+	var storedRequest deleteOperationRequest
+	attemptedInsert := false
+	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := runtimeconfig.LockLLMCredentialDeletion(ctx, tx, request.CredentialID); err != nil {
+			return err
+		}
+		repository := NewRepository(tx)
+		current, err := repository.GetCredential(ctx, request.CredentialID)
+		if err != nil {
+			return err
+		}
+		if current.LLMGateway != record.LLMGateway || current.RemoteKeyID != record.RemoteKeyID {
+			return ErrConflict
+		}
+		prepared, err := repository.HasPreparedDelete(ctx, request.CredentialID)
+		if err != nil {
+			return err
+		}
+		if prepared {
+			return ErrRecoveryRequired
+		}
+		labels, err := repository.ListActiveRuntimeBindingLabelsByCredential(
+			ctx, request.CredentialID, maximumCredentialRunReferences,
+		)
+		if err != nil {
+			return err
+		}
+		if len(runIDs) != 0 || len(auditIDs) != 0 || len(labels) != 0 {
+			return newCredentialInUseError(runIDs, auditIDs, labels)
+		}
+		if _, _, err := s.resolveManager(record.LLMGateway); err != nil {
+			return err
+		}
+		storedRequest = deleteOperationRequest{
+			CredentialID: request.CredentialID, LLMGateway: record.LLMGateway,
+			RemoteKeyID: record.RemoteKeyID, ActorID: request.ActorID, DeletedAt: databaseTime(s.now()),
+		}
+		operation, err = s.newOperation(
+			OperationDelete, request.CredentialID, request.IdempotencyKey, requestHash, storedRequest,
+		)
+		if err != nil {
+			return err
+		}
+		attemptedInsert = true
+		return repository.InsertOperation(ctx, operation)
+	})
+	if err != nil {
+		var inUse *CredentialInUseError
+		if attemptedInsert && !errors.Is(err, ErrConflict) && !errors.Is(err, ErrInvalid) && !errors.As(err, &inUse) {
 			s.deleteDirty = true
 		}
 		return DeleteResult{}, err
@@ -540,8 +573,14 @@ func (s *Service) executeDelete(
 	if err != nil {
 		return err
 	}
-	if len(runIDs) != 0 || len(auditIDs) != 0 {
-		return newCredentialInUseError(runIDs, auditIDs)
+	labels, err := s.repository.ListActiveRuntimeBindingLabelsByCredential(
+		ctx, request.CredentialID, maximumCredentialRunReferences,
+	)
+	if err != nil {
+		return err
+	}
+	if len(runIDs) != 0 || len(auditIDs) != 0 || len(labels) != 0 {
+		return newCredentialInUseError(runIDs, auditIDs, labels)
 	}
 	gateway, manager, err := s.resolveManager(request.LLMGateway)
 	if err != nil {
@@ -738,8 +777,8 @@ func createOperationRequestsEqual(left, right createOperationRequest) bool {
 	return leftErr == nil && rightErr == nil && string(leftJSON) == string(rightJSON)
 }
 
-func newCredentialInUseError(runIDs, auditIDs []string) *CredentialInUseError {
-	runs := append([]string(nil), runIDs...)
+func newCredentialInUseError(runIDs, auditIDs, bindingLabels []string) *CredentialInUseError {
+	runs := append([]string{}, runIDs...)
 	sort.Strings(runs)
 	if len(runs) > maximumCredentialRunReferences {
 		runs = runs[:maximumCredentialRunReferences]
@@ -749,7 +788,12 @@ func newCredentialInUseError(runIDs, auditIDs []string) *CredentialInUseError {
 	if len(audits) > maximumCredentialRunReferences {
 		audits = audits[:maximumCredentialRunReferences]
 	}
-	return &CredentialInUseError{RunIDs: runs, AuditIDs: audits}
+	labels := append([]string(nil), bindingLabels...)
+	sort.Strings(labels)
+	if len(labels) > maximumCredentialRunReferences {
+		labels = labels[:maximumCredentialRunReferences]
+	}
+	return &CredentialInUseError{RunIDs: runs, AuditIDs: audits, BindingLabels: labels}
 }
 
 func modelPolicyRefKey(ref contracts.ModelPolicyRef) string {

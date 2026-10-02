@@ -37,13 +37,14 @@ func configureControlPlane(
 		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
 			return configurationManager.LLMGateway(selector)
 		}),
-		RuntimeCredentials:       credentialSet.runtime,
-		PlannerTelemetryAdapters: plannerTelemetryRegistry,
+		RuntimeCredentials:        credentialSet.runtime,
+		TransactionLLMCredentials: credentialSet.transactionLookup,
+		PlannerTelemetryAdapters:  plannerTelemetryRegistry,
 	})
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure RuntimeConfig publisher: %w", err)
 	}
-	runtimeBindingService, err := runtimeconfig.NewBindingService(pool, credentialSet.runtime)
+	runtimeBindingService, err := runtimeconfig.NewBindingService(pool, credentialSet.runtime, credentialSet.transactionLookup)
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime label bindings: %w", err)
 	}

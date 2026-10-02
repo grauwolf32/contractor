@@ -956,7 +956,9 @@ func TestCredentialInUseAndGatewayFailuresHaveBoundedPublicErrors(t *testing.T) 
 		},
 		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),
 	}
-	fixture.credentials.deleteErr = &credentials.CredentialInUseError{RunIDs: []string{"run-2", "run-1"}}
+	fixture.credentials.deleteErr = &credentials.CredentialInUseError{
+		RunIDs: []string{"run-2", "run-1"}, BindingLabels: []string{"default", "investigate"},
+	}
 	request := authenticatedRequest(
 		http.MethodDelete, "/v1/operations/credentials/managed-worker", bytes.NewReader(nil),
 	)
@@ -964,7 +966,8 @@ func TestCredentialInUseAndGatewayFailuresHaveBoundedPublicErrors(t *testing.T) 
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, request)
 	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"kind":"credential_in_use"`) ||
-		!strings.Contains(response.Body.String(), `"runIds":["run-2","run-1"]`) {
+		!strings.Contains(response.Body.String(), `"runIds":["run-2","run-1"]`) ||
+		!strings.Contains(response.Body.String(), `"bindingLabels":["default","investigate"]`) {
 		t.Fatalf("credential-in-use response = %d %s", response.Code, response.Body.String())
 	}
 	fixture.credentials.deleteErr = errors.New("provider exposed sk-secret-body")

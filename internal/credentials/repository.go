@@ -230,6 +230,38 @@ WHERE credential_id = $1`, credentialID).Scan(
 	return result, nil
 }
 
+func (r *Repository) ListActiveRuntimeBindingLabelsByCredential(
+	ctx context.Context, credentialID string, limit int,
+) ([]string, error) {
+	if err := validateCredentialID(credentialID); err != nil || limit < 1 || limit > maximumCredentialRunReferences {
+		return nil, fmt.Errorf("%w: credential binding lookup is invalid", ErrInvalid)
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT b.label
+FROM runtime_label_bindings b
+JOIN runtime_config_versions c
+  ON (c.name, c.version, c.digest) = (b.config_name, b.config_version, b.config_digest)
+WHERE c.canonical_document::jsonb #>> '{spec,worker,llmGateway,credential}' = $1
+ORDER BY b.label
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("inspect active RuntimeConfig LLM credential bindings", err)
+	}
+	defer rows.Close()
+	labels := make([]string, 0)
+	for rows.Next() {
+		var label string
+		if err := rows.Scan(&label); err != nil {
+			return nil, persistencepostgres.WrapError("read active RuntimeConfig LLM credential binding", err)
+		}
+		labels = append(labels, label)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("iterate active RuntimeConfig LLM credential bindings", err)
+	}
+	return labels, nil
+}
+
 func (r *Repository) InsertOperation(ctx context.Context, operation Operation) error {
 	if err := validateOperation(operation); err != nil {
 		return err

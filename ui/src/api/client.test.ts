@@ -172,6 +172,7 @@ describe("PublicAPI", () => {
             details: {
               kind: "credential_in_use",
               runIds: ["run-2", "run-1"],
+              bindingLabels: ["default", "debug"],
             },
           },
           409,
@@ -181,14 +182,20 @@ describe("PublicAPI", () => {
     const response = await api.fetch("/v1/test");
     const error = await api.error(response);
     expect(error.referencedRunIds).toEqual(["run-2", "run-1"]);
+    expect(error.referencedBindingLabels).toEqual(["default", "debug"]);
 
     const unsafe = publicAPIError(409, {
       code: "credential_in_use",
       message: "Credential is pinned",
       retryable: false,
-      details: { kind: "credential_in_use", runIds: ["../escape"] },
+      details: {
+        kind: "credential_in_use",
+        runIds: ["../escape"],
+        bindingLabels: ["../escape"],
+      },
     });
     expect(unsafe.referencedRunIds).toBeUndefined();
+    expect(unsafe.referencedBindingLabels).toBeUndefined();
   });
 
   it("fences direct binary requests and attaches the current CSRF", async () => {
