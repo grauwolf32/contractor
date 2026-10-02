@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import errno
+import os
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -58,6 +60,39 @@ def test_commands_serialize_with_disk_reads_and_edits_until_completion_check(tmp
             assert (fixture.backend.entry.root / "src/main.py").read_text() == "edited"
             assert commands.calls[0][1:3] == ("exact; shell syntax", "src")
             assert [op for op, *_ in fixture.guardians[0].requests].count("check") >= 3
+            await service.finalize(finalization(spec))
+            await service.release(release(spec))
+
+    asyncio.run(scenario())
+
+
+def test_command_remains_available_after_confirmed_noop_write_failure(tmp_path, monkeypatch):
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            service, _state, spec, _events, _exits = await service_for(tmp_path, fixture)
+            await service.prepare(spec)
+            context = service._context
+            project = context.project_workspace
+            original = os.write
+
+            def disk_full(descriptor, data):
+                if "/.contractor-write-" in os.readlink(f"/proc/self/fd/{descriptor}"):
+                    raise OSError(errno.ENOSPC, "private disk detail")
+                return original(descriptor, data)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "write", disk_full)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await project.write_text("src/main.py", "new")
+            assert not project.execution_guard.fenced
+            commands = Commands()
+            commands.resume.set()
+            fixture.backend.commands = commands
+            result = await context.execution.executor.execute(
+                ExecutionRequest("rm -rf build/"), deadline=deadline()
+            )
+            assert result.exit_code == 0 and result.error_code is None
+            assert not context.execution.rejected and len(commands.calls) == 1
             await service.finalize(finalization(spec))
             await service.release(release(spec))
 

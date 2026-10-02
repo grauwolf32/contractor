@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import os
 import threading
 from collections.abc import AsyncIterator
@@ -303,6 +304,177 @@ def test_partial_physical_failure_fences_without_reverse_delta(
             assert (root / "external").read_bytes() == b"do not overwrite"
             with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
                 await session.snapshot()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["write", "update"])
+@pytest.mark.parametrize("code", [errno.ENOSPC, errno.EDQUOT])
+def test_failed_temp_write_preserves_workspace_and_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str, code: int
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            before = await session.snapshot()
+            listing = sorted(path.name for path in (root / "src").iterdir())
+            original = os.write
+
+            def disk_full(descriptor: int, data: bytes) -> int:
+                target = os.readlink(f"/proc/self/fd/{descriptor}")
+                if "/.contractor-write-" in target:
+                    raise OSError(code, "private disk detail")
+                return original(descriptor, data)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "write", disk_full)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    if operation == "write":
+                        await session.write_text("src/a.txt", "changed")
+                    else:
+                        await session.update_text("src/a.txt", lambda _text: "changed")
+            assert session._local is not None and not session._local.guard.fenced
+            assert sorted(path.name for path in (root / "src").iterdir()) == listing
+            assert await session.read_text("src/a.txt") == "source\r\n"
+            assert await session.snapshot() == before
+            await session.delete_path("src/a.txt")
+            assert not (root / "src/a.txt").exists()
+
+    asyncio.run(scenario())
+
+
+def test_failed_temp_creation_and_first_unlink_do_not_fence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            original_open = os.open
+
+            def denied_temp(path: object, flags: int, *args: object, **kwargs: object) -> int:
+                if isinstance(path, str) and path.startswith(".contractor-write-"):
+                    raise PermissionError(errno.EACCES, "private path")
+                return original_open(path, flags, *args, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "open", denied_temp)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await session.write_text("src/a.txt", "changed")
+            assert session._local is not None and not session._local.guard.fenced
+            assert await session.read_text("src/a.txt") == "source\r\n"
+
+            original_unlink = os.unlink
+
+            def denied_unlink(path: object, *args: object, **kwargs: object) -> None:
+                if path == "a.txt":
+                    raise PermissionError(errno.EACCES, "private path")
+                original_unlink(path, *args, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "unlink", denied_unlink)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await session.delete_path("src/a.txt")
+            assert not session._local.guard.fenced
+            assert await session.snapshot()
+            await session.delete_path("src/a.txt")
+            assert not (root / "src/a.txt").exists()
+
+    asyncio.run(scenario())
+
+
+def test_failed_first_mkdir_and_failed_temp_cleanup_have_distinct_fences(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            original_mkdir = os.mkdir
+
+            def denied_mkdir(path: object, *args: object, **kwargs: object) -> None:
+                if path == "new":
+                    raise PermissionError(errno.EACCES, "private path")
+                original_mkdir(path, *args, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "mkdir", denied_mkdir)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await session.make_directory("new")
+            assert session._local is not None and not session._local.guard.fenced
+            assert not (root / "new").exists()
+            await session.make_directory("new")
+
+            original_write = os.write
+            original_unlink = os.unlink
+
+            def fail_write(descriptor: int, data: bytes) -> int:
+                if "/.contractor-write-" in os.readlink(f"/proc/self/fd/{descriptor}"):
+                    raise OSError(errno.ENOSPC, "private disk detail")
+                return original_write(descriptor, data)
+
+            def fail_cleanup(path: object, *args: object, **kwargs: object) -> None:
+                if isinstance(path, str) and path.startswith(".contractor-write-"):
+                    raise PermissionError(errno.EACCES, "private path")
+                original_unlink(path, *args, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "write", fail_write)
+                patch.setattr(os, "unlink", fail_cleanup)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await session.write_text("src/a.txt", "changed")
+            assert session._local.guard.fenced
+            assert any(
+                path.name.startswith(".contractor-write-")
+                for path in root.joinpath("src").iterdir()
+            )
+
+    asyncio.run(scenario())
+
+
+def test_recursive_remove_fences_after_first_file_is_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            (root / "src/z.txt").write_text("second")
+            original = os.unlink
+            removed = 0
+
+            def fail_second(path: object, *args: object, **kwargs: object) -> None:
+                nonlocal removed
+                if path in {"a.txt", "z.txt"}:
+                    if removed:
+                        raise PermissionError(errno.EACCES, "private path")
+                    removed += 1
+                original(path, *args, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "unlink", fail_second)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await session.delete_path("src", recursive=True)
+            assert removed == 1
+            assert session._local is not None and session._local.guard.fenced
+            assert len(list((root / "src").iterdir())) == 1
+            with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                await session.snapshot()
+
+    asyncio.run(scenario())
+
+
+def test_first_unlink_that_changes_then_reports_error_still_fences(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        async with workspace(tmp_path) as (session, root):
+            original = os.unlink
+
+            def removed_then_failed(path: object, *args: object, **kwargs: object) -> None:
+                original(path, *args, **kwargs)
+                if path == "a.txt":
+                    raise PermissionError(errno.EACCES, "private path")
+
+            with monkeypatch.context() as patch:
+                patch.setattr(os, "unlink", removed_then_failed)
+                with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
+                    await session.delete_path("src/a.txt")
+            assert not (root / "src/a.txt").exists()
+            assert session._local is not None and session._local.guard.fenced
 
     asyncio.run(scenario())
 

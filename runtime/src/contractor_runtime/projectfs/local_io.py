@@ -28,6 +28,11 @@ _DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
 _CHUNK = 64 * 1024
 _REPLACEMENT = "\ufffd"
+_NO_EFFECT_ERRNOS = {errno.EACCES, errno.EPERM, errno.ENOSPC, errno.EDQUOT, errno.EROFS}
+
+
+class _NoEffectMutation(WorkspaceStorageError):
+    """An operation failed before changing the managed tree, with cleanup complete."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,13 +120,24 @@ class RootedLocalFilesystem:
                     missing = entry is None
                     if missing and index < len(parts) - 1 and not parents:
                         raise WorkspaceStorageError("workspace_not_found")
+            created = False
             for index in range(len(parts)):
                 _check_deadline(deadline)
                 current = "/".join(parts[: index + 1])
                 with _parent(root, current) as (parent, name):
                     entry = _optional_entry(parent, name, current)
                     if entry is None:
-                        os.mkdir(name, mode=0o700, dir_fd=parent)
+                        try:
+                            os.mkdir(name, mode=0o700, dir_fd=parent)
+                        except OSError as error:
+                            if (
+                                not created
+                                and error.errno in _NO_EFFECT_ERRNOS
+                                and _absent(parent, name, current)
+                            ):
+                                raise _NoEffectMutation("workspace_unavailable") from None
+                            raise
+                        created = True
                     elif not entry.directory:
                         raise WorkspaceStorageError("workspace_type_conflict")
 
@@ -132,6 +148,7 @@ class RootedLocalFilesystem:
             _refuse_opaque(tree)
             if len(tree.entries) > 1 and not recursive:
                 raise WorkspaceStorageError("workspace_type_conflict")
+            removed = False
             for item in sorted(
                 tree.entries.values(), key=lambda e: e.path.count("/"), reverse=True
             ):
@@ -140,10 +157,20 @@ class RootedLocalFilesystem:
                     _verify(
                         item, _entry(item.path, os.stat(name, dir_fd=parent, follow_symlinks=False))
                     )
-                    if item.directory:
-                        os.rmdir(name, dir_fd=parent)
-                    else:
-                        os.unlink(name, dir_fd=parent)
+                    try:
+                        if item.directory:
+                            os.rmdir(name, dir_fd=parent)
+                        else:
+                            os.unlink(name, dir_fd=parent)
+                    except OSError as error:
+                        if (
+                            not removed
+                            and error.errno in _NO_EFFECT_ERRNOS
+                            and _unchanged(parent, name, item)
+                        ):
+                            raise _NoEffectMutation("workspace_unavailable") from None
+                        raise
+                    removed = True
 
     def copy(
         self, source: str, destination: str, *, deadline: float, recursive: bool = False
@@ -157,23 +184,39 @@ class RootedLocalFilesystem:
             with _parent(root, destination) as (parent, name):
                 if _optional_entry(parent, name, destination) is not None:
                     raise WorkspaceStorageError("workspace_type_conflict")
+            copied = False
             for item in sorted(tree.entries.values(), key=lambda e: (e.path.count("/"), e.path)):
                 _check_deadline(deadline)
                 target = destination + item.path[len(source) :]
                 if item.directory:
                     with _parent(root, target) as (parent, name):
-                        os.mkdir(name, mode=0o700, dir_fd=parent)
+                        try:
+                            os.mkdir(name, mode=0o700, dir_fd=parent)
+                        except OSError as error:
+                            if (
+                                not copied
+                                and error.errno in _NO_EFFECT_ERRNOS
+                                and _absent(parent, name, target)
+                            ):
+                                raise _NoEffectMutation("workspace_unavailable") from None
+                            raise
                 else:
                     data = self._read(root, item.path, deadline, expected=item)
                     # Keep permission bits (e.g. executables), never set-id.
-                    self._write(
-                        root,
-                        target,
-                        data,
-                        deadline,
-                        must_create=True,
-                        mode=stat.S_IMODE(item.mode) & 0o777,
-                    )
+                    try:
+                        self._write(
+                            root,
+                            target,
+                            data,
+                            deadline,
+                            must_create=True,
+                            mode=stat.S_IMODE(item.mode) & 0o777,
+                        )
+                    except _NoEffectMutation:
+                        if copied:
+                            raise WorkspaceStorageError("workspace_unavailable") from None
+                        raise
+                copied = True
 
     def move(self, source: str, destination: str, *, deadline: float) -> None:
         source, destination = _copy_paths(source, destination)
@@ -198,7 +241,16 @@ class RootedLocalFilesystem:
                     ),
                 )
                 _check_deadline(deadline)
-                os.rename(src_name, dst_name, src_dir_fd=src_parent, dst_dir_fd=dst_parent)
+                try:
+                    os.rename(src_name, dst_name, src_dir_fd=src_parent, dst_dir_fd=dst_parent)
+                except OSError as error:
+                    if (
+                        error.errno in _NO_EFFECT_ERRNOS
+                        and _unchanged(src_parent, src_name, tree.entries[source])
+                        and _absent(dst_parent, dst_name, destination)
+                    ):
+                        raise _NoEffectMutation("workspace_unavailable") from None
+                    raise
 
     def _read(
         self,
@@ -350,42 +402,67 @@ class RootedLocalFilesystem:
         with _parent(root, path) as (parent, name):
             before = _optional_entry(parent, name, path)
             if before is not None and (before.directory or must_create):
-                raise WorkspaceStorageError("workspace_type_conflict")
+                raise _NoEffectMutation("workspace_type_conflict")
             _check_deadline(deadline)
             temporary = f".contractor-write-{secrets.token_hex(16)}"
-            descriptor = os.open(
-                temporary,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
-                0o600,
-                dir_fd=parent,
-            )
+            descriptor = None
+            commit_started = False
+            cleaned = False
             try:
-                view = memoryview(data)
-                while view:
+                descriptor = os.open(
+                    temporary,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                    dir_fd=parent,
+                )
+                try:
+                    view = memoryview(data)
+                    while view:
+                        _check_deadline(deadline)
+                        written = os.write(descriptor, view[:_CHUNK])
+                        if written <= 0:
+                            raise WorkspaceStorageError("workspace_unavailable")
+                        view = view[written:]
+                    if before is not None:
+                        os.fchmod(descriptor, stat.S_IMODE(before.mode) & 0o777)
+                    elif mode is not None:
+                        os.fchmod(descriptor, mode & 0o777)
+                    os.fsync(descriptor)
                     _check_deadline(deadline)
-                    written = os.write(descriptor, view[:_CHUNK])
-                    if written <= 0:
+                    current = _optional_entry(parent, name, path)
+                    if before is None:
+                        if current is not None:
+                            raise WorkspaceStorageError("workspace_unavailable")
+                    elif current is None:
                         raise WorkspaceStorageError("workspace_unavailable")
-                    view = view[written:]
-                if before is not None:
-                    os.fchmod(descriptor, stat.S_IMODE(before.mode) & 0o777)
-                elif mode is not None:
-                    os.fchmod(descriptor, mode & 0o777)
-                os.fsync(descriptor)
-                _check_deadline(deadline)
-                current = _optional_entry(parent, name, path)
-                if before is None:
-                    if current is not None:
-                        raise WorkspaceStorageError("workspace_unavailable")
-                elif current is None:
-                    raise WorkspaceStorageError("workspace_unavailable")
-                else:
-                    _verify(before, current, version=True)
-                os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
-            finally:
-                os.close(descriptor)
-                with suppress(FileNotFoundError):
-                    os.unlink(temporary, dir_fd=parent)
+                    else:
+                        _verify(before, current, version=True)
+                    # A failing replace is conservatively uncertain, even if
+                    # the kernel normally makes rename atomic.
+                    commit_started = True
+                    os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+                finally:
+                    os.close(descriptor)
+                    with suppress(FileNotFoundError):
+                        os.unlink(temporary, dir_fd=parent)
+                    cleaned = True
+            except Exception as error:
+                if not commit_started and (
+                    cleaned
+                    or (
+                        descriptor is None
+                        and isinstance(error, OSError)
+                        and error.errno in _NO_EFFECT_ERRNOS
+                        and _absent(parent, temporary, temporary)
+                    )
+                ):
+                    code = (
+                        error.args[0]
+                        if isinstance(error, WorkspaceStorageError)
+                        else "workspace_unavailable"
+                    )
+                    raise _NoEffectMutation(code) from None
+                raise
 
     @contextmanager
     def _opened_root(self) -> Iterator[int]:
@@ -496,6 +573,22 @@ def _optional_entry(parent: int, name: str, path: str) -> LocalEntry | None:
         return _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
     except FileNotFoundError:
         return None
+
+
+def _absent(parent: int, name: str, path: str) -> bool:
+    try:
+        return _optional_entry(parent, name, path) is None
+    except (OSError, WorkspaceStorageError):
+        return False
+
+
+def _unchanged(parent: int, name: str, expected: LocalEntry) -> bool:
+    try:
+        return (
+            _entry(expected.path, os.stat(name, dir_fd=parent, follow_symlinks=False)) == expected
+        )
+    except (OSError, WorkspaceStorageError):
+        return False
 
 
 def _identity(info: os.stat_result) -> tuple[int, int]:
