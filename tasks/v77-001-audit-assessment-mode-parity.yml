@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V77-001
+title: Align Audit result collector assessments with profile mode
+milestone: audit-assessment-mode-parity-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, json, markdown]
+goal: Reject unsupported checklist assessments while the Worker can correct them, without changing risk-assessment or finding-task acceptance.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/315
+  finding: Runtime accepts supported on non-risk checklist tasks, while semanticCoverage rejects the entire result set at import.
+scope:
+  in:
+    - Pin Audit profile mode in trusted item task packages and validate it on decode.
+    - Reject supported on non-finding tasks outside risk-assessment with an assessment field error.
+    - Add shared mode-specific Go and Python acceptance cases and update Worker guidance.
+  out:
+    - Change importer authority or broaden non-risk assessment semantics.
+acceptance_criteria:
+  - {id: A1, text: A non-risk checklist supported result is rejected locally without recording it.}
+  - {id: A2, text: Risk-assessment checklist and finding supported results remain valid.}
+  - {id: A3, text: Generated task packages carry the trusted profile mode and shared Go/Python fixture cases agree with the importer.}
+tests:
+  - {command: go test ./internal/auditdomain ./internal/auditservice ./internal/auditimport, covers: [A1, A2, A3]}
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_audit_result_collector.py, covers: [A1, A2, A3]}
