@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V71-002
+title: Poll paused Audits while submitted Runs finish
+milestone: audit-ui-refresh-correctness-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Keep Audit detail, progress and list revisions current during Run drain.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/326
+  finding: >-
+    Paused Audits stop all polling even when child Runs remain outstanding,
+    leaving the header, progress, collections and action CAS revision stale.
+scope:
+  in:
+    - Use outstanding Run count when scheduling Audit detail and list polling.
+    - Poll the active Audit sections while a paused Audit drains Runs.
+    - Refresh the Progress workspace after a pause and when polling stops.
+  out:
+    - Poll draft or settled paused Audits indefinitely.
+acceptance_criteria:
+  - id: A1
+    text: Paused Audits with outstanding Runs refresh detail and projections.
+  - id: A2
+    text: Polling stops after the last Run drains and a final refresh completes.
+  - id: A3
+    text: Progress updates immediately after the owner pauses an Audit.
+tests:
+  - command: cd ui && vitest run src/routes/projects/audits/audits.test.tsx
+    covers: [A1, A2, A3]

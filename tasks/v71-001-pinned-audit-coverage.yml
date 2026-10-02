@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V71-001
+title: Keep pinned Audit Coverage stable while the Audit advances
+milestone: audit-ui-refresh-correctness-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Let readers finish a pinned Coverage view without a polling conflict.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/325
+  finding: >-
+    Overview tiles pin the Audit revision, but the Coverage query keeps polling
+    and replaces its rows with a 409 after the next revision bump.
+scope:
+  in:
+    - Stop interval polling while a Coverage revision pin is present.
+    - Keep loaded pinned rows visible when a newer Audit revision is known.
+    - Offer a refresh action that clears the pin and loads current Coverage.
+    - Preserve strict revision checks for initial and continuation reads.
+  out:
+    - Remove revision pins from other Audit collections.
+acceptance_criteria:
+  - id: A1
+    text: An active pinned Coverage view makes no interval collection requests.
+  - id: A2
+    text: A newer revision is signalled without replacing loaded rows.
+  - id: A3
+    text: Clearing the pin resumes current Coverage reads and polling.
+tests:
+  - command: cd ui && vitest run src/routes/projects/audits/coverage-data.test.tsx
+    covers: [A1, A2, A3]
