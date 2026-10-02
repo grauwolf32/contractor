@@ -3,7 +3,8 @@ id: V68-002
 title: Retain CWE-classified Audit findings
 milestone: github-issue-remediation-2026-10-next
 priority: P1
-status: planned
+status: completed
+implementation_commit: c8b3dbcbc61cacfee08a548b746846a36a3813d5
 depends_on: []
 languages: [go, python]
 goal: Prevent valid CWE-tagged finding proposals from invalidating Audit check results.
@@ -32,3 +33,6 @@ tests:
     covers: [A1, A2]
   - command: cd runtime && uv run pytest tests/test_security_findings_toolset.py
     covers: [A3]
+verification:
+  tests: Go auditimport/auditdomain suites, Python findings tests, Ruff checks and formatting passed.
+  parity: Go test confirms the bundled Go and Python CWE catalogs are byte-identical.

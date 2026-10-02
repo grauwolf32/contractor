@@ -3,7 +3,8 @@ id: V68-001
 title: Index planner event and lifecycle deletion foreign keys
 milestone: github-issue-remediation-2026-10-next
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 3e33924aad0381c381c4c602141a8495f30fee0c
 depends_on: []
 languages: [sql, go]
 goal: Keep Run, Project and Audit deletion responsive as retained planner events grow.
@@ -29,3 +30,5 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/persistence/postgres ./internal/runstore
     covers: [A1, A2, A3]
+verification:
+  tests: PostgreSQL-backed persistence and Run-store suites passed; the catalog and EXPLAIN probe tests passed.

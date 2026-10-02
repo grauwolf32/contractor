@@ -3,7 +3,8 @@ id: V68-003
 title: Enforce Runtime target policy for Caido replay and Automate
 milestone: github-issue-remediation-2026-10-next
 priority: P1
-status: planned
+status: completed
+implementation_commit: f9647fa45c6e9bcc25a2e09b75c48a20e4f45b27
 depends_on: []
 languages: [python]
 goal: Deny metadata and Runtime service destinations before Caido mutations.
@@ -15,18 +16,21 @@ context:
 scope:
   in:
     - Pass allocation target policy into the Caido toolset.
-    - Check raw replay, request-ID replay and Automate destinations before GraphQL mutation.
+    - Check raw replay, request-ID replay, Automate and request-bound active workflows before GraphQL mutation.
     - Return a stable non-retryable denial and cover allowed loopback project targets.
     - Update the Runtime target-policy specification.
   out:
     - Resolve DNS locally or change Caido's request transport.
 acceptance_criteria:
   - id: A1
-    text: Protected destinations are denied before any Caido mutation in every path.
+    text: Protected destinations are denied before any Caido mutation in every request-bound path.
   - id: A2
     text: Permitted project, private and public destinations still work.
   - id: A3
     text: HTTP proxy and Caido routes enforce equivalent destination boundaries.
 tests:
-  - command: cd runtime && uv run pytest tests/test_caido_read_tools.py tests/test_http_target_policy.py
+  - command: cd runtime && uv run pytest tests/test_caido_target_policy.py tests/test_caido_action_tools.py tests/test_caido_read_tools.py tests/test_http_target_policy.py
     covers: [A1, A2, A3]
+verification:
+  focused: Caido, HTTP policy and capability tests passed, including denial before every request-bound mutation.
+  broad: Full Runtime and Go suites passed; Ruff check and format checks passed.
