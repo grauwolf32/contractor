@@ -1,6 +1,7 @@
 import {
   useInfiniteQuery,
   useQueries,
+  useQueryClient,
   type InfiniteData,
   type QueryKey,
 } from "@tanstack/react-query";
@@ -108,10 +109,10 @@ export type AuditPageLoader<T> = (
 
 /**
  * Several Audit collections (one per source) loaded side by side, each capped
- * per source. The first batch of every source polls according to
- * `refetchInterval`; continuation batches are read once from their cursor and
- * refreshed with the manual refresh. `identity` drops a record that a moved
- * page boundary repeats across batches.
+ * per source. Continuations follow the cursor returned by the preceding
+ * batch, so a refreshed head replaces the entire revision-bound cursor chain.
+ * The number of requested batches survives refreshes; their old cursors do
+ * not. `identity` drops a record that a moved page boundary repeats.
  */
 export function useAuditCollections<S, T>(
   sources: readonly S[],
@@ -138,9 +139,10 @@ export function useAuditCollections<S, T>(
   /** Read the next batch of every truncated source. */
   loadMore: () => void;
 } {
-  const [continuations, setContinuations] = useState<Record<string, string[]>>(
-    {},
-  );
+  const queryClient = useQueryClient();
+  const [continuationCounts, setContinuationCounts] = useState<
+    Record<string, number>
+  >({});
   const first = useQueries({
     queries: sources.map((source) => ({
       queryKey: queryKey(source),
@@ -150,16 +152,30 @@ export function useAuditCollections<S, T>(
       refetchOnReconnect: true,
     })),
   });
-  const continuationEntries = sources.flatMap((source, index) =>
-    (continuations[id(source)] ?? []).map((cursor) => ({
-      index,
-      cursor,
-      source,
-    })),
-  );
+  const continuationKey = (source: S, cursor: string) => [
+    ...queryKey(source),
+    "from",
+    cursor,
+  ];
+  const continuationEntries = sources.flatMap((source, index) => {
+    const entries: { index: number; cursor: string; source: S }[] = [];
+    let batch = first[index]!.data;
+    const count = continuationCounts[id(source)] ?? 0;
+    for (let position = 0; position < count; position += 1) {
+      if (!batch?.truncated || batch.nextCursor === undefined) break;
+      const cursor = batch.nextCursor;
+      entries.push({ index, cursor, source });
+      // An uncached batch is observed below. Its completion renders the hook
+      // again, revealing the next cursor without consulting the old chain.
+      batch = queryClient.getQueryData<AuditCollection<T>>(
+        continuationKey(source, cursor),
+      );
+    }
+    return entries;
+  });
   const later = useQueries({
     queries: continuationEntries.map(({ source, cursor }) => ({
-      queryKey: [...queryKey(source), "from", cursor],
+      queryKey: continuationKey(source, cursor),
       queryFn: () => collectAuditPages(load(source), { cursor }),
       enabled,
       refetchInterval: false as const,
@@ -178,10 +194,10 @@ export function useAuditCollections<S, T>(
       batches.push(head.data);
       for (const batch of tail) {
         if (batch.data !== undefined) batches.push(batch.data);
-        else if (batch.isError) {
+        if (batch.isError) {
           moreError = batch.error;
           break;
-        } else {
+        } else if (batch.data === undefined) {
           pending = true;
           break;
         }
@@ -204,10 +220,9 @@ export function useAuditCollections<S, T>(
       const cursor = merged.nextCursor;
       if (pending || !merged.truncated || cursor === undefined) return;
       const key = id(source);
-      setContinuations((current) =>
-        (current[key] ?? []).includes(cursor)
-          ? current
-          : { ...current, [key]: [...(current[key] ?? []), cursor] },
+      const count = (continuationCounts[key] ?? 0) + 1;
+      setContinuationCounts((current) =>
+        current[key] === count ? current : { ...current, [key]: count },
       );
     };
     return {
@@ -221,8 +236,17 @@ export function useAuditCollections<S, T>(
       isFetching: head.isFetching || tail.some((batch) => batch.isFetching),
       isError: head.isError,
       error: head.error,
-      refetch: () =>
-        Promise.all([head.refetch(), ...tail.map((batch) => batch.refetch())]),
+      refetch: async () => {
+        const refreshed = await head.refetch();
+        // A changed cursor installs fresh continuation queries on render.
+        // Only refresh existing tails when they still belong to this head.
+        if (
+          refreshed.isSuccess &&
+          refreshed.data.nextCursor === head.data?.nextCursor
+        ) {
+          await Promise.all(tail.map((batch) => batch.refetch()));
+        }
+      },
     };
   });
   return {

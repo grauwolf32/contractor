@@ -383,6 +383,7 @@ export function AuditFindingCard({
   showAudit = false,
   reviewLoading = false,
   reviewError = null,
+  reviewActionLabel = "Retry review status",
   onRetryReview,
 }: {
   audit: Audit;
@@ -392,6 +393,7 @@ export function AuditFindingCard({
   showAudit?: boolean;
   reviewLoading?: boolean;
   reviewError?: unknown;
+  reviewActionLabel?: string;
   onRetryReview?: () => void;
 }) {
   const sources = [
@@ -439,7 +441,7 @@ export function AuditFindingCard({
               type="button"
               onClick={onRetryReview}
             >
-              Retry review status
+              {reviewActionLabel}
             </button>
           </div>
         ) : (
