@@ -1,6 +1,6 @@
 import { collectAuditPages } from "../../../api/audit-collections";
 import {
-  auditNeedsPolling,
+  auditPollInterval,
   listAuditItems,
   type Audit,
 } from "../../../api/audits";
@@ -12,7 +12,8 @@ import { useAuditProjectionRefresh } from "./projection-refresh";
 /**
  * The Audit item (check) collection: attempts, produced artifacts and the
  * exact identity of every check. Bounded by the page cap and polled only
- * while the Audit is active; `enabled` lets a view read it lazily.
+ * while the Audit or its submitted Runs can change; `enabled` lets a view
+ * read it lazily.
  */
 export function useAuditItems(
   audit: Audit,
@@ -33,7 +34,7 @@ export function useAuditItems(
         cursor === undefined ? {} : { cursor },
       ),
     enabled,
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
+    refetchInterval: auditPollInterval([audit], 1_000),
   });
   useAuditProjectionRefresh(audit, queryKey, enabled);
   return query;

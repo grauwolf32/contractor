@@ -3,7 +3,7 @@ import { lazy, Suspense } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import {
-  auditNeedsPolling,
+  auditPollInterval,
   getAuditReport,
   type Audit,
 } from "../../../api/audits";
@@ -33,7 +33,7 @@ export function AuditReportView({
   const report = useQuery({
     queryKey,
     queryFn: () => getAuditReport(api, audit.auditId),
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
+    refetchInterval: auditPollInterval([audit], 1_000),
     refetchOnReconnect: true,
   });
   useAuditProjectionRefresh(audit, queryKey);

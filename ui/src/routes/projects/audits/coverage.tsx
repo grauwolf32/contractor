@@ -17,6 +17,7 @@ import { useAuditItems } from "./items-data";
 import { LoadMoreControl } from "./load-more";
 import { AuditAnchor, AuditMarkdown } from "./shared";
 import { RefreshButton } from "../../../app/refresh-button";
+import { StaleDataWarning } from "../../../app/query-view";
 
 const CHECK_HASH_PREFIX = "#check-";
 
@@ -284,6 +285,23 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
     "all";
   const coverage = useAuditCoverage(audit);
   const rows = coverage.items;
+  const pinnedRevision = params.get("auditRevision");
+  const newerRevisionAvailable =
+    pinnedRevision !== null && String(audit.revision) !== pinnedRevision;
+  function refreshCurrentCoverage() {
+    if (pinnedRevision === null) {
+      void coverage.refetch();
+      return;
+    }
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.delete("auditRevision");
+        return next;
+      },
+      { replace: true, preventScrollReset: true },
+    );
+  }
   // Rows opened by the reader (or addressed by a `#check-<itemId>` link).
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => {
     const target = hashedCheck(hash);
@@ -350,24 +368,14 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
         Loading checks and results…
       </p>
     );
-  if (coverage.error !== null)
+  if (coverage.error !== null && rows.length === 0)
     return (
       <div className="panel audit-section-panel">
         <ErrorNotice error={coverage.error} />
         <button
           className="secondary-button"
           disabled={coverage.isFetching}
-          onClick={() => {
-            setParams(
-              (previous) => {
-                const next = new URLSearchParams(previous);
-                next.delete("auditRevision");
-                return next;
-              },
-              { replace: true },
-            );
-            void coverage.refetch();
-          }}
+          onClick={refreshCurrentCoverage}
         >
           Retry loading coverage
         </button>
@@ -402,19 +410,29 @@ export function AuditCoverage({ audit }: { audit: Audit }) {
         </div>
         <RefreshButton
           isFetching={coverage.isFetching}
-          onRefresh={() => {
-            setParams(
-              (previous) => {
-                const next = new URLSearchParams(previous);
-                next.delete("auditRevision");
-                return next;
-              },
-              { replace: true },
-            );
-            void coverage.refetch();
-          }}
+          onRefresh={refreshCurrentCoverage}
         />
       </div>
+      {newerRevisionAvailable ? (
+        <div className="notice notice-warning" role="status">
+          <strong>A newer Audit revision is available.</strong>
+          <p>These checks are from revision {pinnedRevision}.</p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={refreshCurrentCoverage}
+          >
+            Refresh coverage
+          </button>
+        </div>
+      ) : null}
+      {coverage.error === null ? null : (
+        <StaleDataWarning
+          error={coverage.error}
+          onRetry={refreshCurrentCoverage}
+          retryPending={coverage.isFetching}
+        />
+      )}
       <div
         className="audit-coverage-summary"
         aria-label="Filter checks by result"

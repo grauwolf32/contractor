@@ -1,7 +1,7 @@
 import { hashKey, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
-import { auditNeedsPolling, type Audit } from "../../../api/audits";
+import { auditPollInterval, type Audit } from "../../../api/audits";
 
 export function useAuditProjectionRefresh(
   audit: Audit,
@@ -20,8 +20,10 @@ export function useAuditProjectionRefresh(
     if (
       !enabled ||
       before.auditId !== audit.auditId ||
-      (before.revision === audit.revision && before.state === audit.state) ||
-      auditNeedsPolling(audit.state)
+      (before.revision === audit.revision &&
+        before.state === audit.state &&
+        before.outstandingRunCount === audit.outstandingRunCount) ||
+      auditPollInterval([audit]) !== false
     ) {
       return;
     }
