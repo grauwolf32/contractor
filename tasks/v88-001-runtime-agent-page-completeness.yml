@@ -3,8 +3,8 @@ id: V88-001
 title: Load all Runtime Agent principals and label bindings
 milestone: runtime-agent-page-completeness-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 7cd327522be860e934935eb21acd01d9d2d12556
 depends_on: []
 languages: [typescript]
 goal: Keep Runtime Agent management functional past the first 50 identities and labels.
@@ -25,6 +25,7 @@ acceptance_criteria:
   - {id: A4, text: UI tests, app/e2e typechecks and lint pass.}
 tests:
   - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/operations.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3, A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
