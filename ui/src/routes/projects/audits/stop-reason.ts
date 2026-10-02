@@ -3,7 +3,6 @@ import type { Audit } from "../../../api/audits";
 const STOP_REASON_LABELS: Record<string, string> = {
   deadline_exhausted: "Time limit reached",
   round_complete: "Round complete",
-  owner_paused: "Paused by owner",
   cancel_requested: "Cancelled by owner",
   delete_requested: "Deletion requested",
   project_deleting: "Project is being deleted",

@@ -20,6 +20,30 @@ import { useEvalDatasets, useEvalOwner, useEvalProjects } from "./queries";
 import { recoverableMutation } from "./recovery";
 import { MAX_EVAL_CASES, MAX_EVAL_DOCUMENT_BYTES } from "./setup-model";
 
+const MAX_EVAL_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
+const DATASET_SIZE_ERROR =
+  "Dataset exceeds the 1 MiB evaluation document limit; split it into several datasets.";
+
+function datasetRequestBody(
+  data: EvalDatasetInput,
+  imported: EvalDatasetInput | null,
+  includePrivate: boolean,
+): EvalDatasetInput {
+  return imported
+    ? {
+        ...imported,
+        privateChecks: includePrivate ? (imported.privateChecks ?? []) : [],
+      }
+    : data;
+}
+
+function datasetRequestIsTooLarge(body: EvalDatasetInput): boolean {
+  return (
+    new TextEncoder().encode(JSON.stringify(body)).length >
+    MAX_EVAL_DOCUMENT_BYTES
+  );
+}
+
 function newCase(): EvalCase {
   return {
     id: "",
@@ -250,14 +274,14 @@ export function DatasetAuthor({
   const [error, setError] = useState<Error | null>(null);
   const [includePrivate, setIncludePrivate] = useState(false);
   const [imported, setImported] = useState<EvalDatasetInput | null>(null);
+  const [importRejected, setImportRejected] = useState(false);
+  const body = datasetRequestBody(data, imported, includePrivate);
+  const sizeProblem = datasetRequestIsTooLarge(body)
+    ? DATASET_SIZE_ERROR
+    : null;
   const save = useMutation({
     mutationFn: async () => {
-      const body = imported
-        ? {
-            ...imported,
-            privateChecks: includePrivate ? (imported.privateChecks ?? []) : [],
-          }
-        : data;
+      if (datasetRequestIsTooLarge(body)) throw new Error(DATASET_SIZE_ERROR);
       const operation = `dataset:${projectId}`;
       return recoverableMutation(owner, operation, body, (key) =>
         importEvalDataset(api, projectId, body, key),
@@ -271,11 +295,13 @@ export function DatasetAuthor({
     },
   });
   async function importFile(file?: File) {
-    setError(null);
     if (!file) return;
+    setError(null);
+    setImported(null);
+    setImportRejected(false);
     try {
-      if (file.size > MAX_EVAL_DOCUMENT_BYTES)
-        throw new Error("Dataset file exceeds 16 MiB.");
+      if (file.size > MAX_EVAL_IMPORT_FILE_BYTES)
+        throw new Error("Dataset source file is too large to inspect.");
       const candidate = JSON.parse(await file.text()) as EvalDatasetInput;
       if (
         !candidate ||
@@ -288,9 +314,12 @@ export function DatasetAuthor({
         throw new Error(
           "Choose a managed dataset document with a name, ID and visible cases.",
         );
+      if (datasetRequestIsTooLarge(datasetRequestBody(data, candidate, false)))
+        throw new Error(DATASET_SIZE_ERROR);
       setImported(candidate);
       setIncludePrivate(false);
     } catch (cause) {
+      setImportRejected(true);
       setError(
         cause instanceof Error ? cause : new Error("Cannot read the dataset."),
       );
@@ -307,11 +336,24 @@ export function DatasetAuthor({
           onChange={(e) => void importFile(e.target.files?.[0])}
         />
       </EvalField>
-      {imported ? (
+      {importRejected ? (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            setImportRejected(false);
+            setError(null);
+          }}
+        >
+          Author cases instead
+        </button>
+      ) : imported ? (
         <>
-          <p>
-            {imported.name} · {imported.cases.length} cases
-          </p>
+          {!sizeProblem ? (
+            <p>
+              {imported.name} · {imported.cases.length} cases
+            </p>
+          ) : null}
           <label>
             <input
               type="checkbox"
@@ -328,7 +370,10 @@ export function DatasetAuthor({
           <button
             type="button"
             className="secondary-button"
-            onClick={() => setImported(null)}
+            onClick={() => {
+              setImported(null);
+              setError(null);
+            }}
           >
             Author cases instead
           </button>
@@ -497,14 +542,18 @@ export function DatasetAuthor({
           </details>
         </>
       )}
-      <EvalError error={error ?? save.error} />
-      <button
-        type="button"
-        disabled={save.isPending}
-        onClick={() => save.mutate()}
-      >
-        {save.isPending ? "Saving revision…" : "Save dataset revision"}
-      </button>
+      <EvalError
+        error={error ?? (sizeProblem ? new Error(sizeProblem) : save.error)}
+      />
+      {!importRejected ? (
+        <button
+          type="button"
+          disabled={save.isPending || sizeProblem !== null}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "Saving revision…" : "Save dataset revision"}
+        </button>
+      ) : null}
     </section>
   );
 }

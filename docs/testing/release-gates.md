@@ -104,7 +104,7 @@ raw request paths, bodies, artifact bytes, or exception messages.
 
 ## Runtime-configuration hardening and release gate
 
-The complete deterministic gate is:
+The complete deterministic gate requires PostgreSQL:
 
 ```shell
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
@@ -162,10 +162,12 @@ placement/configuration independence, Planner and Worker trace projection,
 cancellation/release and the standalone UI. Renaming or deleting an owner
 therefore fails `make verify`; the YAML is not a prose-only checklist.
 
-The focused deterministic language-level gate is:
+The focused deterministic language-level gate also requires PostgreSQL, so
+its storage and concurrency tests cannot pass by skipping:
 
 ```shell
-make test-run-metadata-labels-hardening
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-run-metadata-labels-hardening
 ```
 
 To cross real process and trust boundaries, provide PostgreSQL and run:

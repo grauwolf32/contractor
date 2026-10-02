@@ -30,20 +30,20 @@ test-runtime-label-placement: require-database
 
 test-runtime-configuration-matrix: test-hardening-matrices
 
-test-runtime-configuration-hardening: test-runtime-configuration-matrix
+test-runtime-configuration-hardening: require-database test-runtime-configuration-matrix
 	go test -race -count=1 ./internal/controlplane/... ./internal/credentials/... ./internal/httpapi/... ./internal/mtls/... ./internal/runstore/... ./internal/runtimeconfig/... ./internal/scheduler/... ./internal/telemetry/... ./tests/integration/lease
 	cd runtime && uv run pytest -W error tests/test_adapter_host.py tests/test_http_proxy_adapter.py tests/test_lease_watchdog.py tests/test_otlp_adapter.py
 
-test-runtime-configuration-e2e: test-runtime-configuration-hardening test-runtime-labels-e2e test-ui-stack
+test-runtime-configuration-e2e: require-database test-runtime-configuration-hardening test-runtime-labels-e2e test-ui-stack
 
 test-run-metadata-labels-matrix: test-hardening-matrices
 
-test-run-metadata-labels-hardening: test-run-metadata-labels-matrix
+test-run-metadata-labels-hardening: require-database test-run-metadata-labels-matrix
 	go test -race -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/httpapi/public ./internal/persistence/postgres ./internal/runstore ./internal/scheduler/... ./internal/telemetry/...
 	cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_app.py tests/test_allocation.py tests/test_adapter_host.py tests/test_otlp_adapter.py
 	cd ui && corepack pnpm test --run src/api/run-metadata-labels.test.ts src/api/workflows.test.ts src/run-drafts/idempotency.test.ts src/routes/workflows/workflows.test.tsx src/routes/runs/runs.test.tsx
 
-test-run-metadata-labels-e2e: test-run-metadata-labels-hardening require-database runtime-venv
+test-run-metadata-labels-e2e: require-database test-run-metadata-labels-hardening runtime-venv
 	go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$$'
 
 test-runtime-labels-e2e: require-database runtime-venv

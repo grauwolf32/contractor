@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V75-002
+title: Enforce Eval dataset document size before saving
+milestone: release-and-ui-guardrails-2026-10
+priority: P1
+status: completed
+implementation_commit: 8349907dc5b1aa91e23951f2eb272f67781c1299
+depends_on: []
+languages: [typescript]
+goal: Prevent importing a dataset whose JSON request exceeds the Server's 1 MiB bound.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/305
+  finding: The UI allows 16 MiB files even though the Server accepts at most 1 MiB per document.
+scope:
+  in:
+    - Align UI document bound and error copy with the Server.
+    - Validate the serialized save body, accounting for private expectations.
+    - Retain compact imports of pretty-printed files when the request fits.
+  out:
+    - Change the Server Eval document bound.
+acceptance_criteria:
+  - {id: A1, text: Oversized serialized dataset bodies show a 1 MiB error without a case summary or POST.}
+  - {id: A2, text: Compact bodies within 1 MiB can still be imported and saved.}
+  - {id: A3, text: Private-expectation choice is included in the size check.}
+tests:
+  - {command: cd ui && corepack pnpm test --run src/routes/evals-usability.test.tsx, covers: [A1, A2, A3]}
+verification:
+  focused: Oversized import, compact pretty source and private-check toggling passed.
+  broad: Full UI suite passed (687 tests); TypeScript, ESLint, Prettier and production build passed.
