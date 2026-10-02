@@ -6,6 +6,8 @@ from dataclasses import replace
 
 from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_EVIDENCE,
+    MAX_ITEMS,
+    MAX_PROPOSAL_KEYS,
     MAX_REVISION,
     AuditRecordReceipt,
     AuditSnapshot,
@@ -23,6 +25,7 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _requested_coverage,
 )
 from contractor_runtime.toolsets.common.input_errors import ToolInputError
+from contractor_runtime.toolsets.security_findings.classification import cwe_reference
 from contractor_runtime.worker.completion import WorkerCompletionError
 
 
@@ -77,6 +80,15 @@ class InvocationAuditCollector:
             _requested_coverage(task)
         self._items: dict[str, RecordedAuditItem] = {}
         self._replayed_from: dict[str, int] = {}
+        # Only successful finding calls in this invocation can supply link keys.
+        # The task set bounds the number of distinct links we can publish.
+        self._proposals: dict[str, frozenset[tuple[str, str, str]]] = {}
+        self._assigned_refs = {
+            (standard["scheme"], standard["version"], entry_id)
+            for task in self._tasks.values()
+            if (standard := task.get("standard")) is not None
+            for entry_id in standard["entry_ids"]
+        }
         self._lock = asyncio.Lock()
         self._sealed = False
         self._discarded = False
@@ -113,6 +125,53 @@ class InvocationAuditCollector:
         if invocation_id != self.owner.invocation_id:
             raise AuditCollectionError("invocation", "Tool belongs to a different invocation.")
 
+    def check_proposal_refs(
+        self, invocation_id: str, standard_refs: list[dict[str, str]]
+    ) -> frozenset[tuple[str, str, str]]:
+        """Preflight an Audit finding before the Server receives its proposal."""
+        self._check_live(writing=True)
+        self.check_invocation(invocation_id)
+        refs: set[tuple[str, str, str]] = set()
+        for reference in standard_refs:
+            identity = (reference["scheme"], reference["version"], reference["requirement_id"])
+            if identity in refs:
+                raise AuditCollectionError(
+                    "standard_refs", "Remove duplicate standard references from the finding."
+                )
+            refs.add(identity)
+            if reference["scheme"] == "CWE":
+                try:
+                    valid = cwe_reference(reference["requirement_id"])
+                except ToolInputError:
+                    valid = []
+                if valid != [reference]:
+                    raise AuditCollectionError(
+                        "standard_refs", "Use a weakness from the bundled CWE catalog."
+                    )
+            elif identity not in self._assigned_refs:
+                raise AuditCollectionError(
+                    "standard_refs",
+                    "Use only exact standard references from the assigned Audit tasks.",
+                )
+        return frozenset(refs)
+
+    async def register_proposal(
+        self, invocation_id: str, client_key: str, standard_refs: list[dict[str, str]]
+    ) -> None:
+        """Remember a successful finding receipt for this invocation only."""
+        async with self._lock:
+            refs = self.check_proposal_refs(invocation_id, standard_refs)
+            existing = self._proposals.get(client_key)
+            if existing is not None and existing != refs:
+                raise AuditCollectionError(
+                    "proposal_keys", "A finding client key changed its standard references."
+                )
+            if existing is None and len(self._proposals) >= MAX_ITEMS * MAX_PROPOSAL_KEYS:
+                raise AuditCollectionError(
+                    "proposal_keys", "This invocation has reached its finding proposal limit."
+                )
+            self._proposals[client_key] = refs
+
     def _validate(self, item: NormalizedAuditItem):
         if not isinstance(item, NormalizedAuditItem):
             raise AuditCollectionError("result", "Provide a normalized result.")
@@ -126,6 +185,33 @@ class InvocationAuditCollector:
             gaps=tuple(sorted(item.gaps)),
             proposal_keys=tuple(sorted(item.proposal_keys)),
         )
+        for proposal_key in item.proposal_keys:
+            refs = self._proposals.get(proposal_key)
+            if refs is None:
+                raise AuditCollectionError(
+                    "proposal_keys",
+                    "Use the client_key returned by a successful finding call in this invocation; "
+                    "receipt_id and proposal_id cannot be linked.",
+                    item_key=key,
+                    details={"invalidValue": proposal_key},
+                )
+            if (standard := task.get("standard")) is not None:
+                missing = sorted(
+                    set(standard["entry_ids"])
+                    - {
+                        entry_id
+                        for scheme, version, entry_id in refs
+                        if scheme == standard["scheme"] and version == standard["version"]
+                    }
+                )
+                if missing:
+                    raise AuditCollectionError(
+                        "proposal_keys",
+                        "The linked finding must cite every assigned standard entry in "
+                        "standard_refs; submit a corrected finding and use its client_key.",
+                        item_key=key,
+                        details={"missingEntryIds": missing},
+                    )
         requested = _requested_coverage(task)
         for index, value in enumerate(item.completed):
             if value not in requested:
@@ -203,6 +289,17 @@ class InvocationAuditCollector:
         )
 
     def _admit(self, prospective):
+        owners: dict[str, str] = {}
+        for item in prospective.values():
+            for proposal_key in item.value.proposal_keys:
+                prior = owners.setdefault(proposal_key, item.value.item_key)
+                if prior != item.value.item_key:
+                    raise AuditCollectionError(
+                        "proposal_keys",
+                        "Link a finding proposal to only one assigned Audit item.",
+                        item_key=item.value.item_key,
+                        details={"invalidValue": proposal_key},
+                    )
         if sum(len(item.value.evidence) for item in prospective.values()) > MAX_EVIDENCE:
             raise AuditCollectionError(
                 "evidence", "Collection allows at most 256 evidence records."
@@ -315,3 +412,4 @@ class InvocationAuditCollector:
             self._discarded = True
             self._items.clear()
             self._replayed_from.clear()
+            self._proposals.clear()

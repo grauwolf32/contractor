@@ -7,11 +7,13 @@ import json
 import stat
 import zipfile
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import jcs
 import pytest
 from google.adk.tools.function_tool import FunctionTool
 from test_adk_runtime import stage_request
+from test_security_findings_toolset import FakeFindingClient
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
@@ -32,6 +34,8 @@ from contractor_runtime.toolsets.audit_results.v2 import (
     ReadAuditTaskTool,
     SubmitCheckResultTool,
 )
+from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
+from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 
 
 def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None:
@@ -108,6 +112,11 @@ def test_completion_derives_identity_and_builds_canonical_package() -> None:
         client = FakeAuditArtifactClient(task_package, execution_manifest)
         state = WorkerState()
         tools = await prepared_tools(client, state)
+        await (
+            tools["submit_check_result"]
+            .completion_binding.current()
+            .register_proposal("worker-invocation-1", "candidate-authz", [])
+        )
 
         result = await tools["submit_check_result"](
             assessment="satisfied",
@@ -177,6 +186,62 @@ def test_completion_derives_identity_and_builds_canonical_package() -> None:
     asyncio.run(scenario())
 
 
+def test_successful_finding_links_through_late_bound_audit_factory():
+    async def scenario():
+        state = WorkerState()
+        finding_client = FakeFindingClient()
+        # The finding factory may run before Audit preparation in a template.
+        finding = GeneralFindingTool(FindingPublisher(finding_client, state.metrics, (), state))
+        task_package, execution_manifest = fixture_inputs()
+        tools = await prepared_tools(
+            FakeAuditArtifactClient(task_package, execution_manifest), state
+        )
+        context = SimpleNamespace(
+            invocation_id="worker-invocation-1", function_call_id="finding-call-1"
+        )
+        receipt = await finding(
+            title="Observed weakness",
+            description="The guard can be bypassed.",
+            tool_context=context,
+        )
+        for invalid in (receipt["receipt_id"], receipt["proposal_id"]):
+            reply = await tools["submit_check_result"](
+                assessment="inconclusive",
+                summary="Needs review.",
+                completed=[],
+                gaps=[],
+                proposal_keys=[invalid],
+                tool_context=context,
+            )
+            assert reply["error"]["field"] == "proposal_keys"
+            assert (
+                await tools["submit_check_result"].completion_binding.current().snapshot()
+            ).items == ()
+        reply = await tools["submit_check_result"](
+            assessment="inconclusive",
+            summary="Needs review.",
+            completed=[],
+            gaps=[],
+            proposal_keys=[receipt["client_key"]],
+            tool_context=context,
+        )
+        assert reply["status"] == "recorded" and reply["complete"]
+        assert finding_client.requests[0]["proposal"]["client_key"] == receipt["client_key"]
+        await tools["submit_check_result"].completion_binding.end()
+        tools["submit_check_result"].completion_binding.begin("worker-invocation-2")
+        reply = await tools["submit_check_result"](
+            assessment="inconclusive",
+            summary="Needs review.",
+            completed=[],
+            gaps=[],
+            proposal_keys=[receipt["client_key"]],
+            tool_context=SimpleNamespace(invocation_id="worker-invocation-2"),
+        )
+        assert reply["error"]["field"] == "proposal_keys"
+
+    asyncio.run(scenario())
+
+
 def test_preparation_rejects_forged_manifest_before_tools_exist() -> None:
     async def scenario() -> None:
         task_package, execution_manifest = fixture_inputs()
@@ -198,6 +263,11 @@ def test_completion_publishes_one_complete_ordered_batch() -> None:
         client = FakeAuditArtifactClient(task_set, execution_manifest)
         state = WorkerState()
         tools = await prepared_tools(client, state)
+        await (
+            tools["submit_check_result"]
+            .completion_binding.current()
+            .register_proposal("worker-invocation-1", "candidate-input", [])
+        )
 
         assigned = await tools["read_audit_task"](FakeToolContext("worker-invocation-1"))
         assert assigned["batchSize"] == 2

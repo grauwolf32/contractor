@@ -26,7 +26,8 @@ uncertain preconditions as uncertainty; do not invent observed exploit success.
 Use title and description to explain the observed issue, impact, prerequisites
 and reproduction or inspection steps. Supply the exact relative source file,
 with optional line or inclusive range. Attach exact evidence_refs copied from
-write_text_artifact output; optional standard_refs identify applicable standards.
+write_text_artifact output; use exact assigned task standard_refs when linking a
+finding to a standard-mapped result, with valid CWE classifications if useful.
 The tool returns client_key for linking the proposal in submit_check_result.
 
 

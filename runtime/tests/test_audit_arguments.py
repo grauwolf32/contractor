@@ -43,6 +43,8 @@ def test_identifiers_are_canonicalized_without_changing_model_arguments():
             "gaps": ["z-gap", "a-gap", "z-gap"],
             "proposal_keys": ["z-proposal", "a-proposal", "z-proposal"],
         }
+        for proposal_key in ("z-proposal", "a-proposal"):
+            await collector.register_proposal(CONTEXT.invocation_id, proposal_key, [])
         result = await tool(tool_context=CONTEXT, **supplied)
         assert "error" not in result
         item = (await collector.snapshot()).items[0].value

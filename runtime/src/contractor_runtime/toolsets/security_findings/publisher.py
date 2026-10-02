@@ -82,7 +82,17 @@ class FindingPublisher:
                     exchange["response_body_evidence_id"] = proposal["evidence_ids"][index]
                 HTTPExchange.model_validate(exchange)
                 proposal["http_exchange"] = exchange
+            audit_binding = getattr(self.state, "audit_completion_binding", None)
+            audit_collector = audit_binding.current() if audit_binding is not None else None
+            if audit_collector is not None:
+                audit_collector.check_proposal_refs(
+                    context.invocation_id, proposal["standard_refs"]
+                )
             receipt = await self.client.submit_finding_proposal(request)
+            if audit_collector is not None:
+                await audit_collector.register_proposal(
+                    context.invocation_id, proposal["client_key"], proposal["standard_refs"]
+                )
             result = {
                 "proposal_id": str(receipt["proposalId"]),
                 "receipt_id": str(receipt["receiptId"]),

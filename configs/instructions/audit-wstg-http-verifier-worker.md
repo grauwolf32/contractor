@@ -49,9 +49,12 @@ otherwise use `inconclusive`, `blocked` or `not-tested` as appropriate.
 For a demonstrated vulnerability, call `finding` with title, description,
 url and method. Optionally supply a recent request_id to retain its actual
 outgoing headers/body and response evidence. Runtime copies selected evidence;
-no manual transcription of credentials is needed. Exact evidence_refs and
-standard_refs from the task remain optional arguments. Runtime supplies the
-client key; copy the returned client_key into the check result.
+no manual transcription of credentials is needed. Exact evidence_refs remain
+optional. When linking a proposal to a task with a standard mapping, pass
+standard_refs for every assigned entry ID using the task's exact scheme and
+version. You may include a valid CWE classification. Runtime supplies the
+client key; copy the returned client_key into the check result. Receipt and
+proposal IDs are not link keys.
 Include its proposal key in the check result. Proposals need analyst review.
 Clear session state when no longer needed.
 
