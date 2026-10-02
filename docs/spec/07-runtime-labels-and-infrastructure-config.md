@@ -220,8 +220,10 @@ The first schema fixes those bounds so publication is independently testable:
   omitted `captureContent` is `false`; `true` explicitly opts into unredacted
   content export to a trusted telemetry sink;
 - proxy `targets` is a unique non-empty subset of the three values shown above;
-- `caBundlePem` is at most 64 KiB, contains one through eight parseable X.509
-  certificates and no private-key PEM block; the exact validated UTF-8 string
+- `caBundlePem` is at most 64 KiB and contains one through eight parseable X.509
+  `CERTIFICATE` PEM blocks, with only whitespace before, between and after
+  blocks. PEM headers, other text and any `PRIVATE KEY` marker are invalid.
+  The exact validated UTF-8 string
   bytes participate in the RuntimeConfig digest without Unicode/line-ending
   rewriting;
 - every credential ID uses the configuration-ID grammar and is validated

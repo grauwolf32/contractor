@@ -301,9 +301,15 @@ def _validate_ca_bundle(owner: str, value: str) -> None:
     if not 1 <= len(certificates) <= 8 or remainder.strip():
         raise ValueError(f"{owner} CA bundle is invalid")
     try:
+        trust = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         for certificate in certificates:
-            ssl.PEM_cert_to_DER_cert(certificate)
-    except ValueError:
+            body = certificate.removeprefix("-----BEGIN CERTIFICATE-----").removesuffix(
+                "-----END CERTIFICATE-----"
+            )
+            if re.search(r"[^A-Za-z0-9+/=\r\n]", body):
+                raise ValueError("invalid certificate body")
+            trust.load_verify_locations(cadata=certificate)
+    except (ValueError, ssl.SSLError):
         raise ValueError(f"{owner} CA bundle is invalid") from None
 
 
