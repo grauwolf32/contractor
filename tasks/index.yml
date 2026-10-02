@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: local-direct-noop-failures-2026-10
+    exit_task: V81-001
+    outcome: >-
+      Preserve local-direct workspace and Podman execution after confirmed
+      no-op filesystem failures while fencing partial or uncertain mutation.
   - id: podman-create-failure-cleanup-2026-10
     exit_task: V80-001
     outcome: >-
@@ -2686,6 +2691,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V81-001, file: v81-001-local-direct-noop-failures.yml}
   - {id: V80-001, file: v80-001-podman-create-failure-cleanup.yml}
   - {id: V79-001, file: v79-001-audit-stage-deadline.yml}
   - {id: V78-001, file: v78-001-audit-proposal-link-validation.yml}
