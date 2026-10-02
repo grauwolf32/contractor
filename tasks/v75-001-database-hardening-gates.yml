@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V75-001
+title: Require PostgreSQL before database hardening gates
+milestone: release-and-ui-guardrails-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [make, go]
+goal: Stop Runtime configuration and metadata-label gates from passing with their PostgreSQL tests skipped.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/314
+  finding: The hardening targets omit require-database and their e2e targets check too late.
+scope:
+  in:
+    - Guard both hardening and e2e targets before test recipes run.
+    - Document the PostgreSQL requirement.
+    - Verify both missing-database failure and configured-database execution.
+  out:
+    - Change Go test skip behavior outside these gates.
+acceptance_criteria:
+  - {id: A1, text: Both hardening and e2e targets fail before tests without a database URL.}
+  - {id: A2, text: With PostgreSQL configured, matrix-owned database tests run rather than skip.}
+  - {id: A3, text: General verify and matrix targets remain usable without PostgreSQL.}
+tests:
+  - {command: make -n test-runtime-configuration-hardening test-run-metadata-labels-hardening, covers: [A1]}
+  - {command: go test ./internal/runtimeconfig ./internal/runstore, covers: [A2, A3]}

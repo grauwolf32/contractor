@@ -1,0 +1,23 @@
+schema_version: '1.0'
+id: V75-003
+title: Remove unproduced Audit owner pause stop label
+milestone: release-and-ui-guardrails-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Keep Audit stop-reason presentation aligned with codes the Server actually emits.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/310
+  finding: Owner pause clears stopReason; no production path emits owner_paused.
+scope:
+  in:
+    - Remove the unproduced owner_paused label.
+    - Verify existing Audit presentation tests.
+  out:
+    - Change Audit pause lifecycle or Server stop-reason semantics.
+acceptance_criteria:
+  - {id: A1, text: No Audit UI source references owner_paused.}
+  - {id: A2, text: Existing Audit UI tests pass.}
+tests:
+  - {command: cd ui && corepack pnpm test --run src/routes/projects/audits, covers: [A1, A2]}

@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: release-and-ui-guardrails-2026-10
+    exit_task: V75-003
+    outcome: >-
+      Require PostgreSQL for database-backed hardening gates, enforce the Eval
+      document size before saving, and remove a stale Audit stop label.
   - id: runtime-contract-parity-2026-10
     exit_task: V74-003
     outcome: >-
@@ -2656,6 +2661,9 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V75-001, file: v75-001-database-hardening-gates.yml}
+  - {id: V75-002, file: v75-002-eval-dataset-size.yml}
+  - {id: V75-003, file: v75-003-audit-stop-reason-label.yml}
   - {id: V74-001, file: v74-001-ca-bundle-grammar.yml}
   - {id: V74-002, file: v74-002-lean-read-paths.yml}
   - {id: V74-003, file: v74-003-worker-gateway-failure-code.yml}
