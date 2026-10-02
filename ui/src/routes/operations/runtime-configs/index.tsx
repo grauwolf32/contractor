@@ -26,6 +26,7 @@ import {
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { Dialog } from "../../../app/dialog";
+import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
@@ -716,6 +717,7 @@ function BindingEditor({
       : "",
   );
   const [conflictRevision, setConflictRevision] = useState<string>();
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
   const stale = conflictRevision === binding.revision;
   const [keyring] = useState(
     () =>
@@ -765,6 +767,7 @@ function BindingEditor({
         `delete-runtime-label-ui-${crypto.randomUUID()}`,
       ),
     onSuccess: async () => {
+      setConfirmRemoval(false);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.operations.runtimeLabels.all,
       });
@@ -856,8 +859,12 @@ function BindingEditor({
             type="button"
             aria-label={`Remove binding ${binding.label}`}
             title={`Remove binding ${binding.label}`}
+            aria-haspopup="dialog"
             disabled={deletion.isPending || stale}
-            onClick={() => deletion.mutate()}
+            onClick={() => {
+              deletion.reset();
+              setConfirmRemoval(true);
+            }}
           >
             <DeleteIcon />
           </button>
@@ -884,6 +891,30 @@ function BindingEditor({
       ) : mutation.error === null && deletion.error === null ? null : (
         <ErrorNotice error={mutation.error ?? deletion.error} />
       )}
+      {confirmRemoval ? (
+        <ConfirmRemovalDialog
+          title={`Remove binding ${binding.label}?`}
+          description={
+            <>
+              New Runs will no longer be able to select the label{" "}
+              <code>{binding.label}</code>. To restore it, create a new binding.
+            </>
+          }
+          confirmLabel="Remove binding"
+          pending={deletion.isPending}
+          confirmDisabled={stale}
+          error={
+            deletion.error === null ? null : (
+              <ErrorNotice error={deletion.error} />
+            )
+          }
+          onCancel={() => {
+            setConfirmRemoval(false);
+            deletion.reset();
+          }}
+          onConfirm={() => deletion.mutate()}
+        />
+      ) : null}
     </article>
   );
 }
@@ -1324,6 +1355,8 @@ function RuntimeCredentialList({
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
+  const [confirmRemoval, setConfirmRemoval] =
+    useState<RuntimeCredentialMetadata | null>(null);
   const deletion = useMutation({
     mutationFn: (credentialId: string) =>
       deleteRuntimeCredential(
@@ -1331,10 +1364,12 @@ function RuntimeCredentialList({
         credentialId,
         `delete-runtime-credential-ui-${crypto.randomUUID()}`,
       ),
-    onSuccess: async () =>
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      setConfirmRemoval(null);
+      await queryClient.invalidateQueries({
         queryKey: queryKeys.operations.runtimeCredentials.all,
-      }),
+      });
+    },
   });
   return (
     <div className="panel operations-library">
@@ -1385,8 +1420,12 @@ function RuntimeCredentialList({
                       type="button"
                       aria-label={`Delete Runtime credential ${credential.credentialId}`}
                       title={`Delete Runtime credential ${credential.credentialId}`}
+                      aria-haspopup="dialog"
                       disabled={deletion.isPending}
-                      onClick={() => deletion.mutate(credential.credentialId)}
+                      onClick={() => {
+                        deletion.reset();
+                        setConfirmRemoval(credential);
+                      }}
                     >
                       <DeleteIcon />
                     </button>
@@ -1397,7 +1436,32 @@ function RuntimeCredentialList({
           </table>
         </div>
       )}
-      {deletion.error === null ? null : <ErrorNotice error={deletion.error} />}
+      {confirmRemoval ? (
+        <ConfirmRemovalDialog
+          title={`Delete Runtime credential ${confirmRemoval.credentialId}?`}
+          description={
+            <>
+              This permanently deletes the <code>{confirmRemoval.kind}</code>{" "}
+              credential <code>{confirmRemoval.credentialId}</code>. Its ID
+              cannot be reused, and RuntimeConfig versions that name it cannot
+              be bound again. Restore access by entering the secret under a new
+              ID and publishing a new version.
+            </>
+          }
+          confirmLabel="Delete Runtime credential"
+          pending={deletion.isPending}
+          error={
+            deletion.error === null ? null : (
+              <ErrorNotice error={deletion.error} />
+            )
+          }
+          onCancel={() => {
+            setConfirmRemoval(null);
+            deletion.reset();
+          }}
+          onConfirm={() => deletion.mutate(confirmRemoval.credentialId)}
+        />
+      ) : null}
     </div>
   );
 }

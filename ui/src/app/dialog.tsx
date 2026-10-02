@@ -212,6 +212,7 @@ export interface DialogProps {
   describedBy?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
   role?: "alertdialog" | "dialog";
+  dismissOnBackdrop?: boolean;
 }
 
 export function Dialog({
@@ -223,6 +224,7 @@ export function Dialog({
   describedBy,
   initialFocusRef,
   role = "dialog",
+  dismissOnBackdrop = false,
 }: DialogProps) {
   const [container] = useState(() => {
     const element = document.createElement("div");
@@ -262,7 +264,12 @@ export function Dialog({
     <div
       className={`project-dialog-backdrop ${backdropClassName ?? ""}`}
       role="presentation"
-      onClick={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (dismissOnBackdrop && event.target === event.currentTarget) {
+          onRequestClose();
+        }
+      }}
       onPointerDown={(event) => event.stopPropagation()}
       onSubmit={(event) => event.stopPropagation()}
     >

@@ -8,6 +8,7 @@ import {
   replaceGitKey,
 } from "../../api/git-artifacts";
 import { ErrorNotice, formatTimestamp } from "../artifacts/common";
+import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
 
 export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
   const api = usePublicAPI();
@@ -20,6 +21,7 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>();
   const [saved, setSaved] = useState("");
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
   async function change(remove: boolean) {
@@ -50,6 +52,7 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
       setPrivateKey("");
       cache.setQueryData(gitKeyQueryKey, state);
       setSaved(remove ? "Git SSH key removed." : "Git SSH key saved.");
+      if (remove) setConfirmRemoval(false);
     } catch (error) {
       if (!controller.signal.aborted) {
         setError(error);
@@ -187,7 +190,9 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
                 Unencrypted OpenSSH or PEM · maximum 32 KiB.
               </small>
             </label>
-            {error === undefined ? null : <ErrorNotice error={error} />}
+            {error === undefined || confirmRemoval ? null : (
+              <ErrorNotice error={error} />
+            )}
             {saved ? (
               <div className="notice notice-success" role="status">
                 {saved}
@@ -205,12 +210,36 @@ export function GitKeySettings({ ordinal = "02" }: { ordinal?: string } = {}) {
                 className="secondary-button"
                 type="button"
                 disabled={pending || !query.data?.configured}
-                onClick={() => void change(true)}
+                aria-haspopup="dialog"
+                onClick={() => {
+                  setError(undefined);
+                  setConfirmRemoval(true);
+                }}
               >
                 Remove Git key
               </button>
             </div>
           </form>
+          {confirmRemoval ? (
+            <ConfirmRemovalDialog
+              title="Remove Git key?"
+              description={
+                <>
+                  Remove the Git SSH key with fingerprint{" "}
+                  <code>{query.data?.fingerprint}</code>? Private Git imports
+                  will require a new private key.
+                </>
+              }
+              confirmLabel="Remove Git key"
+              pending={pending}
+              error={error === undefined ? null : <ErrorNotice error={error} />}
+              onCancel={() => {
+                setConfirmRemoval(false);
+                setError(undefined);
+              }}
+              onConfirm={() => void change(true)}
+            />
+          ) : null}
         </div>
       </div>
     </section>

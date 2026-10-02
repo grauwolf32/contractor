@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: confirm-destructive-setup-actions-2026-10
+    exit_task: V91-001
+    outcome: >-
+      Runtime credential, Runtime label binding and Git SSH key removal require
+      an explicit confirmation before any DELETE request is sent.
   - id: project-section-dead-modes-2026-10
     exit_task: V90-001
     outcome: >-
@@ -2736,6 +2741,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V91-001, file: v91-001-confirm-destructive-setup-actions.yml}
   - {id: V90-001, file: v90-001-project-section-dead-modes.yml}
   - {id: V89-001, file: v89-001-settled-eval-polling.yml}
   - {id: V88-001, file: v88-001-runtime-agent-page-completeness.yml}

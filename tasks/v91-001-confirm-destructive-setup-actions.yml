@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V91-001
+title: Confirm Runtime credential, label binding and Git key removal
+milestone: confirm-destructive-setup-actions-2026-10
+priority: P2
+status: completed
+implementation_commit: ee1d013869b791dd859b4b53d8c1fc3123c5a429
+depends_on: []
+languages: [typescript]
+goal: Prevent an accidental click from deleting an irreplaceable setup secret or active binding.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/126
+  finding: Three destructive setup actions send DELETE on their first click.
+scope:
+  in:
+    - Add accessible alertdialog confirmation for Runtime credential, Runtime label and Git key removal.
+    - Name each target and explain its recovery cost, especially tombstoned Runtime credential IDs.
+    - Keep initial focus on Cancel and block Escape/backdrop dismissal while a mutation is pending.
+    - Cover confirm and dismiss paths for all three actions in UI tests.
+  out:
+    - Change server deletion rules or make removed write-only secrets readable.
+acceptance_criteria:
+  - {id: A1, text: First click opens a named alertdialog and sends no DELETE.}
+  - {id: A2, text: Cancel, Escape and backdrop dismiss without DELETE and focus starts on Cancel.}
+  - {id: A3, text: Confirm sends exactly one DELETE and handles pending or errors safely.}
+  - {id: A4, text: UI tests, app/e2e typechecks and lint pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/runtime-configs/configuration.test.tsx src/routes/artifacts/git-artifacts.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}
