@@ -12,7 +12,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import { auditPresetPath } from "../../../api/audit-presets";
 import {
-  auditNeedsPolling,
+  auditPollInterval,
   createAudit,
   getAuditProfile,
   listAuditProfiles,
@@ -599,9 +599,7 @@ export function ProjectAuditWorkspace({
       }),
     refetchOnReconnect: true,
     refetchInterval: (query) =>
-      query.state.data?.items.some((audit) => auditNeedsPolling(audit.state))
-        ? 5_000
-        : false,
+      auditPollInterval(query.state.data?.items ?? [], 5_000),
   });
   return (
     <div className="audit-page audit-collection">

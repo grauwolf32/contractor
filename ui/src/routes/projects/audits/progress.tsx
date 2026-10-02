@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router";
 import {
-  auditNeedsPolling,
+  auditPollInterval,
   getAuditWorkspace,
   type Audit,
 } from "../../../api/audits";
@@ -9,16 +9,19 @@ import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice, formatTimestamp } from "../../artifacts/common";
 import { describeStopReason } from "./stop-reason";
+import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export function AuditProgress({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const location = useLocation();
+  const queryKey = [...queryKeys.audits.detail(audit.auditId), "workspace"];
   const summary = useQuery({
-    queryKey: [...queryKeys.audits.detail(audit.auditId), "workspace"],
+    queryKey,
     queryFn: () => getAuditWorkspace(api, audit.auditId),
-    refetchInterval: auditNeedsPolling(audit.state) ? 5_000 : false,
+    refetchInterval: auditPollInterval([audit], 5_000),
     refetchOnReconnect: true,
   });
+  useAuditProjectionRefresh(audit, queryKey);
   const value = summary.data;
   const stop = describeStopReason(audit);
   const root = `/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}`;

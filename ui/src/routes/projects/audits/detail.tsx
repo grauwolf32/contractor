@@ -10,7 +10,7 @@ import {
 
 import {
   AUDIT_ID_PATTERN,
-  auditNeedsPolling,
+  auditPollInterval,
   getAudit,
   type Audit,
 } from "../../../api/audits";
@@ -123,10 +123,10 @@ export function ProjectAuditDetailRoute() {
     queryFn: () => getAudit(api, auditId),
     enabled: validRoute,
     refetchInterval: (query) =>
-      query.state.data !== undefined &&
-      auditNeedsPolling(query.state.data.state)
-        ? 1_000
-        : false,
+      auditPollInterval(
+        query.state.data === undefined ? [] : [query.state.data],
+        1_000,
+      ),
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     retry: (count, error) =>

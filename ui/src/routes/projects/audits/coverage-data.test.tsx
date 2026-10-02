@@ -176,35 +176,81 @@ describe("Audit coverage completion", () => {
     );
   });
 
-  it("keeps an explicit revision pin and rejects a newer terminal snapshot", async () => {
-    const { result, update, loadCoverage } = fixture(
+  it("keeps a loaded revision pin stable until the reader clears it", async () => {
+    const { result, update, loadCoverage, queryClient } = fixture(
       "/coverage?auditRevision=1",
     );
     await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
     update("completed", 2);
-    await waitFor(() =>
-      expect(result.current.query.error).toMatchObject({
-        status: 409,
-        code: "revision_conflict",
+    expect(result.current.query.items[0]?.coverage.rationale).toBe(
+      "revision 1",
+    );
+    expect(result.current.query.error).toBeNull();
+    expect(loadCoverage).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.detail("audit_example"),
       }),
     );
     expect(loadCoverage).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await result.current.navigate("/coverage");
+    });
+    await waitFor(() =>
+      expect(result.current.query.items[0]?.coverage.rationale).toBe(
+        "revision 2",
+      ),
+    );
+    expect(loadCoverage).toHaveBeenCalledTimes(2);
   });
 
-  it("does not replace retained coverage with pages from mixed revisions", async () => {
+  it("does not poll a loaded pinned view while the Audit stays active", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result, loadCoverage } = fixture("/coverage?auditRevision=1");
+      await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+      await act(async () => vi.advanceTimersByTimeAsync(6_000));
+      expect(loadCoverage).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries one unpinned first batch after a revision straddle", async () => {
+    const { result, loadCoverage, setServerRevision } = fixture();
+    loadCoverage.mockImplementationOnce(async () => {
+      setServerRevision("active", 2);
+      return response({
+        items: [coverage(auditAt("active", 1))],
+        page: { hasMore: false },
+      });
+    });
+    await waitFor(() =>
+      expect(result.current.query.items[0]?.coverage.rationale).toBe(
+        "revision 2",
+      ),
+    );
+    expect(loadCoverage).toHaveBeenCalledTimes(2);
+    expect(result.current.query.error).toBeNull();
+  });
+
+  it("does not replace retained coverage when both unpinned attempts straddle", async () => {
     const { result, update, loadCoverage, setServerRevision } = fixture();
     await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
-    loadCoverage.mockImplementationOnce(async () =>
-      response({
-        items: [coverage(auditAt("completed", 2))],
-        page: { hasMore: true, nextCursor: "page-2" },
-      }),
-    );
     loadCoverage.mockImplementationOnce(async (url) => {
-      expect(url.searchParams.get("cursor")).toBe("page-2");
       expect(url.searchParams.get("round")).toBe("round_example");
       setServerRevision("completed", 3);
-      return response({ items: [], page: { hasMore: false } });
+      return response({
+        items: [coverage(auditAt("completed", 2))],
+        page: { hasMore: false },
+      });
+    });
+    loadCoverage.mockImplementationOnce(async () => {
+      setServerRevision("completed", 4);
+      return response({
+        items: [coverage(auditAt("completed", 3))],
+        page: { hasMore: false },
+      });
     });
     update("completed", 2);
     await waitFor(() =>
@@ -218,40 +264,39 @@ describe("Audit coverage completion", () => {
     );
   });
 
-  it("does not cancel a newly pinned query while an old completion refresh settles", async () => {
-    const { result, update, queryClient } = fixture(
+  it("rejects an initially stale revision pin", async () => {
+    const { result, loadCoverage } = fixture("/coverage?auditRevision=2");
+    await waitFor(() =>
+      expect(result.current.query.error).toMatchObject({
+        status: 409,
+        code: "revision_conflict",
+      }),
+    );
+    expect(loadCoverage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a continuation when its pinned first batch is no longer current", async () => {
+    const { result, loadCoverage, setServerRevision } = fixture(
       "/coverage?auditRevision=1",
     );
-    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
-    let release!: () => void;
-    const pending = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const originalCancel = queryClient.cancelQueries.bind(queryClient);
-    const cancellation = vi
-      .spyOn(queryClient, "cancelQueries")
-      .mockImplementationOnce(async (...args) => {
-        await originalCancel(...args);
-        await pending;
+    loadCoverage.mockImplementation(async (url) => {
+      const page = Number(url.searchParams.get("cursor") ?? "0");
+      return response({
+        items: [coverage(auditAt("active", 1))],
+        page: { hasMore: true, nextCursor: String(page + 1) },
       });
-    update("completed", 2);
-    await waitFor(() => expect(cancellation).toHaveBeenCalled());
-    await act(async () => {
-      await result.current.navigate("/coverage?auditRevision=2");
     });
+    await waitFor(() => expect(result.current.query.truncated).toBe(true));
+    expect(result.current.query.items).toHaveLength(5);
+    setServerRevision("completed", 2);
+    act(() => result.current.query.loadMore());
     await waitFor(() =>
-      expect(result.current.query.items[0]?.coverage.rationale).toBe(
-        "revision 2",
-      ),
+      expect(result.current.query.moreError).toMatchObject({
+        status: 409,
+        code: "revision_conflict",
+      }),
     );
-    await act(async () => {
-      release();
-      await pending;
-    });
-    expect(result.current.query.isSuccess).toBe(true);
-    expect(result.current.query.items[0]?.coverage.rationale).toBe(
-      "revision 2",
-    );
-    expect(cancellation).toHaveBeenCalledTimes(1);
+    expect(result.current.query.items).toHaveLength(5);
+    expect(loadCoverage).toHaveBeenCalledTimes(5);
   });
 });

@@ -2714,6 +2714,321 @@ describe("Project Audit routes", () => {
   });
 });
 
+describe("Audit refresh correctness", () => {
+  function rowAt(audit: Audit): AuditCoverageRow {
+    return {
+      roundId: "round_example",
+      itemId: "item_refresh",
+      itemKey: "check_refresh",
+      subjectKey: "Refresh check",
+      ordinal: 0,
+      coverage: {
+        status: "satisfied",
+        requested: [],
+        completed: [],
+        gaps: [],
+        rationale: `revision ${audit.revision}`,
+      },
+      updatedAt: audit.updatedAt,
+    };
+  }
+
+  function itemAt(audit: Audit): AuditItem {
+    return {
+      itemId: "item_refresh",
+      roundId: "round_example",
+      itemKey: "check_refresh",
+      ordinal: 0,
+      kind: "check",
+      subjectKey: "Refresh check",
+      task: audit.inputs.source!,
+      origin: {
+        schema: "contractor.audit.item-origin.v1",
+        entryKey: "check_refresh",
+        sourceRef: audit.inputs.source!.ref,
+        sourceContentDigest: audit.inputs.source!.digest,
+        sourceMediaType: "application/zip",
+        canonicalInventoryDigest: `sha256:${"c".repeat(64)}`,
+      },
+      workflowRole: "check",
+      state: "submitted",
+      approvalKind: "none",
+      attempts: [
+        {
+          executionItemId: "execution_refresh",
+          executionId: "round_example",
+          itemId: "item_refresh",
+          itemAttempt: 1,
+          role: "check",
+          state: "submitted",
+          runId: "run_refresh",
+          runDeleted: false,
+          createdAt: audit.createdAt,
+        },
+      ],
+      createdAt: audit.createdAt,
+      updatedAt: audit.updatedAt,
+    };
+  }
+
+  it("signals a newer revision without replacing pinned Coverage rows", async () => {
+    let current = auditAt("completed", 2);
+    const queryClient = queryClientFactory.createApplicationQueryClient();
+    vi.spyOn(
+      queryClientFactory,
+      "createApplicationQueryClient",
+    ).mockReturnValue(queryClient);
+    const coverageReads = vi.fn();
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const path = new URL((input as Request).url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/audits/audit_example")
+          return jsonResponse(current, {
+            headers: { ETag: `"${current.revision}"` },
+          });
+        if (path.endsWith("/coverage")) {
+          coverageReads();
+          return jsonResponse({
+            items: [rowAt(current)],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    const { router } = renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/coverage?auditRevision=2",
+    );
+    const row = await screen.findByRole("article", { name: "Refresh check" });
+    expect(row).toHaveTextContent("revision 2");
+    current = auditAt("completed", 3);
+    act(() =>
+      queryClient.setQueryData(
+        queryKeys.audits.detail(current.auditId),
+        current,
+      ),
+    );
+    expect(
+      await screen.findByText("A newer Audit revision is available."),
+    ).toBeVisible();
+    expect(row).toBeInTheDocument();
+    expect(coverageReads).toHaveBeenCalledTimes(1);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Refresh coverage" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("article", { name: "Refresh check" }),
+      ).toHaveTextContent("revision 3"),
+    );
+    expect(router.state.location.search).toBe("");
+    expect(coverageReads).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["coverage", "runs"] as const)(
+    "keeps loaded %s rows mounted after a failed background read",
+    async (section) => {
+      const current = auditAt("completed", 3);
+      const queryClient = queryClientFactory.createApplicationQueryClient();
+      vi.spyOn(
+        queryClientFactory,
+        "createApplicationQueryClient",
+      ).mockReturnValue(queryClient);
+      let failRead = false;
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const path = new URL((input as Request).url).pathname;
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (path === "/v1/audits/audit_example")
+            return jsonResponse(current, { headers: { ETag: '"3"' } });
+          if (path.endsWith("/coverage") || path.endsWith("/items")) {
+            if (
+              failRead &&
+              path.endsWith(`/${section === "runs" ? "items" : "coverage"}`)
+            )
+              return jsonResponse(
+                {
+                  code: "temporarily_unavailable",
+                  message: "Temporary read failure",
+                  retryable: true,
+                  requestId: "retry_refresh",
+                },
+                { status: 503 },
+              );
+            return jsonResponse({
+              items: path.endsWith("/items")
+                ? [itemAt(current)]
+                : [rowAt(current)],
+              page: { hasMore: false },
+            });
+          }
+          throw new Error(`unexpected ${path}`);
+        }),
+      );
+      renderApplication(
+        api,
+        `/projects/project_example/audits/audit_example/${section}`,
+      );
+      const row =
+        section === "coverage"
+          ? await screen.findByRole("article", { name: "Refresh check" })
+          : (await screen.findByRole("link", { name: "run_refresh" })).closest(
+              "tr",
+            )!;
+      if (section === "coverage")
+        fireEvent.click(row.querySelector("summary")!);
+      failRead = true;
+      await act(async () => {
+        await queryClient.invalidateQueries({
+          queryKey:
+            section === "coverage"
+              ? queryKeys.audits.allCoverage(current.auditId)
+              : queryKeys.audits.allItems(current.auditId),
+        });
+      });
+      expect(
+        await screen.findByText(
+          "Could not refresh; showing the last loaded data.",
+        ),
+      ).toBeVisible();
+      expect(row).toBeInTheDocument();
+      if (section === "coverage")
+        expect(row.querySelector("details")).toHaveAttribute("open");
+      failRead = false;
+      await userEvent
+        .setup()
+        .click(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() =>
+        expect(
+          screen.queryByText(
+            "Could not refresh; showing the last loaded data.",
+          ),
+        ).not.toBeInTheDocument(),
+      );
+      expect(row).toBeInTheDocument();
+    },
+  );
+
+  it("refreshes paused detail and progress until the last Run drains", async () => {
+    let current = { ...auditAt("paused", 3), outstandingRunCount: 1 };
+    const detailReads = vi.fn();
+    const workspaceReads = vi.fn();
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const path = new URL((input as Request).url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/audits/audit_example") {
+          detailReads();
+          return jsonResponse(current, {
+            headers: { ETag: `"${current.revision}"` },
+          });
+        }
+        if (path.endsWith("/workspace")) {
+          workspaceReads();
+          return jsonResponse({
+            auditId: current.auditId,
+            auditRevision: current.revision,
+            asOf: current.updatedAt,
+            executionState: current.state,
+            outstandingRuns: current.outstandingRunCount,
+            totalChecks: 0,
+            completedChecks: 0,
+            issues: 0,
+            gaps: 0,
+            unchecked: 0,
+            findings: 0,
+            unreviewedFindings: 0,
+            pendingReviews: 0,
+          });
+        }
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+    const progress = await screen.findByRole("region", {
+      name: "Audit progress",
+    });
+    expect(
+      await within(progress).findByText(/Revision 3 · As of/u),
+    ).toBeVisible();
+    current = { ...auditAt("paused", 4), outstandingRunCount: 0 };
+    await waitFor(() =>
+      expect(within(progress).getByText(/Revision 4 · As of/u)).toBeVisible(),
+    );
+    expect(workspaceReads).toHaveBeenCalledTimes(2);
+    const readsAfterDrain = detailReads.mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 1_150));
+    expect(detailReads).toHaveBeenCalledTimes(readsAfterDrain);
+  });
+
+  it("refreshes Progress immediately after pausing an Audit", async () => {
+    let current = auditAt("active", 2);
+    const workspaceReads = vi.fn();
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/audits/audit_example/pause") {
+          current = { ...auditAt("paused", 3), outstandingRunCount: 1 };
+          return jsonResponse(current, { headers: { ETag: '"3"' } });
+        }
+        if (path === "/v1/audits/audit_example")
+          return jsonResponse(current, {
+            headers: { ETag: `"${current.revision}"` },
+          });
+        if (path.endsWith("/workspace")) {
+          workspaceReads();
+          return jsonResponse({
+            auditId: current.auditId,
+            auditRevision: current.revision,
+            asOf: current.updatedAt,
+            executionState: current.state,
+            outstandingRuns: current.outstandingRunCount,
+            totalChecks: 0,
+            completedChecks: 0,
+            issues: 0,
+            gaps: 0,
+            unchecked: 0,
+            findings: 0,
+            unreviewedFindings: 0,
+            pendingReviews: 0,
+          });
+        }
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+    const progress = await screen.findByRole("region", {
+      name: "Audit progress",
+    });
+    expect(
+      await within(progress).findByText(/Revision 2 · As of/u),
+    ).toBeVisible();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Pause new Audit Runs" }));
+    expect(
+      await within(progress).findByText(/Revision 3 · As of/u),
+    ).toBeVisible();
+    expect(workspaceReads).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("Bounded Audit collections", () => {
   function coverageRowAt(
     audit: Audit,

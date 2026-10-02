@@ -243,6 +243,11 @@ export function AuditControls({
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.allCoverage(updated.auditId),
+          // URL-pinned Coverage belongs to its original revision.
+          predicate: (query) => query.queryKey.at(-1) === null,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [...queryKeys.audits.detail(updated.auditId), "workspace"],
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.audits.report(updated.auditId),

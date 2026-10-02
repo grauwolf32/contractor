@@ -698,9 +698,9 @@ export function isTerminalAuditState(state: AuditState): boolean {
 }
 
 /**
- * Only Audits the server is still working on need interval polling. Terminal
- * Audits and Audits parked by a user (draft, paused) change through explicit
- * actions, which invalidate their queries.
+ * These states need interval polling on their own. A paused Audit can still
+ * change while submitted Runs drain; callers should use auditPollInterval
+ * when they have the outstanding Run count.
  */
 export function auditNeedsPolling(state: AuditState): boolean {
   return (

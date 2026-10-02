@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: audit-ui-refresh-correctness-2026-10
+    exit_task: V71-003
+    outcome: >-
+      Keep pinned Coverage stable, refresh paused Audits while Runs drain, and
+      retain loaded Coverage and Run rows through background read failures.
   - id: github-issue-remediation-2026-10-v70
     exit_task: V70-003
     outcome: >-
@@ -2636,6 +2641,9 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V71-001, file: v71-001-pinned-audit-coverage.yml}
+  - {id: V71-002, file: v71-002-paused-audit-polling.yml}
+  - {id: V71-003, file: v71-003-audit-stale-collections.yml}
   - {id: V70-001, file: v70-001-telemetry-retention-drain.yml}
   - {id: V70-002, file: v70-002-artifact-version-media-type.yml}
   - {id: V70-003, file: v70-003-csrf-session-refresh.yml}

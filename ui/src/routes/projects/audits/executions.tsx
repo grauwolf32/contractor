@@ -9,6 +9,7 @@ import { StateBadge } from "../../runs/components";
 import { auditCheckTitle } from "./check-title";
 import { useAuditCoverage } from "./coverage-data";
 import { useAuditItems } from "./items-data";
+import { StaleDataWarning } from "../../../app/query-view";
 import { LoadMoreControl } from "./load-more";
 import { ExactArtifactLink } from "./shared";
 
@@ -140,7 +141,8 @@ export function AuditRuns({
   );
   if (items.isPending)
     return <p className="loading-copy">Loading child Runs…</p>;
-  if (items.error !== null) return <ErrorNotice error={items.error} />;
+  if (items.error !== null && items.items.length === 0)
+    return <ErrorNotice error={items.error} />;
   return (
     <section className="panel audit-section-panel">
       <div className="section-heading">
@@ -150,6 +152,13 @@ export function AuditRuns({
         </div>
         <Link to="/runs">Global Runs →</Link>
       </div>
+      {items.error === null ? null : (
+        <StaleDataWarning
+          error={items.error}
+          onRetry={() => void items.refetch()}
+          retryPending={items.isFetching}
+        />
+      )}
       {attempts.length === 0 ? (
         <div className="compact-empty">
           <strong>No child Runs submitted.</strong>
