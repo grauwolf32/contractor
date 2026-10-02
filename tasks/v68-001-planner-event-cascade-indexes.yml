@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V68-001
+title: Index planner event and lifecycle deletion foreign keys
+milestone: github-issue-remediation-2026-10-next
+priority: P1
+status: in_progress
+depends_on: []
+languages: [sql, go]
+goal: Keep Run, Project and Audit deletion responsive as retained planner events grow.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/147
+  finding: >-
+    The planner_events foreign key to workflow_run_events has no supporting
+    run_id-leading index, so every deleted Run event scans the table.
+scope:
+  in:
+    - Add a forward-only migration for the planner event key and other missing lifecycle-deletion foreign keys.
+    - Add a PostgreSQL catalog regression test for supporting indexes.
+    - Verify the planner event cascade uses the new index.
+  out:
+    - Change deletion API semantics or retention periods.
+acceptance_criteria:
+  - id: A1
+    text: planner_events has a run_id, run_event_sequence index usable by the cascade probe.
+  - id: A2
+    text: Lifecycle-deletion foreign keys retain supporting leading-column indexes.
+  - id: A3
+    text: Existing Run deletion behavior remains correct.
+tests:
+  - command: go test ./internal/persistence/postgres ./internal/runstore
+    covers: [A1, A2, A3]
