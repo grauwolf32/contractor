@@ -100,12 +100,95 @@
         "resolved": {},
         "gaps": []
       }
+    },
+    "finding": {
+      "schema": "contractor.audit.item-task.v1",
+      "item_key": "check-authz",
+      "kind": "finding-verification",
+      "subject_key": "check-authz",
+      "workflow_role": "check",
+      "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_media_type": "application/yaml",
+      "source_ref": {
+        "namespace": "checklists",
+        "name": "demo",
+        "revision": "checklist-r1"
+      },
+      "canonical_inventory_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "finding": {
+        "receipt_id": "receipt-a",
+        "proposal_ref": {
+          "namespace": "proposals",
+          "name": "candidate-a",
+          "revision": "proposal-r1"
+        },
+        "proposal_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "proposed_check_ordinal": 0,
+        "objective": "Trace the authorization predicate.",
+        "method": "source-trace",
+        "limitations": []
+      }
+    },
+    "standard-supported": {
+      "schema": "contractor.audit.item-task.v1",
+      "item_key": "check-authz",
+      "kind": "standard-mapping",
+      "subject_key": "check-authz",
+      "workflow_role": "check",
+      "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_media_type": "application/yaml",
+      "source_ref": {
+        "namespace": "checklists",
+        "name": "demo",
+        "revision": "checklist-r1"
+      },
+      "canonical_inventory_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "checklist": {
+        "version": "1",
+        "statement": "Authorization is checked before access.",
+        "applicability": "Always applicable to this fixture.",
+        "allowed_methods": [
+          "static-trace"
+        ],
+        "required_evidence": [
+          "source-trace"
+        ],
+        "review_policy": "automatic"
+      },
+      "standard": {
+        "scheme": "fixture",
+        "version": "1",
+        "mapping_key": "check-authz",
+        "entry_ids": [
+          "entry-1"
+        ],
+        "evidence_contract": {
+          "id": "source-contract",
+          "version": "1",
+          "assessments": [
+            "blocked",
+            "inconclusive",
+            "not-tested",
+            "satisfied",
+            "supported",
+            "violated"
+          ],
+          "evidence_kinds": [
+            "source-trace"
+          ],
+          "minimum_evidence": 2,
+          "maximum_evidence": 2,
+          "human_review": "never",
+          "rationale_required": true
+        }
+      }
     }
   },
   "cases": [
     {
       "name": "checklist-complete",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "satisfied",
@@ -125,6 +208,7 @@
     {
       "name": "completed-is-not-evidence",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "satisfied",
@@ -139,6 +223,7 @@
     {
       "name": "wrong-required-kind",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "satisfied",
@@ -158,6 +243,7 @@
     {
       "name": "inconclusive-may-lack-evidence",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "inconclusive",
@@ -170,6 +256,7 @@
     {
       "name": "gaps-yield-inconclusive",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "satisfied",
@@ -191,6 +278,7 @@
     {
       "name": "partial-coverage-valid",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "satisfied",
@@ -208,6 +296,7 @@
     {
       "name": "unknown-assessment",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "pass",
@@ -227,6 +316,7 @@
     {
       "name": "unknown-completed-coverage",
       "task": "checklist",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "satisfied",
@@ -246,6 +336,7 @@
     {
       "name": "standard-minimum",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "satisfied",
@@ -269,6 +360,7 @@
     {
       "name": "standard-too-few",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "satisfied",
@@ -288,6 +380,7 @@
     {
       "name": "standard-too-many",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "satisfied",
@@ -315,6 +408,7 @@
     {
       "name": "standard-disallowed-assessment",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "refuted",
@@ -338,6 +432,7 @@
     {
       "name": "standard-disallowed-kind",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "satisfied",
@@ -361,6 +456,7 @@
     {
       "name": "standard-inconclusive-no-minimum",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "inconclusive",
@@ -373,6 +469,7 @@
     {
       "name": "standard-inconclusive-still-maximum",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "inconclusive",
@@ -400,6 +497,7 @@
     {
       "name": "standard-inconclusive-still-kind",
       "task": "standard",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "inconclusive",
@@ -419,6 +517,7 @@
     {
       "name": "operation-not-tested",
       "task": "operation",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "not-tested",
@@ -431,6 +530,7 @@
     {
       "name": "operation-not-tested-with-coverage",
       "task": "operation",
+      "mode": "custom-checklist",
       "valid": false,
       "result": {
         "assessment": "not-tested",
@@ -445,6 +545,7 @@
     {
       "name": "operation-complete",
       "task": "operation",
+      "mode": "custom-checklist",
       "valid": true,
       "result": {
         "assessment": "satisfied",
@@ -454,6 +555,132 @@
         ],
         "gaps": [],
         "evidence": []
+      }
+    },
+    {
+      "name": "supported-custom-checklist",
+      "task": "checklist",
+      "mode": "custom-checklist",
+      "valid": false,
+      "result": {
+        "assessment": "supported",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      },
+      "error_field": "assessment"
+    },
+    {
+      "name": "supported-requirements-checklist",
+      "task": "checklist",
+      "mode": "requirements-verification",
+      "valid": false,
+      "result": {
+        "assessment": "supported",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      },
+      "error_field": "assessment"
+    },
+    {
+      "name": "supported-risk-checklist",
+      "task": "checklist",
+      "mode": "risk-assessment",
+      "valid": true,
+      "result": {
+        "assessment": "supported",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "supported-finding-check",
+      "task": "finding",
+      "mode": "finding-verification",
+      "valid": true,
+      "result": {
+        "assessment": "supported",
+        "summary": "Finding supported by source trace.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": []
+      }
+    },
+    {
+      "name": "supported-standard-requirements",
+      "task": "standard-supported",
+      "mode": "requirements-verification",
+      "valid": false,
+      "result": {
+        "assessment": "supported",
+        "summary": "Requirement is supported by evidence.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      },
+      "error_field": "assessment"
+    },
+    {
+      "name": "supported-standard-risk",
+      "task": "standard-supported",
+      "mode": "risk-assessment",
+      "valid": true,
+      "result": {
+        "assessment": "supported",
+        "summary": "Requirement is supported by evidence.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
       }
     }
   ]

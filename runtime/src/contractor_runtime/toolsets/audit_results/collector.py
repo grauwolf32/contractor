@@ -148,6 +148,17 @@ class InvocationAuditCollector:
                     item_key=key,
                 )
             return item
+        if (
+            item.assessment == "supported"
+            and task.get("profile_mode") != "risk-assessment"
+            and task.get("finding") is None
+        ):
+            raise AuditCollectionError(
+                "assessment",
+                "Use satisfied or violated for a non-risk checklist task; "
+                "supported is reserved for risk assessments and finding checks.",
+                item_key=key,
+            )
         conclusive = item.assessment in {"satisfied", "violated", "supported", "refuted"}
         standard = task.get("standard")
         if standard is not None:

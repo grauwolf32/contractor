@@ -40,6 +40,9 @@ func TestWSTGStandardInventoryRequiresActiveApprovalForEveryItem(t *testing.T) {
 		t.Fatalf("active WSTG inventory: %d tasks, %v", len(inventory.Tasks), err)
 	}
 	for _, task := range inventory.Tasks {
+		if task.Document.ProfileMode != string(profile.Mode) {
+			t.Fatalf("standard task lost profile mode: %s", task.Item.ItemKey)
+		}
 		if task.Item.ApprovalRequirement != auditdomain.ApprovalActiveCheck {
 			t.Fatalf("standard item bypasses active approval: %s", task.Item.ItemKey)
 		}

@@ -127,6 +127,7 @@ type WorklistItem struct {
 
 type ItemTask struct {
 	Schema                   string                `json:"schema"`
+	ProfileMode              string                `json:"profile_mode,omitempty"`
 	ItemKey                  string                `json:"item_key"`
 	Kind                     string                `json:"kind"`
 	SubjectKey               string                `json:"subject_key"`
@@ -362,6 +363,7 @@ type ChecklistEntry struct {
 
 type InventoryOptions struct {
 	Round               int
+	ProfileMode         string
 	WorkflowRole        string
 	SourceInputName     string
 	SourceRef           contracts.ArtifactRef

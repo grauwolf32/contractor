@@ -133,7 +133,7 @@ func (s *Service) PrepareNextRound(
 	}
 	roundOrdinal := snapshot.Round.Ordinal + 1
 	inventory, err := auditdomain.BuildFindingInventory(sourceBytes, auditdomain.InventoryOptions{
-		Round: roundOrdinal, WorkflowRole: profile.Inventory.ItemWorkflowRole,
+		Round: roundOrdinal, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
 		SourceInputName: "proposal_inventory", SourceRef: sourceArtifact.Ref,
 		Scope: baseline.Scope.Values(), ApprovalRequirement: approval,
 	})
