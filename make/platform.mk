@@ -47,7 +47,7 @@ test-run-metadata-labels-e2e: test-run-metadata-labels-hardening require-databas
 	go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$$'
 
 test-runtime-labels-e2e: require-database runtime-venv
-	go test -tags=e2e -count=1 -timeout=4m ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$$'
+	go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$$'
 
 test-project-workspaces-matrix: test-hardening-matrices
 

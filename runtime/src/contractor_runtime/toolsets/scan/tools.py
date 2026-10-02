@@ -320,8 +320,6 @@ class NucleiTool(JSONLinesScanTool):
             _url(url)
             _integer(rate_limit, "rate_limit", 1, 1000)
             command = [
-                "-u",
-                url,
                 "-jsonl",
                 "-silent",
                 "-no-color",
@@ -356,8 +354,20 @@ class NucleiTool(JSONLinesScanTool):
                 raise ScanInputError("severity contains an unsupported value")
             return command
 
+        async def prepare_target(directory: Path) -> list[str]:
+            # Nuclei's -u flag splits one URL at commas. A private one-line file
+            # preserves query commas without introducing a second target.
+            target = directory / "target.txt"
+            with target.open("xb") as stream:
+                os.fchmod(stream.fileno(), 0o600)
+                stream.write((url + "\n").encode("utf-8"))
+            return ["-l", str(target)]
+
         return await self._call(
-            timeout_seconds, arguments, destination=lambda: _url_destination(url)
+            timeout_seconds,
+            arguments,
+            destination=lambda: _url_destination(url),
+            prepare=prepare_target,
         )
 
 

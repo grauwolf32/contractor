@@ -135,6 +135,7 @@ func candidatePaths(root string, includeIgnored bool) ([]string, int, error) {
 	}
 
 	paths := make([]string, 0)
+	skipped := 0
 	err := filepath.WalkDir(root, func(hostPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -147,8 +148,22 @@ func candidatePaths(root string, includeIgnored bool) ([]string, int, error) {
 			return err
 		}
 		portable := filepath.ToSlash(relative)
+		if strings.EqualFold(entry.Name(), ".git") {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if entry.IsDir() {
-			if portable == ".git" || portable == ".contractor" || strings.HasPrefix(portable, ".git/") || strings.HasPrefix(portable, ".contractor/") {
+			if portable == ".contractor" {
+				return filepath.SkipDir
+			}
+			nested, err := containsGitMarker(hostPath)
+			if err != nil {
+				return err
+			}
+			if nested {
+				skipped++
 				return filepath.SkipDir
 			}
 			return nil
@@ -159,7 +174,20 @@ func candidatePaths(root string, includeIgnored bool) ([]string, int, error) {
 	if err != nil {
 		return nil, 0, fmt.Errorf("walk source directory: %w", err)
 	}
-	return paths, 0, nil
+	return paths, skipped, nil
+}
+
+func containsGitMarker(directory string) (bool, error) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(entry.Name(), ".git") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // skipNestedRepositories drops submodule gitlinks and untracked nested
@@ -280,13 +308,12 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 	var expanded int64
 	for _, candidate := range paths {
 		candidate = strings.TrimPrefix(filepath.ToSlash(candidate), "./")
-		if candidate == ".git" || strings.HasPrefix(candidate, ".git/") ||
-			candidate == ".contractor" || strings.HasPrefix(candidate, ".contractor/") {
-			continue
-		}
 		portable, err := portablePath(candidate)
 		if err != nil {
 			return nil, 0, err
+		}
+		if containsGitComponent(portable) || portable == ".contractor" || strings.HasPrefix(portable, ".contractor/") {
+			continue
 		}
 		if _, duplicate := seen[portable]; duplicate {
 			return nil, 0, fmt.Errorf("source paths collide after normalization: %s", portable)
@@ -320,6 +347,15 @@ func inspectFiles(root string, paths []string) ([]sourceFile, int64, error) {
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].path < files[j].path })
 	return files, expanded, nil
+}
+
+func containsGitComponent(path string) bool {
+	for _, part := range strings.Split(path, "/") {
+		if strings.EqualFold(part, ".git") {
+			return true
+		}
+	}
+	return false
 }
 
 func portablePath(value string) (string, error) {

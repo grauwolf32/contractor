@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V67-003
+title: Ensure Nuclei receives exactly one policy-checked scan target
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: completed
+implementation_commit: 775e416a7428cc82cdaf112d23329fb197331bc2
+depends_on: []
+languages: [python, go]
+goal: Prevent comma-containing URLs from becoming additional unchecked Nuclei targets.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/159
+  finding: >-
+    Nuclei's -u parser treats commas as separators. Runtime checks the first
+    URL host as one string, then Nuclei can scan a second, denied destination.
+scope:
+  in:
+    - Pass each validated URL to Nuclei in a private single-entry target file or reject comma URLs before launch.
+    - Cover direct scan_nuclei calls and scan-plan-produced jobs with regression tests.
+    - Verify the second fixture origin receives no requests in a live test when the scanner is installed.
+  out:
+    - Change target policy for other scan adapters.
+acceptance_criteria:
+  - id: A1
+    text: No Nuclei invocation interprets a comma in one validated URL as another target.
+  - id: A2
+    text: Target file permissions and cleanup are bounded to the scan call if file input is used.
+  - id: A3
+    text: Direct, planned and installed-scanner regressions cover a second origin after a comma.
+tests:
+  - command: cd runtime && uv run pytest tests/test_scan_toolset.py -q
+    covers: [A1, A2]
+  - command: go test ./internal/scanplan
+    covers: [A3]
+verification:
+  runtime: test_scan_toolset.py passed, including the installed Nuclei two-origin fixture and private target-file mode/cleanup checks.
+  planner: go test ./internal/scanplan passed; the comma URL remains one exact planned target.
+  lint: Ruff check and format passed on changed Runtime files.

@@ -112,6 +112,18 @@ func TestBuildPlanDeterminismAndDeduplicationPreserveEverySource(t *testing.T) {
 	}
 }
 
+func TestBuildPlanKeepsCommaInOneNucleiTarget(t *testing.T) {
+	policy, bindings := planFixture("scan_nuclei")
+	target := "https://app.example/?q=1,http://169.254.169.254/latest/meta-data/"
+	plan := buildPlan(t, planInput(target+"\n"), policy, bindings, nil)
+	if len(plan.Jobs) != 1 {
+		t.Fatalf("expected one job for one source line, got %d", len(plan.Jobs))
+	}
+	if got := plan.Jobs[0].Parameters["target"]; got != target {
+		t.Fatalf("comma target changed across planning: %q", got)
+	}
+}
+
 func TestBuildPlanRejectsInvalidBindingsEvenWhenAllInputsAreSkipped(t *testing.T) {
 	for _, name := range []string{"dynamic slot", "result slot", "extra worker"} {
 		t.Run(name, func(t *testing.T) {

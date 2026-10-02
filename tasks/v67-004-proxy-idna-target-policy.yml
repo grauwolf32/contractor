@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V67-004
+title: Apply HTTP proxy target policy to the canonical destination host
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: completed
+implementation_commit: 6e4b1587e62e4482db74f4772495b8564fae771a
+depends_on: []
+languages: [python]
+goal: Refuse metadata, loopback and Runtime endpoints written with Unicode dot variants.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/153
+  finding: >-
+    urllib leaves Unicode dot variants in the host while httpx IDNA-encodes
+    them to ASCII dots before proxy transport; the policy checks only the raw host.
+scope:
+  in:
+    - Check the effective host and port of the built httpx request before proxy sends it.
+    - Align policy host canonicalization for direct calls and redirect validation.
+    - Cover Unicode dot variants and redirects in proxy and target-policy tests.
+  out:
+    - Change direct-route DNS enforcement.
+acceptance_criteria:
+  - id: A1
+    text: Proxy sends no request to denied hosts written with U+3002, U+FF0E or U+FF61 separators.
+  - id: A2
+    text: Redirects to a denied canonical destination fail before the next hop.
+  - id: A3
+    text: Protected Runtime names and loopback ports have the same result with ASCII and Unicode dots.
+tests:
+  - command: cd runtime && uv run pytest tests/test_http_target_policy.py tests/test_target_policy.py -q
+    covers: [A1, A2, A3]
+verification:
+  tests: Proxy, target-policy and redirect tests passed for U+3002, U+FF0E and U+FF61; the broader HTTP proxy/redirect and scanner test selection also passed.
+  lint: Ruff check and format passed on changed Runtime files.

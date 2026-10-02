@@ -324,7 +324,7 @@ func createMetadataRun(
 		http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers,
 	)
 	var result metadataRunCreateResponse
-	if err := json.Unmarshal(created.body, &result); err != nil || result.RunID == "" || result.State != "running" ||
+	if err := json.Unmarshal(created.body, &result); err != nil || result.RunID == "" || !isRunAdmissionState(result.State) ||
 		result.Labels == nil || !reflect.DeepEqual(result.RuntimeLabels, runtimeLabels) ||
 		!maps.Equal(result.Labels, labels) {
 		t.Fatalf("create metadata Run = (%+v, %v): %s", result, err, created.body)

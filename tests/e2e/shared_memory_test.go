@@ -291,7 +291,7 @@ func createEmptyWorkflowRun(
 	defer response.Body.Close()
 	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
-	if payload.RunID == "" || payload.State != "running" {
+	if payload.RunID == "" || !isRunAdmissionState(payload.State) {
 		t.Fatalf("create empty Run response = %+v", payload)
 	}
 	return payload.RunID

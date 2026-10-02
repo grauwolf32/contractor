@@ -1,0 +1,42 @@
+schema_version: '1.0'
+id: V67-006
+title: Align release process tests with asynchronous Run admission and recovery
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: completed
+implementation_commit: de1b3866203b3ad57fac896e3e98aa0df6a32c80
+depends_on: []
+languages: [go]
+goal: Let the release gate exercise process tests after asynchronous Run creation.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/172
+  finding: >-
+    Run creation returns pending before asynchronous admission, but several e2e
+    helpers require running and stop release-verify before later gates run. Once
+    those checks are fixed, the Runtime label test also waits for a proxy 502
+    to fail a Run, although Gateway recovery now parks it in waiting.
+scope:
+  in:
+    - Accept initializing, pending or running create responses in relevant e2e helpers.
+    - Keep terminal-state waits and state-specific expectations for skill initialization.
+    - Assert that a recoverable proxy outage enters waiting, then cancel it and verify allocation reuse.
+    - Confirm the release gate reaches later e2e targets.
+  out:
+    - Change production Run creation or scheduler admission.
+acceptance_criteria:
+  - id: A1
+    text: No e2e create helper rejects a valid pending response solely because admission is asynchronous.
+  - id: A2
+    text: The Runtime label process test checks recovery and cancellation without waiting for the five-minute automatic window.
+  - id: A3
+    text: Focused process tests pass and release-verify reaches its later targets.
+tests:
+  - command: go test -tags=e2e ./tests/e2e -run '^(TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestLocalGoToPythonArtifactCopy)$' -count=1 -timeout=15m
+    covers: [A1, A2, A3]
+verification_requirements:
+  - Confirm release-verify passes test-runtime-labels-e2e and starts a later target.
+verification:
+  focused: All four affected process tests passed together in 338 seconds against isolated PostgreSQL schemas.
+  release_progress: release-verify passed Go/Python/UI checks and test-runtime-labels-e2e (134 seconds), then started tests/ui-stack.
+  scope_boundary: The broad release command was interrupted during the downstream browser suite after the required progression was observed; this is not a claim that the complete release gate passed.

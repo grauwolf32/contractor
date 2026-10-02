@@ -400,7 +400,7 @@ func createCodeAnalysisRun(
 	defer response.Body.Close()
 	var payload runStatus
 	decodeResponse(t, response, &payload)
-	if payload.RunID == "" || payload.State != "running" {
+	if payload.RunID == "" || !isRunAdmissionState(payload.State) {
 		t.Fatalf("create code-analysis Run response = %+v", payload)
 	}
 	return payload.RunID

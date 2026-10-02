@@ -116,9 +116,13 @@ def install_echo_scanners(tmp_path, monkeypatch):
         executable(
             tmp_path,
             scanner.binary,
-            "import json, os, sys\n"
-            "print(json.dumps({'args': sys.argv[1:], 'env': dict(os.environ), "
-            "'cwd': os.getcwd()}))",
+            "import json, os, pathlib, stat, sys\n"
+            "args = sys.argv[1:]\n"
+            "target = pathlib.Path(args[args.index('-l') + 1]) if '-l' in args else None\n"
+            "print(json.dumps({'args': args, 'env': dict(os.environ), "
+            "'cwd': os.getcwd(), "
+            "'targetFile': target.read_text() if target else None, "
+            "'targetMode': stat.S_IMODE(target.stat().st_mode) if target else None}))",
         )
     monkeypatch.setenv("PATH", str(tmp_path))
 
@@ -154,7 +158,10 @@ def test_selection_adk_arguments_isolation_metrics_and_cleanup(tmp_path, monkeyp
         assert nuclei["status"] == "completed"
         captured = nuclei["results"][0]
         args = captured["args"]
-        assert args[args.index("-u") + 1] == "https://target.invalid/?q=$(touch%20owned)"
+        assert "-u" not in args
+        assert args[args.index("-l") + 1].endswith("/target.txt")
+        assert captured["targetFile"] == "https://target.invalid/?q=$(touch%20owned)\n"
+        assert captured["targetMode"] == 0o600
         assert args[args.index("-type") + 1] == "http"
         assert args[args.index("-rate-limit") + 1] == "3"
         assert args[args.index("-t") + 1] == str(tmp_path / "templates")
@@ -192,6 +199,24 @@ def test_selection_adk_arguments_isolation_metrics_and_cleanup(tmp_path, monkeyp
         assert set(selected) == {"scan_naabu"}
         with pytest.raises(ValueError, match="unknown selected"):
             await make_tools(tmp_path, selected=["exec_command"])
+
+    asyncio.run(scenario())
+
+
+def test_nuclei_comma_url_remains_one_private_target(tmp_path, monkeypatch):
+    install_echo_scanners(tmp_path, monkeypatch)
+    url = "http://target.invalid/?q=1,http://169.254.169.254/latest/meta-data/"
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        result = await tools["scan_nuclei"](url)
+        assert result["status"] == "completed", result
+        captured = result["results"][0]
+        assert "-u" not in captured["args"]
+        assert captured["targetFile"] == url + "\n"
+        assert captured["targetMode"] == 0o600
+        assert not Path(captured["cwd"]).exists()
+        await tools["scan_nuclei"].close()
 
     asyncio.run(scenario())
 
@@ -596,5 +621,52 @@ def test_installed_nuclei_with_local_http_fixture(tmp_path):
         assert [item["template-id"] for item in result["results"]] == ["contractor-test-http"]
         await tools["scan_nuclei"].close()
         assert list((tmp_path / "workspace").iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("nuclei") is None, reason="optional nuclei binary is absent")
+def test_installed_nuclei_comma_url_does_not_scan_second_origin(tmp_path):
+    requests = {"allowed": 0, "other": 0}
+
+    def handler(origin):
+        async def handle(reader, writer):
+            try:
+                await reader.readuntil(b"\r\n\r\n")
+                requests[origin] += 1
+                body = b"contractor-scan-fixture"
+                writer.write(
+                    b"HTTP/1.1 200 OK\r\nConnection: close\r\n"
+                    + f"Content-Length: {len(body)}\r\n\r\n".encode()
+                    + body
+                )
+                await writer.drain()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        return handle
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        (tmp_path / "templates" / "fixture.yaml").write_text(
+            "id: contractor-test-http\n"
+            "info:\n  name: Local test fixture\n  author: contractor\n  severity: info\n"
+            "http:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n"
+        )
+        async with (
+            await asyncio.start_server(handler("allowed"), "127.0.0.1", 0) as allowed,
+            await asyncio.start_server(handler("other"), "127.0.0.1", 0) as other,
+        ):
+            allowed_port = allowed.sockets[0].getsockname()[1]
+            other_port = other.sockets[0].getsockname()[1]
+            url = f"http://127.0.0.1:{allowed_port}/?q=1,http://127.0.0.1:{other_port}/"
+            result = await tools["scan_nuclei"](
+                url, template_ids="contractor-test-http", timeout_seconds=20
+            )
+        assert result["status"] == "completed", result
+        assert requests["allowed"] > 0
+        assert requests["other"] == 0
+        await tools["scan_nuclei"].close()
 
     asyncio.run(scenario())

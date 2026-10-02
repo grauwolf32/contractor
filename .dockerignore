@@ -1,31 +1,19 @@
-.git/
-.venv/
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-__pycache__/
-*.pyc
-*.pyo
+# The independent UI image consumes only these two source trees.
+*
+!ui/
+!api/
 
-# local artifacts / scratch dirs
-artifacts/
-.artifacts*/
-.contractor/
-metrics/
-old/
-
-# secrets and local config
-.env
-.env.*
-*.env
-
-# tests, docs, IDE
-tests/
-docs/
-.claude/
-.vscode/
-.idea/
-.coverage
-ui/node_modules/
+# Keep local credentials, dependency caches and generated test output out of
+# both the image layer and any context sent to a remote builder.
+**/.git/
+**/.local/
+**/.venv/
+**/node_modules/
 ui/dist/
 ui/coverage/
+ui/test-results/
+ui/playwright-report/
+**/.env
+**/.env.*
+**/*.env
+**/*.env.*
