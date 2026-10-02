@@ -3,7 +3,8 @@ id: V72-001
 title: Refresh Eval stop-command revisions before sending
 milestone: eval-revision-race-recovery-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 7eca6aa80040e2f36e59167679528330537b52a9
 depends_on: []
 languages: [typescript]
 goal: Let operators pause, resume or cancel busy experiments without stale CAS failures.
@@ -30,3 +31,6 @@ acceptance_criteria:
 tests:
   - command: cd ui && vitest run src/routes/evals-setup.test.tsx
     covers: [A1, A2, A3]
+verification:
+  focused: Cancel, Pause conflict retry, uncertain Pause replay and Start pin tests passed.
+  broad: Full UI suite passed (684 tests); TypeScript, ESLint, Prettier and production build passed.

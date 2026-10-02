@@ -3,7 +3,8 @@ id: V72-002
 title: Select human Eval assessments with current revision
 milestone: eval-revision-race-recovery-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 551ebb7cef5a476c7815bce81c9872b131ec6296
 depends_on: []
 languages: [typescript]
 goal: Save human review decisions despite unrelated experiment progress.
@@ -30,3 +31,6 @@ acceptance_criteria:
 tests:
   - command: cd ui && vitest run src/routes/evals-comparison.test.tsx
     covers: [A1, A2, A3]
+verification:
+  focused: Progress, 412 reload, decision retention, assessment replay and changed-result tests passed.
+  broad: Full UI suite passed (684 tests); TypeScript, ESLint, Prettier and production build passed.
