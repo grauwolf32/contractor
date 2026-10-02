@@ -153,6 +153,136 @@ describe("Managed Eval comparisons", () => {
     ).toBe('"1"');
   });
 
+  it("selects a human assessment after unrelated experiment progress", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Checked the retained source",
+    );
+    fixture.state.experiment.revision += 3;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      fixture.state.requests.find((request) =>
+        request.path.endsWith("/selections"),
+      )?.etag,
+    ).toBe('"4"');
+    expect(
+      fixture.state.requests.filter((request) =>
+        request.path.endsWith("/assessments"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("reloads a selection conflict while retaining the review and assessment", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "fail",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Observed an unsafe path",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "evidence-1" }));
+    fixture.state.staleSelection = true;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await screen.findByText("eval_revision_mismatch");
+    fixture.state.staleSelection = false;
+    fixture.state.experiment.revision += 2;
+    await user.click(
+      screen.getByRole("button", { name: "Reload current revision" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("eval_revision_mismatch"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Decision for evidence-review")).toHaveValue(
+      "fail",
+    );
+    expect(screen.getByLabelText("Reason for evidence-review")).toHaveValue(
+      "Observed an unsafe path",
+    );
+    expect(screen.getByRole("checkbox", { name: "evidence-1" })).toBeChecked();
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Review result" }),
+      ).not.toBeInTheDocument(),
+    );
+    const assessments = fixture.state.requests.filter((request) =>
+      request.path.endsWith("/assessments"),
+    );
+    expect(assessments).toHaveLength(2);
+    expect(assessments[1]).toMatchObject({
+      key: assessments[0]?.key,
+      body: assessments[0]?.body,
+    });
+    expect(
+      fixture.state.requests
+        .filter((request) => request.path.endsWith("/selections"))
+        .at(-1)?.etag,
+    ).toBe('"3"');
+  });
+
+  it("does not record a review if that member's result changed while it was open", async () => {
+    const fixture = createEvalFixture({ prepared: true });
+    const user = userEvent.setup();
+    start(
+      fixture,
+      `/evals/experiments/experiment-1/pairs/${pairs.items[0]!.pairId}`,
+    );
+    await user.click(await screen.findByRole("button", { name: "Review A" }));
+    await screen.findByText("PRIVATE_RUBRIC_SENTINEL");
+    await user.selectOptions(
+      screen.getByLabelText("Decision for evidence-review"),
+      "pass",
+    );
+    await user.type(
+      screen.getByLabelText("Reason for evidence-review"),
+      "Existing decision",
+    );
+    fixture.state.staleReview = true;
+    await user.click(
+      screen.getByRole("button", { name: "Save and select assessment" }),
+    );
+    expect(await screen.findByText(/A newer result is selected/)).toBeVisible();
+    expect(
+      fixture.state.requests.some((request) =>
+        request.path.endsWith("/assessments"),
+      ),
+    ).toBe(false);
+  });
+
   it("prevents a human verdict from applying to evidence changed since the pair snapshot", async () => {
     const fixture = createEvalFixture({ prepared: true });
     fixture.state.staleReview = true;

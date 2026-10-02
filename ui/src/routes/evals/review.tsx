@@ -31,14 +31,15 @@ export function EvalHumanReview({
   const api = usePublicAPI(),
     owner = useEvalOwner(),
     cache = useQueryClient();
+  const reviewKey = [
+    "evals",
+    "review",
+    experiment.experimentId,
+    member.member.memberId,
+    member.resultSha256,
+  ];
   const review = useQuery({
-    queryKey: [
-      "evals",
-      "review",
-      experiment.experimentId,
-      member.member.memberId,
-      member.resultSha256,
-    ],
+    queryKey: reviewKey,
     queryFn: () =>
       getEvalReview(api, experiment.experimentId, member.member.memberId),
     gcTime: 0,
@@ -63,15 +64,25 @@ export function EvalHumanReview({
       [id]: { status: "", reason: "", evidence: [], ...current[id], ...patch },
     }));
   }
+  async function readCurrentReview() {
+    const context = await getEvalReview(
+      api,
+      experiment.experimentId,
+      member.member.memberId,
+    );
+    cache.setQueryData(reviewKey, context);
+    if (context.resultSha256 !== member.resultSha256)
+      throw new Error(
+        "The selected evidence changed. Reload the pair and review it again.",
+      );
+    return context;
+  }
   const save = useMutation({
     mutationFn: async () => {
-      const context = review.data;
-      if (
-        !context ||
-        context.resultSha256 !== member.resultSha256 ||
-        !context.revision ||
-        !experiment.planSha256
-      )
+      // The panel can stay open while unrelated members advance the Eval.
+      // Check its evidence again before recording an immutable assessment.
+      const context = await readCurrentReview();
+      if (!context.revision || !experiment.planSha256)
         throw new Error(
           "The selected evidence changed. Reload the pair and review it again.",
         );
@@ -132,7 +143,12 @@ export function EvalHumanReview({
           },
         ],
       };
-      const { revision } = context;
+      // Assessment creation is not CAS protected. Refresh immediately before
+      // selecting so coordinator progress cannot strand the recorded result.
+      const latest = await readCurrentReview();
+      if (!latest.revision)
+        throw new Error("The current review revision is unavailable.");
+      const { revision } = latest;
       const correlation = { selection, revision };
       await recoverableMutation(
         owner,
@@ -163,7 +179,16 @@ export function EvalHumanReview({
         This decision is recorded under your account and cannot be changed
         later.
       </p>
-      <EvalError error={review.error ?? save.error} />
+      <EvalError
+        error={review.error ?? save.error}
+        reload={
+          review.error || save.error
+            ? () => {
+                void review.refetch().then(() => save.reset());
+              }
+            : undefined
+        }
+      />
       {changed ? (
         <p role="alert">
           A newer result is selected. Close this review and refresh the pair
