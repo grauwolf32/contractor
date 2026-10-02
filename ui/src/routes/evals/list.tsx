@@ -2,15 +2,12 @@ import { useDocumentTitle } from "../../app/document-title";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
-import {
-  EVAL_POLL_MS,
-  listEvalExperiments,
-  type EvalListQuery,
-} from "../../api/evals";
+import { listEvalExperiments, type EvalListQuery } from "../../api/evals";
 import { EvalError, EvalField, EvalFrame } from "./common";
 import { useEvalProjects } from "./queries";
 import { RecordedTime } from "../../app/recorded-time";
 import { StateBadge } from "../runs/components";
+import { evalListPollInterval } from "./polling";
 
 const EVAL_STATES = [
   "draft",
@@ -48,7 +45,8 @@ export function EvalListRoute() {
   const list = useQuery({
     queryKey: ["evals", "list", query],
     queryFn: ({ signal }) => listEvalExperiments(api, query, signal),
-    refetchInterval: cursor ? false : EVAL_POLL_MS,
+    refetchInterval: (loaded) =>
+      evalListPollInterval(loaded.state.data?.items, !!cursor),
   });
   function filter(key: string, value: string) {
     const next = new URLSearchParams(params);
