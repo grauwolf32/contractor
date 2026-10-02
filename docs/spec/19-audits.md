@@ -510,7 +510,10 @@ version. The exact task package is the authoritative join to its entry IDs and
 evidence contract. A proposal associated with the result must name every
 assigned entry using the same pinned scheme/version. The importer reopens the
 retained package, rejects unknown, duplicate, unpinned, or wrong-version
-references, and never accepts model-authored standard membership.
+references, and never accepts model-authored standard membership. The bundled
+`CWE@4.20` weakness catalog is the sole non-pinned exception: known IDs are
+retained as incidental classifications, while unknown IDs and versions are
+rejected. A CWE classification never satisfies an assigned standard entry.
 
 ## 6. Durable domain model
 

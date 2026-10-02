@@ -229,6 +229,7 @@ def test_scope_replay_automate_and_workflow_actions_are_exact_and_bounded(
             "UpdateAutomateSession",
             "StartAutomateTask",
             "RunConvertWorkflow",
+            "RequestDetail",
             "RunActiveWorkflow",
         ]
         assert state.metrics.counters["tool_calls"] == 5
@@ -538,6 +539,10 @@ def test_domain_rejection_is_bounded_and_mismatched_identity_is_invalid(
                     "scope": None,
                 }
             }
+        elif operation == "RequestDetail":
+            data = {
+                "request": request_detail(b"GET / HTTP/1.1\r\nHost: target.example\r\n\r\n", b"")
+            }
         elif operation == "RunActiveWorkflow":
             data = {
                 "runActiveWorkflow": {
@@ -567,7 +572,7 @@ def test_domain_rejection_is_bounded_and_mismatched_identity_is_invalid(
         with pytest.raises(CaidoToolError) as invalid:
             await tools["caido_workflow_run"]("workflow", request_id="request-1")
         assert invalid.value.code == "caido_response_invalid"
-        assert calls == 2
+        assert calls == 3
         await handle.close()
 
     asyncio.run(scenario())
