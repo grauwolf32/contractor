@@ -1121,6 +1121,141 @@ describe("Runtime Agent cards", () => {
     return undefined;
   }
 
+  it("loads later principal and label pages so online and offline identities remain editable", async () => {
+    const offlineBase: RuntimeAgentPrincipal = { ...principalBase };
+    delete offlineBase.live;
+    const firstPrincipals: RuntimeAgentPrincipal[] = Array.from(
+      { length: 50 },
+      (_, index) => ({
+        ...offlineBase,
+        runtimeAgentId: (index + 1).toString(16).padStart(64, "0"),
+        labels: [],
+        availability: "offline",
+        requiredRuntimeAdapters: [],
+      }),
+    );
+    const lateOnline: RuntimeAgentPrincipal = {
+      ...principalBase,
+      runtimeAgentId: "e".repeat(64),
+      labels: ["zz-scan"],
+      live: { ...principalBase.live!, instanceId: "runtime-page-two" },
+    };
+    let lateOffline: RuntimeAgentPrincipal = {
+      ...offlineBase,
+      runtimeAgentId: "f".repeat(64),
+      labels: ["zz-scan"],
+      availability: "offline",
+      requiredRuntimeAdapters: [],
+    };
+    let forgotten = false;
+    const firstBindings = Array.from({ length: 50 }, (_, index) => ({
+      ...bindings[0]!,
+      label: `label-${String(index).padStart(2, "0")}`,
+    }));
+    const lateBinding = { ...bindings[0]!, label: "zz-scan" };
+    const cursors: string[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const authenticated = sessionResponse(request);
+        if (authenticated !== undefined) return authenticated;
+        const url = new URL(request.url);
+        const cursor = url.searchParams.get("cursor");
+        if (url.pathname === "/v1/operations/snapshot")
+          return apiResponse(snapshot());
+        if (url.pathname === "/v1/operations/runtime-labels") {
+          cursors.push(`labels:${cursor ?? "first"}`);
+          return apiResponse(
+            cursor === null
+              ? {
+                  items: firstBindings,
+                  page: { hasMore: true, nextCursor: "labels-next" },
+                }
+              : { items: [lateBinding], page: { hasMore: false } },
+          );
+        }
+        if (url.pathname === "/v1/operations/runtime-agent-principals") {
+          cursors.push(`principals:${cursor ?? "first"}`);
+          return apiResponse(
+            cursor === null
+              ? {
+                  items: firstPrincipals,
+                  page: { hasMore: true, nextCursor: "principals-next" },
+                }
+              : {
+                  items: forgotten ? [lateOnline] : [lateOnline, lateOffline],
+                  page: { hasMore: false },
+                },
+          );
+        }
+        if (
+          url.pathname ===
+            `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}/labels` &&
+          request.method === "PUT"
+        ) {
+          const body = (await request.json()) as { labels: string[] };
+          lateOffline = { ...lateOffline, labels: body.labels, revision: "2" };
+          return apiResponse(lateOffline, 200, { ETag: '"2"' });
+        }
+        if (
+          url.pathname ===
+            `/v1/operations/runtime-agent-principals/${lateOffline.runtimeAgentId}` &&
+          request.method === "DELETE"
+        ) {
+          forgotten = true;
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    const online = await screen.findByRole("article", { name: "zz-scan" });
+    expect(within(online).getByText("runtime-page-two")).toBeInTheDocument();
+    expect(
+      within(online).getByRole("button", { name: "Edit labels" }),
+    ).toBeEnabled();
+    expect(cursors).toContain("principals:principals-next");
+    expect(cursors).toContain("labels:labels-next");
+
+    const user = userEvent.setup();
+    const offline = screen.getByRole("group", {
+      name: "Offline identities (51)",
+    });
+    await user.click(
+      within(offline).getByRole("button", { name: "Edit labels for zz-scan" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    const lateCheckbox = within(dialog).getByRole("checkbox", {
+      name: /zz-scan/,
+    });
+    expect(lateCheckbox).toBeChecked();
+    expect(within(dialog).queryByText(/no longer bound/i)).toBeNull();
+    await user.click(lateCheckbox);
+    expect(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    ).toBeEnabled();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Edit Agent labels" }),
+      ).toBeNull(),
+    );
+    const forget = within(offline).getByRole("button", {
+      name: /Forget Agent ffffff…ffff/,
+    });
+    await waitFor(() => expect(forget).toBeEnabled());
+    await user.click(forget);
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Forget identity",
+      }),
+    );
+    await waitFor(() => expect(forgotten).toBe(true));
+  });
+
   it("copies the stable ID and edits labels on demand without saving a dismissed draft", async () => {
     const user = userEvent.setup();
     const copy = vi.spyOn(navigator.clipboard, "writeText");
