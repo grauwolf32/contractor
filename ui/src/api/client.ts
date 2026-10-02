@@ -125,6 +125,30 @@ export class PublicAPI {
     }
     const apiOrigin = validateAPIBaseURL(runtimeConfig.apiBaseUrl);
     this.#apiOrigin = apiOrigin;
+    const send = async (request: Request): Promise<Response> => {
+      let response: Response;
+      try {
+        response = await fetchImplementation(request);
+      } catch {
+        throw publicAPIError(0, {
+          code: "network_error",
+          message: "Public API is unavailable",
+          retryable: true,
+        });
+      }
+      const values = response.headers
+        .get(PUBLIC_API_VERSION_HEADER)
+        ?.split(",")
+        .map((value) => value.trim());
+      if (
+        values === undefined ||
+        values.length !== 1 ||
+        values[0] !== PUBLIC_API_VERSION
+      ) {
+        throw new APICompatibilityError(values?.[0]);
+      }
+      return response;
+    };
     const checkedFetch = async (request: Request): Promise<Response> => {
       const csrfAtStart = this.csrf.get();
       const requestURL = new URL(request.url);
@@ -151,32 +175,56 @@ export class PublicAPI {
         headers.set("X-CSRF-Token", csrf);
         outgoingRequest = new Request(request, { headers });
       }
-      let response: Response;
-      try {
-        response = await fetchImplementation(outgoingRequest);
-      } catch {
-        throw publicAPIError(0, {
-          code: "network_error",
-          message: "Public API is unavailable",
-          retryable: true,
-        });
-      }
-      const values = response.headers
-        .get(PUBLIC_API_VERSION_HEADER)
-        ?.split(",")
-        .map((value) => value.trim());
+      const replayable =
+        unsafe &&
+        !isLogin &&
+        ["Idempotency-Key", "If-Match", "If-None-Match"].some((name) =>
+          outgoingRequest.headers.has(name),
+        );
+      const replayRequest = replayable ? outgoingRequest.clone() : undefined;
+      let response = await send(outgoingRequest);
+      let csrfAtAttempt = csrfAtStart;
       if (
-        values === undefined ||
-        values.length !== 1 ||
-        values[0] !== PUBLIC_API_VERSION
+        response.status === 403 &&
+        unsafe &&
+        !isLogin &&
+        csrfAtStart === this.csrf.get()
       ) {
-        throw new APICompatibilityError(values?.[0]);
+        // Another tab can replace the shared cookie while this tab still has
+        // the previous session's token. A 403 alone is not proof of that: the
+        // Server also uses it for origin and capability denials.
+        let refreshed: AuthSession | null = null;
+        try {
+          refreshed = await this.getSession();
+        } catch {
+          // Preserve the original 403 when the session read is unavailable.
+        }
+        const freshToken = this.csrf.get();
+        if (
+          refreshed !== null &&
+          freshToken === refreshed.csrfToken &&
+          freshToken !== csrfAtStart
+        ) {
+          await response.body?.cancel().catch(() => undefined);
+          if (replayRequest === undefined) {
+            throw publicAPIError(403, {
+              code: "session_refreshed",
+              message:
+                "Your session changed in another tab. Try this action again.",
+              retryable: false,
+            });
+          }
+          const headers = new Headers(replayRequest.headers);
+          headers.set("X-CSRF-Token", freshToken);
+          csrfAtAttempt = freshToken;
+          response = await send(new Request(replayRequest, { headers }));
+        }
       }
       if (
         response.status === 401 &&
         !isLogin &&
         requestURL.pathname !== "/v1/auth/session" &&
-        csrfAtStart === this.csrf.get()
+        csrfAtAttempt === this.csrf.get()
       ) {
         this.csrf.clear();
         for (const listener of this.#unauthorizedListeners) {

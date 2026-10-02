@@ -360,3 +360,114 @@ describe("authoritative domain authentication failures", () => {
     expect(api.csrf.get()).toBeUndefined();
   });
 });
+
+describe("CSRF refresh after another tab replaces the session", () => {
+  function sharedCookieFetch() {
+    let cookieToken = session.csrfToken;
+    const mutationAttempts: Array<{ token: string | null; body: string }> = [];
+    let sessionReads = 0;
+    const fetchImplementation = vi.fn<typeof fetch>(async (input) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/auth/session") {
+        sessionReads++;
+        return apiResponse({ ...session, csrfToken: cookieToken });
+      }
+      if (path === "/v1/auth/login") {
+        cookieToken = "b".repeat(43);
+        return apiResponse({ ...session, csrfToken: cookieToken });
+      }
+      mutationAttempts.push({
+        token: request.headers.get("X-CSRF-Token"),
+        body: await request.text(),
+      });
+      return request.headers.get("X-CSRF-Token") === cookieToken
+        ? apiResponse({ ok: true })
+        : apiResponse(
+            { code: "forbidden", message: "CSRF token is invalid" },
+            403,
+          );
+    });
+    return {
+      fetchImplementation,
+      mutationAttempts,
+      get sessionReads() {
+        return sessionReads;
+      },
+    };
+  }
+
+  it("retries a guarded mutation once with the new token and original body", async () => {
+    const shared = sharedCookieFetch();
+    const tabA = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    const tabB = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    await tabA.getSession();
+    await tabB.getSession();
+    await tabA.login({ username: "owner", password: "password" });
+
+    const response = await tabB.fetch("/v1/projects", {
+      method: "POST",
+      headers: { "Idempotency-Key": "create-project-1" },
+      body: JSON.stringify({ name: "project" }),
+    });
+    expect(response.status).toBe(200);
+    expect(shared.sessionReads).toBe(3);
+    expect(tabB.csrf.get()).toBe("b".repeat(43));
+    expect(shared.mutationAttempts).toEqual([
+      { token: session.csrfToken, body: '{"name":"project"}' },
+      { token: "b".repeat(43), body: '{"name":"project"}' },
+    ]);
+  });
+
+  it("refreshes a non-idempotent request without replaying it", async () => {
+    const shared = sharedCookieFetch();
+    const tabA = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    const tabB = new PublicAPI(runtimeConfig, shared.fetchImplementation);
+    await tabA.getSession();
+    await tabB.getSession();
+    await tabA.login({ username: "owner", password: "password" });
+
+    await expect(
+      tabB.fetch("/v1/test-action", { method: "POST", body: "payload" }),
+    ).rejects.toMatchObject({
+      code: "session_refreshed",
+      message: "Your session changed in another tab. Try this action again.",
+    });
+    expect(shared.mutationAttempts).toHaveLength(1);
+    expect(tabB.csrf.get()).toBe("b".repeat(43));
+    const response = await tabB.fetch("/v1/test-action", {
+      method: "POST",
+      body: "payload",
+    });
+    expect(response.status).toBe(200);
+    expect(shared.mutationAttempts).toHaveLength(2);
+  });
+
+  it("does not retry an unrelated forbidden mutation when the token is unchanged", async () => {
+    let sessionReads = 0;
+    let mutations = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (request) => {
+        if (request.url.endsWith("/v1/auth/session")) {
+          sessionReads++;
+          return apiResponse(session);
+        }
+        mutations++;
+        return apiResponse(
+          { code: "forbidden", message: "Capability denied" },
+          403,
+        );
+      }),
+    );
+    await api.getSession();
+    const response = await api.fetch("/v1/protected", {
+      method: "POST",
+      headers: { "Idempotency-Key": "guarded-action-1" },
+    });
+    expect(response.status).toBe(403);
+    expect(sessionReads).toBe(2);
+    expect(mutations).toBe(1);
+    expect(api.csrf.get()).toBe(session.csrfToken);
+  });
+});
