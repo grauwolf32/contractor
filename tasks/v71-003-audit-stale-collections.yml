@@ -3,8 +3,9 @@ id: V71-003
 title: Retain loaded Audit Coverage and Run rows after background errors
 milestone: audit-ui-refresh-correctness-2026-10
 priority: P1
-status: in_progress
-depends_on: [V71-001]
+status: completed
+implementation_commit: fe8c4942129ecadb33a56f0ea4c7c4856963b1a2
+depends_on: []
 languages: [typescript]
 goal: Keep loaded Audit tables and reader position stable through transient read errors.
 context:
@@ -30,3 +31,6 @@ acceptance_criteria:
 tests:
   - command: cd ui && vitest run src/routes/projects/audits/coverage-data.test.tsx src/routes/projects/audits/audits.test.tsx
     covers: [A1, A2, A3]
+verification:
+  focused: Coverage and Run row retention, retry, first-batch straddle and pinned conflict tests passed.
+  broad: Full UI suite passed (678 tests); TypeScript, ESLint, Prettier and production build passed.

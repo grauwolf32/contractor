@@ -3,7 +3,8 @@ id: V71-002
 title: Poll paused Audits while submitted Runs finish
 milestone: audit-ui-refresh-correctness-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: fe8c4942129ecadb33a56f0ea4c7c4856963b1a2
 depends_on: []
 languages: [typescript]
 goal: Keep Audit detail, progress and list revisions current during Run drain.
@@ -29,3 +30,6 @@ acceptance_criteria:
 tests:
   - command: cd ui && vitest run src/routes/projects/audits/audits.test.tsx
     covers: [A1, A2, A3]
+verification:
+  focused: Paused Run-drain, final Progress refresh and pause-mutation tests passed.
+  broad: Full UI suite passed (678 tests); TypeScript, ESLint, Prettier and production build passed.
