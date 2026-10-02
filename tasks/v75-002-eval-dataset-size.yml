@@ -3,7 +3,8 @@ id: V75-002
 title: Enforce Eval dataset document size before saving
 milestone: release-and-ui-guardrails-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 8349907dc5b1aa91e23951f2eb272f67781c1299
 depends_on: []
 languages: [typescript]
 goal: Prevent importing a dataset whose JSON request exceeds the Server's 1 MiB bound.
@@ -22,4 +23,7 @@ acceptance_criteria:
   - {id: A2, text: Compact bodies within 1 MiB can still be imported and saved.}
   - {id: A3, text: Private-expectation choice is included in the size check.}
 tests:
-  - {command: cd ui && corepack pnpm test --run src/routes/evals/datasets.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && corepack pnpm test --run src/routes/evals-usability.test.tsx, covers: [A1, A2, A3]}
+verification:
+  focused: Oversized import, compact pretty source and private-check toggling passed.
+  broad: Full UI suite passed (687 tests); TypeScript, ESLint, Prettier and production build passed.

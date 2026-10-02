@@ -3,7 +3,8 @@ id: V75-003
 title: Remove unproduced Audit owner pause stop label
 milestone: release-and-ui-guardrails-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 68a33e90afb13050b925393310ac7cbf5a8d953f
 depends_on: []
 languages: [typescript]
 goal: Keep Audit stop-reason presentation aligned with codes the Server actually emits.
@@ -21,3 +22,6 @@ acceptance_criteria:
   - {id: A2, text: Existing Audit UI tests pass.}
 tests:
   - {command: cd ui && corepack pnpm test --run src/routes/projects/audits, covers: [A1, A2]}
+verification:
+  focused: All 95 Audit UI tests passed and no UI source references owner_paused.
+  broad: Full UI suite passed (687 tests); TypeScript, ESLint, Prettier and production build passed.
