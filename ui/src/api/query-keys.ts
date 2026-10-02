@@ -1,6 +1,7 @@
 export const queryKeys = {
   session: ["auth", "session"] as const,
   workflows: {
+    inventory: ["workflows", "inventory"] as const,
     detail: (name: string, version: string) =>
       ["workflows", "detail", name, version] as const,
   },
