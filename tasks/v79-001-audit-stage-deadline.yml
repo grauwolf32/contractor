@@ -3,7 +3,8 @@ id: V79-001
 title: Bound Audit completion by Stage deadline instead of request timeout
 milestone: audit-stage-deadline-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6863b4269278552649fae45d3577dd1207766a17
 depends_on: []
 languages: [go, python, markdown]
 goal: Let a valid multi-turn Audit invocation outlive one outbound request budget without outliving its Planner Stage.
@@ -26,3 +27,7 @@ acceptance_criteria:
 tests:
   - {command: go test ./internal/contracts ./internal/planner/... , covers: [A4]}
   - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_audit_completion_runtime.py tests/test_audit_result_publication.py tests/test_contracts.py, covers: [A1, A2, A3, A4]}
+verification:
+  go: Contracts and Planner suites passed; every Go package compiled; Go vet passed for affected packages.
+  python: Full Runtime suite passed before the final wire-decoder adjustment; focused suites and Ruff passed afterward.
+  integration: PostgreSQL-backed Audit importer gate and real Go-to-Python artifact-copy process test passed.
