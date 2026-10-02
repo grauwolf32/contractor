@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V72-001
+title: Refresh Eval stop-command revisions before sending
+milestone: eval-revision-race-recovery-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Let operators pause, resume or cancel busy experiments without stale CAS failures.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/329
+  finding: >-
+    Coordinator progress advances the experiment revision while stop controls
+    and an open Cancel dialog still hold an older If-Match value.
+scope:
+  in:
+    - Read current experiment state immediately before stop commands.
+    - Retry one 412 revision conflict with a new revision and idempotency key.
+    - Preserve exact command replay after a lost response.
+    - Keep Start pinned to the reviewed plan and revision.
+  out:
+    - Change server revision semantics or command API.
+acceptance_criteria:
+  - id: A1
+    text: Cancel after dialog-open progress uses the current revision without another confirmation.
+  - id: A2
+    text: Pause retries at most once after a coordinator revision race.
+  - id: A3
+    text: Start still uses its reviewed revision and plan digest.
+tests:
+  - command: cd ui && vitest run src/routes/evals-setup.test.tsx
+    covers: [A1, A2, A3]
