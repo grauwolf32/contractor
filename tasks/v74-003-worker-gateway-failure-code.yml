@@ -3,7 +3,8 @@ id: V74-003
 title: Emit stable Worker Gateway failure code
 milestone: runtime-contract-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: ec2d347984a6620284c48d763d732ca1215474cd
 depends_on: []
 languages: [python]
 goal: Preserve classified Gateway retryability under the documented Worker failure code.
@@ -22,4 +23,7 @@ acceptance_criteria:
   - {id: A2, text: Retryability matches the Gateway classifier for permanent and transient cases.}
   - {id: A3, text: A 64-character permanent provider code yields a valid failure completion.}
 tests:
-  - {command: cd runtime && .venv/bin/pytest tests/test_adk_runtime.py, covers: [A1, A2, A3]}
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_adk_runtime.py, covers: [A1, A2, A3]}
+verification:
+  focused: Main and finalizer HTTP classification, retryability and 64-character provider code passed.
+  broad: Full Runtime suite and Ruff checks passed.

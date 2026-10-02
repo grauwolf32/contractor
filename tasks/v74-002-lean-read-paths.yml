@@ -3,7 +3,8 @@ id: V74-002
 title: Keep deep read paths from invalidating lean Worker results
 milestone: runtime-contract-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 58ae323a9e2b79a49167f8de27d67cb0d09f223d
 depends_on: []
 languages: [python, go]
 goal: Preserve a successful Worker completion when a read path exceeds lean detail limits.
@@ -22,5 +23,8 @@ acceptance_criteria:
   - {id: A2, text: readFiles and truncation truthfully reflect omitted detail.}
   - {id: A3, text: Go and Python accept the resulting Worker completion.}
 tests:
-  - {command: cd runtime && .venv/bin/pytest tests/test_observations.py tests/test_contracts.py, covers: [A1, A2, A3]}
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_observations.py tests/test_filesystem_observations.py tests/test_contracts.py, covers: [A1, A2, A3]}
   - {command: go test ./internal/contracts, covers: [A3]}
+verification:
+  focused: Path boundaries, omitted-detail counts and a successful long-path Worker invocation passed.
+  broad: Full Go and Runtime suites and Ruff checks passed.

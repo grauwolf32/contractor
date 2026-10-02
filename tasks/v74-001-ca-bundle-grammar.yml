@@ -3,7 +3,8 @@ id: V74-001
 title: Align Server and Runtime CA bundle grammar
 milestone: runtime-contract-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 1f9d3046fb71141c02f6d341ed77bfa3ea070932
 depends_on: []
 languages: [go, python]
 goal: Reject CA bundles at publication that the Runtime would reject at allocation preparation.
@@ -23,4 +24,7 @@ acceptance_criteria:
   - {id: A3, text: Valid one-to-eight certificate bundles still pass.}
 tests:
   - {command: go test ./internal/runtimeconfig ./internal/contracts, covers: [A1, A2, A3]}
-  - {command: cd runtime && .venv/bin/pytest tests/test_contracts.py, covers: [A2, A3]}
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_contracts.py, covers: [A2, A3]}
+verification:
+  focused: Both CA publication fields, shared fixtures, one-to-eight certificates and malformed text passed.
+  broad: Full Go and Runtime suites, Go vet and Ruff checks passed.
