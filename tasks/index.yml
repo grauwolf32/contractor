@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: runtime-contract-parity-2026-10
+    exit_task: V74-003
+    outcome: >-
+      Align Server and Runtime CA validation, preserve successful Worker results
+      for deep read paths, and keep Gateway failure codes stable.
   - id: scheduler-result-and-report-correctness-2026-10
     exit_task: V73-003
     outcome: >-
@@ -2651,6 +2656,9 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V74-001, file: v74-001-ca-bundle-grammar.yml}
+  - {id: V74-002, file: v74-002-lean-read-paths.yml}
+  - {id: V74-003, file: v74-003-worker-gateway-failure-code.yml}
   - {id: V73-001, file: v73-001-planner-report-interruption.yml}
   - {id: V73-002, file: v73-002-workflow-output-media.yml}
   - {id: V73-003, file: v73-003-artifact-resolution-retry.yml}

@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V74-002
+title: Keep deep read paths from invalidating lean Worker results
+milestone: runtime-contract-parity-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, go]
+goal: Preserve a successful Worker completion when a read path exceeds lean detail limits.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/316
+  finding: The observation reducer accepts project paths that lean filesRead rejects.
+scope:
+  in:
+    - Filter out-of-bounds filesRead details while retaining aggregate counts and truncation.
+    - Test the 32/33 component and 1024/1025 byte boundary in both contracts.
+    - Verify a Worker completion remains valid after a deep file read.
+  out:
+    - Enlarge the bounded filesRead wire contract.
+acceptance_criteria:
+  - {id: A1, text: Deep or long read paths cannot make lean observation construction raise.}
+  - {id: A2, text: readFiles and truncation truthfully reflect omitted detail.}
+  - {id: A3, text: Go and Python accept the resulting Worker completion.}
+tests:
+  - {command: cd runtime && .venv/bin/pytest tests/test_observations.py tests/test_contracts.py, covers: [A1, A2, A3]}
+  - {command: go test ./internal/contracts, covers: [A3]}
