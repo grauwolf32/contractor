@@ -57,6 +57,10 @@ DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
     "runtime-settings-two-proxy-auth.json": (RuntimeSettings, "invariant"),
     "runtime-settings-secret-error.json": (RuntimeSettings, "invariant"),
     "runtime-settings-caido-secret-error.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-preamble.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-between.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-key-comment.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-header.json": (RuntimeSettings, "invariant"),
     "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenance, "schema"),
     "workspace-capabilities-unsorted-modes.json": (
         WorkspaceCapabilities,
@@ -74,6 +78,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "runtime-settings-telemetry-export.json": RuntimeSettings,
     "runtime-settings-proxy.json": RuntimeSettings,
     "runtime-settings-combined.json": RuntimeSettings,
+    "runtime-settings-ca-bundle.json": RuntimeSettings,
     "runtime-provenance.json": ResolvedRuntimeConfigProvenance,
     "runtime-provenance-empty.json": ResolvedRuntimeConfigProvenance,
     "runtime-report.json": RuntimeReport,
@@ -129,6 +134,10 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "worker-completion-both-variants.json": WorkerCompletion,
     "worker-completion-no-variant.json": WorkerCompletion,
     "artifact-read-result-unversioned.json": ArtifactReadResult,
+    "runtime-settings-ca-preamble.json": RuntimeSettings,
+    "runtime-settings-ca-between.json": RuntimeSettings,
+    "runtime-settings-ca-key-comment.json": RuntimeSettings,
+    "runtime-settings-ca-header.json": RuntimeSettings,
 }
 
 
@@ -160,6 +169,7 @@ FIXTURE_SCHEMAS = {
     "runtime-settings-telemetry-export": "allocation.schema.json#/$defs/RuntimeSettings",
     "runtime-settings-proxy": "allocation.schema.json#/$defs/RuntimeSettings",
     "runtime-settings-combined": "allocation.schema.json#/$defs/RuntimeSettings",
+    "runtime-settings-ca-bundle": "allocation.schema.json#/$defs/RuntimeSettings",
     "agent-state-snapshot": "agent-state.schema.json",
     "agent-registration": "agent-registration.schema.json",
     "agent-registration-response": "agent-registration-response.schema.json",
@@ -213,6 +223,34 @@ def test_valid_golden_fixture_round_trip(filename: str, model: type[BaseModel]) 
     value = model.model_validate_json(raw)
     encoded = value.model_dump_json(by_alias=True, exclude_none=True)
     assert json.loads(encoded) == json.loads(raw)
+
+
+@pytest.mark.parametrize("owner", ["httpProxy", "caido"])
+def test_runtime_settings_ca_bundle_count_and_field_parity(owner: str) -> None:
+    base = json.loads(
+        (FIXTURES / "valid" / "runtime-settings-combined.json").read_text(encoding="utf-8")
+    )
+    fixture = json.loads(
+        (FIXTURES / "valid" / "runtime-settings-ca-bundle.json").read_text(encoding="utf-8")
+    )
+    certificate = fixture["httpProxy"]["caBundlePem"]
+    for count in (1, 2, 8):
+        base[owner]["caBundlePem"] = certificate * count
+        assert RuntimeSettings.model_validate(base)
+    for invalid in (
+        certificate * 9,
+        "Bag Attributes\n" + certificate,
+        certificate + "subject=CN=fixture\n" + certificate,
+        "# PRIVATE KEY\n" + certificate,
+        certificate.replace(
+            "-----BEGIN CERTIFICATE-----\n",
+            "-----BEGIN CERTIFICATE-----\nProc-Type: 4,ENCRYPTED\n",
+            1,
+        ),
+    ):
+        base[owner]["caBundlePem"] = invalid
+        with pytest.raises(ValidationError):
+            RuntimeSettings.model_validate(base)
 
 
 @pytest.mark.parametrize(("filename", "model"), INVALID_MODELS.items())
@@ -283,6 +321,43 @@ def test_worker_completion_rejects_nested_authority_and_inconsistent_observation
     for candidate in candidates:
         with pytest.raises(ValidationError):
             WorkerCompletion.model_validate(candidate)
+
+
+@pytest.mark.parametrize(
+    ("valid_path", "invalid_path"),
+    [
+        ("/".join(["d"] * 31 + ["f"]), "/".join(["d"] * 32 + ["f"])),
+        ("a" * 1024, "a" * 1025),
+    ],
+)
+def test_worker_completion_read_path_bounds_and_omitted_detail(
+    valid_path: str, invalid_path: str
+) -> None:
+    baseline = json.loads(
+        (FIXTURES / "valid" / "worker-completion-success.json").read_text(encoding="utf-8")
+    )
+    workspace = baseline["result"]["observations"]["workspace"]
+    workspace["filesRead"] = [valid_path]
+    workspace["readFiles"] = 1
+    assert WorkerCompletion.model_validate(baseline).result is not None
+
+    workspace["filesRead"] = [invalid_path]
+    with pytest.raises(ValidationError):
+        WorkerCompletion.model_validate(baseline)
+
+    workspace["filesRead"] = []
+    workspace["filesReadTruncated"] = True
+    baseline["result"]["observations"]["truncated"] = True
+    assert WorkerCompletion.model_validate(baseline).result is not None
+    schema_root = FIXTURES.parents[1] / "v1alpha1"
+    schemas = [json.loads(path.read_text()) for path in schema_root.glob("*.schema.json")]
+    registry = Registry().with_resources(
+        (schema["$id"], Resource.from_contents(schema)) for schema in schemas
+    )
+    worker_schema = next(
+        schema for schema in schemas if schema["$id"].endswith("worker-completion.schema.json")
+    )
+    Draft202012Validator(worker_schema, registry=registry).validate(baseline)
 
 
 def test_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:

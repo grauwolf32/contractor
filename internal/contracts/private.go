@@ -11,13 +11,12 @@ package contracts
 // sides of one wire contract stay comparable file by file.
 
 import (
-	"bytes"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"net/url"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/cabundle"
 )
 
 const (
@@ -128,27 +127,8 @@ func validateRuntimeEndpoint(field, value string) error {
 }
 
 func validateCABundle(owner, value string) error {
-	if len(value) == 0 || len([]byte(value)) > 64*1024 || strings.Contains(value, "PRIVATE KEY") {
+	if err := cabundle.Validate(value); err != nil {
 		return invalidf("%s CA bundle is invalid", owner)
-	}
-	rest := []byte(value)
-	count := 0
-	for len(bytes.TrimSpace(rest)) > 0 {
-		block, remaining := pem.Decode(rest)
-		if block == nil || block.Type != "CERTIFICATE" {
-			return invalidf("%s CA bundle is invalid", owner)
-		}
-		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
-			return invalidf("%s CA bundle is invalid", owner)
-		}
-		count++
-		if count > 8 {
-			return invalidf("%s CA bundle contains too many certificates", owner)
-		}
-		rest = remaining
-	}
-	if count == 0 {
-		return invalidf("%s CA bundle must contain a certificate", owner)
 	}
 	return nil
 }

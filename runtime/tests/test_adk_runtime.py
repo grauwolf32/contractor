@@ -29,6 +29,8 @@ from contractor_runtime.contracts import (
     ArtifactRef,
     ArtifactWriteResult,
     CaidoSettings,
+    GatewayFailureSignature,
+    GatewayFailureSignatures,
     HTTPOriginTargetSettings,
     HTTPProxySettings,
     ModelPolicyRef,
@@ -802,6 +804,70 @@ def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
         assert snapshot["lastCompletedInvocation"]["invocationId"] == completion.invocation_id
         assert snapshot["lastCompletedInvocation"]["phase"] == "failed"
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["main", "result_finalizer"])
+@pytest.mark.parametrize(
+    ("status", "provider_error", "retryable"),
+    [
+        (401, {}, False),
+        (403, {}, False),
+        (429, {}, True),
+        (404, {}, False),
+        (400, {"code": "context_length_exceeded"}, False),
+        (400, {"message": "Model is unloaded."}, True),
+        (400, {"code": "p" + "x" * 63}, False),
+    ],
+)
+def test_adk_worker_classified_gateway_errors_keep_stable_failure_code(
+    tmp_path: Path,
+    phase: str,
+    status: int,
+    provider_error: dict[str, str],
+    retryable: bool,
+) -> None:
+    async def scenario() -> None:
+        calls = 0
+
+        async def gateway(_request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            if phase == "result_finalizer" and calls == 1:
+                return httpx.Response(200, json=_chat_completion({"content": "done"}, 12))
+            return httpx.Response(status, json={"error": provider_error})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            signatures = GatewayFailureSignatures(
+                modelUnavailable=[
+                    GatewayFailureSignature(status=400, messageEquals="Model is unloaded.")
+                ],
+                permanentCodes=["context_length_exceeded", "p" + "x" * 63],
+            )
+            handle = new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=1,
+                http_client=http,
+                failure_signatures=signatures,
+            )
+            handle.max_retries = 0
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {},
+                OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle),
+            )
+
+            completion = await runtime.invoke(stage_request())
+
+            assert completion.result is None
+            assert completion.failure is not None
+            assert completion.failure.code == "worker_gateway_unavailable"
+            assert completion.failure.retryable is retryable
+            assert calls == (1 if phase == "main" else 2)
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 

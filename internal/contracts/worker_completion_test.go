@@ -110,6 +110,35 @@ func TestWorkerCompletionStrictDecodeRejectsUnknownNestedField(t *testing.T) {
 	}
 }
 
+func TestWorkerCompletionReadPathBoundsAndOmittedDetail(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, validPath, invalidPath string
+	}{
+		{"depth", strings.Repeat("d/", 31) + "f", strings.Repeat("d/", 32) + "f"},
+		{"bytes", strings.Repeat("a", 1024), strings.Repeat("a", 1025)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			completion := validWorkerCompletion()
+			workspace := completion.Result.Observations.Workspace
+			workspace.FilesRead = []string{test.validPath}
+			if err := completion.Validate(); err != nil {
+				t.Fatalf("valid boundary path rejected: %v", err)
+			}
+			workspace.FilesRead = []string{test.invalidPath}
+			if err := completion.Validate(); err == nil {
+				t.Fatal("out-of-bounds read path accepted")
+			}
+			workspace.FilesRead = []string{}
+			workspace.FilesReadTruncated = true
+			completion.Result.Observations.Truncated = true
+			if err := completion.Validate(); err != nil {
+				t.Fatalf("omitted read detail rejected: %v", err)
+			}
+		})
+	}
+}
+
 func validWorkerCompletion() WorkerCompletion {
 	revision := "report-r1"
 	unread := uint64(1)

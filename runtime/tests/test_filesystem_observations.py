@@ -370,6 +370,45 @@ def test_real_adk_runtime_projects_workspace_observations_into_worker_result(
     asyncio.run(scenario())
 
 
+def test_real_adk_runtime_preserves_success_after_long_file_read(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        long_path = "x" * 1025
+        project_workspace = await workspace("overlay", "runtime-long-read")
+        await project_workspace.write_text(long_path, "long path file\n")
+        state = WorkerState()
+        tools = await create_tools(
+            FilesystemToolsetFactory(),
+            project_workspace.reader_view(),
+            state,
+            tmp_path,
+            ["read_file"],
+        )
+        model = scripted_model(
+            [
+                tool_call("read_file", {"path": long_path}, call_id="long-read"),
+                text_result("Long path file inspected"),
+            ]
+        )
+        runtime = await create_runtime(
+            tmp_path, state, tools, model, project_workspace=project_workspace
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is None
+        assert completion.result is not None
+        observed = completion.result.observations.workspace
+        assert observed is not None
+        assert observed.read_files == 1
+        assert observed.files_read == []
+        assert observed.files_read_truncated is True
+        assert completion.result.observations.truncated is True
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+        await project_workspace.close()
+
+    asyncio.run(scenario())
+
+
 async def call(
     plugin: WorkerInstrumentationPlugin,
     invocation_id: str,

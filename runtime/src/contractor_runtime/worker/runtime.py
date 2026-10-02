@@ -493,9 +493,7 @@ class AdkWorkerRuntime:
                 outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)
             elif gateway_error is not None:
                 outcome = _failure(
-                    "worker_" + gateway_error.failure.code
-                    if gateway_error.failure
-                    else "worker_gateway_unavailable",
+                    "worker_gateway_unavailable",
                     "Worker LLM Gateway request failed",
                     gateway_error.retryable,
                 )
@@ -756,9 +754,7 @@ class AdkWorkerRuntime:
             gateway_error = _gateway_model_error(error)
             if gateway_error is not None:
                 return _failure(
-                    "worker_" + gateway_error.failure.code
-                    if gateway_error.failure
-                    else "worker_gateway_unavailable",
+                    "worker_gateway_unavailable",
                     "Worker LLM Gateway request failed",
                     gateway_error.retryable,
                 ), False

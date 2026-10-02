@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from contractor_runtime.contracts import WorkspaceObservationSummary
+from contractor_runtime.contracts.base import _require_workspace_target
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
 
@@ -243,7 +244,15 @@ def lean_workspace_summary(
     matched = {item["path"] for item in interactions if item["matchCalls"] > 0}
     modified = {item["path"] for item in interactions if item["mutationCalls"] > 0}
     ordered_read = [item["path"] for item in interactions if item["readCalls"] > 0]
-    files_read = ordered_read[:MAX_LEAN_FILES_READ]
+    files_read: list[str] = []
+    for path in ordered_read:
+        try:
+            _require_workspace_target(path)
+        except ValueError:
+            continue
+        files_read.append(path)
+        if len(files_read) == MAX_LEAN_FILES_READ:
+            break
     complete = workspace["scopeComplete"] and workspace["detailComplete"]
     unread_files = len(set(workspace["scopePaths"]) - read) if complete else None
     truncated = not complete or len(files_read) < len(read)

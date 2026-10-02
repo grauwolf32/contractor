@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V74-003
+title: Emit stable Worker Gateway failure code
+milestone: runtime-contract-parity-2026-10
+priority: P1
+status: completed
+implementation_commit: ec2d347984a6620284c48d763d732ca1215474cd
+depends_on: []
+languages: [python]
+goal: Preserve classified Gateway retryability under the documented Worker failure code.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/313
+  finding: Prefixing classified provider codes breaks UI triage and can exceed the failure-code limit.
+scope:
+  in:
+    - Emit worker_gateway_unavailable in main and finalizer error paths.
+    - Keep the Gateway classifier retryability unchanged.
+    - Cover classified HTTP errors and a maximum-length permanent code.
+  out:
+    - Change provider error classification or UI triage rules.
+acceptance_criteria:
+  - {id: A1, text: Main and finalizer failures use worker_gateway_unavailable.}
+  - {id: A2, text: Retryability matches the Gateway classifier for permanent and transient cases.}
+  - {id: A3, text: A 64-character permanent provider code yields a valid failure completion.}
+tests:
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_adk_runtime.py, covers: [A1, A2, A3]}
+verification:
+  focused: Main and finalizer HTTP classification, retryability and 64-character provider code passed.
+  broad: Full Runtime suite and Ruff checks passed.

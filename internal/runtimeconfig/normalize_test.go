@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -227,6 +229,70 @@ func TestPrepareRejectsPrivateKeyPEM(t *testing.T) {
 	}
 	if _, err := PreparePublication(encoded); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("private-key PEM error = %v", err)
+	}
+}
+
+func TestPublicationCABundleMatchesRuntimeGrammar(t *testing.T) {
+	t.Parallel()
+	fixturePath := filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "runtime-settings-ca-bundle.json")
+	encodedFixture, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		HTTPProxy struct {
+			CABundlePEM string `json:"caBundlePem"`
+		} `json:"httpProxy"`
+	}
+	if err := json.Unmarshal(encodedFixture, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	certificate := fixture.HTTPProxy.CABundlePEM
+	for _, owner := range []string{"httpProxy", "caido"} {
+		t.Run(owner, func(t *testing.T) {
+			for _, test := range []struct {
+				name, bundle string
+				valid        bool
+			}{
+				{"single", certificate, true},
+				{"eight", strings.Repeat(certificate, 8), true},
+				{"nine", strings.Repeat(certificate, 9), false},
+				{"preamble", "Bag Attributes\n" + certificate, false},
+				{"between", certificate + "subject=CN=fixture\n" + certificate, false},
+				{"private key comment", "# PRIVATE KEY\n" + certificate, false},
+				{"PEM header", strings.Replace(certificate, "-----BEGIN CERTIFICATE-----\n", "-----BEGIN CERTIFICATE-----\nProc-Type: 4,ENCRYPTED\n", 1), false},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					worker := map[string]any{}
+					if owner == "httpProxy" {
+						worker[owner] = map[string]any{
+							"adapter": "http-proxy@1", "proxyUrl": "http://proxy.example",
+							"targets": []string{"tool-http"}, "caBundlePem": test.bundle,
+						}
+					} else {
+						worker[owner] = map[string]any{
+							"adapter": "caido-graphql@1", "endpoint": "https://caido.example",
+							"caBundlePem": test.bundle,
+						}
+					}
+					document, err := json.Marshal(map[string]any{
+						"apiVersion": APIVersion, "kind": Kind,
+						"metadata": map[string]any{"name": "ca-test", "version": "1"},
+						"spec":     map[string]any{"worker": worker},
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, err = PreparePublication(document)
+					if test.valid && err != nil {
+						t.Fatalf("valid CA bundle rejected: %v", err)
+					}
+					if !test.valid && (!errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "spec.worker."+owner+".caBundlePem")) {
+						t.Fatalf("invalid CA bundle error = %v", err)
+					}
+				})
+			}
+		})
 	}
 }
 

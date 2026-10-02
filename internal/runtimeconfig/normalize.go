@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/cabundle"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/ucarion/jcs"
 )
@@ -24,7 +23,6 @@ import (
 const (
 	maxDocumentBytes = 128 * 1024
 	maxURLBytes      = 2048
-	maxPEMBytes      = 64 * 1024
 )
 
 var (
@@ -672,30 +670,8 @@ func validateURL(field, raw string) (string, error) {
 }
 
 func validateCABundle(field, raw string) error {
-	if raw == "" || len([]byte(raw)) > maxPEMBytes || !utf8.ValidString(raw) {
+	if err := cabundle.Validate(raw); err != nil {
 		return invalid("%s is invalid", field)
-	}
-	rest := []byte(raw)
-	count := 0
-	for len(bytes.TrimSpace(rest)) > 0 {
-		block, remaining := pem.Decode(rest)
-		if block == nil {
-			return invalid("%s contains non-PEM data", field)
-		}
-		if strings.Contains(block.Type, "PRIVATE KEY") || block.Type != "CERTIFICATE" {
-			return invalid("%s must contain certificates only", field)
-		}
-		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
-			return invalid("%s contains an invalid certificate", field)
-		}
-		count++
-		if count > 8 {
-			return invalid("%s contains too many certificates", field)
-		}
-		rest = remaining
-	}
-	if count == 0 {
-		return invalid("%s must contain a certificate", field)
 	}
 	return nil
 }
