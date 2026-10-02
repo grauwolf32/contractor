@@ -597,6 +597,9 @@ func semanticCoverage(
 	result auditdomain.CheckResult,
 	evidence map[string]validatedEvidence,
 ) (auditstore.Coverage, error) {
+	if task.ProfileMode != "" && task.ProfileMode != string(mode) {
+		return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
+	}
 	expected := expectedCoverage(task)
 	requested := sortedCopy(result.Coverage.Requested)
 	if !equalStrings(expected, requested) {

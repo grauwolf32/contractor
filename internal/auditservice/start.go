@@ -489,7 +489,7 @@ func buildInventory(
 		return auditdomain.BuildStandardMappingInventory(
 			standards[0].Package,
 			auditdomain.InventoryOptions{
-				Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
+				Round: 1, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
 				SourceInputName: "standard", SourceRef: standards[0].Source.Artifact,
 				ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 				StandardSelection: standardSelection,
@@ -501,7 +501,7 @@ func buildInventory(
 		return auditdomain.Inventory{}, fmt.Errorf("%w: inventory source input is missing", ErrInvalid)
 	}
 	options := auditdomain.InventoryOptions{
-		Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
+		Round: 1, ProfileMode: string(profile.Mode), WorkflowRole: profile.Inventory.ItemWorkflowRole,
 		SourceInputName: profile.Inventory.Source.Name, SourceRef: source.Ref,
 		ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 	}

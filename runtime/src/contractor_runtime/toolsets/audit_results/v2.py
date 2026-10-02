@@ -170,7 +170,10 @@ class SubmitCheckResultTool:
             item_key: Exact key from read_audit_task. May be omitted for a single
                 assigned task; required when submitting one item from multiple tasks.
             assessment: satisfied, violated, supported, refuted, blocked,
-                inconclusive or not-tested, subject to the task's evidence contract.
+                inconclusive or not-tested, subject to the task's profile_mode
+                and evidence contract. For a checklist outside risk-assessment,
+                use satisfied or violated instead of supported. Finding checks
+                may use supported.
             summary: Non-empty explanation of the outcome, at most 16 KiB of UTF-8.
             completed: Array of coverage identifiers actually verified. Use only
                 the matching requestedCoverage from read_audit_task, not work steps.

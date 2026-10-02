@@ -39,8 +39,8 @@ FIXTURE = json.loads(
 CONTEXT = SimpleNamespace(invocation_id="invocation-1")
 
 
-def fixture_assignment(task_name):
-    task = FIXTURE["tasks"][task_name]
+def fixture_assignment(task_name, mode):
+    task = {**FIXTURE["tasks"][task_name], "profile_mode": mode}
     payload = package(
         "task-fixture",
         "item-task",
@@ -90,7 +90,7 @@ def arguments(item):
 @pytest.mark.parametrize("case", FIXTURE["cases"], ids=lambda case: case["name"])
 def test_shared_task_local_acceptance(case):
     async def scenario():
-        collector, tool, _ = tool_for(fixture_assignment(case["task"]))
+        collector, tool, _ = tool_for(fixture_assignment(case["task"], case["mode"]))
         result = await tool(CONTEXT, **case["result"])
         assert (result["status"] == "recorded") == case["valid"], result
         assert len((await collector.snapshot()).items) == int(case["valid"])
@@ -98,6 +98,8 @@ def test_shared_task_local_acceptance(case):
             CanonicalAuditPackageEncoder().encode(await collector.seal(), inputs=collector.inputs)
         else:
             assert result["error"]["field"]
+            if field := case.get("error_field"):
+                assert result["error"]["field"] == field
             assert len(json.dumps(result)) < 2048
 
     asyncio.run(scenario())

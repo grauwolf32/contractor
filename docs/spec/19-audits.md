@@ -578,6 +578,13 @@ workflow role, and `role_attempt`.
 
 ### 6.1 Result layers
 
+Each newly generated item task pins the Audit profile mode in `profile_mode`.
+The worker's local result collector uses that trusted mode to reject
+`supported` on non-finding checklist tasks outside `risk-assessment`; the
+importer still applies the pinned profile mode when accepting results. Older
+retained task packages without this field remain decodable and are treated as
+non-risk for local `supported` validation.
+
 | Layer | Meaning |
 | --- | --- |
 | Run outcome | Whether the technical Workflow contract completed |

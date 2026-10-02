@@ -24,6 +24,7 @@ items:
     review_policy: manual
 `)
 	options := testInventoryOptions("check")
+	options.ProfileMode = "risk-assessment"
 	options.Scope = map[string]string{"target": "service"}
 	inventory, err := BuildChecklistInventory(source, "application/yaml", options)
 	if err != nil {
@@ -48,7 +49,7 @@ items:
 			t.Fatal("task document is absent")
 		}
 		decoded, err := DecodeItemTask(taskMember.Data())
-		if err != nil || decoded.ItemKey != row.ItemKey || decoded.SourceContentDigest != inventory.SourceContentDigest {
+		if err != nil || decoded.ItemKey != row.ItemKey || decoded.SourceContentDigest != inventory.SourceContentDigest || decoded.ProfileMode != options.ProfileMode {
 			t.Fatalf("task document = %+v, %v", decoded, err)
 		}
 	}

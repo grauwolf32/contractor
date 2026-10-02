@@ -57,7 +57,7 @@ func finishInventory(
 		}
 		seen[subject.itemKey] = struct{}{}
 		document := ItemTask{
-			Schema: TaskSchema, ItemKey: subject.itemKey, Kind: subject.kind,
+			Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
 			SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
 			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: copyArtifactRef(options.SourceRef),
 			CanonicalInventoryDigest: canonicalDigest,
@@ -366,6 +366,7 @@ func equalStringSlices(left, right []string) bool {
 
 func validateInventoryOptions(options InventoryOptions, sourceMediaType string) error {
 	if options.Round <= 0 || validateIdentifier(options.WorkflowRole, "workflow_role") != nil ||
+		options.ProfileMode != "" && !validAuditProfileMode(options.ProfileMode) ||
 		validateIdentifier(options.SourceInputName, "source_input_name") != nil || !validApprovalRequirement(options.ApprovalRequirement) ||
 		!validMediaType(sourceMediaType) || options.SourceRef.ValidateExact() != nil || len(options.Scope) > 64 {
 		return invalid(CodeInventoryInvalid, "options")
@@ -376,6 +377,15 @@ func validateInventoryOptions(options InventoryOptions, sourceMediaType string) 
 		}
 	}
 	return nil
+}
+
+func validAuditProfileMode(mode string) bool {
+	switch mode {
+	case "risk-assessment", "requirements-verification", "custom-checklist", "operation-tracing", "finding-verification":
+		return true
+	default:
+		return false
+	}
 }
 
 func deterministicPackageID(document []byte) string {

@@ -18,6 +18,9 @@ valid results. Exactly-once calls and eventual model success are not guaranteed.
 Use only the task's assessments, coverage and evidence kinds/counts. A conclusive
 checklist assessment needs all required evidence kinds; completed coverage alone
 is not evidence. Distinguish missing evidence from evidence that refutes a claim.
+For checklist tasks outside `risk-assessment`, use `satisfied` or `violated`
+instead of `supported` or `refuted`; `supported` is rejected locally. A
+`risk-assessment` checklist may use `supported` when its evidence warrants it.
 Use blocked, inconclusive or not-tested truthfully where the pinned task permits
 them, including explicit gaps. Such results may be valid submissions and are not
 automatic retry requests. A not-tested operation must have empty completed

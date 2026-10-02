@@ -172,6 +172,11 @@ func validateItemTask(value ItemTask) error {
 	if value.Schema != TaskSchema {
 		return invalid(CodeSchemaUnsupported, "schema")
 	}
+	// Empty remains valid for exact task packages retained before profile mode
+	// became Worker-visible. New Server-built packages always pin this field.
+	if value.ProfileMode != "" && !validAuditProfileMode(value.ProfileMode) {
+		return invalid(CodeInvalid, "profile_mode")
+	}
 	for field, candidate := range map[string]string{
 		"item_key": value.ItemKey, "kind": value.Kind, "subject_key": value.SubjectKey,
 		"workflow_role": value.WorkflowRole,

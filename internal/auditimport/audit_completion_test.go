@@ -22,9 +22,10 @@ func TestAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 	var fixtures struct {
 		Tasks map[string]auditdomain.ItemTask `json:"tasks"`
 		Cases []struct {
-			Name   string `json:"name"`
-			Task   string `json:"task"`
-			Valid  bool   `json:"valid"`
+			Name   string                  `json:"name"`
+			Task   string                  `json:"task"`
+			Mode   config.AuditProfileMode `json:"mode"`
+			Valid  bool                    `json:"valid"`
 			Result struct {
 				Assessment string                 `json:"assessment"`
 				Summary    string                 `json:"summary"`
@@ -43,6 +44,10 @@ func TestAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 	for _, fixture := range fixtures.Cases {
 		t.Run(fixture.Name, func(t *testing.T) {
 			task := fixtures.Tasks[fixture.Task]
+			if fixture.Mode == "" {
+				t.Fatal("shared acceptance case has no profile mode")
+			}
+			task.ProfileMode = string(fixture.Mode)
 			if _, err := auditdomain.EncodeItemTask(task); err != nil {
 				t.Fatalf("invalid trusted task fixture: %v", err)
 			}
@@ -69,7 +74,7 @@ func TestAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 				Results:                 []auditdomain.CheckResult{result},
 			})
 			if resultErr == nil {
-				_, resultErr = semanticCoverage(config.AuditModeCustomChecklist, task, result, evidence)
+				_, resultErr = semanticCoverage(fixture.Mode, task, result, evidence)
 			}
 			if (resultErr == nil) != fixture.Valid {
 				t.Fatalf("accepted=%v, want=%v (error=%v)", resultErr == nil, fixture.Valid, resultErr)
