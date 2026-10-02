@@ -3,7 +3,8 @@ id: V70-001
 title: Drain expired Scheduler telemetry without starving reports
 milestone: github-issue-remediation-2026-10-v70
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: d42f8d2d3c97fa7b5ce63b132233df748ca47be6
 depends_on: []
 languages: [go, sql]
 goal: Keep expired telemetry bounded as Stage throughput grows.
@@ -27,5 +28,12 @@ acceptance_criteria:
   - id: A3
     text: Cleanup remains bounded, cancellable and terminal-Stage-only.
 tests:
-  - command: go test ./internal/scheduler ./internal/telemetry
+  - command: go test -count=1 ./internal/scheduler ./internal/telemetry
     covers: [A1, A2, A3]
+verification:
+  focused: >-
+    PostgreSQL-backed Scheduler and telemetry suites passed with a disposable
+    PostgreSQL 17 database, including retention drain and per-table fairness.
+  broad: >-
+    Full Go suite passed across all packages after linking the worktree to the
+    locked Runtime venv required by tests/eval/project_workflows.

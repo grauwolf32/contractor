@@ -3,7 +3,8 @@ id: V70-003
 title: Recover stale CSRF tokens after another tab signs in
 milestone: github-issue-remediation-2026-10-v70
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 26cbb733697c4658f07212a31b99f59f5a457848
 depends_on: []
 languages: [typescript]
 goal: Let open browser tabs make authorized mutations after the shared session changes.
@@ -28,5 +29,12 @@ acceptance_criteria:
   - id: A3
     text: Non-idempotent requests, origin denials and capability denials do not auto-retry.
 tests:
-  - command: cd ui && npm test -- --run src/api/client.test.ts
+  - command: cd ui && vitest run src/api/client.test.ts
     covers: [A1, A2, A3]
+verification:
+  focused: >-
+    Client tests passed for guarded replay, non-idempotent retry prompts and
+    unrelated 403 responses, using two simulated tabs sharing one cookie.
+  broad: >-
+    Full UI suite passed (670 tests); TypeScript, ESLint and Prettier checks
+    passed.
