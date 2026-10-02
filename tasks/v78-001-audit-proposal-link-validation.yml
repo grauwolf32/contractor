@@ -3,7 +3,8 @@ id: V78-001
 title: Validate Audit finding proposal links before result publication
 milestone: audit-proposal-link-validation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 7720500a1a1cca514ab76cee759aad17d5614e6e
 depends_on: []
 languages: [python, markdown]
 goal: Reject result links that the importer would reject while the Worker can still repair them.
@@ -28,3 +29,6 @@ acceptance_criteria:
 tests:
   - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_audit_result_collector.py tests/test_audit_results_toolset.py tests/test_finding_facades.py tests/test_audit_completion_e2e.py, covers: [A1, A2, A3, A4]}
   - {command: go test ./internal/auditimport, covers: [A5]}
+verification:
+  python: Full Runtime pytest suite passed after updating an older normalization fixture; focused suites and repository-wide Ruff checks passed.
+  go: Audit importer unit suite and PostgreSQL-backed integration gate passed, including process-loss proposal conflict and unresolved-key/CWE cases.
