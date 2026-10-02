@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+from collections.abc import AsyncGenerator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -10,10 +11,19 @@ from typing import Any
 
 import httpx
 import pytest
-from fakes.model import json_result, scripted_model, text_result, thought_result, tool_call
+from fakes.model import (
+    ScriptedLlm,
+    json_result,
+    scripted_model,
+    text_result,
+    thought_result,
+    tool_call,
+)
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+from pydantic import Field
 
 from contractor_runtime.adapters import (
     AdapterHandles,
@@ -50,7 +60,11 @@ from contractor_runtime.contracts import (
 from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.factory import gateway_model
-from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
+from contractor_runtime.llm.openai import (
+    GatewayModelError,
+    OpenAICompatibleGatewayLlm,
+    _completion_request,
+)
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
@@ -67,6 +81,31 @@ def structured_result(result: str, *, subtask_id: str = "0", **extra: object) ->
 
 def terminal_text(result: str) -> object:
     return text_result(result)
+
+
+class CapturingScriptedLlm(ScriptedLlm):
+    payloads: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
+
+    async def generate_content_async(
+        self, llm_request: LlmRequest, stream: bool = False
+    ) -> AsyncGenerator[LlmResponse]:
+        self.payloads.append(_completion_request(self.model, llm_request))
+        async for response in super().generate_content_async(llm_request, stream=stream):
+            yield response
+
+
+def assert_balanced_tool_calls(payload: dict[str, Any]) -> None:
+    pending: set[str] = set()
+    for message in payload["messages"]:
+        if message["role"] == "tool":
+            call_id = message["tool_call_id"]
+            assert call_id in pending
+            pending.remove(call_id)
+        else:
+            assert not pending
+            if message["role"] == "assistant":
+                pending = {call["id"] for call in message.get("tool_calls", [])}
+    assert not pending
 
 
 def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path: Path) -> None:
@@ -1528,6 +1567,114 @@ def test_adk_worker_tool_budget_stops_before_extra_side_effect(tmp_path: Path) -
         assert report.metrics.worker_budget.exhausted == "tool_calls"
         assert report.metrics.tools["read_artifact"].calls == 1
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("parallel", [False, True])
+@pytest.mark.parametrize("mode", [WorkerSessionMode.SHARED, WorkerSessionMode.ISOLATED])
+def test_tool_budget_does_not_poison_next_invocation_payload(
+    tmp_path: Path, parallel: bool, mode: WorkerSessionMode
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        first_call = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            call_id="first-call",
+        )
+        responses = [first_call]
+        second_call = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            call_id="unanswered-call",
+        )
+        if parallel:
+            first_call.content.parts.extend(second_call.content.parts)
+        else:
+            responses.append(second_call)
+        responses.append(terminal_text("Recovered on the next subtask"))
+        model = CapturingScriptedLlm(model="deterministic-fake", responses=responses)
+        runtime = await create_runtime(
+            tmp_path, state, tools, model, max_tool_calls=1, session_mode=mode
+        )
+
+        first = await runtime.invoke(stage_request())
+        assert first.failure is not None and first.failure.code == "worker_budget_exhausted"
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None and budget.observed_tool_calls == 1
+        assert len(client.calls) <= 1
+
+        payload_count = len(model.payloads)
+        next_request = stage_request().model_copy(update={"subtask_id": "1"})
+        second = await runtime.invoke(next_request)
+        assert second.result is not None
+        payload = model.payloads[payload_count]
+        assert_balanced_tool_calls(payload)
+        carried_ids = {
+            call["id"] for message in payload["messages"] for call in message.get("tool_calls", [])
+        }
+        if mode == WorkerSessionMode.SHARED:
+            assert "unanswered-call" in carried_ids
+            synthetic = [
+                message
+                for message in payload["messages"]
+                if message["role"] == "tool"
+                and json.loads(message["content"]).get("error", {}).get("code")
+                == "tool_call_not_executed"
+            ]
+            assert "unanswered-call" in {message["tool_call_id"] for message in synthetic}
+        else:
+            assert not carried_ids
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_tool_call_does_not_poison_next_shared_invocation(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        entered = asyncio.Event()
+
+        async def wait_for_release() -> dict[str, bool]:
+            entered.set()
+            await asyncio.Event().wait()
+            return {"released": True}
+
+        model = CapturingScriptedLlm(
+            model="deterministic-fake",
+            responses=[
+                tool_call("wait_for_release", {}, call_id="cancelled-call"),
+                terminal_text("Recovered after cancellation"),
+            ],
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {"wait_for_release": wait_for_release},
+            model,
+            session_mode=WorkerSessionMode.SHARED,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        runtime.cancel_active(invocation)
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+
+        payload_count = len(model.payloads)
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        assert second.result is not None
+        payload = model.payloads[payload_count]
+        assert_balanced_tool_calls(payload)
+        assert any(
+            call["id"] == "cancelled-call"
+            for message in payload["messages"]
+            for call in message.get("tool_calls", [])
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
