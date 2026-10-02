@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V83-001
+title: Balance unanswered shared-session tool calls in gateway requests
+milestone: shared-session-tool-call-recovery-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python]
+goal: Keep later Worker invocations valid after budget exhaustion or cancellation leaves ADK tool calls unanswered.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/302
+  finding: ADK persists a model function_call event before tool execution; budget exhaustion or cancellation can leave it without function_response in shared session history.
+scope:
+  in:
+    - Complete unanswered tool calls in outbound OpenAI-compatible payloads with bounded synthetic no-execution responses.
+    - Preserve existing real tool responses and message order before later user turns.
+    - Test single and parallel budget exhaustion and cancellation using a shared Worker session.
+  out:
+    - Execute missed tools or change invocation budget accounting.
+acceptance_criteria:
+  - {id: A1, text: After shared-session budget exhaustion every emitted assistant tool call has a matching following tool message.}
+  - {id: A2, text: Parallel calls preserve real responses and synthesize only missing ones.}
+  - {id: A3, text: A cancelled tool invocation does not poison the next shared invocation.}
+  - {id: A4, text: Isolated sessions and observed tool counts remain unchanged.}
+tests:
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_openai_gateway_llm.py tests/test_adk_runtime.py, covers: [A1, A2, A3, A4]}
