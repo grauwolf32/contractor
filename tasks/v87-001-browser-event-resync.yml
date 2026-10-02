@@ -3,8 +3,8 @@ id: V87-001
 title: Close event sockets with browser-safe codes and recover from close failures
 milestone: browser-event-resync-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 668cc6c869f4eca426c4ac9e8d83acc4e7c3e223
 depends_on: []
 languages: [typescript]
 goal: Keep live Run and Operations views recoverable after malformed event frames.
@@ -25,6 +25,7 @@ acceptance_criteria:
   - {id: A4, text: UI event tests, app/e2e typechecks and lint pass.}
 tests:
   - {command: cd ui && ./node_modules/.bin/vitest run src/events/run-events.test.ts src/events/socket.test.ts, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/queue.test.tsx, covers: [A1, A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
