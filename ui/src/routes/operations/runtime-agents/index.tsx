@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 
 import { usePublicAPI } from "../../../api/context";
 import {
-  listRuntimeAgentPrincipals,
-  listRuntimeLabels,
+  listAllRuntimeAgentPrincipals,
+  listAllRuntimeLabels,
 } from "../../../api/operations";
 import { queryKeys } from "../../../api/query-keys";
 import { ErrorNotice } from "../../artifacts/common";
@@ -26,11 +26,11 @@ export function RuntimeAgentListRoute() {
   }, []);
   const principals = useQuery({
     queryKey: queryKeys.operations.runtimeAgentPrincipals.list(),
-    queryFn: () => listRuntimeAgentPrincipals(api),
+    queryFn: () => listAllRuntimeAgentPrincipals(api),
   });
   const bindings = useQuery({
     queryKey: queryKeys.operations.runtimeLabels.list(),
-    queryFn: () => listRuntimeLabels(api),
+    queryFn: () => listAllRuntimeLabels(api),
   });
   const items = principals.data?.items ?? [];
   const online =

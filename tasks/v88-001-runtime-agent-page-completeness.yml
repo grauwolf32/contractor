@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V88-001
+title: Load all Runtime Agent principals and label bindings
+milestone: runtime-agent-page-completeness-2026-10
+priority: P2
+status: completed
+implementation_commit: 7cd327522be860e934935eb21acd01d9d2d12556
+depends_on: []
+languages: [typescript]
+goal: Keep Runtime Agent management functional past the first 50 identities and labels.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/123
+  finding: The Runtime Agents page uses first-page data under keys shared with all-page Configuration queries.
+scope:
+  in:
+    - Collect all principal and label pages with cursor-loop validation.
+    - Use the same all-page Runtime label result under the shared key in both routes.
+    - Test later-page live and offline principals and labels in the dialog.
+  out:
+    - Change server pagination or Runtime Agent registration.
+acceptance_criteria:
+  - {id: A1, text: Every principal page is loaded and later-page identities appear in Runtime Agents.}
+  - {id: A2, text: Later-page labels are selectable and can be cleared from offline identities.}
+  - {id: A3, text: Both routes cache the same all-pages label shape.}
+  - {id: A4, text: UI tests, app/e2e typechecks and lint pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/operations.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}

@@ -794,6 +794,29 @@ function safePageInfo(page: { hasMore: boolean; nextCursor?: string }) {
   };
 }
 
+async function collectAllPages<T>(
+  load: (request: CursorPageRequest) => Promise<{
+    items: T[];
+    page: { hasMore: boolean; nextCursor?: string };
+  }>,
+  resource: string,
+): Promise<{ items: T[]; page: { hasMore: false } }> {
+  const items: T[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await load(cursor === undefined ? {} : { cursor });
+    items.push(...page.items);
+    if (!page.page.hasMore) return { items, page: { hasMore: false } };
+    const next = page.page.nextCursor;
+    if (next === undefined || next === "" || seen.has(next)) {
+      throw new Error(`The server returned an invalid ${resource} cursor.`);
+    }
+    seen.add(next);
+    cursor = next;
+  }
+}
+
 function safeSchedulerSettings(
   value: SchedulerSettings,
   response: Response,
@@ -919,6 +942,15 @@ export async function listRuntimeAgentPrincipals(
     items: page.items.map(safeRuntimeAgentPrincipal),
     page: safePageInfo(page.page),
   };
+}
+
+export function listAllRuntimeAgentPrincipals(
+  api: PublicAPI,
+): Promise<RuntimeAgentPrincipalPage> {
+  return collectAllPages(
+    (request) => listRuntimeAgentPrincipals(api, request),
+    "Runtime Agent principal",
+  );
 }
 
 export async function getRuntimeAgentPrincipal(
@@ -1266,6 +1298,15 @@ export async function listRuntimeLabels(
     items: page.items.map(safeRuntimeLabel),
     page: safePageInfo(page.page),
   };
+}
+
+export function listAllRuntimeLabels(
+  api: PublicAPI,
+): Promise<RuntimeLabelPage> {
+  return collectAllPages(
+    (request) => listRuntimeLabels(api, request),
+    "Runtime label",
+  );
 }
 
 export async function putRuntimeLabel(

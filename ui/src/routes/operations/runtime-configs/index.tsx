@@ -11,10 +11,10 @@ import {
   createRuntimeCredential,
   deleteRuntimeCredential,
   deleteRuntimeLabel,
+  listAllRuntimeLabels,
   listConfigurations,
   listRuntimeConfigs,
   listRuntimeCredentials,
-  listRuntimeLabels,
   publishRuntimeConfig,
   putRuntimeLabel,
   type ConfigurationResource,
@@ -1459,27 +1459,7 @@ export function RuntimeConfigurationRoute() {
   });
   const labels = useQuery({
     queryKey: queryKeys.operations.runtimeLabels.list(),
-    queryFn: async () => {
-      const items: RuntimeLabelBinding[] = [];
-      const seen = new Set<string>();
-      let cursor: string | undefined;
-      for (;;) {
-        const page = await listRuntimeLabels(
-          api,
-          cursor === undefined ? {} : { cursor },
-        );
-        items.push(...page.items);
-        if (!page.page.hasMore) return { items, page: { hasMore: false } };
-        const next = page.page.nextCursor;
-        if (next === undefined || next === "" || seen.has(next)) {
-          throw new Error(
-            "The server returned an invalid Runtime label cursor.",
-          );
-        }
-        seen.add(next);
-        cursor = next;
-      }
-    },
+    queryFn: () => listAllRuntimeLabels(api),
   });
   const credentials = useQuery({
     queryKey: queryKeys.operations.runtimeCredentials.list(),
