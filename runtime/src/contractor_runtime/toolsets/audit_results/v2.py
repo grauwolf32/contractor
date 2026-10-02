@@ -184,7 +184,10 @@ class SubmitCheckResultTool:
                 at most 160 characters each. Required for individual submission.
             evidence: Optional array of objects with kind and summary only.
                 Follow the assigned task's requested evidence kinds and bounds.
-            proposal_keys: Optional array of client keys of finding proposals.
+            proposal_keys: Optional array of client_key values returned by successful
+                finding calls in this invocation. A linked finding on a standard
+                task must cite all assigned entry_ids in standard_refs. Each
+                finding can be linked to only one assigned item.
             expected_revision: Revision from the receipt when correcting a recorded
                 item. Omit for its first submission. Not used in batch mode.
             results: Alternative batch mode: one object per task in task order,
@@ -335,6 +338,7 @@ class AuditResultsToolsetFactory:
             timeout=runtime_settings.request_timeout_seconds,
         )
         binding.diagnostics_sink = state.metrics.record_completion
+        state.audit_completion_binding = binding
         tools = {
             "read_audit_task": ReadAuditTaskTool(
                 binding.current, completion_contract.task, state.metrics

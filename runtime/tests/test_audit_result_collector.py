@@ -10,6 +10,7 @@ import jcs
 import pytest
 from test_audit_result_publication import assigned
 from test_audit_results_toolset import digest, package
+from test_security_findings_toolset import FakeFindingClient
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import ArtifactRef
@@ -30,6 +31,12 @@ from contractor_runtime.toolsets.audit_results.encoding import (
     CanonicalAuditPackageEncoder,
 )
 from contractor_runtime.toolsets.audit_results.v2 import ReadAuditTaskTool, SubmitCheckResultTool
+from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
+from contractor_runtime.toolsets.security_findings.locations import StandardReference
+from contractor_runtime.toolsets.security_findings.publisher import (
+    FindingPublisher,
+    call_client_key,
+)
 
 FIXTURE = json.loads(
     (
@@ -85,6 +92,176 @@ def arguments(item):
         "evidence": [{"kind": value.kind, "summary": value.summary} for value in item.evidence],
         "proposal_keys": list(item.proposal_keys),
     }
+
+
+def test_unknown_proposal_keys_and_ids_leave_the_collection_unchanged():
+    async def scenario():
+        expected, inputs = assigned(batch=True)
+        collector, tool, _ = tool_for(inputs)
+        first, second = [entry.value for entry in expected.items]
+        for invalid in ("invented-key", "receipt-1", "proposal-1"):
+            result = await tool(
+                CONTEXT,
+                item_key=first.item_key,
+                **{**arguments(first), "proposal_keys": [invalid]},
+            )
+            assert result["status"] == "error"
+            assert result["error"]["field"] == "proposal_keys"
+            assert result["error"]["invalidValue"] == invalid
+            assert (await collector.snapshot()).items == ()
+
+        await collector.register_proposal(CONTEXT.invocation_id, "known", [])
+        result = await tool(
+            CONTEXT,
+            results=[
+                {**arguments(first), "proposal_keys": ["known"]},
+                {**arguments(second), "proposal_keys": ["receipt-1"]},
+            ],
+        )
+        assert result["error"]["field"] == "proposal_keys"
+        assert (await collector.snapshot()).items == ()
+        valid = await tool(
+            CONTEXT, item_key=first.item_key, **{**arguments(first), "proposal_keys": ["known"]}
+        )
+        assert valid["status"] == "recorded"
+        before = await collector.snapshot()
+        invalid_update = await tool(
+            CONTEXT,
+            item_key=first.item_key,
+            expected_revision=1,
+            **{**arguments(first), "proposal_keys": ["proposal-1"]},
+        )
+        assert invalid_update["error"]["field"] == "proposal_keys"
+        assert await collector.snapshot() == before
+
+    asyncio.run(scenario())
+
+
+def test_standard_proposal_links_require_every_assigned_entry_and_valid_cwe():
+    async def scenario():
+        collector, tool, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
+        result = next(
+            case["result"] for case in FIXTURE["cases"] if case["name"] == "standard-minimum"
+        )
+        for client_key, refs in (
+            ("missing", []),
+            ("cwe-only", [{"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-89"}]),
+        ):
+            await collector.register_proposal(CONTEXT.invocation_id, client_key, refs)
+            reply = await tool(CONTEXT, **{**result, "proposal_keys": [client_key]})
+            assert reply["status"] == "error"
+            assert reply["error"]["field"] == "proposal_keys"
+            assert reply["error"]["missingEntryIds"] == ["entry-1"]
+            assert (await collector.snapshot()).items == ()
+
+        assigned_ref = {"scheme": "fixture", "version": "1", "requirement_id": "entry-1"}
+        cwe_ref = {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-89"}
+        await collector.register_proposal(CONTEXT.invocation_id, "valid", [assigned_ref, cwe_ref])
+        reply = await tool(CONTEXT, **{**result, "proposal_keys": ["valid"]})
+        assert reply["status"] == "recorded" and reply["complete"]
+        CanonicalAuditPackageEncoder().encode(await collector.seal(), inputs=collector.inputs)
+
+    asyncio.run(scenario())
+
+
+def test_audit_finding_preflight_and_failed_submission_cannot_create_links():
+    async def scenario():
+        collector, tool, _ = tool_for(fixture_assignment("standard", "requirements-verification"))
+        state = WorkerState()
+        state.audit_completion_binding = SimpleNamespace(current=lambda: collector)
+        client = FakeFindingClient()
+        finding = GeneralFindingTool(FindingPublisher(client, state.metrics, (), state))
+        context = SimpleNamespace(invocation_id=CONTEXT.invocation_id, function_call_id="finding-1")
+        bogus = StandardReference(scheme="other", version="1", requirement_id="unknown")
+        with pytest.raises(AuditCollectionError) as error:
+            await finding(
+                title="Candidate",
+                description="Observed weakness.",
+                standard_refs=[bogus],
+                tool_context=context,
+            )
+        assert error.value.field == "standard_refs" and client.requests == []
+        invalid_cwe = StandardReference(scheme="CWE", version="4.19", requirement_id="CWE-89")
+        with pytest.raises(AuditCollectionError) as error:
+            await finding(
+                title="Candidate",
+                description="Observed weakness.",
+                standard_refs=[invalid_cwe],
+                tool_context=context,
+            )
+        assert error.value.field == "standard_refs" and client.requests == []
+
+        class FailingClient:
+            async def submit_finding_proposal(self, request):
+                raise RuntimeError("finding submission unavailable")
+
+        failed = GeneralFindingTool(FindingPublisher(FailingClient(), state.metrics, (), state))
+        with pytest.raises(RuntimeError, match="unavailable"):
+            await failed(title="Candidate", description="Observed weakness.", tool_context=context)
+        result = next(
+            case["result"] for case in FIXTURE["cases"] if case["name"] == "standard-minimum"
+        )
+        reply = await tool(CONTEXT, **{**result, "proposal_keys": [call_client_key(context)]})
+        assert reply["error"]["field"] == "proposal_keys"
+        assert (await collector.snapshot()).items == ()
+
+        assigned_ref = StandardReference(scheme="fixture", version="1", requirement_id="entry-1")
+        receipt = await finding(
+            title="Candidate",
+            description="Observed weakness.",
+            standard_refs=[assigned_ref],
+            cwe="CWE-89",
+            tool_context=context,
+        )
+        assert receipt["client_key"] == call_client_key(context)
+        assert client.requests[0]["proposal"]["standard_refs"] == [
+            assigned_ref.model_dump(),
+            {"scheme": "CWE", "version": "4.20", "requirement_id": "CWE-89"},
+        ]
+        reply = await tool(CONTEXT, **{**result, "proposal_keys": [receipt["client_key"]]})
+        assert reply["status"] == "recorded" and reply["complete"]
+
+    asyncio.run(scenario())
+
+
+def test_proposals_are_invocation_local_and_cannot_cross_batch_items():
+    async def scenario():
+        expected, inputs = assigned(batch=True)
+        collector, tool, _ = tool_for(inputs)
+        first, second = [entry.value for entry in expected.items]
+        with pytest.raises(AuditCollectionError) as error:
+            await collector.register_proposal("other-invocation", "candidate", [])
+        assert error.value.field == "invocation"
+        await collector.register_proposal(CONTEXT.invocation_id, "candidate", [])
+        reply = await tool(
+            CONTEXT,
+            results=[
+                {**arguments(first), "proposal_keys": ["candidate"]},
+                {**arguments(second), "proposal_keys": ["candidate"]},
+            ],
+        )
+        assert reply["error"]["field"] == "proposal_keys"
+        assert (await collector.snapshot()).items == ()
+        await tool(
+            CONTEXT,
+            item_key=first.item_key,
+            **{**arguments(first), "proposal_keys": ["candidate"]},
+        )
+        before = await collector.snapshot()
+        reply = await tool(
+            CONTEXT,
+            item_key=second.item_key,
+            **{**arguments(second), "proposal_keys": ["candidate"]},
+        )
+        assert reply["error"]["field"] == "proposal_keys"
+        assert await collector.snapshot() == before
+        await collector.discard()
+        fresh = InvocationAuditCollector(inputs)
+        with pytest.raises(AuditCollectionError) as error:
+            await fresh.record(replace(first, proposal_keys=("candidate",)))
+        assert error.value.field == "proposal_keys"
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("case", FIXTURE["cases"], ids=lambda case: case["name"])
@@ -392,8 +569,10 @@ def test_collection_evidence_budget_and_per_list_limits_are_distinct():
             second,
             evidence=second.evidence * 128,
             gaps=first.gaps,
-            proposal_keys=first.proposal_keys,
+            proposal_keys=tuple(f"proposal-{i:03d}" for i in range(128, 256)),
         )
+        for proposal_key in first.proposal_keys + second.proposal_keys:
+            await collector.register_proposal(CONTEXT.invocation_id, proposal_key, [])
         await collector.record_batch((first, second))
         before = await collector.snapshot()
         with pytest.raises(AuditCollectionError, match="256"):

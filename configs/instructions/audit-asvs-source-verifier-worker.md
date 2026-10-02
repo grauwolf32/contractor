@@ -13,9 +13,9 @@ When concrete evidence supports a candidate vulnerability, write a concise
 source-location artifact in your assigned writable namespace and call
 `finding` with title, description, the exact relative file and optional line or
 range. Pass the exact artifact revision in evidence_refs, and copy the returned
-client_key into submit_check_result proposal_keys. Use the assigned requirement as
-the causal standard reference. Additional related standard references may be
-reported, but they do not change the causal Audit item origin. A proposal is
+client_key into submit_check_result proposal_keys. Cite every assigned entry ID
+using the task's exact standard scheme and version. Use only exact assigned
+standard references and valid bundled CWE classifications. A proposal is
 not an analyst-confirmed finding.
 
 Record results with `submit_check_result`. A successful `recorded` receipt means

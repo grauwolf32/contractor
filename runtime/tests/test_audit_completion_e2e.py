@@ -18,12 +18,15 @@ import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from test_adk_runtime import build_context, stage_request
 from test_audit_completion_continuation import CountedState
+from test_security_findings_toolset import FakeFindingClient
 
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import WorkerCompletionContract
 from contractor_runtime.mtls import runtime_agent_client_context
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
+from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
+from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
@@ -79,6 +82,19 @@ def test_runtime_zip_for_go_importer(tmp_path):
             state=state,
             completion_contract=contract,
         )
+        if mode.startswith("proposal"):
+            # This bridge tests create-only ZIP conflicts. A successful local
+            # finding client supplies real tool-returned keys for its links.
+            selected["finding"] = GeneralFindingTool(
+                FindingPublisher(FakeFindingClient(), state.metrics, (), state)
+            )
+
+        def finding(key):
+            return tool_call(
+                "finding",
+                {"title": "Candidate", "description": "Observed control gap."},
+                call_id="finding-" + key,
+            )
 
         def submit(key, *, invalid=False):
             return tool_call(
@@ -92,13 +108,26 @@ def test_runtime_zip_for_go_importer(tmp_path):
                     "evidence": []
                     if invalid
                     else [{"kind": "source-trace", "summary": "Guard at app.py:12."}],
-                    "proposal_keys": ["candidate"] if mode.startswith("proposal") else [],
+                    "proposal_keys": [
+                        "call-" + hashlib.sha256(("finding-" + key).encode()).hexdigest()
+                    ]
+                    if mode.startswith("proposal")
+                    else [],
                 },
                 call_id=key + ("-invalid" if invalid else "-valid"),
             )
 
         first, second = spec["itemKeys"]
         responses = [submit(second), text_result("Partial work."), submit(first), text_result("")]
+        if mode.startswith("proposal"):
+            responses = [
+                finding(second),
+                submit(second),
+                text_result("Partial work."),
+                finding(first),
+                submit(first),
+                text_result(""),
+            ]
         if mode == "correction":
             responses.insert(0, submit(second, invalid=True))
         elif mode in {"missing", "partial", "invalid"}:
@@ -112,7 +141,11 @@ def test_runtime_zip_for_go_importer(tmp_path):
             model_policy=context.model_policy.model_copy(
                 update={
                     "max_model_calls": len(responses),
-                    "max_tool_calls": 3 if mode == "correction" else 2,
+                    "max_tool_calls": 4
+                    if mode.startswith("proposal")
+                    else 3
+                    if mode == "correction"
+                    else 2,
                     "max_total_tokens": 10 * len(responses),
                 }
             ),
