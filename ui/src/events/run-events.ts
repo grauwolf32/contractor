@@ -1359,7 +1359,17 @@ export class RunEventsManager {
     const connection = this.#connection;
     this.#connection = undefined;
     if (connection !== undefined) {
-      connection.socket.close(1002, "authoritative resync required");
+      try {
+        connection.socket.close(4002, "authoritative resync required");
+      } catch {
+        // A browser or test transport can reject close; retry with a normal
+        // closure, then keep notifying owners even if the socket is unusable.
+        try {
+          connection.close();
+        } catch {
+          // The subscription reset below must not depend on socket teardown.
+        }
+      }
     }
     for (const record of this.#subscriptions.values()) {
       if (record.phase === "closing") {

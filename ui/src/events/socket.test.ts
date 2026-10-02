@@ -19,6 +19,16 @@ class FakeWebSocket {
   }
 
   close(code?: number, reason?: string): void {
+    if (
+      code !== undefined &&
+      code !== 1000 &&
+      (!Number.isInteger(code) || code < 3000 || code > 4999)
+    ) {
+      throw new DOMException(
+        "Invalid WebSocket close code",
+        "InvalidAccessError",
+      );
+    }
     this.closed = [code, reason];
   }
 }
@@ -72,6 +82,7 @@ describe("EventsSocket", () => {
     const socket = events.socket as unknown as FakeWebSocket;
     socket.protocol = "other";
     expect(() => events.assertNegotiatedProtocol()).toThrow("negotiate");
-    expect(socket.closed).toEqual([1002, "subprotocol mismatch"]);
+    expect(socket.closed).toEqual([4003, "subprotocol mismatch"]);
+    expect(() => socket.close(1002)).toThrowError(DOMException);
   });
 });

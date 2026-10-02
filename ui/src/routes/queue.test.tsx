@@ -83,8 +83,22 @@ class QueueWebSocket {
   }
 
   close(code?: number): void {
+    if (
+      code !== undefined &&
+      code !== 1000 &&
+      (!Number.isInteger(code) || code < 3000 || code > 4999)
+    ) {
+      throw new DOMException(
+        "Invalid WebSocket close code",
+        "InvalidAccessError",
+      );
+    }
+    this.serverClose(code ?? 1000);
+  }
+
+  serverClose(code: number): void {
     this.readyState = 3;
-    this.onclose?.({ code: code ?? 1000 } as CloseEvent);
+    this.onclose?.({ code } as CloseEvent);
   }
 
   open(): void {
@@ -578,7 +592,7 @@ describe("Runs Queue view", () => {
       );
       // The Server's session check closes the socket with 1008; the manager
       // does not reconnect or request a resync on its own.
-      act(() => socket.close(1008));
+      act(() => socket.serverClose(1008));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1_000);
       });

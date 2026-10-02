@@ -18,6 +18,7 @@ class FakeWebSocket {
   readyState = 0;
   sent: string[] = [];
   closed: [number | undefined, string | undefined] | undefined;
+  throwOnCloseOnce = false;
   onopen: ((event: Event) => unknown) | null = null;
   onmessage: ((event: MessageEvent) => unknown) | null = null;
   onerror: ((event: Event) => unknown) | null = null;
@@ -34,6 +35,20 @@ class FakeWebSocket {
   }
 
   close(code?: number, reason?: string): void {
+    if (
+      code !== undefined &&
+      code !== 1000 &&
+      (!Number.isInteger(code) || code < 3000 || code > 4999)
+    ) {
+      throw new DOMException(
+        "Invalid WebSocket close code",
+        "InvalidAccessError",
+      );
+    }
+    if (this.throwOnCloseOnce) {
+      this.throwOnCloseOnce = false;
+      throw new DOMException("Socket close failed", "InvalidStateError");
+    }
     this.closed = [code, reason];
     this.readyState = 3;
     this.onclose?.({ code: code ?? 1000 } as CloseEvent);
@@ -525,7 +540,65 @@ describe("RunEventsManager", () => {
 
     expect(first.resyncs).toEqual(["subscription_error"]);
     expect(second.resyncs).toEqual(["subscription_error"]);
-    expect(socket.closed?.[0]).toBe(1002);
+    expect(first.states.at(-1)).toBe("resyncing");
+    expect(second.states.at(-1)).toBe("resyncing");
+    expect(socket.closed?.[0]).toBe(4002);
+  });
+
+  it("resyncs every live subscription after an unparseable frame", () => {
+    FakeWebSocket.instances = [];
+    const first = callbacks();
+    const second = operationsCallbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    manager.subscribeRun("run-1", cursor("4"), first.value);
+    manager.subscribeOperations(
+      { generation: "operations-generation-1", revision: "2" },
+      second.value,
+    );
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.message(subscribed("run-ui-1", "run-1", "4"));
+    socket.message({
+      version: "contractor.events.v1",
+      type: "subscribed",
+      subscriptionId: "operations-ui-2",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "2" },
+    });
+
+    socket.message("not json");
+
+    expect(socket.closed).toEqual([4002, "authoritative resync required"]);
+    expect(first.states).toEqual(["connecting", "live", "resyncing"]);
+    expect(second.states).toEqual(["connecting", "live", "resyncing"]);
+    expect(first.resyncs).toEqual(["protocol_error"]);
+    expect(second.resyncs).toEqual(["protocol_error"]);
+  });
+
+  it("falls back to a normal close and still resyncs after close throws", () => {
+    FakeWebSocket.instances = [];
+    const first = callbacks();
+    const second = callbacks();
+    const manager = new RunEventsManager("http://127.0.0.1:8080", {
+      WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+    });
+    manager.subscribeRun("run-1", cursor("4"), first.value);
+    manager.subscribeRun("run-2", cursor("2"), second.value);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.message(subscribed("run-ui-1", "run-1", "4"));
+    socket.message(subscribed("run-ui-2", "run-2", "2"));
+    socket.throwOnCloseOnce = true;
+
+    socket.message("not json");
+
+    expect(socket.closed).toEqual([1000, "client closed"]);
+    expect(first.states.at(-1)).toBe("resyncing");
+    expect(second.states.at(-1)).toBe("resyncing");
+    expect(first.resyncs).toEqual(["protocol_error"]);
+    expect(second.resyncs).toEqual(["protocol_error"]);
   });
 
   it("honors explicit resync frames and treats unknown frames as protocol gaps", () => {
