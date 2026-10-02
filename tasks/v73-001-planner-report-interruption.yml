@@ -3,7 +3,8 @@ id: V73-001
 title: Persist Planner usage before interruption exits
 milestone: scheduler-result-and-report-correctness-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 9c65101f061d50fa7b79acf516779cab952e6c67
 depends_on: []
 languages: [go]
 goal: Keep real Planner model and tool usage when an invocation is interrupted.
@@ -29,3 +30,6 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/scheduler
     covers: [A1, A2, A3]
+verification:
+  focused: Cancellation, lease loss, shutdown and claim-loss report tests passed.
+  broad: Full Go suite and PostgreSQL-backed scheduler tests passed; go vet passed.

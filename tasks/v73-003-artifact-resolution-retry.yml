@@ -3,7 +3,8 @@ id: V73-003
 title: Separate transient result lookup failures from contract violations
 milestone: scheduler-result-and-report-correctness-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 9c65101f061d50fa7b79acf516779cab952e6c67
 depends_on: []
 languages: [go]
 goal: Avoid failing valid Planner output permanently when artifact metadata is temporarily unavailable.
@@ -29,3 +30,6 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/scheduler ./internal/artifacts
     covers: [A1, A2, A3]
+verification:
+  focused: Metadata-only resolution, transient lookup and missing artifact tests passed.
+  broad: Full Go suite and PostgreSQL-backed scheduler and artifacts tests passed; go vet passed.
