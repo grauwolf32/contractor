@@ -3,7 +3,8 @@ id: V75-001
 title: Require PostgreSQL before database hardening gates
 milestone: release-and-ui-guardrails-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6bb7d9d42e98631df539bc338ae645d4df73fc22
 depends_on: []
 languages: [make, go]
 goal: Stop Runtime configuration and metadata-label gates from passing with their PostgreSQL tests skipped.
@@ -24,3 +25,8 @@ acceptance_criteria:
 tests:
   - {command: make -n test-runtime-configuration-hardening test-run-metadata-labels-hardening, covers: [A1]}
   - {command: go test ./internal/runtimeconfig ./internal/runstore, covers: [A2, A3]}
+verification:
+  guard: All four hardening and e2e targets failed before tests without CONTRACTOR_TEST_DATABASE_URL.
+  postgres: All eight matrix-owned PostgreSQL tests passed under the race detector with serial packages and no SKIP.
+  general: The hardening matrix passed without a database and verify retains its database-free dependency graph.
+  limitation: A full parallel hardening run hit unrelated cross-package migration lock timeouts in the disposable database.
