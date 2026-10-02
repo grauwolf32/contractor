@@ -10,6 +10,10 @@ import {
 import { createProject } from "../../api/projects";
 import { EvalError, EvalField, EvalFrame } from "./common";
 import {
+  KeyValueValidityProvider,
+  useKeyValueValidity,
+} from "./key-value-validity";
+import {
   useEvalCapabilities,
   useEvalCases,
   useEvalDatasets,
@@ -69,6 +73,7 @@ export function EvalSetupForm({
   const [workspaceName, setWorkspaceName] = useState("");
   const [dirty, setDirty] = useState(false);
   const [validation, setValidation] = useState<Error | null>(null);
+  const keyValues = useKeyValueValidity();
   const projects = useEvalProjects(),
     capabilities = useEvalCapabilities(),
     datasets = useEvalDatasets(projectId),
@@ -94,6 +99,10 @@ export function EvalSetupForm({
   });
   const save = useMutation({
     mutationFn: async () => {
+      if (keyValues.invalid)
+        throw new Error(
+          "Resolve duplicate or empty parameter names before saving.",
+        );
       const problem = draftProblem(name, draft);
       if (problem) throw new Error(problem);
       const body = { name: name.trim(), draft };
@@ -126,6 +135,7 @@ export function EvalSetupForm({
             key={label}
             className="secondary-button"
             aria-current={step === index ? "step" : undefined}
+            disabled={keyValues.invalid && step !== index}
             onClick={() => setStep(index)}
           >
             <span className="eval-step-number">{index + 1}.</span>{" "}
@@ -258,28 +268,30 @@ export function EvalSetupForm({
                 </EvalField>
               </div>
               <div className="eval-variants">
-                {[draft.comparison.baseline, draft.comparison.candidate]
-                  .map((id) =>
-                    draft.variants.find((variant) => variant.id === id)!,
-                  )
-                  .map((variant) => (
-                    <VariantEditor
-                      key={variant.id}
-                      label={
-                        variant.id === draft.comparison.baseline ? "A" : "B"
-                      }
-                      value={variant}
-                      capabilities={capabilities.data}
-                      onChange={(next) =>
-                        update({
-                          ...draft,
-                          variants: draft.variants.map((v) =>
-                            v.id === variant.id ? next : v,
-                          ),
-                        })
-                      }
-                    />
-                  ))}
+                <KeyValueValidityProvider value={keyValues.register}>
+                  {[draft.comparison.baseline, draft.comparison.candidate]
+                    .map((id) =>
+                      draft.variants.find((variant) => variant.id === id)!,
+                    )
+                    .map((variant) => (
+                      <VariantEditor
+                        key={variant.id}
+                        label={
+                          variant.id === draft.comparison.baseline ? "A" : "B"
+                        }
+                        value={variant}
+                        capabilities={capabilities.data}
+                        onChange={(next) =>
+                          update({
+                            ...draft,
+                            variants: draft.variants.map((v) =>
+                              v.id === variant.id ? next : v,
+                            ),
+                          })
+                        }
+                      />
+                    ))}
+                </KeyValueValidityProvider>
               </div>
               <details>
                 <summary>Equality policy</summary>
@@ -479,7 +491,7 @@ export function EvalSetupForm({
               <button
                 type="button"
                 className="secondary-button"
-                disabled={step === 0}
+                disabled={step === 0 || keyValues.invalid}
                 onClick={() => setStep(step - 1)}
               >
                 Back
@@ -488,6 +500,7 @@ export function EvalSetupForm({
                 <button
                   type="button"
                   className={experiment ? "secondary-button" : undefined}
+                  disabled={keyValues.invalid}
                   onClick={() => setStep(step + 1)}
                 >
                   Next step
@@ -501,7 +514,10 @@ export function EvalSetupForm({
                     : "secondary-button"
                 }
                 disabled={
-                  !projectId || save.isPending || (!!experiment && !dirty)
+                  !projectId ||
+                  save.isPending ||
+                  keyValues.invalid ||
+                  (!!experiment && !dirty)
                 }
                 onClick={() => {
                   const problem = draftProblem(name, draft);

@@ -15,6 +15,10 @@ import {
   EvalError,
   KeyValueEditor,
 } from "./common";
+import {
+  KeyValueValidityProvider,
+  useKeyValueValidity,
+} from "./key-value-validity";
 import { EvalArtifactPicker } from "./artifact-picker";
 import { useEvalDatasets, useEvalOwner, useEvalProjects } from "./queries";
 import { recoverableMutation } from "./recovery";
@@ -275,12 +279,17 @@ export function DatasetAuthor({
   const [includePrivate, setIncludePrivate] = useState(false);
   const [imported, setImported] = useState<EvalDatasetInput | null>(null);
   const [importRejected, setImportRejected] = useState(false);
+  const keyValues = useKeyValueValidity();
   const body = datasetRequestBody(data, imported, includePrivate);
   const sizeProblem = datasetRequestIsTooLarge(body)
     ? DATASET_SIZE_ERROR
     : null;
   const save = useMutation({
     mutationFn: async () => {
+      if (!imported && keyValues.invalid)
+        throw new Error(
+          "Resolve duplicate or empty parameter names before saving.",
+        );
       if (datasetRequestIsTooLarge(body)) throw new Error(DATASET_SIZE_ERROR);
       const operation = `dataset:${projectId}`;
       return recoverableMutation(owner, operation, body, (key) =>
@@ -405,18 +414,20 @@ export function DatasetAuthor({
               <summary>
                 Case {index + 1}: {value.id || "New case"}
               </summary>
-              <CaseEditor
-                value={value}
-                projectId={projectId}
-                onChange={(next) =>
-                  setData({
-                    ...data,
-                    cases: data.cases.map((item, i) =>
-                      i === index ? next : item,
-                    ),
-                  })
-                }
-              />
+              <KeyValueValidityProvider value={keyValues.register}>
+                <CaseEditor
+                  value={value}
+                  projectId={projectId}
+                  onChange={(next) =>
+                    setData({
+                      ...data,
+                      cases: data.cases.map((item, i) =>
+                        i === index ? next : item,
+                      ),
+                    })
+                  }
+                />
+              </KeyValueValidityProvider>
               {data.cases.length > 1 ? (
                 <button
                   type="button"
@@ -496,18 +507,20 @@ export function DatasetAuthor({
                     }
                   />
                 </EvalField>
-                <KeyValueEditor
-                  label="Private expectations"
-                  value={check.expected}
-                  onChange={(expected) =>
-                    setData({
-                      ...data,
-                      privateChecks: data.privateChecks.map((c, i) =>
-                        i === index ? { ...c, expected } : c,
-                      ),
-                    })
-                  }
-                />
+                <KeyValueValidityProvider value={keyValues.register}>
+                  <KeyValueEditor
+                    label="Private expectations"
+                    value={check.expected}
+                    onChange={(expected) =>
+                      setData({
+                        ...data,
+                        privateChecks: data.privateChecks.map((c, i) =>
+                          i === index ? { ...c, expected } : c,
+                        ),
+                      })
+                    }
+                  />
+                </KeyValueValidityProvider>
                 <button
                   type="button"
                   className="secondary-button"
@@ -548,7 +561,11 @@ export function DatasetAuthor({
       {!importRejected ? (
         <button
           type="button"
-          disabled={save.isPending || sizeProblem !== null}
+          disabled={
+            save.isPending ||
+            sizeProblem !== null ||
+            (!imported && keyValues.invalid)
+          }
           onClick={() => save.mutate()}
         >
           {save.isPending ? "Saving revision…" : "Save dataset revision"}
