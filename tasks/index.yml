@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: settled-eval-polling-2026-10
+    exit_task: V89-001
+    outcome: >-
+      Settled Eval detail and list views back off polling while active or
+      stale views keep prompt refresh and review invalidations still update.
   - id: runtime-agent-page-completeness-2026-10
     exit_task: V88-001
     outcome: >-
@@ -2726,6 +2731,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V89-001, file: v89-001-settled-eval-polling.yml}
   - {id: V88-001, file: v88-001-runtime-agent-page-completeness.yml}
   - {id: V87-001, file: v87-001-browser-event-resync.yml}
   - {id: V86-001, file: v86-001-workflow-inventory-key.yml}

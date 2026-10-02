@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V89-001
+title: Back off settled Eval detail and list polling
+milestone: settled-eval-polling-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [typescript]
+goal: Stop expensive two-second reads when visible Eval views are settled.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/121
+  finding: Detail and list pages keep polling finished and cancelled experiments every two seconds.
+scope:
+  in:
+    - Back off detail polling only for finished/cancelled, current views without deletion requests.
+    - Back off list page one when all visible rows are finished/cancelled and current.
+    - Keep active and stale views on the existing interval and verify invalidation refresh.
+  out:
+    - Change coordinator state transitions or server Eval reads.
+acceptance_criteria:
+  - {id: A1, text: Settled detail and list views are not fetched again within ten seconds.}
+  - {id: A2, text: Active, interrupted, stale and deletion-pending detail views keep short polling.}
+  - {id: A3, text: Review invalidation refetches a finished experiment and stale views poll until current.}
+  - {id: A4, text: UI tests, app/e2e typechecks and lint pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/evals/polling.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}
