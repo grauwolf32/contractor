@@ -3,8 +3,8 @@ id: V90-001
 title: Remove dead Projects single-page layout modes and exports
 milestone: project-section-dead-modes-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a3ad5adbe2fac7b5a381a6b9f29387f2cf8eea5f
 depends_on: []
 languages: [typescript]
 goal: Keep routed Project sections aligned with their sole production callers.
@@ -25,6 +25,7 @@ acceptance_criteria:
   - {id: A3, text: UI tests, app/e2e typechecks and lint pass.}
 tests:
   - {command: cd ui && ./node_modules/.bin/vitest run src/routes/projects/projects.test.tsx src/routes/evals-skills.test.tsx src/routes/projects/audits/audits.test.tsx, covers: [A1, A2]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A2, A3]}
   - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A3]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
