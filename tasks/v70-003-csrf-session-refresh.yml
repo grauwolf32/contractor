@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V70-003
+title: Recover stale CSRF tokens after another tab signs in
+milestone: github-issue-remediation-2026-10-v70
+priority: P1
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Let open browser tabs make authorized mutations after the shared session changes.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/328
+  finding: >-
+    A tab retains its old in-memory CSRF token after another tab replaces the
+    shared session cookie, so later mutations fail with 403 until reload.
+scope:
+  in:
+    - Refresh the session token after an unsafe cookie request gets 403.
+    - Retry only when the token changed and the request is replay-safe.
+    - Keep unrelated origin and capability denials as 403 without a retry loop.
+    - Cover two tabs sharing a cookie jar and non-idempotent requests.
+  out:
+    - Change server session lifetime or multi-principal authorization.
+acceptance_criteria:
+  - id: A1
+    text: A stale tab obtains the new token and can make its next mutation without reloading.
+  - id: A2
+    text: Safe mutations retry at most once after a changed token.
+  - id: A3
+    text: Non-idempotent requests, origin denials and capability denials do not auto-retry.
+tests:
+  - command: cd ui && npm test -- --run src/api/client.test.ts
+    covers: [A1, A2, A3]
