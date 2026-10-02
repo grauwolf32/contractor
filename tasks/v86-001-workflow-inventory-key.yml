@@ -3,8 +3,8 @@ id: V86-001
 title: Move Workflow inventory key into the query-key registry
 milestone: workflow-inventory-key-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 764e08bcbdd4dd05d27b48df2013554240fef005
 depends_on: [V84-001, V84-002]
 languages: [typescript]
 goal: Make the active Workflow inventory query visible in the shared key registry.
