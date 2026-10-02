@@ -45,8 +45,6 @@ export type WorkspaceCapabilities =
   components["schemas"]["WorkspaceCapabilities"];
 export type AllocationObservation =
   components["schemas"]["AllocationObservation"];
-export type RuntimeAgentPage = components["schemas"]["RuntimeAgentPage"];
-export type AllocationPage = components["schemas"]["AllocationPage"];
 export type ConfigurationKind = components["schemas"]["ConfigurationKind"];
 export type ConfigurationResource =
   components["schemas"]["ConfigurationResource"];
@@ -902,34 +900,6 @@ export async function getOperationsSnapshot(
   };
 }
 
-export async function listRuntimeAgents(
-  api: PublicAPI,
-  request: CursorPageRequest = {},
-): Promise<RuntimeAgentPage> {
-  const result = await api.request((client) =>
-    client.GET("/v1/operations/runtime-agents", {
-      params: {
-        query: {
-          limit: OPERATIONS_PAGE_SIZE,
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-        },
-      },
-    }),
-  );
-  const page = requireData(result);
-  if (!validOperationsCursor(page.cursor)) {
-    throw invalidResponse(
-      result.response.status,
-      "Server returned an invalid Runtime Agent page",
-    );
-  }
-  return {
-    cursor: safeCursor(page.cursor),
-    items: page.items.map(safeRuntimeAgent),
-    page: safePageInfo(page.page),
-  };
-}
-
 export async function listRuntimeAgentPrincipals(
   api: PublicAPI,
   request: CursorPageRequest = {},
@@ -1063,34 +1033,6 @@ export async function deleteRuntimeAgentPrincipal(
   if (result.response.status !== 204 || result.error !== undefined) {
     throw publicAPIError(result.response.status, result.error);
   }
-}
-
-export async function listAllocations(
-  api: PublicAPI,
-  request: CursorPageRequest = {},
-): Promise<AllocationPage> {
-  const result = await api.request((client) =>
-    client.GET("/v1/operations/allocations", {
-      params: {
-        query: {
-          limit: OPERATIONS_PAGE_SIZE,
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-        },
-      },
-    }),
-  );
-  const page = requireData(result);
-  if (!validOperationsCursor(page.cursor)) {
-    throw invalidResponse(
-      result.response.status,
-      "Server returned an invalid allocation page",
-    );
-  }
-  return {
-    cursor: safeCursor(page.cursor),
-    items: page.items.map(safeAllocation),
-    page: safePageInfo(page.page),
-  };
 }
 
 export async function getConfiguration(
@@ -1326,29 +1268,6 @@ export async function listRuntimeLabels(
   };
 }
 
-export async function getRuntimeLabel(
-  api: PublicAPI,
-  label: string,
-): Promise<RuntimeLabelBinding> {
-  requireRuntimeIdentity(label);
-  const result = await api.request((client) =>
-    client.GET("/v1/operations/runtime-labels/{label}", {
-      params: { path: { label } },
-    }),
-  );
-  const binding = safeRuntimeLabel(requireData(result));
-  if (
-    binding.label !== label ||
-    result.response.headers.get("etag") !== `"${binding.revision}"`
-  ) {
-    throw invalidResponse(
-      result.response.status,
-      "Server returned an invalid Runtime label response",
-    );
-  }
-  return binding;
-}
-
 export async function putRuntimeLabel(
   api: PublicAPI,
   label: string,
@@ -1452,26 +1371,6 @@ export async function listRuntimeCredentials(
     items: page.items.map(safeRuntimeCredential),
     page: safePageInfo(page.page),
   };
-}
-
-export async function getRuntimeCredential(
-  api: PublicAPI,
-  credentialId: string,
-): Promise<RuntimeCredentialMetadata> {
-  requireRuntimeCredentialId(credentialId);
-  const result = await api.request((client) =>
-    client.GET("/v1/operations/runtime-credentials/{credentialId}", {
-      params: { path: { credentialId } },
-    }),
-  );
-  const metadata = safeRuntimeCredential(requireData(result));
-  if (metadata.credentialId !== credentialId) {
-    throw invalidResponse(
-      result.response.status,
-      "Server returned the wrong Runtime credential metadata",
-    );
-  }
-  return metadata;
 }
 
 export async function createRuntimeCredential(
