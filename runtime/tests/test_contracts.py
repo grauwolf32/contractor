@@ -285,6 +285,43 @@ def test_worker_completion_rejects_nested_authority_and_inconsistent_observation
             WorkerCompletion.model_validate(candidate)
 
 
+@pytest.mark.parametrize(
+    ("valid_path", "invalid_path"),
+    [
+        ("/".join(["d"] * 31 + ["f"]), "/".join(["d"] * 32 + ["f"])),
+        ("a" * 1024, "a" * 1025),
+    ],
+)
+def test_worker_completion_read_path_bounds_and_omitted_detail(
+    valid_path: str, invalid_path: str
+) -> None:
+    baseline = json.loads(
+        (FIXTURES / "valid" / "worker-completion-success.json").read_text(encoding="utf-8")
+    )
+    workspace = baseline["result"]["observations"]["workspace"]
+    workspace["filesRead"] = [valid_path]
+    workspace["readFiles"] = 1
+    assert WorkerCompletion.model_validate(baseline).result is not None
+
+    workspace["filesRead"] = [invalid_path]
+    with pytest.raises(ValidationError):
+        WorkerCompletion.model_validate(baseline)
+
+    workspace["filesRead"] = []
+    workspace["filesReadTruncated"] = True
+    baseline["result"]["observations"]["truncated"] = True
+    assert WorkerCompletion.model_validate(baseline).result is not None
+    schema_root = FIXTURES.parents[1] / "v1alpha1"
+    schemas = [json.loads(path.read_text()) for path in schema_root.glob("*.schema.json")]
+    registry = Registry().with_resources(
+        (schema["$id"], Resource.from_contents(schema)) for schema in schemas
+    )
+    worker_schema = next(
+        schema for schema in schemas if schema["$id"].endswith("worker-completion.schema.json")
+    )
+    Draft202012Validator(worker_schema, registry=registry).validate(baseline)
+
+
 def test_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:
     baseline = json.loads(
         (FIXTURES / "valid" / "agent-state-snapshot.json").read_text(encoding="utf-8")

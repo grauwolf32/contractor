@@ -91,6 +91,29 @@ def test_reducer_bounds_scope_interactions_and_lean_path_detail(
     assert truncated is True
 
 
+@pytest.mark.parametrize(
+    ("valid_path", "omitted_path"),
+    [
+        ("/".join(["d"] * 31 + ["f"]), "/".join(["d"] * 32 + ["f"])),
+        ("a" * 1024, "a" * 1025),
+    ],
+)
+def test_lean_summary_omits_out_of_bounds_read_paths_without_losing_counts(
+    valid_path: str, omitted_path: str
+) -> None:
+    reducer = WorkspaceObservationReducer.from_metadata(metadata(valid_path, omitted_path))
+    reducer.record(WorkspaceToolObservation(read=(valid_path,)), ordinal=1)
+    reducer.record(WorkspaceToolObservation(read=(omitted_path,)), ordinal=2)
+
+    summary, truncated = lean_workspace_summary(reducer.snapshot())
+
+    assert summary is not None
+    assert summary.read_files == 2
+    assert summary.files_read == [valid_path]
+    assert summary.files_read_truncated is True
+    assert truncated is True
+
+
 def test_scope_byte_limit_stops_at_a_deterministic_lexical_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
