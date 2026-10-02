@@ -397,6 +397,8 @@ func (p *streamlinePlanner) workerRequest(
 	ctx context.Context, subtask planner.PlannerSubtask,
 ) (contracts.StageContentRequest, *planner.Failure) {
 	request := planner.CloneStageRequest(p.request)
+	deadline := p.deadline
+	request.Deadline = &deadline
 	request.SubtaskID = subtask.ID
 	request.Objective = subtask.Objective
 	request.Instructions = subtask.Instructions

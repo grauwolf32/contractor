@@ -483,6 +483,34 @@ def test_deadline_bounds_each_io_and_reconciliation(phase):
     asyncio.run(scenario())
 
 
+def test_each_publication_attempt_has_its_own_request_timeout():
+    async def scenario():
+        snapshot, inputs = assigned()
+        transport = ScriptedArtifactTransport(["hang", "hang"])
+        started = asyncio.get_running_loop().time()
+        receipt = await publisher(snapshot, transport).publish(
+            snapshot,
+            inputs=inputs,
+            deadline=started + 1,
+            request_timeout=0.01,
+        )
+        assert receipt.revision == "exact-r1"
+        assert [request[0] for request in transport.requests] == ["PUT", "GET", "PUT"]
+        assert asyncio.get_running_loop().time() - started < 0.5
+
+        exhausted = ScriptedArtifactTransport(["hang"] * 4)
+        with pytest.raises(AuditResultError, match="audit_result_publication_failed"):
+            await publisher(snapshot, exhausted).publish(
+                snapshot,
+                inputs=inputs,
+                deadline=asyncio.get_running_loop().time() + 1,
+                request_timeout=0.01,
+            )
+        assert [request[0] for request in exhausted.requests] == ["PUT", "GET", "PUT", "GET"]
+
+    asyncio.run(scenario())
+
+
 def test_publisher_pins_binding_rejects_foreign_owner_and_preserves_fatal_failure():
     async def scenario():
         snapshot, inputs = assigned()

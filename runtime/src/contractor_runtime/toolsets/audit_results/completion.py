@@ -51,10 +51,12 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         contract: WorkerCompletionContract,
         inputs: AuditTrustedInputs,
         client: PublicationArtifactClient,
+        request_timeout: float,
     ):
         self.contract = contract.model_copy(deep=True)
         self._inputs = inputs
         self._client = client
+        self._request_timeout = request_timeout
         self._collector: InvocationAuditCollector | None = None
         self._reminders = 0
         self.diagnostics = None
@@ -126,7 +128,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         inputs = AuditTrustedInputs(owner, task.data, manifest.data)
         # Real encoder validates exact membership/order/digests before the model exists.
         await InvocationAuditCollector(inputs).discard()
-        return cls(contract, inputs, client)
+        return cls(contract, inputs, client, timeout)
 
     def current(self) -> InvocationAuditCollector:
         if self._collector is None:
@@ -167,6 +169,8 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         check_active: Callable[[], None],
     ) -> ContinueCompletion | CompleteCompletion | FailCompletion:
         check_active()
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError
         collector = self.current()
         snapshot = await collector.snapshot()
         accepted = {item.value.item_key for item in snapshot.items}
@@ -202,7 +206,18 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         sealed = await collector.seal()
         await self.record_phase("sealed")
         await self.record_phase("publishing")
-        receipt = await publisher.publish(sealed, inputs=collector.inputs, deadline=deadline)
+        # Publication permits at most two writes and two read-backs. Each IO
+        # receives its own outbound-request budget while the Stage deadline
+        # and a finite publication cap remain authoritative. The Runtime's
+        # outer Stage timeout stays separate so Stage expiry reports
+        # worker_timeout even during an artifact request.
+        publish_deadline = asyncio.get_running_loop().time() + 4 * self._request_timeout + 1
+        receipt = await publisher.publish(
+            sealed,
+            inputs=collector.inputs,
+            deadline=publish_deadline,
+            request_timeout=self._request_timeout,
+        )
         check_active()
         await self.record_phase("published")
         exact = ArtifactRef(

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal, Self
 
@@ -40,6 +42,11 @@ from contractor_runtime.contracts.base import (
 from contractor_runtime.contracts.reports import ToolCallOutcome, WorkerCompletionDiagnostics
 from contractor_runtime.contracts.workspace import WorkspaceObservationSummary
 
+_WIRE_DEADLINE = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+    r"(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+)
+
 
 class StageContentRequest(VersionedWireModel):
     subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
@@ -50,12 +57,29 @@ class StageContentRequest(VersionedWireModel):
     result_artifacts: dict[str, ArtifactRef] = Field(
         default_factory=dict, exclude_if=lambda value: not value
     )
+    deadline: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @field_validator("deadline", mode="before")
+    @classmethod
+    def parse_wire_deadline(cls, value: datetime | str | None) -> datetime | None:
+        if isinstance(value, str):
+            if _WIRE_DEADLINE.fullmatch(value) is None:
+                raise ValueError("deadline must be an RFC 3339 timestamp with an offset")
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as error:
+                raise ValueError("deadline must be a valid timestamp") from error
+        return value
 
     @model_validator(mode="after")
     def validate_content(self) -> Self:
         _require_worker_subtask_id(self.subtask_id)
         _require_text("objective", self.objective)
         _require_text("instructions", self.instructions)
+        if self.deadline is not None and (
+            self.deadline.tzinfo is None or self.deadline.utcoffset() is None
+        ):
+            raise ValueError("deadline must be timezone-aware")
         for key in self.parameters:
             _require_text("parameter name", key)
         for key, artifact in self.artifacts.items():

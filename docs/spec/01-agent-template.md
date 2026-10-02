@@ -935,6 +935,15 @@ timeout and of the enclosing Stage/Planner deadline; increasing it must not
 make terminal cleanup or Scheduler claim progress wait for a model-sized
 timeout.
 
+The private `StageContentRequest.deadline` carries the Planner's effective
+Worker-call deadline: the Stage deadline for passthrough, the smaller Stage or
+Planner wall-clock deadline for streamline/router, and the smaller Stage or
+scan-job deadline for scan workers. Audit completion uses that absolute time
+for the whole invocation, including reminders, model recovery and publication;
+it does not turn `requestTimeoutSeconds` into a whole-invocation cap. Each
+outbound call retains its own request timeout. The deadline is Runtime control
+data and is not placed in the Worker model prompt.
+
 AgentTemplate selects its default exact ModelPolicy, but neither object carries
 the LLM Gateway URL, token, provider routing or credential. Run initialization
 resolves the Workflow defaults plus the request's reference-only

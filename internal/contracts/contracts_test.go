@@ -33,12 +33,13 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"artifact-read-result.json":                    roundTrip[ArtifactReadResult],
 		"artifact-list-result.json":                    roundTrip[ArtifactListResult],
 		"stage-content-request.json":                   roundTrip[StageContentRequest],
+		"stage-content-request-deadline.json":          roundTrip[StageContentRequest],
 		"stage-content-result-success.json":            roundTrip[StageContentResult],
 		"stage-content-result-failure.json":            roundTrip[StageContentResult],
 		"worker-completion-success.json":               roundTrip[WorkerCompletion],
 		"worker-completion-failure.json":               roundTrip[WorkerCompletion],
 		"worker-completion-empty-observations.json":    roundTrip[WorkerCompletion],
-		"runtime-settings-ca-bundle.json":             roundTrip[RuntimeSettings],
+		"runtime-settings-ca-bundle.json":              roundTrip[RuntimeSettings],
 	}
 
 	for filename, decode := range cases {
@@ -77,6 +78,7 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 		"allocation-spec-bad-api-version.json":                reject[AllocationSpec],
 		"allocation-spec-resolved-skill-versionless.json":     reject[AllocationSpec],
 		"stage-content-request-unknown-field.json":            reject[StageContentRequest],
+		"stage-content-request-naive-deadline.json":          reject[StageContentRequest],
 		"stage-content-request-versioned-result-binding.json": reject[StageContentRequest],
 		"stage-content-result-unversioned-artifact.json":      reject[StageContentResult],
 		"stage-content-result-success-with-error.json":        reject[StageContentResult],

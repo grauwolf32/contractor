@@ -106,6 +106,13 @@ They must agree with AllocationSpec grants and the StageContentRequest result
 binding. Runtime validates exact task/manifest identity before starting work.
 No new Project/Audit mutation or foreign-scope artifact authority is granted.
 
+The Planner also sends its effective Worker-call deadline in the private
+`StageContentRequest.deadline`. Runtime converts it to a monotonic deadline once
+at invocation start; continuations do not reset it. The Stage/Planner deadline,
+not `requestTimeoutSeconds`, bounds the whole Audit invocation and any
+coordinated model-recovery wait. Older requests without this optional field
+rely on the existing Planner cancellation path and finite publication budget.
+
 Runtime advertises `capabilities.completionContracts` containing supported
 contract IDs. Omission means no new contracts. Placement requires both the
 contract and selected toolset capability; direct prepare also rejects unknown
@@ -268,8 +275,11 @@ If success cannot be established, return `audit_result_publication_failed`.
 Size/input-contract errors are non-retryable, transport errors are retryable,
 and a conflicting existing output is non-retryable for this contract.
 
-The finite policy permits at most two writes and two read-backs in total, all
-under the invocation deadline and with the package-size response bound. A
+The finite policy permits at most two writes and two read-backs in total. Each
+artifact request has its own `requestTimeoutSeconds` budget, and all attempts
+remain under the Planner deadline and a finite publication cap of four request
+budgets plus one second for local work. The package-size response bound still
+applies. A
 create conflict permits comparison, not overwrite; retryable transport errors
 permit reconciliation. Authentication, authorization and write-fence rejection
 are terminal for this publication and do not become transport retries. Translate

@@ -52,7 +52,12 @@ func TestFactoryFreezesAllInputsBeforeDispatchAndProducesDeterministicReport(t *
 	}
 	second := newFactoryHarness(t, 3)
 	other := second.run(t)
-	if !reflect.DeepEqual(first.invoker.calls, second.invoker.calls) ||
+	firstCalls, secondCalls := append([]factoryCall(nil), first.invoker.calls...), append([]factoryCall(nil), second.invoker.calls...)
+	for index := range firstCalls {
+		firstCalls[index].request.Deadline = nil
+		secondCalls[index].request.Deadline = nil
+	}
+	if !reflect.DeepEqual(firstCalls, secondCalls) ||
 		!bytes.Equal(first.artifacts.payload(result.Artifacts["report"]).Data, second.artifacts.payload(other.Artifacts["report"]).Data) {
 		t.Fatal("same exact source and stage produced different Worker requests or aggregate bytes")
 	}
@@ -499,6 +504,10 @@ type factoryInvoker struct {
 
 func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts.WorkerHandle, request contracts.StageContentRequest) (contracts.WorkerCompletion, error) {
 	w.sessions.assertAllInputsPersisted()
+	ctxDeadline, ok := ctx.Deadline()
+	if !ok || request.Deadline == nil || !request.Deadline.Equal(ctxDeadline) {
+		w.t.Fatalf("Worker request deadline does not match call context: request=%v context=%v", request.Deadline, ctxDeadline)
+	}
 	if err := request.Validate(); err != nil {
 		w.t.Fatal(err)
 	}
