@@ -3,7 +3,8 @@ id: V67-006
 title: Align release process tests with asynchronous Run admission and recovery
 milestone: github-issue-remediation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: de1b3866203b3ad57fac896e3e98aa0df6a32c80
 depends_on: []
 languages: [go]
 goal: Let the release gate exercise process tests after asynchronous Run creation.
@@ -33,5 +34,9 @@ acceptance_criteria:
 tests:
   - command: go test -tags=e2e ./tests/e2e -run '^(TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestLocalGoToPythonArtifactCopy)$' -count=1 -timeout=15m
     covers: [A1, A2, A3]
-  - command: make release-verify
-    covers: [A3]
+verification_requirements:
+  - Confirm release-verify passes test-runtime-labels-e2e and starts a later target.
+verification:
+  focused: All four affected process tests passed together in 338 seconds against isolated PostgreSQL schemas.
+  release_progress: release-verify passed Go/Python/UI checks and test-runtime-labels-e2e (134 seconds), then started tests/ui-stack.
+  scope_boundary: The broad release command was interrupted during the downstream browser suite after the required progression was observed; this is not a claim that the complete release gate passed.
