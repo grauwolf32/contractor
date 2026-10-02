@@ -1450,15 +1450,13 @@ describe("Project Audit routes", () => {
           );
         if (path === "/v1/audits/audit_trace/findings")
           return jsonResponse({ items: [other], page: { hasMore: false } });
-        if (path === "/v1/audits/audit_example/reviews")
-          return jsonResponse(
-            url.searchParams.has("cursor")
-              ? { items: [review], page: { hasMore: false } }
-              : {
-                  items: [],
-                  page: { hasMore: true, nextCursor: "more-reviews" },
-                },
-          );
+        if (path === "/v1/audits/audit_example/reviews") {
+          expect(url.searchParams.get("state")).toBe("pending");
+          return jsonResponse({
+            items: [review],
+            page: { hasMore: false },
+          });
+        }
         if (path === "/v1/audits/audit_trace/reviews")
           return jsonResponse({ items: [], page: { hasMore: false } });
         throw new Error(`unexpected ${path}`);
@@ -1477,7 +1475,7 @@ describe("Project Audit routes", () => {
       expect.arrayContaining([
         "/v1/projects/project_example/audits:other-audits",
         "/v1/audits/audit_example/findings:more-findings",
-        "/v1/audits/audit_example/reviews:more-reviews",
+        "/v1/audits/audit_example/reviews:first",
       ]),
     );
     const cards = container.querySelectorAll(".audit-finding-card");
@@ -2830,6 +2828,214 @@ describe("Bounded Audit collections", () => {
     expect(screen.getByText("1 of 6 findings · 1 audits")).toBeVisible();
   });
 
+  it.each([true, false])(
+    "opens a project finding decision after 250 historical reviews (already pending: %s)",
+    async (alreadyPending) => {
+      const audit = auditAt("completed", 4);
+      const finding = findingAt("proposed", 2);
+      const pending: AuditReviewRequest = {
+        requestId: "review_pending",
+        auditId: audit.auditId,
+        subjectKind: "finding",
+        subjectId: finding.findingId,
+        findingId: finding.findingId,
+        kind: "finding-triage",
+        subjectRevision: finding.revision,
+        subjectDigest: `sha256:${"b".repeat(64)}`,
+        requestedActions: ["true_positive", "false_positive", "duplicate"],
+        state: "pending",
+        revision: 1,
+        createdAt: audit.createdAt,
+        updatedAt: audit.updatedAt,
+      };
+      const reviews: AuditReviewRequest[] = Array.from(
+        { length: 250 },
+        (_, index) => ({
+          ...pending,
+          requestId: `review_history_${index}`,
+          state: "decided",
+        }),
+      );
+      reviews.push({
+        ...pending,
+        requestId: "review_stale",
+        subjectRevision: finding.revision - 1,
+      });
+      if (alreadyPending) reviews.push(pending);
+      const reads: URLSearchParams[] = [];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input as Request;
+          const url = new URL(request.url);
+          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+          if (url.pathname === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (url.pathname === "/v1/projects/project_example/audits")
+            return jsonResponse({ items: [audit], page: { hasMore: false } });
+          if (url.pathname === "/v1/audits/audit_example/findings")
+            return jsonResponse({ items: [finding], page: { hasMore: false } });
+          if (url.pathname === "/v1/audits/audit_example/reviews") {
+            reads.push(url.searchParams);
+            const matching = reviews.filter(
+              (review) =>
+                (!url.searchParams.has("finding") ||
+                  review.findingId === url.searchParams.get("finding")) &&
+                (!url.searchParams.has("state") ||
+                  review.state === url.searchParams.get("state")),
+            );
+            const offset = Number(url.searchParams.get("cursor") ?? "0");
+            return jsonResponse({
+              items: matching.slice(offset, offset + 50),
+              page:
+                offset + 50 < matching.length
+                  ? { hasMore: true, nextCursor: String(offset + 50) }
+                  : { hasMore: false },
+            });
+          }
+          if (
+            url.pathname ===
+              "/v1/audits/audit_example/findings/finding_example/reviews" &&
+            request.method === "POST"
+          ) {
+            reviews.push(pending);
+            return jsonResponse(pending, {
+              status: 201,
+              headers: { ETag: '"1"' },
+            });
+          }
+          throw new Error(`unexpected ${request.method} ${url.pathname}`);
+        }),
+      );
+      renderApplication(api, "/projects/project_example/findings");
+      if (!alreadyPending)
+        await userEvent
+          .setup()
+          .click(await screen.findByRole("button", { name: "Review finding" }));
+      expect(await screen.findByLabelText("Decision")).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Record decision" }),
+      ).toBeVisible();
+      expect(reads).not.toHaveLength(0);
+      for (const query of reads) {
+        expect(query.has("finding")).toBe(false);
+        expect(query.get("state")).toBe("pending");
+        expect(query.has("cursor")).toBe(false);
+      }
+    },
+  );
+
+  it("reads pending review status once per Audit with 250 loaded findings", async () => {
+    const audit = auditAt("completed", 4);
+    const allFindings = Array.from({ length: 250 }, (_, index) => ({
+      ...findingAt("proposed", 1),
+      findingId: `finding_${index}`,
+    }));
+    let reviewReads = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const url = new URL((input as Request).url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/projects/project_example/audits")
+          return jsonResponse({ items: [audit], page: { hasMore: false } });
+        if (url.pathname === "/v1/audits/audit_example/findings") {
+          const offset = Number(url.searchParams.get("cursor") ?? "0");
+          return jsonResponse({
+            items: allFindings.slice(offset, offset + 50),
+            page:
+              offset + 50 < allFindings.length
+                ? { hasMore: true, nextCursor: String(offset + 50) }
+                : { hasMore: false },
+          });
+        }
+        if (url.pathname === "/v1/audits/audit_example/reviews") {
+          expect(url.searchParams.get("state")).toBe("pending");
+          expect(url.searchParams.has("finding")).toBe(false);
+          reviewReads += 1;
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${url.pathname}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/findings");
+    expect(
+      await screen.findByText("250 of 250 findings · 1 audits"),
+    ).toBeVisible();
+    expect(reviewReads).toBe(1);
+  });
+
+  it("keeps new review creation closed until later pending pages are read", async () => {
+    const audit = auditAt("completed", 4);
+    const finding = findingAt("proposed", 2);
+    const current: AuditReviewRequest = {
+      requestId: "review_current",
+      auditId: audit.auditId,
+      findingId: finding.findingId,
+      subjectKind: "finding",
+      subjectId: finding.findingId,
+      kind: "finding-triage",
+      subjectRevision: finding.revision,
+      subjectDigest: `sha256:${"a".repeat(64)}`,
+      requestedActions: ["true_positive", "false_positive"],
+      state: "pending",
+      revision: 1,
+      createdAt: audit.createdAt,
+      updatedAt: audit.updatedAt,
+    };
+    const pending: AuditReviewRequest[] = Array.from(
+      { length: 250 },
+      (_, index) => ({
+        ...current,
+        requestId: `review_other_${index}`,
+        findingId: `finding_other_${index}`,
+        subjectId: `finding_other_${index}`,
+      }),
+    );
+    pending.push(current);
+    const reviewReads: URLSearchParams[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const url = new URL((input as Request).url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/projects/project_example/audits")
+          return jsonResponse({ items: [audit], page: { hasMore: false } });
+        if (url.pathname === "/v1/audits/audit_example/findings")
+          return jsonResponse({ items: [finding], page: { hasMore: false } });
+        if (url.pathname === "/v1/audits/audit_example/reviews") {
+          reviewReads.push(url.searchParams);
+          const offset = Number(url.searchParams.get("cursor") ?? "0");
+          return jsonResponse({
+            items: pending.slice(offset, offset + 50),
+            page:
+              offset + 50 < pending.length
+                ? { hasMore: true, nextCursor: String(offset + 50) }
+                : { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${url.pathname}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/findings");
+    const loadMore = await screen.findAllByRole("button", {
+      name: "Load more pending reviews",
+    });
+    expect(screen.queryByRole("button", { name: "Review finding" })).toBeNull();
+    expect(screen.queryByLabelText("Decision")).toBeNull();
+    expect(reviewReads).toHaveLength(5);
+    await userEvent.setup().click(loadMore[0]!);
+    expect(await screen.findByLabelText("Decision")).toBeVisible();
+    expect(reviewReads).toHaveLength(6);
+    expect(reviewReads.every((query) => query.get("state") === "pending")).toBe(
+      true,
+    );
+  });
+
   it.each([
     ["completed", false],
     ["active", true],
@@ -2838,7 +3044,7 @@ describe("Bounded Audit collections", () => {
     async (state, polls) => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const audit = auditAt(state, 3);
-      const requests = { audits: 0, findings: 0 };
+      const requests = { audits: 0, findings: 0, reviews: 0 };
       const api = new PublicAPI(
         runtimeConfig,
         vi.fn(async (input) => {
@@ -2857,8 +3063,10 @@ describe("Bounded Audit collections", () => {
               page: { hasMore: false },
             });
           }
-          if (path === "/v1/audits/audit_example/reviews")
+          if (path === "/v1/audits/audit_example/reviews") {
+            requests.reviews += 1;
             return jsonResponse({ items: [], page: { hasMore: false } });
+          }
           throw new Error(`unexpected ${path}`);
         }),
       );
@@ -2872,6 +3080,7 @@ describe("Bounded Audit collections", () => {
         await vi.waitFor(() => {
           expect(requests.audits).toBeGreaterThan(before.audits);
           expect(requests.findings).toBeGreaterThan(before.findings);
+          expect(requests.reviews).toBeGreaterThan(before.reviews);
         });
       } else {
         expect(requests).toEqual(before);

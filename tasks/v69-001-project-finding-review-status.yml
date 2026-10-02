@@ -1,0 +1,46 @@
+schema_version: '1.0'
+id: V69-001
+title: Keep Project finding review status accurate at bounded request cost
+milestone: audit-findings-ui-correctness
+priority: P1
+status: completed
+implementation_commit: bf92a15163ae059bf53882e46d09ca96dc503b7a
+depends_on: [V66-008]
+languages: [typescript]
+goal: Show the current review for every loaded Project finding without a request per finding or stale-review lockout.
+context:
+  authority: User requested an issue, fix and PR for the 2026-10-02 uncommitted Audit UI review findings.
+  issue: https://github.com/grauwolf32/contractor/issues/332
+  finding: >-
+    Per-finding review queries issue one request for every visible finding and
+    poll them every five seconds for active Audits. Selecting the first pending
+    review can choose an older finding revision and hide the current decision.
+scope:
+  in:
+    - Read pending reviews in bounded per-Audit batches with explicit continuation.
+    - Keep decision controls unavailable while a pending-review page may still contain the finding.
+    - Prefer a pending review for the exact current finding revision; allow a new review when only stale requests remain.
+    - Preserve revision-bound collection cursors after refresh and surface continuation errors.
+    - Cover large finding lists, older pending requests, revision changes and cursor refreshes in UI tests.
+  out:
+    - Change public Audit API or server pagination contracts.
+acceptance_criteria:
+  - id: A1
+    text: Loading or polling hundreds of findings makes a bounded number of review requests per Audit, not one request per finding.
+  - id: A2
+    text: An older pending review cannot hide the current finding review or prevent creation of a new current review.
+  - id: A3
+    text: Unread pending-review pages never make a finding appear safe to review as new, and page failures remain retryable.
+  - id: A4
+    text: Refreshed Audit collection cursors follow the new revision without mixing old and new rows.
+tests:
+  - command: cd ui && pnpm exec vitest run src/routes/projects/audits/collections.test.tsx src/routes/projects/audits/audits.test.tsx
+    covers: [A1, A2, A3, A4]
+  - command: cd ui && pnpm run typecheck
+    covers: [A1, A2, A3, A4]
+  - command: cd ui && pnpm run lint
+    covers: [A1, A2, A3, A4]
+verification:
+  focused: 47 tests passed across collections.test.tsx and audits.test.tsx.
+  ui: 662 Vitest tests, 11 static-server tests, typecheck, lint, generated-client check and production build passed.
+  environment: The static-server tests required sandbox escalation to bind a local HTTP port; Node 26 emitted a warning because the package specifies Node 24.20.x.

@@ -72,13 +72,15 @@ export function ProjectFindingsRoute({
   });
   const reviews = useAuditCollections(sources, {
     id: (audit) => audit.auditId,
-    queryKey: (audit) => queryKeys.audits.allReviews(audit.auditId),
+    queryKey: (audit) => [
+      ...queryKeys.audits.allReviews(audit.auditId),
+      "pending",
+    ],
     load: (audit) => (cursor) =>
-      listAuditReviews(
-        api,
-        audit.auditId,
-        cursor === undefined ? {} : { cursor },
-      ),
+      listAuditReviews(api, audit.auditId, {
+        state: "pending",
+        ...(cursor === undefined ? {} : { cursor }),
+      }),
     identity: (review) => review.requestId,
     refetchInterval: (audit) => auditPollInterval([audit]),
   });
@@ -132,6 +134,9 @@ export function ProjectFindingsRoute({
     reviews.results.some((result) => result.isFetching);
   const failed = sources.filter((_, index) => findings.results[index]?.isError);
   const moreFindings = findings.results.find(
+    (result) => result.moreError !== null,
+  );
+  const moreReviews = reviews.results.find(
     (result) => result.moreError !== null,
   );
 
@@ -328,8 +333,11 @@ export function ProjectFindingsRoute({
               const pendingReview = reviewQuery.items.find(
                 (review) =>
                   review.state === "pending" &&
-                  review.findingId === finding.findingId,
+                  review.findingId === finding.findingId &&
+                  review.subjectRevision === finding.revision,
               );
+              const unresolved =
+                pendingReview === undefined && reviewQuery.truncated;
               return (
                 <AuditFindingCard
                   key={`${audit.auditId}:${finding.findingId}`}
@@ -338,9 +346,29 @@ export function ProjectFindingsRoute({
                   findings={findings.results[index]!.items}
                   showAudit
                   {...(pendingReview === undefined ? {} : { pendingReview })}
-                  reviewLoading={reviewQuery.isPending}
-                  reviewError={reviewQuery.error}
-                  onRetryReview={() => void reviewQuery.refetch()}
+                  reviewLoading={
+                    reviewQuery.isPending ||
+                    (pendingReview === undefined && reviewQuery.isLoadingMore)
+                  }
+                  reviewError={
+                    reviewQuery.error ??
+                    reviewQuery.moreError ??
+                    (unresolved
+                      ? new Error(
+                          "More pending reviews may include this finding. Load them before opening a new review.",
+                        )
+                      : null)
+                  }
+                  reviewActionLabel={
+                    unresolved
+                      ? "Load more pending reviews"
+                      : "Retry review status"
+                  }
+                  onRetryReview={() => {
+                    if (reviewQuery.moreError !== null || unresolved)
+                      reviewQuery.loadMore();
+                    else void reviewQuery.refetch();
+                  }}
                 />
               );
             })}
@@ -353,6 +381,18 @@ export function ProjectFindingsRoute({
             error={moreFindings?.moreError ?? null}
             onLoadMore={findings.loadMore}
             label="Some audits have more findings — load more"
+          />
+          <LoadMoreControl
+            shown={reviews.results.reduce(
+              (total, result) => total + result.items.length,
+              0,
+            )}
+            noun="pending reviews"
+            truncated={reviews.truncated}
+            loading={reviews.isLoadingMore}
+            error={moreReviews?.moreError ?? null}
+            onLoadMore={reviews.loadMore}
+            label="Load more pending reviews"
           />
           <LoadMoreControl
             shown={sources.length}
