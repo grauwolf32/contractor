@@ -248,6 +248,26 @@ func TestPostgresDiagnosticBudgetsAndRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = store.ReadDatabase(ctx) // failed read is allowed, no immediate internal retry
+	// pg_terminate_backend only signals the backend. Wait for its activity row to
+	// disappear before checking the recovered pool's statistics snapshot.
+	terminatedCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		var exists bool
+		if err := working.QueryRow(terminatedCtx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1)`, pid).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		if !exists {
+			break
+		}
+		select {
+		case <-terminatedCtx.Done():
+			t.Fatal("terminated diagnostic backend is still present")
+		case <-tick.C:
+		}
+	}
 	if _, reason = store.ReadDatabase(ctx); reason != "" {
 		t.Fatalf("did not reconnect: %s", reason)
 	}
