@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V79-001
+title: Bound Audit completion by Stage deadline instead of request timeout
+milestone: audit-stage-deadline-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, markdown]
+goal: Let a valid multi-turn Audit invocation outlive one outbound request budget without outliving its Planner Stage.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/307
+  finding: The Audit completion runtime wraps the entire invocation in requestTimeoutSeconds, although that setting budgets each outbound request.
+scope:
+  in:
+    - Carry the Planner's bounded Worker invocation deadline in the private StageContentRequest.
+    - Use that deadline for Audit completion, including model-recovery waits and publication.
+    - Keep publication write and read-back attempts bounded by requestTimeoutSeconds and finite retries.
+    - Update deadline documentation and focused Runtime and Go wire tests.
+  out:
+    - Change ModelPolicy call/token budgets or ordinary Worker completion semantics.
+acceptance_criteria:
+  - {id: A1, text: Audit invocations can exceed one request timeout in total when each individual operation and the Stage remain within their budgets.}
+  - {id: A2, text: An expired Stage deadline returns worker_timeout without publication.}
+  - {id: A3, text: Publication writes and read-backs are each bounded per request and by the Stage deadline.}
+  - {id: A4, text: Planner paths carry their actual effective Worker deadline in the private wire contract and Go/Python validation agrees.}
+tests:
+  - {command: go test ./internal/contracts ./internal/planner/... , covers: [A4]}
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_audit_completion_runtime.py tests/test_audit_result_publication.py tests/test_contracts.py, covers: [A1, A2, A3, A4]}
