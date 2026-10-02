@@ -3,8 +3,8 @@ id: V89-001
 title: Back off settled Eval detail and list polling
 milestone: settled-eval-polling-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a98a9e323459cc6a4b37ae8d95aaeb8f83976d85
 depends_on: []
 languages: [typescript]
 goal: Stop expensive two-second reads when visible Eval views are settled.
@@ -25,6 +25,7 @@ acceptance_criteria:
   - {id: A4, text: UI tests, app/e2e typechecks and lint pass.}
 tests:
   - {command: cd ui && ./node_modules/.bin/vitest run src/routes/evals/polling.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3, A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
