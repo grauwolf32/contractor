@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { usePublicAPI } from "../../api/context";
 import {
   evalInventory,
-  EVAL_POLL_MS,
   getEvalCapabilities,
   getEvalExperiment,
   listEvalCases,
@@ -11,6 +10,7 @@ import {
 } from "../../api/evals";
 import { listProjects } from "../../api/projects";
 import { useSession } from "../../auth/session";
+import { evalExperimentPollInterval } from "./polling";
 
 export function useEvalOwner() {
   const api = usePublicAPI();
@@ -85,7 +85,6 @@ export function useEvalExperiment(id: string) {
     queryKey: ["evals", "experiment", id],
     enabled: !!id,
     queryFn: ({ signal }) => getEvalExperiment(api, id, signal),
-    refetchInterval: (query) =>
-      query.state.data?.state === "draft" ? false : EVAL_POLL_MS,
+    refetchInterval: (query) => evalExperimentPollInterval(query.state.data),
   });
 }
