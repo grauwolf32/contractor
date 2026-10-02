@@ -6,6 +6,7 @@ import contractorLogoUrl from "../assets/contractor-logo.png";
 import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
 import { LoginBackdrop } from "./login-backdrop";
+import { SessionConnectionError } from "./session-error";
 
 function safeDestination(state: unknown): string {
   if (
@@ -40,13 +41,7 @@ export function LoginRoute() {
     return <Navigate to={safeDestination(location.state)} replace />;
   }
   if (sessionError !== null) {
-    return (
-      <main className="centered-state">
-        <p className="eyebrow">Connection error</p>
-        <h1>Contractor Server is not compatible or unavailable</h1>
-        <p role="alert">{sessionError.message}</p>
-      </main>
-    );
+    return <SessionConnectionError error={sessionError} />;
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
