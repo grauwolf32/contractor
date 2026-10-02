@@ -3,8 +3,8 @@ id: V85-001
 title: Keep Eval key/value drafts stable and reject invalid names before save
 milestone: eval-key-value-editor-correctness-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 25fcbd8f71b604b25efa5af2cf01e4d433228de1
 depends_on: []
 languages: [typescript]
 goal: Preserve Eval parameters and mappings as users type, add, and rename keys.
@@ -25,7 +25,7 @@ acceptance_criteria:
   - {id: A3, text: Invalid duplicate or empty names remain visible and block save until fixed.}
   - {id: A4, text: App and e2e typechecks, lint and Eval tests pass.}
 tests:
-  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/evals, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3, A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
