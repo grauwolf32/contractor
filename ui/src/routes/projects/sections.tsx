@@ -28,8 +28,6 @@ export function ProjectSectionRoute({
         <ProjectArtifactRegion
           key={project.projectId}
           projectId={project.projectId}
-          detailRoot="/projects"
-          compact
         />
       );
     case "workflows":
@@ -37,7 +35,6 @@ export function ProjectSectionRoute({
         <ProjectWorkflowRecommendations
           key={project.projectId}
           projectId={project.projectId}
-          drawer
         />
       );
     case "runs":

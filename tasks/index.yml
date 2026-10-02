@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: project-section-dead-modes-2026-10
+    exit_task: V90-001
+    outcome: >-
+      Project section components expose only their routed behavior and remove
+      dead single-page layout modes, navigation and presentation fields.
   - id: settled-eval-polling-2026-10
     exit_task: V89-001
     outcome: >-
@@ -2731,6 +2736,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V90-001, file: v90-001-project-section-dead-modes.yml}
   - {id: V89-001, file: v89-001-settled-eval-polling.yml}
   - {id: V88-001, file: v88-001-runtime-agent-page-completeness.yml}
   - {id: V87-001, file: v87-001-browser-event-resync.yml}

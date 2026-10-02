@@ -34,7 +34,6 @@ interface ProjectCollectionPresentation {
   createLabel: string;
   collectionHeading: string;
   cardEyebrow: string;
-  cardMark: string;
   detailRoot: "/projects" | "/evals";
   emptyHeading: string;
   emptyCopy: string;
@@ -378,7 +377,6 @@ export function ProjectListRoute() {
         createLabel: "New Project",
         collectionHeading: "Workspaces",
         cardEyebrow: "Project",
-        cardMark: "P",
         detailRoot: "/projects",
         emptyHeading: "Create your first Project",
         emptyCopy:
@@ -400,7 +398,6 @@ export function EvaluationListRoute() {
         createLabel: "New Eval",
         collectionHeading: "Evaluation workspaces",
         cardEyebrow: "Eval",
-        cardMark: "E",
         detailRoot: "/evals",
         emptyHeading: "Create your first Eval",
         emptyCopy:

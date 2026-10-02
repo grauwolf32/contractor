@@ -32,8 +32,6 @@ import { AuditOverview } from "./overview";
 import { AuditReportView } from "./report";
 import { AuditReviews } from "./reviews";
 
-export { AuditFindingCard } from "./finding-card";
-
 import "./styles.css";
 
 type AuditSection =

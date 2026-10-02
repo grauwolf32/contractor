@@ -1,4 +1,3 @@
-import { ReturnLink } from "../../../app/context-navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link, useParams, useSearchParams } from "react-router";
 
@@ -21,17 +20,13 @@ import { AuditFindingCard } from "./finding-card";
 import { auditProfileLabel } from "./labels";
 import { useAuditCollection, useAuditCollections } from "./collections";
 import { LoadMoreControl } from "./load-more";
-import { AuditAnchor, ProjectAuditNavigation } from "./shared";
+import { AuditAnchor } from "./shared";
 
 import "./styles.css";
 import { RefreshButton } from "../../../app/refresh-button";
 import { ProjectSectionActions } from "../navigation";
 
-export function ProjectFindingsRoute({
-  embedded = false,
-}: {
-  embedded?: boolean;
-}) {
+export function ProjectFindingsRoute() {
   const api = usePublicAPI();
   const { projectId = "" } = useParams();
   const [filters, setFilters] = useSearchParams();
@@ -174,28 +169,7 @@ export function ProjectFindingsRoute({
   );
   return (
     <section className="route-page audit-page project-findings-page">
-      {embedded ? (
-        <ProjectSectionActions>{refreshControl}</ProjectSectionActions>
-      ) : (
-        <header className="route-header-row">
-          <div>
-            <ReturnLink
-              to={`/projects/${encodeURIComponent(projectId)}`}
-              label={project.data?.name ?? "Project"}
-            />
-            <p className="eyebrow">Project findings</p>
-            <h2>Findings</h2>
-            <p className="lede">
-              Findings from every audit in this project, with their source,
-              evidence and review status.
-            </p>
-          </div>
-          {refreshControl}
-        </header>
-      )}
-      {embedded ? null : (
-        <ProjectAuditNavigation projectId={projectId} current="findings" />
-      )}
+      <ProjectSectionActions>{refreshControl}</ProjectSectionActions>
       {project.error !== null ? (
         <ErrorNotice error={project.error} />
       ) : project.isPending ? (

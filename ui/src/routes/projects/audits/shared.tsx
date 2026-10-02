@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Link, useLocation } from "react-router";
+import { useLocation } from "react-router";
 
 import type { Audit } from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
@@ -27,32 +27,6 @@ export function AuditAnchor({ ready = true }: { ready?: boolean }) {
     }
   }, [hash, ready]);
   return null;
-}
-
-export function ProjectAuditNavigation({
-  projectId,
-  current,
-}: {
-  projectId: string;
-  current: "audits" | "findings";
-}) {
-  return (
-    <nav
-      className="audit-section-navigation section-navigation"
-      aria-label="Project audit sections"
-    >
-      {(["audits", "findings"] as const).map((section) => (
-        <Link
-          key={section}
-          to={`/projects/${encodeURIComponent(projectId)}/${section}`}
-          className={current === section ? "active" : ""}
-          aria-current={current === section ? "page" : undefined}
-        >
-          {section === "audits" ? "Audits" : "Findings"}
-        </Link>
-      ))}
-    </nav>
-  );
 }
 
 export function ExactArtifactLink({

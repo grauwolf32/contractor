@@ -4849,14 +4849,6 @@ code {
   color: var(--muted);
 }
 
-.project-workflow-dialog {
-  width: min(100%, 68rem);
-}
-
-.project-workflow-dialog .run-draft {
-  margin-top: 1.25rem;
-}
-
 .run-output-publications {
   margin: 1.2rem 0;
 }
