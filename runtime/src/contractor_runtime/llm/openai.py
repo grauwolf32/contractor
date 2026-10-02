@@ -143,6 +143,7 @@ def _completion_request(model: str, request: LlmRequest) -> dict[str, Any]:
             messages.append({"role": "system", "content": instruction})
     for content in request.contents or []:
         messages.extend(_content_messages(content))
+    messages = _complete_tool_call_messages(messages)
     if not messages:
         messages.append({"role": "user", "content": ""})
 
@@ -160,6 +161,27 @@ def _completion_request(model: str, request: LlmRequest) -> dict[str, Any]:
     if config is not None:
         _copy_generation_options(payload, config)
     return payload
+
+
+def _complete_tool_call_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Give interrupted ADK tool calls a non-executed response before the next turn."""
+
+    completed: list[dict[str, Any]] = []
+    pending: list[str] = []
+    skipped = _json_text({"ok": False, "error": {"code": "tool_call_not_executed"}})
+    for message in messages:
+        if message["role"] == "tool" and message.get("tool_call_id") in pending:
+            pending.remove(message["tool_call_id"])
+        else:
+            for call_id in pending:
+                completed.append({"role": "tool", "tool_call_id": call_id, "content": skipped})
+            pending.clear()
+        completed.append(message)
+        if message["role"] == "assistant":
+            pending = [call["id"] for call in message.get("tool_calls", [])]
+    for call_id in pending:
+        completed.append({"role": "tool", "tool_call_id": call_id, "content": skipped})
+    return completed
 
 
 def _instruction_text(value: Any) -> str:

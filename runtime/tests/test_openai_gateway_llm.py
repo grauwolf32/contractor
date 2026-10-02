@@ -14,6 +14,7 @@ from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
+    _completion_request,
     _to_llm_response,
 )
 
@@ -23,6 +24,53 @@ SECRET = "recognizable-openai-gateway-secret"
 class StructuredResult(BaseModel):
     result: str
     optional_note: str | None = None
+
+
+def test_gateway_request_completes_only_unanswered_parallel_tool_calls() -> None:
+    request = LlmRequest(
+        contents=[
+            types.Content(role="user", parts=[types.Part(text="first task")]),
+            types.Content(
+                role="model",
+                parts=[
+                    types.Part(
+                        function_call=types.FunctionCall(id="call-1", name="lookup", args={})
+                    ),
+                    types.Part(
+                        function_call=types.FunctionCall(id="call-2", name="lookup", args={})
+                    ),
+                ],
+            ),
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            id="call-1", name="lookup", response={"value": "found"}
+                        )
+                    )
+                ],
+            ),
+            types.Content(role="user", parts=[types.Part(text="second task")]),
+        ]
+    )
+
+    messages = _completion_request("worker-model", request)["messages"]
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "tool",
+        "tool",
+        "user",
+    ]
+    assert messages[2]["tool_call_id"] == "call-1"
+    assert json.loads(messages[2]["content"]) == {"value": "found"}
+    assert messages[3]["tool_call_id"] == "call-2"
+    assert json.loads(messages[3]["content"]) == {
+        "ok": False,
+        "error": {"code": "tool_call_not_executed"},
+    }
+    assert messages[4]["content"] == "second task"
 
 
 @pytest.mark.parametrize("arguments", [None, '{"path":', '{"path":"partial.txt"}'])
