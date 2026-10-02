@@ -1,0 +1,34 @@
+schema_version: '1.0'
+id: V67-002
+title: Copy pnpm workspace settings before the UI image dependency install
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [dockerfile, python, yaml]
+goal: Make the independent UI image install match its frozen lockfile and catch future drift in CI.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/135
+  finding: >-
+    pnpm-workspace.yaml contains an override recorded in pnpm-lock.yaml, but the
+    Containerfile copies it only after pnpm install --frozen-lockfile.
+scope:
+  in:
+    - Copy ui/pnpm-workspace.yaml into the dependency layer before the frozen install.
+    - Add a CI guard that uses exactly the files copied by the Containerfile before installation.
+    - Build the UI image.
+  out:
+    - Change UI dependencies or lockfile resolutions.
+acceptance_criteria:
+  - id: A1
+    text: The frozen install layer receives the workspace override and allowBuilds settings.
+  - id: A2
+    text: A CI check fails if the Containerfile omits a required install input.
+  - id: A3
+    text: The UI image builds from a clean root context.
+tests:
+  - command: python3 scripts/check_ui_container_install.py
+    covers: [A1, A2]
+  - command: podman build -f deploy/ui/Containerfile -t contractor-ui .
+    covers: [A1, A3]

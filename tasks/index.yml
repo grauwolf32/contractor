@@ -322,6 +322,12 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: github-issue-remediation-2026-10
+    exit_task: V67-006
+    outcome: >-
+      Address the highest-impact actionable findings from the 2026-10-02 GitHub
+      issue review: scanner destination checks, source and build-context exposure,
+      the independent UI image build, and the blocked release gate.
   - id: ui-design-review-2
     exit_task: V66-011
     outcome: >-
@@ -2615,6 +2621,12 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V67-001, file: v67-001-ui-build-context.yml}
+  - {id: V67-002, file: v67-002-ui-image-install.yml}
+  - {id: V67-003, file: v67-003-nuclei-single-target.yml}
+  - {id: V67-004, file: v67-004-proxy-idna-target-policy.yml}
+  - {id: V67-005, file: v67-005-sourcebundle-nested-repositories.yml}
+  - {id: V67-006, file: v67-006-release-gate-run-state.yml}
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}
   - {id: MVP-003, file: mvp-003-config-loader.yml}

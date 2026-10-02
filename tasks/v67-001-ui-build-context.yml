@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V67-001
+title: Restrict the UI image build context to required source trees
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [dockerignore, markdown]
+goal: Exclude local credentials and unrelated worktrees from UI image build uploads.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/311
+  finding: >-
+    The repository-root UI build context includes .local and nested caches because
+    the existing .dockerignore patterns only match at the root. Remote Podman
+    uploads those files to its builder.
+scope:
+  in:
+    - Allow only ui/ and api/ in the root build context.
+    - Exclude nested secrets, generated files, Playwright outputs and dependency caches from those trees.
+    - Verify the required Containerfile inputs remain available and the image builds.
+  out:
+    - Change other image build contexts.
+acceptance_criteria:
+  - id: A1
+    text: .local, runtime/.venv, ui/test-results and ui/playwright-report are excluded from the root UI build context.
+  - id: A2
+    text: ui package, lockfile, workspace file, source, server and the public api/openapi contract remain available.
+  - id: A3
+    text: The UI image builds from the repository root.
+tests:
+  - command: podman build -f deploy/ui/Containerfile -t contractor-ui .
+    covers: [A2, A3]
+verification_requirements:
+  - Check the ignore rules with the builder's pattern matcher for the listed included and excluded paths.
+  - Record whether a remote Podman context-size check was available.

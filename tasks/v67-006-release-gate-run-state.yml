@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V67-006
+title: Accept pending Run creation in process test helpers
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let the release gate exercise process tests after asynchronous Run creation.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/172
+  finding: >-
+    Run creation returns pending before asynchronous admission, but several e2e
+    helpers require running and stop release-verify before later gates run.
+scope:
+  in:
+    - Accept initializing, pending or running create responses in relevant e2e helpers.
+    - Keep terminal-state waits and state-specific expectations for skill initialization.
+    - Confirm the release gate reaches later e2e targets.
+  out:
+    - Change production Run creation or scheduler admission.
+acceptance_criteria:
+  - id: A1
+    text: No e2e create helper rejects a valid pending response solely because admission is asynchronous.
+  - id: A2
+    text: Focused process tests pass and release-verify reaches its later targets.
+tests:
+  - command: go test -tags=e2e ./tests/e2e -run '^(TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestLocalGoToPythonArtifactCopy)$'
+    covers: [A1, A2]
+  - command: make release-verify
+    covers: [A2]

@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V67-005
+title: Keep nested Git metadata out of source bundles
+milestone: github-issue-remediation-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Prevent source push from uploading nested repository metadata and embedded credentials.
+context:
+  authority: User requested review of current GitHub issues, task creation and implementation on 2026-10-02.
+  issue: https://github.com/grauwolf32/contractor/issues/237
+  finding: >-
+    The plain-directory and --include-ignored WalkDir paths skip only root .git;
+    nested .git directories and gitlink files can enter a source bundle.
+scope:
+  in:
+    - Skip nested repositories and .git entries at any depth in both walk and Git-index paths.
+    - Count skipped repositories and reject any remaining .git component before packaging.
+    - Add regression tests for nested .git directories, gitlinks and mixed-case names.
+  out:
+    - Change Git import behavior.
+acceptance_criteria:
+  - id: A1
+    text: No source bundle entry contains a .git path component at any depth or case.
+  - id: A2
+    text: Plain-directory and --include-ignored walks count skipped nested repositories.
+  - id: A3
+    text: Ordinary source files remain included and CLI documentation stays accurate.
+tests:
+  - command: go test ./internal/sourcebundle
+    covers: [A1, A2, A3]
