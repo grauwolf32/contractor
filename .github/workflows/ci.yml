@@ -60,5 +60,8 @@ jobs:
           corepack pnpm install --frozen-lockfile
           corepack pnpm exec playwright install --with-deps chromium
 
+      - name: Check UI image dependency layer
+        run: python3 scripts/check_ui_container_install.py
+
       - name: Full deterministic release gate
         run: make release-verify
