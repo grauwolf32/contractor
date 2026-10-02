@@ -329,3 +329,69 @@ def test_proxy_route_refuses_loopback_outside_the_project_target(tmp_path: Path)
             await client.aclose()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("separator", ["\u3002", "\uff0e", "\uff61"])
+def test_proxy_route_refuses_unicode_dot_aliases_before_send(separator: str) -> None:
+    sent: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, request=request)
+
+    async def scenario() -> None:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+        proxy = ProxyHTTPClient(client)
+        policy = TargetPolicy(
+            protected_names=frozenset({("proxy.example", 443)}),
+            protected_local_ports=frozenset({9443}),
+            allowed_networks=parse_allowed_networks(["127.0.0.0/8", "0.0.0.0/0"]),
+        )
+        for url in (
+            "http://" + separator.join(["169", "254", "169", "254"]) + "/",
+            "http://" + separator.join(["127", "0", "0", "1"]) + ":9443/",
+            "https://proxy" + separator + "example/",
+            "http://metadata" + separator + "google" + separator + "internal/",
+        ):
+            with pytest.raises(ProxyTargetDenied):
+                await proxy.stream_request("GET", url, target_policy=policy)
+            with pytest.raises(ProxyTargetDenied):
+                await proxy.request("GET", url, target_policy=policy)
+        assert sent == []
+        await client.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_proxy_redirect_to_unicode_dot_metadata_is_refused(tmp_path: Path) -> None:
+    sent: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(
+            302,
+            headers={
+                b"location": "http://169\u3002254\u3002169\u3002254/latest/meta-data/".encode()
+            },
+            request=request,
+        )
+
+    async def scenario() -> None:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+        factory = HTTPToolsetFactory(
+            lambda *_: FakeArtifactClient(), target_policy=TargetPolicyConfig()
+        )
+        tools = await make_tools(
+            factory,
+            tmp_path,
+            settings=proxy_runtime_settings(),
+            adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client)),
+        )
+        try:
+            await denied(tools["http_request"], "https://app.example/start")
+            assert [str(request.url) for request in sent] == ["https://app.example/start"]
+        finally:
+            await close_tools(tools)
+            await client.aclose()
+
+    asyncio.run(scenario())

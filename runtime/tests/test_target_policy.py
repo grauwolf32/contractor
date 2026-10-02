@@ -155,6 +155,23 @@ def test_metadata_names_are_denied_textually(host: str) -> None:
         TargetPolicy(allowed_networks=parse_allowed_networks(["0.0.0.0/0"])).check_host(host, 80)
 
 
+@pytest.mark.parametrize("separator", ["\u3002", "\uff0e", "\uff61"])
+def test_unicode_dots_cannot_hide_denied_hosts(separator: str) -> None:
+    policy = TargetPolicy(
+        protected_names=frozenset({("proxy.example", 443)}),
+        protected_local_ports=frozenset({9443}),
+        allowed_networks=parse_allowed_networks(["127.0.0.0/8", "0.0.0.0/0"]),
+    )
+    for host, port in (
+        (separator.join(["169", "254", "169", "254"]), 80),
+        (separator.join(["127", "0", "0", "1"]), 9443),
+        ("proxy" + separator + "example", 443),
+        ("metadata" + separator + "google" + separator + "internal", 80),
+    ):
+        with pytest.raises(TargetDenied):
+            policy.check_host(host, port)
+
+
 def test_runtime_endpoints_are_denied_by_name_and_resolved_address() -> None:
     async def scenario() -> None:
         config = TargetPolicyConfig(

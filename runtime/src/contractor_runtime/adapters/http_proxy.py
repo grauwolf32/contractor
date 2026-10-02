@@ -133,9 +133,11 @@ class ProxyHTTPClient:
             raise ProxyRequestError
         return client
 
-    def _require_permitted(self, url: str, target_policy: TargetPolicy) -> None:
+    def _require_permitted(self, request: httpx.Request, target_policy: TargetPolicy) -> None:
         try:
-            target_policy.check_url(url)
+            # The built URL is IDNA-encoded exactly as the proxy transport sees
+            # it. Checking raw caller text can miss a protected destination.
+            target_policy.check_url(str(request.url))
         except TargetDenied:
             if self._metrics is not None:
                 self._metrics.record_operation(succeeded=False, error_code="request_failed")
@@ -149,9 +151,17 @@ class ProxyHTTPClient:
         target_policy: TargetPolicy,
         **kwargs: object,
     ) -> httpx.Response:
-        self._require_permitted(url, target_policy)
+        if kwargs.pop("follow_redirects", False):
+            # Each redirect must be checked as a separate request by the caller.
+            raise ProxyRequestError
         try:
-            response = await self.async_client.request(method, url, **kwargs)
+            client = self.async_client
+            request = client.build_request(method, url, **kwargs)
+        except Exception:
+            raise ProxyRequestError from None
+        self._require_permitted(request, target_policy)
+        try:
+            response = await client.send(request, follow_redirects=False)
             if _proxy_rejected(response.request, response):
                 await response.aclose()
                 raise ProxyRequestError
@@ -174,12 +184,12 @@ class ProxyHTTPClient:
     ) -> httpx.Response:
         """Send one routed request without buffering its response body."""
 
-        self._require_permitted(url, target_policy)
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
         except Exception:
             raise ProxyRequestError from None
+        self._require_permitted(request, target_policy)
         if request_observer is not None:
             # The caller inspects the exact request before any network I/O;
             # its refusal propagates unchanged.

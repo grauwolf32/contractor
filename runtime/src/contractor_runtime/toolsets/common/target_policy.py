@@ -28,6 +28,8 @@ from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
+import idna
+
 from contractor_runtime.contracts import RuntimeSettings
 
 type IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
@@ -129,7 +131,15 @@ def _ipv4_part(label: str) -> int:
 
 
 def normalized_host(host: str) -> str:
-    return host.strip("[]").rstrip(".").lower()
+    value = host.strip("[]").lower()
+    if not value.isascii():
+        try:
+            # Match httpx's IDNA host encoding before classifying literals or
+            # protected names. Unicode dot variants become ASCII separators.
+            value = idna.encode(value).decode("ascii")
+        except idna.IDNAError:
+            raise ValueError("invalid destination host") from None
+    return value.rstrip(".")
 
 
 def url_endpoint(url: str) -> tuple[str, int]:
@@ -272,7 +282,10 @@ class TargetPolicy:
     def check_host(self, host: str, port: int) -> IPAddress | None:
         """Check a host without DNS; returns its address when it is a literal."""
 
-        name = normalized_host(host)
+        try:
+            name = normalized_host(host)
+        except ValueError:
+            raise TargetDenied from None
         if not name or (name, port) in self.protected_names or name in METADATA_HOSTNAMES:
             raise TargetDenied
         address = literal_address(name)
