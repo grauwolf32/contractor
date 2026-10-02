@@ -3,8 +3,8 @@ id: V80-001
 title: Release Podman ownership after a completed failed create
 milestone: podman-create-failure-cleanup-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: dd62e7f4f14310c9456a55c9f6a682100cdfe923
 depends_on: []
 languages: [python, markdown]
 goal: Permit Runtime restart after local podman create exits with failure and verified absence without weakening uncertain-create fencing.
@@ -26,3 +26,6 @@ acceptance_criteria:
   - {id: A4, text: Timeout, cancellation, malformed success and late-container paths retain ownership until safe cleanup.}
 tests:
   - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_podman_engine.py tests/test_podman_allocation.py tests/test_podman_capabilities.py, covers: [A1, A2, A3, A4]}
+verification:
+  python: Full Runtime pytest suite passed; focused Podman suites and Ruff passed after the final test formatting change.
+  scenarios: Verified pin and owner-lock release, delayed confirmation after discovery timeout, allocation and probe cleanup, nonzero exit with a container, and ambiguous lost/malformed/signaled outcomes.
