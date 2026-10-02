@@ -210,7 +210,7 @@ def built_in_factories(
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
     http_toolset = HTTPToolsetFactory(artifact_client_factory, target_policy=target_policy)
-    caido_toolset = CaidoToolsetFactory(artifact_client_factory)
+    caido_toolset = CaidoToolsetFactory(artifact_client_factory, target_policy=target_policy)
     code_analysis_toolset = CodeAnalysisToolsetFactory(
         workspace_storage=workspace_settings.storage if workspace_settings is not None else None,
         graph_probe_root=work_root if workspace_settings is not None else None,
