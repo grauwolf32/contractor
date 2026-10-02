@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V80-001
+title: Release Podman ownership after a completed failed create
+milestone: podman-create-failure-cleanup-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python, markdown]
+goal: Permit Runtime restart after local podman create exits with failure and verified absence without weakening uncertain-create fencing.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/306
+  finding: A failed create CLI exit without a container leaves the attempted record fenced, blocking allocation cleanup, startup probe cleanup and owner lock release.
+scope:
+  in:
+    - Distinguish a completed nonzero create CLI exit from uncertain timeout, cancellation, transport and malformed-success responses.
+    - Confirm creation-filtered absence before clearing a failed attempt, including delayed cleanup after an exhausted discovery deadline.
+    - Cover allocation, probe, late-container and owner-lock behavior with focused tests.
+    - Update runtime and deployment cleanup documentation.
+  out:
+    - Release ownership for ambiguous create outcomes or unconfirmed discovery.
+acceptance_criteria:
+  - {id: A1, text: A completed failed create with verified absence releases its content pin and owner flock through normal cleanup.}
+  - {id: A2, text: Allocation preparation reports its preparation error and cleans up without forcing process exit 70.}
+  - {id: A3, text: Startup probe reports unavailable at supervisor without cleanup_failed after this failure.}
+  - {id: A4, text: Timeout, cancellation, malformed success and late-container paths retain ownership until safe cleanup.}
+tests:
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_podman_engine.py tests/test_podman_allocation.py tests/test_podman_capabilities.py, covers: [A1, A2, A3, A4]}

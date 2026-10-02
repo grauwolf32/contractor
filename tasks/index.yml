@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: podman-create-failure-cleanup-2026-10
+    exit_task: V80-001
+    outcome: >-
+      Release local Podman ownership after a completed failed create and verified
+      absence, while retaining fences for ambiguous outcomes and late containers.
   - id: audit-stage-deadline-2026-10
     exit_task: V79-001
     outcome: >-
@@ -2681,6 +2686,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V80-001, file: v80-001-podman-create-failure-cleanup.yml}
   - {id: V79-001, file: v79-001-audit-stage-deadline.yml}
   - {id: V78-001, file: v78-001-audit-proposal-link-validation.yml}
   - {id: V77-001, file: v77-001-audit-assessment-mode-parity.yml}
