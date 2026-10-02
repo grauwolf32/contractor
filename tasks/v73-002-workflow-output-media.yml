@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V73-002
+title: Check mapped Workflow output media before finalization
+milestone: scheduler-result-and-report-correctness-2026-10
+priority: P1
+status: completed
+implementation_commit: 9c65101f061d50fa7b79acf516779cab952e6c67
+depends_on: []
+languages: [go]
+goal: Fail invalid mapped output media as a result-contract violation without a finalizing loop.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/321
+  finding: >-
+    A Stage result can pass its slot media check but fail its mapped Workflow
+    output slot only inside the finalizing transaction.
+scope:
+  in:
+    - Validate each present mapped output against its Workflow output media slot.
+    - Keep intersection-based Workflow loading valid.
+    - Abort invalid candidates before entering finalizing.
+  out:
+    - Narrow the Workflow configuration media-intersection rule.
+acceptance_criteria:
+  - id: A1
+    text: Incompatible mapped output media ends through result_contract_violation.
+  - id: A2
+    text: The Stage does not remain finalizing or retain an allocation.
+  - id: A3
+    text: Existing Stage-slot contract checks remain unchanged.
+tests:
+  - command: go test ./internal/scheduler
+    covers: [A1, A2, A3]
+verification:
+  focused: Incompatible mapped media aborts before finalizing and releases allocations.
+  broad: Full Go suite and PostgreSQL-backed scheduler tests passed; go vet passed.

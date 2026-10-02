@@ -79,15 +79,24 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 	exportResult := s.flushPlannerTelemetry(
 		ctx, plannerTelemetry, stageDeadline, execution.StageExecutionID,
 	)
-	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
-		return cause
+	// Planner.Run can return after user cancellation, lease loss or process
+	// shutdown. Reload and record its real report under a bounded cleanup
+	// context while the Run claim is still owned.
+	loadContext, cancelLoad := s.terminalOperationContext(ctx)
+	currentExecution, loadErr := s.store.GetStageExecution(loadContext, execution.StageExecutionID)
+	claimLost := errors.Is(context.Cause(loadContext), ErrClaimLost)
+	cancelLoad()
+	if claimLost {
+		return ErrClaimLost
 	}
-	currentExecution, loadErr := s.store.GetStageExecution(ctx, execution.StageExecutionID)
 	if loadErr != nil {
 		return errors.Join(err, loadErr)
 	}
 	execution = currentExecution
 	s.persistPlannerReport(ctx, execution, instance, exportResult)
+	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
+		return cause
+	}
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.FailureFrom(err))
 	}

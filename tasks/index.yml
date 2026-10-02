@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: scheduler-result-and-report-correctness-2026-10
+    exit_task: V73-003
+    outcome: >-
+      Keep Planner usage on interrupted Runs and classify candidate artifact
+      failures before Stage finalization can strand or falsely fail a Run.
   - id: eval-revision-race-recovery-2026-10
     exit_task: V72-002
     outcome: >-
@@ -2646,6 +2651,9 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V73-001, file: v73-001-planner-report-interruption.yml}
+  - {id: V73-002, file: v73-002-workflow-output-media.yml}
+  - {id: V73-003, file: v73-003-artifact-resolution-retry.yml}
   - {id: V72-001, file: v72-001-eval-stop-command-cas.yml}
   - {id: V72-002, file: v72-002-eval-human-review-cas.yml}
   - {id: V71-001, file: v71-001-pinned-audit-coverage.yml}

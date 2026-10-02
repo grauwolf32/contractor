@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V73-001
+title: Persist Planner usage before interruption exits
+milestone: scheduler-result-and-report-correctness-2026-10
+priority: P1
+status: completed
+implementation_commit: 9c65101f061d50fa7b79acf516779cab952e6c67
+depends_on: []
+languages: [go]
+goal: Keep real Planner model and tool usage when an invocation is interrupted.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/322
+  finding: >-
+    Cancelled execution contexts and an early allocation-lease return skip
+    report persistence, leaving only an incomplete placeholder.
+scope:
+  in:
+    - Reload the StageExecution under bounded claim-aware cleanup context.
+    - Persist the live Planner report before cancellation or lease-loss return.
+    - Never persist after scheduler claim loss.
+  out:
+    - Change Planner token accounting or telemetry schema.
+acceptance_criteria:
+  - id: A1
+    text: Cancellation, allocation lease loss and shutdown retain complete Planner usage.
+  - id: A2
+    text: Lost scheduler claims do not write a Planner report.
+  - id: A3
+    text: Existing Run cancellation and lease-loss lifecycle behavior remains intact.
+tests:
+  - command: go test ./internal/scheduler
+    covers: [A1, A2, A3]
+verification:
+  focused: Cancellation, lease loss, shutdown and claim-loss report tests passed.
+  broad: Full Go suite and PostgreSQL-backed scheduler tests passed; go vet passed.

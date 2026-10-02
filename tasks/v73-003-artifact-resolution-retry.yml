@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V73-003
+title: Separate transient result lookup failures from contract violations
+milestone: scheduler-result-and-report-correctness-2026-10
+priority: P1
+status: completed
+implementation_commit: 9c65101f061d50fa7b79acf516779cab952e6c67
+depends_on: []
+languages: [go]
+goal: Avoid failing valid Planner output permanently when artifact metadata is temporarily unavailable.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/320
+  finding: >-
+    Candidate resolution loads the blob through a shared transfer slot and
+    treats any resolver error as a non-retryable Planner contract violation.
+scope:
+  in:
+    - Resolve RunScope candidate refs through metadata without a transfer slot.
+    - Keep missing artifacts as non-retryable result-contract violations.
+    - Classify infrastructure resolver errors as retryable verification failures.
+  out:
+    - Change the artifact content transfer admission policy.
+acceptance_criteria:
+  - id: A1
+    text: Candidate metadata resolution does not read content or take a transfer slot.
+  - id: A2
+    text: Transient resolver errors do not become non-retryable result_contract_violation.
+  - id: A3
+    text: Missing artifacts and other real result violations remain non-retryable.
+tests:
+  - command: go test ./internal/scheduler ./internal/artifacts
+    covers: [A1, A2, A3]
+verification:
+  focused: Metadata-only resolution, transient lookup and missing artifact tests passed.
+  broad: Full Go suite and PostgreSQL-backed scheduler and artifacts tests passed; go vet passed.
