@@ -194,6 +194,54 @@ func TestBuildWalksPlainDirectoryWithoutGit(t *testing.T) {
 	assertBundlePaths(t, root, []string{"kept.go"})
 }
 
+func TestBuildWalkSkipsNestedGitMetadataAndRepositories(t *testing.T) {
+	root := t.TempDir()
+	if insideGitWorkTree(root) {
+		t.Skip("temporary directory is inside a Git work tree")
+	}
+	writeTestFile(t, filepath.Join(root, "kept.go"), "package kept")
+	writeTestFile(t, filepath.Join(root, "nested", ".git", "config"), "token in remote URL")
+	writeTestFile(t, filepath.Join(root, "nested", "main.go"), "package nested")
+	writeTestFile(t, filepath.Join(root, "mixed", ".GiT", "config"), "mixed-case metadata")
+	writeTestFile(t, filepath.Join(root, "mixed", "main.go"), "package mixed")
+	writeTestFile(t, filepath.Join(root, "linked", ".git"), "gitdir: ../outside")
+	writeTestFile(t, filepath.Join(root, "linked", "main.go"), "package linked")
+	for _, options := range []Options{{}, {IncludeIgnored: true}} {
+		bundle, err := Build(root, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if paths := bundleEntryNames(t, bundle); !reflect.DeepEqual(paths, []string{"kept.go"}) {
+			t.Fatalf("options %#v: paths = %v", options, paths)
+		}
+		if bundle.SkippedRepositories != 3 {
+			t.Fatalf("options %#v: skipped repositories = %d, want 3", options, bundle.SkippedRepositories)
+		}
+	}
+}
+
+func TestBuildIncludeIgnoredSkipsNestedGitRepository(t *testing.T) {
+	root := initGitRepository(t)
+	writeTestFile(t, filepath.Join(root, "kept.go"), "package kept")
+	nested := filepath.Join(root, "nested")
+	if output, err := exec.Command("git", "init", "--quiet", nested).CombinedOutput(); err != nil {
+		t.Fatalf("git init nested: %v: %s", err, output)
+	}
+	writeTestFile(t, filepath.Join(nested, "main.go"), "package nested")
+	for _, options := range []Options{{}, {IncludeIgnored: true}} {
+		bundle, err := Build(root, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if paths := bundleEntryNames(t, bundle); !reflect.DeepEqual(paths, []string{"kept.go"}) {
+			t.Fatalf("options %#v: paths = %v", options, paths)
+		}
+		if bundle.SkippedRepositories != 1 {
+			t.Fatalf("options %#v: skipped repositories = %d, want 1", options, bundle.SkippedRepositories)
+		}
+	}
+}
+
 func TestBuildEnforcesSourceLimits(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, filepath.Join(root, "large.bin"), strings.Repeat("x", MaxFileBytes+1))
