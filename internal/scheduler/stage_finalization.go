@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -17,10 +19,17 @@ import (
 
 // enterFinalizing validates and fences before the atomic candidate transition.
 func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, reservations []controlplane.Reservation, candidate contracts.StageContentResult) error {
-	if err := s.validateCandidate(ctx, run.RunID, workflow.stage, candidate); err != nil {
-		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
+	if err := s.validateCandidate(ctx, run.RunID, workflow, candidate); err != nil {
+		failure := planner.Failure{
 			Code: "result_contract_violation", Message: "Planner candidate violates the Stage result contract", Retryable: false,
-		})
+		}
+		var unavailable *candidateVerificationError
+		if errors.As(err, &unavailable) {
+			failure = planner.Failure{
+				Code: "result_verification_unavailable", Message: "Stage result artifact metadata could not be verified", Retryable: true,
+			}
+		}
+		return s.beginAbort(ctx, run, workflow, execution, reservations, failure)
 	}
 	if err := s.fenceRecordedAllocations(ctx, execution.StageExecutionID, reservations); err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
@@ -55,12 +64,18 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 
 }
 
+type candidateVerificationError struct{ cause error }
+
+func (e *candidateVerificationError) Error() string { return e.cause.Error() }
+func (e *candidateVerificationError) Unwrap() error { return e.cause }
+
 func (s *Scheduler) validateCandidate(
 	ctx context.Context,
 	runID string,
-	stage workflowconfig.ResolvedStage,
+	workflow executableWorkflow,
 	result contracts.StageContentResult,
 ) error {
+	stage := workflow.stage
 	if err := result.Validate(); err != nil {
 		return err
 	}
@@ -82,6 +97,7 @@ func (s *Scheduler) validateCandidate(
 		}
 	}
 	names := sortedArtifactNames(result.Artifacts)
+	mediaTypes := make(map[string]string, len(names))
 	for _, name := range names {
 		ref := result.Artifacts[name]
 		if artifactpolicy.IsReservedMemoryBinding(ref.Namespace, ref.Name) {
@@ -89,11 +105,40 @@ func (s *Scheduler) validateCandidate(
 		}
 		resolved, err := s.artifacts.Resolve(ctx, runID, ref)
 		if err != nil {
-			return fmt.Errorf("verify Stage result artifact %q: %w", name, err)
+			wrapped := fmt.Errorf("verify Stage result artifact %q: %w", name, err)
+			if errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrInvalidName) {
+				return wrapped
+			}
+			return &candidateVerificationError{cause: wrapped}
 		}
 		if !sameExactRef(ref, resolved.Ref) ||
 			!contracts.AcceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolved.MediaType) {
 			return fmt.Errorf("Stage result artifact %q differs from its declared exact version or media type", name)
+		}
+		mediaTypes[name] = resolved.MediaType
+	}
+	if result.Outcome == contracts.StageSucceeded {
+		outputNames := make([]string, 0, len(stage.WorkflowOutputs))
+		for outputName := range stage.WorkflowOutputs {
+			outputNames = append(outputNames, outputName)
+		}
+		sort.Strings(outputNames)
+		for _, outputName := range outputNames {
+			resultName := stage.WorkflowOutputs[outputName]
+			slot, declared := workflow.workflow.Outputs[outputName]
+			if !declared {
+				return fmt.Errorf("mapped Workflow output %q is undeclared", outputName)
+			}
+			mediaType, present := mediaTypes[resultName]
+			if !present {
+				if slot.Required {
+					return fmt.Errorf("required Workflow output %q has no Stage result", outputName)
+				}
+				continue
+			}
+			if !contracts.AcceptsMediaType(slot.MediaTypes, mediaType) {
+				return fmt.Errorf("Workflow output %q has incompatible media type", outputName)
+			}
 		}
 	}
 	return nil

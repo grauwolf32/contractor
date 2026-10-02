@@ -30,12 +30,12 @@ func (r *ArtifactServiceResolver) Resolve(
 	if err != nil {
 		return ResolvedArtifact{}, err
 	}
-	result, err := store.Read(ctx, ref)
+	result, err := store.Metadata(ctx, ref)
 	if err != nil {
 		return ResolvedArtifact{}, err
 	}
 	if err := result.Ref.ValidateExact(); err != nil {
 		return ResolvedArtifact{}, fmt.Errorf("ArtifactStore returned an inexact ref: %w", err)
 	}
-	return ResolvedArtifact{Ref: result.Ref, MediaType: result.Payload.MediaType}, nil
+	return ResolvedArtifact{Ref: result.Ref, MediaType: result.MediaType}, nil
 }
