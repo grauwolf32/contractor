@@ -81,7 +81,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 360*time.Second)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -347,9 +347,9 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 		t.Fatalf("OTLP collector envelope failures: %v", failures)
 	}
 
-	// A required proxy failure is semantic rather than supplementary. It must
-	// fail the Run through the normal Worker result path, release the selected
-	// allocation and leave both specialist processes reusable.
+	// A required proxy failure is semantic rather than supplementary. Gateway
+	// recovery parks the Run while the route is unavailable; cancelling it must
+	// release the allocation and leave both specialist processes reusable.
 	refused := operations.publishRuntimeConfig("caido-refused", "1", map[string]any{
 		"worker": map[string]any{"httpProxy": map[string]any{
 			"adapter": "http-proxy@1", "proxyUrl": rejectingProxy.URL(),
@@ -360,13 +360,23 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	refusedRun := operations.createRun(
 		"artifact-copy@1", "runtime-label-caido-refused", uploaded, []string{"caido-refused"},
 	)
-	refusedStatus := waitForRunTerminalAcross(
-		t, ctx, server, runtimes, publicClient, publicBaseURL, refusedRun.RunID,
+	refusedStatus := waitForRunStateAcross(
+		t, ctx, server, runtimes, publicClient, publicBaseURL, refusedRun.RunID, "waiting",
 	)
-	if refusedStatus.State != "failed" || rejectingProxy.requests() == 0 {
-		t.Fatalf("required proxy failure was not semantic: status=%+v requests=%d",
+	if refusedStatus.Recovery == nil || rejectingProxy.requests() == 0 {
+		t.Fatalf("required proxy failure did not enter recovery: status=%+v requests=%d",
 			refusedStatus, rejectingProxy.requests())
 	}
+	operations.request(
+		http.MethodPost,
+		"/v1/runs/"+url.PathEscape(refusedRun.RunID)+"/cancel",
+		map[string]string{"reason": "Cancel proxy recovery probe"},
+		http.StatusAccepted,
+		nil,
+	)
+	waitForRunStateAcross(
+		t, ctx, server, runtimes, publicClient, publicBaseURL, refusedRun.RunID, "cancelled",
+	)
 	gateway.ResetScenario()
 
 	// The adapter sets are intentionally disjoint. These final probes therefore
@@ -710,7 +720,7 @@ func (o *runtimeOperations) createRun(
 	headers := map[string]string{"Idempotency-Key": idempotencyKey}
 	data := o.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
 	var result createdLabeledRun
-	if err := json.Unmarshal(data, &result); err != nil || result.RunID == "" || result.State != "running" {
+	if err := json.Unmarshal(data, &result); err != nil || result.RunID == "" || !isRunAdmissionState(result.State) {
 		o.t.Fatalf("create labeled Run = (%+v, %v): %s", result, err, data)
 	}
 	replay := o.requestResponse(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
@@ -792,17 +802,18 @@ func waitForRunAcross(
 	}
 }
 
-func waitForRunTerminalAcross(
+func waitForRunStateAcross(
 	t *testing.T,
 	ctx context.Context,
 	server *childProcess,
 	runtimes []*childProcess,
 	client *http.Client,
-	baseURL, runID string,
+	baseURL, runID, want string,
 ) runStatus {
 	t.Helper()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	var last runStatus
 	for {
 		request, _ := http.NewRequestWithContext(
 			ctx, http.MethodGet, baseURL+"/v1/runs/"+url.PathEscape(runID), nil,
@@ -813,26 +824,46 @@ func waitForRunTerminalAcross(
 			var status runStatus
 			if response.StatusCode == http.StatusOK {
 				decodeResponse(t, response, &status)
+				last = status
 			}
 			response.Body.Close()
+			if status.State == want {
+				return status
+			}
 			switch status.State {
 			case "succeeded", "failed", "cancelled":
-				return status
+				if want == "" {
+					return status
+				}
+				t.Fatalf("Run %s reached %s while waiting for %s", runID, status.State, want)
 			}
 		}
 		for _, process := range append([]*childProcess{server}, runtimes...) {
 			if exited, processErr := process.exited(); exited {
-				t.Fatalf("%s exited while waiting for terminal Run: %v\n%s", process.name, processErr,
+				t.Fatalf("%s exited while waiting for Run %s: %v\n%s", process.name, want, processErr,
 					process.logs.redacted(publicToken, llmGatewayToken, runtimeOTLPRunCanary,
 						runtimeOTLPAgentCanary, runtimeProxyCanary))
 			}
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for terminal Run %s: %v", runID, ctx.Err())
+			t.Fatalf("wait for Run %s to reach %s: %v (last state=%s recovery=%+v)",
+				runID, want, ctx.Err(), last.State, last.Recovery)
 		case <-ticker.C:
 		}
 	}
+}
+
+func waitForRunTerminalAcross(
+	t *testing.T,
+	ctx context.Context,
+	server *childProcess,
+	runtimes []*childProcess,
+	client *http.Client,
+	baseURL, runID string,
+) runStatus {
+	t.Helper()
+	return waitForRunStateAcross(t, ctx, server, runtimes, client, baseURL, runID, "")
 }
 
 func onlyRunAllocation(

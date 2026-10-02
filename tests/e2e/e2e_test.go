@@ -39,6 +39,10 @@ const (
 	llmGatewayToken = "contractor-e2e-gateway-token"
 )
 
+func isRunAdmissionState(state string) bool {
+	return state == "initializing" || state == "pending" || state == "running"
+}
+
 type artifactRef struct {
 	Namespace string  `json:"namespace"`
 	Name      string  `json:"name"`
@@ -347,7 +351,7 @@ func createWorkflowRunWithParameters(
 	defer response.Body.Close()
 	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
-	if payload.RunID == "" || payload.State != "running" {
+	if payload.RunID == "" || !isRunAdmissionState(payload.State) {
 		t.Fatalf("create Run response = %+v", payload)
 	}
 	return payload.RunID

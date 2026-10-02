@@ -401,7 +401,7 @@ func createHTTPCaidoRun(
 	data := operations.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
 	var result createdLabeledRun
 	if err := json.Unmarshal(data, &result); err != nil || result.RunID == "" ||
-		(result.State != "initializing" && result.State != "running") {
+		!isRunAdmissionState(result.State) {
 		operations.t.Fatalf("create HTTP/Caido Run = (%+v, %v): %s", result, err, data)
 	}
 	replay := operations.requestResponse(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
