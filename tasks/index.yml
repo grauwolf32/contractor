@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: runtime-agent-page-completeness-2026-10
+    exit_task: V88-001
+    outcome: >-
+      Runtime Agent identities and label bindings load every page, so later
+      identities remain visible and their labels can be edited.
   - id: browser-event-resync-2026-10
     exit_task: V87-001
     outcome: >-
@@ -2721,6 +2726,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V88-001, file: v88-001-runtime-agent-page-completeness.yml}
   - {id: V87-001, file: v87-001-browser-event-resync.yml}
   - {id: V86-001, file: v86-001-workflow-inventory-key.yml}
   - {id: V85-001, file: v85-001-eval-key-value-editor.yml}
