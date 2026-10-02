@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: ui-api-dead-surface-2026-10
+    exit_task: V84-002
+    outcome: >-
+      Remove unused UI API/query-key exports and align event subscription
+      tests with the production unsubscribe/resubscribe ownership contract.
   - id: shared-session-tool-call-recovery-2026-10
     exit_task: V83-001
     outcome: >-
@@ -2701,6 +2706,8 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V84-001, file: v84-001-ui-api-event-dead-surface.yml}
+  - {id: V84-002, file: v84-002-ui-operations-dead-exports.yml}
   - {id: V83-001, file: v83-001-shared-session-tool-call-recovery.yml}
   - {id: V82-001, file: v82-001-ui-session-recovery.yml}
   - {id: V81-001, file: v81-001-local-direct-noop-failures.yml}

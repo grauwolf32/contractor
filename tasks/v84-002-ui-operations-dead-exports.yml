@@ -1,0 +1,31 @@
+schema_version: '1.0'
+id: V84-002
+title: Remove test-only Operations requests and unused Workflow presentation helper
+milestone: ui-api-dead-surface-2026-10
+priority: P2
+status: completed
+implementation_commit: 985f5755e63e8f5b712de82761d7a81e3e933ae0
+depends_on: [V84-001]
+languages: [typescript]
+goal: Keep UI request tests focused on helpers the shipped pages actually use.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/308
+  finding: Four Operations request helpers are exercised only by tests, and workflowDescription has no caller.
+scope:
+  in:
+    - Delete test-only Runtime Agent, allocation, label-detail and Runtime credential-detail request helpers and unused aliases.
+    - Delete the unreferenced workflow description helper.
+    - Remove matching test calls and fake GET branches while retaining used snapshot, label and credential coverage.
+  out:
+    - Remove the intentional legacy configuration route redirect.
+acceptance_criteria:
+  - {id: A1, text: No removed helper has a definition or caller in the UI tree.}
+  - {id: A2, text: Operations request tests still cover shipped snapshot and mutation helpers.}
+  - {id: A3, text: App/e2e typechecks, lint and focused Operations/Workflow tests pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/api/operations.test.ts src/routes/workflows, covers: [A2]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A2, A3]}

@@ -8,7 +8,6 @@ import { CONFIG_ID_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export const AUDIT_PAGE_SIZE = 50;
 export const AUDIT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
-export const AUDIT_REVISION_PATTERN = /^[1-9][0-9]{0,18}$/;
 
 export type AuditProfile = components["schemas"]["AuditProfile"];
 export type AuditProfilePage = components["schemas"]["AuditProfilePage"];
@@ -690,11 +689,6 @@ export async function listAuditFindingProvenance(
 
 export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
   return "audit" in value ? value.audit : value;
-}
-
-/** Terminal Audits never change again; their projections are read once. */
-export function isTerminalAuditState(state: AuditState): boolean {
-  return state === "completed" || state === "cancelled" || state === "failed";
 }
 
 /**

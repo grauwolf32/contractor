@@ -13,11 +13,7 @@ import {
   getCredential,
   getOperationsSnapshot,
   getRuntimeConfig,
-  getRuntimeCredential,
-  getRuntimeLabel,
   getRuntimeAgentPrincipal,
-  listAllocations,
-  listRuntimeAgents,
   listRuntimeConfigs,
   listRuntimeCredentials,
   listRuntimeLabels,
@@ -96,7 +92,7 @@ describe("Operations API", () => {
     await expect(getOperationsSnapshot(api)).rejects.toBeDefined();
   });
 
-  it("reads one authoritative snapshot and cursor-pinned pages", async () => {
+  it("reads one authoritative operations snapshot", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(
       runtimeConfig,
@@ -111,35 +107,13 @@ describe("Operations API", () => {
             allocations: [],
           });
         }
-        if (path === "/v1/operations/runtime-agents") {
-          return response({
-            cursor: { generation: "operations-generation-1", revision: "7" },
-            items: [],
-            page: { hasMore: false },
-          });
-        }
-        if (path === "/v1/operations/allocations") {
-          return response({
-            cursor: { generation: "operations-generation-1", revision: "7" },
-            items: [],
-            page: { hasMore: false },
-          });
-        }
         throw new Error(`unexpected ${request.url}`);
       }),
     );
     await getOperationsSnapshot(api);
-    await listRuntimeAgents(api, { cursor: "agent-next" });
-    await listAllocations(api, { cursor: "allocation-next" });
-    expect(requests[0]?.url).toBe(
+    expect(requests.map((request) => request.url)).toEqual([
       "http://127.0.0.1:8080/v1/operations/snapshot",
-    );
-    expect(new URL(requests[1]!.url).searchParams).toEqual(
-      new URLSearchParams({ limit: "50", cursor: "agent-next" }),
-    );
-    expect(new URL(requests[2]!.url).searchParams).toEqual(
-      new URLSearchParams({ limit: "50", cursor: "allocation-next" }),
-    );
+    ]);
   });
 
   it("copies, validates, and normalizes Runtime Agent capabilities", async () => {
@@ -606,7 +580,7 @@ describe("Operations API", () => {
           return response({ items: [binding], page: { hasMore: false } });
         }
         if (path.endsWith("/runtime-labels/debug")) {
-          return response(binding, request.method === "PUT" ? 201 : 200, {
+          return response(binding, 201, {
             ETag: '"1"',
           });
         }
@@ -614,9 +588,6 @@ describe("Operations API", () => {
           return request.method === "POST"
             ? response(metadata, 201)
             : response({ items: [metadata], page: { hasMore: false } });
-        }
-        if (path.endsWith("/runtime-credentials/otel-debug")) {
-          return response(metadata);
         }
         throw new Error(`unexpected ${request.method} ${path}`);
       }),
@@ -633,7 +604,6 @@ describe("Operations API", () => {
         resource.ref,
         "runtime-label-create-1",
       ),
-      await getRuntimeLabel(api, "debug"),
       await listRuntimeLabels(api),
       await createRuntimeCredential(
         api,
@@ -644,7 +614,6 @@ describe("Operations API", () => {
         },
         "runtime-credential-create-1",
       ),
-      await getRuntimeCredential(api, "otel-debug"),
       await listRuntimeCredentials(api),
     ];
     await deleteRuntimeLabel(api, "debug", "1", "runtime-label-delete-1");

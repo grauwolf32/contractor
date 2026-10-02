@@ -1,9 +1,6 @@
 export const queryKeys = {
   session: ["auth", "session"] as const,
   workflows: {
-    all: ["workflows"] as const,
-    picker: ["workflows", "picker"] as const,
-    list: (cursor?: string) => ["workflows", "list", cursor ?? null] as const,
     detail: (name: string, version: string) =>
       ["workflows", "detail", name, version] as const,
   },
@@ -118,16 +115,11 @@ export const queryKeys = {
   },
   auditProfiles: {
     all: ["audit-profiles"] as const,
-    list: (cursor?: string) =>
-      ["audit-profiles", "list", cursor ?? null] as const,
     detail: (name: string, version: string) =>
       ["audit-profiles", "detail", name, version] as const,
   },
   audits: {
-    all: ["audits"] as const,
     detail: (auditId: string) => ["audits", "detail", auditId] as const,
-    coverage: (auditId: string, cursor?: string) =>
-      ["audits", "detail", auditId, "coverage", cursor ?? null] as const,
     allCoverage: (auditId: string) =>
       ["audits", "detail", auditId, "coverage", "all"] as const,
     report: (auditId: string) =>
@@ -250,8 +242,6 @@ export const queryKeys = {
         cursor ?? null,
       ] as const,
     detail: (runId: string) => ["runs", "detail", runId] as const,
-    repeatDraft: (runId: string) =>
-      ["runs", "detail", runId, "repeat-draft"] as const,
     artifacts: (
       runId: string,
       namespace: string | undefined,
@@ -314,16 +304,13 @@ export const queryKeys = {
       ] as const,
   },
   operations: {
-    all: ["operations"] as const,
     snapshot: ["operations", "snapshot"] as const,
     performance: {
-      all: ["operations", "performance"] as const,
       current: ["operations", "performance", "current"] as const,
       history: (range: string) =>
         ["operations", "performance", "history", range] as const,
     },
     allocationHistory: {
-      all: ["operations", "allocation-history"] as const,
       list: (runId?: string, cursor?: string) =>
         [
           "operations",
@@ -346,8 +333,6 @@ export const queryKeys = {
       picker: ["operations", "runtime-labels", "picker"] as const,
       list: (cursor?: string) =>
         ["operations", "runtime-labels", "list", cursor ?? null] as const,
-      detail: (label: string) =>
-        ["operations", "runtime-labels", "detail", label] as const,
     },
     runtimeCredentials: {
       all: ["operations", "runtime-credentials"] as const,
@@ -363,13 +348,6 @@ export const queryKeys = {
           "runtime-agent-principals",
           "list",
           cursor ?? null,
-        ] as const,
-      detail: (runtimeAgentId: string) =>
-        [
-          "operations",
-          "runtime-agent-principals",
-          "detail",
-          runtimeAgentId,
         ] as const,
     },
   },
