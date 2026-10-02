@@ -103,6 +103,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "artifact-read-result.json": ArtifactReadResult,
     "artifact-list-result.json": ArtifactListResult,
     "stage-content-request.json": StageContentRequest,
+    "stage-content-request-deadline.json": StageContentRequest,
     "stage-content-result-success.json": StageContentResult,
     "stage-content-result-failure.json": StageContentResult,
     "worker-completion-success.json": WorkerCompletion,
@@ -128,6 +129,7 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "allocation-spec-bad-api-version.json": AllocationSpec,
     "allocation-spec-resolved-skill-versionless.json": AllocationSpec,
     "stage-content-request-unknown-field.json": StageContentRequest,
+    "stage-content-request-naive-deadline.json": StageContentRequest,
     "stage-content-request-versioned-result-binding.json": StageContentRequest,
     "stage-content-result-unversioned-artifact.json": StageContentResult,
     "stage-content-result-success-with-error.json": StageContentResult,
@@ -191,6 +193,7 @@ FIXTURE_SCHEMAS = {
     "artifact-read-result": "artifact.schema.json",
     "artifact-list-result": "artifact.schema.json",
     "stage-content-request": "stage-content.schema.json",
+    "stage-content-request-deadline": "stage-content.schema.json",
     "stage-content-result-success": "stage-content.schema.json",
     "stage-content-result-failure": "stage-content.schema.json",
     "worker-completion-success": "worker-completion.schema.json",
@@ -208,6 +211,7 @@ FIXTURE_SCHEMAS = {
     "allocation-spec-bad-api-version": "allocation.schema.json",
     "allocation-spec-resolved-skill-versionless": "allocation.schema.json",
     "stage-content-request-unknown-field": "stage-content.schema.json",
+    "stage-content-request-naive-deadline": "stage-content.schema.json",
     "stage-content-request-versioned-result-binding": "stage-content.schema.json",
     "stage-content-result-unversioned-artifact": "stage-content.schema.json",
     "stage-content-result-success-with-error": "stage-content.schema.json",
@@ -223,6 +227,8 @@ def test_valid_golden_fixture_round_trip(filename: str, model: type[BaseModel]) 
     value = model.model_validate_json(raw)
     encoded = value.model_dump_json(by_alias=True, exclude_none=True)
     assert json.loads(encoded) == json.loads(raw)
+    if filename == "stage-content-request-deadline.json":
+        assert StageContentRequest.model_validate(json.loads(raw)).deadline == value.deadline
 
 
 @pytest.mark.parametrize("owner", ["httpProxy", "caido"])
@@ -258,6 +264,9 @@ def test_invalid_golden_fixture_is_rejected(filename: str, model: type[BaseModel
     raw = (FIXTURES / "invalid" / filename).read_text(encoding="utf-8")
     with pytest.raises(ValidationError):
         model.model_validate_json(raw)
+    if filename == "stage-content-request-naive-deadline.json":
+        with pytest.raises(ValidationError):
+            StageContentRequest.model_validate(json.loads(raw))
 
 
 def test_worker_model_result_is_strict_and_runtime_internal() -> None:

@@ -88,11 +88,14 @@ async def runtime_for(
     total_tokens=1000,
     block_call=None,
     extra_tools=None,
+    request_timeout_seconds=None,
 ):
     expected, inputs = assigned(batch=batch)
     client = AuditClient(inputs)
     state = CountedState()
     context = build_context(tmp_path, state, {})
+    if request_timeout_seconds is not None:
+        context.runtime_settings.request_timeout_seconds = request_timeout_seconds
     tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
         selected=["read_audit_task", "submit_check_result"],
         allocation_id="allocation-1",
@@ -123,6 +126,101 @@ def submit(item, call="submit-1"):
     return tool_call(
         "submit_check_result", {"item_key": item.item_key, **arguments(item)}, call_id=call
     )
+
+
+def test_audit_invocation_can_outlive_one_request_timeout(tmp_path):
+    async def scenario():
+        async def slow_step() -> dict:
+            """Finish one bounded step of the assigned check."""
+            await asyncio.sleep(0.075)
+            return {"complete": True}
+
+        expected, _ = assigned()
+        runtime, model, client, _, _ = await runtime_for(
+            tmp_path,
+            [
+                tool_call("slow_step", {}, call_id="step-1"),
+                tool_call("slow_step", {}, call_id="step-2"),
+                submit(expected.items[0].value),
+                text_result("Done"),
+            ],
+            extra_tools={"slow_step": slow_step},
+            model_calls=4,
+            tool_calls=3,
+            request_timeout_seconds=0.1,
+        )
+        request = stage_request().model_copy(
+            update={"deadline": datetime.now(UTC) + timedelta(seconds=3)}
+        )
+        started = asyncio.get_running_loop().time()
+        completion = await runtime.invoke(request)
+        assert asyncio.get_running_loop().time() - started > 0.1
+        assert completion.failure is None, completion
+        assert completion.result is not None and len(client.writes) == 1
+        assert len(model.requests) == 4
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+def test_audit_model_recovery_wait_uses_stage_deadline(tmp_path):
+    async def scenario():
+        expected, _ = assigned()
+        runtime, model, client, _, _ = await runtime_for(
+            tmp_path,
+            [submit(expected.items[0].value), text_result("Done")],
+            block_call=2,
+            request_timeout_seconds=0.1,
+        )
+        request = stage_request().model_copy(
+            update={"deadline": datetime.now(UTC) + timedelta(seconds=3)}
+        )
+        running = asyncio.create_task(runtime.invoke(request))
+        await asyncio.wait_for(model.blocked.wait(), 2)
+        # A coordinated recovery wait is allowed to outlive one outbound call.
+        await asyncio.sleep(0.15)
+        assert not running.done()
+        model.release()
+        completion = await asyncio.wait_for(running, 2)
+        assert completion.failure is None and len(client.writes) == 1
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+def test_expired_stage_deadline_prevents_audit_publication(tmp_path):
+    async def scenario():
+        expected, _ = assigned()
+        runtime, model, client, _, _ = await runtime_for(
+            tmp_path, [submit(expected.items[0].value), text_result("Done")]
+        )
+        request = stage_request().model_copy(
+            update={"deadline": datetime.now(UTC) - timedelta(seconds=1)}
+        )
+        completion = await runtime.invoke(request)
+        assert completion.result is None and completion.failure.code == "worker_timeout"
+        assert client.writes == [] and model.requests == []
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+def test_stage_deadline_during_publication_reports_worker_timeout(tmp_path):
+    async def scenario():
+        expected, _ = assigned()
+        runtime, _, client, _, _ = await runtime_for(
+            tmp_path, [submit(expected.items[0].value), text_result("Done")]
+        )
+        client.block_write = True
+        request = stage_request().model_copy(
+            update={"deadline": datetime.now(UTC) + timedelta(seconds=0.25)}
+        )
+        completion = await runtime.invoke(request)
+        assert completion.result is None and completion.failure.code == "worker_timeout"
+        assert client.write_started.is_set()
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
 
 
 def test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed_call(tmp_path):
@@ -428,14 +526,18 @@ def test_fatal_model_event_sandbox_or_deadline_prevents_audit_success(tmp_path, 
             block_call=2 if failure == "timeout" else None,
         )
         if failure == "timeout":
-            runtime._context.runtime_settings.request_timeout_seconds = 1
+            request = stage_request().model_copy(
+                update={"deadline": datetime.now(UTC) + timedelta(seconds=1)}
+            )
+        else:
+            request = stage_request()
         if failure == "sandbox":
 
             async def fail_sandbox():
                 state.execution.fail(SandboxErrorCode.UNAVAILABLE)
 
             client.on_write = fail_sandbox
-        result = await runtime.invoke(stage_request())
+        result = await runtime.invoke(request)
         assert result.result is None
         assert (
             result.failure.code

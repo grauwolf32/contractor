@@ -17,6 +17,11 @@
         },
         "objective": {"type": "string", "minLength": 1},
         "instructions": {"type": "string", "minLength": 1},
+        "deadline": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+        },
         "parameters": {"type": "object", "additionalProperties": {"type": "string"}},
         "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
         "resultArtifacts": {

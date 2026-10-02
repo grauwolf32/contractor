@@ -1,6 +1,9 @@
 package contracts
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type StageContentRequest struct {
 	APIVersion      string                 `json:"apiVersion"`
@@ -10,6 +13,7 @@ type StageContentRequest struct {
 	Parameters      map[string]string      `json:"parameters"`
 	Artifacts       map[string]ArtifactRef `json:"artifacts"`
 	ResultArtifacts map[string]ArtifactRef `json:"resultArtifacts,omitempty"`
+	Deadline        *time.Time             `json:"deadline,omitempty"`
 }
 
 func (r StageContentRequest) Validate() error {

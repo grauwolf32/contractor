@@ -587,9 +587,13 @@ class AdkWorkerRuntime:
         transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         completion = self._completion
+        # The Planner's deadline covers the whole logical invocation. The
+        # request timeout still applies independently inside model/tool clients.
         deadline = (
             asyncio.get_running_loop().time()
-            + self._context.runtime_settings.request_timeout_seconds
+            + (request.deadline - datetime.now(UTC)).total_seconds()
+            if request.deadline is not None
+            else None
         )
         try:
             if completion is not None:
@@ -660,7 +664,7 @@ class AdkWorkerRuntime:
                         request=request,
                         candidate=candidate,
                         invocation_id=invocation_id,
-                        deadline=deadline,
+                        deadline=deadline if deadline is not None else float("inf"),
                     )
                     if not isinstance(outcome, ContinueCompletion):
                         return outcome, exportable

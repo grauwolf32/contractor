@@ -76,7 +76,7 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		t.Fatalf("Worker requests did not preserve structured context: %+v", workers.calls)
 	}
 	for _, call := range workers.calls {
-		if !call.deadline.Equal(instance.(*streamlinePlanner).invocation.Deadline) {
+		if !call.deadline.Equal(instance.(*streamlinePlanner).invocation.Deadline) || call.request.Deadline == nil || !call.request.Deadline.Equal(call.deadline) {
 			t.Fatalf("Worker %q deadline = %s, want Stage deadline %s",
 				call.binding, call.deadline, instance.(*streamlinePlanner).invocation.Deadline)
 		}

@@ -73,7 +73,12 @@ class DeterministicAuditResultPublisher:
         self._encoder = CanonicalAuditPackageEncoder()
 
     async def publish(
-        self, snapshot: SealedAuditSnapshot, *, inputs: AuditTrustedInputs, deadline: float
+        self,
+        snapshot: SealedAuditSnapshot,
+        *,
+        inputs: AuditTrustedInputs,
+        deadline: float,
+        request_timeout: float | None = None,
     ) -> AuditPublicationReceipt:
         """Return exact verified metadata or fail within two writes and two reads.
 
@@ -87,6 +92,14 @@ class DeterministicAuditResultPublisher:
             or snapshot.owner != self._owner
             or type(deadline) not in (int, float)
             or not math.isfinite(deadline)
+            or (
+                request_timeout is not None
+                and (
+                    type(request_timeout) not in (int, float)
+                    or request_timeout <= 0
+                    or not math.isfinite(request_timeout)
+                )
+            )
         ):
             raise AuditResultError("audit_result_invalid")
         try:
@@ -97,12 +110,13 @@ class DeterministicAuditResultPublisher:
                 for _ in range(2):
                     self._check(deadline)
                     try:
-                        written = await self._client.write_artifact(
-                            self._target.model_copy(deep=True),
-                            data=encoded.data,
-                            media_type="application/zip",
-                            expected_revision=None,
-                        )
+                        async with asyncio.timeout(request_timeout):
+                            written = await self._client.write_artifact(
+                                self._target.model_copy(deep=True),
+                                data=encoded.data,
+                                media_type="application/zip",
+                                expected_revision=None,
+                            )
                         self._check(deadline)
                         if (
                             not isinstance(written, ArtifactWriteResult)
@@ -121,10 +135,11 @@ class DeterministicAuditResultPublisher:
                         pass
                     self._check(deadline)
                     try:
-                        value = await self._client.read_artifact(
-                            self._target.model_copy(deep=True),
-                            max_bytes=MAX_PACKAGE_BYTES,
-                        )
+                        async with asyncio.timeout(request_timeout):
+                            value = await self._client.read_artifact(
+                                self._target.model_copy(deep=True),
+                                max_bytes=MAX_PACKAGE_BYTES,
+                            )
                         self._check(deadline)
                         if not isinstance(value, ArtifactValue) or not self._matches(
                             value.artifact

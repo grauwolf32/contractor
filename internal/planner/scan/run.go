@@ -74,11 +74,11 @@ func (p *execution) Run(ctx context.Context) (contracts.StageContentResult, erro
 				return empty, scanError("scan_job_claim_unavailable", err)
 			}
 			record.Status = planner.ScanJobStarted
-			request, err := p.request(job, record)
+			deadline := minTime(p.invocation.Deadline, time.Now().Add(time.Duration(job.TimeoutSeconds)*time.Second))
+			request, err := p.request(job, record, deadline)
 			if err != nil {
 				record.Status, record.Code = planner.ScanJobFailed, "scan_invalid_worker_result"
 			} else {
-				deadline := minTime(p.invocation.Deadline, time.Now().Add(time.Duration(job.TimeoutSeconds)*time.Second))
 				callCtx, cancel := context.WithDeadline(ctx, deadline)
 				completion, invokeErr := p.factory.invoker.Invoke(callCtx, job.Worker, planner.CloneWorkerHandle(p.invocation.Workers[job.Worker]), planner.CloneStageRequest(request))
 				cancel()
@@ -232,8 +232,8 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 	return inputs, nil
 }
 
-func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord) (contracts.StageContentRequest, error) {
-	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}}
+func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord, deadline time.Time) (contracts.StageContentRequest, error) {
+	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: &deadline}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, err
 	}

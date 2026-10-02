@@ -382,7 +382,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 	request := contracts.StageContentRequest{
 		APIVersion: contracts.APIVersion, SubtaskID: "0", Objective: invocation.Stage.Objective,
 		Instructions: invocation.Stage.Instructions.Text, Parameters: parameters, Artifacts: artifacts,
-		ResultArtifacts: resultArtifacts,
+		ResultArtifacts: resultArtifacts, Deadline: &invocation.Deadline,
 	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, fmt.Errorf("invalid StageContentRequest: %w", err)
@@ -464,6 +464,10 @@ func CloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
 
 func cloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
 	result := request
+	if request.Deadline != nil {
+		deadline := *request.Deadline
+		result.Deadline = &deadline
+	}
 	result.Parameters = make(map[string]string, len(request.Parameters))
 	for name, value := range request.Parameters {
 		result.Parameters[name] = value

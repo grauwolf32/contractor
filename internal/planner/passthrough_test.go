@@ -70,7 +70,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	if worker.binding != "builder" || worker.handle.AllocationID != "allocation-1" {
 		t.Fatalf("Worker address = (%q, %q)", worker.binding, worker.handle.AllocationID)
 	}
-	if !worker.deadline.Equal(invocation.Deadline) {
+	if !worker.deadline.Equal(invocation.Deadline) || worker.request.Deadline == nil || !worker.request.Deadline.Equal(invocation.Deadline) {
 		t.Fatalf("Worker deadline = %s, want Stage deadline %s", worker.deadline, invocation.Deadline)
 	}
 	if worker.request.SubtaskID != "0" ||

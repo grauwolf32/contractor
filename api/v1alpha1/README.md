@@ -12,6 +12,9 @@ adapter receives `StageContentRequest` in an A2A DataPart with media type
 `application/vnd.contractor.stage-content+json` and returns the Runtime-owned
 `WorkerCompletion` with media type
 `application/vnd.contractor.worker-completion+json`.
+`StageContentRequest.deadline` is optional for older callers; production
+Planners set it to the effective Worker-call deadline. Runtime uses it as
+control data and does not include it in the model prompt.
 
 This is the single private contract catalog. There is no separate protocol
 number, alternate DTO family or conversion path. HTTP routes retain their
