@@ -3,8 +3,8 @@ id: V91-001
 title: Confirm Runtime credential, label binding and Git key removal
 milestone: confirm-destructive-setup-actions-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ee1d013869b791dd859b4b53d8c1fc3123c5a429
 depends_on: []
 languages: [typescript]
 goal: Prevent an accidental click from deleting an irreplaceable setup secret or active binding.
@@ -25,7 +25,7 @@ acceptance_criteria:
   - {id: A3, text: Confirm sends exactly one DELETE and handles pending or errors safely.}
   - {id: A4, text: UI tests, app/e2e typechecks and lint pass.}
 tests:
-  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/operations.test.tsx src/routes/artifacts/git-artifacts.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/operations/runtime-configs/configuration.test.tsx src/routes/artifacts/git-artifacts.test.tsx, covers: [A1, A2, A3]}
   - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
   - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
