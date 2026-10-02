@@ -6,8 +6,9 @@ import { PublicAPI } from "../../../api/client";
 import { Application } from "../../../app/application";
 import { applicationRoutes } from "../../../app/router";
 
-function setup(path: string, authorized = true) {
+function setup(path: string, authorized = true, withRemovalFixtures = false) {
   const requests: string[] = [];
+  const deletes: Request[] = [];
   const runtimeResource = {
     ref: {
       name: "debug",
@@ -33,6 +34,29 @@ function setup(path: string, authorized = true) {
     createdBy: "user_local",
     createdAt: "2026-09-07T00:00:00Z",
   };
+  let credentials = withRemovalFixtures
+    ? [
+        {
+          credentialId: "caido-local",
+          kind: "caido-bearer@1",
+          createdBy: "user_local",
+          createdAt: "2026-09-07T00:00:00Z",
+        },
+      ]
+    : [];
+  let bindings = withRemovalFixtures
+    ? [
+        {
+          label: "debug",
+          config: runtimeResource.ref,
+          revision: "1",
+          createdBy: "user_local",
+          createdAt: "2026-09-07T00:00:00Z",
+          updatedBy: "user_local",
+          updatedAt: "2026-09-07T00:00:00Z",
+        },
+      ]
+    : [];
   const api = new PublicAPI(
     {
       uiVersion: "0.1.0",
@@ -43,6 +67,20 @@ function setup(path: string, authorized = true) {
       const request = input instanceof Request ? input : new Request(input);
       const pathname = new URL(request.url).pathname;
       requests.push(pathname);
+      if (request.method === "DELETE") {
+        deletes.push(request.clone());
+        if (pathname === "/v1/operations/runtime-credentials/caido-local") {
+          credentials = [];
+        } else if (pathname === "/v1/operations/runtime-labels/debug") {
+          bindings = [];
+        } else {
+          throw new Error(`unexpected DELETE ${pathname}`);
+        }
+        return new Response(null, {
+          status: 204,
+          headers: { "X-Contractor-API-Version": "contractor.public.v1" },
+        });
+      }
       let body: unknown = { items: [], page: { hasMore: false } };
       if (pathname === "/v1/auth/session")
         body = {
@@ -65,6 +103,10 @@ function setup(path: string, authorized = true) {
         body = { items: [runtimeResource], page: { hasMore: false } };
       else if (pathname === "/v1/operations/runtime-configs/debug/versions/1")
         body = runtimeResource;
+      else if (pathname === "/v1/operations/runtime-credentials")
+        body = { items: credentials, page: { hasMore: false } };
+      else if (pathname === "/v1/operations/runtime-labels")
+        body = { items: bindings, page: { hasMore: false } };
       return new Response(JSON.stringify(body), {
         headers: {
           "content-type": "application/json",
@@ -77,10 +119,100 @@ function setup(path: string, authorized = true) {
     initialEntries: [path],
   });
   render(<Application api={api} publicAPI={api} router={router} />);
-  return { router, requests };
+  return { router, requests, deletes };
 }
 
 describe("Runtime configuration hub navigation", () => {
+  it("confirms permanent Runtime credential deletion after safe dismissals", async () => {
+    const { deletes } = setup("/operations/configuration", true, true);
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole("button", {
+      name: "Delete Runtime credential caido-local",
+    });
+    const open = async () => {
+      await user.click(trigger);
+      const dialog = screen.getByRole("alertdialog", {
+        name: "Delete Runtime credential caido-local?",
+      });
+      expect(
+        within(dialog).getByRole("button", { name: "Cancel" }),
+      ).toHaveFocus();
+      expect(dialog).toHaveTextContent("Its ID cannot be reused");
+      expect(dialog).toHaveTextContent("cannot be bound again");
+      expect(deletes).toHaveLength(0);
+      return dialog;
+    };
+    let dialog = await open();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await open();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    dialog = await open();
+    await user.click(dialog.parentElement!);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(deletes).toHaveLength(0);
+    expect(trigger).toBeInTheDocument();
+    dialog = await open();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete Runtime credential" }),
+    );
+    await waitFor(() => expect(deletes).toHaveLength(1));
+    expect(new URL(deletes[0]!.url).pathname).toBe(
+      "/v1/operations/runtime-credentials/caido-local",
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    await waitFor(() => expect(trigger).not.toBeInTheDocument());
+  });
+
+  it("confirms Runtime label removal after safe dismissals", async () => {
+    const { deletes } = setup("/operations/configuration", true, true);
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Manage bindings for debug@1",
+      }),
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Remove binding debug",
+    });
+    const open = async () => {
+      await user.click(trigger);
+      const dialog = screen.getByRole("alertdialog", {
+        name: "Remove binding debug?",
+      });
+      expect(
+        within(dialog).getByRole("button", { name: "Cancel" }),
+      ).toHaveFocus();
+      expect(dialog).toHaveTextContent(
+        "New Runs will no longer be able to select",
+      );
+      expect(deletes).toHaveLength(0);
+      return dialog;
+    };
+    let dialog = await open();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await open();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    dialog = await open();
+    await user.click(dialog.parentElement!);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(deletes).toHaveLength(0);
+    expect(trigger).toBeInTheDocument();
+    dialog = await open();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove binding" }),
+    );
+    await waitFor(() => expect(deletes).toHaveLength(1));
+    expect(new URL(deletes[0]!.url).pathname).toBe(
+      "/v1/operations/runtime-labels/debug",
+    );
+    expect(deletes[0]!.headers.get("If-Match")).toBe('"1"');
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    await waitFor(() => expect(trigger).not.toBeInTheDocument());
+  });
+
   it("opens creation forms from icons and clears a closed credential draft", async () => {
     setup("/operations/configuration");
     const user = userEvent.setup();

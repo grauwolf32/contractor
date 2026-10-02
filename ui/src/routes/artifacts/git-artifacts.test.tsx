@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -113,6 +114,15 @@ describe("Git artifacts", () => {
                 : "Remove Git key",
         }),
       );
+      if (change === "remove") {
+        const dialog = screen.getByRole("alertdialog", {
+          name: "Remove Git key?",
+        });
+        expect(dialog).toHaveTextContent(previous.fingerprint);
+        await userEvent.click(
+          within(dialog).getByRole("button", { name: "Remove Git key" }),
+        );
+      }
       await screen.findByText(
         change === "remove" ? "Git SSH key removed." : "Git SSH key saved.",
       );
@@ -217,8 +227,113 @@ describe("Git artifacts", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Remove Git key" }),
     );
+    await userEvent.click(
+      within(
+        screen.getByRole("alertdialog", { name: "Remove Git key?" }),
+      ).getByRole("button", { name: "Remove Git key" }),
+    );
     await screen.findByText("Git SSH key removed.");
     expect(screen.getByText("No Git SSH key configured.")).toBeInTheDocument();
+  });
+  it("requires confirmation for Git key removal and dismisses safely", async () => {
+    const deletes: Request[] = [];
+    setup(<GitKeySettings />, async (request) => {
+      if (request.method === "GET")
+        return json({
+          configured: true,
+          fingerprint: "SHA256:keep-me",
+          keyType: "ssh-ed25519",
+        });
+      if (request.method === "DELETE") {
+        deletes.push(request.clone());
+        return json(undefined, 204);
+      }
+      throw new Error(`unexpected ${request.method}`);
+    });
+    const user = userEvent.setup();
+    await screen.findByText("SHA256:keep-me");
+    const trigger = await screen.findByRole("button", {
+      name: "Remove Git key",
+    });
+    const open = async () => {
+      await user.click(trigger);
+      const dialog = screen.getByRole("alertdialog", {
+        name: "Remove Git key?",
+      });
+      expect(dialog).toHaveTextContent("SHA256:keep-me");
+      expect(
+        within(dialog).getByRole("button", { name: "Cancel" }),
+      ).toHaveFocus();
+      expect(deletes).toHaveLength(0);
+      return dialog;
+    };
+    let dialog = await open();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await open();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    dialog = await open();
+    await user.click(dialog.parentElement!);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(deletes).toHaveLength(0);
+    expect(screen.getByText("SHA256:keep-me")).toBeInTheDocument();
+    dialog = await open();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove Git key" }),
+    );
+    await waitFor(() => expect(deletes).toHaveLength(1));
+    await screen.findByText("Git SSH key removed.");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+  it("keeps a pending Git key removal dialog open and shows a failed delete", async () => {
+    let finishDelete!: (response: Response) => void;
+    const delayedDelete = new Promise<Response>((resolve) => {
+      finishDelete = resolve;
+    });
+    let deletes = 0;
+    setup(<GitKeySettings />, async (request) => {
+      if (request.method === "GET")
+        return json({
+          configured: true,
+          fingerprint: "SHA256:still-here",
+          keyType: "ssh-ed25519",
+        });
+      deletes++;
+      return delayedDelete;
+    });
+    const user = userEvent.setup();
+    await screen.findByText("SHA256:still-here");
+    await user.click(screen.getByRole("button", { name: "Remove Git key" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Remove Git key?" });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove Git key" }),
+    );
+    await waitFor(() => expect(deletes).toBe(1));
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toBeDisabled();
+    await user.keyboard("{Escape}");
+    await user.click(dialog.parentElement!);
+    expect(dialog).toBeInTheDocument();
+    await act(async () => {
+      finishDelete(
+        json(
+          {
+            code: "git_key_delete_failed",
+            message: "Removal failed",
+            retryable: false,
+          },
+          500,
+        ),
+      );
+      await delayedDelete;
+    });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Removal failed",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("SHA256:still-here")).toBeInTheDocument();
+    expect(deletes).toBe(1);
   });
   it("keeps the existing key state on invalid replacement", async () => {
     setup(<GitKeySettings />, async (request) =>
