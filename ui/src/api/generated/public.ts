@@ -3993,6 +3993,7 @@ export interface components {
             kind: "credential_in_use";
             runIds: components["schemas"]["ResourceId"][];
             auditIds?: components["schemas"]["ResourceId"][];
+            bindingLabels?: components["schemas"]["RuntimeInfrastructureId"][];
         };
         RunNotDeletableDetails: {
             /** @constant */

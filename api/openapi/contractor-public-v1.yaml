@@ -12272,6 +12272,10 @@ components:
           type: array
           maxItems: 128
           items: {$ref: '#/components/schemas/ResourceId'}
+        bindingLabels:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
     RunNotDeletableDetails:
       type: object
       additionalProperties: false

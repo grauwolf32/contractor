@@ -96,11 +96,12 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime credential request is invalid", false)
 	case errors.As(err, &credentialInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Code: "credential_in_use", Message: "credential is pinned by a non-terminal Run or Audit",
+			Code: "credential_in_use", Message: "credential is referenced by an active Run, Audit or RuntimeConfig label",
 			Retryable: false, RequestID: requestid.FromResponse(w),
 			Details: &credentialInUseDetailsResponse{
-				Kind: "credential_in_use", RunIDs: append([]string(nil), credentialInUse.RunIDs...),
-				AuditIDs: append([]string(nil), credentialInUse.AuditIDs...),
+				Kind: "credential_in_use", RunIDs: append([]string{}, credentialInUse.RunIDs...),
+				AuditIDs:      append([]string(nil), credentialInUse.AuditIDs...),
+				BindingLabels: append([]string(nil), credentialInUse.BindingLabels...),
 			},
 		})
 	case errors.Is(err, credentials.ErrGatewayUnavailable), errors.Is(err, credentials.ErrManagerUnavailable):

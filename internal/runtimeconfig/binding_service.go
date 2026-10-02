@@ -11,19 +11,24 @@ import (
 )
 
 type BindingService struct {
-	pool        *pgxpool.Pool
-	repository  *Repository
-	credentials TransactionRuntimeCredentialCatalog
+	pool           *pgxpool.Pool
+	credentials    TransactionRuntimeCredentialCatalog
+	llmCredentials TransactionLLMCredentialLookupFactory
 }
 
 func NewBindingService(
 	pool *pgxpool.Pool,
 	credentials TransactionRuntimeCredentialCatalog,
+	llmCredentials ...TransactionLLMCredentialLookupFactory,
 ) (*BindingService, error) {
-	if pool == nil || credentials == nil {
+	if pool == nil || credentials == nil || len(llmCredentials) > 1 {
 		return nil, errors.New("RuntimeConfig binding service dependencies are incomplete")
 	}
-	return &BindingService{pool: pool, repository: NewRepository(pool), credentials: credentials}, nil
+	service := &BindingService{pool: pool, credentials: credentials}
+	if len(llmCredentials) == 1 {
+		service.llmCredentials = llmCredentials[0]
+	}
+	return service, nil
 }
 
 func (s *BindingService) Create(
@@ -31,12 +36,14 @@ func (s *BindingService) Create(
 ) (Binding, error) {
 	var result Binding
 	err := s.credentials.WithCredentialReferences(ctx, func() error {
-		if err := s.validateTarget(ctx, ref); err != nil {
+		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if err := s.validateTargetInTransaction(ctx, tx, ref); err != nil {
+				return err
+			}
+			var err error
+			result, err = NewRepository(tx).CreateBinding(ctx, label, ref, actor, at)
 			return err
-		}
-		created, err := s.repository.CreateBinding(ctx, label, ref, actor, at)
-		result = created
-		return err
+		})
 	})
 	return result, err
 }
@@ -116,10 +123,6 @@ func (s *BindingService) Delete(ctx context.Context, label string, expectedRevis
 	})
 }
 
-func (s *BindingService) validateTarget(ctx context.Context, ref Ref) error {
-	return s.validateTargetWith(ctx, s.repository, s.credentials, ref)
-}
-
 func (s *BindingService) validateTargetInTransaction(ctx context.Context, tx pgx.Tx, ref Ref) error {
 	validator, err := s.credentials.ForRuntimeTransaction(tx)
 	if err != nil {
@@ -128,15 +131,14 @@ func (s *BindingService) validateTargetInTransaction(ctx context.Context, tx pgx
 	if validator == nil {
 		return errors.New("transaction Runtime credential validator is not configured")
 	}
-	return s.validateTargetWith(ctx, NewRepository(tx), validator, ref)
-}
-
-func (s *BindingService) validateTargetWith(ctx context.Context, repository *Repository, validator RuntimeCredentialValidator, ref Ref) error {
-	version, err := repository.GetVersionByRef(ctx, ref)
+	version, err := NewRepository(tx).GetVersionByRef(ctx, ref)
 	if err != nil {
 		return err
 	}
-	return validateSpecRuntimeCredentials(ctx, version.Spec, validator)
+	if err := validateSpecRuntimeCredentials(ctx, version.Spec, validator); err != nil {
+		return err
+	}
+	return validateSpecLLMCredentialInTransaction(ctx, tx, version.Spec, s.llmCredentials)
 }
 
 func samePrincipalSnapshots(left, right []RuntimeAgentPrincipal) bool {

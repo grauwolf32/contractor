@@ -1011,9 +1011,10 @@ type runtimeLabelInUseDetailsResponse struct {
 }
 
 type credentialInUseDetailsResponse struct {
-	Kind     string   `json:"kind"`
-	RunIDs   []string `json:"runIds"`
-	AuditIDs []string `json:"auditIds,omitempty"`
+	Kind          string   `json:"kind"`
+	RunIDs        []string `json:"runIds"`
+	AuditIDs      []string `json:"auditIds,omitempty"`
+	BindingLabels []string `json:"bindingLabels,omitempty"`
 }
 
 type auditUnsupportedDetailsResponse struct {

@@ -148,3 +148,40 @@ func validateSpecRuntimeCredentials(
 	}
 	return nil
 }
+
+// The same PostgreSQL advisory key fences a transaction that introduces a
+// RuntimeConfig reference against preparation of a managed credential delete.
+// Hash collisions only cause extra serialization; they cannot admit a race.
+const llmCredentialReferenceLockNamespace = 731984
+
+func LockLLMCredentialDeletion(ctx context.Context, tx pgx.Tx, credentialID string) error {
+	if tx == nil || credentialID == "" {
+		return errors.New("LLM credential deletion lock is not configured")
+	}
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1::integer, hashtext($2))`, llmCredentialReferenceLockNamespace, credentialID)
+	if err != nil {
+		return persistencepostgres.WrapError("lock LLM credential deletion", err)
+	}
+	return nil
+}
+
+func validateSpecLLMCredentialInTransaction(
+	ctx context.Context, tx pgx.Tx, spec Spec, factory TransactionLLMCredentialLookupFactory,
+) error {
+	patch := spec.Worker.LLMGateway
+	if !patch.Present || !patch.Credential.Present || patch.Credential.Clear {
+		return nil
+	}
+	if factory == nil {
+		return invalid("RuntimeConfig LLM credential validator is not configured")
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock_shared($1::integer, hashtext($2))`,
+		llmCredentialReferenceLockNamespace, patch.Credential.Value); err != nil {
+		return persistencepostgres.WrapError("lock LLM credential reference", err)
+	}
+	lookup, err := BindTransactionLLMCredentialLookup(tx, factory)
+	if err != nil {
+		return err
+	}
+	return validateRunLLMCredential(ctx, spec, lookup)
+}

@@ -4,6 +4,7 @@ type ErrorEnvelope = components["schemas"]["Error"];
 
 const MAXIMUM_ERROR_TEXT = 512;
 const SAFE_RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
+const SAFE_RUNTIME_LABEL = /^[a-z][a-z0-9_-]{0,62}$/;
 
 function boundedText(value: unknown, fallback: string): string {
   if (typeof value !== "string" || value.length === 0) {
@@ -17,6 +18,7 @@ export class PublicAPIError extends Error {
   readonly retryable: boolean;
   readonly requestId?: string;
   readonly referencedRunIds?: readonly string[];
+  readonly referencedBindingLabels?: readonly string[];
   readonly status: number;
 
   constructor(options: {
@@ -26,6 +28,7 @@ export class PublicAPIError extends Error {
     retryable?: boolean;
     requestId?: string;
     referencedRunIds?: readonly string[];
+    referencedBindingLabels?: readonly string[];
   }) {
     super(boundedText(options.message, "Public API request failed"));
     this.name = "PublicAPIError";
@@ -37,6 +40,9 @@ export class PublicAPIError extends Error {
     }
     if (options.referencedRunIds !== undefined) {
       this.referencedRunIds = [...options.referencedRunIds];
+    }
+    if (options.referencedBindingLabels !== undefined) {
+      this.referencedBindingLabels = [...options.referencedBindingLabels];
     }
   }
 }
@@ -72,6 +78,15 @@ export function publicAPIError(status: number, value: unknown): PublicAPIError {
     )
       ? details.runIds
       : undefined;
+  const referencedBindingLabels =
+    details?.kind === "credential_in_use" &&
+    Array.isArray(details.bindingLabels) &&
+    details.bindingLabels.length <= 128 &&
+    details.bindingLabels.every(
+      (label) => typeof label === "string" && SAFE_RUNTIME_LABEL.test(label),
+    )
+      ? details.bindingLabels
+      : undefined;
   return new PublicAPIError({
     status,
     code: boundedText(envelope?.code, "request_failed"),
@@ -81,5 +96,8 @@ export function publicAPIError(status: number, value: unknown): PublicAPIError {
       ? { requestId: envelope.requestId }
       : {}),
     ...(referencedRunIds === undefined ? {} : { referencedRunIds }),
+    ...(referencedBindingLabels === undefined
+      ? {}
+      : { referencedBindingLabels }),
   });
 }
