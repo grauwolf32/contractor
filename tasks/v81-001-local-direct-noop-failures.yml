@@ -3,8 +3,8 @@ id: V81-001
 title: Keep local-direct workspaces usable after confirmed no-op filesystem errors
 milestone: local-direct-noop-failures-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 8d97fd020e8aac227e1b1a03f29f433c57e58c7b
 depends_on: []
 languages: [python, markdown]
 goal: Let Workers recover from disk-full or permission errors that leave their workspace unchanged.
@@ -25,3 +25,6 @@ acceptance_criteria:
   - {id: A4, text: Partial multi-step copy/remove and failed temp cleanup still fence.}
 tests:
   - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_projectfs_local_direct.py tests/test_projectfs_local_io.py tests/test_podman_command_coordination.py, covers: [A1, A2, A3, A4]}
+verification:
+  python: Full Runtime pytest suite passed after the final no-op confirmation checks; focused filesystem and Podman coordination suites, Ruff check and format passed.
+  scenarios: Verified ENOSPC and EDQUOT atomic-write failures, temp creation EACCES, first unlink and mkdir EACCES, Podman command availability, and fences after partial remove/copy or failed temp cleanup.
