@@ -3,7 +3,8 @@ id: V77-001
 title: Align Audit result collector assessments with profile mode
 milestone: audit-assessment-mode-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 4d432c1324d8b790dcc74a66753b5758a06c6ac2
 depends_on: []
 languages: [go, python, json, markdown]
 goal: Reject unsupported checklist assessments while the Worker can correct them, without changing risk-assessment or finding-task acceptance.
@@ -24,3 +25,6 @@ acceptance_criteria:
 tests:
   - {command: go test ./internal/auditdomain ./internal/auditservice ./internal/auditimport, covers: [A1, A2, A3]}
   - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_audit_result_collector.py, covers: [A1, A2, A3]}
+verification:
+  go: Audit domain, service, importer, controller and public API packages passed with PostgreSQL; all Go packages compiled.
+  python: Full Runtime pytest suite passed; focused collector suite, Ruff check and format check passed after a message-format fix.
