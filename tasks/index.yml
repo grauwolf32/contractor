@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: ui-session-recovery-2026-10
+    exit_task: V82-001
+    outcome: >-
+      Recover the UI from transient session-bootstrap failures and report
+      unversioned proxy errors without claiming API incompatibility.
   - id: local-direct-noop-failures-2026-10
     exit_task: V81-001
     outcome: >-
@@ -2691,6 +2696,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V82-001, file: v82-001-ui-session-recovery.yml}
   - {id: V81-001, file: v81-001-local-direct-noop-failures.yml}
   - {id: V80-001, file: v80-001-podman-create-failure-cleanup.yml}
   - {id: V79-001, file: v79-001-audit-stage-deadline.yml}
