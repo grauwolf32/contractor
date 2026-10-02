@@ -89,11 +89,13 @@ function ProjectArtifactActions({
         <details className="panel artifact-update-panel">
           <summary>Upload a new version</summary>
           <ProjectArtifactWriteForm
+            key={metadata.artifact.revision}
             projectId={projectId}
             fixedIdentity={{
               namespace: metadata.artifact.namespace,
               name: metadata.artifact.name,
             }}
+            initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
             onWritten={(result) =>
               setSearchParams({ revision: result.artifact.revision })

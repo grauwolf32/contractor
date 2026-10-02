@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V70-001
+title: Drain expired Scheduler telemetry without starving reports
+milestone: github-issue-remediation-2026-10-v70
+priority: P1
+status: completed
+implementation_commit: d42f8d2d3c97fa7b5ce63b132233df748ca47be6
+depends_on: []
+languages: [go, sql]
+goal: Keep expired telemetry bounded as Stage throughput grows.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/323
+  finding: >-
+    The daily retention pass deletes only 500 rows shared across three tables;
+    expired allocation and Planner reports can remain indefinitely.
+scope:
+  in:
+    - Continue bounded cleanup batches until the expired backlog is drained.
+    - Give each telemetry table a fair deletion opportunity per cycle.
+    - Cover cancellation, errors, terminal-only deletion and concurrent cleanup.
+  out:
+    - Change the configured telemetry retention duration.
+acceptance_criteria:
+  - id: A1
+    text: Full cleanup batches continue before the next long retention interval.
+  - id: A2
+    text: Expired reports are deleted even while expired Stage metrics remain.
+  - id: A3
+    text: Cleanup remains bounded, cancellable and terminal-Stage-only.
+tests:
+  - command: go test -count=1 ./internal/scheduler ./internal/telemetry
+    covers: [A1, A2, A3]
+verification:
+  focused: >-
+    PostgreSQL-backed Scheduler and telemetry suites passed with a disposable
+    PostgreSQL 17 database, including retention drain and per-table fairness.
+  broad: >-
+    Full Go suite passed across all packages after linking the worktree to the
+    locked Runtime venv required by tests/eval/project_workflows.

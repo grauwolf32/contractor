@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: github-issue-remediation-2026-10-v70
+    exit_task: V70-003
+    outcome: >-
+      Drain expired telemetry, preserve artifact media types on version updates,
+      and recover stale browser CSRF tokens after another tab signs in.
   - id: audit-findings-ui-correctness
     exit_task: V69-001
     outcome: >-
@@ -2631,6 +2636,9 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V70-001, file: v70-001-telemetry-retention-drain.yml}
+  - {id: V70-002, file: v70-002-artifact-version-media-type.yml}
+  - {id: V70-003, file: v70-003-csrf-session-refresh.yml}
   - {id: V69-001, file: v69-001-project-finding-review-status.yml}
   - {id: V68-001, file: v68-001-planner-event-cascade-indexes.yml}
   - {id: V68-002, file: v68-002-audit-cwe-classification.yml}

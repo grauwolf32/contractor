@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V70-002
+title: Preserve artifact media types during version updates
+milestone: github-issue-remediation-2026-10-v70
+priority: P1
+status: completed
+implementation_commit: b76d6e930ac75a24a7869b82745098b9b7e9e29b
+depends_on: []
+languages: [typescript]
+goal: Keep Skill and Project artifact bindings valid after a new version is uploaded.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/324
+  finding: >-
+    Version-update forms start with a generic media type, and browser MIME
+    guesses overwrite semantic types such as the Skill package media type.
+scope:
+  in:
+    - Initialize update forms from current artifact metadata.
+    - Respect explicitly selected and semantic media types when choosing a file.
+    - Enforce the Skill package type and size limit on version updates.
+    - Cover user and Project artifact forms.
+  out:
+    - Change artifact upload or versioning APIs.
+acceptance_criteria:
+  - id: A1
+    text: Updating a binding preserves its media type unless the user changes it.
+  - id: A2
+    text: Skill updates use the canonical package type and the 16 MiB limit.
+  - id: A3
+    text: Explicit type selections survive file chooser and drop events.
+tests:
+  - command: cd ui && vitest run src/routes/artifacts/artifact-version.test.tsx src/routes/artifacts/wordlist.test.tsx
+    covers: [A1, A2, A3]
+verification:
+  focused: >-
+    Version-update and wordlist tests passed for user, Project and Skill forms.
+  broad: >-
+    Full UI suite passed (670 tests); TypeScript, ESLint and Prettier checks
+    passed.

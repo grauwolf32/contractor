@@ -272,6 +272,9 @@ func (s *Scheduler) monitorTerminalRelease(ctx context.Context) {
 
 func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		cleanupContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 		deleted, err := s.store.CleanupExpiredTelemetry(
 			cleanupContext, s.now(), s.options.MetricsCleanupBatch,
@@ -282,10 +285,16 @@ func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
 		} else if deleted > 0 {
 			s.options.Logger.Info("expired telemetry removed", "rows", deleted)
 		}
+		wait := s.options.MetricsCleanupInterval
+		if err == nil && deleted >= int64(s.options.MetricsCleanupBatch) {
+			// A full batch means expired rows may remain. Yield briefly, then
+			// continue draining instead of waiting for the next daily pass.
+			wait = metricsCleanupDrainPause
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-s.after(s.options.MetricsCleanupInterval):
+		case <-s.after(wait):
 		}
 	}
 }

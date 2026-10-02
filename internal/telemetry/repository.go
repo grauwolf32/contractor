@@ -390,6 +390,7 @@ func (r *Repository) CleanupExpired(
             WHERE m.expires_at <= $1
               AND e.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
             ORDER BY m.expires_at, m.stage_execution_id LIMIT $2
+            FOR UPDATE OF m SKIP LOCKED
         ) DELETE FROM stage_metrics m USING doomed d
           WHERE m.stage_execution_id = d.stage_execution_id`,
 		`WITH doomed AS (
@@ -398,6 +399,7 @@ func (r *Repository) CleanupExpired(
             WHERE r.expires_at <= $1
               AND e.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
             ORDER BY r.expires_at, r.report_id LIMIT $2
+            FOR UPDATE OF r SKIP LOCKED
         ) DELETE FROM allocation_execution_reports r USING doomed d
           WHERE r.report_id = d.report_id`,
 		`WITH doomed AS (
@@ -406,16 +408,15 @@ func (r *Repository) CleanupExpired(
             WHERE r.expires_at <= $1
               AND e.state IN ('succeeded', 'failed', 'interrupted', 'cancelled')
             ORDER BY r.expires_at, r.report_id LIMIT $2
+            FOR UPDATE OF r SKIP LOCKED
         ) DELETE FROM planner_execution_reports r USING doomed d
           WHERE r.report_id = d.report_id`,
 	}
 	var deleted int64
 	for _, query := range queries {
-		remaining := int64(batchSize) - deleted
-		if remaining <= 0 {
-			break
-		}
-		command, err := r.db.Exec(ctx, query, now.UTC(), remaining)
+		// Each table gets its own bounded budget. A large metrics backlog must
+		// not starve expired allocation and Planner reports.
+		command, err := r.db.Exec(ctx, query, now.UTC(), batchSize)
 		if err != nil {
 			return deleted, fmt.Errorf("cleanup expired telemetry: %w", err)
 		}

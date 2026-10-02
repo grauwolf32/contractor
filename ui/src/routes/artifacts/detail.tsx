@@ -29,6 +29,10 @@ import {
   formatBytes,
 } from "./common";
 import { ArtifactPreviewPanel } from "./preview";
+import {
+  MAXIMUM_SKILL_ARCHIVE_BYTES,
+  SKILL_ARCHIVE_MEDIA_TYPE,
+} from "./artifact-file";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
@@ -51,6 +55,13 @@ function triggerDownload(downloaded: DownloadedArtifact): void {
 function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
   const [, setSearchParams] = useSearchParams();
+  const skillSettings =
+    metadata.artifact.namespace === "skills"
+      ? {
+          fixedMediaType: SKILL_ARCHIVE_MEDIA_TYPE,
+          maximumBytes: MAXIMUM_SKILL_ARCHIVE_BYTES,
+        }
+      : {};
   const download = useMutation({
     mutationFn: () => downloadArtifact(api, metadata),
     onSuccess: triggerDownload,
@@ -83,10 +94,13 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
         <details className="panel artifact-update-panel">
           <summary>Upload a new version</summary>
           <ArtifactWriteForm
+            key={metadata.artifact.revision}
+            {...skillSettings}
             fixedIdentity={{
               namespace: metadata.artifact.namespace,
               name: metadata.artifact.name,
             }}
+            initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
             onWritten={(result) =>
               setSearchParams({ revision: result.artifact.revision })
