@@ -3,7 +3,8 @@ id: V67-003
 title: Ensure Nuclei receives exactly one policy-checked scan target
 milestone: github-issue-remediation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 775e416a7428cc82cdaf112d23329fb197331bc2
 depends_on: []
 languages: [python, go]
 goal: Prevent comma-containing URLs from becoming additional unchecked Nuclei targets.
@@ -32,3 +33,7 @@ tests:
     covers: [A1, A2]
   - command: go test ./internal/scanplan
     covers: [A3]
+verification:
+  runtime: test_scan_toolset.py passed, including the installed Nuclei two-origin fixture and private target-file mode/cleanup checks.
+  planner: go test ./internal/scanplan passed; the comma URL remains one exact planned target.
+  lint: Ruff check and format passed on changed Runtime files.

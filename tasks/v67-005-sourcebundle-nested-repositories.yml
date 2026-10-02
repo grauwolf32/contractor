@@ -3,7 +3,8 @@ id: V67-005
 title: Keep nested Git metadata out of source bundles
 milestone: github-issue-remediation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: c3e43de6dcf34dddb29b74beaa20d3af0f4bf799
 depends_on: []
 languages: [go]
 goal: Prevent source push from uploading nested repository metadata and embedded credentials.
@@ -30,3 +31,5 @@ acceptance_criteria:
 tests:
   - command: go test ./internal/sourcebundle
     covers: [A1, A2, A3]
+verification:
+  tests: go test ./internal/sourcebundle passed with plain-directory, include-ignored, gitlink and mixed-case marker regressions.

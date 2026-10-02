@@ -3,7 +3,8 @@ id: V67-001
 title: Restrict the UI image build context to required source trees
 milestone: github-issue-remediation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 2ad806c6bd2c414b149caace892643a450d29a9e
 depends_on: []
 languages: [dockerignore, markdown]
 goal: Exclude local credentials and unrelated worktrees from UI image build uploads.
@@ -34,3 +35,7 @@ tests:
 verification_requirements:
   - Check the ignore rules with the builder's pattern matcher for the listed included and excluded paths.
   - Record whether a remote Podman context-size check was available.
+verification:
+  matcher: Moby patternmatcher v0.6.1 passed 14 included/excluded paths, including .local/github_token and ui/pnpm-workspace.yaml.
+  image: podman build -f deploy/ui/Containerfile -t contractor-ui . passed from the repository root.
+  remote_builder: No remote Podman connection was available; exclusion was checked with the context matcher.

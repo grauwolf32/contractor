@@ -3,7 +3,8 @@ id: V67-002
 title: Copy pnpm workspace settings before the UI image dependency install
 milestone: github-issue-remediation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 5353bfab6c55dc001ee99b858c2caad7f0743cd3
 depends_on: []
 languages: [dockerfile, python, yaml]
 goal: Make the independent UI image install match its frozen lockfile and catch future drift in CI.
@@ -32,3 +33,6 @@ tests:
     covers: [A1, A2]
   - command: podman build -f deploy/ui/Containerfile -t contractor-ui .
     covers: [A1, A3]
+verification:
+  install_guard: The script passes with current COPY inputs and fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH when the workspace file is removed from that COPY.
+  image: The complete Podman build passed, including pnpm generate, typecheck and build.

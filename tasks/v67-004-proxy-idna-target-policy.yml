@@ -3,7 +3,8 @@ id: V67-004
 title: Apply HTTP proxy target policy to the canonical destination host
 milestone: github-issue-remediation-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6e4b1587e62e4482db74f4772495b8564fae771a
 depends_on: []
 languages: [python]
 goal: Refuse metadata, loopback and Runtime endpoints written with Unicode dot variants.
@@ -30,3 +31,6 @@ acceptance_criteria:
 tests:
   - command: cd runtime && uv run pytest tests/test_http_target_policy.py tests/test_target_policy.py -q
     covers: [A1, A2, A3]
+verification:
+  tests: Proxy, target-policy and redirect tests passed for U+3002, U+FF0E and U+FF61; the broader HTTP proxy/redirect and scanner test selection also passed.
+  lint: Ruff check and format passed on changed Runtime files.
