@@ -102,6 +102,21 @@ UPDATE stage_metrics SET expires_at = clock_timestamp() - interval '1 day'
 WHERE stage_execution_id = $1`, activeStage); err != nil {
 		t.Fatal(err)
 	}
+	extraStage := createTelemetryStage(t, ctx, runs, "stage-extra", "allocation-extra", "session-extra")
+	if err := reports.RecordAllocationReport(
+		ctx, allocationEnvelope(extraStage, "allocation-extra", old.Add(time.Hour), true),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reports.RebuildStageMetrics(ctx, extraStage, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	finishTelemetryStage(t, ctx, runs, extraStage)
+	if _, err := pool.Exec(ctx, `
+UPDATE stage_metrics SET expires_at = clock_timestamp() - interval '1 day'
+WHERE stage_execution_id = $1`, extraStage); err != nil {
+		t.Fatal(err)
+	}
 
 	newStage := createTelemetryStage(t, ctx, runs, "stage-new", "allocation-new", "session-new")
 	if err := reports.RecordAllocationReport(
@@ -118,19 +133,25 @@ WHERE stage_execution_id = $1`, activeStage); err != nil {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if deleted != 1 {
-		t.Fatalf("first bounded cleanup deleted %d rows, want 1", deleted)
+	if deleted != 3 {
+		t.Fatalf("first per-table cleanup deleted %d rows, want 3", deleted)
 	}
+	// More than one expired metric exists, yet the first pass still reaches
+	// both report tables instead of spending its entire budget on metrics.
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", oldStage, 0)
+	assertTelemetryCount(t, ctx, pool, "planner_execution_reports", oldStage, 0)
 	remainingDeleted, err := reports.CleanupExpired(ctx, time.Now().UTC(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if remainingDeleted != 2 { // old allocation report and Planner report remain after StageMetrics.
+	if remainingDeleted != 2 { // One metric and the extra allocation report remain.
 		t.Fatalf("second cleanup deleted %d rows, want 2", remainingDeleted)
 	}
 	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", oldStage, 0)
 	assertTelemetryCount(t, ctx, pool, "planner_execution_reports", oldStage, 0)
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", oldStage, 0)
+	assertTelemetryCount(t, ctx, pool, "stage_metrics", extraStage, 0)
+	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", extraStage, 0)
 	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", activeStage, 2)
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", activeStage, 1)
 	assertTelemetryCount(t, ctx, pool, "allocation_execution_reports", newStage, 1)

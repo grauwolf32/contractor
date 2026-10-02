@@ -25,6 +25,7 @@ const (
 	defaultLeaseScanInterval      = time.Second
 	defaultMetricsCleanupInterval = 24 * time.Hour
 	defaultMetricsCleanupBatch    = 500
+	metricsCleanupDrainPause      = time.Second
 )
 
 type Scheduler struct {
