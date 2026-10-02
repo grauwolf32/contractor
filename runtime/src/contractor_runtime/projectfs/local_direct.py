@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import TypeVar
 
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
-from contractor_runtime.projectfs.local_io import LocalTree, RootedLocalFilesystem
+from contractor_runtime.projectfs.local_io import (
+    LocalTree,
+    RootedLocalFilesystem,
+    _NoEffectMutation,
+)
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.projectfs.paths import parent_paths
 from contractor_runtime.projectfs.storage import (
@@ -107,6 +111,10 @@ class LocalDirectWorkspace:
                 raise WorkspaceStorageError("workspace_limit_exceeded")
             try:
                 mutation(fs, deadline)
+            except _NoEffectMutation as error:
+                # The primitive confirmed that no managed change survived and
+                # temporary cleanup completed. Keep the shared execution guard.
+                raise WorkspaceStorageError(error.args[0]) from None
             except Exception:
                 # No stale reverse delta: a partially applied multi-file action
                 # cannot prove recovery. Deny further work; close still joins.

@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V81-001
+title: Keep local-direct workspaces usable after confirmed no-op filesystem errors
+milestone: local-direct-noop-failures-2026-10
+priority: P1
+status: completed
+implementation_commit: 8d97fd020e8aac227e1b1a03f29f433c57e58c7b
+depends_on: []
+languages: [python, markdown]
+goal: Let Workers recover from disk-full or permission errors that leave their workspace unchanged.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/300
+  finding: LocalDirectWorkspace fences its guard on every physical mutation exception, including errors before commit with cleaned temporary files.
+scope:
+  in:
+    - Mark confirmed no-op filesystem errors from atomic writes and first failed mutating syscalls.
+    - Keep the guard usable only when cleanup of temporary files succeeded and no mutation committed.
+    - Cover write/update, delete, Podman execution after no-op failure and partial-mutation fences.
+  out:
+    - Change timeout/cancellation fencing or roll back partial changes.
+acceptance_criteria:
+  - {id: A1, text: ENOSPC/EDQUOT writes and EACCES temp creation leave target/listing unchanged and guard usable.}
+  - {id: A2, text: Failed first unlink and first mkdir leave the guard usable.}
+  - {id: A3, text: Podman exec remains possible after a confirmed no-op workspace error.}
+  - {id: A4, text: Partial multi-step copy/remove and failed temp cleanup still fence.}
+tests:
+  - {command: cd runtime && PYTHONPATH=src .venv/bin/pytest tests/test_projectfs_local_direct.py tests/test_projectfs_local_io.py tests/test_podman_command_coordination.py, covers: [A1, A2, A3, A4]}
+verification:
+  python: Full Runtime pytest suite passed after the final no-op confirmation checks; focused filesystem and Podman coordination suites, Ruff check and format passed.
+  scenarios: Verified ENOSPC and EDQUOT atomic-write failures, temp creation EACCES, first unlink and mkdir EACCES, Podman command availability, and fences after partial remove/copy or failed temp cleanup.
