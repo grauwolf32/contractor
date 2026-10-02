@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V85-001
+title: Keep Eval key/value drafts stable and reject invalid names before save
+milestone: eval-key-value-editor-correctness-2026-10
+priority: P2
+status: completed
+implementation_commit: 25fcbd8f71b604b25efa5af2cf01e4d433228de1
+depends_on: []
+languages: [typescript]
+goal: Preserve Eval parameters and mappings as users type, add, and rename keys.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/309
+  finding: Object-backed rows reject prefix keystrokes, overwrite generated names and reorder integer-like keys.
+scope:
+  in:
+    - Keep ordered editor rows with stable identities and local draft names.
+    - Preserve every existing entry on Add and avoid generated-name collisions.
+    - Show duplicate/empty-name errors and block dataset and draft save while invalid.
+    - Test prefix, Add, numeric key, validation and save blocking behavior.
+  out:
+    - Change the persisted Eval API document format.
+acceptance_criteria:
+  - {id: A1, text: Prefix and integer-like names can be typed character by character without dropped keys or row changes.}
+  - {id: A2, text: Add preserves all existing entries and chooses an unused field name.}
+  - {id: A3, text: Invalid duplicate or empty names remain visible and block save until fixed.}
+  - {id: A4, text: App and e2e typechecks, lint and Eval tests pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run, covers: [A1, A2, A3, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}

@@ -262,6 +262,10 @@
   gap: 0.5rem;
   margin: 0.5rem 0;
 }
+.eval-key-value [role="alert"] {
+  grid-column: 1 / -1;
+  color: var(--danger);
+}
 .eval-choice-list,
 .eval-case-list {
   padding: 0;

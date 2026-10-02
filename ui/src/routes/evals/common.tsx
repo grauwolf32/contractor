@@ -1,7 +1,10 @@
 import {
   cloneElement,
   isValidElement,
+  useContext,
+  useEffect,
   useId,
+  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -9,6 +12,7 @@ import {
 import { Link } from "react-router";
 import { PublicAPIError } from "../../api/error";
 import { ErrorNotice } from "../artifacts/common";
+import { KeyValueValidityContext } from "./key-value-validity";
 import "./evals.css";
 
 export function EvalFrame({
@@ -157,6 +161,28 @@ export function EvalPages({
   );
 }
 
+type KeyValueRow = { id: number; name: string; value: string };
+
+function sameKeyValues(
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean {
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => Object.hasOwn(right, key) && left[key] === right[key])
+  );
+}
+
+function rowProblem(rows: KeyValueRow[], index: number): string | null {
+  const name = rows[index]!.name;
+  if (!name.trim()) return "Enter a name before saving.";
+  if (rows.some((row, other) => other !== index && row.name === name)) {
+    return "This name is already in use. Choose a different name.";
+  }
+  return null;
+}
+
 export function KeyValueEditor({
   label,
   value,
@@ -166,61 +192,114 @@ export function KeyValueEditor({
   value: Record<string, string>;
   onChange: (value: Record<string, string>) => void;
 }) {
-  const entries = Object.entries(value);
-  const [error, setError] = useState<string | null>(null);
-  function rename(index: number, name: string) {
-    if (entries.some(([key], i) => i !== index && key === name)) {
-      setError("This name is already in use. Choose a different name.");
-      return;
+  const editorId = useId();
+  const register = useContext(KeyValueValidityContext);
+  const nextRowId = useRef(Object.keys(value).length);
+  const published = useRef(value);
+  const [rows, setRows] = useState<KeyValueRow[]>(() =>
+    Object.entries(value).map(([name, rowValue], id) => ({
+      id,
+      name,
+      value: rowValue,
+    })),
+  );
+  const invalid = rows.some((_, index) => rowProblem(rows, index) !== null);
+
+  useEffect(() => {
+    if (!sameKeyValues(value, published.current)) {
+      published.current = value;
+      setRows(
+        Object.entries(value).map(([name, rowValue]) => ({
+          id: nextRowId.current++,
+          name,
+          value: rowValue,
+        })),
+      );
     }
-    setError(null);
-    onChange(
-      Object.fromEntries(
-        entries.map((entry, i) => (i === index ? [name, entry[1]] : entry)),
-      ),
+  }, [value]);
+
+  useEffect(() => {
+    register?.(editorId, invalid);
+  }, [editorId, invalid, register]);
+  useEffect(
+    () => () => {
+      register?.(editorId, false);
+    },
+    [editorId, register],
+  );
+
+  function update(next: KeyValueRow[]) {
+    setRows(next);
+    if (next.some((_, index) => rowProblem(next, index) !== null)) return;
+    const nextValue = Object.fromEntries(
+      next.map((row) => [row.name, row.value]),
     );
+    published.current = nextValue;
+    onChange(nextValue);
   }
   return (
     <fieldset className="eval-key-values">
       <legend>{label}</legend>
-      {error ? <p role="alert">{error}</p> : null}
-      {entries.map(([key, val], index) => (
-        <div className="eval-key-value" key={index}>
+      {rows.map((row, index) => (
+        <div className="eval-key-value" key={row.id}>
           <input
             aria-label={`${label} name ${index + 1}`}
-            value={key}
-            onChange={(e) => rename(index, e.target.value)}
+            aria-invalid={rowProblem(rows, index) !== null}
+            aria-describedby={
+              rowProblem(rows, index)
+                ? `${editorId}-${row.id}-error`
+                : undefined
+            }
+            value={row.name}
+            onChange={(event) =>
+              update(
+                rows.map((item) =>
+                  item.id === row.id
+                    ? { ...item, name: event.target.value }
+                    : item,
+                ),
+              )
+            }
           />
           <input
             aria-label={`${label} value ${index + 1}`}
-            value={val}
-            onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+            value={row.value}
+            onChange={(event) =>
+              update(
+                rows.map((item) =>
+                  item.id === row.id
+                    ? { ...item, value: event.target.value }
+                    : item,
+                ),
+              )
+            }
           />
           <button
             type="button"
             className="secondary-button"
             aria-label={`Remove ${label} ${index + 1}`}
-            onClick={() =>
-              onChange(
-                Object.fromEntries(entries.filter((_, i) => i !== index)),
-              )
-            }
+            onClick={() => update(rows.filter((item) => item.id !== row.id))}
           >
             Remove
           </button>
+          {rowProblem(rows, index) ? (
+            <small id={`${editorId}-${row.id}-error`} role="alert">
+              {rowProblem(rows, index)}
+            </small>
+          ) : null}
         </div>
       ))}
       <button
         type="button"
         className="secondary-button"
-        onClick={() =>
-          onChange({
-            ...value,
-            [entries.some(([k]) => k === "")
-              ? `field-${entries.length + 1}`
-              : ""]: "",
-          })
-        }
+        onClick={() => {
+          let number = 1;
+          while (rows.some((row) => row.name === `field-${number}`)) number++;
+          update([
+            ...rows,
+            { id: nextRowId.current++, name: `field-${number}`, value: "" },
+          ]);
+        }}
       >
         Add {label.toLowerCase()}
       </button>
