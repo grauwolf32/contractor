@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V86-001
+title: Move Workflow inventory key into the query-key registry
+milestone: workflow-inventory-key-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V84-001, V84-002]
+languages: [typescript]
+goal: Make the active Workflow inventory query visible in the shared key registry.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/264
+  finding: PR 349 removed the dead helper and keys, but the active inventory query still uses an inline key.
+scope:
+  in:
+    - Declare the Workflow inventory key in queryKeys and use it in useWorkflowInventory.
+    - Verify the previously removed helper and dead keys remain absent.
+  out:
+    - Add optional invalid-detail key helpers or alter query cache behavior.
+acceptance_criteria:
+  - {id: A1, text: Workflow inventory obtains its key from queryKeys.workflows.inventory.}
+  - {id: A2, text: Dead Workflow helper and query keys remain absent.}
+  - {id: A3, text: Typecheck and Workflow tests pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/workflows/workflows.test.tsx, covers: [A1, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A3]}

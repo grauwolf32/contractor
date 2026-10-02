@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: workflow-inventory-key-2026-10
+    exit_task: V86-001
+    outcome: >-
+      Workflow inventory uses its declared query key, completing the UI dead
+      surface cleanup from issues 264, 303 and 308.
   - id: eval-key-value-editor-correctness-2026-10
     exit_task: V85-001
     outcome: >-
@@ -2711,6 +2716,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V86-001, file: v86-001-workflow-inventory-key.yml}
   - {id: V85-001, file: v85-001-eval-key-value-editor.yml}
   - {id: V84-001, file: v84-001-ui-api-event-dead-surface.yml}
   - {id: V84-002, file: v84-002-ui-operations-dead-exports.yml}
