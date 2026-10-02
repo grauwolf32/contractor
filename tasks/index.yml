@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: browser-event-resync-2026-10
+    exit_task: V87-001
+    outcome: >-
+      Protocol errors close event sockets with browser-accepted codes and
+      always move subscriptions to resyncing, even if close throws.
   - id: workflow-inventory-key-2026-10
     exit_task: V86-001
     outcome: >-
@@ -2716,6 +2721,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V87-001, file: v87-001-browser-event-resync.yml}
   - {id: V86-001, file: v86-001-workflow-inventory-key.yml}
   - {id: V85-001, file: v85-001-eval-key-value-editor.yml}
   - {id: V84-001, file: v84-001-ui-api-event-dead-surface.yml}

@@ -52,7 +52,7 @@ export class EventsSocket {
 
   assertNegotiatedProtocol(): void {
     if (this.socket.protocol !== EVENT_PROTOCOL) {
-      this.socket.close(1002, "subprotocol mismatch");
+      this.socket.close(4003, "subprotocol mismatch");
       throw new Error("Server did not negotiate contractor.events.v1");
     }
   }

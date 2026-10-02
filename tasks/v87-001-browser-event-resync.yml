@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V87-001
+title: Close event sockets with browser-safe codes and recover from close failures
+milestone: browser-event-resync-2026-10
+priority: P2
+status: completed
+implementation_commit: 668cc6c869f4eca426c4ac9e8d83acc4e7c3e223
+depends_on: []
+languages: [typescript]
+goal: Keep live Run and Operations views recoverable after malformed event frames.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/111
+  finding: WebSocket.close(1002) throws in browsers before subscription resync completes.
+scope:
+  in:
+    - Use application WebSocket close codes for event protocol and handshake failures.
+    - Reset all subscriptions even when the first close attempt throws, with a valid fallback close.
+    - Make test sockets reject invalid close codes and cover malformed/error frames and throwing close.
+  out:
+    - Change event frame shapes or server subscription semantics.
+acceptance_criteria:
+  - {id: A1, text: No UI event socket close call uses a browser-invalid code.}
+  - {id: A2, text: Malformed and connection-error frames resync every non-closing subscription.}
+  - {id: A3, text: A throwing close still resets subscriptions and closes the old socket with a valid fallback.}
+  - {id: A4, text: UI event tests, app/e2e typechecks and lint pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/events/run-events.test.ts src/events/socket.test.ts, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/queue.test.tsx, covers: [A1, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A1, A4]}
+  - {command: cd ui && ./node_modules/.bin/tsc --project tsconfig.e2e.json, covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A4]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A4]}
