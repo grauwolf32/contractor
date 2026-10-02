@@ -80,6 +80,25 @@ def test_owner_retains_uncertain_probe_removal_for_recovery(tmp_path, monkeypatc
     asyncio.run(scenario())
 
 
+def test_failed_probe_create_reports_supervisor_unavailable_after_cleanup(tmp_path, monkeypatch):
+    from fakes.podman_probe import install
+
+    async def scenario():
+        async with owner(tmp_path) as fixture:
+            root = tmp_path / "run_workdir"
+            root.mkdir()
+            cli = install(monkeypatch, fixture, root, None)
+            cli.absent_create = True
+            await fixture.lifecycle.recover(deadline=time.monotonic() + 3)
+            result = await fixture.lifecycle.probe(root, deadline=time.monotonic() + 10)
+            assert result == {"available": False, "failure": "supervisor"}
+            assert cli.sequence == 1 and not cli.containers
+            assert not fixture.engine._records and fixture.backend.probe_test is None
+            assert not fixture.lifecycle.probe_available
+
+    asyncio.run(scenario())
+
+
 def test_late_probe_create_is_owned_until_recovery_and_never_advertised(tmp_path, monkeypatch):
     from fakes.podman_probe import install
 

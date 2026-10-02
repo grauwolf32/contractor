@@ -202,6 +202,13 @@ If no resource can yet be found, the attempt remains owned: absence does not
 authorize a second create or unlocking the service. This deliberately sacrifices
 availability on ambiguous failures. When discovery later finds the resource,
 verified removal clears the attempt, even if create never returned its ID.
+One narrower case can be confirmed: a local `podman create` CLI that exits on its
+own with a nonzero status and a successful creation-filtered `ps --all` that finds
+no container. The engine then reports preparation failure and normal allocation
+or probe cleanup releases the content pin and owner flock. If discovery fails or
+its deadline expires, later cleanup repeats that check before releasing anything.
+A signaled CLI, timeout/cancellation, transport failure or malformed zero-status
+response remains uncertain even when discovery currently finds nothing.
 Repeated start does not restart exited work. Stop/remove exit codes alone are
 not confirmation: inspect verifies termination/removal, and failed inspect only
 means absence if `podman container exists` returns its documented code 1. Code
@@ -366,8 +373,9 @@ guardian kills the scope independently.
 On Runtime EOF the owner disconnects the guardian immediately, joins uncertain
 engine operations, discovers/removes exact owned containers and only then
 releases its flock. A late create may finish, but cannot proceed to start after
-authority loss. An unconfirmed/absent create remains fenced; no second create or
-global prune is issued. The owner never deletes workspace files. A successor
+authority loss. An unconfirmed/absent create remains fenced; only a completed
+failed CLI exit with verified absence is cleared. No second create or global
+prune is issued for uncertainty. The owner never deletes workspace files. A successor
 must acquire the same owner and complete recovery before scratch orphan cleanup,
 workspace-provider initialization or capability discovery. Cleanup uncertainty
 fails startup instead of advertising idle capacity.

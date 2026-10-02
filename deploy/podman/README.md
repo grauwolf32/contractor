@@ -115,7 +115,10 @@ the surviving owner and independent kernel guardian stop writers. Restart with
 the same settings: recovery takes the owner lock and confirms removal before
 any orphan bind deletion, probes or registration. If the previous owner still
 holds the lock, startup fails safely; let it finish and retry. If the Runtime
-itself is stuck, first isolate/drain its slot; any operator SIGKILL must target
+has a completed failed `podman create`, normal cleanup releases the lock after
+creation-filtered discovery confirms absence. Ambiguous outcomes and failed
+discovery keep the lock until recovery can confirm removal. If the Runtime itself
+is stuck, first isolate/drain its slot; any operator SIGKILL must target
 the resolved Runtime PID only, never the service cgroup.
 
 For teardown: drain the slot in Control Plane, stop Runtime, and allow its owner
