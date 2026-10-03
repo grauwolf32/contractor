@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
+import idna
 
 from contractor_runtime.adapters.host import (
     AdapterFactoryError,
@@ -187,6 +188,8 @@ class ProxyHTTPClient:
         try:
             client = self.async_client
             request = client.build_request(method, url, **kwargs)
+        except (httpx.InvalidURL, idna.IDNAError):
+            raise
         except Exception:
             raise ProxyRequestError from None
         self._require_permitted(request, target_policy)

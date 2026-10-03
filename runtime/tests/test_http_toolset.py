@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import idna
 import pytest
 
 import contractor_runtime.toolsets.http.tools as http_tools
@@ -197,6 +198,89 @@ def test_request_validation_private_origin_and_retry_policy(tmp_path: Path) -> N
             with pytest.raises(HTTPToolError) as failure:
                 await request(**kwargs)
             assert failure.value.code == code
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("route", ["direct", "proxy"])
+def test_malformed_urls_fail_before_send_without_proxy_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, route: str
+) -> None:
+    async def scenario() -> None:
+        calls: list[str] = []
+        delays: list[float] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(str(request.url))
+            if request.url.path == "/transport":
+                raise httpx.ConnectError("transport unavailable")
+            return httpx.Response(200, request=request)
+
+        async def record_retry(delay: float) -> None:
+            delays.append(delay)
+
+        monkeypatch.setattr(http_tools, "_retry_sleep", record_retry)
+        proxy_client: httpx.AsyncClient | None = None
+        if route == "direct":
+            tools, _ = await create_tools(tmp_path, handler)
+        else:
+            proxy_client = httpx.AsyncClient(
+                transport=httpx.MockTransport(handler), trust_env=False
+            )
+            factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient())
+            tools = await make_tools(
+                factory,
+                tmp_path,
+                settings=proxy_runtime_settings(),
+                adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
+            )
+        try:
+            for url in (
+                "https://target.example/a\x00b",
+                "https://target.example/a\x01b",
+                "https://target.example/a\x7fb",
+                "https://target.example/a\tb",
+                "https://xn--zz.example/",
+            ):
+                with pytest.raises(HTTPToolError) as failure:
+                    await tools["http_request"](url)
+                assert failure.value.code == "http_request_invalid", repr(url)
+                assert failure.value.retryable is False
+                assert calls == []
+                assert delays == []
+
+            original_build_request = httpx.AsyncClient.build_request
+
+            def failing_build_request(
+                client: httpx.AsyncClient, method: str, url: str, **kwargs: Any
+            ) -> httpx.Request:
+                if url.endswith("/invalid-url"):
+                    raise httpx.InvalidURL("invalid URL")
+                if url.endswith("/invalid-idna"):
+                    raise idna.IDNAError("invalid A-label")
+                return original_build_request(client, method, url, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(httpx.AsyncClient, "build_request", failing_build_request)
+                for suffix in ("invalid-url", "invalid-idna"):
+                    with pytest.raises(HTTPToolError) as failure:
+                        await tools["http_request"](f"https://target.example/{suffix}")
+                    assert failure.value.code == "http_request_invalid"
+                    assert failure.value.retryable is False
+                    assert calls == []
+                    assert delays == []
+
+            if route == "proxy":
+                with pytest.raises(HTTPToolError) as transport_failure:
+                    await tools["http_request"]("https://target.example/transport")
+                assert transport_failure.value.code == "http_request_failed"
+                assert transport_failure.value.retryable is True
+                assert len(calls) == 3
+                assert delays == [0.25, 0.5]
+        finally:
+            await close_tools(tools)
+            if proxy_client is not None:
+                await proxy_client.aclose()
 
     asyncio.run(scenario())
 
