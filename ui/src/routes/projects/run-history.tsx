@@ -5,7 +5,7 @@ import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import {
   RUN_STATES,
-  TERMINAL_RUN_STATES,
+  isTerminalRunState,
   type RunSummary,
   type WorkflowRunState,
 } from "../../api/runs";
@@ -49,11 +49,7 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     : "all";
   const states = RUN_STATES.filter(
     (state) =>
-      view === "all" ||
-      (view === "completed") ===
-        TERMINAL_RUN_STATES.includes(
-          state as (typeof TERMINAL_RUN_STATES)[number],
-        ),
+      view === "all" || (view === "completed") === isTerminalRunState(state),
   );
   const state = states.find((candidate) => candidate === filters.get("state"));
   const pages = useURLCursorStack({
@@ -80,12 +76,7 @@ export function ProjectRunHistory({ projectId }: { projectId: string }) {
     queryFn: () => listProjectRuns(api, { projectId, ...options }),
     refetchInterval: (query) =>
       view === "active" ||
-      query.state.data?.items.some(
-        (run) =>
-          !TERMINAL_RUN_STATES.includes(
-            run.state as (typeof TERMINAL_RUN_STATES)[number],
-          ),
-      )
+      query.state.data?.items.some((run) => !isTerminalRunState(run.state))
         ? 5_000
         : false,
   });

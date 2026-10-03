@@ -27,6 +27,7 @@ import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
 import { QueryView } from "../../app/query-view";
 import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
+import { DeleteIcon } from "../../app/delete-icon";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
 
@@ -345,21 +346,7 @@ function CompletedRunRow({
               title="Delete completed Run"
               onClick={onDelete}
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-              >
-                <path
-                  d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <DeleteIcon />
             </button>
           ) : null}
         </td>

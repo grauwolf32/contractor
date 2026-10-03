@@ -1,6 +1,7 @@
 import type { PublicAPI } from "./client";
 import { invalidAPIResponse, requireData } from "./error";
 import type { components } from "./generated/public";
+import { hasExactKeys } from "./json-guards";
 
 export const ALLOCATION_HISTORY_PAGE_SIZE = 50;
 export const PERFORMANCE_RANGES = {
@@ -99,14 +100,11 @@ function exactKeys(
   required: readonly string[],
   optional: readonly string[] = [],
 ): boolean {
-  if (value === null || value === undefined || Array.isArray(value)) {
-    return false;
-  }
-  const keys = Object.keys(value);
-  const allowed = new Set([...required, ...optional]);
   return (
-    required.every((key) => keys.includes(key)) &&
-    keys.every((key) => allowed.has(key))
+    value !== null &&
+    value !== undefined &&
+    !Array.isArray(value) &&
+    hasExactKeys(value, required, optional)
   );
 }
 
