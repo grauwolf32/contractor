@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V133-001
+title: Remove unused unpaged AuditManagement methods
+milestone: audit-management-interface-2026-10
+priority: P3
+status: completed
+implementation_commit: e42444f5e2d3d08ca2b1a209a8483f769bc8b763
+depends_on: []
+languages: [go]
+goal: Keep the public Audit handler dependency interface aligned with the paged methods it calls.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/243
+  finding: AuditManagement declares ListFindings and ListReviews although handlers call only page variants.
+scope:
+  in:
+    - Remove two unused unpaged method declarations from AuditManagement.
+    - Verify handlers and concrete auditservice page methods compile and pass tests.
+  out:
+    - Remove concrete auditservice methods used to implement pagination.
+acceptance_criteria:
+  - {id: A1, text: AuditManagement declares only the paged finding and review list methods.}
+  - {id: A2, text: Public handler tests, vet and whole-module build pass.}
+tests:
+  - {command: go test ./internal/httpapi/public/ -run 'Audit|Finding|Review', covers: [A1, A2]}
+  - {command: go vet ./internal/httpapi/public/ && go build ./..., covers: [A2]}
