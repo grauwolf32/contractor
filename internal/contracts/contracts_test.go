@@ -78,7 +78,7 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 		"allocation-spec-bad-api-version.json":                reject[AllocationSpec],
 		"allocation-spec-resolved-skill-versionless.json":     reject[AllocationSpec],
 		"stage-content-request-unknown-field.json":            reject[StageContentRequest],
-		"stage-content-request-naive-deadline.json":          reject[StageContentRequest],
+		"stage-content-request-naive-deadline.json":           reject[StageContentRequest],
 		"stage-content-request-versioned-result-binding.json": reject[StageContentRequest],
 		"stage-content-result-unversioned-artifact.json":      reject[StageContentResult],
 		"stage-content-result-success-with-error.json":        reject[StageContentResult],
