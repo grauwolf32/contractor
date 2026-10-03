@@ -3,9 +3,10 @@ id: V240-001
 title: Batch Audit finding collection and skip retained proposals on replay
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f42f4e4d871000ae634fde871496a701c9d5c346
 depends_on: []
-languages: [go]
+languages: [go, sql]
 goal: Make Audit child proposal collection progress within the Controller timeout even when a Run emits thousands of proposals.
 context:
   issue: https://github.com/grauwolf32/contractor/issues/294
