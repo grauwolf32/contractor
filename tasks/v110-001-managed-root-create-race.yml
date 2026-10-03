@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V110-001
+title: Tolerate concurrent creation of managed configuration subtrees
+milestone: managed-root-create-2026-10
+priority: P3
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go]
+goal: Make managed-root creation safe when multiple callers initialize the same filesystem root.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/179
+  finding: A check-then-create race treats another caller's successful Mkdir as a fatal EEXIST.
+scope:
+  in:
+    - Recheck the subtree after EEXIST and preserve real-directory validation.
+    - Cover concurrent initialization and existing symlink or regular-file rejection.
+  out:
+    - Change configuration publication coordination across Server instances.
+acceptance_criteria:
+  - {id: A1, text: Concurrent initialization of one new root succeeds for every caller.}
+  - {id: A2, text: A pre-existing symlink or non-directory is rejected.}
+  - {id: A3, text: Errors other than EEXIST still fail creation.}
+tests:
+  - {command: go test ./internal/config -count=1, covers: [A1, A2, A3]}
+  - {command: go test ./..., covers: [A1, A2, A3]}

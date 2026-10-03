@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V110-001, file: v110-001-managed-root-create-race.yml}
   - {id: V109-001, file: v109-001-migration-lock-wait.yml}
   - {id: V108-001, file: v108-001-abandoned-gateway-probe.yml}
   - {id: V107-001, file: v107-001-single-active-server.yml}
