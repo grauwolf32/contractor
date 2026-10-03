@@ -3,8 +3,8 @@ id: V116-001
 title: Preserve cancellation cleanup after claim renewal
 milestone: cancelling-claim-renewal-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 72c1a7ddab5ab1487004e6081d5c3f2e7d24eb4b
 depends_on: []
 languages: [go]
 goal: Let an already-cancelling Run finish its bounded Runtime abort or finalization while its claim renews.
