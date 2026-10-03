@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V205-001
+title: Expire undecidable Audit action reviews when work closes
+milestone: audit-review-lifecycle-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Prevent item and report review requests from remaining pending after their Audit work closes.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/225
+  finding: Item settlement and cancellation of report review leave requests pending although later decisions return a precondition error.
+scope:
+  in:
+    - Expire pending item-action reviews atomically with undispatched item settlement.
+    - Expire pending report-acceptance reviews on cancellation or deletion.
+    - Record review.expired events and keep Audit revision and event sequence aligned.
+    - Verify terminal workspace count and finding triage after report cancellation.
+  out:
+    - Changing review decision semantics while a review remains actionable.
+acceptance_criteria:
+  - {id: A1, text: Cancelling and finalizing settled items expire their action requests and emit one event per request.}
+  - {id: A2, text: Cancellation or deletion during report review expires its request before terminal state.}
+  - {id: A3, text: Terminal Audits have no undecidable pending reviews and finding triage can proceed after report cancellation.}
+tests:
+  - {command: go test ./internal/auditstore/... ./internal/auditservice/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
