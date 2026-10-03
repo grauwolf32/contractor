@@ -240,6 +240,103 @@ beforeEach(() => {
 });
 
 describe("Run routes", () => {
+  it("keeps attempt and Planner disclosures through lifecycle refetches and Refresh", async () => {
+    const first = { ...runFixture().attempts[0]!, state: "failed" as const };
+    const second = {
+      ...runFixture().attempts[0]!,
+      stageExecutionId: "stage-router-2",
+      attempt: 2,
+    };
+    let currentRun = runFixture({
+      attempts: [first, second],
+      activeStageExecutionId: "stage-router-2",
+    });
+    let detailReads = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) return shared;
+        if (new URL(request.url).pathname === "/v1/runs/run-router") {
+          detailReads += 1;
+          return apiResponse(currentRun);
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    const view = renderRunApplication(api, "/runs/run-router");
+    await waitFor(() => expect(RouteWebSocket.instances).toHaveLength(1));
+    const socket = RouteWebSocket.instances[0]!;
+    act(() => socket.open());
+    const subscription = JSON.parse(socket.sent[0] ?? "{}");
+    act(() =>
+      socket.message({
+        version: "contractor.events.v1",
+        type: "subscribed",
+        subscriptionId: subscription.subscriptionId,
+        stream: { kind: "run", id: "run-router" },
+        cursor: subscription.after,
+      }),
+    );
+    const attempt = (id: string) =>
+      view.container.querySelector<HTMLDetailsElement>(`#attempt-${id}`)!;
+    const instructions = (id: string) =>
+      attempt(id).querySelector<HTMLDetailsElement>(".subtask-list details")!;
+    await waitFor(() => expect(attempt("stage-router-2").open).toBe(true));
+    expect(attempt("stage-router-1").open).toBe(false);
+    const user = userEvent.setup();
+    await user.click(attempt("stage-router-1").querySelector("summary")!);
+    await user.click(instructions("stage-router-2").querySelector("summary")!);
+    await user.click(attempt("stage-router-2").querySelector("summary")!);
+    expect(attempt("stage-router-1").open).toBe(true);
+    expect(attempt("stage-router-2").open).toBe(false);
+    expect(instructions("stage-router-2").open).toBe(true);
+
+    const originalAttempt = attempt("stage-router-1");
+    const third = {
+      ...second,
+      stageExecutionId: "stage-router-3",
+      attempt: 3,
+    };
+    currentRun = {
+      ...currentRun,
+      attempts: [first, { ...second, state: "failed" }, third],
+      activeStageExecutionId: "stage-router-3",
+      eventCursor: { generation: "run-generation-1", sequence: "11" },
+    };
+    act(() =>
+      socket.message({
+        version: "contractor.events.v1",
+        type: "event",
+        subscriptionId: subscription.subscriptionId,
+        stream: { kind: "run", id: "run-router" },
+        cursor: { generation: "run-generation-1", sequence: "11" },
+        kind: "lifecycle.changed",
+        occurredAt: "2026-08-31T12:02:00Z",
+        data: { runId: "run-router", resource: "run", state: "running" },
+      }),
+    );
+    await waitFor(() => expect(detailReads).toBeGreaterThan(1));
+    await waitFor(() => expect(attempt("stage-router-3").open).toBe(true));
+    expect(attempt("stage-router-1")).not.toBe(originalAttempt);
+    expect(attempt("stage-router-1").open).toBe(true);
+    expect(attempt("stage-router-2").open).toBe(false);
+    expect(instructions("stage-router-2").open).toBe(true);
+
+    const priorRefreshAttempt = attempt("stage-router-1");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(detailReads).toBeGreaterThan(2));
+    await waitFor(() =>
+      expect(attempt("stage-router-1")).not.toBe(priorRefreshAttempt),
+    );
+    expect(attempt("stage-router-1").open).toBe(true);
+    expect(attempt("stage-router-2").open).toBe(false);
+    expect(instructions("stage-router-2").open).toBe(true);
+    expect(attempt("stage-router-3").open).toBe(true);
+  });
+
   it("shows a waiting invocation and retries the model without a new stage", async () => {
     let posts = 0;
     let current = runFixture({

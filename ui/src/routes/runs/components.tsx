@@ -308,7 +308,13 @@ function RuntimeConfigurationView({ attempt }: { attempt: StageAttempt }) {
   );
 }
 
-function PlannerPlanView({ projection }: { projection: PlannerProjection }) {
+function PlannerPlanView({
+  projection,
+  instructionDisclosure,
+}: {
+  projection: PlannerProjection;
+  instructionDisclosure: (subtaskId: string) => RunDisclosureProps;
+}) {
   const plan = projection.plan;
   if (plan === undefined) {
     return (
@@ -350,7 +356,7 @@ function PlannerPlanView({ projection }: { projection: PlannerProjection }) {
                 ) : null}
               </div>
               <p>{subtask.objective}</p>
-              <details>
+              <details {...instructionDisclosure(subtask.id)}>
                 <summary>Planner instructions</summary>
                 <p>{subtask.instructions}</p>
               </details>
@@ -564,22 +570,24 @@ export function StageAttemptView({
   runId,
   attempt,
   active,
-  focused,
   projection,
   transitions,
+  disclosure,
+  instructionDisclosure,
 }: {
   runId: string;
   attempt: StageAttempt;
   active: boolean;
-  focused: boolean;
   projection: PlannerProjection;
   transitions: StageTransition[];
+  disclosure: RunDisclosureProps;
+  instructionDisclosure: (subtaskId: string) => RunDisclosureProps;
 }) {
   return (
     <details
       className="run-attempt"
       id={`attempt-${attempt.stageExecutionId}`}
-      open={active || focused}
+      {...disclosure}
     >
       <summary>
         <span>
@@ -603,7 +611,10 @@ export function StageAttemptView({
           )}
           <AttemptTimestamps attempt={attempt} />
         </div>
-        <PlannerPlanView projection={projection} />
+        <PlannerPlanView
+          projection={projection}
+          instructionDisclosure={instructionDisclosure}
+        />
         <ExecutionConfigView attempt={attempt} />
         <RuntimeConfigurationView attempt={attempt} />
         {attempt.metrics === undefined ? null : (
