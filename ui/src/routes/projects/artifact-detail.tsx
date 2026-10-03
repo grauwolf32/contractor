@@ -58,6 +58,7 @@ function ProjectArtifactActions({
   metadata: ArtifactMetadata;
 }) {
   const api = usePublicAPI();
+  const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const download = useMutation({
     mutationFn: () => downloadProjectArtifact(api, projectId, metadata),
@@ -99,7 +100,10 @@ function ProjectArtifactActions({
             initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
             onWritten={(result) =>
-              setSearchParams({ revision: result.artifact.revision })
+              setSearchParams(
+                { revision: result.artifact.revision },
+                { state: location.state },
+              )
             }
           />
         </details>

@@ -55,6 +55,7 @@ function triggerDownload(downloaded: DownloadedArtifact): void {
 
 function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
+  const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const skillSettings =
     metadata.artifact.namespace === "skills"
@@ -104,7 +105,10 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
             initialMediaType={metadata.mediaType}
             expectedRevision={metadata.artifact.revision}
             onWritten={(result) =>
-              setSearchParams({ revision: result.artifact.revision })
+              setSearchParams(
+                { revision: result.artifact.revision },
+                { state: location.state },
+              )
             }
           />
         </details>
