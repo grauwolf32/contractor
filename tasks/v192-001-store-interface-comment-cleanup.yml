@@ -3,7 +3,8 @@ id: V192-001
 title: Remove unused store interfaces and correct RunStore transaction docs
 milestone: persistence-api-cleanup-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1942d37e439ba350390a02a3606136093e9a0112
 depends_on: []
 languages: [go]
 goal: Make store API declarations and transaction ownership match production behavior.
