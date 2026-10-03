@@ -852,8 +852,8 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 			t.Fatal(err)
 		}
 		snapshot, err := Load(root, MVPDescriptors())
-		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "escapes configuration root") {
-			t.Fatalf("Load() = (%v, %v), want symlink escape error", snapshot, err)
+		if err == nil || snapshot != nil || !strings.Contains(err.Error(), "is a symlink") {
+			t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
 		}
 	})
 
@@ -867,17 +867,16 @@ func TestInstructionPathAndFilesystemContainment(t *testing.T) {
 	})
 }
 
-func TestManifestDiscoveryIgnoresSymlinks(t *testing.T) {
+func TestManifestDiscoveryRejectsSymlinks(t *testing.T) {
 	t.Parallel()
 
 	root := copyConfigTree(t)
-	before := mustLoad(t, root, MVPDescriptors()).Counts().ModelPolicies
 	if err := os.Symlink("test-worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := mustLoad(t, root, MVPDescriptors())
-	if got := snapshot.Counts().ModelPolicies; got != before {
-		t.Fatalf("ModelPolicies after symlink discovery = %d, want unchanged %d", got, before)
+	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), "is a symlink") {
+		t.Fatalf("Load() = (%v, %v), want strict symlink error", snapshot, err)
 	}
 }
 

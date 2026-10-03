@@ -67,6 +67,9 @@ contractor server config validate --root ./configs
 make verify
 ```
 
+Validation reads the sibling `managed-configs/` root without creating it;
+pass `--managed-root` to match a different Server path.
+
 `make verify` runs formatting/lint checks, Go and Python tests, builds the
 commands, and generates, checks, tests and builds the UI. It does not require a
 running PostgreSQL database; database tests need the explicit test URL described

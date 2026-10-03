@@ -167,6 +167,83 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 	return manager, nil
 }
 
+// LoadUnionReadOnly applies the Server's root and union checks without creating
+// a missing managed root or its subtrees. Missing managed directories are
+// equivalent to the empty directories NewManager would create at startup.
+func LoadUnionReadOnly(operatorPath, managedPath string, descriptors Descriptors) (*Snapshot, error) {
+	operatorRoot, err := requireStrictRoot(operatorPath, false)
+	if err != nil {
+		return nil, fmt.Errorf("operator configuration root: %w", err)
+	}
+	if strings.TrimSpace(managedPath) == "" {
+		return nil, errors.New("managed configuration root: path is required")
+	}
+	managedRoot, err := filepath.Abs(managedPath)
+	if err != nil {
+		return nil, fmt.Errorf("managed configuration root: %w", err)
+	}
+	_, statErr := os.Lstat(managedRoot)
+	managedExists := statErr == nil
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("managed configuration root: %w", statErr)
+	}
+	if managedExists {
+		managedRoot, err = requireStrictRootWithMissingSubtrees(managedRoot, false, true)
+		if err != nil {
+			return nil, fmt.Errorf("managed configuration root: %w", err)
+		}
+	} else {
+		managedRoot, err = resolveMissingRoot(managedRoot)
+		if err != nil {
+			return nil, fmt.Errorf("managed configuration root: %w", err)
+		}
+	}
+	if rootsOverlap(operatorRoot, managedRoot) {
+		return nil, errors.New("operator and managed configuration roots must not overlap")
+	}
+	roots := []configurationRoot{{path: operatorRoot, source: ConfigurationSourceOperator}}
+	if managedExists {
+		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
+	}
+	return loadConfigurationRoots(roots, descriptors, true)
+}
+
+func resolveMissingRoot(path string) (string, error) {
+	current := path
+	var missing []string
+	for {
+		info, err := os.Lstat(current)
+		if err == nil {
+			resolved, err := filepath.EvalSymlinks(current)
+			if err != nil {
+				return "", err
+			}
+			if !info.IsDir() {
+				info, err = os.Stat(resolved)
+				if err != nil {
+					return "", err
+				}
+				if !info.IsDir() {
+					return "", fmt.Errorf("configuration root ancestor %q is not a directory", current)
+				}
+			}
+			for index := len(missing) - 1; index >= 0; index-- {
+				resolved = filepath.Join(resolved, missing[index])
+			}
+			return resolved, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
+}
+
 func (m *Manager) Snapshot() *Snapshot { return m.current.Load() }
 
 func (m *Manager) Counts() Counts { return m.Snapshot().Counts() }
@@ -535,6 +612,10 @@ func (m *Manager) recordAudit(
 }
 
 func requireStrictRoot(path string, create bool) (string, error) {
+	return requireStrictRootWithMissingSubtrees(path, create, false)
+}
+
+func requireStrictRootWithMissingSubtrees(path string, create, allowMissingSubtrees bool) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", fmt.Errorf("path is required")
 	}
@@ -570,6 +651,9 @@ func requireStrictRoot(path string, create bool) (string, error) {
 				// Recheck it rather than trusting what now occupies the path.
 				childInfo, childErr = os.Lstat(child)
 			}
+		}
+		if errors.Is(childErr, os.ErrNotExist) && allowMissingSubtrees {
+			continue
 		}
 		if childErr != nil {
 			return "", fmt.Errorf("configuration subtree %s: %w", subtree, childErr)

@@ -1,0 +1,30 @@
+schema_version: '1.0'
+id: V210-001
+title: Align config validate with Server startup checks
+milestone: configuration-reliability-2026-10
+priority: P2
+status: completed
+implementation_commit: acf86a2da695ad0a9f072689a3d12c406c65789e
+depends_on: []
+languages: [go]
+goal: Make config validate reject configuration trees that the Server cannot start from.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/185
+  finding: The CLI loads only the operator root leniently and skips managed-root and bundled-standard checks.
+scope:
+  in:
+    - Load operator and managed roots with the Server's strict symlink and duplicate checks without creating directories.
+    - Check bundled Audit standard references and standard-mapping selections offline.
+    - Add a managed-root CLI flag with the same sibling default as serve.
+    - Cover symlink, duplicate, standard-selection and no-write cases.
+  out:
+    - Database-backed standard lookup during offline validation.
+acceptance_criteria:
+  - {id: A1, text: Validation rejects symlinked roots, subtrees, manifests and instructions with Server-compatible errors.}
+  - {id: A2, text: Validation detects cross-root duplicate identities and invalid bundled standard selections.}
+  - {id: A3, text: Validation does not create the managed root or its subtrees and accepts shipped configs.}
+tests:
+  - {command: go test ./internal/config/... ./internal/app/..., covers: [A1, A2, A3]}
+  - {command: go run ./cmd/contractor-server config validate --root ./configs, covers: [A3]}
+  - {command: go run ./cmd/contractor-server config validate --root ./configs/e2e, covers: [A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
