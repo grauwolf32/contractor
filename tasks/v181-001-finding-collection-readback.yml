@@ -3,7 +3,8 @@ id: V181-001
 title: Avoid redundant finding collection document reads
 milestone: finding-collection-preparation-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 09722c2fe6c05aee9f43e5f240aa792f8bc258b6
 depends_on: []
 languages: [python]
 goal: Use authoritative create receipts and reconcile only ambiguous document writes.
