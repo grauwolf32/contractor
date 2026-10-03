@@ -3,7 +3,8 @@ id: V171-001
 title: Remove unreachable Worker budget error hooks
 milestone: worker-budget-instrumentation-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 6b31f1b425bf83079c31bc988f47f66191a75824
 depends_on: []
 languages: [python]
 goal: Make Worker model error spans reflect errors those hooks can actually receive.
