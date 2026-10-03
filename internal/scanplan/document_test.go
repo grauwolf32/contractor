@@ -82,7 +82,6 @@ func TestParseDocumentRejectsAmbiguousOrNonJSONDocuments(t *testing.T) {
 		{"YAML custom mapping tag", "application/yaml", "canary: !secret {a: b}"},
 		{"YAML binary", "application/yaml", "canary: !!binary c2VjcmV0"},
 		{"YAML set", "application/yaml", "canary: !!set {a: null}"},
-		{"YAML timestamp", "application/yaml", "canary: 2026-09-20"},
 		{"YAML malformed explicit null", "application/yaml", "canary: !!null invalid"},
 		{"YAML malformed explicit bool", "application/yaml", "canary: !!bool invalid"},
 		{"YAML multi document", "application/yaml", "canary: value\n---\nother: value"},
@@ -98,6 +97,22 @@ func TestParseDocumentRejectsAmbiguousOrNonJSONDocuments(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			assertDocumentError(t, []byte(test.source), test.mediaType, "invalid_document")
 		})
+	}
+}
+
+func TestParseDocumentPreservesUnquotedTimestamp(t *testing.T) {
+	for _, source := range []string{
+		`{"info":{"version":"2024-01-01"}}`,
+		"info:\n  version: 2024-01-01\n",
+	} {
+		mediaType := "application/yaml"
+		if strings.HasPrefix(source, "{") {
+			mediaType = "application/json"
+		}
+		document, err := parseDocument([]byte(source), mediaType)
+		if err != nil || !reflect.DeepEqual(document, map[string]any{"info": map[string]any{"version": "2024-01-01"}}) {
+			t.Fatalf("parse %s = %#v, %v", mediaType, document, err)
+		}
 	}
 }
 

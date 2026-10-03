@@ -76,6 +76,59 @@ openapi: 3.1.0
 	}
 }
 
+func TestOpenAPIInventoryPreservesUnquotedYAMLDate(t *testing.T) {
+	jsonSource := []byte(`{"openapi":"3.0.3","info":{"title":"Example","version":"2024-01-01"},"paths":{"/a":{"get":{"responses":{"200":{"description":"ok"}}}}}}`)
+	yamlSource := []byte("openapi: 3.0.3\ninfo:\n  title: Example\n  version: 2024-01-01\npaths:\n  /a:\n    get:\n      responses:\n        '200': {description: ok}\n")
+	root, err := parseJSONOrYAML(yamlSource, "application/yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, ok := root["info"].(map[string]any)
+	if !ok || info["version"] != "2024-01-01" {
+		t.Fatalf("version = %#v, want original string", root["info"])
+	}
+	options := testInventoryOptions("trace")
+	jsonInventory, err := BuildOpenAPIInventory(jsonSource, "application/json", options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	yamlInventory, err := BuildOpenAPIInventory(yamlSource, "application/yaml", options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jsonInventory.CanonicalInventoryDigest != yamlInventory.CanonicalInventoryDigest || !reflect.DeepEqual(jsonInventory.CanonicalInventory, yamlInventory.CanonicalInventory) {
+		t.Fatalf("canonical identity differs:\n%s\n%s", jsonInventory.CanonicalInventory, yamlInventory.CanonicalInventory)
+	}
+	if jsonInventory.SourceContentDigest == yamlInventory.SourceContentDigest {
+		t.Fatal("distinct source digests unexpectedly match")
+	}
+	bad := []byte("openapi: 3.0.3\ninfo:\n  version: !!binary c2VjcmV0\npaths: {}\n")
+	if _, err := BuildOpenAPIInventory(bad, "application/yaml", options); ErrorCode(err) != CodeInvalid {
+		t.Fatalf("binary scalar error = %v", err)
+	}
+}
+
+func TestOpenAPIYAMLPlainScalarNumberBoundsMatchScanplan(t *testing.T) {
+	for _, test := range []struct {
+		scalar string
+		want   float64
+	}{
+		{"0x10", 16}, {"1_000", 1000}, {"1.25", 1.25}, {"9007199254740991", 9007199254740991},
+	} {
+		root, err := parseJSONOrYAML([]byte("value: "+test.scalar+"\n"), "application/yaml")
+		if err != nil || root["value"] != test.want {
+			t.Fatalf("scalar %s = %#v, %v; want %v", test.scalar, root, err, test.want)
+		}
+	}
+	for _, scalar := range []string{
+		"9007199254740992", "9007199254740991.1", "1e9999", ".nan", "!!binary c2VjcmV0",
+	} {
+		if _, err := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml"); ErrorCode(err) != CodeInvalid {
+			t.Fatalf("scalar %s error = %v", scalar, err)
+		}
+	}
+}
+
 func TestOpenAPISelectedRemoteRefRejectsButUnsupportedSurfaceIsGap(t *testing.T) {
 	options := testInventoryOptions("trace")
 	selected := []byte(`{"openapi":"3.1.0","paths":{"/x":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"$ref":"https://example.invalid/schema.json"}}}}}}}}}`)

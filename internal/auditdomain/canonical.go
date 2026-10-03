@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/documentnumber"
 	"github.com/ucarion/jcs"
 	"go.yaml.in/yaml/v4"
 )
@@ -320,9 +321,12 @@ func yamlNodeValue(node *yaml.Node, depth int, nodes *int) (any, error) {
 
 func yamlScalarValue(node *yaml.Node) (any, error) {
 	switch node.Tag {
-	case "!!str", "tag:yaml.org,2002:str":
+	case "!!str", "tag:yaml.org,2002:str", "!!timestamp", "tag:yaml.org,2002:timestamp":
 		if !utf8.ValidString(node.Value) || len([]byte(node.Value)) > MaximumStringBytes {
 			return nil, errors.New("invalid YAML string")
+		}
+		if node.ShortTag() == "!!str" && node.Style == 0 && documentnumber.LooksNumeric(node.Value) {
+			return nil, errors.New("invalid YAML number")
 		}
 		return node.Value, nil
 	case "!!null", "tag:yaml.org,2002:null":
@@ -333,12 +337,16 @@ func yamlScalarValue(node *yaml.Node) (any, error) {
 			return nil, err
 		}
 		return value, nil
-	case "!!int", "tag:yaml.org,2002:int", "!!float", "tag:yaml.org,2002:float":
-		var value float64
-		if err := node.Decode(&value); err != nil || math.IsInf(value, 0) || math.IsNaN(value) {
-			return nil, errors.New("invalid YAML number")
+	case "!!int", "tag:yaml.org,2002:int":
+		if value, ok := documentnumber.Integer(node.Value); ok {
+			return value, nil
 		}
-		return value, nil
+		return nil, errors.New("invalid YAML number")
+	case "!!float", "tag:yaml.org,2002:float":
+		if value, ok := documentnumber.Float(strings.ReplaceAll(node.Value, "_", "")); ok {
+			return value, nil
+		}
+		return nil, errors.New("invalid YAML number")
 	default:
 		return nil, fmt.Errorf("unsupported YAML tag")
 	}

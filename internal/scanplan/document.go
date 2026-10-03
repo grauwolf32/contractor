@@ -4,19 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/documentnumber"
 	"go.yaml.in/yaml/v4"
 	"go.yaml.in/yaml/v4/plugin/limit"
 )
-
-const maximumDocumentNumber = 1<<53 - 1
-
-var numericYAMLScalar = regexp.MustCompile(`^[+-]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|(?:[0-9][0-9_]*(?:\.[0-9_]*)?|\.[0-9][0-9_]*)(?:[eE][+-]?[0-9]+)?)$`)
 
 // parseDocument accepts one bounded JSON-compatible mapping. Both parsers
 // retain numeric spelling until bounds have been checked, so unsafe
@@ -137,9 +132,12 @@ func (r *documentReader) read(node *yaml.Node, depth int) (any, error) {
 		case "!!str":
 			// The YAML resolver falls back to a string when numeric conversion
 			// overflows. Quoted and explicitly tagged strings are ordinary data.
-			if node.Style == 0 && numericYAMLScalar.MatchString(node.Value) {
+			if node.Style == 0 && documentnumber.LooksNumeric(node.Value) {
 				break
 			}
+			return node.Value, nil
+		case "!!timestamp":
+			// OpenAPI/JSON carry dates as strings. Preserve the source spelling.
 			return node.Value, nil
 		case "!!null":
 			switch node.Value {
@@ -152,12 +150,11 @@ func (r *documentReader) read(node *yaml.Node, depth int) (any, error) {
 				return value, nil
 			}
 		case "!!int":
-			value, err := strconv.ParseInt(strings.ReplaceAll(node.Value, "_", ""), 0, 64)
-			if err == nil && value >= -maximumDocumentNumber && value <= maximumDocumentNumber {
-				return float64(value), nil
+			if value, ok := documentnumber.Integer(node.Value); ok {
+				return value, nil
 			}
 		case "!!float":
-			if value, ok := documentFloat(strings.ReplaceAll(node.Value, "_", "")); ok {
+			if value, ok := documentnumber.Float(strings.ReplaceAll(node.Value, "_", "")); ok {
 				return value, nil
 			}
 		}
@@ -234,7 +231,7 @@ func (r *documentReader) readJSON(decoder *json.Decoder, depth int) (any, error)
 			}
 		}
 	case json.Number:
-		if value, ok := documentFloat(token.String()); ok {
+		if value, ok := documentnumber.Float(token.String()); ok {
 			return value, nil
 		}
 	case string, bool, nil:
@@ -277,51 +274,4 @@ func validJSONUnicode(data []byte) bool {
 		i += 5
 	}
 	return true
-}
-
-// documentFloat checks the exact decimal magnitude before accepting the
-// float64. Comparing only the rounded value would admit 9007199254740991.1.
-func documentFloat(text string) (float64, bool) {
-	if !numericYAMLScalar.MatchString(text) {
-		return 0, false
-	}
-	value, err := strconv.ParseFloat(text, 64)
-	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || math.Abs(value) > maximumDocumentNumber {
-		return 0, false
-	}
-	abs := strings.TrimPrefix(strings.TrimPrefix(text, "+"), "-")
-	mantissa, exponentText, _ := strings.Cut(strings.ToLower(abs), "e")
-	integer, fraction, _ := strings.Cut(mantissa, ".")
-	digits := strings.TrimLeft(integer+fraction, "0")
-	if digits == "" {
-		return value, true
-	}
-	// Underflow would silently turn an explicit nonzero example into zero.
-	if value == 0 {
-		return 0, false
-	}
-	exponent := int64(0)
-	if exponentText != "" {
-		exponent, err = strconv.ParseInt(exponentText, 10, 32)
-		if err != nil {
-			return 0, false
-		}
-	}
-	integerDigits := int64(len(digits)-len(fraction)) + exponent
-	if integerDigits > 16 {
-		return 0, false
-	}
-	if integerDigits == 16 {
-		whole := digits
-		if len(whole) < 16 {
-			whole += strings.Repeat("0", 16-len(whole))
-		} else {
-			whole = whole[:16]
-		}
-		if whole > "9007199254740991" ||
-			(whole == "9007199254740991" && len(digits) > 16 && strings.Trim(digits[16:], "0") != "") {
-			return 0, false
-		}
-	}
-	return value, true
 }
