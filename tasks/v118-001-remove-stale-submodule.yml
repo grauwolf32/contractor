@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V118-001
+title: Remove stale playground submodule metadata
+milestone: remove-stale-submodule-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [git]
+goal: Remove a dead submodule declaration that has no matching gitlink.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/215
+  finding: .gitmodules declares tests/playground even though the repository tracks no submodule there.
+scope:
+  in:
+    - Remove the stale .gitmodules file.
+  out:
+    - Add a new playground checkout or submodule.
+acceptance_criteria:
+  - {id: A1, text: No .gitmodules declaration remains without a matching gitlink.}
+  - {id: A2, text: No repository submodule URL uses an SSH-only remote.}
+tests:
+  - {command: git submodule status, covers: [A1]}
+  - {command: git ls-files -s tests/playground, covers: [A1]}

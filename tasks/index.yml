@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V118-001, file: v118-001-remove-stale-submodule.yml}
   - {id: V117-001, file: v117-001-list-symbols-node-type-help.yml}
   - {id: V116-001, file: v116-001-cancelling-claim-renewal.yml}
   - {id: V115-001, file: v115-001-patched-go-toolchain.yml}
