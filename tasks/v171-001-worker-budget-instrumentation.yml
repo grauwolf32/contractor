@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V171-001
+title: Remove unreachable Worker budget error hooks
+milestone: worker-budget-instrumentation-2026-10
+priority: P2
+status: completed
+implementation_commit: 6b31f1b425bf83079c31bc988f47f66191a75824
+depends_on: []
+languages: [python]
+goal: Make Worker model error spans reflect errors those hooks can actually receive.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/276
+  finding: Budget exceptions arise in before/after callbacks, outside the model-error hooks' reach.
+scope:
+  in:
+    - Remove unreachable WorkerBudgetExceeded class-name checks in model and finalizer error hooks.
+    - Preserve existing usage, error counters and budget failure behavior.
+  out:
+    - Add a new span for model calls refused before they start.
+acceptance_criteria:
+  - {id: A1, text: Error hooks contain no WorkerBudgetExceeded class-name comparisons.}
+  - {id: A2, text: Budget exhaustion and rejected gateway responses retain their codes and accounting.}
+  - {id: A3, text: No rejected model span is emitted or documented for a budget-refused call.}
+tests:
+  - {command: cd runtime && .venv/bin/python -m pytest tests/test_adk_runtime.py, covers: [A1, A2, A3]}

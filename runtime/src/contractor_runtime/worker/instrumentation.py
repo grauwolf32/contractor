@@ -250,24 +250,19 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 return
             span = self._pending_models.pop(0)
             try:
-                if type(error).__name__ == "WorkerBudgetExceeded":
-                    _end_span(
-                        span, outcome="rejected", attributes={"error.type": type(error).__name__}
-                    )
-                else:
-                    received, usage = _rejected_response_usage(error)
-                    _end_span(
-                        span,
-                        outcome="failed",
-                        attributes={
-                            "error.type": _safe_error_type(error),
-                            **_usage_attributes(usage),
-                        },
-                    )
-                    self._metrics.record_model_error(error)
-                    self._require_reducer().record_model_error()
-                    if received:
-                        self._record_spent_usage_locked(usage)
+                received, usage = _rejected_response_usage(error)
+                _end_span(
+                    span,
+                    outcome="failed",
+                    attributes={
+                        "error.type": _safe_error_type(error),
+                        **_usage_attributes(usage),
+                    },
+                )
+                self._metrics.record_model_error(error)
+                self._require_reducer().record_model_error()
+                if received:
+                    self._record_spent_usage_locked(usage)
             finally:
                 await self._publish_locked(callback_context)
 
@@ -338,15 +333,6 @@ class WorkerInstrumentationPlugin(BasePlugin):
             try:
                 if isinstance(error, asyncio.CancelledError):
                     _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
-                elif type(error).__name__ == "WorkerBudgetExceeded":
-                    _end_span(
-                        span,
-                        outcome="rejected",
-                        attributes={
-                            "error.type": type(error).__name__,
-                            "model.phase": phase,
-                        },
-                    )
                 else:
                     safe_error = (
                         error if isinstance(error, Exception) else RuntimeError("model failed")
