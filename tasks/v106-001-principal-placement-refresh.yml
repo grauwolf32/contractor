@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V106-001
+title: Refresh stale Runtime Agent principals during placement
+milestone: placement-principal-refresh-2026-10
+priority: P1
+status: completed
+implementation_commit: 90299d22284ed1a385a43fbb71bad675661132bf
+depends_on: []
+languages: [go]
+goal: Let placement recover from principal label changes or deletions that leave the process-local Registry stale.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/129
+  finding: A stale cached principal is selected repeatedly and a durable principal mismatch always returns insufficient capacity.
+scope:
+  in:
+    - Refresh candidate principal labels from PostgreSQL and retry placement once after stale-capacity failures.
+    - Exclude a cached instance when its durable principal is missing.
+    - Preserve the newest cached label revision across re-registration and apply committed label replacements before follow-up reads.
+  out:
+    - Implement a shared cross-process Runtime Agent Registry.
+acceptance_criteria:
+  - {id: A1, text: Placement recovers when durable labels or revision advance and a compatible candidate is available.}
+  - {id: A2, text: A deleted durable principal is not selected while another compatible agent is available.}
+  - {id: A3, text: Re-registration cannot lower a cached label revision.}
+  - {id: A4, text: Committed label replacement updates the Registry even when a later read fails.}
+tests:
+  - {command: go test ./internal/controlplane -count=1, covers: [A1, A2, A3, A4]}
+  - {command: go test ./..., covers: [A1, A2, A3, A4]}

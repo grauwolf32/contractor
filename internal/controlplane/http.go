@@ -105,11 +105,12 @@ func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
 		RuntimeAgentID: principal.RuntimeAgentID,
 		Labels:         principal.Labels, LabelRevision: principal.LabelRevision,
 	}
-	if _, err := h.registry.RegisterAuthenticated(authenticated, registration); err != nil {
+	snapshot, err := h.registry.RegisterAuthenticated(authenticated, registration)
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse(authenticated))
+	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse(snapshot.Principal))
 }
 
 func (h *privateHTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {

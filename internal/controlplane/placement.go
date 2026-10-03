@@ -76,6 +76,60 @@ func (a *PlacementAllocator) ReserveAllContext(
 	ctx context.Context,
 	request ReservationRequest,
 ) ([]Reservation, error) {
+	reservations, err := a.reserveAllContext(ctx, request)
+	if !errors.Is(err, ErrInsufficientCapacity) || ctx.Err() != nil {
+		return reservations, err
+	}
+	// A failed attempt may have selected a stale principal, or stale labels
+	// may have prevented any compatible edge from being built. Refresh only on
+	// failure, after provisional reservations have been discarded, and retry
+	// once with the current durable principals.
+	changed, refreshErr := a.refreshCandidatePrincipals(ctx, a.registry.PlacementCandidates())
+	if refreshErr != nil {
+		return nil, refreshErr
+	}
+	if !changed {
+		return nil, err
+	}
+	return a.reserveAllContext(ctx, request)
+}
+
+func (a *PlacementAllocator) refreshCandidatePrincipals(ctx context.Context, candidates []AgentSnapshot) (bool, error) {
+	repository := runtimeconfig.NewPrincipalRepository(a.pool)
+	seen := make(map[string]struct{}, len(candidates))
+	changed := false
+	for _, candidate := range candidates {
+		id := candidate.Principal.RuntimeAgentID
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		current, err := repository.Get(ctx, id)
+		if errors.Is(err, runtimeconfig.ErrNotFound) {
+			changed = a.registry.MarkPrincipalMissing(id) || changed
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		principal := AuthenticatedPrincipal{
+			RuntimeAgentID: id, Labels: current.Labels, LabelRevision: current.LabelRevision,
+		}
+		if equalAuthenticatedPrincipal(candidate.Principal, principal) {
+			continue
+		}
+		if err := a.registry.ApplyPrincipalLabels(principal); err != nil {
+			return false, err
+		}
+		changed = true
+	}
+	return changed, nil
+}
+
+func (a *PlacementAllocator) reserveAllContext(
+	ctx context.Context,
+	request ReservationRequest,
+) ([]Reservation, error) {
 	if existing, err := a.registry.GetStageReservations(request.StageExecutionID); err == nil {
 		return existing, nil
 	} else if !errors.Is(err, ErrAllocationNotFound) {

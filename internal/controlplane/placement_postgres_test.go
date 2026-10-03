@@ -80,29 +80,72 @@ func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *t
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedPlacementPool(t, ctx)
-	fixture := newPlacementFixture(t, ctx, pool, nil)
-	runtimeAgentID := fixture.registerCandidate(t, ctx, "runtime-racy", "3", nil)
+	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	runtimeAgentID := fixture.registerCandidateWithLabels(t, ctx, "runtime-racy", "3",
+		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, []string{"debug"})
+	changed := false
 	fixture.allocator.credentialGuard = placementGuardFunc(func(ctx context.Context, fn func() error) error {
-		_, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(
-			ctx, runtimeAgentID, 1, []string{"changed"}, "operator", time.Now().UTC(),
-		)
-		if err != nil {
-			return err
+		if !changed {
+			_, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(
+				ctx, runtimeAgentID, 1, []string{}, "operator", time.Now().UTC(),
+			)
+			if err != nil {
+				return err
+			}
+			changed = true
 		}
 		return fn()
 	})
 
-	_, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
-	if !errors.Is(err, ErrInsufficientCapacity) {
-		t.Fatalf("revision-change placement error = %v", err)
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].RuntimeAgentLabelRevision != 2 {
+		t.Fatalf("placement did not retry with current principal: %+v, %v", reservations, err)
 	}
 	agent, err := fixture.registry.GetAgent("runtime-racy")
-	if err != nil || agent.AuthoritativeAllocationID != nil {
-		t.Fatalf("provisional slot was not discarded: (%+v, %v)", agent, err)
+	if err != nil || agent.AuthoritativeAllocationID == nil || agent.Principal.LabelRevision != 2 {
+		t.Fatalf("refreshed principal or committed slot = (%+v, %v)", agent, err)
 	}
 	allocations, err := runstore.NewPostgresStore(pool).ListStageAllocations(ctx, fixture.stageExecutionID)
-	if err != nil || len(allocations) != 0 {
-		t.Fatalf("revision-change durable allocations = (%+v, %v)", allocations, err)
+	if err != nil || len(allocations) != 1 || allocations[0].RuntimeAgentLabelRevision != 2 {
+		t.Fatalf("retry did not pin current principal = (%+v, %v)", allocations, err)
+	}
+}
+
+func TestPlacementPostgresSkipsDeletedCachedPrincipal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, nil)
+	deletedID := fixture.registerCandidate(t, ctx, "runtime-a-deleted", "4", nil)
+	compatibleID := fixture.registerCandidate(t, ctx, "runtime-b-compatible", "5", nil)
+	if err := runtimeconfig.NewPrincipalRepository(pool).Delete(ctx, deletedID, 1); err != nil {
+		t.Fatal(err)
+	}
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].Grant.RuntimeAgentID != compatibleID {
+		t.Fatalf("deleted cached principal blocked compatible candidate: %+v, %v", reservations, err)
+	}
+	for _, candidate := range fixture.registry.PlacementCandidates() {
+		if candidate.Principal.RuntimeAgentID == deletedID {
+			t.Fatal("deleted principal remains placement-eligible")
+		}
+	}
+}
+
+func TestPlacementPostgresRefreshesLabelsThatBecomeCompatible(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	id := fixture.registerCandidateWithLabels(t, ctx, "runtime-new-label", "6",
+		[]contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP}, nil)
+	if _, err := runtimeconfig.NewPrincipalRepository(pool).ReplaceLabels(ctx, id, 1,
+		[]string{"debug"}, "operator", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())
+	if err != nil || len(reservations) != 1 || reservations[0].RuntimeAgentLabelRevision != 2 {
+		t.Fatalf("newly compatible label was not refreshed: %+v, %v", reservations, err)
 	}
 }
 
