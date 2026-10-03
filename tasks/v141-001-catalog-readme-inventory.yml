@@ -3,8 +3,8 @@ id: V141-001
 title: Reconcile bundled configuration catalog README
 milestone: catalog-readme-inventory-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 5f207ad351fde55d5673ed5b15cee451c21e47ac
 depends_on: []
 languages: [markdown]
 goal: Describe every bundled Workflow and AuditProfile and their actual runtime contracts.
