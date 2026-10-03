@@ -163,7 +163,7 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 	renewal.Add(1)
 	go func() {
 		defer renewal.Done()
-		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID, leaseExpiresAt)
+		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID, run.State, leaseExpiresAt)
 	}()
 
 	err = s.executeRun(executionContext, run)
@@ -325,6 +325,7 @@ func (s *Scheduler) renewClaim(
 	stop <-chan struct{},
 	runID string,
 	claimID string,
+	claimedState runstore.WorkflowRunState,
 	leaseExpiresAt time.Time,
 ) {
 	interval := s.options.ClaimDuration / 3
@@ -397,7 +398,9 @@ func (s *Scheduler) renewClaim(
 		if terminalRunReleasedClaim(current) {
 			return
 		}
-		if current.State == runstore.RunCancelling {
+		// A Run claimed while already cancelling is using executionContext
+		// for its bounded abort or finalization; do not interrupt that cleanup.
+		if current.State == runstore.RunCancelling && claimedState != runstore.RunCancelling {
 			cancelExecution(ErrRunCancellationRequested)
 		}
 	}
