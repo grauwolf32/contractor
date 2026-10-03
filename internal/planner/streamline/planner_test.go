@@ -893,6 +893,35 @@ func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
 	}
 }
 
+func TestStreamlineFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
+	const revision = "report-r1"
+	model := &scriptedModel{steps: []modelStep{
+		addSubtaskStep("Build the report", "Produce the declared report"),
+		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
+		textStep("The report is ready."),
+		functionStep(finishToolName, map[string]any{
+			"outcome": string(contracts.StageSucceeded), "summary": "complete",
+			"artifacts": map[string]any{"report": artifactArgs("builder", "report", revision)},
+		}),
+	}}
+	workers := &fakeWorkerInvoker{results: map[string]contracts.StageContentResult{
+		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{}),
+	}}
+	inspector := &fakeInspector{mediaTypes: map[string]string{
+		refKey(exactRef("builder", "report", revision)): "application/json",
+	}}
+	invocation := testInvocation("builder")
+	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 1
+	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, model, Limits{}).Create(invocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(t.Context())
+	if err != nil || result.Outcome != contracts.StageSucceeded || len(workers.calls) != 1 || model.callCount() != 4 {
+		t.Fatalf("Run = (%+v, %v); Worker calls = %d; model calls = %d", result, err, len(workers.calls), model.callCount())
+	}
+}
+
 func TestStreamlineWallDeadlineStopsBlockedModel(t *testing.T) {
 	factory := mustFactory(
 		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, blockingModel{},
