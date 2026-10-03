@@ -3,8 +3,8 @@ id: V119-001
 title: Classify Trailmark child memory exhaustion as capacity
 milestone: trailmark-memory-capacity-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: eae6f6354ebae1fb1343ab597254d2a94b3c09dd
 depends_on: []
 languages: [python]
 goal: Tell the model that a fixed child-memory limit is non-retryable capacity exhaustion.
