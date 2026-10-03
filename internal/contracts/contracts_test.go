@@ -40,6 +40,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"worker-completion-failure.json":               roundTrip[WorkerCompletion],
 		"worker-completion-empty-observations.json":    roundTrip[WorkerCompletion],
 		"runtime-settings-ca-bundle.json":              roundTrip[RuntimeSettings],
+		"runtime-settings-ca-bundle-crlf.json":         roundTrip[RuntimeSettings],
 	}
 
 	for filename, decode := range cases {
@@ -89,6 +90,11 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 		"runtime-settings-ca-between.json":                    reject[RuntimeSettings],
 		"runtime-settings-ca-key-comment.json":                reject[RuntimeSettings],
 		"runtime-settings-ca-header.json":                     reject[RuntimeSettings],
+		"runtime-settings-ca-end-comment.json":                reject[RuntimeSettings],
+		"runtime-settings-ca-truncated-block.json":            reject[RuntimeSettings],
+		"runtime-settings-ca-end-unterminated.json":           reject[RuntimeSettings],
+		"runtime-settings-ca-joined.json":                     reject[RuntimeSettings],
+		"runtime-settings-ca-unicode-space.json":              reject[RuntimeSettings],
 	}
 
 	for filename, decode := range cases {

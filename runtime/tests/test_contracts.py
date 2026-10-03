@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ssl
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -61,6 +62,11 @@ DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
     "runtime-settings-ca-between.json": (RuntimeSettings, "invariant"),
     "runtime-settings-ca-key-comment.json": (RuntimeSettings, "invariant"),
     "runtime-settings-ca-header.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-end-comment.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-truncated-block.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-end-unterminated.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-joined.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-ca-unicode-space.json": (RuntimeSettings, "invariant"),
     "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenance, "schema"),
     "workspace-capabilities-unsorted-modes.json": (
         WorkspaceCapabilities,
@@ -79,6 +85,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "runtime-settings-proxy.json": RuntimeSettings,
     "runtime-settings-combined.json": RuntimeSettings,
     "runtime-settings-ca-bundle.json": RuntimeSettings,
+    "runtime-settings-ca-bundle-crlf.json": RuntimeSettings,
     "runtime-provenance.json": ResolvedRuntimeConfigProvenance,
     "runtime-provenance-empty.json": ResolvedRuntimeConfigProvenance,
     "runtime-report.json": RuntimeReport,
@@ -140,6 +147,11 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "runtime-settings-ca-between.json": RuntimeSettings,
     "runtime-settings-ca-key-comment.json": RuntimeSettings,
     "runtime-settings-ca-header.json": RuntimeSettings,
+    "runtime-settings-ca-end-comment.json": RuntimeSettings,
+    "runtime-settings-ca-truncated-block.json": RuntimeSettings,
+    "runtime-settings-ca-end-unterminated.json": RuntimeSettings,
+    "runtime-settings-ca-joined.json": RuntimeSettings,
+    "runtime-settings-ca-unicode-space.json": RuntimeSettings,
 }
 
 
@@ -172,6 +184,7 @@ FIXTURE_SCHEMAS = {
     "runtime-settings-proxy": "allocation.schema.json#/$defs/RuntimeSettings",
     "runtime-settings-combined": "allocation.schema.json#/$defs/RuntimeSettings",
     "runtime-settings-ca-bundle": "allocation.schema.json#/$defs/RuntimeSettings",
+    "runtime-settings-ca-bundle-crlf": "allocation.schema.json#/$defs/RuntimeSettings",
     "agent-state-snapshot": "agent-state.schema.json",
     "agent-registration": "agent-registration.schema.json",
     "agent-registration-response": "agent-registration-response.schema.json",
@@ -636,6 +649,32 @@ def test_agent_template_skills_reserve_native_names_and_require_tool_budget() ->
     del unbudgeted["modelPolicy"]["maxToolCalls"]
     with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
         ResolvedAgentTemplate.model_validate(unbudgeted)
+
+
+CA_BUNDLE_CASES = json.loads((FIXTURES / "ca-bundle-cases.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("owner", ["httpProxy", "caido"])
+@pytest.mark.parametrize(
+    ("valid", "case"),
+    [(True, case) for case in CA_BUNDLE_CASES["valid"]]
+    + [(False, case) for case in CA_BUNDLE_CASES["invalid"]],
+    ids=lambda value: value["name"] if isinstance(value, dict) else str(value),
+)
+def test_shared_ca_bundle_cases_match_server_grammar(
+    owner: str, valid: bool, case: dict[str, str]
+) -> None:
+    base = json.loads(
+        (FIXTURES / "valid" / "runtime-settings-combined.json").read_text(encoding="utf-8")
+    )
+    base[owner]["caBundlePem"] = case["value"]
+    if not valid:
+        with pytest.raises(ValidationError):
+            RuntimeSettings.model_validate(base)
+        return
+    assert RuntimeSettings.model_validate(base)
+    # Adapters load the whole accepted bundle at once; the grammar must keep that working.
+    ssl.create_default_context().load_verify_locations(cadata=case["value"])
 
 
 @pytest.mark.parametrize(

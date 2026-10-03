@@ -201,8 +201,18 @@ _RUNTIME_ADAPTER_ERROR_CODES = frozenset(
         "request_failed",
     }
 )
-_CERTIFICATE_PATTERN = re.compile(
-    r"-----BEGIN CERTIFICATE-----\s+.+?\s+-----END CERTIFICATE-----", re.DOTALL
+# Byte-for-byte the same expressions as internal/cabundle/validate.go. Every
+# construct is ASCII-only, so Python re and Go RE2 agree on what they match.
+_CERTIFICATE_BLOCK = (
+    r"-----BEGIN CERTIFICATE-----\r?\n((?:[A-Za-z0-9+/=]+\r?\n)+)-----END CERTIFICATE-----"
+)
+_CERTIFICATE_BLOCK_PATTERN = re.compile(_CERTIFICATE_BLOCK)
+_CA_BUNDLE_PATTERN = re.compile(
+    r"(?:[\t\n\f\r ]*\n)?"
+    + _CERTIFICATE_BLOCK
+    + r"(?:[\t\n\f\r ]*\n"
+    + _CERTIFICATE_BLOCK
+    + r")*[\t\n\f\r ]*"
 )
 _FORBIDDEN_RUNTIME_HEADERS = frozenset(
     {
