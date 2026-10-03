@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V202-001
+title: Hold one transfer lease from blob staging through publication
+milestone: artifact-transfer-reliability-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Prevent Planner Memory and finding proposal writes from losing transfer capacity after filesystem bytes are staged.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/137
+  finding: PreparePayload releases its slot before these callers enter their transactional Write, which then reacquires capacity.
+scope:
+  in:
+    - Hold an outer transfer lease around staging and publication in both callers.
+    - Verify writes succeed when other transfers consume the remaining slots after staging.
+    - Verify an initially full transfer budget fails before staging.
+  out:
+    - Changing transfer pool size or blob retention policy.
+acceptance_criteria:
+  - {id: A1, text: Memory and finding writes each retain one slot through staging and publication.}
+  - {id: A2, text: Filling every other slot after staging does not reject either publication.}
+  - {id: A3, text: A fully occupied budget fails before filesystem staging.}
+tests:
+  - {command: go test ./internal/memory/..., covers: [A1, A2, A3]}
+  - {command: go test -tags=integration ./internal/findingintake, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
