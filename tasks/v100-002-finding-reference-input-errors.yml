@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V100-002
+title: Return repairable errors for invalid finding references
+milestone: openapi-yaml-and-finding-input-repair-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Ensure malformed evidence and standard reference lists never crash the finding tool.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/296
+  finding: ADK leaves a whole reference list as raw dicts when any item fails conversion, and the publisher assumes model instances.
+scope:
+  in:
+    - Accept Pydantic models and raw values at the publisher boundary and validate through existing safe repair paths.
+    - Cover missing, empty, extra-key and mixed-list references through all three FunctionTool facades.
+    - Verify failure diagnostics and metrics exclude submitted values.
+  out:
+    - Change the finding provider schema or submission payload format.
+acceptance_criteria:
+  - {id: A1, text: Invalid evidence refs return tool_input_invalid with non-empty revision guidance.}
+  - {id: A2, text: Invalid standard refs and mixed lists return tool_input_invalid, never AttributeError.}
+  - {id: A3, text: Valid refs keep the existing submission behavior.}
+  - {id: A4, text: Failure diagnostics and metrics do not reveal input values.}
+  - {id: A5, text: Focused Runtime tests and lint pass.}
+tests:
+  - {command: cd runtime && .venv/bin/pytest tests/test_finding_facades.py, covers: [A1, A2, A3, A4, A5]}
+  - {command: cd runtime && .venv/bin/ruff check src/contractor_runtime/toolsets/security_findings/publisher.py tests/test_finding_facades.py, covers: [A5]}
