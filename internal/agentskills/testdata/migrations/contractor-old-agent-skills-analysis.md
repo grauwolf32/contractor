@@ -13,7 +13,7 @@ annotation, change-inspection, and report-writing operations now cover its
 model-visible procedure. Publishing any other package remains distinct from
 proving that a compatible Worker exists.
 
-The canonical package digests for the migrated source trees are:
+The canonical package digests at migration are:
 
 | Package | Digest |
 | --- | --- |
@@ -21,6 +21,11 @@ The canonical package digests for the migrated source trees are:
 | `trace` | `sha256:2b71e3f49e9da6aee8e9724c60fe8dc22987907ac99d262c1d0068d4936b3ebc` |
 | `vuln-scan` | `sha256:504c68f2c72545ab190d9b79140ee74fcab7abee6d02a4039cdc41caada20b16` |
 | `vulns` | `sha256:92dc4640426c8aa5f6374eed1b53775552fe14daf1becd89d7f456886212d274` |
+
+The trace annotation reference was later clarified in commit `1b8a3fae`.
+Its current package digest is
+`sha256:2c47c4606c629aa826f52c63d6435f34a20e244475dea30837d4432c50abba7e`;
+the table retains the exact migration snapshot for provenance.
 
 The digest identifies exact package bytes. Server-side AgentTemplate selection
 uses the logical versionless `skills/<name>` binding and is intentionally
