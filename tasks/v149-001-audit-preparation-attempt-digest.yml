@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V149-001
+title: Include prepare maxRunAttempts in AuditProfile identity
+milestone: audit-preparation-attempt-digest-2026-10
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, markdown]
+goal: Make AuditProfile digests and persisted snapshot integrity cover prepare attempt budgets.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/181
+  finding: AuditProfile digest omits workflows[].maxRunAttempts even though snapshots retain it.
+scope:
+  in:
+    - Hash nonzero maxRunAttempts for prepare bindings.
+    - Reject tampered persisted snapshots and preserve existing no-prepare profile digests.
+    - Document the digest field.
+  out:
+    - Change Audit preparation execution or existing no-prepare identities.
+acceptance_criteria:
+  - {id: A1, text: Changing maxRunAttempts changes the profile digest.}
+  - {id: A2, text: A snapshot with a changed budget and stale digest is rejected.}
+  - {id: A3, text: Repository profiles without prepare roles keep their prior digests.}
+tests:
+  - {command: go test ./internal/config -count=1, covers: [A1, A2, A3]}
