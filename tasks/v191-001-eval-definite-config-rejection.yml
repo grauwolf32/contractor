@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V191-001
+title: Reject Eval create intents on deleted Runtime label bindings
+milestone: eval-admission-recovery-2026-10
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let Eval experiments drain when a configuration dependency disappears after preparation.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/204
+  specification: docs/spec/15-managed-evaluations.md
+  finding: A missing Runtime label binding is definite during preflight but remains an unknown create outcome after admission.
+scope:
+  in:
+    - Share definite dependency classification between preflight and create rejection.
+    - Reject only confirmed non-acceptance errors with a specific eval_not_ready diagnostic.
+    - Verify Workflow and Audit members settle and cancellation drains after binding deletion.
+    - Preserve intent for unknown or retryable failures.
+  out:
+    - Changing Runtime label deletion rules or retrying uncertain writes.
+acceptance_criteria:
+  - {id: A1, text: Deleted Runtime label bindings reject Workflow run-create and Audit audit-start intents.}
+  - {id: A2, text: Later members and cancellation continue without recreating the binding.}
+  - {id: A3, text: Unknown failures keep their intent for replay.}
+tests:
+  - {command: go test ./internal/evalservice, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
