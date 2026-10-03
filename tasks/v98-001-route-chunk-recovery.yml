@@ -3,8 +3,8 @@ id: V98-001
 title: Recover visibly from failed lazy route chunks
 milestone: ui-navigation-and-run-disclosure-reliability-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 43715178df4987797d70563c4f9a8831937d7010
 depends_on: []
 languages: [typescript]
 goal: Keep navigation usable and offer a full reload when a lazy route chunk fails to load.

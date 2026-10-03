@@ -3,8 +3,8 @@ id: V98-002
 title: Preserve Run attempt disclosures through snapshot refreshes
 milestone: ui-navigation-and-run-disclosure-reliability-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1b0ce3c23c069a96af2e2b08c005e7f13fb30309
 depends_on: []
 languages: [typescript]
 goal: Keep user-chosen attempt and Planner instructions disclosures during Run refetches and live events.
