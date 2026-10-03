@@ -3,7 +3,8 @@ id: V209-001
 title: Stop unsupported finding-verification tasks before next-Round admission
 milestone: audit-round-reliability-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5922f168984a2d8ca1cbb3d80332a977b57a40f3
 depends_on: []
 languages: [go]
 goal: Prevent later Audit Rounds from admitting tasks that their Workflow executor cannot run.
