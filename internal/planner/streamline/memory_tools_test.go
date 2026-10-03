@@ -581,6 +581,37 @@ func (s *plannerMemoryArtifactStore) List(
 	return result, nil
 }
 
+func (s *plannerMemoryArtifactStore) LoadAll(
+	_ context.Context,
+	binding plannermemory.Binding,
+) ([]artifacts.ReadResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prefix := binding.RunID + "/" + binding.Namespace + "/" + plannermemory.ArtifactNamePrefix
+	result := make([]artifacts.ReadResult, 0)
+	for key, stored := range s.bindings {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		revision := stored.revision
+		result = append(result, artifacts.ReadResult{
+			Ref: artifacts.ArtifactRef{
+				Namespace: binding.Namespace, Name: strings.TrimPrefix(key, binding.RunID+"/"+binding.Namespace+"/"),
+				Revision: &revision,
+			},
+			Payload: artifacts.Payload{
+				MediaType: stored.payload.MediaType, Data: append([]byte(nil), stored.payload.Data...),
+			},
+			BindingCreatedAt: stored.bindingCreatedAt, RevisionCreatedAt: stored.revisionCreatedAt,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Ref.Name < result[j].Ref.Name })
+	if len(result) > plannermemory.MaximumNotes+1 {
+		result = result[:plannermemory.MaximumNotes+1]
+	}
+	return result, nil
+}
+
 func (s *plannerMemoryArtifactStore) Read(
 	_ context.Context,
 	binding plannermemory.Binding,

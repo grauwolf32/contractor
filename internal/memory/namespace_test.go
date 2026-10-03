@@ -68,6 +68,92 @@ func TestNamespaceWriteReplaceAppendListSearchAndTags(t *testing.T) {
 	}
 }
 
+func TestNamespaceBatchStoreCallBudget(t *testing.T) {
+	store := newMemoryArtifactStore()
+	for ordinal := 0; ordinal < MaximumNotes; ordinal++ {
+		store.seed(t, "analysis", "note_"+decimal(ordinal), "body", uint64(ordinal))
+	}
+	namespace := mustNamespace(t, store)
+	operations := []struct {
+		name string
+		run  func() error
+	}{
+		{"list", func() error { _, err := namespace.ListMemories(t.Context()); return err }},
+		{"search", func() error { _, err := namespace.SearchMemory(t.Context(), []string{"tag"}); return err }},
+		{"tags", func() error { _, err := namespace.ListMemoryTags(t.Context()); return err }},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			store.loadCalls, store.listCalls, store.readCalls, store.writeCalls = 0, 0, 0, 0
+			if err := operation.run(); err != nil {
+				t.Fatal(err)
+			}
+			if store.loadCalls != 1 || store.listCalls != 0 || store.readCalls != 0 || store.writeCalls != 0 {
+				t.Fatalf("Store calls: LoadAll=%d List=%d Read=%d Write=%d", store.loadCalls, store.listCalls, store.readCalls, store.writeCalls)
+			}
+		})
+	}
+
+	createStore := newMemoryArtifactStore()
+	for ordinal := 0; ordinal < MaximumNotes-1; ordinal++ {
+		createStore.seed(t, "analysis", "note_"+decimal(ordinal), "body", uint64(ordinal))
+	}
+	createNamespace := mustNamespace(t, createStore)
+	if _, err := createNamespace.WriteMemory(t.Context(), "last", "body", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if createStore.loadCalls != 1 || createStore.listCalls != 0 || createStore.readCalls != 0 || createStore.writeCalls != 1 {
+		t.Fatalf("create Store calls: LoadAll=%d List=%d Read=%d Write=%d", createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls)
+	}
+	createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls = 0, 0, 0, 0
+	if _, err := createNamespace.WriteMemory(t.Context(), "last", "replacement", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if createStore.listCalls != 0 || createStore.loadCalls != 1 || createStore.readCalls != 0 || createStore.writeCalls != 1 {
+		t.Fatalf("replace Store calls: LoadAll=%d List=%d Read=%d Write=%d", createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls)
+	}
+	createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls = 0, 0, 0, 0
+	if _, err := createNamespace.AppendMemory(t.Context(), "last", "appended"); err != nil {
+		t.Fatal(err)
+	}
+	if createStore.listCalls != 0 || createStore.loadCalls != 0 || createStore.readCalls != 1 || createStore.writeCalls != 1 {
+		t.Fatalf("append Store calls: LoadAll=%d List=%d Read=%d Write=%d", createStore.loadCalls, createStore.listCalls, createStore.readCalls, createStore.writeCalls)
+	}
+}
+
+func TestNamespaceBatchSnapshotRejectsCorruption(t *testing.T) {
+	base := newMemoryArtifactStore()
+	base.seed(t, "analysis", "first", "body", 0)
+	snapshot, err := base.LoadAll(t.Context(), Binding{Namespace: "analysis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		values []artifacts.ReadResult
+	}{
+		{"namespace mismatch", func() []artifacts.ReadResult {
+			values := append([]artifacts.ReadResult(nil), snapshot...)
+			values[0].Ref.Namespace = "foreign"
+			return values
+		}()},
+		{"duplicate names", append(append([]artifacts.ReadResult(nil), snapshot...), snapshot[0])},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := newMemoryArtifactStore()
+			store.loadOverride = test.values
+			_, err := mustNamespace(t, store).ListMemories(t.Context())
+			assertToolError(t, err, CodeUnavailable, true)
+		})
+	}
+	overflow := newMemoryArtifactStore()
+	for ordinal := 0; ordinal <= MaximumNotes; ordinal++ {
+		overflow.seed(t, "analysis", "note_"+decimal(ordinal), "body", uint64(ordinal))
+	}
+	_, err = mustNamespace(t, overflow).ListMemories(t.Context())
+	assertToolError(t, err, CodeUnavailable, true)
+}
+
 func TestNamespaceResponseLossUsesExactReplayAndAppendOccursOnce(t *testing.T) {
 	for _, fault := range []string{"unknown_before", "unknown_after"} {
 		t.Run(fault, func(t *testing.T) {
@@ -126,7 +212,7 @@ func TestNamespaceCASInterferenceReturnsChangedWithoutOverwrite(t *testing.T) {
 
 func TestNamespaceReconciliationUsesCurrentReadAuthorityError(t *testing.T) {
 	store := newMemoryArtifactStore()
-	store.readFaults = []error{nil, ErrAccessForbidden}
+	store.readFaults = []error{ErrAccessForbidden}
 	store.faults = []string{"unknown_before", "unknown_before"}
 	namespace := mustNamespace(t, store)
 
@@ -391,6 +477,11 @@ type memoryArtifactStore struct {
 	maximumActive  int
 	operationDelay time.Duration
 	readFaults     []error
+	loadOverride   []artifacts.ReadResult
+	listCalls      int
+	loadCalls      int
+	readCalls      int
+	writeCalls     int
 }
 
 func newMemoryArtifactStore() *memoryArtifactStore {
@@ -402,6 +493,7 @@ func (s *memoryArtifactStore) List(
 ) ([]artifacts.ArtifactRef, error) {
 	s.begin()
 	defer s.end()
+	s.listCalls++
 	if s.forbidden {
 		return nil, ErrAccessForbidden
 	}
@@ -416,11 +508,46 @@ func (s *memoryArtifactStore) List(
 	return result, nil
 }
 
+func (s *memoryArtifactStore) LoadAll(
+	_ context.Context, binding Binding,
+) ([]artifacts.ReadResult, error) {
+	s.begin()
+	defer s.end()
+	s.loadCalls++
+	if s.forbidden {
+		return nil, ErrAccessForbidden
+	}
+	if s.loadOverride != nil {
+		return append([]artifacts.ReadResult(nil), s.loadOverride...), nil
+	}
+	result := make([]artifacts.ReadResult, 0, len(s.bindings))
+	for key, stored := range s.bindings {
+		namespace, name, _ := strings.Cut(key, "/")
+		if namespace != binding.Namespace || !strings.HasPrefix(name, ArtifactNamePrefix) {
+			continue
+		}
+		revision := stored.revision
+		result = append(result, artifacts.ReadResult{
+			Ref: artifacts.ArtifactRef{Namespace: namespace, Name: name, Revision: &revision},
+			Payload: artifacts.Payload{
+				MediaType: stored.payload.MediaType, Data: append([]byte(nil), stored.payload.Data...),
+			},
+			BindingCreatedAt: stored.bindingCreatedAt, RevisionCreatedAt: stored.revisionCreatedAt,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Ref.Name < result[j].Ref.Name })
+	if len(result) > MaximumNotes+1 {
+		result = result[:MaximumNotes+1]
+	}
+	return result, nil
+}
+
 func (s *memoryArtifactStore) Read(
 	_ context.Context, binding Binding, ref artifacts.ArtifactRef,
 ) (artifacts.ReadResult, error) {
 	s.begin()
 	defer s.end()
+	s.readCalls++
 	if len(s.readFaults) > 0 {
 		fault := s.readFaults[0]
 		s.readFaults = s.readFaults[1:]
@@ -454,6 +581,7 @@ func (s *memoryArtifactStore) Write(
 ) (artifacts.WriteResult, error) {
 	s.begin()
 	defer s.end()
+	s.writeCalls++
 	if s.forbidden {
 		return artifacts.WriteResult{}, ErrAccessForbidden
 	}
