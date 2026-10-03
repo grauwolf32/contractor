@@ -78,7 +78,7 @@ FROM inserted_run`,
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
-		case "23505":
+		case persistencepostgres.SQLStateUniqueViolation:
 			return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
 		return WorkflowRun{}, fmt.Errorf("create Audit WorkflowRun %q: %w", params.RunID, err)

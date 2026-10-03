@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/documentnumber"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"go.yaml.in/yaml/v4"
 	"go.yaml.in/yaml/v4/plugin/limit"
 )
@@ -163,7 +164,7 @@ func (r *documentReader) read(node *yaml.Node, depth int) (any, error) {
 }
 
 func parseJSONDocument(data []byte) (map[string]any, error) {
-	if !validJSONUnicode(data) {
+	if !strictjson.ValidUnicodeEscapes(data) {
 		return nil, &PreparationError{Code: "invalid_document"}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -238,40 +239,4 @@ func (r *documentReader) readJSON(decoder *json.Decoder, depth int) (any, error)
 		return token, nil
 	}
 	return nil, &PreparationError{Code: "invalid_document"}
-}
-
-// encoding/json replaces unpaired UTF-16 escapes with U+FFFD. Reject them
-// before decoding while preserving valid pairs and literal escaped backslashes.
-func validJSONUnicode(data []byte) bool {
-	for i := 0; i < len(data); i++ {
-		if data[i] != '\\' {
-			continue
-		}
-		if i+1 >= len(data) {
-			return false
-		}
-		if data[i+1] != 'u' {
-			i++
-			continue
-		}
-		if i+6 > len(data) {
-			return false
-		}
-		code, err := strconv.ParseUint(string(data[i+2:i+6]), 16, 16)
-		if err != nil || code >= 0xdc00 && code <= 0xdfff {
-			return false
-		}
-		if code >= 0xd800 && code <= 0xdbff {
-			if i+12 > len(data) || data[i+6] != '\\' || data[i+7] != 'u' {
-				return false
-			}
-			low, err := strconv.ParseUint(string(data[i+8:i+12]), 16, 16)
-			if err != nil || low < 0xdc00 || low > 0xdfff {
-				return false
-			}
-			i += 6
-		}
-		i += 5
-	}
-	return true
 }

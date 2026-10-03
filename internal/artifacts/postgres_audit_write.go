@@ -61,7 +61,7 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return WriteResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return WriteResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrInvalidScope)
 		default:
 			return WriteResult{}, fmt.Errorf("create Audit artifact scope: %w", err)
@@ -119,9 +119,9 @@ FROM inserted_revision, created_binding`,
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return WriteResult{}, fmt.Errorf("write Audit artifact: %w", ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return WriteResult{}, fmt.Errorf("write Audit artifact: %w", ErrInvalidScope)
-		case "23505":
+		case persistencepostgres.SQLStateUniqueViolation:
 			return WriteResult{}, &ConflictError{Ref: target}
 		default:
 			return WriteResult{}, fmt.Errorf("write Audit artifact %s/%s: %w", target.Namespace, target.Name, err)

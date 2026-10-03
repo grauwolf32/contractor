@@ -41,27 +41,19 @@ func (c *CLI) runWorkflow(ctx context.Context, client *publicclient.Client, prin
 			return err
 		}
 		page := response.JSON200
-		if printer.Mode() == OutputJSON {
-			return printer.JSON(page)
-		}
-		if printer.Mode() == OutputName {
-			names := make([]string, 0, len(page.Items))
-			for _, workflow := range page.Items {
-				names = append(names, workflow.Ref.Name+"@"+workflow.Ref.Version)
-			}
-			return printer.Names(names...)
-		}
-		rows := make([][]string, 0, len(page.Items))
-		for _, workflow := range page.Items {
-			rows = append(rows, []string{
-				workflow.Ref.Name + "@" + workflow.Ref.Version,
-				workflow.EntryStage,
-				strconv.Itoa(len(workflow.Inputs)),
-				strconv.Itoa(len(workflow.Parameters)),
-				strconv.Itoa(len(workflow.Outputs)),
-			})
-		}
-		return printer.Table([]string{"WORKFLOW", "ENTRY STAGE", "INPUTS", "PARAMETERS", "OUTPUTS"}, rows)
+		return List(printer, page, page.Items,
+			func(workflow publicapi.WorkflowSummary) string { return workflow.Ref.Name + "@" + workflow.Ref.Version },
+			[]string{"WORKFLOW", "ENTRY STAGE", "INPUTS", "PARAMETERS", "OUTPUTS"},
+			func(workflow publicapi.WorkflowSummary) []string {
+				return []string{
+					workflow.Ref.Name + "@" + workflow.Ref.Version,
+					workflow.EntryStage,
+					strconv.Itoa(len(workflow.Inputs)),
+					strconv.Itoa(len(workflow.Parameters)),
+					strconv.Itoa(len(workflow.Outputs)),
+				}
+			},
+		)
 	case "get", "show":
 		flags, err := parseFlags("contractor workflow get", c.stderr, args[1:], func(*flag.FlagSet) {})
 		if err != nil || flags == nil {

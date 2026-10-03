@@ -4,9 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"os"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
 )
@@ -46,7 +44,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := parseFlags(flags, args[1:]); err != nil {
 			return err
 		}
-		leaf, err := leafOptions(*dns, *ips, *force)
+		leaf, err := localpki.ParseLeafOptions(*dns, *ips, *force)
 		if err != nil {
 			return err
 		}
@@ -66,7 +64,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err := parseFlags(flags, args[1:]); err != nil {
 			return err
 		}
-		leaf, err := leafOptions(*dns, *ips, *force)
+		leaf, err := localpki.ParseLeafOptions(*dns, *ips, *force)
 		if err != nil {
 			return err
 		}
@@ -95,31 +93,4 @@ func parseFlags(flags *flag.FlagSet, args []string) error {
 		return fmt.Errorf("unexpected positional arguments: %v", flags.Args())
 	}
 	return nil
-}
-
-func leafOptions(rawDNS, rawIPs string, force bool) (localpki.LeafOptions, error) {
-	dnsNames := splitNonEmpty(rawDNS)
-	ipAddresses := make([]net.IP, 0)
-	for _, raw := range splitNonEmpty(rawIPs) {
-		address := net.ParseIP(raw)
-		if address == nil {
-			return localpki.LeafOptions{}, fmt.Errorf("invalid IP SAN %q", raw)
-		}
-		ipAddresses = append(ipAddresses, address)
-	}
-	return localpki.LeafOptions{DNSNames: dnsNames, IPAddresses: ipAddresses, Force: force}, nil
-}
-
-func splitNonEmpty(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if value := strings.TrimSpace(part); value != "" {
-			result = append(result, value)
-		}
-	}
-	return result
 }

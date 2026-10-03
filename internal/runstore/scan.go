@@ -3,6 +3,7 @@ package runstore
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -104,7 +105,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	if err := validateRunSkillSnapshot(result.SkillSnapshot, false); err != nil {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun Skill snapshot: %w", err)
 	}
-	if labels := result.RuntimeConfig.ExplicitLabels(); !equalRunLabels(labels, result.RuntimeLabels) {
+	if labels := result.RuntimeConfig.ExplicitLabels(); !slices.Equal(labels, result.RuntimeLabels) {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig labels: projection mismatch")
 	}
 	result.RuntimeLabels = append([]string{}, result.RuntimeLabels...)
@@ -117,18 +118,6 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		}
 	}
 	return result, nil
-}
-
-func equalRunLabels(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }
 
 func prefixedWorkflowRunColumns(alias string) string {

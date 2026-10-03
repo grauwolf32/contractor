@@ -1,13 +1,8 @@
 package auditservice
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"sort"
 	"strings"
@@ -17,7 +12,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func encodeDraftSelection(value DraftSelection) (json.RawMessage, error) {
@@ -29,7 +26,7 @@ func encodeDraftSelection(value DraftSelection) (json.RawMessage, error) {
 
 func DecodeDraftSelection(data []byte) (DraftSelection, error) {
 	var result DraftSelection
-	if err := decodeStrict(data, &result); err != nil || validateDraftSelection(result) != nil {
+	if err := strictjson.Decode(data, &result); err != nil || validateDraftSelection(result) != nil {
 		return DraftSelection{}, fmt.Errorf("%w: stored Audit input selection is invalid", ErrInvalid)
 	}
 	return result, nil
@@ -44,7 +41,7 @@ func EncodeBaseline(value BaselineSnapshot) (json.RawMessage, error) {
 
 func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 	var result BaselineSnapshot
-	if err := decodeStrict(data, &result); err != nil || ValidateBaseline(result) != nil {
+	if err := strictjson.Decode(data, &result); err != nil || ValidateBaseline(result) != nil {
 		return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit baseline is invalid", ErrInvalid)
 	}
 	return cloneBaseline(result), nil
@@ -80,10 +77,10 @@ func ValidateBaseline(value BaselineSnapshot) error {
 	if _, err := normalizeScope(value.Scope); err != nil {
 		return err
 	}
-	if normalized, err := normalizeLabels(value.RuntimeLabels); err != nil || !equalStrings(normalized, value.RuntimeLabels) {
+	if normalized, err := normalizeLabels(value.RuntimeLabels); err != nil || !slices.Equal(normalized, value.RuntimeLabels) {
 		return fmt.Errorf("%w: Audit baseline Runtime labels are invalid", ErrInvalid)
 	}
-	if err := value.RuntimeConfig.Validate(); err != nil || !equalStrings(value.RuntimeLabels, value.RuntimeConfig.ExplicitLabels()) {
+	if err := value.RuntimeConfig.Validate(); err != nil || !slices.Equal(value.RuntimeLabels, value.RuntimeConfig.ExplicitLabels()) {
 		return fmt.Errorf("%w: Audit baseline RuntimeConfig is invalid", ErrInvalid)
 	}
 	previous := ""
@@ -110,8 +107,8 @@ func ValidateBaseline(value BaselineSnapshot) error {
 		}
 	}
 	if validateExactArtifact(value.Inventory.Worklist, true) != nil ||
-		!validDigest(value.Inventory.SourceContentDigest) ||
-		!validDigest(value.Inventory.CanonicalInventoryDigest) ||
+		!contentdigest.Valid(value.Inventory.SourceContentDigest) ||
+		!contentdigest.Valid(value.Inventory.CanonicalInventoryDigest) ||
 		value.Inventory.Gaps == nil || !sort.StringsAreSorted(value.Inventory.Gaps) ||
 		auditdomain.ValidateDispatchExecutionManifest(value.Inventory.ExecutionManifest) != nil {
 		return fmt.Errorf("%w: Audit baseline inventory is invalid", ErrInvalid)
@@ -153,21 +150,8 @@ func normalizeLabels(value []string) ([]string, error) {
 	return runtimeconfig.NormalizeRunLabels(value)
 }
 
-func decodeStrict(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("JSON value has trailing data")
-	}
-	return nil
-}
-
 func validateExactArtifact(value auditstore.ExactArtifact, metadata bool) error {
-	if value.Ref.ValidateExact() != nil || !validDigest(value.Digest) {
+	if value.Ref.ValidateExact() != nil || !contentdigest.Valid(value.Digest) {
 		return ErrInvalid
 	}
 	if metadata && (value.MediaType == "" || value.SizeBytes < 0) {
@@ -179,14 +163,6 @@ func validateExactArtifact(value auditstore.ExactArtifact, metadata bool) error 
 func validComponent(value string) bool {
 	return value != "" && len([]byte(value)) <= 128 && utf8.ValidString(value) &&
 		!strings.Contains(value, "/") && !strings.ContainsRune(value, 0)
-}
-
-func validDigest(value string) bool {
-	if len(value) != len("sha256:")+sha256.Size*2 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	_, err := hex.DecodeString(strings.TrimPrefix(value, "sha256:"))
-	return err == nil
 }
 
 func validSortedIDs(values []string) bool {
@@ -213,18 +189,6 @@ func mergeIDs(sets ...[]string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }
 
 func cloneExactInputs(source map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {

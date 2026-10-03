@@ -54,7 +54,7 @@ FROM workflow_run_output_publications
 WHERE run_id = $1 AND output_name = $2`, params.RunID, params.OutputName))
 	}
 	if err != nil {
-		if persistencepostgres.SQLState(err) == "23503" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateForeignKeyViolation {
 			return RunOutputPublication{}, false, fmt.Errorf("record Project output publication: %w", ErrNotFound)
 		}
 		return RunOutputPublication{}, false, fmt.Errorf("record Project output publication: %w", err)
@@ -180,17 +180,12 @@ func sameOutputPublication(
 ) bool {
 	if record.RunID != params.RunID || record.ProjectID != params.ProjectID ||
 		record.OutputName != params.OutputName || record.Status != params.Status ||
-		!sameExactArtifactRef(record.Source, params.Source) ||
+		!record.Source.SameExact(params.Source) ||
 		record.ErrorCode != params.ErrorCode || record.ErrorMessage != params.ErrorMessage {
 		return false
 	}
 	if record.Target == nil || params.Target == nil {
 		return record.Target == nil && params.Target == nil
 	}
-	return sameExactArtifactRef(*record.Target, *params.Target)
-}
-
-func sameExactArtifactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
+	return record.Target.SameExact(*params.Target)
 }

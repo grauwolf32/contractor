@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // Verdict is one model's independent assessment of its assigned checklist item.
@@ -27,7 +28,7 @@ type Verdict struct {
 func DecodeVerdict(data []byte, expectedItemKey string, contextEvidenceIDs []string) (Verdict, error) {
 	var verdict Verdict
 	bad := func() (Verdict, error) { return Verdict{}, invalid(CodeInvalidVerdict) }
-	if len(data) == 0 || len(data) > MaxVerdictBytes || !validJSONUnicode(data) {
+	if len(data) == 0 || len(data) > MaxVerdictBytes || !utf8.Valid(data) || !strictjson.ValidUnicodeEscapes(data) {
 		return bad()
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -192,71 +193,4 @@ func decodeVerdictStrings(decoder *json.Decoder, limit int) ([]string, error) {
 		return nil, invalid(CodeInvalidVerdict)
 	}
 	return values, nil
-}
-
-// encoding/json repairs invalid UTF-8 and unpaired UTF-16 surrogate escapes.
-// Reject those inputs before tokenization; a genuine U+FFFD remains valid text.
-// All other lexical and grammatical errors are checked by the JSON decoder.
-func validJSONUnicode(data []byte) bool {
-	if !utf8.Valid(data) {
-		return false
-	}
-	inString := false
-	for index := 0; index < len(data); index++ {
-		switch data[index] {
-		case '"':
-			inString = !inString
-		case '\\':
-			if !inString {
-				continue
-			}
-			index++
-			if index >= len(data) {
-				return false
-			}
-			if data[index] != 'u' {
-				continue
-			}
-			value, ok := unicodeEscape(data[index+1:])
-			if !ok {
-				return false
-			}
-			index += 4
-			if value >= 0xDC00 && value <= 0xDFFF {
-				return false
-			}
-			if value >= 0xD800 && value <= 0xDBFF {
-				if len(data)-index < 7 || data[index+1] != '\\' || data[index+2] != 'u' {
-					return false
-				}
-				low, ok := unicodeEscape(data[index+3:])
-				if !ok || low < 0xDC00 || low > 0xDFFF {
-					return false
-				}
-				index += 6
-			}
-		}
-	}
-	return true
-}
-
-func unicodeEscape(data []byte) (uint16, bool) {
-	if len(data) < 4 {
-		return 0, false
-	}
-	var value uint16
-	for _, digit := range data[:4] {
-		value <<= 4
-		switch {
-		case digit >= '0' && digit <= '9':
-			value += uint16(digit - '0')
-		case digit >= 'a' && digit <= 'f':
-			value += uint16(digit-'a') + 10
-		case digit >= 'A' && digit <= 'F':
-			value += uint16(digit-'A') + 10
-		default:
-			return 0, false
-		}
-	}
-	return value, true
 }

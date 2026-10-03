@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -56,7 +57,7 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 	}
 	execution.State = runstore.StageFinalizing
 	execution.CandidateResultSchemaVersion = stringPointer(contracts.APIVersion)
-	clonedCandidate := cloneStageResult(candidate)
+	clonedCandidate := candidate.Clone()
 	execution.CandidateResult = &clonedCandidate
 	execution.FinalizationID = &finalizationID
 	execution.FinalizationDeadline = &deadline
@@ -111,7 +112,7 @@ func (s *Scheduler) validateCandidate(
 			}
 			return &candidateVerificationError{cause: wrapped}
 		}
-		if !sameExactRef(ref, resolved.Ref) ||
+		if !ref.SameExact(resolved.Ref) ||
 			!contracts.AcceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolved.MediaType) {
 			return fmt.Errorf("Stage result artifact %q differs from its declared exact version or media type", name)
 		}
@@ -204,9 +205,9 @@ func (s *Scheduler) resumeFinalizing(
 	if err == nil {
 		err = s.persistence.CommitResultProgression(commitContext, ResultProgression{
 			RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-			Result:          cloneStageResult(*execution.CandidateResult),
-			WorkflowOutputs: cloneStringMap(workflow.stage.WorkflowOutputs),
-			OutputContracts: cloneArtifactSlots(workflow.workflow.Outputs),
+			Result:          execution.CandidateResult.Clone(),
+			WorkflowOutputs: clone.Map(workflow.stage.WorkflowOutputs),
+			OutputContracts: workflowconfig.CloneArtifactSlots(workflow.workflow.Outputs),
 			Progression:     progression,
 		})
 	}
@@ -422,7 +423,7 @@ func (s *Scheduler) acceptFinalizingDuringCancellation(
 		commitContext,
 		run.RunID,
 		execution.StageExecutionID,
-		cloneStageResult(*execution.CandidateResult),
+		execution.CandidateResult.Clone(),
 	)
 	cancelCommit()
 	if err != nil {

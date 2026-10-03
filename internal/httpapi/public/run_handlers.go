@@ -250,7 +250,7 @@ func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
+		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
 	}
 }
 
@@ -417,14 +417,6 @@ func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func cloneParameters(source map[string]string) map[string]string {
-	result := make(map[string]string, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
-}
-
 func sortedArtifactSlots(source map[string]contracts.ArtifactRef) []string {
 	result := make([]string, 0, len(source))
 	for slot := range source {
@@ -520,7 +512,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
-		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),
+		ProjectHTTPTarget:    run.ProjectHTTPTarget.Clone(),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,
 		Inputs: inputs, Attempts: attempts, Transitions: stageTransitionsReadModel(decisions), Outputs: outputs,
 		OutputPublications: outputPublicationsReadModel(publicationRecords),

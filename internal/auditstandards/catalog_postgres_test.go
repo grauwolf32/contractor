@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -61,7 +62,7 @@ SELECT count(*) FROM artifact_binding_revisions
 	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "catalog-project", OwnerID: "catalog-owner", Kind: projectstore.KindProject,
 		Name: "Catalog project", IdempotencyKey: "create-catalog-project",
-		RequestDigest: digest([]byte("catalog-project")),
+		RequestDigest: contentdigest.Bytes([]byte("catalog-project")),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +77,7 @@ SELECT count(*) FROM artifact_binding_revisions
 		t.Fatal(err)
 	}
 	read, err := retained.Read(ctx, pinned[0].Retained.Artifact)
-	if err != nil || digest(read.Payload.Data) != pinned[0].Catalog.Digest {
+	if err != nil || contentdigest.Bytes(read.Payload.Data) != pinned[0].Catalog.Digest {
 		t.Fatalf("retained package integrity = (%+v, %v)", read, err)
 	}
 	var frozen bool

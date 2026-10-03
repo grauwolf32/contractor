@@ -2,8 +2,6 @@ package planner
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -85,40 +84,19 @@ func (p *passthroughPlanner) Run(
 	}()
 
 	instrumentation := InvocationInstrumentation(p.invocation)
-	sessionSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.begin"},
-	)
-	started, err := p.sessions.Begin(ctx, p.invocation.StageExecutionID)
-	if err != nil {
-		sessionSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, sessionError("start", err)
-	}
+	started, err := StartSession(ctx, p.sessions, instrumentation, p.invocation.StageExecutionID)
 	identity = started.Identity
+	if err != nil {
+		return contracts.StageContentResult{}, err
+	}
 	if started.Completion != nil {
-		sessionSpan.End("recovered", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 		return p.recoverCompletion(ctx, *started.Completion)
 	}
-	if !started.Invoke {
-		sessionSpan.End("rejected", telemetry.PlannerSpanAttributes{
-			SessionID: identity.SessionID, ErrorCode: "planner_session_invalid",
-		})
-		return contracts.StageContentResult{}, NewError(
-			"planner_session_invalid", "Planner session did not grant invocation ownership", false, nil,
-		)
-	}
-	sessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{SessionID: identity.SessionID})
 
 	facts := RequestFactsFor([]string{p.binding}, p.request)
-	recordSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.record_request", SessionID: identity.SessionID},
-	)
-	if err := p.sessions.RecordRequest(ctx, started.Identity, facts); err != nil {
-		recordSpan.End("unavailable", telemetry.PlannerSpanAttributes{ErrorCode: "planner_session_unavailable"})
-		return contracts.StageContentResult{}, sessionError("record request", err)
+	if err := RecordSessionRequest(ctx, p.sessions, instrumentation, started.Identity, facts); err != nil {
+		return contracts.StageContentResult{}, err
 	}
-	recordSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	deadline := p.invocation.Deadline
 	if !deadline.After(time.Now()) {
 		return contracts.StageContentResult{}, p.fail(
@@ -188,11 +166,11 @@ func (p *passthroughPlanner) Run(
 	} else {
 		workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	}
-	completion := Completion{Result: pointerToResult(cloneStageResult(result))}
-	if err := p.recordCompletion(ctx, started.Identity, completion); err != nil {
-		return contracts.StageContentResult{}, sessionError("record completion", err)
+	completion := Completion{Result: pointerToResult(result.Clone())}
+	if err := CompleteSession(ctx, p.sessions, started.Identity, completion); err != nil {
+		return contracts.StageContentResult{}, SessionError("record completion", err)
 	}
-	return cloneStageResult(result), nil
+	return result.Clone(), nil
 }
 
 func (p *passthroughPlanner) ExecutionReport() (contracts.ExecutionReport, bool) {
@@ -275,7 +253,7 @@ func (p *passthroughPlanner) recoverCompletion(
 	if completion.Failure != nil {
 		return contracts.StageContentResult{}, NewErrorFromFailure(*completion.Failure, nil)
 	}
-	result := cloneStageResult(*completion.Result)
+	result := completion.Result.Clone()
 	if err := validateCandidate(
 		ctx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
@@ -288,39 +266,14 @@ func (p *passthroughPlanner) fail(
 	ctx context.Context, identity SessionIdentity, plannerError *Error,
 ) *Error {
 	failure := plannerError.Failure
-	if err := p.recordCompletion(ctx, identity, Completion{Failure: &failure}); err != nil {
-		return sessionError("record failure", errors.Join(plannerError, err))
+	if err := CompleteSession(ctx, p.sessions, identity, Completion{Failure: &failure}); err != nil {
+		return SessionError("record failure", errors.Join(plannerError, err))
 	}
 	return plannerError
 }
 
-func (p *passthroughPlanner) recordCompletion(
-	ctx context.Context, identity SessionIdentity, completion Completion,
-) error {
-	recordContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionWriteTimeout)
-	defer cancel()
-	return p.sessions.Complete(recordContext, identity, completion)
-}
-
 func NewErrorFromFailure(failure Failure, cause error) *Error {
 	return NewError(failure.Code, failure.Message, failure.Retryable, cause)
-}
-
-func sessionError(operation string, cause error) *Error {
-	if errors.Is(cause, ErrInvocationInProgress) {
-		return NewError(
-			"planner_invocation_in_progress",
-			"Planner invocation is already in progress and cannot be resumed",
-			true,
-			cause,
-		)
-	}
-	return NewError(
-		"planner_session_unavailable",
-		"Planner durable session is unavailable during "+operation,
-		true,
-		cause,
-	)
 }
 
 func validateCompletion(completion Completion) error {
@@ -341,10 +294,7 @@ func RequestFactsFor(bindings []string, request contracts.StageContentRequest) R
 		parameterNames = append(parameterNames, name)
 	}
 	sort.Strings(parameterNames)
-	artifacts := make(map[string]contracts.ArtifactRef, len(request.Artifacts))
-	for name, ref := range request.Artifacts {
-		artifacts[name] = cloneArtifactRef(ref)
-	}
+	artifacts := contracts.CloneArtifactRefs(request.Artifacts)
 	return RequestFacts{
 		Bindings:           append([]string(nil), bindings...),
 		ObjectiveDigest:    textDigest(request.Objective),
@@ -355,8 +305,7 @@ func RequestFactsFor(bindings []string, request contracts.StageContentRequest) R
 }
 
 func textDigest(value string) string {
-	digest := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes([]byte(value))
 }
 
 func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) {
@@ -367,7 +316,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 	artifacts := make(map[string]contracts.ArtifactRef, len(invocation.Context.Artifacts))
 	for name, ref := range invocation.Context.Artifacts {
 		if ref != nil {
-			artifacts[name] = cloneArtifactRef(*ref)
+			artifacts[name] = ref.Clone()
 		}
 	}
 	resultArtifacts := make(map[string]contracts.ArtifactRef)
@@ -448,20 +397,6 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 	return binding, cloneWorkerHandle(handle), nil
 }
 
-func cloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
-	result := ref
-	if ref.Revision != nil {
-		revision := *ref.Revision
-		result.Revision = &revision
-	}
-	return result
-}
-
-// CloneArtifactRef returns a detached exact reference.
-func CloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
-	return cloneArtifactRef(ref)
-}
-
 func cloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
 	result := request
 	if request.Deadline != nil {
@@ -472,38 +407,14 @@ func cloneStageRequest(request contracts.StageContentRequest) contracts.StageCon
 	for name, value := range request.Parameters {
 		result.Parameters[name] = value
 	}
-	result.Artifacts = make(map[string]contracts.ArtifactRef, len(request.Artifacts))
-	for name, ref := range request.Artifacts {
-		result.Artifacts[name] = cloneArtifactRef(ref)
-	}
-	result.ResultArtifacts = make(map[string]contracts.ArtifactRef, len(request.ResultArtifacts))
-	for name, ref := range request.ResultArtifacts {
-		result.ResultArtifacts[name] = cloneArtifactRef(ref)
-	}
+	result.Artifacts = contracts.CloneArtifactRefs(request.Artifacts)
+	result.ResultArtifacts = contracts.CloneArtifactRefs(request.ResultArtifacts)
 	return result
 }
 
 // CloneStageRequest detaches all mutable request maps.
 func CloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
 	return cloneStageRequest(request)
-}
-
-func cloneStageResult(result contracts.StageContentResult) contracts.StageContentResult {
-	cloned := result
-	cloned.Artifacts = make(map[string]contracts.ArtifactRef, len(result.Artifacts))
-	for name, ref := range result.Artifacts {
-		cloned.Artifacts[name] = cloneArtifactRef(ref)
-	}
-	if result.Error != nil {
-		errorCopy := *result.Error
-		cloned.Error = &errorCopy
-	}
-	return cloned
-}
-
-// CloneStageResult detaches all mutable result values.
-func CloneStageResult(result contracts.StageContentResult) contracts.StageContentResult {
-	return cloneStageResult(result)
 }
 
 func pointerToResult(result contracts.StageContentResult) *contracts.StageContentResult {

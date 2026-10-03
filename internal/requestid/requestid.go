@@ -4,8 +4,6 @@ package requestid
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +12,8 @@ import (
 	"regexp"
 	"sync/atomic"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 const Header = "X-Request-ID"
@@ -91,11 +91,7 @@ func Middleware(next http.Handler, options Options) http.Handler {
 }
 
 func New() (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", fmt.Errorf("generate request ID: %w", err)
-	}
-	return "request_" + hex.EncodeToString(buffer), nil
+	return randomid.New("request_")
 }
 
 func Valid(value string) bool { return validPattern.MatchString(value) }

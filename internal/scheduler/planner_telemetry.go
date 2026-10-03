@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -69,7 +70,7 @@ func (s *Scheduler) newPlannerTelemetry(
 				var material struct {
 					Headers map[string]string `json:"headers"`
 				}
-				if kind != contracts.RuntimeCredentialOTLPHeaders || decodeRuntimeCredential(plaintext, &material) != nil {
+				if kind != contracts.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
 					return errors.New("invalid OTLP credential material")
 				}
 				for name, value := range material.Headers {

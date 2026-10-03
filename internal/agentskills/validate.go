@@ -3,14 +3,13 @@ package agentskills
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/zipdirectory"
 )
 
@@ -110,9 +109,8 @@ func Validate(payload []byte, expectedName string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	digest := sha256.Sum256(payload)
 	return &Package{
-		Manifest: manifest, Digest: "sha256:" + hex.EncodeToString(digest[:]),
+		Manifest: manifest, Digest: contentdigest.Bytes(payload),
 		Resources: resources, StoredBytes: int64(len(payload)), ExpandedBytes: expanded,
 		members: members,
 	}, nil

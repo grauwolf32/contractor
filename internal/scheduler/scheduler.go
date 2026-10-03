@@ -2,8 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +9,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 const (
@@ -108,7 +108,7 @@ func applyOptionDefaults(options *Options) {
 		options.Clock = realClock{}
 	}
 	if options.NewID == nil {
-		options.NewID = schedulerID
+		options.NewID = randomid.New
 	}
 	if options.Logger == nil {
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -200,11 +200,3 @@ var (
 	errControlPlaneStateLost      = errors.New("Control Plane state for durable allocations is unavailable")
 	errControlPlaneAllocationLost = errors.New("Runtime Agent allocation is irreversibly lost")
 )
-
-func schedulerID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(buffer), nil
-}

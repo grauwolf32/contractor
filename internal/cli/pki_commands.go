@@ -3,8 +3,6 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"net"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
 )
@@ -104,24 +102,9 @@ func (c *CLI) runPKI(args []string, printer *Printer) error {
 }
 
 func parseLeafOptions(rawDNS, rawIPs string, force bool) (localpki.LeafOptions, error) {
-	dnsNames := splitComma(rawDNS)
-	ipAddresses := make([]net.IP, 0)
-	for _, raw := range splitComma(rawIPs) {
-		address := net.ParseIP(raw)
-		if address == nil {
-			return localpki.LeafOptions{}, &UsageError{Message: fmt.Sprintf("invalid IP SAN %q", raw)}
-		}
-		ipAddresses = append(ipAddresses, address)
+	leaf, err := localpki.ParseLeafOptions(rawDNS, rawIPs, force)
+	if err != nil {
+		return localpki.LeafOptions{}, &UsageError{Message: err.Error()}
 	}
-	return localpki.LeafOptions{DNSNames: dnsNames, IPAddresses: ipAddresses, Force: force}, nil
-}
-
-func splitComma(raw string) []string {
-	var result []string
-	for _, item := range strings.Split(raw, ",") {
-		if value := strings.TrimSpace(item); value != "" {
-			result = append(result, value)
-		}
-	}
-	return result
+	return leaf, nil
 }

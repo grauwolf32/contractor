@@ -2,8 +2,6 @@ package auditservice
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -128,7 +127,7 @@ INSERT INTO audit_review_requests (
 			requestID, params.AuditID, params.FindingID, row.revision, subjectDigest,
 			actions, expiresAt, params.IdempotencyKey, params.RequestDigest,
 			int64(defaultReviewTTL/time.Second)); err != nil {
-			if persistencepostgres.SQLState(err) == "23505" {
+			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 				return auditstore.ErrConflict
 			}
 			return err
@@ -267,7 +266,7 @@ INSERT INTO audit_review_decisions (
 			string(params.Verdict), severity, params.Rationale, target,
 			request.SubjectRevision, request.SubjectDigest, params.IdempotencyKey,
 			params.RequestDigest); err != nil {
-			if persistencepostgres.SQLState(err) == "23505" {
+			if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 				return auditstore.ErrConflict
 			}
 			return err
@@ -800,8 +799,7 @@ func findingSubjectDigest(row findingRow) string {
 		CurrentDecisionID: row.currentDecisionID, DuplicateTargetID: row.duplicateTargetID,
 	}
 	encoded, _ := json.Marshal(value)
-	digest := sha256.Sum256(encoded)
-	return "sha256:" + hex.EncodeToString(digest[:])
+	return contentdigest.Bytes(encoded)
 }
 
 func decisionProjection(
@@ -926,7 +924,7 @@ func validateCreateFindingReview(params CreateFindingReviewParams, now time.Time
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
 		!validReviewIdentity(params.FindingID, 256) || !validReviewIdentity(params.RequestID, 256) ||
 		params.ExpectedRevision < 1 || !validIdempotencyKey(params.IdempotencyKey) ||
-		!validDigest(params.RequestDigest) {
+		!contentdigest.Valid(params.RequestDigest) {
 		return auditstore.ErrInvalid
 	}
 	if params.ExpiresAt != nil && (!params.ExpiresAt.After(now) || params.ExpiresAt.After(now.Add(maximumReviewTTL))) {
@@ -939,7 +937,7 @@ func validateFindingDecision(params DecideFindingParams) error {
 	if !validReviewIdentity(params.OwnerID, 256) || !validReviewIdentity(params.AuditID, 256) ||
 		!validReviewIdentity(params.RequestID, 256) || !validReviewIdentity(params.DecisionID, 256) ||
 		params.ExpectedRequestRevision < 1 || !params.Verdict.Valid() ||
-		!validIdempotencyKey(params.IdempotencyKey) || !validDigest(params.RequestDigest) ||
+		!validIdempotencyKey(params.IdempotencyKey) || !contentdigest.Valid(params.RequestDigest) ||
 		!validRationale(params.Rationale) {
 		return auditstore.ErrInvalid
 	}

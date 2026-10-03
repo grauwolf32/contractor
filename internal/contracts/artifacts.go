@@ -60,6 +60,51 @@ func (r ArtifactRef) ValidateExact() error {
 	return nil
 }
 
+// Clone returns a copy that does not share the Revision pointer.
+func (r ArtifactRef) Clone() ArtifactRef {
+	if r.Revision != nil {
+		revision := *r.Revision
+		r.Revision = &revision
+	}
+	return r
+}
+
+// SameExact reports whether both refs name the same pinned revision. A ref
+// without a revision never matches.
+func (r ArtifactRef) SameExact(other ArtifactRef) bool {
+	return r.Namespace == other.Namespace && r.Name == other.Name &&
+		r.Revision != nil && other.Revision != nil && *r.Revision == *other.Revision
+}
+
+// Equal reports whether both refs have the same namespace, name and optional
+// revision value.
+func (r ArtifactRef) Equal(other ArtifactRef) bool {
+	if r.Namespace != other.Namespace || r.Name != other.Name || (r.Revision == nil) != (other.Revision == nil) {
+		return false
+	}
+	return r.Revision == nil || *r.Revision == *other.Revision
+}
+
+// CloneArtifactRefs returns a never-nil copy of refs whose values share no
+// revision pointers with the source.
+func CloneArtifactRefs(refs map[string]ArtifactRef) map[string]ArtifactRef {
+	result := make(map[string]ArtifactRef, len(refs))
+	for name, ref := range refs {
+		result[name] = ref.Clone()
+	}
+	return result
+}
+
+// Key returns a map key unique per namespace, name and revision. An absent
+// revision keys like an empty one.
+func (r ArtifactRef) Key() string {
+	revision := ""
+	if r.Revision != nil {
+		revision = *r.Revision
+	}
+	return r.Namespace + "\x00" + r.Name + "\x00" + revision
+}
+
 // ValidateAgentSkillRef validates the logical, versionless ref accepted in an
 // AgentTemplate. Exact revisions belong to the Run snapshot instead.
 func (r ArtifactRef) ValidateAgentSkillRef() error {

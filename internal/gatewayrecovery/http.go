@@ -2,8 +2,6 @@ package gatewayrecovery
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 // Do retries the same serialized model request inside a planner invocation.
@@ -118,9 +117,5 @@ func retryAfter(header http.Header) float64 {
 
 func newRequestID() (string, error) {
 	// 128-bit random request identity, also used by Runtime's UUID request IDs.
-	var value [16]byte
-	if _, err := rand.Read(value[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(value[:]), nil
+	return randomid.New("")
 }

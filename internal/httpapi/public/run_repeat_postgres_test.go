@@ -152,7 +152,7 @@ func TestPostgresRunRepeatRequiresRetainedAuthorityWithoutMutation(t *testing.T)
 							}
 							input := repeat.Draft.Inputs["source"]
 							patch, err := json.Marshal(repeat.Draft.ExecutionConfig.Value)
-							if input.Artifact == nil || !sameArtifactRef(*input.Artifact, source.Ref) || input.Metadata == nil || input.Metadata.Current || input.SourceScope != artifacts.ScopeKind(scope) || err != nil || string(patch) != "{}" {
+							if input.Artifact == nil || !input.Artifact.Equal(source.Ref) || input.Metadata == nil || input.Metadata.Current || input.SourceScope != artifacts.ScopeKind(scope) || err != nil || string(patch) != "{}" {
 								t.Fatalf("current request lost exact source/empty patch: %+v, %s (%v)", input, patch, err)
 							}
 						} else {

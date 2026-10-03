@@ -23,3 +23,24 @@ func TestDigestsArePinned(t *testing.T) {
 		t.Fatal("JSON accepted an unencodable value")
 	}
 }
+
+func TestValidAcceptsOnlyCanonicalDigests(t *testing.T) {
+	if !Valid(Bytes([]byte("hello"))) {
+		t.Fatal("Valid rejected a Bytes digest")
+	}
+	for _, value := range []string{
+		"",
+		"sha256:",
+		"sha256:2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824",
+		"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b982",
+		"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b98244",
+		"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b982g",
+		"sha512:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+		"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+		"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\n",
+	} {
+		if Valid(value) {
+			t.Errorf("Valid(%q) = true", value)
+		}
+	}
+}

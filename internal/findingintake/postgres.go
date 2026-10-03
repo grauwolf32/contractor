@@ -528,7 +528,7 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
 		var sourceProposal contracts.ArtifactRef
 		var evidence []ExactArtifact
 		if json.Unmarshal(proposalRefJSON, &sourceProposal) != nil ||
-			json.Unmarshal(evidenceJSON, &evidence) != nil || !sameRef(sourceProposal, request.Proposal) {
+			json.Unmarshal(evidenceJSON, &evidence) != nil || !sourceProposal.SameExact(request.Proposal) {
 			return ErrConflict
 		}
 		proposalSource := ExactArtifact{

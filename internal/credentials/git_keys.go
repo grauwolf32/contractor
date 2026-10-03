@@ -2,8 +2,6 @@ package credentials
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +9,7 @@ import (
 	"time"
 
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/ssh"
 )
@@ -66,11 +65,10 @@ func (s *GitKeys) Replace(ctx context.Context, owner string, key []byte) (GitKey
 	if err != nil {
 		return GitKeyMetadata{}, err
 	}
-	var id [16]byte
-	if _, err := rand.Read(id[:]); err != nil {
+	generation, err := randomid.New("")
+	if err != nil {
 		return GitKeyMetadata{}, ErrCrypto
 	}
-	generation := hex.EncodeToString(id[:])
 	envelope, err := s.cipher.sealGitKey(owner, generation, key)
 	if err != nil {
 		return GitKeyMetadata{}, err

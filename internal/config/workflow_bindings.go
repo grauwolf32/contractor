@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 )
 
@@ -62,7 +64,7 @@ func (s *Snapshot) buildWorkflowBindingIndex() {
 	// Preserve the previous cursor fingerprint byte for byte. Encode the catalog
 	// once while constructing the snapshot, never on a binding-page request.
 	workflows := make([]ResolvedWorkflow, 0, len(s.workflows))
-	for _, key := range sortedMapKeys(s.workflows) {
+	for _, key := range slices.Sorted(maps.Keys(s.workflows)) {
 		workflows = append(workflows, s.workflows[key])
 	}
 	workflowJSON, encodeErr := json.Marshal(workflows)

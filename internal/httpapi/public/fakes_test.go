@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -172,7 +173,7 @@ func (f *fakeProjectStore) Update(
 		return projectstore.Project{}, projectstore.ErrInvalid
 	}
 	project.Name, project.Description = params.Name, params.Description
-	project.HTTPTarget = cloneHTTPOriginTarget(params.HTTPTarget)
+	project.HTTPTarget = params.HTTPTarget.Clone()
 	project.Revision++
 	project.UpdatedAt = time.Unix(0, f.nextTime).UTC()
 	f.nextTime++
@@ -1069,10 +1070,10 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		ProjectID:    params.ProjectID,
 		WorkflowName: params.WorkflowName, WorkflowVersion: params.WorkflowVersion,
 		WorkflowSchemaVersion: params.WorkflowSchemaVersion, WorkflowSnapshot: params.WorkflowSnapshot,
-		Parameters:     cloneParameters(params.Parameters),
+		Parameters:     clone.Map(params.Parameters),
 		MetadataLabels: params.MetadataLabels.Clone(),
 		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
-		ProjectHTTPTarget: cloneHTTPOriginTarget(params.ProjectHTTPTarget),
+		ProjectHTTPTarget: params.ProjectHTTPTarget.Clone(),
 		State:             runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	f.runs[params.RunID] = cloneFakeWorkflowRun(run)
@@ -1144,10 +1145,10 @@ func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
 		projectID := *run.ProjectID
 		run.ProjectID = &projectID
 	}
-	run.ProjectHTTPTarget = cloneHTTPOriginTarget(run.ProjectHTTPTarget)
+	run.ProjectHTTPTarget = run.ProjectHTTPTarget.Clone()
 	run.MetadataLabels = run.MetadataLabels.Clone()
 	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
-	run.Parameters = cloneParameters(run.Parameters)
+	run.Parameters = clone.Map(run.Parameters)
 	return run
 }
 

@@ -162,9 +162,9 @@ func databaseReason(err error) Reason {
 		return BudgetExceeded
 	}
 	switch postgres.SQLState(err) {
-	case "57014", "55P03":
+	case postgres.SQLStateQueryCanceled, postgres.SQLStateLockNotAvailable:
 		return BudgetExceeded
-	case "42501":
+	case postgres.SQLStateInsufficientPrivilege:
 		return PermissionDenied
 	default:
 		return DatabaseUnavailable

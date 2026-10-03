@@ -3,7 +3,8 @@ id: V179-001
 title: Fix behavior drift between duplicated Go helpers
 milestone: code-reuse-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: a8fd4104efc0e5e85f4d152ff5bc698a0a82e201
 depends_on: []
 languages: [go]
 goal: Make duplicated Go helpers agree on the stricter, intended behavior before they are consolidated.
@@ -18,9 +19,9 @@ scope:
   in:
     - Deep-copy agent-template Skill revisions in internal/config like internal/controlplane does.
     - Run zipdirectory.Check before zip.NewReader in internal/auditdomain and internal/auditstandards package validation.
-    - Make every sha256 digest validator accept only lowercase "sha256:<64 hex>".
+    - Make every sha256 digest validator accept only lowercase "sha256:<64 hex>" through contentdigest.Valid.
     - Stop evalservice sortedUnique from mutating its input.
-    - Add the Lstat/Open/SameFile guard to the CLI run-input file read that lacks it.
+    - Share the Lstat/Open/SameFile guard between CLI Artifact input and Run request file reads.
     - Replace the findingintake hand-rolled 40001 retry loop with the shared persistence/postgres transaction retry helpers.
   out:
     - Consolidating the helpers into shared packages (V179-003, V179-004).
@@ -34,5 +35,6 @@ acceptance_criteria:
   - {id: A6, text: Finding collection publication retries serialization and deadlock conflicts through the shared helper.}
   - {id: A7, text: Go unit tests and lint pass.}
 tests:
-  - {command: go test ./internal/config ./internal/controlplane ./internal/auditdomain ./internal/auditstandards ./internal/evalservice ./internal/cli ./internal/findingintake ./internal/runservice ./internal/auditservice ./internal/planner/..., covers: [A1, A2, A3, A4, A5, A6]}
+  - {command: go test ./internal/contentdigest ./internal/config ./internal/controlplane ./internal/auditdomain ./internal/auditstandards ./internal/evalservice ./internal/cli ./internal/findingintake ./internal/runservice ./internal/auditservice ./internal/planner/..., covers: [A1, A2, A3, A4, A5, A6]}
+  - {command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/auditservice -run FindingCollection, covers: [A6]}
   - {command: make lint, covers: [A7]}

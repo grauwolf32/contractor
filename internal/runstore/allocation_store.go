@@ -9,13 +9,13 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
 var (
-	digestPattern                = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	runtimeAgentPrincipalPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
@@ -54,7 +54,7 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	if err := validateOpaque("AgentTemplate version", allocation.AgentTemplateRef.Version); err != nil {
 		return err
 	}
-	if !digestPattern.MatchString(allocation.AgentTemplateRef.Digest) {
+	if !contentdigest.Valid(allocation.AgentTemplateRef.Digest) {
 		return invalidf("AgentTemplate digest is invalid")
 	}
 	if err := validateOpaque("WorkerRuntime runtimeID", allocation.WorkerRuntimeRef.RuntimeID); err != nil {
@@ -122,7 +122,7 @@ RETURNING allocation_id`,
 	}
 	if err != nil {
 		sqlState := persistencepostgres.SQLState(err)
-		if sqlState == "23503" {
+		if sqlState == persistencepostgres.SQLStateForeignKeyViolation {
 			return fmt.Errorf("record Stage allocation for execution %q: %w", allocation.StageExecutionID, ErrNotFound)
 		}
 		return fmt.Errorf("record Stage allocation %q: %w", allocation.AllocationID, err)

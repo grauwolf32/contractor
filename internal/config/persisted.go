@@ -1,11 +1,9 @@
 package config
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // DecodeResolvedWorkflowSnapshot strictly decodes immutable Run authority.
@@ -13,7 +11,7 @@ import (
 // are resolved before persistence and are never inferred while reading a snapshot.
 func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 	var workflow ResolvedWorkflow
-	if err := decodeStrictSnapshot(data, &workflow); err != nil {
+	if err := strictjson.Decode(data, &workflow); err != nil {
 		return ResolvedWorkflow{}, err
 	}
 	if err := ValidateAuditTaskWorkflow(workflow); err != nil {
@@ -42,7 +40,7 @@ func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
 // StageExecution, including its explicit Worker session mode.
 func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 	var stage ResolvedStage
-	if err := decodeStrictSnapshot(data, &stage); err != nil {
+	if err := strictjson.Decode(data, &stage); err != nil {
 		return ResolvedStage{}, err
 	}
 	if err := stage.Session.Validate(); err != nil {
@@ -66,7 +64,7 @@ func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 // current catalog lookup participates in recovery or start replay.
 func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, error) {
 	var profile ResolvedAuditProfile
-	if err := decodeStrictSnapshot(data, &profile); err != nil {
+	if err := strictjson.Decode(data, &profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
 	selector, err := ParseSelector(profile.Ref.Name + "@" + profile.Ref.Version)
@@ -104,17 +102,4 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile digest is invalid")
 	}
 	return cloneAuditProfile(profile), nil
-}
-
-func decodeStrictSnapshot(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("persisted snapshot contains trailing JSON")
-	}
-	return nil
 }

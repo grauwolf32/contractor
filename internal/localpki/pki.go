@@ -43,6 +43,30 @@ type LeafOptions struct {
 	Force       bool
 }
 
+// ParseLeafOptions builds LeafOptions from comma-separated DNS and IP SAN
+// lists, ignoring blank entries.
+func ParseLeafOptions(rawDNS, rawIPs string, force bool) (LeafOptions, error) {
+	ipAddresses := make([]net.IP, 0)
+	for _, raw := range splitSANs(rawIPs) {
+		address := net.ParseIP(raw)
+		if address == nil {
+			return LeafOptions{}, fmt.Errorf("invalid IP SAN %q", raw)
+		}
+		ipAddresses = append(ipAddresses, address)
+	}
+	return LeafOptions{DNSNames: splitSANs(rawDNS), IPAddresses: ipAddresses, Force: force}, nil
+}
+
+func splitSANs(raw string) []string {
+	var result []string
+	for _, item := range strings.Split(raw, ",") {
+		if value := strings.TrimSpace(item); value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
 type ControlPlaneOptions struct {
 	LeafOptions
 	URI string

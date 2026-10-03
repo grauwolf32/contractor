@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -124,7 +125,7 @@ func DecodeFindingCollection(data []byte) (FindingCollection, error) {
 func validateCollectionDocument(value FindingCollectionDocument) error {
 	if value.Scope.Kind != "run" && value.Scope.Kind != "project" && value.Scope.Kind != "user" ||
 		validateIdentifier(value.Scope.ID, "scope.id") != nil || value.Ref.ValidateExact() != nil ||
-		!validDigest(value.Digest) || !validMediaType(value.MediaType) ||
+		!contentdigest.Valid(value.Digest) || !validMediaType(value.MediaType) ||
 		value.MediaType != normalizedMediaType(value.MediaType) || value.SizeBytes < 0 || value.SizeBytes > MaximumMemberBytes {
 		return invalid(CodeReferenceInvalid, "collection.documents")
 	}

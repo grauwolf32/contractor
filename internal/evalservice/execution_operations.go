@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -69,8 +70,7 @@ func (d *executionOperations) failDefinite(ctx context.Context, e evalstore.Expe
 	// Only local validation/fence failures establish non-acceptance. Timeouts and
 	// unknown database outcomes retain the original intent for idempotent replay.
 	for _, definite := range []error{
-		runservice.ErrInvalid, runservice.ErrPinnedSelectionChanged,
-		auditservice.ErrInvalid, auditservice.ErrPinnedSelectionChanged,
+		runservice.ErrInvalid, auditservice.ErrInvalid, contracts.ErrPinnedSelectionChanged,
 		auditservice.ErrProfileNotFound, auditservice.ErrUnsupported,
 		projectstore.ErrDeleting, auditstore.ErrProjectDeleting,
 	} {

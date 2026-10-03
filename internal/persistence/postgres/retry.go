@@ -47,7 +47,7 @@ func IsTransactionConflict(err error) bool {
 		return false
 	}
 	switch SQLState(err) {
-	case "40001", "40P01":
+	case SQLStateSerializationFailure, SQLStateDeadlockDetected:
 		return true
 	default:
 		return false

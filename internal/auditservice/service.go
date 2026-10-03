@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -89,7 +90,7 @@ func (s *Service) CreateDraft(
 	if err != nil {
 		return auditstore.Audit{}, false, ErrProfileNotFound
 	}
-	if err := checkExpectedDigest(params.ExpectedProfileSHA256, profile); err != nil {
+	if err := contracts.CheckPinnedSelection(params.ExpectedProfileSHA256, profile); err != nil {
 		return auditstore.Audit{}, false, err
 	}
 	project, err := projectstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.ProjectID)
@@ -326,7 +327,7 @@ func (s *Service) selectDraftInputs(
 func validateCreateParams(params CreateDraftParams) error {
 	if params.AuditID == "" || params.OwnerID == "" || params.ProjectID == "" ||
 		!utf8.ValidString(params.OwnerID) || len([]byte(params.OwnerID)) > 256 ||
-		params.IdempotencyKey == "" || !validDigest(params.RequestDigest) {
+		params.IdempotencyKey == "" || !contentdigest.Valid(params.RequestDigest) {
 		return fmt.Errorf("%w: Audit draft request is invalid", ErrInvalid)
 	}
 	_, err := normalizeProfileSelector(params.Profile)

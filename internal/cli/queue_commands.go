@@ -87,25 +87,17 @@ func (c *CLI) listQueue(ctx context.Context, client *publicclient.Client, printe
 		return err
 	}
 	page := response.JSON200
-	if printer.Mode() == OutputJSON {
-		return printer.JSON(page)
-	}
-	if printer.Mode() == OutputName {
-		names := make([]string, 0, len(page.Items))
-		for _, item := range page.Items {
-			names = append(names, item.RunId)
-		}
-		return printer.Names(names...)
-	}
-	rows := make([][]string, 0, len(page.Items))
-	for _, item := range page.Items {
-		project := "-"
-		if item.Project != nil {
-			project = item.Project.ProjectId
-		}
-		rows = append(rows, []string{item.RunId, stringValue(item.State), item.Workflow, project, item.UpdatedAt.Format(time.RFC3339)})
-	}
-	return printer.Table([]string{"RUN", "STATE", "WORKFLOW", "PROJECT", "UPDATED"}, rows)
+	return List(printer, page, page.Items,
+		func(item publicapi.RunQueueItem) string { return item.RunId },
+		[]string{"RUN", "STATE", "WORKFLOW", "PROJECT", "UPDATED"},
+		func(item publicapi.RunQueueItem) []string {
+			project := "-"
+			if item.Project != nil {
+				project = item.Project.ProjectId
+			}
+			return []string{item.RunId, stringValue(item.State), item.Workflow, project, item.UpdatedAt.Format(time.RFC3339)}
+		},
+	)
 }
 
 func (c *CLI) setQueuePaused(ctx context.Context, client *publicclient.Client, printer *Printer, paused bool) error {

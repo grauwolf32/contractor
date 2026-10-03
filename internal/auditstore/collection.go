@@ -32,7 +32,7 @@ func (s *PostgresStore) Collect(
 		return receipt, true, nil
 	}
 	sqlState := persistencepostgres.SQLState(err)
-	if sqlState == "23505" || errors.Is(err, pgx.ErrNoRows) {
+	if sqlState == persistencepostgres.SQLStateUniqueViolation || errors.Is(err, pgx.ErrNoRows) {
 		if existing, found, replayErr := s.lookupReceiptReplay(
 			ctx, params.Claim.AuditID, params.ExecutionID, params.RequestDigest,
 		); replayErr != nil || found {
@@ -43,7 +43,7 @@ func (s *PostgresStore) Collect(
 		} else if !live {
 			return CollectionReceipt{}, false, ErrClaimLost
 		}
-		if sqlState == "23505" {
+		if sqlState == persistencepostgres.SQLStateUniqueViolation {
 			return CollectionReceipt{}, false, ErrConflict
 		}
 		if exceeded, budgetErr := s.evidenceBudgetExceeded(

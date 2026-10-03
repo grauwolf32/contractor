@@ -37,7 +37,7 @@ func TestToolWorkersResolveWithoutModelCatalogs(t *testing.T) {
 		if json.Unmarshal(wire, &fields) != nil || fields["modelPolicy"] != nil || fields["instructions"] != nil || fields["execution"] == nil {
 			t.Fatal(string(wire))
 		}
-		cloned := cloneAgentTemplate(template)
+		cloned := template.Clone()
 		cloned.Execution.Arguments["injected"] = contracts.ToolArgumentBinding{Source: "literal", Value: true}
 		if _, found := template.Execution.Arguments["injected"]; found {
 			t.Fatal("execution map is not owned")
@@ -101,7 +101,7 @@ func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
 			t.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "literal", Value: []string{"target"}}
 		},
 	} {
-		value := cloneAgentTemplate(original)
+		value := original.Clone()
 		change(&value)
 		if value.Validate() == nil {
 			t.Fatal("invalid tool template accepted")

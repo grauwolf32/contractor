@@ -42,7 +42,7 @@ func (a *ProjectArtifactAccess) ReadProjectExact(
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
-	if !sameExactRef(result.Ref, descriptor.Ref) ||
+	if !result.Ref.SameExact(descriptor.Ref) ||
 		auditdomain.DigestBytes(result.Payload.Data) != descriptor.Digest ||
 		result.Payload.MediaType != descriptor.MediaType ||
 		int64(len(result.Payload.Data)) != descriptor.SizeBytes {

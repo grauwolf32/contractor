@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 func EncodeWorklist(value WorklistManifest) ([]byte, error) {
@@ -185,7 +187,7 @@ func validateItemTask(value ItemTask) error {
 			return err
 		}
 	}
-	if !validDigest(value.SourceContentDigest) || !validDigest(value.CanonicalInventoryDigest) || !validMediaType(value.SourceMediaType) || value.SourceMediaType != normalizedMediaType(value.SourceMediaType) {
+	if !contentdigest.Valid(value.SourceContentDigest) || !contentdigest.Valid(value.CanonicalInventoryDigest) || !validMediaType(value.SourceMediaType) || value.SourceMediaType != normalizedMediaType(value.SourceMediaType) {
 		return invalid(CodeInvalid, "digest")
 	}
 	if err := value.SourceRef.ValidateExact(); err != nil {
@@ -287,7 +289,7 @@ func validateStandardMappingTask(
 
 func validateFindingTask(value FindingTask) error {
 	if validateIdentifier(value.ReceiptID, "finding.receipt_id") != nil ||
-		value.ProposalRef.ValidateExact() != nil || !validDigest(value.ProposalDigest) ||
+		value.ProposalRef.ValidateExact() != nil || !contentdigest.Valid(value.ProposalDigest) ||
 		value.ProposedCheckOrdinal < 0 || value.ProposedCheckOrdinal >= MaximumCoverageValues ||
 		validateText(value.Objective, "finding.objective", true) != nil ||
 		validateIdentifier(value.Method, "finding.method") != nil {
@@ -305,7 +307,7 @@ func validateFindingInventory(value FindingInventoryDocument) error {
 	for _, proposal := range value.Proposals {
 		if validateIdentifier(proposal.ReceiptID, "proposals.receipt_id") != nil ||
 			proposal.ReceiptID <= previous || proposal.Proposal.Ref.ValidateExact() != nil ||
-			!validDigest(proposal.Proposal.Digest) || proposal.Proposal.MediaType != JSONMediaType ||
+			!contentdigest.Valid(proposal.Proposal.Digest) || proposal.Proposal.MediaType != JSONMediaType ||
 			proposal.Proposal.SizeBytes < 1 || proposal.Proposal.SizeBytes > MaximumDocumentBytes {
 			return invalid(CodeInventoryInvalid, "finding_inventory.proposals")
 		}
@@ -366,7 +368,7 @@ func validateExecutionManifest(value ExecutionManifest) error {
 	for index, item := range value.Items {
 		if item.Ordinal != index || validateIdentifier(item.ItemKey, "items.item_key") != nil ||
 			validateIdentifier(item.SubjectKey, "items.subject_key") != nil || validateIdentifier(item.TaskPackageID, "items.task_package_id") != nil ||
-			!validDigest(item.TaskPackageDigest) {
+			!contentdigest.Valid(item.TaskPackageDigest) {
 			return invalid(CodeInvalid, "items")
 		}
 		if _, duplicate := seen[item.ItemKey]; duplicate {
@@ -384,7 +386,7 @@ func validateExecutionManifest(value ExecutionManifest) error {
 		}
 		previous := ""
 		for _, input := range item.Inputs {
-			if validateIdentifier(input.Name, "items.inputs.name") != nil || input.Name <= previous || !validDigest(input.Digest) {
+			if validateIdentifier(input.Name, "items.inputs.name") != nil || input.Name <= previous || !contentdigest.Valid(input.Digest) {
 				return invalid(CodeInvalid, "items.inputs")
 			}
 			if err := input.Ref.ValidateExact(); err != nil {
@@ -415,7 +417,7 @@ func validateCheckResultSet(value CheckResultSet) error {
 	if value.Schema != CheckResultsSchema {
 		return invalid(CodeSchemaUnsupported, "schema")
 	}
-	if !validDigest(value.ExecutionManifestDigest) || len(value.Results) == 0 || len(value.Results) > MaximumItems {
+	if !contentdigest.Valid(value.ExecutionManifestDigest) || len(value.Results) == 0 || len(value.Results) > MaximumItems {
 		return invalid(CodeResultSetInvalid, "results")
 	}
 	seen := make(map[string]struct{}, len(value.Results))

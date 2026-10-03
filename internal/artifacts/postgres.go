@@ -1,11 +1,8 @@
 package artifacts
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 // PostgresRepository uses only the supplied DBTX. Passing a pgx.Tx makes every
@@ -17,16 +14,8 @@ type PostgresRepository struct {
 }
 
 func NewPostgresRepository(db persistencepostgres.DBTX) *PostgresRepository {
-	return &PostgresRepository{db: db, newID: randomOpaqueID}
+	return &PostgresRepository{db: db, newID: randomid.New}
 }
 
 var _ Repository = (*PostgresRepository)(nil)
 var _ QueryRepository = (*PostgresRepository)(nil)
-
-func randomOpaqueID(prefix string) (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("generate opaque artifact identifier: %w", err)
-	}
-	return prefix + hex.EncodeToString(bytes), nil
-}

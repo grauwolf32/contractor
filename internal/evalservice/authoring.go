@@ -2,20 +2,11 @@ package evalservice
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
-
-func newID(prefix string) (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(b[:]), nil
-}
 
 func (s *Service) Create(ctx context.Context, scope evalstore.Scope, document evaldomain.Frozen, mutation evaldomain.MutationIdentity) (evalstore.Receipt, error) {
 	var input evaldomain.CreateExperiment
@@ -29,11 +20,11 @@ func (s *Service) Create(ctx context.Context, scope evalstore.Scope, document ev
 	if replay != nil {
 		return *replay, nil
 	}
-	id, err := newID("experiment-")
+	id, err := randomid.New("experiment-")
 	if err != nil {
 		return evalstore.Receipt{}, err
 	}
-	portable, err := newID("eval-")
+	portable, err := randomid.New("eval-")
 	if err != nil {
 		return evalstore.Receipt{}, err
 	}
@@ -139,17 +130,17 @@ func bindingDocument(v evaldomain.Variant, p Preflight) (evaldomain.Frozen, erro
 }
 
 func (s *Service) Command(ctx context.Context, scope evalstore.Scope, id string, command evaldomain.Command, mutation evaldomain.MutationIdentity) (evalstore.Receipt, error) {
-	commandID, err := newID("command-")
+	commandID, err := randomid.New("command-")
 	if err != nil {
 		return evalstore.Receipt{}, err
 	}
 	p := evalstore.CommandParams{Scope: scope, ExperimentID: id, CommandID: commandID, Command: command, Mutation: mutation}
 	if command.Kind == "duplicate" {
-		p.DuplicateID, err = newID("experiment-")
+		p.DuplicateID, err = randomid.New("experiment-")
 		if err != nil {
 			return evalstore.Receipt{}, err
 		}
-		p.DuplicatePortableID, err = newID("eval-")
+		p.DuplicatePortableID, err = randomid.New("eval-")
 		if err != nil {
 			return evalstore.Receipt{}, err
 		}

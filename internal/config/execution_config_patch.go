@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"sort"
 )
 
 // ExecutionConfigPatch is the strict reference-only shape accepted by a Run.
@@ -225,14 +224,5 @@ func (p ExecutionSelectionPatch) canonicalValue() map[string]any {
 			result[name] = value.value
 		}
 	}
-	return result
-}
-
-func sortedPatchKeys[T any](source map[string]T) []string {
-	result := make([]string, 0, len(source))
-	for key := range source {
-		result = append(result, key)
-	}
-	sort.Strings(result)
 	return result
 }

@@ -3,8 +3,10 @@ package runtimeconfig
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -302,7 +304,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		AgentLabels:           bindingProvenanceList(agentPins),
 		RuntimeAdapters:       append([]contracts.RuntimeAdapterRef{}, adapters...),
 		LLMGatewayConfig:      cloneGatewayRef(gatewayRef),
-		LLMCredential:         cloneCredentialRef(effective.credential),
+		LLMCredential:         clone.Pointer(effective.credential),
 		RuntimeCredentialRefs: workerCredentials,
 	}
 	if err := provenance.Validate(); err != nil {
@@ -312,7 +314,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		ModelFree:                input.ModelFree,
 		ModelPolicy:              cloneResolvedModelPolicy(input.ModelPolicy),
 		LLMGateway:               cloneResolvedGateway(gateway),
-		LLMCredential:            cloneCredentialRef(effective.credential),
+		LLMCredential:            clone.Pointer(effective.credential),
 		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
 		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
 		Caido:                    cloneCaido(effective.caido),
@@ -514,14 +516,14 @@ func validateLLMRoute(
 	}
 	if !authorization.Unrestricted &&
 		(!containsModelPolicy(authorization.ModelPolicies, input.ModelPolicy.Ref) ||
-			!containsString(authorization.Models, input.ModelPolicy.Model)) {
+			!slices.Contains(authorization.Models, input.ModelPolicy.Model)) {
 		return resolutionError(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)
 	}
 	if !authorization.Unrestricted && input.SummarizerModelPolicy != nil &&
 		(!containsModelPolicy(authorization.ModelPolicies, input.SummarizerModelPolicy.Ref) ||
-			!containsString(authorization.Models, input.SummarizerModelPolicy.Model)) {
+			!slices.Contains(authorization.Models, input.SummarizerModelPolicy.Model)) {
 		return resolutionError(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)
@@ -756,15 +758,6 @@ func containsModelPolicy(values []contracts.ModelPolicyRef, expected contracts.M
 	return false
 }
 
-func containsString(values []string, expected string) bool {
-	for _, value := range values {
-		if value == expected {
-			return true
-		}
-	}
-	return false
-}
-
 func resolutionError(code ResolutionErrorCode, path string, cause error) error {
 	return &ResolutionError{Code: code, Path: path, cause: cause}
 }
@@ -788,14 +781,6 @@ func cloneResolvedGateway(value contracts.ResolvedLLMGatewayConfig) contracts.Re
 }
 
 func cloneGatewayRef(value *contracts.LLMGatewayConfigRef) *contracts.LLMGatewayConfigRef {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
-func cloneCredentialRef(value *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
 	if value == nil {
 		return nil
 	}
@@ -880,7 +865,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result := r
 	result.ModelPolicy = cloneResolvedModelPolicy(r.ModelPolicy)
 	result.LLMGateway = cloneResolvedGateway(r.LLMGateway)
-	result.LLMCredential = cloneCredentialRef(r.LLMCredential)
+	result.LLMCredential = clone.Pointer(r.LLMCredential)
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
 	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
 	result.Caido = cloneCaido(r.Caido)
@@ -901,7 +886,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 		[]contracts.RuntimeAdapterRef{}, r.Provenance.RuntimeAdapters...,
 	)
 	result.Provenance.LLMGatewayConfig = cloneGatewayRef(r.Provenance.LLMGatewayConfig)
-	result.Provenance.LLMCredential = cloneCredentialRef(r.Provenance.LLMCredential)
+	result.Provenance.LLMCredential = clone.Pointer(r.Provenance.LLMCredential)
 	result.Provenance.RuntimeCredentialRefs = append(
 		[]contracts.RuntimeCredentialRef{}, r.Provenance.RuntimeCredentialRefs...,
 	)

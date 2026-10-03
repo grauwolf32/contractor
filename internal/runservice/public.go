@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -51,7 +52,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if resolveErr != nil {
 				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", ErrInvalid, resolveErr)
 			}
-			if err := checkExpectedDigest(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
+			if err := contracts.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
 				return err
 			}
 			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
@@ -78,7 +79,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if project.Lifecycle == projectstore.LifecycleDeleting {
 					return projectstore.ErrDeleting
 				}
-				projectTarget = cloneHTTPOriginTarget(project.HTTPTarget)
+				projectTarget = project.HTTPTarget.Clone()
 				if projectTarget != nil && projectTarget.Credential != nil {
 					// The target was authorized when it was attached; pinning it
 					// re-checks that the requesting owner may still use it.
@@ -111,7 +112,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if pinErr != nil {
 					return pinErr
 				}
-				if err := checkExpectedDigest(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
+				if err := contracts.CheckPinnedSelection(normalized.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 					return err
 				}
 				selectedSkills := []contracts.RunSkillSnapshot{}
@@ -126,7 +127,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return catalogErr
 					}
 				}
-				if err := checkExpectedDigest(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
+				if err := contracts.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
 					return err
 				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
@@ -134,7 +135,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						RunID: runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
-						Parameters: cloneParameters(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
+						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
 						RuntimeConfig: runtimeSnapshot, ProjectHTTPTarget: projectTarget,
 					},
 					IdempotencyKey: normalized.IdempotencyKey, RequestDigest: normalized.RequestDigest,
@@ -227,7 +228,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	}
 	params.RuntimeLabels = labels
 	params.MetadataLabels = metadata
-	params.Parameters = cloneParameters(params.Parameters)
+	params.Parameters = clone.Map(params.Parameters)
 	params.Inputs = cloneRefs(params.Inputs)
 	if params.ProjectID != nil {
 		projectID := *params.ProjectID

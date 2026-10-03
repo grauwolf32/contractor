@@ -236,7 +236,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		repeat.Draft == nil || repeat.Draft.ExecutionConfig.Status != repeatStatusAvailable ||
 		repeat.Draft.Inputs["source"].Status != repeatStatusAvailable ||
 		repeat.Draft.Inputs["source"].Artifact == nil ||
-		!sameArtifactRef(*repeat.Draft.Inputs["source"].Artifact, current.Ref) ||
+		!repeat.Draft.Inputs["source"].Artifact.Equal(current.Ref) ||
 		repeat.Draft.Inputs["source"].Metadata == nil || repeat.Draft.Inputs["source"].Metadata.Current {
 		t.Fatalf("PostgreSQL repeat draft = %d %s", repeatResponse.Code, repeatResponse.Body.String())
 	}

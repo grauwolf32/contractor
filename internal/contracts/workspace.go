@@ -114,11 +114,11 @@ func CloneAllocationWorkspaceSpec(source *AllocationWorkspaceSpec) *AllocationWo
 	result.Sources = make([]AllocationWorkspaceSource, len(source.Sources))
 	for index, item := range source.Sources {
 		result.Sources[index] = item
-		result.Sources[index].Artifact = cloneWorkspaceArtifactRef(item.Artifact)
+		result.Sources[index].Artifact = item.Artifact.Clone()
 	}
 	if source.State != nil {
 		state := *source.State
-		state.Artifact = cloneWorkspaceArtifactRef(source.State.Artifact)
+		state.Artifact = source.State.Artifact.Clone()
 		result.State = &state
 	}
 	if source.Export != nil {
@@ -126,15 +126,6 @@ func CloneAllocationWorkspaceSpec(source *AllocationWorkspaceSpec) *AllocationWo
 		result.Export = &export
 	}
 	return &result
-}
-
-func cloneWorkspaceArtifactRef(source ArtifactRef) ArtifactRef {
-	result := source
-	if source.Revision != nil {
-		revision := *source.Revision
-		result.Revision = &revision
-	}
-	return result
 }
 
 func (s AllocationWorkspaceSpec) Validate() error {

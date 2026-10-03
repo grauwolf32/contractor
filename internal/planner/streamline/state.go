@@ -183,7 +183,7 @@ func (s *executionState) setCompletion(result contracts.StageContentResult) bool
 	if s.failure != nil || s.completion != nil {
 		return false
 	}
-	cloned := planner.CloneStageResult(result)
+	cloned := result.Clone()
 	s.completion = &cloned
 	return true
 }
@@ -193,7 +193,7 @@ func (s *executionState) terminal() (*contracts.StageContentResult, *planner.Err
 	defer s.mu.Unlock()
 	var result *contracts.StageContentResult
 	if s.completion != nil {
-		cloned := planner.CloneStageResult(*s.completion)
+		cloned := s.completion.Clone()
 		result = &cloned
 	}
 	return result, s.failure

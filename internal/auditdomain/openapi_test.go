@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 func TestOpenAPIInventoryIdentitySeparatesSourceAndCanonicalContent(t *testing.T) {
@@ -330,7 +332,7 @@ func FuzzOpenAPIInventory(f *testing.F) {
 			}
 			return
 		}
-		if len(inventory.Tasks) > MaximumItems || len(inventory.CanonicalInventory) > MaximumDocumentBytes || !validDigest(inventory.SourceContentDigest) || !validDigest(inventory.CanonicalInventoryDigest) {
+		if len(inventory.Tasks) > MaximumItems || len(inventory.CanonicalInventory) > MaximumDocumentBytes || !contentdigest.Valid(inventory.SourceContentDigest) || !contentdigest.Valid(inventory.CanonicalInventoryDigest) {
 			t.Fatalf("accepted out-of-bounds inventory: %+v", inventory)
 		}
 	})

@@ -44,7 +44,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 			t.Fatalf("repeat import into %s: replayed=%v err=%v", auditID, replayed, err)
 		}
 	}
-	if findingIDs[f.request.AuditID] == findingIDs[secondAudit] || sameRef(holds[f.request.AuditID].Proposal.Ref, holds[secondAudit].Proposal.Ref) {
+	if findingIDs[f.request.AuditID] == findingIDs[secondAudit] || holds[f.request.AuditID].Proposal.Ref.SameExact(holds[secondAudit].Proposal.Ref) {
 		t.Fatal("destination Audits shared finding identity or retained proposal")
 	}
 	if err := runstore.NewPostgresStore(f.pool).DeleteReleasedTerminalRun(f.ctx, f.request.OwnerID, f.request.RunID); err != nil {
@@ -66,7 +66,7 @@ WHERE audit_id=$1 AND first_receipt_id=$2`, auditID, f.receiptID).Scan(&findingI
 		// Each Audit sees, and reads the proposal through, only its own copy.
 		for _, read := range []Receipt{receipt, batch[0], inbox[0]} {
 			if len(read.AuditHolds) != 1 || read.AuditHolds[0].AuditID != auditID ||
-				!sameRef(read.AuditHolds[0].Proposal.Ref, hold.Proposal.Ref) {
+				!read.AuditHolds[0].Proposal.Ref.SameExact(hold.Proposal.Ref) {
 				t.Fatalf("receipt holds read through %s = %+v", auditID, read.AuditHolds)
 			}
 		}
@@ -141,7 +141,7 @@ UPDATE finding_proposal_audit_holds
 	inbox, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, f.request.AuditID, ListQuery{Limit: 10})
 	if err != nil || len(inbox) != 1 || !inbox[0].Origin.RunDeleted || inbox[0].Document.ClientKey != "candidate" ||
 		len(inbox[0].AuditHolds) != 1 || inbox[0].AuditHolds[0].AuditID != f.request.AuditID ||
-		!sameRef(inbox[0].AuditHolds[0].Proposal.Ref, own.Proposal.Ref) {
+		!inbox[0].AuditHolds[0].Proposal.Ref.SameExact(own.Proposal.Ref) {
 		t.Fatalf("Audit inbox after source deletion = (%+v, %v)", inbox, err)
 	}
 	if _, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, firstAudit, ListQuery{Limit: 10}); !errors.Is(err, artifacts.ErrArtifactIntegrity) {

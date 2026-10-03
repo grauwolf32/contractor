@@ -1,9 +1,7 @@
 package public
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -45,10 +44,10 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		return nil, fmt.Errorf("public API bearer token must contain 1 through 4096 bytes")
 	}
 	if dependencies.NewID == nil {
-		dependencies.NewID = randomID
+		dependencies.NewID = randomid.New
 	}
 	if dependencies.NewRequestID == nil {
-		dependencies.NewRequestID = func() (string, error) { return randomID("request_") }
+		dependencies.NewRequestID = func() (string, error) { return randomid.New("request_") }
 	}
 	if dependencies.Now == nil {
 		dependencies.Now = time.Now
@@ -99,14 +98,6 @@ func (h *handler) withRequestID(next http.Handler) http.Handler {
 		Generator: h.dependencies.NewRequestID,
 		Logger:    h.dependencies.Logger, Boundary: "public-api",
 	})
-}
-
-func randomID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", fmt.Errorf("generate identifier: %w", err)
-	}
-	return prefix + hex.EncodeToString(buffer), nil
 }
 
 func (h *handler) methodNotAllowed(w http.ResponseWriter, _ *http.Request) {

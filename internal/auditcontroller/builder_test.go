@@ -132,12 +132,12 @@ func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runInputs) != 3 || !sameExactRef(runInputs["source"].Ref, source.Ref) ||
-		!sameExactRef(runInputs["task"].Ref, task.Ref) ||
-		!sameExactRef(runInputs["execution_manifest"].Ref, execution.Ref) {
+	if len(runInputs) != 3 || !runInputs["source"].Ref.SameExact(source.Ref) ||
+		!runInputs["task"].Ref.SameExact(task.Ref) ||
+		!runInputs["execution_manifest"].Ref.SameExact(execution.Ref) {
 		t.Fatalf("Run inputs = %+v", runInputs)
 	}
-	if len(memberInputs) != 1 || !sameExactRef(memberInputs[0].Ref, source.Ref) {
+	if len(memberInputs) != 1 || !memberInputs[0].Ref.SameExact(source.Ref) {
 		t.Fatalf("execution member inputs unexpectedly include the self manifest: %+v", memberInputs)
 	}
 }

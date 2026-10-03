@@ -6,6 +6,7 @@ package controlplane
 // value while the lock is not held.
 
 import (
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -13,7 +14,7 @@ import (
 
 func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
 	result := source
-	result.AllocationID = cloneString(source.AllocationID)
+	result.AllocationID = clone.Pointer(source.AllocationID)
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
@@ -42,7 +43,7 @@ func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
 
 func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.HeartbeatResponse {
 	result := source
-	result.AllocationID = cloneString(source.AllocationID)
+	result.AllocationID = clone.Pointer(source.AllocationID)
 	return result
 }
 
@@ -54,7 +55,7 @@ func cloneReservation(source Reservation) Reservation {
 		value.CompletionContracts = append([]string{}, value.CompletionContracts...)
 		result.CompletionCapabilities = &value
 	}
-	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
+	result.AgentTemplate = source.AgentTemplate.Clone()
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	result.Workspace = contracts.CloneAllocationWorkspaceSpec(source.Workspace)
@@ -77,7 +78,7 @@ func cloneRuntimeSelection(
 		return nil
 	}
 	result := *source
-	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	result.ModelPolicy = source.ModelPolicy.Clone()
 	if source.LLMGateway != nil {
 		gateway := *source.LLMGateway
 		if source.LLMGateway.CredentialManager != nil {
@@ -98,68 +99,5 @@ func cloneRunSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnaps
 		return nil
 	}
 	result := source.Clone()
-	return &result
-}
-
-func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
-	result := source
-	result.Execution = source.Execution.Clone()
-	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
-	if source.Summarizer != nil {
-		summarizer := *source.Summarizer
-		if source.Summarizer.Instructions != nil {
-			instructions := *source.Summarizer.Instructions
-			summarizer.Instructions = &instructions
-		}
-		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
-		summarizer.CumulativeBudget = cloneIntPointer(source.Summarizer.CumulativeBudget)
-		result.Summarizer = &summarizer
-	}
-	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
-	for index, selection := range source.Toolsets {
-		result.Toolsets[index] = selection
-		result.Toolsets[index].Tools = append([]string(nil), selection.Tools...)
-	}
-	result.Skills = make([]contracts.ArtifactRef, len(source.Skills))
-	for index, skill := range source.Skills {
-		result.Skills[index] = skill
-		if skill.Revision != nil {
-			revision := *skill.Revision
-			result.Skills[index].Revision = &revision
-		}
-	}
-	return result
-}
-
-func cloneIntPointer(source *int) *int {
-	if source == nil {
-		return nil
-	}
-	value := *source
-	return &value
-}
-
-func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
-	result := source
-	if source.Temperature != nil {
-		temperature := *source.Temperature
-		result.Temperature = &temperature
-	}
-	return result
-}
-
-func cloneString(source *string) *string {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	return &result
-}
-
-func cloneCredentialRef(source *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {
-	if source == nil {
-		return nil
-	}
-	result := *source
 	return &result
 }

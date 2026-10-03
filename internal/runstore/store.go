@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -243,7 +244,7 @@ FROM inserted_run`,
 		if persistencepostgres.SQLState(err) == "55000" {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 		}
-		if persistencepostgres.SQLState(err) == "23505" {
+		if persistencepostgres.SQLState(err) == persistencepostgres.SQLStateUniqueViolation {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
@@ -267,7 +268,7 @@ func (s *PostgresStore) CreateRunIdempotent(
 	if err := validateIdempotencyKey(params.IdempotencyKey); err != nil {
 		return WorkflowRun{}, false, err
 	}
-	if !digestPattern.MatchString(params.RequestDigest) {
+	if !contentdigest.Valid(params.RequestDigest) {
 		return WorkflowRun{}, false, invalidf("request digest is invalid")
 	}
 	parameters := params.Parameters
@@ -366,7 +367,7 @@ func (s *PostgresStore) LookupRunIdempotency(
 	if err := validateIdempotencyKey(idempotencyKey); err != nil {
 		return WorkflowRun{}, false, err
 	}
-	if !digestPattern.MatchString(requestDigest) {
+	if !contentdigest.Valid(requestDigest) {
 		return WorkflowRun{}, false, invalidf("request digest is invalid")
 	}
 	var runID, storedDigest string

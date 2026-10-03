@@ -5,6 +5,8 @@ import (
 	"slices"
 	"sort"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 // AttemptObservation is one authoritative cumulative snapshot, not a delta.
@@ -93,7 +95,7 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 	seen := map[[2]string]AttemptObservation{}
 	observedRuns := map[string]bool{}
 	for _, attempt := range in.Attempts {
-		if !owned[attempt.RunID] || attempt.StageExecutionID == "" || !digestPattern.MatchString(attempt.SourceSHA256) {
+		if !owned[attempt.RunID] || attempt.StageExecutionID == "" || !contentdigest.Valid(attempt.SourceSHA256) {
 			return Usage{}, Failure("eval_member_conflict")
 		}
 		key := [2]string{attempt.RunID, attempt.StageExecutionID}
@@ -185,7 +187,7 @@ func NormalizeUsage(in UsageObservation) (Usage, error) {
 			Missing:    []string{"parent timestamps unavailable"},
 		},
 	}
-	if in.Terminal && in.StartedAt != nil && in.FinishedAt != nil && digestPattern.MatchString(in.ParentSourceSHA256) {
+	if in.Terminal && in.StartedAt != nil && in.FinishedAt != nil && contentdigest.Valid(in.ParentSourceSHA256) {
 		start, e1 := time.Parse(time.RFC3339Nano, *in.StartedAt)
 		end, e2 := time.Parse(time.RFC3339Nano, *in.FinishedAt)
 		if e1 != nil || e2 != nil || end.Before(start) {

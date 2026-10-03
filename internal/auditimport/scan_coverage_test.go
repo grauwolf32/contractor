@@ -2,6 +2,7 @@ package auditimport
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestScanCoverageSeparatesExecutionFromSecurityVerdict(t *testing.T) {
 			}}
 			evidence := map[string]validatedEvidence{"report": {value: auditdomain.Evidence{Kind: "scanner-report"}}}
 			coverage, err := semanticCoverage(config.AuditModeRiskAssessment, task, result, evidence)
-			if err != nil || coverage.Status != auditstore.CoverageInconclusive || !equalStrings(coverage.Completed, expectedCoverage(task)) || !equalStrings(coverage.Gaps, task.Scan.Gaps) {
+			if err != nil || coverage.Status != auditstore.CoverageInconclusive || !slices.Equal(coverage.Completed, expectedCoverage(task)) || !slices.Equal(coverage.Gaps, task.Scan.Gaps) {
 				t.Fatalf("wrong scanner coverage: %+v, %v", coverage, err)
 			}
 			for _, assessment := range []string{"satisfied", "violated", "supported", "refuted", "not-applicable", "not-tested", "blocked"} {
@@ -50,18 +51,18 @@ func TestScanCoverageSeparatesExecutionFromSecurityVerdict(t *testing.T) {
 func TestScanCoverageKeepsPreparationAndExecutionGaps(t *testing.T) {
 	task := auditdomain.ItemTask{Scan: &auditdomain.OpenAPIScanTask{Scanner: "nuclei", Runnable: false, Gaps: []string{"missing_required_parameter", "url_template_scan_only"}}}
 	baseline := baselineCoverage(task)
-	if baseline.Status != auditstore.CoverageNotTested || !equalStrings(baseline.Requested, []string{"nuclei-url-template-scan"}) || !equalStrings(baseline.Gaps, task.Scan.Gaps) {
+	if baseline.Status != auditstore.CoverageNotTested || !slices.Equal(baseline.Requested, []string{"nuclei-url-template-scan"}) || !slices.Equal(baseline.Gaps, task.Scan.Gaps) {
 		t.Fatalf("lost baseline: %+v", baseline)
 	}
 	result := auditdomain.CheckResult{Assessment: "not-tested", EvidenceIDs: []string{}, Coverage: auditdomain.ResultCoverage{Requested: expectedCoverage(task), Completed: []string{}, Gaps: []string{}}}
 	coverage, err := semanticCoverage(config.AuditModeRiskAssessment, task, result, nil)
-	if err != nil || coverage.Status != auditstore.CoverageNotTested || !equalStrings(coverage.Gaps, task.Scan.Gaps) {
+	if err != nil || coverage.Status != auditstore.CoverageNotTested || !slices.Equal(coverage.Gaps, task.Scan.Gaps) {
 		t.Fatalf("preparation gap lost: %+v, %v", coverage, err)
 	}
 	result.Assessment = "blocked"
 	result.Coverage.Gaps = []string{"scan_outcome_unknown"}
 	coverage, err = semanticCoverage(config.AuditModeRiskAssessment, task, result, nil)
-	if err != nil || coverage.Status != auditstore.CoverageBlocked || !equalStrings(coverage.Gaps, []string{"missing_required_parameter", "scan_outcome_unknown", "url_template_scan_only"}) {
+	if err != nil || coverage.Status != auditstore.CoverageBlocked || !slices.Equal(coverage.Gaps, []string{"missing_required_parameter", "scan_outcome_unknown", "url_template_scan_only"}) {
 		t.Fatalf("execution gap lost: %+v, %v", coverage, err)
 	}
 	result.Assessment = "inconclusive"

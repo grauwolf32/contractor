@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -298,7 +299,7 @@ func TestPublicationCABundleMatchesRuntimeGrammar(t *testing.T) {
 
 func TestBuiltInCanonicalDigest(t *testing.T) {
 	t.Parallel()
-	if got := digest([]byte(BuiltInCanonicalDocument)); got != BuiltInDigest {
+	if got := contentdigest.Bytes([]byte(BuiltInCanonicalDocument)); got != BuiltInDigest {
 		t.Fatalf("built-in digest = %s, want %s", got, BuiltInDigest)
 	}
 	version, err := DecodeStoredDocument([]byte(BuiltInCanonicalDocument))

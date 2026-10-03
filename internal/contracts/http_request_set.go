@@ -2,8 +2,6 @@ package contracts
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -12,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -96,8 +97,7 @@ func RequestContentDigest(request PreparedHTTPRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return contentdigest.Bytes(data), nil
 }
 
 func (r PreparedHTTPRequest) Validate() error {
@@ -241,7 +241,7 @@ func DecodeHTTPRequestSet(data []byte) (HTTPRequestSet, error) {
 	if len(data) > MaxHTTPRequestSetBytes || !utf8.Valid(data) {
 		return value, invalidf("HTTPRequestSet exceeds byte bound or is not UTF-8")
 	}
-	if err := rejectDuplicateJSONKeys(data); err != nil {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
 		return value, invalidf("HTTPRequestSet is not strict JSON")
 	}
 	if err := requestSetJSONShape(data, reflect.TypeOf(value)); err != nil {
@@ -311,7 +311,7 @@ func requestSetJSONShape(data json.RawMessage, kind reflect.Type) error {
 			}
 		}
 	case reflect.String:
-		if !requestSetJSONStringUnicode(data) {
+		if !strictjson.ValidUnicodeEscapes(data) {
 			return invalidf("HTTPRequestSet string contains invalid Unicode")
 		}
 		if err := json.Unmarshal(data, reflect.New(kind).Interface()); err != nil {
@@ -325,49 +325,4 @@ func requestSetJSONShape(data json.RawMessage, kind reflect.Type) error {
 		return fmt.Errorf("unsupported HTTPRequestSet contract type %s", kind)
 	}
 	return nil
-}
-
-// encoding/json substitutes U+FFFD for lone UTF-16 surrogates. JCS requires
-// preserving strings exactly, so reject those escapes before decoding them.
-func requestSetJSONStringUnicode(data []byte) bool {
-	for i := 0; i < len(data); i++ {
-		if data[i] != '\\' {
-			continue
-		}
-		i++
-		if i >= len(data) {
-			return false
-		}
-		if data[i] != 'u' {
-			continue
-		}
-		if i+4 >= len(data) {
-			return false
-		}
-		first, err := hex.DecodeString(string(data[i+1 : i+5]))
-		if err != nil {
-			return false
-		}
-		value := uint16(first[0])<<8 | uint16(first[1])
-		i += 4
-		if value >= 0xdc00 && value <= 0xdfff {
-			return false
-		}
-		if value < 0xd800 || value > 0xdbff {
-			continue
-		}
-		if i+6 >= len(data) || data[i+1] != '\\' || data[i+2] != 'u' {
-			return false
-		}
-		second, err := hex.DecodeString(string(data[i+3 : i+7]))
-		if err != nil {
-			return false
-		}
-		low := uint16(second[0])<<8 | uint16(second[1])
-		if low < 0xdc00 || low > 0xdfff {
-			return false
-		}
-		i += 6
-	}
-	return true
 }

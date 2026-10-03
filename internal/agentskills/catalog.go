@@ -2,8 +2,6 @@ package agentskills
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 const (
@@ -202,8 +201,7 @@ func missingSeed(pkg seedPackage) SeedOutcome {
 }
 
 func classifySeed(pkg seedPackage, current artifacts.ReadResult) SeedOutcome {
-	digest := sha256.Sum256(current.Payload.Data)
-	currentDigest := "sha256:" + hex.EncodeToString(digest[:])
+	currentDigest := contentdigest.Bytes(current.Payload.Data)
 	status := SeedDrift
 	if current.Payload.MediaType == MediaType && currentDigest == pkg.metadata.Digest {
 		status = SeedInSync

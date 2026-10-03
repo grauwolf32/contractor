@@ -58,7 +58,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 		awaitDeletionOperation(t, f.ctx, deleted)
 		receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
 		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionAuditHeld ||
-			len(receipt.AuditHolds) != 1 || receipt.Document.ClientKey != "candidate" || !sameRef(receipt.Proposal.Ref, f.request.Proposal) {
+			len(receipt.AuditHolds) != 1 || receipt.Document.ClientKey != "candidate" || !receipt.Proposal.Ref.SameExact(f.request.Proposal) {
 			t.Fatalf("retained import after deletion = %+v, %v", receipt, err)
 		}
 		audit, err := auditstore.NewPostgresStore(f.pool).Get(f.ctx, f.request.OwnerID, f.request.AuditID)

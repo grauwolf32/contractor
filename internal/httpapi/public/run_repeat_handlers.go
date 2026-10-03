@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -46,7 +47,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 		Workflow: config.WorkflowRef{
 			Name: run.WorkflowName, Version: run.WorkflowVersion,
 		},
-		ProjectID: cloneStringPointer(run.ProjectID),
+		ProjectID: clone.Pointer(run.ProjectID),
 		Notices:   []runRepeatDraftNotice{},
 	}
 	if run.PublicationMode == runstore.PublicationAuditManaged {
@@ -114,7 +115,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	draft := &runRepeatDraft{
-		Parameters:    cloneParameters(run.Parameters),
+		Parameters:    clone.Map(run.Parameters),
 		RuntimeLabels: append([]string{}, run.RuntimeLabels...),
 		Labels:        run.MetadataLabels.Clone(),
 		ExecutionConfig: runRepeatExecutionConfig{
@@ -200,7 +201,7 @@ func (h *handler) repeatInputsFromSnapshot(
 func (h *handler) resolveRepeatSource(
 	ctx context.Context, run runstore.WorkflowRun, ref contracts.ArtifactRef,
 ) (runRepeatInputSelection, error) {
-	copy := cloneArtifactRef(ref)
+	copy := ref.Clone()
 	var (
 		store artifacts.ScopedStore
 		err   error
@@ -224,7 +225,7 @@ func (h *handler) resolveRepeatSource(
 	if err != nil {
 		return runRepeatInputSelection{}, err
 	}
-	if !sameArtifactRef(metadata.Ref, ref) {
+	if !metadata.Ref.Equal(ref) {
 		return unavailableRepeatInput(&copy, "input_source_mismatch",
 			"The exact original Artifact revision could not be verified. Select a replacement explicitly."), nil
 	}
@@ -282,25 +283,6 @@ func hasEvaluationLabels(labels runstore.RunMetadataLabels) bool {
 	return false
 }
 
-func sameArtifactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		sameOptionalString(left.Revision, right.Revision)
-}
-
 func sameOptionalString(left, right *string) bool {
 	return left == nil && right == nil || left != nil && right != nil && *left == *right
-}
-
-func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
-	result := source
-	result.Revision = cloneStringPointer(source.Revision)
-	return result
-}
-
-func cloneStringPointer(source *string) *string {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	return &result
 }

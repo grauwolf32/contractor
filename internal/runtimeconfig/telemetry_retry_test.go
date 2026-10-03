@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestTelemetryRetryPublicationAndDetachedResolution(t *testing.T) {
@@ -45,7 +47,7 @@ func TestTelemetryRetryDoesNotRewriteStoredExportBlocks(t *testing.T) {
 	if err := json.Unmarshal(source, &document); err != nil {
 		t.Fatal(err)
 	}
-	source, err := canonicalize(document)
+	source, err := strictjson.Canonical(document)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,7 @@ func TestTelemetryRetryDoesNotRewriteStoredExportBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.Ref.Digest != digest(source) || stored.Spec.Worker.Telemetry.Value.Export.Retry != nil {
+	if stored.Ref.Digest != contentdigest.Bytes(source) || stored.Spec.Worker.Telemetry.Value.Export.Retry != nil {
 		t.Fatal("legacy stored export was rewritten")
 	}
 }

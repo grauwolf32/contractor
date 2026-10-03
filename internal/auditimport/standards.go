@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -144,7 +145,7 @@ func validateProposalStandardRefs(
 func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStandard) bool {
 	if task.Standard == nil || task.Checklist == nil ||
 		task.SourceContentDigest != standard.pinned.Retained.Digest ||
-		!sameRef(task.SourceRef, standard.pinned.Retained.Artifact) {
+		!task.SourceRef.SameExact(standard.pinned.Retained.Artifact) {
 		return false
 	}
 	mapping, exists := standard.mappings[task.Standard.MappingKey]
@@ -152,7 +153,7 @@ func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStan
 		!standardTaskStatementMatches(task.Checklist.Statement, mapping, standard) ||
 		task.Checklist.Version != standard.pinned.Reference.Version ||
 		len(task.Checklist.AllowedMethods) != 1 || task.Checklist.AllowedMethods[0] != mapping.Method ||
-		!equalStrings(mapping.EntryIDs, task.Standard.EntryIDs) ||
+		!slices.Equal(mapping.EntryIDs, task.Standard.EntryIDs) ||
 		mapping.EvidenceContract.ID != task.Standard.EvidenceContract.ID ||
 		mapping.EvidenceContract.Version != task.Standard.EvidenceContract.Version {
 		return false
@@ -177,9 +178,9 @@ func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStan
 	}
 	return task.Checklist.Applicability == expectedApplicability &&
 		task.Checklist.ReviewPolicy == expectedReview &&
-		equalStrings(task.Checklist.RequiredEvidence, requiredEvidence) &&
-		equalStrings(contract.Assessments, selected.Assessments) &&
-		equalStrings(contract.EvidenceKinds, selected.EvidenceKinds) &&
+		slices.Equal(task.Checklist.RequiredEvidence, requiredEvidence) &&
+		slices.Equal(contract.Assessments, selected.Assessments) &&
+		slices.Equal(contract.EvidenceKinds, selected.EvidenceKinds) &&
 		contract.MinimumEvidence == selected.MinimumEvidence &&
 		contract.MaximumEvidence == selected.MaximumEvidence &&
 		contract.HumanReview == selected.HumanReview &&

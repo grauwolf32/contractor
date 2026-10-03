@@ -3,9 +3,11 @@ package public
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -200,7 +202,7 @@ func evalMarkdownReport(data evalservice.Report) string {
 	}
 	fmt.Fprintf(&out, "# Evaluation report\n\nExperiment: %s\n\nPlan: %s\n\nSnapshot: %s\n\nConclusion: %s\n\n", data.ExperimentID, data.PlanSHA256, data.Snapshot, conclusion)
 	fmt.Fprintln(&out, "| Variant | Expected | Terminal | Scored | End-to-end passed |\n| --- | ---: | ---: | ---: | ---: |")
-	for _, arm := range sortedEvalKeys(data.Summary.Counts) {
+	for _, arm := range slices.Sorted(maps.Keys(data.Summary.Counts)) {
 		c := data.Summary.Counts[arm]
 		fmt.Fprintf(&out, "| %s | %d | %d | %d | %d |\n", arm, c.Expected, c.Terminal, c.Scored, c.EndToEndPassed)
 	}

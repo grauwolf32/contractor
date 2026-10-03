@@ -32,12 +32,12 @@ RETURNING `+stageTransitionDecisionColumns,
 	))
 	if err != nil {
 		switch persistencepostgres.SQLState(err) {
-		case "23505":
+		case persistencepostgres.SQLStateUniqueViolation:
 			return StageTransitionDecision{}, fmt.Errorf(
 				"record transition decision for StageExecution %q: %w",
 				params.SourceExecutionID, ErrConflict,
 			)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return StageTransitionDecision{}, fmt.Errorf(
 				"record transition decision for StageExecution %q: %w",
 				params.SourceExecutionID, ErrNotFound,

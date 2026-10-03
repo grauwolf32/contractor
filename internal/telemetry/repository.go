@@ -204,8 +204,8 @@ func (r *Repository) RecordPlannerReport(
 	if err := validatePlannerEnvelope(envelope); err != nil {
 		return err
 	}
-	envelope.StartedAt = envelope.StartedAt.UTC().Truncate(time.Microsecond)
-	envelope.FinishedAt = envelope.FinishedAt.UTC().Truncate(time.Microsecond)
+	envelope.StartedAt = persistencepostgres.Timestamp(envelope.StartedAt)
+	envelope.FinishedAt = persistencepostgres.Timestamp(envelope.FinishedAt)
 	report, err := NewPolicy(envelope.Secrets...).NormalizeExecutionReport(
 		envelope.Report, MaxReportJSONBytes,
 	)
@@ -579,9 +579,9 @@ func requireText(field string, value string) error {
 
 func classifyWriteError(operation string, err error) error {
 	switch persistencepostgres.SQLState(err) {
-	case "23503":
+	case persistencepostgres.SQLStateForeignKeyViolation:
 		return fmt.Errorf("%s: %w", operation, ErrNotFound)
-	case "23505", "23514":
+	case persistencepostgres.SQLStateUniqueViolation, persistencepostgres.SQLStateCheckViolation:
 		return fmt.Errorf("%s: %w", operation, ErrConflict)
 	default:
 		return fmt.Errorf("%s: %w", operation, err)

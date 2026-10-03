@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -45,8 +45,6 @@ type workerReport struct {
 	InputArtifacts map[string]contracts.ArtifactRef `json:"inputArtifacts"`
 	Observation    map[string]json.RawMessage       `json:"observation"`
 }
-
-var workerDigest = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request contracts.StageContentRequest, record planner.ScanJobRecord, completion contracts.WorkerCompletion) planner.ScanJobRecord {
 	if planner.ValidateWorkerCompletion(completion, job.ID) != nil {
@@ -97,11 +95,11 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		return record
 	}
 	var report workerReport
-	if !strictWorkerReport(payload.Data, &report) || report.SchemaVersion != 1 || report.Tool != job.Tool || !workerDigest.MatchString(report.InputDigest) || !reflect.DeepEqual(report.InputArtifacts, request.Artifacts) {
+	if !strictWorkerReport(payload.Data, &report) || report.SchemaVersion != 1 || report.Tool != job.Tool || !contentdigest.Valid(report.InputDigest) || !reflect.DeepEqual(report.InputArtifacts, request.Artifacts) {
 		record.Status, record.Code = planner.ScanJobIncomplete, "scan_report_invalid"
 		return record
 	}
-	exact := planner.CloneArtifactRef(ref)
+	exact := ref.Clone()
 	record.Report = &exact
 	record.Status, record.Code = observationStatus(report.Observation)
 	if failedReport && record.Status == planner.ScanJobCompleted {
@@ -255,7 +253,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if state.Plan == nil {
 		return empty, scanError("scan_session_invalid", nil)
 	}
-	report := Report{SchemaVersion: 1, Plan: planner.CloneArtifactRef(*state.Plan), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
+	report := Report{SchemaVersion: 1, Plan: state.Plan.Clone(), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
 	data, err := contracts.MarshalPrivateCanonical(report)
 	if err != nil || len(data) > scanplan.MaxPlanBytes {
 		return empty, scanError("scan_report_invalid", err)
@@ -279,7 +277,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if err := p.factory.sessions.CompleteScan(writeCtx, identity, planner.Completion{Result: &result}); err != nil {
 		return empty, scanError("scan_completion_write_failed", err)
 	}
-	return planner.CloneStageResult(result), nil
+	return result.Clone(), nil
 }
 
 func strictWorkerReport(data []byte, out *workerReport) bool {

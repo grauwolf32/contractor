@@ -46,7 +46,7 @@ func (s *ServiceArtifacts) Resolve(ctx context.Context, runID string, target con
 	if metadata.Ref.ValidateExact() != nil || metadata.Ref.Namespace != target.Namespace || metadata.Ref.Name != target.Name {
 		return contracts.ArtifactRef{}, fmt.Errorf("scan report binding differs")
 	}
-	return planner.CloneArtifactRef(metadata.Ref), nil
+	return metadata.Ref.Clone(), nil
 }
 
 func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
@@ -57,18 +57,18 @@ func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
-	metadata, err := store.Metadata(ctx, planner.CloneArtifactRef(ref))
+	metadata, err := store.Metadata(ctx, ref.Clone())
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
-	if !sameRef(metadata.Ref, ref) || metadata.Size < 0 || metadata.Size > int64(limit) {
+	if !metadata.Ref.SameExact(ref) || metadata.Size < 0 || metadata.Size > int64(limit) {
 		return artifacts.Payload{}, fmt.Errorf("scan artifact metadata differs or exceeds its bound")
 	}
-	result, err := store.Read(ctx, planner.CloneArtifactRef(ref))
+	result, err := store.Read(ctx, ref.Clone())
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
-	if !sameRef(result.Ref, ref) || result.Payload.MediaType != metadata.MediaType || int64(len(result.Payload.Data)) != metadata.Size || len(result.Payload.Data) > limit {
+	if !result.Ref.SameExact(ref) || result.Payload.MediaType != metadata.MediaType || int64(len(result.Payload.Data)) != metadata.Size || len(result.Payload.Data) > limit {
 		return artifacts.Payload{}, fmt.Errorf("scan artifact revision or content differs")
 	}
 	return artifacts.Payload{MediaType: result.Payload.MediaType, Data: append([]byte(nil), result.Payload.Data...)}, nil
@@ -90,7 +90,7 @@ func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target cont
 		if result.Ref.ValidateExact() != nil || result.Ref.Namespace != target.Namespace || result.Ref.Name != target.Name || result.MediaType != payload.MediaType || result.Size != int64(len(payload.Data)) {
 			return contracts.ArtifactRef{}, fmt.Errorf("scan artifact creation returned inconsistent metadata")
 		}
-		return planner.CloneArtifactRef(result.Ref), nil
+		return result.Ref.Clone(), nil
 	}
 	if !errors.Is(err, artifacts.ErrArtifactConflict) {
 		return contracts.ArtifactRef{}, err
@@ -109,9 +109,5 @@ func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target cont
 	if current.MediaType != payload.MediaType || !bytes.Equal(current.Data, payload.Data) {
 		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact content differs")
 	}
-	return planner.CloneArtifactRef(metadata.Ref), nil
-}
-
-func sameRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name && left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
+	return metadata.Ref.Clone(), nil
 }

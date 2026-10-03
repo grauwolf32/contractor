@@ -2,6 +2,7 @@ package auditimport
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -15,7 +16,7 @@ func scanCoverage(task auditdomain.ItemTask, result auditdomain.CheckResult, evi
 		return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
 	}
 	if len(coverage.Completed) > 0 {
-		if !task.Scan.Runnable || !equalStrings(coverage.Completed, coverage.Requested) {
+		if !task.Scan.Runnable || !slices.Equal(coverage.Completed, coverage.Requested) {
 			return invalid()
 		}
 		found := false

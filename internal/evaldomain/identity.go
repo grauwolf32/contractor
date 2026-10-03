@@ -1,19 +1,17 @@
 package evaldomain
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"regexp"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 )
 
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 var memberPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func Digest(data []byte) string {
-	h := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(h[:])
+	return contentdigest.Bytes(data)
 }
 
 func MemberID(experiment, suite, caseID string, sample int, variant string) (string, error) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -311,7 +312,7 @@ func prepareBindingMutation(
 	if err != nil {
 		return "", "", invalid("Runtime label mutation cannot be normalized")
 	}
-	return digest(request), keyDigest, nil
+	return contentdigest.Bytes(request), keyDigest, nil
 }
 
 func lookupManagementReplay(
@@ -387,7 +388,7 @@ INSERT INTO runtime_management_operations (
     idempotency_key_digest, request_digest, operation_kind, resource_id,
     result, actor_id, performed_at
 ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, resourceID, string(encoded), actor, databaseTime(at))
+ON CONFLICT DO NOTHING`, keyDigest, requestDigest, kind, resourceID, string(encoded), actor, persistencepostgres.Timestamp(at))
 	if err != nil {
 		return fmt.Errorf("store Runtime management audit")
 	}

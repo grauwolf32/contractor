@@ -11,7 +11,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/zipdirectory"
 )
 
 // BuildPackage creates a byte-identical ZIP for identical logical inputs. The
@@ -104,6 +106,13 @@ func BuildPackage(packageID string, kind PackageKind, entryPoint string, inputs 
 func ValidatePackage(payload []byte) (*Package, error) {
 	if len(payload) == 0 || len(payload) > MaximumArchiveBytes {
 		return nil, invalid(CodeLimitExceeded, "archive")
+	}
+	// Count actual directory records before zip.NewReader allocates one
+	// zip.File per record; the advertised entry count is untrusted.
+	if _, err := zipdirectory.Check(payload, MaximumMembers+1); errors.Is(err, zipdirectory.ErrLimit) {
+		return nil, invalid(CodeLimitExceeded, "members")
+	} else if err != nil {
+		return nil, invalid(CodePackageInvalid, "archive")
 	}
 	reader, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
@@ -210,7 +219,7 @@ func validatePackageManifest(manifest PackageManifest, rawMembers map[string][]b
 		}
 		seenIDs[member.ID] = struct{}{}
 		seenPaths[memberPath] = struct{}{}
-		if !validMediaType(member.MediaType) || member.MediaType != normalizedMediaType(member.MediaType) || member.Size < 0 || member.Size > MaximumMemberBytes || !validDigest(member.Digest) {
+		if !validMediaType(member.MediaType) || member.MediaType != normalizedMediaType(member.MediaType) || member.Size < 0 || member.Size > MaximumMemberBytes || !contentdigest.Valid(member.Digest) {
 			return invalid(CodePackageInvalid, "manifest.members")
 		}
 		data, exists := rawMembers[memberPath]

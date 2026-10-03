@@ -3,6 +3,8 @@ package contracts
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // WorkerCompletionDiagnostics describes the latest invocation's local work.
@@ -45,7 +47,7 @@ func decodeWorkerCompletionDiagnostics(data []byte) (*WorkerCompletionDiagnostic
 	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return nil, nil
 	}
-	if len(data) > 4096 || rejectDuplicateJSONKeys(data) != nil {
+	if len(data) > 4096 || strictjson.RejectDuplicateKeys(data) != nil {
 		return nil, invalidf("invalid Worker completion diagnostics JSON")
 	}
 	var header struct {
@@ -91,7 +93,7 @@ func (r *ExecutionReport) UnmarshalJSON(data []byte) error {
 	}{plain: &value}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := rejectDuplicateJSONKeys(data); err != nil {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
 		return err
 	}
 	if err := decoder.Decode(&wire); err != nil {

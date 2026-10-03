@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -256,7 +257,7 @@ func (i *Importer) Finalize(
 		},
 		Baseline: reportBaseline{
 			Digest: auditdomain.DigestBytes(snapshot.Audit.BaselineSnapshot),
-			Inputs: cloneExactArtifactMap(baseline.Inputs), Scope: cloneStringMap(baseline.Scope),
+			Inputs: cloneExactArtifactMap(baseline.Inputs), Scope: clone.Map(baseline.Scope),
 			SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 			CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
 			Worklist:                 baseline.Inventory.Worklist,
@@ -540,14 +541,6 @@ func markdownText(value string) string {
 
 func cloneExactArtifactMap(values map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {
 	result := make(map[string]auditstore.ExactArtifact, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
-	return result
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	result := make(map[string]string, len(values))
 	for key, value := range values {
 		result[key] = value
 	}

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -34,7 +35,7 @@ func TestSharedDigestCases(t *testing.T) {
 	}
 	checkInstructions := func(owner string, instructions contracts.ResolvedInstructions) {
 		t.Helper()
-		if got := digestBytes([]byte(instructions.Text)); got != instructions.Digest {
+		if got := contentdigest.Bytes([]byte(instructions.Text)); got != instructions.Digest {
 			t.Errorf("%s instructions digest = %s, want %s", owner, got, instructions.Digest)
 		}
 	}

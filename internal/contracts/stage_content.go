@@ -68,6 +68,18 @@ type StageContentResult struct {
 	Error      *TerminationError      `json:"error,omitempty"`
 }
 
+// Clone returns a copy that shares no artifact map, revision or error value
+// with r.
+func (r StageContentResult) Clone() StageContentResult {
+	result := r
+	result.Artifacts = CloneArtifactRefs(r.Artifacts)
+	if r.Error != nil {
+		terminationError := *r.Error
+		result.Error = &terminationError
+	}
+	return result
+}
+
 func (r StageContentResult) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err

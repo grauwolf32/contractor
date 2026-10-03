@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type ExecutionError struct {
@@ -102,7 +103,7 @@ func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 }
 
 func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
-	if err := rejectDuplicateJSONKeys(data); err != nil {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
 		return invalidf("invalid runtime report JSON")
 	}
 	type wireRuntimeReport struct {
@@ -118,7 +119,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	if err := decoder.Decode(&wire); err != nil {
 		return err
 	}
-	if err := requireTelemetryJSONEOF(decoder); err != nil {
+	if err := strictjson.RequireEOF(decoder); err != nil {
 		return err
 	}
 	*r = RuntimeReport{
@@ -149,24 +150,13 @@ func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetrics, error) {
 	if err := decoder.Decode(&metrics); err != nil {
 		return RuntimeAdapterMetrics{}, err
 	}
-	if err := requireTelemetryJSONEOF(decoder); err != nil {
+	if err := strictjson.RequireEOF(decoder); err != nil {
 		return RuntimeAdapterMetrics{}, err
 	}
 	if err := metrics.Validate(); err != nil {
 		return RuntimeAdapterMetrics{}, err
 	}
 	return metrics, nil
-}
-
-func requireTelemetryJSONEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("unexpected trailing JSON value")
-		}
-		return err
-	}
-	return nil
 }
 
 type StageMetrics struct {
@@ -189,7 +179,7 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 	if len(data) > 1024*1024 {
 		return invalidf("allocation final report exceeds 1 MiB")
 	}
-	if err := rejectDuplicateJSONKeys(data); err != nil {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
 		return invalidf("invalid allocation report JSON")
 	}
 	type wireReport AllocationFinalReport

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/grauwolf32/contractor/internal/credentials"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -46,15 +47,15 @@ func diagnosticCause(err error) string {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) {
 		switch postgresError.Code {
-		case "40001":
+		case persistencepostgres.SQLStateSerializationFailure:
 			return "storage_serialization_conflict"
-		case "40P01":
+		case persistencepostgres.SQLStateDeadlockDetected:
 			return "storage_deadlock"
-		case "55P03":
+		case persistencepostgres.SQLStateLockNotAvailable:
 			return "storage_lock_unavailable"
-		case "57014":
+		case persistencepostgres.SQLStateQueryCanceled:
 			return "storage_query_cancelled"
-		case "23502", "23503", "23505", "23514", "23P01":
+		case persistencepostgres.SQLStateNotNullViolation, persistencepostgres.SQLStateForeignKeyViolation, persistencepostgres.SQLStateUniqueViolation, persistencepostgres.SQLStateCheckViolation, persistencepostgres.SQLStateExclusionViolation:
 			return "storage_constraint_failed"
 		case "53300", "57P01", "57P02", "57P03", "08000", "08001", "08003", "08004", "08006", "08007", "08P01":
 			return "storage_unavailable"

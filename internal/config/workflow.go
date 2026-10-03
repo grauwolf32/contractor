@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -359,7 +361,7 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 			return nil, fmt.Errorf("agents.%s.namespace %q is reserved", logicalName, namespace)
 		}
 		result[logicalName] = ResolvedAgentBinding{
-			Template:  cloneAgentTemplate(template),
+			Template:  template.Clone(),
 			Namespace: namespace,
 		}
 	}
@@ -856,7 +858,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 			return
 		}
 		reachable[name] = true
-		targets := sortedSet(adjacency[name])
+		targets := slices.Sorted(maps.Keys(adjacency[name]))
 		for _, target := range targets {
 			visit(target)
 		}
@@ -1031,7 +1033,7 @@ func topologicalStageOrder(
 		name := ready[0]
 		ready = ready[1:]
 		order = append(order, name)
-		for _, target := range sortedSet(adjacency[name]) {
+		for _, target := range slices.Sorted(maps.Keys(adjacency[name])) {
 			indegree[target]--
 			if indegree[target] == 0 {
 				ready = append(ready, target)
@@ -1112,15 +1114,6 @@ func applyWorkflowTransition(
 		return fmt.Errorf("Workflow Graph has unresolved Transition action %q", action.Kind)
 	}
 	return nil
-}
-
-func sortedSet(values map[string]struct{}) []string {
-	result := make([]string, 0, len(values))
-	for value := range values {
-		result = append(result, value)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func validateMapKey(field, value string) error {

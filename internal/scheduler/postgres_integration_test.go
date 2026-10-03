@@ -1158,7 +1158,7 @@ func (i *postgresTestWorkerInvoker) Invoke(
 	request contracts.StageContentRequest,
 ) (contracts.WorkerCompletion, error) {
 	i.calls++
-	result := cloneStageResult(i.result)
+	result := i.result.Clone()
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,
 		Result: &contracts.WorkerResult{

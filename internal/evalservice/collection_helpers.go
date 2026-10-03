@@ -8,8 +8,9 @@ import (
 )
 
 func sortedUnique(values []string) []string {
-	slices.Sort(values)
-	return slices.Compact(values)
+	result := slices.Clone(values)
+	slices.Sort(result)
+	return slices.Compact(result)
 }
 
 func selectedCollectionComplete(result evaldomain.ResultInput, observed *evaldomain.ResultInput, outputs map[string]evaldomain.Output) bool {

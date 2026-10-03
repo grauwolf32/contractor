@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -285,7 +286,7 @@ func TestHTTPRequestSetEmptyAndPartialCoverage(t *testing.T) {
 
 func TestHTTPRequestSetJSONStringUnicode(t *testing.T) {
 	for _, value := range []string{`"\ud83d\ude00"`, `"literal \\ud800"`, `"escaped \" quotation"`, `"é"`} {
-		if !requestSetJSONStringUnicode([]byte(value)) {
+		if !strictjson.ValidUnicodeEscapes([]byte(value)) {
 			t.Fatalf("rejected valid Unicode %s", value)
 		}
 	}

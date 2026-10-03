@@ -47,7 +47,7 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return ForkResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return ForkResult{}, fmt.Errorf("create Audit artifact scope: %w", ErrInvalidScope)
 		default:
 			return ForkResult{}, fmt.Errorf("create Audit artifact scope: %w", err)
@@ -104,9 +104,9 @@ SELECT EXISTS(SELECT 1 FROM source_selection),
 		switch persistencepostgres.SQLState(err) {
 		case "55000":
 			return ForkResult{}, fmt.Errorf("import Audit artifact: %w", ErrScopeDeleting)
-		case "23503":
+		case persistencepostgres.SQLStateForeignKeyViolation:
 			return ForkResult{}, fmt.Errorf("import Audit artifact: %w", ErrInvalidScope)
-		case "23505":
+		case persistencepostgres.SQLStateUniqueViolation:
 			return ForkResult{}, &ConflictError{Ref: targetRef}
 		default:
 			return ForkResult{}, fmt.Errorf("import Audit artifact: %w", err)

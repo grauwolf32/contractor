@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"sync"
 
@@ -167,7 +169,7 @@ func (i *Importer) collectSucceededRole(
 		return false, fmt.Errorf("%w: source Run identity is invalid", ErrPermanent)
 	}
 
-	logicalNames := sortedStringKeys(binding.Outputs)
+	logicalNames := slices.Sorted(maps.Keys(binding.Outputs))
 	links := make([]auditstore.ArtifactLink, 0, len(logicalNames))
 	var source *auditstore.ExactArtifact
 	var totalBytes int64
@@ -188,7 +190,7 @@ func (i *Importer) collectSucceededRole(
 		if readErr != nil {
 			return false, readErr
 		}
-		if !frozen || !contains(contract.MediaTypes, descriptor.MediaType) {
+		if !frozen || !slices.Contains(contract.MediaTypes, descriptor.MediaType) {
 			code := "invalid-role-output"
 			return i.commitCollection(ctx, claim, execution,
 				auditstore.CollectionInvalidResult, &descriptor, nil, &code, nil)
@@ -264,15 +266,6 @@ func (i *Importer) collectSucceededRole(
 			auditstore.CollectionInvalidResult, source, nil, &code, nil)
 	}
 	return changed, err
-}
-
-func sortedStringKeys[T any](values map[string]T) []string {
-	result := make([]string, 0, len(values))
-	for key := range values {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }
 
 // retainFindingProposals runs before the collection receipt commits. The
@@ -395,7 +388,7 @@ func (i *Importer) prepareMembers(
 	for index, member := range members {
 		item, ok := findItem(snapshot.Items, member.ItemID)
 		if !ok || item.State != auditstore.ItemCollecting || member.State != auditstore.ItemCollecting ||
-			item.RoundID != member.RoundID || item.Task.Digest != member.Task.Digest || !sameRef(item.Task.Ref, member.Task.Ref) {
+			item.RoundID != member.RoundID || item.Task.Digest != member.Task.Digest || !item.Task.Ref.SameExact(member.Task.Ref) {
 			return nil, fmt.Errorf("%w: collecting item membership is inconsistent", ErrPermanent)
 		}
 		payload, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, member.Task)
@@ -434,13 +427,13 @@ func (i *Importer) resolveTaskProposal(
 	}
 	check := receipt.Document.ProposedChecks[task.ProposedCheckOrdinal]
 	if check.Objective != task.Objective || check.Method != task.Method ||
-		!equalStrings(sortedCopy(receipt.Document.Limitations), task.Limitations) {
+		!slices.Equal(sortedCopy(receipt.Document.Limitations), task.Limitations) {
 		return findingintake.ResolvedProposal{}, findingintake.ErrConflict
 	}
 	for _, hold := range receipt.AuditHolds {
 		if hold.AuditID != snapshot.Audit.AuditID ||
 			hold.ProjectID != snapshot.Audit.ProjectID ||
-			hold.Proposal.Digest != task.ProposalDigest || !sameRef(hold.Proposal.Ref, task.ProposalRef) {
+			hold.Proposal.Digest != task.ProposalDigest || !hold.Proposal.Ref.SameExact(task.ProposalRef) {
 			continue
 		}
 		return findingintake.ResolvedProposal{
@@ -562,7 +555,7 @@ func resultOutputSlot(profile config.ResolvedAuditProfile, members []preparedMem
 		return "", false
 	}
 	contract, exists := binding.Workflow.Outputs[output]
-	if !exists || !contract.Required || !contains(contract.MediaTypes, auditdomain.PackageMediaType) {
+	if !exists || !contract.Required || !slices.Contains(contract.MediaTypes, auditdomain.PackageMediaType) {
 		return "", false
 	}
 	return output, true
@@ -602,7 +595,7 @@ func semanticCoverage(
 	}
 	expected := expectedCoverage(task)
 	requested := sortedCopy(result.Coverage.Requested)
-	if !equalStrings(expected, requested) {
+	if !slices.Equal(expected, requested) {
 		return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
 	}
 	completed := sortedCopy(result.Coverage.Completed)
@@ -689,14 +682,14 @@ func standardEvidenceContractAccepts(
 	evidence map[string]validatedEvidence,
 	conclusive bool,
 ) bool {
-	if !contains(contract.Assessments, result.Assessment) ||
+	if !slices.Contains(contract.Assessments, result.Assessment) ||
 		len(result.EvidenceIDs) > contract.MaximumEvidence ||
 		conclusive && len(result.EvidenceIDs) < contract.MinimumEvidence {
 		return false
 	}
 	for _, id := range result.EvidenceIDs {
 		value, exists := evidence[id]
-		if !exists || !contains(contract.EvidenceKinds, value.value.Kind) {
+		if !exists || !slices.Contains(contract.EvidenceKinds, value.value.Kind) {
 			return false
 		}
 	}
@@ -862,32 +855,6 @@ func findItem(items []auditstore.Item, itemID string) (auditstore.Item, bool) {
 	return auditstore.Item{}, false
 }
 
-func sameRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
-}
-
-func contains(values []string, candidate string) bool {
-	for _, value := range values {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
 func sortedCopy(values []string) []string {
 	result := append([]string{}, values...)
 	sort.Strings(result)
@@ -936,7 +903,7 @@ func retainedEvidenceFits(
 		if artifact.Ref.Revision == nil || artifact.SizeBytes < 0 {
 			return false
 		}
-		key := exactRefKey(artifact.Ref)
+		key := artifact.Ref.Key()
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -947,12 +914,6 @@ func retainedEvidenceFits(
 		remaining -= artifact.SizeBytes
 	}
 	return true
-}
-
-// exactRefKey identifies one exact revision. Callers have already required
-// an exact ref.
-func exactRefKey(ref contracts.ArtifactRef) string {
-	return ref.Namespace + "\x00" + ref.Name + "\x00" + *ref.Revision
 }
 
 func externalEvidenceArtifacts(values map[string]validatedEvidence) []auditstore.ExactArtifact {
