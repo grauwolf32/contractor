@@ -3,8 +3,8 @@ id: V243-001
 title: Remove test-only RuntimeConfig mutation protocols
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 523879dd7a928b5df10312466e21f20ed4192363
 depends_on: []
 languages: [go]
 goal: Keep binding and principal lock-ordering invariants in the production mutation paths only.
