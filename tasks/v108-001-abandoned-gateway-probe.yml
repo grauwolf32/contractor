@@ -3,8 +3,8 @@ id: V108-001
 title: Preserve blocked gateway routes when a Runtime probe is abandoned
 milestone: gateway-probe-release-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: acae431b4630f29e2a55c948998e2b27745842eb
 depends_on: []
 languages: [go, python]
 goal: Release abandoned recovery probes without treating unobserved model calls as successful.
