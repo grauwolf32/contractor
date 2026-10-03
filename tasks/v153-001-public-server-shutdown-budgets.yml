@@ -1,0 +1,27 @@
+schema_version: '1.0'
+id: V153-001
+title: Bound public request reads and give shutdown stages independent budgets
+milestone: public-server-shutdown-budgets-2026-10
+priority: P1
+status: in_progress
+depends_on: [V152-001]
+languages: [go]
+goal: Prevent idle or stalled public clients from consuming connections indefinitely and keep Scheduler resources available through its drain.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/79
+  finding: The public server lacks idle and login-body deadlines, and its 5-second shared shutdown budget can expire before the 30-second Runtime cleanup completes.
+scope:
+  in:
+    - Set a public HTTP idle timeout and a deadline for reading login bodies.
+    - Give public, Scheduler, and private shutdown their own time budgets.
+    - Keep shared resources open until Scheduler lanes have stopped.
+  out:
+    - Operations capability middleware tracked by a subsequent task.
+acceptance_criteria:
+  - {id: A1, text: Idle public connections and stalled login bodies have finite deadlines.}
+  - {id: A2, text: A slow public drain does not consume Scheduler or private shutdown time.}
+  - {id: A3, text: ServeSystem does not return while Scheduler lanes still run.}
+  - {id: A4, text: Default shutdown budget covers the configured 30-second Runtime cleanup.}
+tests:
+  - {command: go test ./internal/app ./internal/httpapi/public -count=1, covers: [A1, A2, A3, A4]}
+  - {command: go vet ./internal/app ./internal/httpapi/public, covers: [A1, A2, A3, A4]}

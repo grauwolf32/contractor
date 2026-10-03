@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V153-001, file: v153-001-public-server-shutdown-budgets.yml}
   - {id: V152-001, file: v152-001-login-resource-limits.yml}
   - {id: V151-001, file: v151-001-api-readme-contract-corrections.yml}
   - {id: V150-001, file: v150-001-artifact-bytes-no-store.yml}
