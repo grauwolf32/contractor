@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -198,6 +199,106 @@ func TestDecodeChatResponseRequiresProviderTokenUsage(t *testing.T) {
 }`))
 	if err == nil || !strings.Contains(err.Error(), "token usage") {
 		t.Fatalf("missing usage error = %v", err)
+	}
+}
+
+func TestPlannerChargesAndClassifiesRejectedGatewayResponses(t *testing.T) {
+	tests := []struct {
+		name, finishReason, arguments, wantCode string
+		includeTool, omitUsage, badUsage        bool
+		status                                  int
+		maxTokens                               int
+		wantInput, wantOutput                   int64
+	}{
+		{name: "length with truncated tool", finishReason: "length", arguments: "{", includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "length with valid tool", finishReason: "length", arguments: `{"subtask_id":"0"}`, includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "length with empty choice", finishReason: "length",
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "malformed tool arguments", finishReason: "tool_calls", arguments: "{", includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "null tool arguments", finishReason: "tool_calls", arguments: "null", includeTool: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 40, wantOutput: 50},
+		{name: "missing usage", finishReason: "stop", omitUsage: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 10, wantOutput: 10},
+		{name: "inconsistent usage", finishReason: "stop", badUsage: true,
+			wantCode: "planner_gateway_invalid_response", wantInput: 10, wantOutput: 10},
+		{name: "rejected response exceeds token budget", finishReason: "length", arguments: "{", includeTool: true,
+			maxTokens: 80, wantCode: "planner_token_limit", wantInput: 40, wantOutput: 50},
+		{name: "HTTP status remains unavailable", status: http.StatusBadGateway,
+			wantCode: "planner_gateway_unavailable", wantInput: 10, wantOutput: 10},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if calls.Add(1) == 1 {
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"model": "planner-model",
+						"choices": []any{map[string]any{
+							"finish_reason": "tool_calls",
+							"message": map[string]any{"tool_calls": []any{map[string]any{
+								"id": "call-add", "type": "function",
+								"function": map[string]any{"name": "add_subtask", "arguments": `{"objective":"Build","instructions":"Produce the report"}`},
+							}}},
+						}},
+						"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+					})
+					return
+				}
+				if test.status != 0 {
+					w.WriteHeader(test.status)
+					return
+				}
+				message := map[string]any{}
+				if test.includeTool {
+					message["tool_calls"] = []any{map[string]any{
+						"id": "call-execute", "type": "function",
+						"function": map[string]any{"name": executeCurrentSubtaskToolName, "arguments": test.arguments},
+					}}
+				}
+				response := map[string]any{
+					"model":   "planner-model",
+					"choices": []any{map[string]any{"finish_reason": test.finishReason, "message": message}},
+				}
+				if !test.omitUsage {
+					total := 70
+					if test.badUsage {
+						total = 1
+					}
+					response["usage"] = map[string]any{"prompt_tokens": 30, "completion_tokens": 40, "total_tokens": total}
+				}
+				_ = json.NewEncoder(w).Encode(response)
+			}))
+			t.Cleanup(server.Close)
+			llm, err := NewOpenAICompatibleModel(GatewaySettings{
+				URL: server.URL + "/v1", Model: "planner-model", HTTPClient: server.Client(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			workers := &fakeWorkerInvoker{}
+			invocation := testInvocation("builder")
+			if test.maxTokens != 0 {
+				invocation.ModelAccess.ModelPolicy.MaxTotalTokens = test.maxTokens
+			}
+			instance, err := mustFactory(t, newFakeSessions(), workers, &fakeInspector{}, llm, Limits{}).Create(invocation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = instance.Run(t.Context())
+			assertPlannerCode(t, err, test.wantCode)
+			report, ok := instance.(*streamlinePlanner).ExecutionReport()
+			if !ok || report.Metrics.ModelCalls == nil || *report.Metrics.ModelCalls != 2 ||
+				report.Metrics.InputTokens == nil || *report.Metrics.InputTokens != test.wantInput ||
+				report.Metrics.OutputTokens == nil || *report.Metrics.OutputTokens != test.wantOutput ||
+				report.Metrics.TotalTokens == nil || *report.Metrics.TotalTokens != test.wantInput+test.wantOutput ||
+				calls.Load() != 2 || len(workers.calls) != 0 {
+				t.Fatalf("report=%+v Gateway calls=%d Worker calls=%d", report, calls.Load(), len(workers.calls))
+			}
+		})
 	}
 }
 
