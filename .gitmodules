@@ -1,3 +1,0 @@
-[submodule "tests/playground"]
-	path = tests/playground
-	url = git@github.com:grauwolf32/security-playground.git
