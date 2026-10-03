@@ -8,49 +8,9 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
-
-func TestPrecomputedAnalysisRunInputsAreExplicitAndStrict(t *testing.T) {
-	t.Parallel()
-
-	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, workflowRef := range []string{"openapi-from-analysis@4", "likec4-from-analysis@5"} {
-		t.Run(workflowRef, func(t *testing.T) {
-			workflow, workflowErr := snapshot.Workflow(workflowRef)
-			if workflowErr != nil {
-				t.Fatal(workflowErr)
-			}
-			request := createRunRequest{
-				Workflow:   workflowRef,
-				Parameters: map[string]string{"objective": "Reuse reviewed analysis"},
-				Artifacts: map[string]contracts.ArtifactRef{
-					"source":            {Namespace: "projects", Name: "source", Revision: analysisRevision("source-r1")},
-					"dependency_report": {Namespace: "projects", Name: "dependencies", Revision: analysisRevision("deps-r1")},
-					"project_report":    {Namespace: "projects", Name: "project", Revision: analysisRevision("project-r1")},
-				},
-			}
-			if err := validateRunInputs(workflow, request); err != nil {
-				t.Fatalf("complete input contract rejected: %v", err)
-			}
-			delete(request.Artifacts, "dependency_report")
-			if err := validateRunInputs(workflow, request); err == nil {
-				t.Fatal("missing dependency report was accepted")
-			}
-			if contracts.AcceptsMediaType(workflow.Inputs["dependency_report"].MediaTypes, "text/plain") ||
-				!contracts.AcceptsMediaType(workflow.Inputs["dependency_report"].MediaTypes, "text/markdown") {
-				t.Fatal("dependency report media-type contract is not strict")
-			}
-		})
-	}
-}
-
-func analysisRevision(value string) *string { return &value }
 
 func TestPrecomputedAnalysisRunForksReportsAndRejectsWrongMediaType(t *testing.T) {
 	t.Parallel()

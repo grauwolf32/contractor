@@ -417,33 +417,6 @@ func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func validateRunInputs(workflow config.ResolvedWorkflow, request createRunRequest) error {
-	for name := range request.Parameters {
-		if _, ok := workflow.Parameters[name]; !ok {
-			return fmt.Errorf("%w: unknown parameter %q", errInvalidRequest, name)
-		}
-	}
-	for name, slot := range workflow.Parameters {
-		if _, ok := request.Parameters[name]; slot.Required && !ok {
-			return fmt.Errorf("%w: required parameter %q is missing", errInvalidRequest, name)
-		}
-	}
-	for name, ref := range request.Artifacts {
-		if _, ok := workflow.Inputs[name]; !ok {
-			return fmt.Errorf("%w: unknown input artifact %q", errInvalidRequest, name)
-		}
-		if err := ref.Validate(); err != nil {
-			return fmt.Errorf("%w: invalid input artifact %q", errInvalidRequest, name)
-		}
-	}
-	for name, slot := range workflow.Inputs {
-		if _, ok := request.Artifacts[name]; slot.Required && !ok {
-			return fmt.Errorf("%w: required input artifact %q is missing", errInvalidRequest, name)
-		}
-	}
-	return nil
-}
-
 func cloneParameters(source map[string]string) map[string]string {
 	result := make(map[string]string, len(source))
 	for key, value := range source {
