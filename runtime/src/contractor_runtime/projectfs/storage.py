@@ -493,7 +493,12 @@ def _validate_managed_text(text: str, limits: WorkspaceLimits) -> bytes:
     return encoded
 
 
-def _validate_managed_tree(tree: ManagedWorkspaceTree, limits: WorkspaceLimits) -> None:
+def _validate_managed_tree(
+    tree: ManagedWorkspaceTree,
+    limits: WorkspaceLimits,
+    *,
+    encoded_lengths: dict[str, int] | None = None,
+) -> int:
     if (
         tree.directories & tree.text_files.keys()
         or tree.directories & tree.binary_paths
@@ -508,10 +513,14 @@ def _validate_managed_tree(tree: ManagedWorkspaceTree, limits: WorkspaceLimits) 
         for parent in parent_paths(path):
             if parent not in tree.directories:
                 raise WorkspaceStorageError("workspace_type_conflict")
-    for text in tree.text_files.values():
-        managed_bytes += len(_validate_managed_text(text, limits))
+    for path, text in tree.text_files.items():
+        size = len(_validate_managed_text(text, limits))
+        managed_bytes += size
+        if encoded_lengths is not None:
+            encoded_lengths[path] = size
     if managed_bytes > limits.max_managed_text_bytes or managed_bytes > limits.max_expanded_bytes:
         raise WorkspaceStorageError("workspace_limit_exceeded")
+    return managed_bytes
 
 
 def _require_parent(tree: ManagedWorkspaceTree, path: str) -> None:

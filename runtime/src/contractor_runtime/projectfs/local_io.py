@@ -8,6 +8,7 @@ are listed, counted and never opened, and every operation touching them fails.
 
 from __future__ import annotations
 
+import codecs
 import errno
 import math
 import os
@@ -89,7 +90,21 @@ class RootedLocalFilesystem:
     def read(self, path: str, *, deadline: float) -> bytes:
         path = _path(path)
         with _safe_errors(), self._opened_root() as root:
-            return self._read(root, path, deadline)
+            data = self._read(root, path, deadline)
+            assert data is not None
+            return data
+
+    def read_classified(
+        self, path: str, *, deadline: float, expected: LocalEntry
+    ) -> tuple[str | None, bool]:
+        """Read one current file as text, stopping when it is known to be binary."""
+        path = _path(path)
+        with _safe_errors(), self._opened_root() as root:
+            try:
+                data = self._read(root, path, deadline, expected=expected, classify_text=True)
+            except PermissionError:
+                return None, True
+        return (None if data is None else data.decode("utf-8")), False
 
     def scan(self, *, deadline: float, path: str = "", contents: bool = True) -> LocalTree:
         path = _path(path, allow_root=True)
@@ -202,6 +217,7 @@ class RootedLocalFilesystem:
                             raise
                 else:
                     data = self._read(root, item.path, deadline, expected=item)
+                    assert data is not None
                     # Keep permission bits (e.g. executables), never set-id.
                     try:
                         self._write(
@@ -259,7 +275,8 @@ class RootedLocalFilesystem:
         deadline: float,
         *,
         expected: LocalEntry | None = None,
-    ) -> bytes:
+        classify_text: bool = False,
+    ) -> bytes | None:
         _check_deadline(deadline)
         with _parent(root, path) as (parent, name):
             before = _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False))
@@ -273,6 +290,8 @@ class RootedLocalFilesystem:
             try:
                 _verify(before, _entry(path, os.fstat(descriptor)), version=True)
                 data = bytearray()
+                decoder = codecs.getincrementaldecoder("utf-8")() if classify_text else None
+                binary = False
                 while True:
                     _check_deadline(deadline)
                     chunk = os.read(
@@ -280,16 +299,30 @@ class RootedLocalFilesystem:
                     )
                     if not chunk:
                         break
+                    if decoder is not None:
+                        if b"\x00" in chunk:
+                            binary = True
+                            break
+                        try:
+                            decoder.decode(chunk)
+                        except UnicodeDecodeError:
+                            binary = True
+                            break
                     data.extend(chunk)
                     if len(data) > self.limits.max_file_bytes:
                         raise WorkspaceStorageError("workspace_limit_exceeded")
+                if decoder is not None and not binary:
+                    try:
+                        decoder.decode(b"", final=True)
+                    except UnicodeDecodeError:
+                        binary = True
                 _verify(before, _entry(path, os.fstat(descriptor)), version=True)
                 _verify(
                     before,
                     _entry(path, os.stat(name, dir_fd=parent, follow_symlinks=False)),
                     version=True,
                 )
-                return bytes(data)
+                return None if binary else bytes(data)
             finally:
                 os.close(descriptor)
 
@@ -316,21 +349,17 @@ class RootedLocalFilesystem:
                 raise WorkspaceStorageError("workspace_limit_exceeded")
             if contents:
                 try:
-                    data = self._read(root, item.path, deadline, expected=item)
+                    data = self._read(root, item.path, deadline, expected=item, classify_text=True)
                 except PermissionError:
                     # A sandbox command may chmod its own files; nothing was read.
                     tree.expanded_bytes -= item.size
                     tree.entries[item.path] = replace(item, opaque=True)
                     tree.opaque_paths.add(item.path)
                     return
-                try:
-                    text = data.decode("utf-8")
-                except UnicodeError:
+                if data is None:
                     tree.binary_paths.add(item.path)
                     return
-                if "\x00" in text:
-                    tree.binary_paths.add(item.path)
-                    return
+                text = data.decode("utf-8")
                 managed_bytes += len(data)
                 if managed_bytes > self.limits.max_managed_text_bytes:
                     raise WorkspaceStorageError("workspace_limit_exceeded")
