@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V105-001
+title: Let pending Runs pass deferred running Runs
+milestone: scheduler-deferred-claim-fairness-2026-10
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, sql]
+goal: Prevent a repeatedly deferred running Run from monopolizing Scheduler claims ahead of other owners' pending Runs.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/166
+  finding: Runnable claims prioritize the running state even after a lane defers, starving pending Runs when lane capacity is one.
+scope:
+  in:
+    - Record deferred release as durable claim scheduling state.
+    - Claim cancelling and non-deferred running Runs ahead of pending Runs, and pending Runs ahead of deferred Runs.
+    - Verify Queue Pause and incompatible Runtime capacity cannot starve another owner's pending Run.
+  out:
+    - Change Scheduler lane limits or Runtime placement policy.
+acceptance_criteria:
+  - {id: A1, text: A pending Run is claimed within two polls after an older running Run defers.}
+  - {id: A2, text: Capacity-deferred running work does not prevent a compatible pending Run from being claimed.}
+  - {id: A3, text: Cancelling and non-deferred running Runs keep their claim priority.}
+  - {id: A4, text: Scheduler and runstore integration tests pass.}
+tests:
+  - {command: go test ./internal/runstore ./internal/scheduler -count=1, covers: [A1, A2, A3, A4]}
+  - {command: go test ./..., covers: [A4]}
