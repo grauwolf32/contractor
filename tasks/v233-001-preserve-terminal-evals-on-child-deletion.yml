@@ -3,7 +3,8 @@ id: V233-001
 title: Preserve terminal Evals when an Audit child workspace is deleted
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 6716a0da7f5d41c93610eb9a81565c2eb902a52e
 depends_on: []
 languages: [go, sql]
 goal: Keep finished and cancelled Eval lifecycle states terminal after ordinary child workspace deletion.
