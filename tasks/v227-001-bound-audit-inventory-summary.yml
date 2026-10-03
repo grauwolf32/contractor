@@ -3,7 +3,8 @@ id: V227-001
 title: Bound Audit inventory gaps in the human report
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f3224f33409aeb6e16eb360f7034df0dc63ba774
 depends_on: []
 languages: [go]
 goal: Let an accepted Audit inventory produce a bounded report.md at finalization.
