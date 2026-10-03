@@ -1046,28 +1046,71 @@ func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	if err != nil || claimed.RunID != first.RunID {
 		t.Fatalf("initial claim = (%+v, %v), want first Run", claimed, err)
 	}
-	if err := store.ReleaseRunClaim(ctx, first.RunID, "claim-capacity-first"); err != nil {
+	if err := store.DeferRunClaim(ctx, first.RunID, "claim-capacity-first"); err != nil {
 		t.Fatal(err)
 	}
 
-	second := createTestRun(t, ctx, store, "run-compatible-newer")
-	if _, err := store.TransitionRun(
-		ctx, second.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
-	); err != nil {
+	otherOwner := testRunParams("run-other-owner-pending")
+	otherOwner.OwnerID = "user-2"
+	second, err := store.CreateRun(ctx, otherOwner)
+	if err != nil {
 		t.Fatal(err)
 	}
-	// The older Run receives one more scheduling attempt. Releasing that claim
-	// after a deferred capacity result must move it behind the compatible Run.
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-capacity-retry", time.Minute)
-	if err != nil || claimed.RunID != first.RunID {
-		t.Fatalf("capacity retry claim = (%+v, %v), want older Run", claimed, err)
-	}
-	if err := store.ReleaseRunClaim(ctx, first.RunID, "claim-capacity-retry"); err != nil {
+	if _, err := store.TransitionRun(ctx, second.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err = store.ClaimRunnableRun(ctx, "claim-compatible", time.Minute)
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-other-owner", time.Minute)
 	if err != nil || claimed.RunID != second.RunID {
-		t.Fatalf("post-defer claim = (%+v, %v), want compatible newer Run", claimed, err)
+		t.Fatalf("pending Run after older deferred running Run = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, second.RunID, "claim-other-owner"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, second.RunID, RunPending, RunRunning, Reason{Code: "admitted"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-nondeferred-running", time.Minute)
+	if err != nil || claimed.RunID != second.RunID {
+		t.Fatalf("non-deferred running Run lost priority = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, second.RunID, "claim-nondeferred-running"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, second.RunID, RunRunning, RunSucceeded, Reason{Code: "completed"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cancelling := createTestRun(t, ctx, store, "run-cancelling")
+	if _, err := store.RequestRunCancellation(ctx, cancelling.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-cancelling", time.Minute)
+	if err != nil || claimed.RunID != cancelling.RunID {
+		t.Fatalf("cancelling Run lost priority = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, cancelling.RunID, "claim-cancelling"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(ctx, cancelling.RunID, RunCancelling, RunCancelled, Reason{Code: "cancelled"}); err != nil {
+		t.Fatal(err)
+	}
+
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered", time.Minute)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("deferred Run was not retried = (%+v, %v)", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, first.RunID, "claim-recovered"); err != nil {
+		t.Fatal(err)
+	}
+	third := createTestRun(t, ctx, store, "run-new-pending")
+	if _, err := store.TransitionRun(ctx, third.RunID, RunInitializing, RunPending, Reason{Code: "awaiting_admission"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-recovered-priority", time.Minute)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("successful release did not restore running priority = (%+v, %v)", claimed, err)
 	}
 }
 

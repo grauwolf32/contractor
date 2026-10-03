@@ -2081,6 +2081,10 @@ func (s *memorySchedulerStore) ReleaseRunClaim(_ context.Context, runID, claimID
 	return nil
 }
 
+func (s *memorySchedulerStore) DeferRunClaim(ctx context.Context, runID, claimID string) error {
+	return s.ReleaseRunClaim(ctx, runID, claimID)
+}
+
 func (s *memorySchedulerStore) GetRun(_ context.Context, runID string) (runstore.WorkflowRun, error) {
 	if runID != s.run.RunID {
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
