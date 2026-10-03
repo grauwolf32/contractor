@@ -18,6 +18,16 @@ func (s *Service) Admit(ctx context.Context, runID string, routes []Route) (bool
 		if err := lockRun(ctx, tx, runID); err != nil {
 			return err
 		}
+		// Candidate selection may change between attempts. Keep only the routes
+		// being admitted now, including when this admission is denied.
+		keys := make([]string, 0, len(ordered))
+		for _, route := range ordered {
+			keys = append(keys, route.Key())
+		}
+		if _, err := tx.Exec(ctx, `
+DELETE FROM gateway_run_routes WHERE run_id=$1 AND NOT (route_key=ANY($2::text[]))`, runID, keys); err != nil {
+			return err
+		}
 		now, err := transactionNow(ctx, tx)
 		if err != nil {
 			return err

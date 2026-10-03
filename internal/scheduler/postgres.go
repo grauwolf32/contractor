@@ -266,10 +266,13 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 }
 
 // clearStageGatewayWaits drops the finished Stage's gateway recovery waits and
-// returns a waiting Run to running before any follow-up Stage or terminal
-// transition is committed in the same transaction.
+// route membership, then returns a waiting Run to running before the follow-up
+// Stage or terminal transition is committed in the same transaction.
 func clearStageGatewayWaits(ctx context.Context, tx pgx.Tx, runID string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, runID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM gateway_run_routes WHERE run_id=$1`, runID); err != nil {
 		return err
 	}
 	_, err := tx.Exec(ctx, `UPDATE workflow_runs SET state='running',updated_at=clock_timestamp()

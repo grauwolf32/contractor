@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V229-001
+title: Prune historical Gateway routes from Run recovery
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: 84f0b406829611357cad735a229fc2b27096a11b
+depends_on: []
+languages: [go]
+goal: Report and retry only the routes used by the Run's current Stage admission.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/227
+  finding: gateway_run_routes retains blocked routes from earlier Stages until Run deletion.
+scope:
+  in:
+    - Replace membership at each Gateway admission and remove it at Stage completion or termination.
+    - Preserve blocked-route status for a pending Run whose admission was denied.
+  out:
+    - Resetting blocked route state shared by other Runs.
+acceptance_criteria:
+  - {id: A1, text: A blocked route from a completed Stage no longer appears in Status or Retry for the next Stage.}
+  - {id: A2, text: Retry cannot extend an unrelated route's automatic window.}
+  - {id: A3, text: A denied pending admission still exposes its blocked current route.}
+tests:
+  - {command: go test ./internal/scheduler -run '^TestGatewayRecovery' -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

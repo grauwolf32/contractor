@@ -81,6 +81,10 @@ func TestGatewayRecoveryAcrossLanesPreservesQueueAndIndependentRoutes(t *testing
 	if err != nil || queued.State != runstore.RunPending || queued.StartedAt != nil {
 		t.Fatalf("queued Run was admitted: %+v %v", queued, err)
 	}
+	status, err := f.service.Status(t.Context(), "queued")
+	if err != nil || status == nil || status.Code != "model_unavailable" {
+		t.Fatalf("denied pending Run lost its current blocked route: %+v %v", status, err)
+	}
 	independent := f.route
 	independent.Model = "other-model"
 	free := f.run(t, "independent", independent)
@@ -122,6 +126,147 @@ func TestGatewayRecoveryAcrossLanesPreservesQueueAndIndependentRoutes(t *testing
 	recoveryUpdate(t, participants[winner], fmt.Sprint("probe-", winner), "succeeded")
 	if allowed, err := f.service.Admit(t.Context(), "queued", []gatewayrecovery.Route{f.route}); err != nil || !allowed {
 		t.Fatalf("recovered queue blocked: %v %v", allowed, err)
+	}
+}
+
+func TestGatewayRecoveryDropsPreviousStageRoutesOnProgression(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedSchedulerPool(t, ctx)
+	service, err := gatewayrecovery.New(pool, gatewayrecovery.DefaultPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldRoute := gatewayrecovery.Route{OwnerID: "user-1", GatewayDigest: "gateway", Model: "model-a"}
+	newRoute := oldRoute
+	newRoute.Model = "model-b"
+	fixture := createFinalizingFixtureWith(t, ctx, pool, func() {
+		if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{oldRoute}); err != nil || !allowed {
+			t.Fatalf("admit first Stage route = %v, %v", allowed, err)
+		}
+		participant := service.Planner("run-1", "invocation-finalizing", oldRoute, contracts.DefaultGatewayFailureSignatures())
+		recoveryUpdate(t, participant, "old-outage", "failed")
+	})
+	var beforeAutomatic, beforeNext time.Time
+	if err := pool.QueryRow(ctx, `
+SELECT automatic_until,next_probe_at FROM gateway_recovery_routes WHERE route_key=$1`, oldRoute.Key()).Scan(
+		&beforeAutomatic, &beforeNext,
+	); err != nil {
+		t.Fatal(err)
+	}
+	stage := fixture.workflow.Stages["copy"]
+	stageJSON, err := json.Marshal(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runArtifacts, err := fixture.artifacts.Run("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const nextID = "stage-next-route"
+	nextStageName := "copy"
+	previous := fixture.executionID
+	progression := StageProgression{
+		Decision: runstore.RecordStageTransitionDecisionParams{
+			SourceExecutionID: fixture.executionID, RunID: "run-1", Action: runstore.StageTransitionNext,
+			TargetStageName: &nextStageName, TargetExecutionID: stringPointer(nextID),
+		},
+		NextStage: &NextStageCreation{
+			Params: runstore.CreateStageExecutionParams{
+				StageExecutionID: nextID, RunID: "run-1", StageName: nextStageName,
+				Attempt: 2, PreviousExecutionID: &previous,
+				ExecutionConfigVariant: runstore.StageExecutionConfigBase,
+				StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+				StageContextSchemaVersion: contracts.APIVersion,
+				StageContext: runstore.StageContextSnapshot{
+					Parameters: map[string]string{"objective": "copy exactly"},
+					Artifacts: map[string]runstore.PinnedContextArtifact{
+						"source": {Required: true, Artifact: &input.Ref},
+					},
+				},
+			},
+			ContextPins: []ContextPin{{Name: "source", Ref: input.Ref}},
+		},
+	}
+	if err := fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
+		WorkflowOutputs: stage.WorkflowOutputs, OutputContracts: fixture.workflow.Outputs,
+		Progression: progression,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var remainingRoutes int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM gateway_run_routes WHERE run_id='run-1'`).Scan(
+		&remainingRoutes,
+	); err != nil || remainingRoutes != 0 {
+		t.Fatalf("completed Stage retained %d route memberships: %v", remainingRoutes, err)
+	}
+	if allowed, err := service.Admit(ctx, "run-1", []gatewayrecovery.Route{newRoute}); err != nil || !allowed {
+		t.Fatalf("admit next Stage route = %v, %v", allowed, err)
+	}
+	if status, err := service.Status(ctx, "run-1"); err != nil || status != nil {
+		t.Fatalf("old blocked route leaked into next Stage status: %+v %v", status, err)
+	}
+	if err := service.Retry(ctx, "user-1", "run-1"); !gatewayrecovery.IsUnavailable(err) {
+		t.Fatalf("retry reopened previous Stage route: %v", err)
+	}
+	var afterAutomatic, afterNext time.Time
+	if err := pool.QueryRow(ctx, `
+SELECT automatic_until,next_probe_at FROM gateway_recovery_routes WHERE route_key=$1`, oldRoute.Key()).Scan(
+		&afterAutomatic, &afterNext,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !beforeAutomatic.Equal(afterAutomatic) || !beforeNext.Equal(afterNext) {
+		t.Fatalf("old route changed on unrelated retry: automatic %s -> %s, next %s -> %s",
+			beforeAutomatic, afterAutomatic, beforeNext, afterNext)
+	}
+	var keys []string
+	rows, err := pool.Query(ctx, `SELECT route_key FROM gateway_run_routes WHERE run_id='run-1' ORDER BY route_key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if !reflect.DeepEqual(keys, []string{newRoute.Key()}) {
+		t.Fatalf("next Stage route membership = %v", keys)
+	}
+}
+
+func TestGatewayRecoveryAdmissionReplacesEarlierCandidateRoutes(t *testing.T) {
+	f := newRecoveryFixture(t)
+	participant := f.run(t, "blocking", f.route)
+	recoveryUpdate(t, participant, "outage", "failed")
+	f.run(t, "candidate", f.route)
+	if status, err := f.service.Status(t.Context(), "candidate"); err != nil || status == nil {
+		t.Fatalf("denied pending admission has no blocked route: %+v %v", status, err)
+	}
+	other := f.route
+	other.Model = "other-model"
+	if allowed, err := f.service.Admit(t.Context(), "candidate", []gatewayrecovery.Route{other}); err != nil || !allowed {
+		t.Fatalf("replacement candidate was not admitted: %t %v", allowed, err)
+	}
+	if status, err := f.service.Status(t.Context(), "candidate"); err != nil || status != nil {
+		t.Fatalf("earlier candidate's blocked route leaked into status: %+v %v", status, err)
+	}
+	var count int
+	if err := f.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM gateway_run_routes WHERE run_id='candidate' AND route_key=$1`, f.route.Key()).Scan(
+		&count,
+	); err != nil || count != 0 {
+		t.Fatalf("earlier candidate still belongs to Run: %d %v", count, err)
 	}
 }
 
