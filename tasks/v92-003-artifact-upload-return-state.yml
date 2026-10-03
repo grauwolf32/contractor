@@ -3,8 +3,8 @@ id: V92-003
 title: Preserve Artifact return navigation after version uploads
 milestone: artifact-feedback-corrections-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 45dfa5160a29638eada6971735a37af481db4dc0
 depends_on: []
 languages: [typescript]
 goal: Keep contextual return links through an Artifact upload and revision navigation.

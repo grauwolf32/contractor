@@ -3,8 +3,8 @@ id: V92-001
 title: Summarize Katana discovery reports in Artifact previews
 milestone: artifact-feedback-corrections-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 50553eec3ec3aaeb1daa418c32b20b2bab9bd1d8
 depends_on: []
 languages: [typescript]
 goal: Show Katana technical outcomes and bounded-discovery limitations alongside raw report JSON.

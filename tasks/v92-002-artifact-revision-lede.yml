@@ -3,8 +3,8 @@ id: V92-002
 title: Derive Artifact detail revision labels from loaded metadata
 milestone: artifact-feedback-corrections-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 25825a0c1c736da3b50f53f3eacb6ac7879087b5
 depends_on: []
 languages: [typescript]
 goal: Keep the header revision label consistent with the loaded Artifact revision and metadata summary.
