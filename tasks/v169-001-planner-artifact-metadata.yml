@@ -3,7 +3,8 @@ id: V169-001
 title: Inspect Planner artifacts through exact metadata
 milestone: planner-artifact-metadata-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3762e921ed57312e79c7a0343b946dda9c3c40b3
 depends_on: []
 languages: [go]
 goal: Keep Planner artifact validation independent of blob transfer slots and full-content reads.
