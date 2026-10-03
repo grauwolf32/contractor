@@ -6,6 +6,7 @@ package controlplane
 // value while the lock is not held.
 
 import (
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -13,7 +14,7 @@ import (
 
 func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
 	result := source
-	result.AllocationID = cloneString(source.AllocationID)
+	result.AllocationID = clone.Pointer(source.AllocationID)
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
@@ -42,7 +43,7 @@ func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
 
 func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.HeartbeatResponse {
 	result := source
-	result.AllocationID = cloneString(source.AllocationID)
+	result.AllocationID = clone.Pointer(source.AllocationID)
 	return result
 }
 
@@ -112,7 +113,7 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 			summarizer.Instructions = &instructions
 		}
 		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
-		summarizer.CumulativeBudget = cloneIntPointer(source.Summarizer.CumulativeBudget)
+		summarizer.CumulativeBudget = clone.Pointer(source.Summarizer.CumulativeBudget)
 		result.Summarizer = &summarizer
 	}
 	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
@@ -131,14 +132,6 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 	return result
 }
 
-func cloneIntPointer(source *int) *int {
-	if source == nil {
-		return nil
-	}
-	value := *source
-	return &value
-}
-
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
 	result := source
 	if source.Temperature != nil {
@@ -146,14 +139,6 @@ func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedMo
 		result.Temperature = &temperature
 	}
 	return result
-}
-
-func cloneString(source *string) *string {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	return &result
 }
 
 func cloneCredentialRef(source *contracts.LLMCredentialRef) *contracts.LLMCredentialRef {

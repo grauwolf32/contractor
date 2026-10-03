@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -62,7 +64,7 @@ func ValidateAuditTaskProfile(profile ResolvedAuditProfile) error {
 	if _, exists := profile.Workflows[profile.Inventory.ItemWorkflowRole]; !exists {
 		return fmt.Errorf("inventory names an absent item Workflow role")
 	}
-	for _, role := range sortedMapKeys(profile.Workflows) {
+	for _, role := range slices.Sorted(maps.Keys(profile.Workflows)) {
 		binding := profile.Workflows[role]
 		if err := ValidateAuditTaskWorkflow(binding.Workflow); err != nil {
 			return fmt.Errorf("Workflow role %q: %w", role, err)

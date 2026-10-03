@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/randomid"
@@ -308,13 +309,13 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 		}
 		spec := modelPolicySpecSource{
 			Model:               request.ModelPolicy.Model,
-			ContextWindowTokens: cloneInt(request.ModelPolicy.ContextWindowTokens),
-			MaxOutputTokens:     cloneInt(request.ModelPolicy.MaxOutputTokens),
-			MaxModelCalls:       cloneInt(request.ModelPolicy.MaxModelCalls),
-			MaxToolCalls:        cloneInt(request.ModelPolicy.MaxToolCalls),
-			MaxWorkerCalls:      cloneInt(request.ModelPolicy.MaxWorkerCalls),
-			MaxTotalTokens:      cloneInt(request.ModelPolicy.MaxTotalTokens),
-			Temperature:         cloneFloat(request.ModelPolicy.Temperature),
+			ContextWindowTokens: clone.Pointer(request.ModelPolicy.ContextWindowTokens),
+			MaxOutputTokens:     clone.Pointer(request.ModelPolicy.MaxOutputTokens),
+			MaxModelCalls:       clone.Pointer(request.ModelPolicy.MaxModelCalls),
+			MaxToolCalls:        clone.Pointer(request.ModelPolicy.MaxToolCalls),
+			MaxWorkerCalls:      clone.Pointer(request.ModelPolicy.MaxWorkerCalls),
+			MaxTotalTokens:      clone.Pointer(request.ModelPolicy.MaxTotalTokens),
+			Temperature:         clone.Pointer(request.ModelPolicy.Temperature),
 		}
 		if err := validateModelPolicySpec(&spec); err != nil {
 			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
@@ -324,7 +325,7 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 			Model: spec.Model, ContextWindowTokens: optionalIntValue(spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(spec.MaxModelCalls), MaxToolCalls: optionalIntValue(spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(spec.MaxTotalTokens),
-			Temperature: cloneFloat(spec.Temperature),
+			Temperature: clone.Pointer(spec.Temperature),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {
@@ -416,14 +417,6 @@ func validatePublicationKey(value string) error {
 		}
 	}
 	return nil
-}
-
-func cloneInt(value *int) *int {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
 }
 
 func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {

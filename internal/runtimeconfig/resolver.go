@@ -3,6 +3,7 @@ package runtimeconfig
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -514,14 +515,14 @@ func validateLLMRoute(
 	}
 	if !authorization.Unrestricted &&
 		(!containsModelPolicy(authorization.ModelPolicies, input.ModelPolicy.Ref) ||
-			!containsString(authorization.Models, input.ModelPolicy.Model)) {
+			!slices.Contains(authorization.Models, input.ModelPolicy.Model)) {
 		return resolutionError(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)
 	}
 	if !authorization.Unrestricted && input.SummarizerModelPolicy != nil &&
 		(!containsModelPolicy(authorization.ModelPolicies, input.SummarizerModelPolicy.Ref) ||
-			!containsString(authorization.Models, input.SummarizerModelPolicy.Model)) {
+			!slices.Contains(authorization.Models, input.SummarizerModelPolicy.Model)) {
 		return resolutionError(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)
@@ -748,15 +749,6 @@ func workerApplicable(value WorkerPatch) bool {
 }
 
 func containsModelPolicy(values []contracts.ModelPolicyRef, expected contracts.ModelPolicyRef) bool {
-	for _, value := range values {
-		if value == expected {
-			return true
-		}
-	}
-	return false
-}
-
-func containsString(values []string, expected string) bool {
 	for _, value := range values {
 		if value == expected {
 			return true

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -101,7 +102,7 @@ func (s *Snapshot) ResolveRunWorkflow(
 }
 
 func resolveWorkflowEscalationVariants(workflow *ResolvedWorkflow) error {
-	for _, stageName := range sortedPatchKeys(workflow.Stages) {
+	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		actions := []struct {
 			outcome string
@@ -199,7 +200,7 @@ func applyResolvedStageExecutionConfigOverride(
 	if override.Agents != nil && len(override.Agents) == 0 {
 		return fmt.Errorf("agents must be a non-empty mapping when present")
 	}
-	for _, logicalName := range sortedPatchKeys(override.Agents) {
+	for _, logicalName := range slices.Sorted(maps.Keys(override.Agents)) {
 		patch := override.Agents[logicalName]
 		if !resolvedExecutionSelectionOverrideHasAny(patch) {
 			return fmt.Errorf("agents.%s must select at least one field", logicalName)
@@ -279,7 +280,7 @@ func (l *loader) applyExecutionConfigPatch(
 	originPrefix string,
 ) error {
 	plannerApplied := false
-	for _, stageName := range sortedPatchKeys(workflow.Stages) {
+	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		if patch.Planner != nil && !IsModelFreePlanner(stage.Planner) {
 			if err := l.applyPlannerSelection(
@@ -290,7 +291,7 @@ func (l *loader) applyExecutionConfigPatch(
 			plannerApplied = true
 		}
 		if patch.Workers != nil {
-			for _, logicalName := range sortedPatchKeys(stage.ExecutionConfig.Agents) {
+			for _, logicalName := range slices.Sorted(maps.Keys(stage.ExecutionConfig.Agents)) {
 				if stage.Agents[logicalName].Template.IsToolWorker() {
 					return fmt.Errorf("tool@1 does not accept Worker model defaults")
 				}
@@ -309,7 +310,7 @@ func (l *loader) applyExecutionConfigPatch(
 		return fmt.Errorf("planner defaults do not apply to any modeled Stage")
 	}
 
-	for _, stageName := range sortedPatchKeys(patch.Stages) {
+	for _, stageName := range slices.Sorted(maps.Keys(patch.Stages)) {
 		stagePatch := patch.Stages[stageName]
 		stage, ok := workflow.Stages[stageName]
 		if !ok {
@@ -323,7 +324,7 @@ func (l *loader) applyExecutionConfigPatch(
 				return fmt.Errorf("Stage %q: %w", stageName, err)
 			}
 		}
-		for _, logicalName := range sortedPatchKeys(stagePatch.Agents) {
+		for _, logicalName := range slices.Sorted(maps.Keys(stagePatch.Agents)) {
 			if stage.Agents[logicalName].Template.IsToolWorker() {
 				return fmt.Errorf("tool@1 does not accept model execution overrides")
 			}
@@ -653,7 +654,7 @@ func validateRunCredentials(
 				configs[outcome] = action.Escalate.ExecutionConfig.Effective
 			}
 		}
-		for _, variant := range sortedPatchKeys(configs) {
+		for _, variant := range slices.Sorted(maps.Keys(configs)) {
 			if err := validateStageExecutionConfigCredentials(
 				ctx, stageName, variant, configs[variant], lookup,
 			); err != nil {
@@ -683,7 +684,7 @@ func ResolvedWorkflowCredentialIDs(workflow ResolvedWorkflow) ([]string, error) 
 		return nil, err
 	}
 	selected := make(map[string]struct{})
-	for _, stageName := range sortedPatchKeys(workflow.Stages) {
+	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		configs := []ResolvedStageExecutionConfig{stage.ExecutionConfig}
 		for _, action := range []TransitionAction{stage.On.Failed, stage.On.Interrupted} {
@@ -724,7 +725,7 @@ func validateStageExecutionConfigCredentials(
 	for logicalName, selection := range config.Agents {
 		selections["agent "+logicalName] = selection
 	}
-	for _, consumer := range sortedPatchKeys(selections) {
+	for _, consumer := range slices.Sorted(maps.Keys(selections)) {
 		selection := selections[consumer]
 		if selection.Credential == nil {
 			continue

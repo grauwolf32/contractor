@@ -40,10 +40,10 @@ var bundledCWECatalog = sync.OnceValues(func() (cweCatalog, error) {
 	}
 	for _, id := range document.WeaknessIDs {
 		if id == "" {
-			return cweCatalog{}, errors.New("bundled CWE catalog contains an empty ID")
+			return cweCatalog{}, errors.New("bundled CWE catalog slices.Contains an empty ID")
 		}
 		if _, exists := result.weaknessIDs[id]; exists {
-			return cweCatalog{}, errors.New("bundled CWE catalog contains a duplicate ID")
+			return cweCatalog{}, errors.New("bundled CWE catalog slices.Contains a duplicate ID")
 		}
 		result.weaknessIDs[id] = struct{}{}
 	}

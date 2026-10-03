@@ -2,6 +2,7 @@ package auditdomain
 
 import (
 	"errors"
+	"slices"
 	"sort"
 	"strings"
 
@@ -140,7 +141,7 @@ func validateOpenAPIScanTask(value OpenAPIScanTask) error {
 		request := contracts.PreparedHTTPRequest{Method: "GET", URL: value.TargetURL, Headers: []contracts.HTTPRequestHeader{}}
 		if value.RequestDigest != "" || len(value.TestParameters) != 0 ||
 			(value.TargetURL != "" || value.Runnable) && request.Validate() != nil ||
-			!containsString(value.Gaps, "url_template_scan_only") {
+			!slices.Contains(value.Gaps, "url_template_scan_only") {
 			return invalid(CodeInvalid, "scan.target")
 		}
 	}

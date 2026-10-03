@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -166,7 +168,7 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 	executionManifest auditstore.ExactArtifact,
 ) (map[string]auditstore.ExactArtifact, error) {
 	result := make(map[string]auditstore.ExactArtifact)
-	for _, slot := range sortedKeys(binding.Inputs) {
+	for _, slot := range slices.Sorted(maps.Keys(binding.Inputs)) {
 		mapping := binding.Inputs[slot]
 		switch mapping.Source {
 		case config.AuditInputFromAudit:
@@ -233,15 +235,6 @@ func resolveParameterWithoutItem(
 		}
 	}
 	return "", invalidSubmission("Audit role parameter mapping is invalid")
-}
-
-func sortedKeys[T any](values map[string]T) []string {
-	result := make([]string, 0, len(values))
-	for key := range values {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func (b *PinnedSubmissionBuilder) Prepare(

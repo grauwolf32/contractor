@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -106,7 +107,7 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 
 func plannerContext(snapshot runstore.StageContextSnapshot) planner.StageContext {
 	result := planner.StageContext{
-		Parameters: cloneParameters(snapshot.Parameters),
+		Parameters: clone.Map(snapshot.Parameters),
 		Artifacts:  make(map[string]*contracts.ArtifactRef, len(snapshot.Artifacts)),
 	}
 	for name, pinned := range snapshot.Artifacts {

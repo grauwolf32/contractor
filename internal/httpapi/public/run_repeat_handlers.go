@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -46,7 +47,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 		Workflow: config.WorkflowRef{
 			Name: run.WorkflowName, Version: run.WorkflowVersion,
 		},
-		ProjectID: cloneStringPointer(run.ProjectID),
+		ProjectID: clone.Pointer(run.ProjectID),
 		Notices:   []runRepeatDraftNotice{},
 	}
 	if run.PublicationMode == runstore.PublicationAuditManaged {
@@ -114,7 +115,7 @@ func (h *handler) getRunRepeatDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	draft := &runRepeatDraft{
-		Parameters:    cloneParameters(run.Parameters),
+		Parameters:    clone.Map(run.Parameters),
 		RuntimeLabels: append([]string{}, run.RuntimeLabels...),
 		Labels:        run.MetadataLabels.Clone(),
 		ExecutionConfig: runRepeatExecutionConfig{
@@ -293,14 +294,6 @@ func sameOptionalString(left, right *string) bool {
 
 func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
 	result := source
-	result.Revision = cloneStringPointer(source.Revision)
+	result.Revision = clone.Pointer(source.Revision)
 	return result
-}
-
-func cloneStringPointer(source *string) *string {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	return &result
 }

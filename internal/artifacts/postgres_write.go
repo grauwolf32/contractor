@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -145,7 +146,7 @@ FROM inserted_revision, claimed_binding`,
 		case "23503":
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
 		case "23505":
-			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: cloneString(expectedRevision)}
+			return WriteResult{}, &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 		}
 		return WriteResult{}, fmt.Errorf("write artifact %s/%s: %w", target.Namespace, target.Name, err)
 	}
@@ -181,13 +182,5 @@ WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4`,
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("inspect artifact write conflict: %w", err)
 	}
-	return &ConflictError{Ref: target, ExpectedRevision: cloneString(expectedRevision)}
-}
-
-func cloneString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	copy := *value
-	return &copy
+	return &ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)}
 }

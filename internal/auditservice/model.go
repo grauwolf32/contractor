@@ -77,10 +77,10 @@ func ValidateBaseline(value BaselineSnapshot) error {
 	if _, err := normalizeScope(value.Scope); err != nil {
 		return err
 	}
-	if normalized, err := normalizeLabels(value.RuntimeLabels); err != nil || !equalStrings(normalized, value.RuntimeLabels) {
+	if normalized, err := normalizeLabels(value.RuntimeLabels); err != nil || !slices.Equal(normalized, value.RuntimeLabels) {
 		return fmt.Errorf("%w: Audit baseline Runtime labels are invalid", ErrInvalid)
 	}
-	if err := value.RuntimeConfig.Validate(); err != nil || !equalStrings(value.RuntimeLabels, value.RuntimeConfig.ExplicitLabels()) {
+	if err := value.RuntimeConfig.Validate(); err != nil || !slices.Equal(value.RuntimeLabels, value.RuntimeConfig.ExplicitLabels()) {
 		return fmt.Errorf("%w: Audit baseline RuntimeConfig is invalid", ErrInvalid)
 	}
 	previous := ""
@@ -189,18 +189,6 @@ func mergeIDs(sets ...[]string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }
 
 func cloneExactInputs(source map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {

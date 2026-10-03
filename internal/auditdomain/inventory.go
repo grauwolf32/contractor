@@ -2,6 +2,7 @@ package auditdomain
 
 import (
 	"bytes"
+	"slices"
 	"sort"
 	"strings"
 
@@ -126,7 +127,7 @@ func finishInventory(
 	result := Inventory{
 		SourceContentDigest: sourceDigest, CanonicalInventoryDigest: canonicalDigest,
 		CanonicalInventory: canonical, Worklist: worklist, ExecutionManifest: execution,
-		Coverage: coverage, Tasks: tasks, Gaps: copyStrings(basis.Gaps),
+		Coverage: coverage, Tasks: tasks, Gaps: slices.Clone(basis.Gaps),
 	}
 	if err := ValidateInventory(result); err != nil {
 		return Inventory{}, err
@@ -293,7 +294,7 @@ func validateBasisItem(
 			return invalid(CodeInventoryInvalid, "inventory.standard_mappings")
 		}
 		if basis.Selection != nil && (len(task.Standard.EntryIDs) != 1 ||
-			!containsString(basis.Selection.EntryIDs, task.Standard.EntryIDs[0])) {
+			!slices.Contains(basis.Selection.EntryIDs, task.Standard.EntryIDs[0])) {
 			return invalid(CodeInventoryInvalid, "inventory.standard_selection")
 		}
 	case "openapi-operations":
@@ -420,24 +421,8 @@ func cloneJSONValue(value any) any {
 	}
 }
 
-func copyStrings(values []string) []string {
-	if values == nil {
-		return nil
-	}
-	return append([]string{}, values...)
-}
-
 func arrayStrings(values []string) []string {
 	return append([]string{}, values...)
-}
-
-func sortedMapKeys(value map[string]any) []string {
-	result := make([]string, 0, len(value))
-	for key := range value {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func openAPIOperationKey(inventoryDigest, pathTemplate, method string) (string, error) {

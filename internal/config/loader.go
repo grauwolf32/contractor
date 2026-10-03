@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
@@ -348,7 +349,7 @@ func (l *loader) loadModelPolicies() error {
 			Model: document.Spec.Model, ContextWindowTokens: optionalIntValue(document.Spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(document.Spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(document.Spec.MaxModelCalls), MaxToolCalls: optionalIntValue(document.Spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(document.Spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(document.Spec.MaxTotalTokens),
-			Temperature: cloneFloat(document.Spec.Temperature),
+			Temperature: clone.Pointer(document.Spec.Temperature),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {
@@ -462,12 +463,4 @@ func (l *loader) resolveInstructions(source *instructionsRefSource) (contracts.R
 		return existing, nil
 	}
 	return contracts.ResolvedInstructions{}, fmt.Errorf("unknown instruction ref %q", normalized)
-}
-
-func cloneFloat(value *float64) *float64 {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
 }

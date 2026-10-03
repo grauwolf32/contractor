@@ -5,22 +5,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func cloneParameters(source map[string]string) map[string]string {
-	result := make(map[string]string, len(source))
-	for name, value := range source {
-		result[name] = value
-	}
-	return result
-}
-
-func cloneStringMap(source map[string]string) map[string]string {
-	result := make(map[string]string, len(source))
-	for name, value := range source {
-		result[name] = value
-	}
-	return result
-}
-
 func cloneArtifactSlots(
 	source map[string]workflowconfig.ArtifactSlot,
 ) map[string]workflowconfig.ArtifactSlot {

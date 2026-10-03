@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -237,7 +238,7 @@ WHERE runtime_agent_id = $1 AND label_revision = $2::numeric
 	if existing.LabelRevision != expectedRevision {
 		return RuntimeAgentPrincipal{}, ErrPrecondition
 	}
-	if equalStrings(existing.Labels, labels) {
+	if slices.Equal(existing.Labels, labels) {
 		return existing, nil
 	}
 	return RuntimeAgentPrincipal{}, ErrPrecondition
@@ -450,7 +451,7 @@ func (s *PrincipalService) ReplaceLabels(
 			return err
 		}
 		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !equalStrings(locked.Labels, optimistic.Labels) {
+			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
 			return ErrPrecondition
 		}
 		// The union was locked above; validate only the desired same-layer set.
@@ -517,7 +518,7 @@ func (s *PrincipalService) ReplaceLabelsIdempotent(
 			return err
 		}
 		if locked.LabelRevision != expectedRevision ||
-			locked.LabelRevision != optimistic.LabelRevision || !equalStrings(locked.Labels, optimistic.Labels) {
+			locked.LabelRevision != optimistic.LabelRevision || !slices.Equal(locked.Labels, optimistic.Labels) {
 			return ErrPrecondition
 		}
 		if _, err := validateAgentLabelSetFromLocked(ctx, tx, labels); err != nil {
@@ -839,16 +840,4 @@ func sortedUnion(groups ...[]string) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

@@ -417,14 +417,6 @@ func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func cloneParameters(source map[string]string) map[string]string {
-	result := make(map[string]string, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
-}
-
 func sortedArtifactSlots(source map[string]contracts.ArtifactRef) []string {
 	result := make([]string, 0, len(source))
 	for slot := range source {

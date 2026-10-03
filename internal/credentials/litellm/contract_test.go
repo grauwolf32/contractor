@@ -3,6 +3,7 @@ package litellm
 import (
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func TestPinnedLiteLLMContract(t *testing.T) {
 	defer func() { _ = manager.RecoverCreate(t.Context(), request) }()
 	first, err := manager.Create(t.Context(), request)
 	if err != nil || first.Validate() != nil ||
-		!equalStrings(first.EffectivePolicy.Models, []string{"planner-model", "worker-model"}) ||
+		!slices.Equal(first.EffectivePolicy.Models, []string{"planner-model", "worker-model"}) ||
 		first.EffectivePolicy.MaxBudget == nil || *first.EffectivePolicy.MaxBudget != maxBudget ||
 		first.EffectivePolicy.TPMLimit == nil || *first.EffectivePolicy.TPMLimit != tpm ||
 		first.EffectivePolicy.RPMLimit == nil || *first.EffectivePolicy.RPMLimit != rpm ||

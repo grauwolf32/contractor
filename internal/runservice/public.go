@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -134,7 +135,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						RunID: runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
-						Parameters: cloneParameters(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
+						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
 						RuntimeConfig: runtimeSnapshot, ProjectHTTPTarget: projectTarget,
 					},
 					IdempotencyKey: normalized.IdempotencyKey, RequestDigest: normalized.RequestDigest,
@@ -227,7 +228,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	}
 	params.RuntimeLabels = labels
 	params.MetadataLabels = metadata
-	params.Parameters = cloneParameters(params.Parameters)
+	params.Parameters = clone.Map(params.Parameters)
 	params.Inputs = cloneRefs(params.Inputs)
 	if params.ProjectID != nil {
 		projectID := *params.ProjectID

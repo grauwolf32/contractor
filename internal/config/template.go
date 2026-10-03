@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -134,7 +135,7 @@ func (l *loader) resolveWorkerSummarizer(
 	result := &contracts.WorkerSummarizerConfig{
 		ModelPolicy:        cloneModelPolicy(policy),
 		ContextWindowRatio: contracts.DefaultWorkerSummarizerContextWindowRatio,
-		CumulativeBudget:   cloneInt(source.CumulativeBudget),
+		CumulativeBudget:   clone.Pointer(source.CumulativeBudget),
 	}
 	if source.ContextWindowRatio != nil {
 		result.ContextWindowRatio = *source.ContextWindowRatio

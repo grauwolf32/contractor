@@ -1,6 +1,7 @@
 package auditdomain
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -140,7 +141,7 @@ func selectedStandardMappings(
 	seenLevels := make(map[string]struct{}, len(selection.Levels))
 	for _, entryID := range selection.EntryIDs {
 		entry, exists := entries[entryID]
-		if !exists || !containsString(selection.Levels, entry.Level) {
+		if !exists || !slices.Contains(selection.Levels, entry.Level) {
 			return nil, nil, invalid(CodeInventoryInvalid, "standard_selection.entry_ids")
 		}
 		selected[entryID] = struct{}{}
@@ -190,9 +191,4 @@ func strictlySortedNonEmpty(values []string) bool {
 		previous = value
 	}
 	return true
-}
-
-func containsString(values []string, candidate string) bool {
-	index := sort.SearchStrings(values, candidate)
-	return index < len(values) && values[index] == candidate
 }

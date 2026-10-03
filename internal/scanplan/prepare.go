@@ -2,6 +2,8 @@ package scanplan
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -96,7 +98,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 	seenBindings := map[string]bool{}
 	byDigest := map[string]int{}
 	outputBytes := 0
-	for _, path := range keys(paths) {
+	for _, path := range slices.Sorted(maps.Keys(paths)) {
 		if strings.HasPrefix(path, "x-") {
 			continue
 		}
@@ -119,7 +121,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 			}
 			continue
 		}
-		for _, key := range keys(item) {
+		for _, key := range slices.Sorted(maps.Keys(item)) {
 			if !strings.HasPrefix(key, "x-") && !knownPathField(key) {
 				p.gap(pointer, "unsupported_path_item_field")
 			}
@@ -152,7 +154,7 @@ func prepare(data []byte, mediaType string, source contracts.ArtifactRef, option
 				continue
 			}
 			unknown := false
-			for _, key := range keys(op) {
+			for _, key := range slices.Sorted(maps.Keys(op)) {
 				if !strings.HasPrefix(key, "x-") && !knownOperationField(key) {
 					unknown = true
 				}
@@ -311,14 +313,6 @@ func (p *preparer) gap(pointer, code string) {
 	}
 	p.gapKeys[gap] = true
 	p.gaps = append(p.gaps, gap)
-}
-func keys[V any](value map[string]V) []string {
-	result := make([]string, 0, len(value))
-	for key := range value {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }
 func escapePointer(value string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(value, "~", "~0"), "/", "~1")

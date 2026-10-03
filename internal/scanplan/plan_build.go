@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -96,7 +98,7 @@ func BuildPlan(input PlanInput, policy contracts.ScanPlanPolicy, bindings map[st
 	}
 	counts, seconds := map[string]int{}, map[string]int{}
 	totalSeconds := 0
-	for _, id := range keys(candidates) {
+	for _, id := range slices.Sorted(maps.Keys(candidates)) {
 		candidate := candidates[id]
 		c := &candidate.candidate
 		sort.Strings(c.SourceIDs)

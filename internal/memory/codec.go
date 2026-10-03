@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -236,7 +237,7 @@ func Decode(artifactName string, payload []byte) (StoredNote, error) {
 		return StoredNote{}, invalid(ReasonOrdinal)
 	}
 	normalizedTags, err := normalizeTags(note.Tags)
-	if err != nil || note.Tags == nil || !equalStrings(note.Tags, normalizedTags) {
+	if err != nil || note.Tags == nil || !slices.Equal(note.Tags, normalizedTags) {
 		return StoredNote{}, invalid(ReasonTags)
 	}
 	bindingName, err := NameFromArtifact(artifactName)
@@ -395,16 +396,4 @@ func requireEOF(decoder *json.Decoder) error {
 		return errors.New("multiple JSON values")
 	}
 	return nil
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

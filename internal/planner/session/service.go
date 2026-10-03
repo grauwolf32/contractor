@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -332,7 +333,7 @@ func (s *Service) RecordFact(
 		}
 		next := state
 		next.NextSequence++
-		next.FactDigests = cloneStringMap(state.FactDigests)
+		next.FactDigests = clone.Map(state.FactDigests)
 		next.FactDigests[fact.Key] = digest
 		encodedState, encodeErr := encodeState(next)
 		if encodeErr != nil {
@@ -794,14 +795,6 @@ func clonePlanProjection(value planner.PlannerPlanProjection) planner.PlannerPla
 	if value.ActiveDispatch != nil {
 		active := *value.ActiveDispatch
 		result.ActiveDispatch = &active
-	}
-	return result
-}
-
-func cloneStringMap(value map[string]string) map[string]string {
-	result := make(map[string]string, len(value)+1)
-	for key, current := range value {
-		result[key] = current
 	}
 	return result
 }

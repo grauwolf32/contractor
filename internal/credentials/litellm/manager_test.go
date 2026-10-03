@@ -8,12 +8,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 )
@@ -92,7 +94,7 @@ func TestManagerMapsCanonicalPolicyAndUsesSeparateDeleteIdentities(t *testing.T)
 		t.Fatalf("generated credential = (%+v, %v)", generated, err)
 	}
 	if generated.EffectivePolicy.MaxBudget == nil || *generated.EffectivePolicy.MaxBudget != 8.5 ||
-		!equalStrings(generated.EffectivePolicy.Models, []string{"alpha-model", "zeta-model"}) ||
+		!slices.Equal(generated.EffectivePolicy.Models, []string{"alpha-model", "zeta-model"}) ||
 		len(generated.EffectivePolicy.ModelPolicies) != 2 {
 		t.Fatalf("effective policy = %+v", generated.EffectivePolicy)
 	}
@@ -102,7 +104,7 @@ func TestManagerMapsCanonicalPolicyAndUsesSeparateDeleteIdentities(t *testing.T)
 		t.Fatalf("deterministic alias = %q, want %q", alias, expectedAlias)
 	}
 	if generatedRequest.KeyAlias != alias || generatedRequest.KeyType != "llm_api" ||
-		!equalStrings(generatedRequest.Models, []string{"alpha-model", "zeta-model"}) ||
+		!slices.Equal(generatedRequest.Models, []string{"alpha-model", "zeta-model"}) ||
 		generatedRequest.MaxBudget == nil || *generatedRequest.MaxBudget != maxBudget ||
 		generatedRequest.BudgetDuration != "1d" || generatedRequest.Metadata.CredentialID != request.CredentialID ||
 		generatedRequest.Metadata.GatewayDigest != gateway.Ref.Digest || generatedRequest.Metadata.OperationID != request.OperationID {
@@ -401,8 +403,8 @@ func validGenerateResponse(request generateKeyRequest, key, tokenID string) gene
 	return generateKeyResponse{
 		Key: key, Token: tokenID, TokenID: tokenID, KeyAlias: request.KeyAlias,
 		Models: request.Models, Metadata: request.Metadata,
-		MaxBudget: cloneFloat(request.MaxBudget), TPMLimit: cloneInt(request.TPMLimit),
-		RPMLimit: cloneInt(request.RPMLimit), MaxParallelRequests: cloneInt(request.MaxParallelRequests),
+		MaxBudget: clone.Pointer(request.MaxBudget), TPMLimit: clone.Pointer(request.TPMLimit),
+		RPMLimit: clone.Pointer(request.RPMLimit), MaxParallelRequests: clone.Pointer(request.MaxParallelRequests),
 		AllowedRoutes: []string{liteLLMAllowedRoute},
 		BudgetDuration: func() *string {
 			if request.BudgetDuration == "" {

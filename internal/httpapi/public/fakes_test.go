@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -1069,7 +1070,7 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		ProjectID:    params.ProjectID,
 		WorkflowName: params.WorkflowName, WorkflowVersion: params.WorkflowVersion,
 		WorkflowSchemaVersion: params.WorkflowSchemaVersion, WorkflowSnapshot: params.WorkflowSnapshot,
-		Parameters:     cloneParameters(params.Parameters),
+		Parameters:     clone.Map(params.Parameters),
 		MetadataLabels: params.MetadataLabels.Clone(),
 		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
 		ProjectHTTPTarget: cloneHTTPOriginTarget(params.ProjectHTTPTarget),
@@ -1147,7 +1148,7 @@ func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
 	run.ProjectHTTPTarget = cloneHTTPOriginTarget(run.ProjectHTTPTarget)
 	run.MetadataLabels = run.MetadataLabels.Clone()
 	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
-	run.Parameters = cloneParameters(run.Parameters)
+	run.Parameters = clone.Map(run.Parameters)
 	return run
 }
 

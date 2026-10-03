@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
@@ -164,7 +166,7 @@ func (l *loader) resolveStageExecutionConfigOverride(
 	}
 	if len(patch.Agents) > 0 {
 		result.Agents = make(map[string]ResolvedExecutionSelectionOverride, len(patch.Agents))
-		for _, logicalName := range sortedPatchKeys(patch.Agents) {
+		for _, logicalName := range slices.Sorted(maps.Keys(patch.Agents)) {
 			selection, err := l.resolveExecutionSelectionOverride(patch.Agents[logicalName])
 			if err != nil {
 				return ResolvedStageExecutionConfigOverride{}, fmt.Errorf("agents.%s: %w", logicalName, err)

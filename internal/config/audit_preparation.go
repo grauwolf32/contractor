@@ -1,6 +1,10 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"maps"
+	"slices"
+)
 
 // Inventory artifacts and Workflow inputs use the same explicit reference.
 // Only Audit inputs and accepted Audit-scoped prepare outputs exist before a Round.
@@ -85,7 +89,7 @@ func ValidateAuditPreparationProfile(profile ResolvedAuditProfile) error {
 	} else if profile.Inventory.Settings != nil {
 		return fmt.Errorf("inventory does not accept settings")
 	}
-	for _, role := range sortedMapKeys(profile.Workflows) {
+	for _, role := range slices.Sorted(maps.Keys(profile.Workflows)) {
 		binding := profile.Workflows[role]
 		if len(binding.Inputs) > MaxAuditWorkflowMappings || len(binding.Parameters) > MaxAuditWorkflowMappings || len(binding.Outputs) == 0 || len(binding.Outputs) > MaxAuditWorkflowMappings {
 			return fmt.Errorf("workflows.%s mappings exceed bounds or have no output", role)

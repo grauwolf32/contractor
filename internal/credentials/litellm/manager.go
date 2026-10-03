@@ -14,11 +14,13 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/strictjson"
@@ -215,11 +217,11 @@ func (m *Manager) createPayload(
 	requestedPolicy := credentials.EffectiveGatewayPolicy{
 		ModelPolicies:       append([]contracts.ModelPolicyRef(nil), refs...),
 		Models:              append([]string(nil), models...),
-		MaxBudget:           cloneFloat(request.Policy.MaxBudget),
+		MaxBudget:           clone.Pointer(request.Policy.MaxBudget),
 		BudgetDuration:      request.Policy.BudgetDuration,
-		TPMLimit:            cloneInt(request.Policy.TPMLimit),
-		RPMLimit:            cloneInt(request.Policy.RPMLimit),
-		MaxParallelRequests: cloneInt(request.Policy.MaxParallelRequests),
+		TPMLimit:            clone.Pointer(request.Policy.TPMLimit),
+		RPMLimit:            clone.Pointer(request.Policy.RPMLimit),
+		MaxParallelRequests: clone.Pointer(request.Policy.MaxParallelRequests),
 	}
 	if err := requestedPolicy.Validate(); err != nil {
 		return generateKeyRequest{}, exactBinding{}, err
@@ -240,11 +242,11 @@ func (m *Manager) createPayload(
 			OperationID:    request.OperationID,
 			Label:          request.Label,
 		},
-		MaxBudget:           cloneFloat(request.Policy.MaxBudget),
+		MaxBudget:           clone.Pointer(request.Policy.MaxBudget),
 		BudgetDuration:      request.Policy.BudgetDuration,
-		TPMLimit:            cloneInt(request.Policy.TPMLimit),
-		RPMLimit:            cloneInt(request.Policy.RPMLimit),
-		MaxParallelRequests: cloneInt(request.Policy.MaxParallelRequests),
+		TPMLimit:            clone.Pointer(request.Policy.TPMLimit),
+		RPMLimit:            clone.Pointer(request.Policy.RPMLimit),
+		MaxParallelRequests: clone.Pointer(request.Policy.MaxParallelRequests),
 		ModelPolicies:       refs,
 	}
 	if encoded, err := json.Marshal(payload); err != nil || len(encoded) == 0 || len(encoded) > maximumRequestBytes {
@@ -362,7 +364,7 @@ func decodeGenerateResponse(
 	var response generateKeyResponse
 	if strictjson.Decode(data, &response) != nil || response.KeyAlias != request.KeyAlias ||
 		!tokenIDPattern.MatchString(response.TokenID) || response.Token != response.TokenID ||
-		!strings.HasPrefix(response.Key, "sk-") || !equalStrings(response.Models, request.Models) ||
+		!strings.HasPrefix(response.Key, "sk-") || !slices.Equal(response.Models, request.Models) ||
 		len(response.AllowedRoutes) != 1 || response.AllowedRoutes[0] != liteLLMAllowedRoute ||
 		(response.Blocked != nil && *response.Blocked) || !metadataEqual(response.Metadata, request.Metadata) {
 		return credentials.GeneratedCredential{}, errors.New("invalid LiteLLM key response")
@@ -374,10 +376,10 @@ func decodeGenerateResponse(
 	effective := credentials.EffectiveGatewayPolicy{
 		ModelPolicies:       append([]contracts.ModelPolicyRef(nil), request.ModelPolicies...),
 		Models:              append([]string(nil), request.Models...),
-		MaxBudget:           cloneFloat(response.MaxBudget),
-		TPMLimit:            cloneInt(response.TPMLimit),
-		RPMLimit:            cloneInt(response.RPMLimit),
-		MaxParallelRequests: cloneInt(response.MaxParallelRequests),
+		MaxBudget:           clone.Pointer(response.MaxBudget),
+		TPMLimit:            clone.Pointer(response.TPMLimit),
+		RPMLimit:            clone.Pointer(response.RPMLimit),
+		MaxParallelRequests: clone.Pointer(response.MaxParallelRequests),
 	}
 	if response.BudgetDuration != nil {
 		effective.BudgetDuration = *response.BudgetDuration
@@ -409,36 +411,8 @@ func metadataEqual(left, right keyMetadata) bool {
 	return left == right
 }
 
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
 func modelPolicyKey(ref contracts.ModelPolicyRef) string {
 	return ref.PolicyID + "\x00" + ref.Version + "\x00" + ref.Digest
-}
-
-func cloneFloat(value *float64) *float64 {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
-func cloneInt(value *int) *int {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
 }
 
 var _ credentials.GatewayCredentialManager = (*Manager)(nil)

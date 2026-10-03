@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -152,14 +153,14 @@ func TestOpenAPIScanInventoryKeepsNucleiLimitationsAndUnpreparedItem(t *testing.
 		t.Fatal("lost unprepared operation")
 	}
 	missing, target := inventory.Tasks[0].Document, inventory.Tasks[1].Document
-	if missing.Scan.Runnable || missing.Scan.TargetURL != "" || !containsString(missing.Scan.Gaps, "missing_required_parameter") {
+	if missing.Scan.Runnable || missing.Scan.TargetURL != "" || !slices.Contains(missing.Scan.Gaps, "missing_required_parameter") {
 		t.Fatalf("missing value invented: %+v", missing.Scan)
 	}
 	if !target.Scan.Runnable || target.Scan.TargetURL != "https://target.test/api/pets/7" || target.Scan.RequestDigest != "" {
 		t.Fatalf("lost fixed URL: %+v", target.Scan)
 	}
 	for _, code := range []string{"url_template_scan_only", "http_method_not_replayed", "request_body_not_replayed", "authentication_not_applied"} {
-		if !containsString(target.Scan.Gaps, code) {
+		if !slices.Contains(target.Scan.Gaps, code) {
 			t.Fatalf("missing %s: %+v", code, target.Scan.Gaps)
 		}
 	}
@@ -225,7 +226,7 @@ func TestOpenAPIScanInventoryIdentityIncludesExactSettingsAndSelection(t *testin
 		if changed.CanonicalInventoryDigest == initial.CanonicalInventoryDigest || changed.Tasks[0].PackageDigest == initial.Tasks[0].PackageDigest {
 			t.Fatal("settings identity lost")
 		}
-		if strings.Contains(settings, `["excluded"]`) && (changed.Tasks[0].Document.Scan.Runnable || !containsString(changed.Tasks[0].Document.Scan.Gaps, "test_parameter_unavailable")) {
+		if strings.Contains(settings, `["excluded"]`) && (changed.Tasks[0].Document.Scan.Runnable || !slices.Contains(changed.Tasks[0].Document.Scan.Gaps, "test_parameter_unavailable")) {
 			t.Fatal("unavailable test parameter did not produce gap")
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -46,7 +47,7 @@ func (s *Scheduler) buildStageCreation(
 		return NextStageCreation{}, fmt.Errorf("generate StageExecution ID: %w", err)
 	}
 	contextSnapshot := runstore.StageContextSnapshot{
-		Parameters: cloneParameters(run.Parameters),
+		Parameters: clone.Map(run.Parameters),
 		Artifacts:  make(map[string]runstore.PinnedContextArtifact, len(workflow.stage.Context.Artifacts)),
 	}
 	pins := make([]ContextPin, 0, len(workflow.stage.Context.Artifacts))

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -1945,7 +1946,7 @@ func (h *schedulerHarness) persistedExecution(
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: encodedStage,
 		StageContextSchemaVersion: contracts.APIVersion,
 		StageContext: runstore.StageContextSnapshot{
-			Parameters: cloneParameters(h.store.run.Parameters),
+			Parameters: clone.Map(h.store.run.Parameters),
 			Artifacts: map[string]runstore.PinnedContextArtifact{
 				"source": {Required: true, Artifact: &input},
 			},

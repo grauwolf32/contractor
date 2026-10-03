@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -453,9 +454,9 @@ func normalizeCreateRequest(request CreateRequest) (createOperationRequest, stri
 	policy := request.GatewayPolicy
 	policy.ModelPolicies = append([]contracts.ModelPolicyRef(nil), policy.ModelPolicies...)
 	policy.MaxBudget = cloneFloat64Pointer(policy.MaxBudget)
-	policy.TPMLimit = cloneIntPointer(policy.TPMLimit)
-	policy.RPMLimit = cloneIntPointer(policy.RPMLimit)
-	policy.MaxParallelRequests = cloneIntPointer(policy.MaxParallelRequests)
+	policy.TPMLimit = clone.Pointer(policy.TPMLimit)
+	policy.RPMLimit = clone.Pointer(policy.RPMLimit)
+	policy.MaxParallelRequests = clone.Pointer(policy.MaxParallelRequests)
 	sort.Slice(policy.ModelPolicies, func(left, right int) bool {
 		return modelPolicyRefKey(policy.ModelPolicies[left]) < modelPolicyRefKey(policy.ModelPolicies[right])
 	})
@@ -804,21 +805,13 @@ func cloneEffectiveGatewayPolicy(value EffectiveGatewayPolicy) EffectiveGatewayP
 	value.ModelPolicies = append([]contracts.ModelPolicyRef(nil), value.ModelPolicies...)
 	value.Models = append([]string(nil), value.Models...)
 	value.MaxBudget = cloneFloat64Pointer(value.MaxBudget)
-	value.TPMLimit = cloneIntPointer(value.TPMLimit)
-	value.RPMLimit = cloneIntPointer(value.RPMLimit)
-	value.MaxParallelRequests = cloneIntPointer(value.MaxParallelRequests)
+	value.TPMLimit = clone.Pointer(value.TPMLimit)
+	value.RPMLimit = clone.Pointer(value.RPMLimit)
+	value.MaxParallelRequests = clone.Pointer(value.MaxParallelRequests)
 	return value
 }
 
 func cloneFloat64Pointer(value *float64) *float64 {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
-func cloneIntPointer(value *int) *int {
 	if value == nil {
 		return nil
 	}

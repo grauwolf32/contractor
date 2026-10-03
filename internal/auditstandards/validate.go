@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -201,7 +202,7 @@ func validateDocument(document Document) error {
 		seenEntries := make(map[string]struct{}, len(mapping.EntryIDs))
 		for _, entryID := range mapping.EntryIDs {
 			entry, exists := entries[entryID]
-			if !exists || entry.EvidenceContract != mapping.EvidenceContract || !contains(entry.AllowedMethods, mapping.Method) {
+			if !exists || entry.EvidenceContract != mapping.EvidenceContract || !slices.Contains(entry.AllowedMethods, mapping.Method) {
 				return validationError(CodeDanglingMapping, ManifestPath)
 			}
 			if _, duplicate := seenEntries[entryID]; duplicate {
@@ -242,11 +243,6 @@ func validUniqueEnum(values []string, allowed map[string]bool) bool {
 		seen[value] = struct{}{}
 	}
 	return true
-}
-
-func contains(values []string, candidate string) bool {
-	index := sort.SearchStrings(values, candidate)
-	return index < len(values) && values[index] == candidate
 }
 
 func ValidatePinnedPackage(value PinnedPackage) error {

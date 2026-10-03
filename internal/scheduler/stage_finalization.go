@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -205,7 +206,7 @@ func (s *Scheduler) resumeFinalizing(
 		err = s.persistence.CommitResultProgression(commitContext, ResultProgression{
 			RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
 			Result:          cloneStageResult(*execution.CandidateResult),
-			WorkflowOutputs: cloneStringMap(workflow.stage.WorkflowOutputs),
+			WorkflowOutputs: clone.Map(workflow.stage.WorkflowOutputs),
 			OutputContracts: cloneArtifactSlots(workflow.workflow.Outputs),
 			Progression:     progression,
 		})

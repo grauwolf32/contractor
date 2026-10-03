@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -72,7 +73,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					WorkflowVersion:       normalized.Workflow.Ref.Version,
 					WorkflowSchemaVersion: contracts.APIVersion,
 					WorkflowSnapshot:      workflowSnapshot,
-					Parameters:            cloneParameters(normalized.Parameters), MetadataLabels: labels,
+					Parameters:            clone.Map(normalized.Parameters), MetadataLabels: labels,
 					RuntimeConfig:     normalized.RuntimeConfig,
 					ProjectHTTPTarget: cloneHTTPOriginTarget(normalized.ProjectHTTPTarget),
 				},
@@ -200,7 +201,7 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 		}
 		refs[slot] = descriptor.Ref
 	}
-	params.Parameters = cloneParameters(params.Parameters)
+	params.Parameters = clone.Map(params.Parameters)
 	if err := validateWorkflowInputs(params.Workflow, params.Parameters, refs); err != nil {
 		return AuditCreateParams{}, nil, err
 	}

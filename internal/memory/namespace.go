@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/clone"
 )
 
 const (
@@ -426,7 +427,7 @@ func (n *Namespace) writeExact(
 		return n.store.Write(
 			ctx, n.binding, target,
 			artifacts.Payload{MediaType: MediaType, Data: append([]byte(nil), payload...)},
-			cloneString(expectedRevision),
+			clone.Pointer(expectedRevision),
 		)
 	}
 	result, err := write()
@@ -606,11 +607,3 @@ func validBinding(binding Binding) bool {
 }
 
 func stringPointer(value string) *string { return &value }
-
-func cloneString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}

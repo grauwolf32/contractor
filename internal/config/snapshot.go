@@ -2,8 +2,11 @@ package config
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -96,7 +99,7 @@ func (s *Snapshot) AuditProfile(raw string) (ResolvedAuditProfile, error) {
 // AuditProfiles returns every profile sorted by exact ref and deeply detached
 // from the immutable Snapshot.
 func (s *Snapshot) AuditProfiles() []ResolvedAuditProfile {
-	keys := sortedMapKeys(s.auditProfiles)
+	keys := slices.Sorted(maps.Keys(s.auditProfiles))
 	result := make([]ResolvedAuditProfile, 0, len(keys))
 	for _, key := range keys {
 		result = append(result, cloneAuditProfile(s.auditProfiles[key]))
@@ -229,7 +232,7 @@ func (s *Snapshot) Instructions(raw string) (contracts.ResolvedInstructions, err
 
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
 	result := source
-	result.Temperature = cloneFloat(source.Temperature)
+	result.Temperature = clone.Pointer(source.Temperature)
 	return result
 }
 
@@ -255,7 +258,7 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 			summarizer.Instructions = &instructions
 		}
 		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
-		summarizer.CumulativeBudget = cloneInt(source.Summarizer.CumulativeBudget)
+		summarizer.CumulativeBudget = clone.Pointer(source.Summarizer.CumulativeBudget)
 		result.Summarizer = &summarizer
 	}
 	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
