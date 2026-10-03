@@ -8,7 +8,7 @@ import type {
   StageTransition,
   WorkflowRunState,
 } from "../../api/runs";
-import { formatTimestamp } from "../../app/format";
+import { compactDigest, formatTimestamp } from "../../app/format";
 import type { PlannerProjection } from "./live";
 
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];
@@ -98,10 +98,6 @@ export function RunMetadataLabelChips({
       ))}
     </span>
   );
-}
-
-function compactDigest(digest: string): string {
-  return `${digest.slice(0, 14)}…${digest.slice(-8)}`;
 }
 
 export function RunArtifactRef({

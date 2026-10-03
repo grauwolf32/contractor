@@ -13,7 +13,7 @@ import { AUDIT_ID_PATTERN } from "../../api/audits";
 import { ContextLink } from "../../app/context-navigation";
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
-import { formatTimestamp } from "../../app/format";
+import { compactId, formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "../runs/components";
 import { RefreshButton } from "../../app/refresh-button";
 import { ProjectSectionActions } from "./navigation";
@@ -35,11 +35,7 @@ export function ProjectRunIdentity({
       >
         {run.workflow}
       </ContextLink>
-      <code title={run.runId}>
-        {run.runId.length > 24
-          ? `${run.runId.slice(0, 8)}…${run.runId.slice(-8)}`
-          : run.runId}
-      </code>
+      <code title={run.runId}>{compactId(run.runId)}</code>
     </div>
   );
 }

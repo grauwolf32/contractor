@@ -28,7 +28,7 @@ import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { CursorControls } from "../../../app/cursor-controls";
 import { nextPageCursor, useURLCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
-import { formatTimestamp } from "../../../app/format";
+import { compactDigest, formatTimestamp } from "../../../app/format";
 import { AuditControls } from "./controls";
 import { auditProfileLabel } from "./labels";
 import { describeStopReason } from "./stop-reason";
@@ -48,12 +48,6 @@ const ARTIFACT_AUTOLOAD_PAGES = 4;
 
 function profileOption(profile: AuditProfile): string {
   return JSON.stringify([profile.ref.name, profile.ref.version]);
-}
-
-function compactDigest(digest: string): string {
-  return digest.length <= 28
-    ? digest
-    : `${digest.slice(0, 15)}…${digest.slice(-8)}`;
 }
 
 function compatibleMediaType(

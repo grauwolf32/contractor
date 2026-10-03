@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 
 import type { AllocationObservation } from "../../api/operations";
-import { formatTimestamp } from "../../app/format";
+import { compactDigest, formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import type { ExactConfigurationRef } from "./references";
 
@@ -17,7 +17,7 @@ export function ConfigurationRefLink({
       >
         {value.name}@{value.version}
       </Link>
-      <code title={value.digest}>{value.digest.slice(0, 18)}…</code>
+      <code title={value.digest}>{compactDigest(value.digest)}</code>
     </span>
   );
 }

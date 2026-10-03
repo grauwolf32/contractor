@@ -12,6 +12,7 @@ import { useAuditItems } from "./items-data";
 import { StaleDataWarning } from "../../../app/query-view";
 import { LoadMoreControl } from "./load-more";
 import { ExactArtifactLink } from "./shared";
+import { compactId } from "../../../app/format";
 
 /**
  * Attempts, produced artifacts and exact identity of one check, as read from
@@ -202,9 +203,7 @@ export function AuditRuns({
                         title={attempt.runId}
                         aria-label={attempt.runId}
                       >
-                        {attempt.runId.length > 24
-                          ? `${attempt.runId.slice(0, 12)}…${attempt.runId.slice(-8)}`
-                          : attempt.runId}
+                        {compactId(attempt.runId)}
                       </ContextLink>
                     )}
                   </td>

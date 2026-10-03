@@ -13,7 +13,6 @@ import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
   type ArtifactMetadata,
-  type DownloadedArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -46,21 +45,7 @@ import "./outputs.css";
 import { RefreshButton } from "../../app/refresh-button";
 import { useDocumentTitle } from "../../app/document-title";
 import { RecordedTime } from "../../app/recorded-time";
-
-function triggerDownload(downloaded: DownloadedArtifact): void {
-  const objectURL = URL.createObjectURL(downloaded.blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectURL;
-  anchor.download = downloaded.filename;
-  anchor.hidden = true;
-  document.body.append(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(objectURL);
-  }
-}
+import { saveBlob } from "../../app/download";
 
 function RunOutputPreview({
   runId,
@@ -417,7 +402,7 @@ function RunArtifactActions({
   const api = usePublicAPI();
   const download = useMutation({
     mutationFn: () => downloadRunArtifact(api, runId, metadata),
-    onSuccess: triggerDownload,
+    onSuccess: (downloaded) => saveBlob(downloaded.blob, downloaded.filename),
   });
   return (
     <div className="artifact-actions-grid run-artifact-actions">

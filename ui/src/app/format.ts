@@ -26,3 +26,24 @@ export function formatTimestamp(value: string): string {
     ? value
     : absoluteTimestamp.format(parsed);
 }
+
+/** Shortens a long value to its head and tail around an ellipsis. */
+export function middleTruncate(
+  value: string,
+  head: number,
+  tail: number,
+): string {
+  return value.length <= head + tail + 4
+    ? value
+    : `${value.slice(0, head)}…${value.slice(-tail)}`;
+}
+
+/** Compact form of a Run, Project or other long resource identifier. */
+export function compactId(value: string): string {
+  return middleTruncate(value, 12, 8);
+}
+
+/** Compact form of a "sha256:<hex>" digest. */
+export function compactDigest(digest: string): string {
+  return middleTruncate(digest, 15, 8);
+}

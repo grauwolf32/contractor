@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
-import { formatBytes, formatTimestamp } from "../../../app/format";
+import { compactId, formatBytes, formatTimestamp } from "../../../app/format";
 import { OperationsState } from "../common";
 import { RecordedTime } from "../../../app/recorded-time";
 
@@ -82,9 +82,7 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
             title={item.runId}
             aria-label={item.runId}
           >
-            {item.runId.length > 24
-              ? `${item.runId.slice(0, 12)}…${item.runId.slice(-8)}`
-              : item.runId}
+            {compactId(item.runId)}
           </Link>
         </td>
         <td data-label="Outcome">

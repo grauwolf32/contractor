@@ -21,7 +21,7 @@ import {
 import { CursorControls } from "../../app/cursor-controls";
 import { useURLCursorStack } from "../../app/pagination";
 import { ErrorNotice } from "../../app/error-notice";
-import { formatTimestamp } from "../../app/format";
+import { compactId, formatTimestamp } from "../../app/format";
 import { RunMetadataLabelChips, StateBadge } from "./components";
 import { RefreshButton } from "../../app/refresh-button";
 import { RecordedTime } from "../../app/recorded-time";
@@ -29,12 +29,6 @@ import { QueryView } from "../../app/query-view";
 import { ConfirmRemovalDialog } from "../../app/confirm-removal-dialog";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
-
-function compactRunId(runId: string): string {
-  return runId.length <= 24
-    ? runId
-    : `${runId.slice(0, 12)}…${runId.slice(-8)}`;
-}
 
 function decodeLabelSelectors(
   values: readonly string[],
@@ -308,7 +302,7 @@ function CompletedRunRow({
             aria-label={run.runId}
             title={run.runId}
           >
-            {compactRunId(run.runId)}
+            {compactId(run.runId)}
           </ContextLink>
         </td>
         <td className="run-list-workflow-cell" data-label="Workflow">

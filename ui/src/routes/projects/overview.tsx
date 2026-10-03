@@ -10,7 +10,7 @@ import { getRun, type RunSummary } from "../../api/runs";
 import { getWorkflow } from "../../api/workflows";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
-import { formatTimestamp } from "../../app/format";
+import { compactId, formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import {
   organizeRunOutputs,
@@ -67,9 +67,7 @@ function RecentRunResults({
         {summary.workflow} ↗
       </ContextLink>
       <small className="project-summary-caption">
-        <code title={summary.runId}>
-          {summary.runId.slice(0, 8)}…{summary.runId.slice(-8)}
-        </code>
+        <code title={summary.runId}>{compactId(summary.runId)}</code>
         {" · "}
         {formatTimestamp(summary.updatedAt)}
       </small>

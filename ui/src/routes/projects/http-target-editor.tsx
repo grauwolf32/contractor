@@ -15,6 +15,7 @@ import {
 } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { ErrorNotice } from "../../app/error-notice";
+import { createMutationIdempotencyKey } from "../../mutations/idempotency";
 
 type TargetAuthMode = "none" | "existing" | "basic" | "bearer";
 type OriginCredential = RuntimeCredentialMetadata & {
@@ -227,7 +228,7 @@ function ProjectHTTPTargetDialog({
         const credential = await createRuntimeCredential(
           api,
           request,
-          `create-project-target-${crypto.randomUUID()}`,
+          createMutationIdempotencyKey("create-project-target"),
         );
         createdCredentialID = credential.credentialId;
         target = normalizeProjectHTTPTarget({

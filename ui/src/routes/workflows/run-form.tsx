@@ -59,7 +59,7 @@ import {
   type ExecutionOverrideDraft,
 } from "../../run-drafts/validation";
 import { ErrorNotice } from "../../app/error-notice";
-import { formatBytes, formatTimestamp } from "../../app/format";
+import { compactDigest, formatBytes, formatTimestamp } from "../../app/format";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
@@ -100,7 +100,7 @@ function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
       </code>
       <span>binding revision {binding.revision}</span>
       <code title={binding.config.digest}>
-        {binding.config.digest.slice(0, 18)}…
+        {compactDigest(binding.config.digest)}
       </code>
     </small>
   );

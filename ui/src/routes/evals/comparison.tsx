@@ -14,6 +14,7 @@ import { EvalError, EvalField } from "./common";
 import { MemberSummary } from "./member";
 import { useEvalViewRefresh } from "./view-refresh";
 import { queryKeys } from "../../api/query-keys";
+import { saveBlob } from "../../app/download";
 
 export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
   const api = usePublicAPI();
@@ -56,14 +57,10 @@ export function EvalComparison({ experiment }: { experiment: EvalExperiment }) {
   const report = useMutation({
     mutationFn: async () => {
       const data = await getEvalReport(api, experiment.experimentId, snapshot!);
-      const url = URL.createObjectURL(
+      saveBlob(
         new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+        `eval-${experiment.experimentId}.json`,
       );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `eval-${experiment.experimentId}.json`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
     },
   });
   if (!snapshot)

@@ -14,6 +14,7 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { formatTimestamp } from "../../../app/format";
 import { agentDisplayName, relativeAge, shortAgentId } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
+import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
 
 function OfflineIdentityRow({
   principal,
@@ -41,7 +42,7 @@ function OfflineIdentityRow({
         api,
         principal.runtimeAgentId,
         principal.revision,
-        `delete-runtime-principal-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("delete-runtime-principal"),
       ),
     onSuccess: async () => {
       setForgetting(false);

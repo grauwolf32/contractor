@@ -27,15 +27,12 @@ import { StateBadge } from "./runs/components";
 import { formatRunDuration } from "./runs/triage";
 import { RefreshButton } from "../app/refresh-button";
 import { QueryView } from "../app/query-view";
+import { compactId } from "../app/format";
 
 type ActiveRunState = Extract<
   WorkflowRunState,
   "initializing" | "pending" | "running" | "waiting" | "cancelling"
 >;
-
-function compactRunId(runId: string): string {
-  return runId.length <= 20 ? runId : `${runId.slice(0, 16)}…`;
-}
 
 function runDuration(run: RunSummary): string {
   const start = Date.parse(run.createdAt);
@@ -89,7 +86,7 @@ function RunRows({
         >
           <span className="action-run-identity">
             <strong>{run.workflow}</strong>
-            <code title={run.runId}>{compactRunId(run.runId)}</code>
+            <code title={run.runId}>{compactId(run.runId)}</code>
           </span>
           <span className="action-run-state">
             <StateBadge state={run.state} />

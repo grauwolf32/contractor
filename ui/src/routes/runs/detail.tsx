@@ -19,7 +19,7 @@ import { runtimeConfigVersionPath } from "../../app/navigation";
 import { useRunDraftStore } from "../../run-drafts/context";
 import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
 import { ErrorNotice } from "../../app/error-notice";
-import { formatTimestamp } from "../../app/format";
+import { compactDigest, formatTimestamp } from "../../app/format";
 import {
   DefinitionList,
   RunArtifactRef,
@@ -663,7 +663,7 @@ function RunRuntimeConfiguration({
                 </code>
               )}
               <code title={pin.config.digest}>
-                {pin.config.digest.slice(0, 18)}…
+                {compactDigest(pin.config.digest)}
               </code>
             </article>
           ))}

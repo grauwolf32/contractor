@@ -16,6 +16,7 @@ import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import { ErrorNotice } from "../../../app/error-notice";
 import { hasCredentialManager } from "../llm-configurations/model";
 import { validateCredentialRequest } from "./validation";
+import { compactDigest } from "../../../app/format";
 
 function configKey(resource: ConfigurationResource): string {
   return `${resource.ref.name}@${resource.ref.version}:${resource.ref.digest}`;
@@ -231,7 +232,7 @@ export function CredentialCreateForm() {
                 />
                 <span>
                   {resource.ref.name}@{resource.ref.version} ·{" "}
-                  <code>{resource.ref.digest.slice(0, 18)}…</code>
+                  <code>{compactDigest(resource.ref.digest)}</code>
                 </span>
               </label>
             );

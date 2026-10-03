@@ -29,12 +29,16 @@ import { Dialog, DialogHeader } from "../../../app/dialog";
 import { ConfirmRemovalDialog } from "../../../app/confirm-removal-dialog";
 import { Icon } from "../../../app/icon";
 import { DeleteIcon } from "../../../app/delete-icon";
-import { MutationDraftKeyring } from "../../../mutations/idempotency";
+import {
+  createMutationIdempotencyKey,
+  MutationDraftKeyring,
+} from "../../../mutations/idempotency";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
 import { ErrorNotice } from "../../../app/error-notice";
 import { RecordedTime } from "../../../app/recorded-time";
 import { InUseErrorDetails } from "../in-use-details";
+import { compactDigest } from "../../../app/format";
 
 const RUNTIME_ID = /^[a-z][a-z0-9_-]{0,62}$/;
 const RUNTIME_VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/;
@@ -54,7 +58,7 @@ function RuntimeRef({ resource }: { resource: RuntimeConfigResource }) {
         {resource.ref.name}@{resource.ref.version}
       </Link>
       <code title={resource.ref.digest}>
-        {resource.ref.digest.slice(0, 18)}…
+        {compactDigest(resource.ref.digest)}
       </code>
     </span>
   );
@@ -767,7 +771,7 @@ function BindingEditor({
         api,
         binding.label,
         binding.revision,
-        `delete-runtime-label-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("delete-runtime-label"),
       ),
     onSuccess: async () => {
       setConfirmRemoval(false);
@@ -835,7 +839,7 @@ function BindingEditor({
         {configs.map((resource) => (
           <option key={exactKey(resource)} value={exactKey(resource)}>
             {resource.ref.name}@{resource.ref.version} ·{" "}
-            {resource.ref.digest.slice(0, 18)}…
+            {compactDigest(resource.ref.digest)}
           </option>
         ))}
       </select>
@@ -1145,7 +1149,7 @@ function RuntimeCredentialCreateForm({ onClose }: { onClose: () => void }) {
       const result = await createRuntimeCredential(
         api,
         request,
-        `create-runtime-credential-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("create-runtime-credential"),
       );
       setCreated(result);
       setCredentialId("");
@@ -1366,7 +1370,7 @@ function RuntimeCredentialList({
       deleteRuntimeCredential(
         api,
         credentialId,
-        `delete-runtime-credential-ui-${crypto.randomUUID()}`,
+        createMutationIdempotencyKey("delete-runtime-credential"),
       ),
     onSuccess: async () => {
       setConfirmRemoval(null);

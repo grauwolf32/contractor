@@ -28,6 +28,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { DeleteProjectDialog } from "./deletion";
 import { RefreshButton } from "../../app/refresh-button";
 import { QueryView } from "../../app/query-view";
+import { compactId } from "../../app/format";
 
 interface ProjectCollectionPresentation {
   kind: ProjectKind;
@@ -285,9 +286,7 @@ function ProjectCollectionRoute({
                     <dt>ID</dt>
                     <dd>
                       <code title={project.projectId}>
-                        {project.projectId.length > 24
-                          ? `${project.projectId.slice(0, 12)}…${project.projectId.slice(-8)}`
-                          : project.projectId}
+                        {compactId(project.projectId)}
                       </code>
                     </dd>
                   </div>

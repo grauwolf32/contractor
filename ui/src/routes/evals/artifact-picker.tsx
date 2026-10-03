@@ -14,6 +14,7 @@ import { useSession } from "../../auth/session";
 import { ProjectArtifactWriteForm } from "../projects/common";
 import { EvalError, EvalField } from "./common";
 import { queryKeys } from "../../api/query-keys";
+import { sha256Hex } from "../../app/digest";
 
 export function EvalArtifactPicker({
   projectId,
@@ -49,15 +50,7 @@ export function EvalArtifactPicker({
       const artifact = metadata.artifact;
       const path = `${prefix}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`;
       const { blob } = await downloadExactArtifact(api, metadata, path);
-      const hash = await crypto.subtle.digest(
-        "SHA-256",
-        await blob.arrayBuffer(),
-      );
-      const sha256 =
-        "sha256:" +
-        Array.from(new Uint8Array(hash), (x) =>
-          x.toString(16).padStart(2, "0"),
-        ).join("");
+      const sha256 = `sha256:${await sha256Hex(await blob.arrayBuffer())}`;
       return {
         scope,
         scopeId,

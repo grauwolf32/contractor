@@ -23,18 +23,13 @@ import { RunMetadataLabelChips, StateBadge } from "./runs/components";
 import { RefreshButton } from "../app/refresh-button";
 import { RecordedTime } from "../app/recorded-time";
 import { QueryView } from "../app/query-view";
+import { compactId } from "../app/format";
 
 const LIVE_SUBSCRIPTION_LIMIT = 24;
 // Live subscriptions left waiting by a failed resync, or by a live session
 // the Server refused, are retried at the Queue's own polling pace so neither
 // a failing read nor a refused socket can spin.
 const LIVE_RETRY_DELAY_MS = 10_000;
-
-function compactRunId(runId: string): string {
-  return runId.length <= 24
-    ? runId
-    : `${runId.slice(0, 12)}…${runId.slice(-8)}`;
-}
 
 function membershipLabel(value: QueueMembership): string {
   switch (value) {
@@ -340,7 +335,7 @@ export function QueuePanel() {
                         aria-label={item.runId}
                         title={item.runId}
                       >
-                        {compactRunId(item.runId)}
+                        {compactId(item.runId)}
                       </ContextLink>
                     </td>
                     <td

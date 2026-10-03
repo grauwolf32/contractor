@@ -13,6 +13,7 @@ import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
 import { useCursorStack } from "../../../app/pagination";
 import { QueryView } from "../../../app/query-view";
+import { compactDigest } from "../../../app/format";
 
 const kindLabels: Record<ConfigurationKind, string> = {
   "agent-templates": "AgentTemplates (read-only)",
@@ -108,7 +109,7 @@ export function ConfigurationListRoute() {
                     </td>
                     <td>
                       <code title={resource.ref.digest}>
-                        {resource.ref.digest.slice(0, 22)}…
+                        {compactDigest(resource.ref.digest)}
                       </code>
                     </td>
                     <td>

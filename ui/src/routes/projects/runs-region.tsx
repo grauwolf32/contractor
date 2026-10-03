@@ -8,7 +8,7 @@ import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
 import { useCursorStack } from "../../app/pagination";
-import { formatTimestamp } from "../../app/format";
+import { compactId, formatTimestamp } from "../../app/format";
 import { StateBadge } from "../runs/components";
 import { ProjectRegion } from "./common";
 import { groupEvaluationRuns } from "./evaluation-groups";
@@ -61,11 +61,7 @@ function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
                         returnHash="#project-runs"
                         to={`/runs/${encodeURIComponent(run.runId)}`}
                       >
-                        <span title={run.runId}>
-                          {run.runId.length > 24
-                            ? `${run.runId.slice(0, 12)}…${run.runId.slice(-8)}`
-                            : run.runId}
-                        </span>
+                        <span title={run.runId}>{compactId(run.runId)}</span>
                       </ContextLink>
                     </td>
                     <td data-label="Leg">

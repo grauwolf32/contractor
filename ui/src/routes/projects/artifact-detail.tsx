@@ -13,7 +13,6 @@ import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
   type ArtifactMetadata,
-  type DownloadedArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import {
@@ -31,21 +30,7 @@ import { formatBytes, formatTimestamp } from "../../app/format";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { ProjectArtifactWriteForm } from "./common";
 import { RefreshButton } from "../../app/refresh-button";
-
-function triggerDownload(downloaded: DownloadedArtifact): void {
-  const objectURL = URL.createObjectURL(downloaded.blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectURL;
-  anchor.download = downloaded.filename;
-  anchor.hidden = true;
-  document.body.append(anchor);
-  try {
-    anchor.click();
-  } finally {
-    anchor.remove();
-    URL.revokeObjectURL(objectURL);
-  }
-}
+import { saveBlob } from "../../app/download";
 
 function ProjectArtifactActions({
   projectId,
@@ -59,7 +44,7 @@ function ProjectArtifactActions({
   const [, setSearchParams] = useSearchParams();
   const download = useMutation({
     mutationFn: () => downloadProjectArtifact(api, projectId, metadata),
-    onSuccess: triggerDownload,
+    onSuccess: (downloaded) => saveBlob(downloaded.blob, downloaded.filename),
   });
 
   return (
