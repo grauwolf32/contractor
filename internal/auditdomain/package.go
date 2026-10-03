@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // BuildPackage creates a byte-identical ZIP for identical logical inputs. The
@@ -248,15 +250,7 @@ func validPackageKind(kind PackageKind) bool {
 
 func validMediaType(value string) bool {
 	normalized := normalizedMediaType(value)
-	if normalized == "" || len(normalized) > 127 || strings.Count(normalized, "/") != 1 || strings.Contains(normalized, "*") {
-		return false
-	}
-	for _, character := range []byte(normalized) {
-		if character <= 0x20 || character >= 0x7f {
-			return false
-		}
-	}
-	return true
+	return len(normalized) <= 127 && contracts.ValidMediaType(normalized)
 }
 
 func validatePackagePath(raw string) (string, error) {

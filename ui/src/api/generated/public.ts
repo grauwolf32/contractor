@@ -5738,6 +5738,7 @@ export interface components {
         ArtifactBytes: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
+                "Cache-Control": components["headers"]["NoStore"];
                 ETag: components["headers"]["ETag"];
                 "Content-Length": number;
                 "Content-Disposition": components["headers"]["ContentDisposition"];

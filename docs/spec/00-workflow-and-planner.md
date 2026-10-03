@@ -831,7 +831,10 @@ Every artifact slot uses the same minimal payload contract:
 
 - `required` is a mandatory boolean; it has no default;
 - `mediaTypes` is a mandatory, non-empty list of unique media types;
-- a media type is a canonical lowercase `type/subtype` without parameters;
+- a media type is a canonical lowercase `type/subtype` without parameters,
+  each part an RFC 6838 restricted name (a letter or digit followed by letters,
+  digits and `!#$&^_.+-`); the artifact store, schemas, Runtime and UI share
+  [these cases](../../api/testdata/v1alpha1/media-type-cases.json);
 - matching is exact, except that the single value `*/*` explicitly accepts any
   media type; other wildcards are invalid, and `*/*` cannot be combined with
   specific values;

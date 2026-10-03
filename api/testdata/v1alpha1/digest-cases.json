@@ -1,0 +1,412 @@
+{
+  "modelPolicies": [
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "minimal",
+        "version": "1",
+        "digest": "sha256:3d82b53bd86f9f3605c780ebbb6936b48f38cb724f09a4b1ba91c3f6562536f1"
+      }
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "bounded",
+        "version": "2026.10+b1",
+        "digest": "sha256:8991b1238e1b8b3a67b652ba1bf0541bd5184db614444aeb65b5075a3f284090"
+      },
+      "contextWindowTokens": 131072,
+      "maxOutputTokens": 4096,
+      "maxModelCalls": 8,
+      "maxToolCalls": 16,
+      "maxWorkerCalls": 4,
+      "maxTotalTokens": 32768,
+      "temperature": 0.1
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "zero-temperature",
+        "version": "1",
+        "digest": "sha256:88ba7ac80ba7daa78d79b6cbd2e4cdc0945c12d27d2d477a9c230a87f36010ac"
+      },
+      "temperature": 0.0
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "integral-temperature",
+        "version": "1",
+        "digest": "sha256:cf417a2ed108c26e666e64eb18a3585dee1f067f95c68fb9a90865bd9e74b3ce"
+      },
+      "temperature": 1.0
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "binary-fraction",
+        "version": "1",
+        "digest": "sha256:7884227814dea07a0bbe028919c4b4331b72694579acf43710676267074fbf11"
+      },
+      "temperature": 0.30000000000000004
+    },
+    {
+      "model": "worker-model",
+      "ref": {
+        "policyId": "small-temperature",
+        "version": "1",
+        "digest": "sha256:d7108a018bd9c6a6091d4f60771d8f9e6502250993c8f64e3db22fcc28e066dd"
+      },
+      "temperature": 1e-07
+    }
+  ],
+  "llmGatewayConfigs": [
+    {
+      "credentialManager": {
+        "implementation": "litellm-virtual-keys@1",
+        "managementUrl": "http://127.0.0.1:4000"
+      },
+      "protocol": "openai-compatible@1",
+      "ref": {
+        "digest": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+        "gatewayId": "local-litellm",
+        "version": "1"
+      },
+      "url": "http://127.0.0.1:4000/v1"
+    },
+    {
+      "credentialManager": {
+        "implementation": "litellm-virtual-keys@1",
+        "managementUrl": "http://127.0.0.1:4000"
+      },
+      "failureSignatures": {
+        "modelUnavailable": [
+          {
+            "messageEquals": "model 'worker' not found",
+            "status": 404
+          },
+          {
+            "litellmWrapped": "Model is unloaded.",
+            "status": 400
+          }
+        ],
+        "permanentCodes": [
+          "insufficient_quota",
+          "context_length_exceeded"
+        ]
+      },
+      "protocol": "openai-compatible@1",
+      "ref": {
+        "digest": "sha256:97f0f00d0df645eb9d249fe1b56634324e135c7b6b7b8f4062209cc6d7c6f7a1",
+        "gatewayId": "local-litellm",
+        "version": "1"
+      },
+      "url": "http://127.0.0.1:4000/v1"
+    },
+    {
+      "credentialManager": {
+        "implementation": "litellm-virtual-keys@1",
+        "managementUrl": "http://127.0.0.1:4000"
+      },
+      "failureSignatures": {
+        "modelUnavailable": [
+          {
+            "status": 409,
+            "messageEquals": "Модель загружается ✓ \"quoted\" \\ backslash"
+          }
+        ],
+        "permanentCodes": [
+          "context_length_exceeded"
+        ]
+      },
+      "protocol": "openai-compatible@1",
+      "ref": {
+        "gatewayId": "unicode-gateway",
+        "version": "1",
+        "digest": "sha256:cff5ab2ccdec56d7750555dcf36bf395e34217611cfdc801913a96f63856848f"
+      },
+      "url": "http://127.0.0.1:4000/v1"
+    }
+  ],
+  "agentTemplates": [
+    {
+      "description": "Builds the requested artifact",
+      "instructions": {
+        "digest": "sha256:d466cfabe73bc48195969f5d79f4828bbc4d42d2a9a35bc48d96ee17cc479429",
+        "ref": "instructions/artifact-builder.md",
+        "text": "Read the declared input and write the requested result."
+      },
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1
+      },
+      "ref": {
+        "digest": "sha256:36fc9a1cdfca1956ac013bcb67407dbf97f941c1a356fc0dd0d23c3971610329",
+        "templateId": "artifact_builder",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "run-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "read_artifact",
+            "write_artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Scan one supplied target with installed nuclei templates.",
+      "execution": {
+        "arguments": {
+          "rate_limit": {
+            "source": "literal",
+            "value": 10
+          },
+          "url": {
+            "name": "target",
+            "source": "parameter"
+          }
+        },
+        "resultArtifact": "report",
+        "timeoutSeconds": 300,
+        "tool": "scan_nuclei"
+      },
+      "ref": {
+        "digest": "sha256:9c95c918d7c6bf31bf347aa0bddf7a9ed3540fa2e5c03dca1c1224cae89f2673",
+        "templateId": "nuclei-scan",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "tool",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "scan",
+            "version": "1"
+          },
+          "tools": [
+            "scan_nuclei"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Reviews the requested artifact",
+      "instructions": {
+        "digest": "sha256:d31b4d8f86757e6c9f5fdd7d67c4bcc6fc09a7bc0c58d5a9d12d9d7676cc790e",
+        "ref": "instructions/artifact-reviewer.md",
+        "text": "Review the declared input using the selected skills."
+      },
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1
+      },
+      "ref": {
+        "digest": "sha256:6f7b08c80fb4ded966fb48fa591ce6b1683814016e44398f59d95dc61f7581ef",
+        "templateId": "artifact_reviewer",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "skills": [
+        {
+          "name": "analysis2",
+          "namespace": "skills"
+        },
+        {
+          "name": "review",
+          "namespace": "skills"
+        }
+      ],
+      "toolsets": []
+    },
+    {
+      "description": "Builds the requested artifact with terminal summarization",
+      "instructions": {
+        "digest": "sha256:c038791c2f52c3fc4a7bf983526e6d4c87b4831db5176ce310a90a2f630ddb9f",
+        "ref": "instructions/worker-summarizer.md",
+        "text": "Use the selected tools to complete the requested task."
+      },
+      "modelPolicy": {
+        "contextWindowTokens": 131072,
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1
+      },
+      "ref": {
+        "digest": "sha256:03a249ff27bcea328018253cb1c3dfea0c2512f82bce1fe0c24705db8c2cbc66",
+        "templateId": "summarizer_enabled_worker",
+        "version": "1"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "summarizer": {
+        "contextWindowRatio": 0.9,
+        "cumulativeBudget": 20000,
+        "instructions": {
+          "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
+          "ref": "instructions/terminal-summary.md",
+          "text": "Составь итог {subtaskId}. Return only the structured result.\n"
+        },
+        "modelPolicy": {
+          "contextWindowTokens": 131072,
+          "maxModelCalls": 1,
+          "maxOutputTokens": 2048,
+          "model": "worker-summarizer-model",
+          "ref": {
+            "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
+            "policyId": "terminal_summarizer",
+            "version": "1"
+          },
+          "temperature": 0.1
+        }
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "text-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "write_text_artifact"
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Ревью ✓ \"quoted\" \\ path line\ttab 🚀",
+      "instructions": {
+        "digest": "sha256:c038791c2f52c3fc4a7bf983526e6d4c87b4831db5176ce310a90a2f630ddb9f",
+        "ref": "instructions/worker-summarizer.md",
+        "text": "Use the selected tools to complete the requested task."
+      },
+      "modelPolicy": {
+        "contextWindowTokens": 131072,
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:aff3d8450d114b8a9a45f3c6223f151be511f82299df70fdcb4def61c7349b68",
+          "policyId": "unicode_worker_policy",
+          "version": "1"
+        },
+        "temperature": 0.7
+      },
+      "ref": {
+        "templateId": "unicode_worker",
+        "version": "1",
+        "digest": "sha256:13647dfae43a82105df16d5c82b59b79557951492660a3cff1af83f350100be4"
+      },
+      "runtime": {
+        "runtimeId": "adk",
+        "version": "1"
+      },
+      "sandboxProfile": {
+        "sandboxProfileId": "local-workdir",
+        "version": "1"
+      },
+      "summarizer": {
+        "contextWindowRatio": 0.75,
+        "cumulativeBudget": 20000,
+        "instructions": {
+          "digest": "sha256:a0dc969a70d9d7bf7fb44af48ff1fdc5993d148c0554ecffe345baf0187bc0cb",
+          "ref": "instructions/terminal-summary.md",
+          "text": "Составь итог {subtaskId}. Return only the structured result.\n"
+        },
+        "modelPolicy": {
+          "contextWindowTokens": 131072,
+          "maxModelCalls": 1,
+          "maxOutputTokens": 2048,
+          "model": "worker-summarizer-model",
+          "ref": {
+            "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
+            "policyId": "terminal_summarizer",
+            "version": "1"
+          },
+          "temperature": 0.1
+        }
+      },
+      "toolsets": [
+        {
+          "ref": {
+            "toolsetId": "filesystem",
+            "version": "1"
+          },
+          "tools": [
+            "glob",
+            "grep",
+            "read_file"
+          ]
+        },
+        {
+          "ref": {
+            "toolsetId": "text-artifacts",
+            "version": "1"
+          },
+          "tools": [
+            "read_text_artifact",
+            "write_text_artifact"
+          ]
+        }
+      ]
+    }
+  ]
+}

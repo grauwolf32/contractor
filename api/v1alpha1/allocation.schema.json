@@ -1080,7 +1080,7 @@
         },
         "permanentCodes": {
           "default": [],
-          "items": {"pattern": "^[a-z][a-z0-9_]{0,63}$", "type": "string"},
+          "items": {"not": {"pattern": "[^a-z0-9_]"}, "pattern": "^[a-z][a-z0-9_]{0,63}$", "type": "string"},
           "maxItems": 32,
           "title": "Permanentcodes",
           "type": "array"

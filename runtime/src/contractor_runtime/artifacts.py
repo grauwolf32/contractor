@@ -17,6 +17,7 @@ from pydantic import Field, ValidationError
 from contractor_runtime import _https
 from contractor_runtime.contracts import (
     ARTIFACT_NAME_PATTERN,
+    MEDIA_TYPE_PATTERN,
     ArtifactListResult,
     ArtifactReadResult,
     ArtifactRef,
@@ -32,9 +33,6 @@ MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
-MEDIA_TYPE_PATTERN = re.compile(
-    r"^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$"
-)
 RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
 BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
 REVISION_CREATED_AT_HEADER = "x-contractor-revision-created-at"
@@ -513,7 +511,7 @@ def _validate_component(field_name: str, value: str) -> None:
 
 
 def _validate_media_type(value: str) -> None:
-    if value == "*/*" or MEDIA_TYPE_PATTERN.fullmatch(value) is None:
+    if MEDIA_TYPE_PATTERN.fullmatch(value) is None:
         raise ValueError("artifact media type is invalid")
 
 

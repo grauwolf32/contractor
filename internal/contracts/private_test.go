@@ -11,22 +11,8 @@ import (
 func TestPrivateValidCanonicalFixtures(t *testing.T) {
 	t.Parallel()
 
-	cases := map[string]func([]byte) ([]byte, error){
-		"agent-registration.json":                privateRoundTrip[AgentRegistration],
-		"agent-registration-response.json":       privateRoundTrip[AgentRegistrationResponse],
-		"runtime-settings-empty.json":            privateRoundTrip[RuntimeSettings],
-		"runtime-settings-telemetry.json":        privateRoundTrip[RuntimeSettings],
-		"runtime-settings-telemetry-export.json": privateRoundTrip[RuntimeSettings],
-		"runtime-settings-proxy.json":            privateRoundTrip[RuntimeSettings],
-		"runtime-settings-combined.json":         privateRoundTrip[RuntimeSettings],
-		"runtime-provenance-empty.json":          privateRoundTrip[ResolvedRuntimeConfigProvenance],
-		"runtime-provenance.json":                privateRoundTrip[ResolvedRuntimeConfigProvenance],
-		"runtime-report.json":                    privateRoundTrip[RuntimeReport],
-		"workspace-capabilities.json":            privateRoundTrip[WorkspaceCapabilities],
-		"allocation-workspace-overlay.json":      privateRoundTrip[AllocationWorkspaceSpec],
-	}
-	for filename, roundTrip := range cases {
-		filename, roundTrip := filename, roundTrip
+	for filename, entry := range readFixtureIndex(t).Valid {
+		roundTrip := fixtureCodecs[entry.Type].privateRoundTrip
 		t.Run(filename, func(t *testing.T) {
 			t.Parallel()
 			raw := readFixture(t, "valid", filename)
@@ -44,35 +30,20 @@ func TestPrivateValidCanonicalFixtures(t *testing.T) {
 func TestPrivateInvalidFixturesHaveSafeReasonClasses(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		filename string
-		class    PrivateProtocolErrorClass
-		reject   func([]byte) error
-	}{
-		{"registration-missing-api-version.json", PrivateProtocolErrorVersion, privateReject[AgentRegistration]},
-		{"registration-bad-api-version.json", PrivateProtocolErrorVersion, privateReject[AgentRegistration]},
-		{"registration-unsorted-labels.json", PrivateProtocolErrorInvariant, privateReject[AgentRegistration]},
-		{"registration-unsorted-adapters.json", PrivateProtocolErrorInvariant, privateReject[AgentRegistration]},
-		{"runtime-settings-duplicate-key.json", PrivateProtocolErrorDuplicate, privateReject[RuntimeSettings]},
-		{"runtime-settings-unknown-adapter.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettings]},
-		{"runtime-settings-two-proxy-auth.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettings]},
-		{"runtime-settings-secret-error.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettings]},
-		{"runtime-settings-caido-secret-error.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettings]},
-		{"runtime-provenance-secret-field.json", PrivateProtocolErrorSchema, privateReject[ResolvedRuntimeConfigProvenance]},
-		{"workspace-capabilities-unsorted-modes.json", PrivateProtocolErrorInvariant, privateReject[WorkspaceCapabilities]},
-		{"allocation-workspace-versionless-source.json", PrivateProtocolErrorInvariant, privateReject[AllocationWorkspaceSpec]},
-	}
-	for _, test := range cases {
-		test := test
-		t.Run(test.filename, func(t *testing.T) {
+	for filename, entry := range readFixtureIndex(t).Invalid {
+		if entry.Reason == "" {
+			continue
+		}
+		reject, class := fixtureCodecs[entry.Type].privateReject, PrivateProtocolErrorClass(entry.Reason)
+		t.Run(filename, func(t *testing.T) {
 			t.Parallel()
-			err := test.reject(readFixture(t, "invalid", test.filename))
+			err := reject(readFixture(t, "invalid", filename))
 			if err == nil {
 				t.Fatal("invalid private fixture was accepted")
 			}
 			var privateError *PrivateProtocolError
-			if !errors.As(err, &privateError) || privateError.Class != test.class {
-				t.Fatalf("error class = %v, want %v", privateError, test.class)
+			if !errors.As(err, &privateError) || privateError.Class != class {
+				t.Fatalf("error class = %v, want %v", privateError, class)
 			}
 			formatted := fmt.Sprintf("%v %+v %#v", err, err, err)
 			for _, canary := range []string{

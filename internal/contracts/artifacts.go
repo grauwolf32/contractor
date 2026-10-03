@@ -1,9 +1,6 @@
 package contracts
 
-import (
-	"regexp"
-	"strings"
-)
+import "regexp"
 
 const (
 	AgentSkillNamespace    = "skills"
@@ -148,10 +145,7 @@ func (r ArtifactWriteResult) Validate() error {
 }
 
 func validateArtifactMetadata(mediaType string, size int64) error {
-	typePart, subtypePart, found := strings.Cut(mediaType, "/")
-	if !found || typePart == "" || subtypePart == "" ||
-		mediaType != strings.ToLower(mediaType) ||
-		strings.ContainsAny(mediaType, "; ") || strings.Contains(subtypePart, "/") {
+	if !ValidMediaType(mediaType) {
 		return invalidf("mediaType must be lowercase type/subtype without parameters")
 	}
 	if size < 0 {

@@ -24,7 +24,8 @@ export const WRITABLE_CONFIGURATION_KINDS = [
   "llm-gateways",
 ] as const satisfies readonly WritableConfigurationKind[];
 export const MANAGED_CONFIG_NAME_PATTERN = CONFIG_ID_PATTERN;
-export const BUDGET_DURATION_PATTERN = /^[1-9][0-9]*(?:s|m|h|d|mo)$/;
+export const BUDGET_DURATION_PATTERN =
+  /^(?=.{2,32}$)[1-9][0-9]*(?:s|m|h|d|mo)$/;
 
 const RESOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
