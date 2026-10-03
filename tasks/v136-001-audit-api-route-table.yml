@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V136-001
+title: Align Audit public API route table with Server and OpenAPI
+milestone: audit-api-route-table-2026-10
+priority: P3
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [markdown]
+goal: Make the owning Audit spec list the implemented public routes and methods.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/208
+  finding: Spec 19 lists a nonexistent imports route and omits proposal, review and workspace reads.
+scope:
+  in:
+    - Replace the stale imports path and add omitted implemented Audit routes.
+    - Compare the table against the router and implemented OpenAPI operations.
+  out:
+    - Change router or public API behavior.
+acceptance_criteria:
+  - {id: A1, text: No stale /v1/audits/{auditId}/imports path remains.}
+  - {id: A2, text: Every registered Audit route and method appears in the spec table and OpenAPI.}
+tests:
+  - {command: route-table comparison against internal/httpapi/public/routes_audit.go and api/openapi/contractor-public-v1.yaml, covers: [A1, A2]}
