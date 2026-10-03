@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V111-001
+title: Require a fresh registration after Runtime local lease expiry
+milestone: runtime-lease-rearm-2026-10
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, python]
+goal: Keep a locally fenced Runtime unavailable until the Control Plane confirms a new lease generation.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/289
+  finding: A release heartbeat can clear the Runtime slot while its LeaseWatchdog remains expired.
+scope:
+  in:
+    - Preserve FENCED during release cleanup after local lease expiry and re-register.
+    - Re-arm the watchdog before entering IDLE after registration.
+    - Start a fresh Server lease claim for an allocation-free re-registration.
+    - Cover idle and allocated release recovery and later expiry.
+  out:
+    - Change heartbeat interval policy or allocation release contracts.
+acceptance_criteria:
+  - {id: A1, text: Local-only expiry followed by release keeps the slot FENCED until registration succeeds.}
+  - {id: A2, text: The watchdog re-arms and a later outage fences the slot again.}
+  - {id: A3, text: A re-registration cannot extend the Runtime deadline beyond the Server's new claim deadline.}
+tests:
+  - {command: PYTHONPATH=runtime/src runtime/.venv/bin/python -m pytest runtime/tests/test_control_client.py runtime/tests/test_lease_watchdog.py, covers: [A1, A2]}
+  - {command: go test ./internal/controlplane -count=1, covers: [A3]}
+  - {command: go test ./..., covers: [A3]}
