@@ -3,7 +3,8 @@ id: V214-001
 title: Remove unused configuration accessors
 milestone: configuration-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: cf4424662285a62a87b624db16ec6fe723c7acb7
 depends_on: []
 languages: [go]
 goal: Remove unused exported configuration accessors while retaining typed loader coverage.
