@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V236-001
+title: Renew Audit item reviews that expire after Resume
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: completed
+implementation_commit: ac873c2bcf298515f1798ebc0715ad0f9fa1ee9d
+depends_on: []
+languages: [go, sql]
+goal: Keep active and waiting-review Audits reconcilable when an item approval expires after Resume.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/219
+  finding: Resume preserves still-live item review deadlines; when they expire later, no controller path renews authority or advances the item.
+scope:
+  in:
+    - Claim waiting-review Audits with expired item authority and no live replacement.
+    - Under a live claim, expire stale authority, return ready items to awaiting review, and request a fresh exact-subject decision.
+    - Reconcile expired item authority before selecting a ready execution batch.
+    - Cover expiration after Resume, approval renewal, and continued dispatch of other ready items against PostgreSQL.
+  out:
+    - Extending a human approval's original expiration when resuming an Audit.
+acceptance_criteria:
+  - {id: A1, text: An expired pending or approved item review cannot authorize execution after Resume.}
+  - {id: A2, text: The controller creates one fresh pending exact-subject request and moves an affected ready item to awaiting review.}
+  - {id: A3, text: A waiting-review Audit is claimable when its item review expires and does not spin on historical expired requests.}
+  - {id: A4, text: Later ready items can still dispatch while an earlier item awaits renewed approval.}
+tests:
+  - {command: go test -tags=integration ./internal/auditcontroller ./internal/auditstore ./internal/auditservice -count=1, covers: [A1, A2, A3, A4]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}

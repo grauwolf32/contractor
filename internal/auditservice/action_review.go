@@ -46,6 +46,18 @@ SELECT decision_id, request_id, request_digest
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		// Match the controller's audit -> review -> item lock order. A decision
+		// must not hold an item review while waiting for its Audit row.
+		var lockedAuditID string
+		if err := tx.QueryRow(ctx, `
+SELECT audit_id FROM audits
+ WHERE owner_id=$1 AND audit_id=$2 FOR UPDATE`, params.OwnerID, params.AuditID).
+			Scan(&lockedAuditID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return auditstore.ErrNotFound
+			}
+			return err
+		}
 
 		var auditState auditstore.AuditState
 		var subjectKind ReviewSubjectKind
