@@ -338,10 +338,10 @@ func TestImporterRetainsProposalBeforeContractInvalidCollection(t *testing.T) {
 			digest := auditdomain.DigestBytes(payload)
 			h.store.members[0].Task.Digest = digest
 			h.snapshot.Items[0].Task.Digest = digest
+			h.store.selectedItems[0].Task.Digest = digest
 		}},
-		{name: "outside snapshot window", corrupt: func(h *importHarness) {
-			h.snapshot.Items = nil
-			h.snapshot.MoreItems = true
+		{name: "missing stored member", corrupt: func(h *importHarness) {
+			h.store.selectedItems = nil
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -357,6 +357,20 @@ func TestImporterRetainsProposalBeforeContractInvalidCollection(t *testing.T) {
 					worked, err, findings.imports, harness.store.collected)
 			}
 		})
+	}
+}
+
+func TestImporterCollectsMemberOutsideReconcileWindow(t *testing.T) {
+	harness := newImportHarness(t)
+	harness.snapshot.Items = nil
+	harness.snapshot.MoreItems = true
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || harness.store.collected.Disposition != auditstore.CollectionAccepted ||
+		len(harness.store.collected.Items) != 1 ||
+		harness.store.collected.Items[0].Disposition != auditstore.CollectionAccepted {
+		t.Fatalf("out-of-window collection = (%t, %v, %+v)", worked, err, harness.store.collected)
 	}
 }
 
@@ -684,6 +698,7 @@ func TestImporterConvertsPermanentPinnedContractFailureToReceipt(t *testing.T) {
 	digest := auditdomain.DigestBytes(corrupt)
 	harness.store.members[0].Task.Digest = digest
 	harness.snapshot.Items[0].Task.Digest = digest
+	harness.store.selectedItems[0].Task.Digest = digest
 
 	worked, err := harness.importer.Collect(
 		context.Background(), harness.claim, harness.snapshot, harness.execution,
@@ -1098,6 +1113,7 @@ func configureSecondBatchMember(
 		ItemKey: "check-2", Ordinal: 1, Kind: firstTask.Kind, SubjectKey: "check-2",
 		Task: secondDescriptor, WorkflowRole: firstTask.WorkflowRole, State: auditstore.ItemCollecting,
 	})
+	harness.store.selectedItems = append(harness.store.selectedItems, harness.snapshot.Items[len(harness.snapshot.Items)-1])
 
 	proposals := []auditdomain.ProposalSelection{}
 	if len(proposalSets) > 2 {
@@ -1284,7 +1300,7 @@ func newImportHarness(t *testing.T) importHarness {
 		project:       map[string][]byte{refKey(task.Ref): taskPayload, refKey(manifestDescriptor.Ref): manifestBytes},
 		runDescriptor: output, runPayload: resultPayload, frozen: true,
 	}
-	store := &fakeImportStore{members: []auditstore.ExecutionItem{member}}
+	store := &fakeImportStore{members: []auditstore.ExecutionItem{member}, selectedItems: []auditstore.Item{item}}
 	runSnapshot, _ := json.Marshal(profile.Workflows["check"].Workflow)
 	runs := &fakeImportRuns{run: runstore.WorkflowRun{
 		RunID: runID, ProjectID: stringPointer("project-1"),
@@ -1306,21 +1322,37 @@ func newImportHarness(t *testing.T) importHarness {
 }
 
 type fakeImportStore struct {
-	members   []auditstore.ExecutionItem
-	collected auditstore.CollectParams
-	rounds    []auditstore.Round
-	items     []auditstore.Item
-	coverage  []auditstore.CoverageRow
-	findings  []auditstore.ReportFinding
-	counts    auditstore.CollectionDispositionCounts
-	committed auditstore.CommitReportParams
-	proposed  auditstore.ProposeReportParams
+	members       []auditstore.ExecutionItem
+	selectedItems []auditstore.Item
+	collected     auditstore.CollectParams
+	rounds        []auditstore.Round
+	items         []auditstore.Item
+	coverage      []auditstore.CoverageRow
+	findings      []auditstore.ReportFinding
+	counts        auditstore.CollectionDispositionCounts
+	committed     auditstore.CommitReportParams
+	proposed      auditstore.ProposeReportParams
 	// collectErr, when set, rejects a Collect call before it is recorded.
 	collectErr func(auditstore.CollectParams) error
 }
 
 func (f *fakeImportStore) ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error) {
 	return append([]auditstore.ExecutionItem{}, f.members...), nil
+}
+func (f *fakeImportStore) ListItemsByIDs(_ context.Context, auditID string, itemIDs []string) ([]auditstore.Item, error) {
+	selected := make(map[string]struct{}, len(itemIDs))
+	for _, id := range itemIDs {
+		selected[id] = struct{}{}
+	}
+	result := make([]auditstore.Item, 0, len(itemIDs))
+	for _, item := range f.selectedItems {
+		if item.AuditID == auditID {
+			if _, ok := selected[item.ItemID]; ok {
+				result = append(result, item)
+			}
+		}
+	}
+	return result, nil
 }
 func (f *fakeImportStore) ListItems(context.Context, string) ([]auditstore.Item, error) {
 	return append([]auditstore.Item{}, f.items...), nil
@@ -1535,6 +1567,7 @@ func configureFindingTaskResult(
 	harness.snapshot.Items[0].Kind = taskDocument.Kind
 	harness.snapshot.Items[0].SubjectKey = taskDocument.SubjectKey
 	harness.snapshot.Items[0].Task = task
+	harness.store.selectedItems[0] = harness.snapshot.Items[0]
 	harness.store.members[0].ItemID = harness.snapshot.Items[0].ItemID
 
 	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
@@ -1657,6 +1690,7 @@ func appendSecondFindingTaskResult(
 		SubjectKey: secondTask.SubjectKey, Task: secondDescriptor,
 		WorkflowRole: secondTask.WorkflowRole, State: auditstore.ItemCollecting,
 	})
+	harness.store.selectedItems = append(harness.store.selectedItems, harness.snapshot.Items[len(harness.snapshot.Items)-1])
 
 	results := make([]auditdomain.CheckResult, 0, 2)
 	for _, task := range []auditdomain.ItemTask{firstTask, secondTask} {

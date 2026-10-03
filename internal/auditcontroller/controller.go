@@ -465,9 +465,21 @@ func (c *Controller) resumeOneIntent(
 			if len(members) == 0 || len(members) > snapshot.Audit.Limits.BatchSize {
 				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
 			}
+			itemIDs := make([]string, len(members))
+			for index, member := range members {
+				itemIDs[index] = member.ItemID
+			}
+			items, readErr := c.store.ListItemsByIDs(ctx, snapshot.Audit.AuditID, itemIDs)
+			if readErr != nil {
+				return false, readErr
+			}
+			itemsByID := make(map[string]auditstore.Item, len(items))
+			for _, item := range items {
+				itemsByID[item.ItemID] = item
+			}
 			selected := make([]CheckExecutionMember, len(members))
 			for index, member := range members {
-				item, exists := snapshotItem(snapshot.Items, member.ItemID)
+				item, exists := itemsByID[member.ItemID]
 				if !exists {
 					return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
 				}
@@ -641,15 +653,6 @@ func sameExactArtifacts(left, right []auditstore.ExactArtifact) bool {
 		}
 	}
 	return true
-}
-
-func snapshotItem(items []auditstore.Item, itemID string) (auditstore.Item, bool) {
-	for _, item := range items {
-		if item.ItemID == itemID {
-			return item, true
-		}
-	}
-	return auditstore.Item{}, false
 }
 
 func auditSettlementBarrier(snapshot auditstore.ReconcileSnapshot) bool {

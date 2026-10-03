@@ -16,6 +16,7 @@ var ErrPermanent = errors.New("Audit import cannot be completed")
 
 type Store interface {
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
+	ListItemsByIDs(context.Context, string, []string) ([]auditstore.Item, error)
 	ListRounds(context.Context, string) ([]auditstore.Round, error)
 	ListItems(context.Context, string) ([]auditstore.Item, error)
 	ListCoverage(context.Context, string, string, int, int) ([]auditstore.CoverageRow, error)

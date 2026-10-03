@@ -518,6 +518,145 @@ func TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts(t *testing
 	}
 }
 
+func TestPostgresControllerHighOrdinalMemberCollectsOutsideSnapshotWindow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	harness := newPostgresControllerReviewHarness(t, ctx, 0, auditstore.MaxReconcileRows+6)
+	controller := harness.controllerWithCollector(t)
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("activate round = (%t, %v)", worked, err)
+	}
+	// Keep 205 lower-ordinal items unsettled so the final ready item is
+	// selected by ReadyItems but absent from the bounded Items snapshot.
+	changed, err := harness.pool.Exec(ctx, `
+UPDATE audit_items SET state = 'collecting'
+ WHERE audit_id = $1 AND ordinal < $2`, harness.started.Audit.AuditID, auditstore.MaxReconcileRows+5)
+	if err != nil || changed.RowsAffected() != int64(auditstore.MaxReconcileRows+5) {
+		t.Fatalf("prepare lower-ordinal in-flight items = (%d, %v)", changed.RowsAffected(), err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch high-ordinal check = (%t, %v)", worked, err)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("high-ordinal execution = (%+v, %v)", executions, err)
+	}
+	execution := executions[0]
+	members, err := harness.audits.ListExecutionItems(ctx, execution.ExecutionID)
+	if err != nil || len(members) != 1 {
+		t.Fatalf("high-ordinal members = (%+v, %v)", members, err)
+	}
+	claims, err := harness.audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "high-ordinal-snapshot", Lease: 5 * time.Second, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim high-ordinal snapshot = (%+v, %v)", claims, err)
+	}
+	snapshot, err := harness.audits.GetReconcileSnapshot(ctx, claims[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.audits.ReleaseClaim(ctx, claims[0]); err != nil {
+		t.Fatal(err)
+	}
+	if !snapshot.MoreItems || len(snapshot.Items) != auditstore.MaxReconcileRows {
+		t.Fatalf("expected truncated snapshot, got items=%d more=%t", len(snapshot.Items), snapshot.MoreItems)
+	}
+	for _, item := range snapshot.Items {
+		if item.ItemID == members[0].ItemID {
+			t.Fatal("high-ordinal member unexpectedly appears in reconcile snapshot")
+		}
+	}
+	projectArtifacts, err := harness.artifacts.Project(harness.started.Audit.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskPackage, err := projectArtifacts.Read(ctx, members[0].Task.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatedTask, err := auditdomain.ValidatePackage(taskPackage.Payload.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskMember, exists := validatedTask.MemberByID("task-document")
+	if !exists {
+		t.Fatal("task package has no task-document member")
+	}
+	task, err := auditdomain.DecodeItemTask(taskMember.Data())
+	if err != nil {
+		t.Fatal(err)
+	}
+	requested := []string{}
+	if task.Checklist != nil {
+		requested = append(requested, task.Checklist.RequiredEvidence...)
+	}
+	resultDocument, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: execution.Manifest.Digest,
+		Results: []auditdomain.CheckResult{{
+			ItemKey: task.ItemKey, SubjectKey: task.SubjectKey, Assessment: "satisfied",
+			Summary: "The high-ordinal checklist item was satisfied.", EvidenceIDs: []string{},
+			Coverage: auditdomain.ResultCoverage{
+				Requested: requested, Completed: append([]string{}, requested...), Gaps: []string{},
+			},
+			Proposals: []auditdomain.ProposalSelection{},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultPayload, _, err := auditdomain.BuildPackage(
+		"result-package", auditdomain.PackageKindCheckResults, "",
+		[]auditdomain.PackageInput{{
+			ID: auditdomain.CheckResultsMemberID, Path: "check-results.json",
+			MediaType: auditdomain.JSONMediaType, Data: resultDocument,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := *execution.RunID
+	runArtifacts, err := harness.artifacts.Run(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workerResult, err := runArtifacts.Write(
+		ctx, contracts.ArtifactRef{Namespace: "worker", Name: "result"},
+		artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: resultPayload}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning,
+		runstore.Reason{Code: "test_started"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.runs.TransitionRun(ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
+		runstore.Reason{Code: "test_succeeded"}); err != nil {
+		t.Fatal(err)
+	}
+	for operation := 0; operation < 4; operation++ {
+		counts, err := harness.audits.CollectionDispositionCounts(ctx, execution.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if counts.AcceptedResult == 1 {
+			return
+		}
+		worked, err := controller.RunOnce(ctx)
+		if err != nil || !worked {
+			t.Fatalf("high-ordinal collection operation %d = (%t, %v), counts=%+v", operation, worked, err, counts)
+		}
+	}
+	t.Fatal("high-ordinal result did not produce accepted-result receipt")
+}
+
 func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
