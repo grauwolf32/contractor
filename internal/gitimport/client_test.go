@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -83,7 +84,7 @@ func TestHTTPSRejectsRedirectAndUntrustedTLS(t *testing.T) {
 		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
 	}))
 	defer server.Close()
-	remote, _ := ParseRemote(server.URL + "/repo")
+	remote, _ := ParseRemote(server.URL + "/acme/secret-merger-project.git")
 	var logs bytes.Buffer
 	client, _ := NewClient(Config{AllowedRemotes: []string{remote.Address}}, slog.New(slog.NewTextHandler(&logs, nil)))
 	client.allowLoopback = true
@@ -94,12 +95,47 @@ func TestHTTPSRejectsRedirectAndUntrustedTLS(t *testing.T) {
 	if !strings.Contains(logs.String(), "certificate") {
 		t.Fatalf("masked cause was not logged: %s", logs.String())
 	}
+	if strings.Contains(logs.String(), "secret-merger-project") || strings.Contains(logs.String(), remote.URL) {
+		t.Fatal("private repository URL appeared in transport log")
+	}
 	client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
 	if _, err := client.Fetch(context.Background(), remote, "", nil); !errors.Is(err, ErrRemote) {
 		t.Fatalf("redirect: %v", err)
 	}
 	if redirected {
 		t.Fatal("redirect was followed")
+	}
+}
+
+func TestSafeErrorOmitsHTTPSRepositoryPath(t *testing.T) {
+	remote, err := ParseRemote("https://example.com/acme/secret-merger-project.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct{ name, op, suffix, cause string }{
+		{"tls", "Get", "/info/refs?service=git-upload-pack", "certificate verification failed"},
+		{"connection", "Get", "/info/refs?service=git-upload-pack", "connection refused"},
+		{"dns", "Get", "/info/refs?service=git-upload-pack", "no such host"},
+		{"pack exchange", "Post", "/git-upload-pack", "connection reset by peer"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}}, slog.New(slog.NewTextHandler(&logs, nil)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			transportErr := &url.Error{Op: tt.op, URL: remote.URL + tt.suffix, Err: errors.New(tt.cause)}
+			if got := client.safeError(context.Background(), remote, transportErr); got != ErrRemote {
+				t.Fatalf("got %v, want ErrRemote", got)
+			}
+			text := logs.String()
+			if !strings.Contains(text, tt.cause) {
+				t.Fatalf("transport cause missing from log: %s", text)
+			}
+			if strings.Contains(text, remote.Path) || strings.Contains(text, remote.URL) {
+				t.Fatal("private repository URL appeared in transport log")
+			}
+		})
 	}
 }
 
