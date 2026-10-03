@@ -15,10 +15,13 @@ import {
   MEDIA_TYPE_PATTERN,
   type ArtifactWriteRequest,
   type ArtifactWriteResponse,
-  writeArtifact,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
-import { queryKeys } from "../../api/query-keys";
+import { artifactScopeKeys } from "../../api/query-keys";
+import {
+  writeScopeArtifact,
+  type WritableArtifactScope,
+} from "../../api/scoped-artifacts";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
@@ -93,7 +96,10 @@ export function ArtifactFileDrop({
   );
 }
 
+/** One uploaded revision for a User or Project Artifact binding. */
 export function ArtifactWriteForm({
+  scope = { kind: "user" },
+  suggested,
   fixedIdentity,
   fixedNamespace,
   fixedMediaType,
@@ -109,6 +115,9 @@ export function ArtifactWriteForm({
   onCancel,
   onWritten,
 }: {
+  scope?: WritableArtifactScope;
+  /** Suggested namespace, media type and heading label for a new binding. */
+  suggested?: { label: string; namespace: string; mediaType: string };
   fixedIdentity?: { namespace: string; name: string };
   fixedNamespace?: string;
   fixedMediaType?: string;
@@ -135,24 +144,33 @@ export function ArtifactWriteForm({
   const queryClient = useQueryClient();
   const ownHeadingId = useId();
   const formId = headingId ?? ownHeadingId;
+  const project = scope.kind === "project";
+  const keys = artifactScopeKeys(scope);
   const [namespace, setNamespace] = useState(
-    fixedIdentity?.namespace ?? fixedNamespace ?? "projects",
+    fixedIdentity?.namespace ??
+      fixedNamespace ??
+      suggested?.namespace ??
+      (project ? "artifacts" : "projects"),
   );
   const [name, setName] = useState(fixedIdentity?.name ?? "");
   const [mediaType, setMediaType] = useState(
-    fixedMediaType ?? initialMediaType ?? "application/octet-stream",
+    fixedMediaType ??
+      initialMediaType ??
+      suggested?.mediaType ??
+      "application/octet-stream",
   );
-  const preserveMediaType = useRef(initialMediaType !== undefined);
+  const preserveMediaType = useRef(
+    initialMediaType !== undefined || suggested?.mediaType !== undefined,
+  );
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [excludedNamespaceError, setExcludedNamespaceError] = useState(false);
   const [inputRevision, setInputRevision] = useState(0);
   const mutation = useMutation({
-    mutationFn: (request: ArtifactWriteRequest) => writeArtifact(api, request),
+    mutationFn: (request: ArtifactWriteRequest) =>
+      writeScopeArtifact(api, scope, request),
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.artifacts.all,
-      });
+      await queryClient.invalidateQueries({ queryKey: keys.all });
       onWritten(result);
       setFile(null);
       setInputRevision((value) => value + 1);
@@ -163,9 +181,7 @@ export function ArtifactWriteForm({
     onError: async () => {
       // A conflict or lost response is ambiguous by design. Reconcile every
       // active Artifact view with Server state, but never retry the unsafe PUT.
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.artifacts.all,
-      });
+      await queryClient.invalidateQueries({ queryKey: keys.all });
     },
   });
   useEffect(() => {
@@ -251,13 +267,27 @@ export function ArtifactWriteForm({
 
   const update = expectedRevision !== undefined;
   return (
-    <form className="artifact-form" onSubmit={submit} aria-labelledby={formId}>
+    <form
+      className={project ? "project-artifact-form" : "artifact-form"}
+      onSubmit={submit}
+      aria-labelledby={formId}
+    >
       {headingId === undefined ? (
         <div className="section-heading">
           <div>
-            <p className="eyebrow">{update ? "New version" : "New Artifact"}</p>
+            <p className="eyebrow">
+              {update
+                ? "New version"
+                : project
+                  ? "Project artifact"
+                  : "New Artifact"}
+            </p>
             <h3 id={formId}>
-              {update ? "Upload a new version" : "Upload Artifact"}
+              {update
+                ? "Upload a new version"
+                : suggested === undefined
+                  ? "Upload Artifact"
+                  : `Add ${suggested.label}`}
             </h3>
           </div>
           {update ? (
@@ -274,7 +304,13 @@ export function ArtifactWriteForm({
       {acceptedMediaTypes === undefined ? null : (
         <small>Accepted by this input: {acceptedMediaTypes.join(", ")}</small>
       )}
-      <div className="form-grid artifact-fields">
+      <div
+        className={
+          project
+            ? "form-grid project-artifact-fields"
+            : "form-grid artifact-fields"
+        }
+      >
         <label>
           Namespace
           <input

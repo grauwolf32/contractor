@@ -4,6 +4,8 @@ import {
   ARTIFACT_REVISION_PATTERN,
   downloadExactArtifact,
   previewExactArtifact,
+  requireArtifactPage,
+  requireRequestedMetadata,
   type ArtifactDetailRequest,
   type ArtifactMetadata,
   type ArtifactPage,
@@ -457,7 +459,11 @@ export async function getRunArtifactMetadata(
       },
     }),
   );
-  return requireData(result);
+  return requireRequestedMetadata(
+    requireData(result),
+    request,
+    result.response.status,
+  );
 }
 
 export async function listRunArtifactVersions(
@@ -481,7 +487,7 @@ export async function listRunArtifactVersions(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getRunArtifactLineage(
@@ -511,7 +517,7 @@ export async function getRunArtifactLineage(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function downloadRunArtifact(

@@ -23,6 +23,7 @@ import { ProjectRunIdentity } from "./run-history";
 import { RefreshButton } from "../../app/refresh-button";
 import { ProjectSectionActions } from "./navigation";
 import { QueryView } from "../../app/query-view";
+import { artifactDetailPath } from "../artifacts/paths";
 
 function RecentRunResults({
   summary,
@@ -110,7 +111,10 @@ function RecentRunResults({
                 {entry.artifact ? (
                   <ContextLink
                     returnLabel="Project Overview"
-                    to={`/runs/${encodeURIComponent(summary.runId)}/artifacts/${encodeURIComponent(entry.artifact.namespace)}/${encodeURIComponent(entry.artifact.name)}?revision=${encodeURIComponent(entry.artifact.revision)}`}
+                    to={artifactDetailPath(
+                      { kind: "run", id: summary.runId },
+                      entry.artifact,
+                    )}
                   >
                     <strong>{entry.slot}</strong>
                     <small>
@@ -424,7 +428,10 @@ export function ProjectOverview({ project }: { project: Project }) {
                             >
                               <ContextLink
                                 returnLabel="Project Overview"
-                                to={`${root}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}?revision=${encodeURIComponent(item.artifact.revision)}`}
+                                to={artifactDetailPath(
+                                  { kind: "project", id: projectId },
+                                  item.artifact,
+                                )}
                               >
                                 <strong>
                                   {item.artifact.namespace}/{item.artifact.name}

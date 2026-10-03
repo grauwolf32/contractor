@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
 import { PublicAPIProvider } from "../../api/context";
-import { ProjectArtifactWriteForm } from "../projects/common";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
@@ -65,8 +64,8 @@ describe("Artifact version media types", () => {
                   onWritten={onWritten}
                 />
               ) : (
-                <ProjectArtifactWriteForm
-                  projectId="project_example"
+                <ArtifactWriteForm
+                  scope={{ kind: "project", id: "project_example" }}
                   fixedIdentity={{ namespace: "overlays", name: "baseline" }}
                   initialMediaType={mediaType}
                   expectedRevision="revision-1"
@@ -107,8 +106,8 @@ describe("Artifact version media types", () => {
               {scope === "user" ? (
                 <ArtifactWriteForm onWritten={vi.fn()} />
               ) : (
-                <ProjectArtifactWriteForm
-                  projectId="project_example"
+                <ArtifactWriteForm
+                  scope={{ kind: "project", id: "project_example" }}
                   onWritten={vi.fn()}
                 />
               )}

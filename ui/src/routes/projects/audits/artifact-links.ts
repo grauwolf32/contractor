@@ -1,4 +1,5 @@
 import type { Audit } from "../../../api/audits";
+import { artifactDetailPath } from "../../artifacts/paths";
 
 type AuditExactArtifact = Audit["inputs"][string];
 
@@ -6,5 +7,5 @@ export function exactArtifactLink(
   projectId: string,
   artifact: AuditExactArtifact,
 ) {
-  return `/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(artifact.ref.namespace)}/${encodeURIComponent(artifact.ref.name)}?revision=${encodeURIComponent(artifact.ref.revision)}`;
+  return artifactDetailPath({ kind: "project", id: projectId }, artifact.ref);
 }

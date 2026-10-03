@@ -38,6 +38,7 @@ import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
 import { useDocumentTitle } from "../../app/document-title";
 import { RecordedTime } from "../../app/recorded-time";
+import { artifactDetailPath } from "../artifacts/paths";
 
 function compactMetric(value: number): string {
   if (value < 1_000) {
@@ -526,7 +527,10 @@ function RunOutputPublications({ run }: { run: RunStatus }) {
               </span>
               {publication.target === undefined ? null : (
                 <Link
-                  to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(publication.target.namespace)}/${encodeURIComponent(publication.target.name)}?revision=${encodeURIComponent(publication.target.revision)}`}
+                  to={artifactDetailPath(
+                    { kind: "project", id: projectId },
+                    publication.target,
+                  )}
                 >
                   target {publication.target.namespace}/
                   {publication.target.name}@{publication.target.revision}

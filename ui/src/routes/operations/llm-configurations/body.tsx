@@ -8,6 +8,7 @@ import type {
 import { Link } from "react-router";
 import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
+import { artifactDetailPath } from "../../artifacts/paths";
 
 function present(value: number | undefined): string {
   return value === undefined ? "omitted" : value.toLocaleString();
@@ -171,7 +172,13 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
               {body.skills.map((skill) => (
                 <li key={`${skill.namespace}/${skill.name}`}>
                   <Link
-                    to={`/artifacts/${encodeURIComponent(skill.namespace)}/${encodeURIComponent(skill.name)}`}
+                    to={artifactDetailPath(
+                      { kind: "user" },
+                      {
+                        namespace: skill.namespace,
+                        name: skill.name,
+                      },
+                    )}
                   >
                     <code>
                       {skill.namespace}/{skill.name}

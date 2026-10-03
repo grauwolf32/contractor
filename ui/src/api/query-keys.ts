@@ -1,3 +1,5 @@
+import type { ArtifactArchiveScope } from "./artifact-archive";
+
 interface CatalogRef {
   name: string;
   version: string;
@@ -249,6 +251,7 @@ export const queryKeys = {
         cursor ?? null,
       ] as const,
     detail: (runId: string) => ["runs", "detail", runId] as const,
+    artifactsAll: (runId: string) => ["runs", "artifacts", runId] as const,
     artifacts: (
       runId: string,
       namespace: string | undefined,
@@ -442,3 +445,53 @@ export const queryKeys = {
     ) => ["evals", "input-artifacts", scope, projectId, cursor] as const,
   },
 };
+
+/** Artifact binding keys of one scope; each maps to its scope's family. */
+export function artifactScopeKeys(scope: ArtifactArchiveScope) {
+  switch (scope.kind) {
+    case "user":
+      return {
+        all: queryKeys.artifacts.all,
+        metadata: queryKeys.artifacts.metadata,
+        versions: queryKeys.artifacts.versions,
+        lineage: queryKeys.artifacts.lineage,
+      };
+    case "project": {
+      const keys = queryKeys.projects.artifacts;
+      return {
+        all: keys.all(scope.id),
+        metadata: (namespace: string, name: string, revision?: string) =>
+          keys.metadata(scope.id, namespace, name, revision),
+        versions: (namespace: string, name: string, cursor?: string) =>
+          keys.versions(scope.id, namespace, name, cursor),
+        lineage: (
+          namespace: string,
+          name: string,
+          revision: string,
+          cursor?: string,
+        ) => keys.lineage(scope.id, namespace, name, revision, cursor),
+      };
+    }
+    case "run":
+      return {
+        all: queryKeys.runs.artifactsAll(scope.id),
+        metadata: (namespace: string, name: string, revision?: string) =>
+          queryKeys.runs.artifactMetadata(scope.id, namespace, name, revision),
+        versions: (namespace: string, name: string, cursor?: string) =>
+          queryKeys.runs.artifactVersions(scope.id, namespace, name, cursor),
+        lineage: (
+          namespace: string,
+          name: string,
+          revision: string,
+          cursor?: string,
+        ) =>
+          queryKeys.runs.artifactLineage(
+            scope.id,
+            namespace,
+            name,
+            revision,
+            cursor,
+          ),
+      };
+  }
+}

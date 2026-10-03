@@ -184,6 +184,43 @@ export async function listArtifacts(
   return requireData(result);
 }
 
+/**
+ * Rejects metadata for another Artifact or, when a revision was requested,
+ * for another revision of it.
+ */
+export function requireRequestedMetadata(
+  metadata: ArtifactMetadata,
+  request: ArtifactDetailRequest,
+  status: number,
+): ArtifactMetadata {
+  if (
+    metadata.artifact.namespace !== request.namespace ||
+    metadata.artifact.name !== request.name ||
+    (request.revision !== undefined &&
+      metadata.artifact.revision !== request.revision)
+  ) {
+    throw invalidAPIResponse(
+      status,
+      "Artifact metadata did not match the requested Artifact revision",
+    );
+  }
+  return metadata;
+}
+
+/** Copies a list page after checking its items and continuation. */
+export function requireArtifactPage<T>(
+  page: { items: T[]; page: components["schemas"]["PageInfo"] },
+  status: number,
+): { items: T[]; page: components["schemas"]["PageInfo"] } {
+  if (!Array.isArray(page.items) || page.page === undefined) {
+    throw invalidAPIResponse(
+      status,
+      "Server returned an invalid Artifact page",
+    );
+  }
+  return { items: [...page.items], page: { ...page.page } };
+}
+
 export async function getArtifactMetadata(
   api: PublicAPI,
   request: ArtifactDetailRequest,
@@ -197,7 +234,11 @@ export async function getArtifactMetadata(
       },
     }),
   );
-  return requireData(result);
+  return requireRequestedMetadata(
+    requireData(result),
+    request,
+    result.response.status,
+  );
 }
 
 export async function listArtifactVersions(
@@ -215,7 +256,7 @@ export async function listArtifactVersions(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function getArtifactLineage(
@@ -236,7 +277,7 @@ export async function getArtifactLineage(
       },
     }),
   );
-  return requireData(result);
+  return requireArtifactPage(requireData(result), result.response.status);
 }
 
 export async function writeArtifact(

@@ -414,6 +414,14 @@ describe("Artifact routes", () => {
                 stageExecutionId: "stage-example",
                 createdAt: "2026-08-31T12:01:00Z",
               },
+              {
+                kind: "project_output_publish",
+                sourceScope: "run",
+                source: selected.artifact,
+                targetScope: "project",
+                target: selected.artifact,
+                createdAt: "2026-08-31T12:02:00Z",
+              },
             ],
             page: { hasMore: false },
           });
@@ -444,6 +452,7 @@ describe("Artifact routes", () => {
       .setup()
       .click(screen.getByRole("button", { name: "Versions" }));
     expect(await screen.findByText("input fork")).toBeInTheDocument();
+    expect(screen.getByText("project output publish")).toBeInTheDocument();
     expect(screen.getByText("Run run-example")).toBeInTheDocument();
 
     const user = userEvent.setup();

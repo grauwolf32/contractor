@@ -10,6 +10,7 @@ import type {
 } from "../../api/runs";
 import { compactDigest, formatTimestamp } from "../../app/format";
 import type { PlannerProjection } from "./live";
+import { artifactDetailPath } from "../artifacts/paths";
 
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];
 type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
@@ -112,7 +113,7 @@ export function RunArtifactRef({
   return (
     <Link
       className="artifact-ref-link"
-      to={`/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`}
+      to={artifactDetailPath({ kind: "run", id: runId }, artifact)}
     >
       {slot === undefined ? null : <strong>{slot}</strong>}
       <code>

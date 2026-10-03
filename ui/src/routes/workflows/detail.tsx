@@ -19,6 +19,7 @@ import { workflowSelector } from "./presentation";
 
 import "../primary-actions.css";
 import { compactDigest } from "../../app/format";
+import { artifactDetailPath } from "../artifacts/paths";
 
 type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type ResolvedConfig = components["schemas"]["ResolvedStageExecutionConfig"];
@@ -207,7 +208,13 @@ function StageContract({
                       {(binding.skills ?? []).map((skill) => (
                         <Link
                           key={`${skill.namespace}/${skill.name}`}
-                          to={`/artifacts/${encodeURIComponent(skill.namespace)}/${encodeURIComponent(skill.name)}`}
+                          to={artifactDetailPath(
+                            { kind: "user" },
+                            {
+                              namespace: skill.namespace,
+                              name: skill.name,
+                            },
+                          )}
                         >
                           {skill.namespace}/{skill.name}
                         </Link>
