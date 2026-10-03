@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V176-001
+title: Remove stale sandbox contracts and correct execution documentation
+milestone: sandbox-contract-cleanup-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Make sandbox contracts and docs describe the wired lifecycle and reachable errors.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/252
+  finding: An unused lifecycle protocol and stale error/documentation claims obscure the active Podman boundary.
+scope:
+  in:
+    - Remove the unimplemented AllocationSandbox protocol.
+    - Remove the unreachable background-execution code and document cleanup failure for live descendants.
+    - Clarify the local preparation failure signal and current lifecycle wiring.
+  out:
+    - Change guardian behavior or introduce new public failure codes.
+acceptance_criteria:
+  - {id: A1, text: Runtime and docs have no AllocationSandbox reference.}
+  - {id: A2, text: Sandbox docstrings describe current wired behavior.}
+  - {id: A3, text: Every SandboxErrorCode is produced or intentionally retained as a local signal.}
+  - {id: A4, text: Podman guide and spec name reachable failure outcomes.}
+tests:
+  - {command: cd runtime && .venv/bin/python -m pytest tests/test_podman_contracts.py tests/test_podman_engine.py tests/test_podman_supervisor.py, covers: [A2, A3, A4]}
