@@ -11,16 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type Repository interface {
-	GetSchedulerSettings(context.Context) (SchedulerSettings, error)
-	UpdateSchedulerSettings(context.Context, UpdateSchedulerSettingsParams) (SchedulerSettings, error)
-}
-
 type PostgresStore struct {
 	db persistencepostgres.DBTX
 }
-
-var _ Repository = (*PostgresStore)(nil)
 
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}

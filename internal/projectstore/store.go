@@ -20,17 +20,7 @@ var (
 	idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
 
-type Repository interface {
-	Create(context.Context, CreateParams) (Project, bool, error)
-	Get(context.Context, string, string) (Project, error)
-	List(context.Context, ListParams) ([]Project, error)
-	Update(context.Context, UpdateParams) (Project, error)
-	BeginDeletion(context.Context, BeginDeletionParams) (Project, bool, error)
-}
-
 type PostgresStore struct{ db persistencepostgres.DBTX }
-
-var _ Repository = (*PostgresStore)(nil)
 
 func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
