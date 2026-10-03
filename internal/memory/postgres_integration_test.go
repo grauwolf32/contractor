@@ -189,6 +189,87 @@ func TestPostgresPlannerMemoryRemovesDeduplicatedBlobCandidate(t *testing.T) {
 	}
 }
 
+func TestPostgresPlannerMemoryRetainsTransferLeaseThroughPublish(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedMemoryPool(t, ctx)
+	if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := artifacts.OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+	runID, stageID := "run-memory-transfer", "stage-memory-transfer"
+	createRunningMemoryStage(t, ctx, pool, runID, stageID)
+	store, err := NewPostgresStore(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := Binding{RunID: runID, StageExecutionID: stageID, Namespace: "builder"}
+	target := artifacts.ArtifactRef{Namespace: "builder", Name: "memory.shared"}
+	payload := artifacts.Payload{MediaType: MediaType, Data: encodedTestNote(t, "shared", "content", 0)}
+	var leases []func()
+	defer func() {
+		for _, release := range leases {
+			release()
+		}
+	}()
+	for range 4 {
+		_, release, err := artifacts.AcquireTransfer(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		leases = append(leases, release)
+	}
+	if _, err := store.Write(ctx, binding, target, payload, nil); !errors.Is(err, artifacts.ErrTransferCapacity) {
+		t.Fatalf("full-budget write = %v, want transfer capacity error", err)
+	}
+	for _, release := range leases {
+		release()
+	}
+	leases = nil
+	report, err := artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	if err != nil || report.Orphans != 0 || report.Referenced != 0 {
+		t.Fatalf("blob files after rejected write = %+v, %v", report, err)
+	}
+
+	store.writeBoundary = &postgresWriteBoundary{beforeLock: func(held context.Context) {
+		if _, nested, err := artifacts.AcquireTransfer(held); err != nil {
+			t.Fatalf("prepared write lost its outer lease: %v", err)
+		} else {
+			nested()
+		}
+		for {
+			_, release, err := artifacts.AcquireTransfer(ctx)
+			if errors.Is(err, artifacts.ErrTransferCapacity) {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			leases = append(leases, release)
+		}
+		if len(leases) != 3 {
+			t.Fatalf("other transfers acquired %d slots, want 3", len(leases))
+		}
+	}}
+	if _, err := store.Write(ctx, binding, target, payload, nil); err != nil {
+		t.Fatalf("publish with other slots full: %v", err)
+	}
+	for _, release := range leases {
+		release()
+	}
+	leases = nil
+	report, err = artifacts.CleanupFilesystemBlobs(ctx, pool, path, false)
+	if err != nil || report.Referenced != 1 || report.Orphans != 0 {
+		t.Fatalf("blob files after published write = %+v, %v", report, err)
+	}
+}
+
 func TestPostgresPlannerMemorySameBindingInterferenceNeverOverwrites(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
