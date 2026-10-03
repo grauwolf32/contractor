@@ -1285,15 +1285,16 @@ UPDATE audit_items
 
 func seedAuditFinding(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	projectID, ownerID, auditID, suffix string,
+	projectID, ownerID, auditID, suffix string, proposedChecks ...auditdomain.ProposedCheck,
 ) string {
 	t.Helper()
+	checks := append([]auditdomain.ProposedCheck{}, proposedChecks...)
 	document := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-" + suffix,
 		Title: "Candidate " + suffix, Description: "A retained candidate for review.",
 		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "component-" + suffix},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
-		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
+		EvidenceIDs: []string{}, ProposedChecks: checks,
 		SeveritySuggestion: "medium", Limitations: []string{},
 	}
 	payload, err := auditdomain.EncodeFindingProposal(document)

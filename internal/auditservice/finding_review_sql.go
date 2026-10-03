@@ -3,16 +3,24 @@ package auditservice
 // Finding review statements. See finding_review.go for the callers.
 
 // listFindingProvenanceSQL walks one finding back to every record that
-// produced it: assessments anchor the receipts and execution items, and
-// the union is paged by (created_at, record_id) so a caller resuming from
-// a cursor sees each record exactly once.
+// produced it: accepted assessments and proposal-derived item sources anchor
+// the receipts and execution items. The union is paged by (created_at,
+// record_id) so a caller resuming from a cursor sees each record once.
 var listFindingProvenanceSQL = `
 WITH anchors AS (
-    SELECT DISTINCT assessment.finding_id, assessment.audit_id,
+    SELECT assessment.finding_id, assessment.audit_id,
            assessment.receipt_id, assessment.item_id
       FROM audit_finding_assessments AS assessment
      WHERE assessment.audit_id = $1 AND assessment.finding_id = $2
        AND assessment.item_id IS NOT NULL
+    UNION
+    SELECT contribution.finding_id, source.audit_id,
+           source.receipt_id, source.item_id
+      FROM audit_proposal_items AS source
+      JOIN audit_finding_contributions AS contribution
+        ON contribution.audit_id = source.audit_id
+       AND contribution.receipt_id = source.receipt_id
+     WHERE source.audit_id = $1 AND contribution.finding_id = $2
 ), records AS (
     SELECT contribution.created_at, 'proposal:' || contribution.receipt_id AS record_id,
            'source-proposal'::text AS kind, contribution.receipt_id,
