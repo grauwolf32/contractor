@@ -143,25 +143,50 @@ func (s *Service) ListRun(
 	ownerID, runID string,
 	query ListQuery,
 ) ([]Receipt, error) {
+	result, err := s.listRunReceiptRows(ctx, ownerID, runID, query)
+	if err != nil || len(result) == 0 {
+		return result, err
+	}
+	ids := make([]string, len(result))
+	for index := range result {
+		ids[index] = result[index].ReceiptID
+	}
+	holds, err := readRunAuditHoldsBatch(ctx, s.pool, ids)
+	if err != nil {
+		return nil, err
+	}
+	for index := range result {
+		result[index].AuditHolds = holds[result[index].ReceiptID]
+		if result[index].AuditHolds == nil {
+			result[index].AuditHolds = []AuditHold{}
+		}
+	}
+	return s.hydrateAuditReceiptBatch(ctx, result)
+}
+
+func (s *Service) listRunReceiptRows(
+	ctx context.Context, ownerID, runID string, query ListQuery,
+) ([]Receipt, error) {
 	if ownerID == "" || runID == "" || !validListQuery(query) {
 		return nil, ErrInvalid
 	}
-	ids, err := listReceiptIDs(ctx, s.pool, `
-SELECT receipt.receipt_id
+	rows, err := s.pool.Query(ctx, `
+SELECT `+receiptProjection+`
   FROM finding_proposal_receipts AS receipt
+  JOIN finding_proposal_retention AS retention USING (receipt_id)
   JOIN workflow_runs AS run ON run.run_id = receipt.run_id
  WHERE receipt.owner_id = $1 AND receipt.run_id = $2 AND run.owner_id = $1
    AND ($3::timestamptz IS NULL OR (receipt.created_at, receipt.receipt_id) > ($3, $4))
  ORDER BY receipt.created_at, receipt.receipt_id
  LIMIT $5`, ownerID, runID, query.AfterCreatedAt, query.AfterReceiptID, query.Limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list Run finding proposals: %w", err)
 	}
-	result, err := readReceipts(ctx, s.pool, ids)
+	result, err := scanReceiptRows(rows)
 	if err != nil {
 		return nil, err
 	}
-	return s.hydrateReceiptDocuments(ctx, result)
+	return result, nil
 }
 
 // ListAuditInbox lists the Audit's native child receipts and the receipts it
@@ -381,35 +406,6 @@ func validListQuery(query ListQuery) bool {
 	return (query.AfterCreatedAt == nil) == (query.AfterReceiptID == "")
 }
 
-func listReceiptIDs(ctx context.Context, db querier, statement string, args ...any) ([]string, error) {
-	rows, err := db.Query(ctx, statement, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list finding proposal receipts: %w", err)
-	}
-	defer rows.Close()
-	result := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan finding proposal receipt identity: %w", err)
-		}
-		result = append(result, id)
-	}
-	return result, rows.Err()
-}
-
-func readReceipts(ctx context.Context, db querier, ids []string) ([]Receipt, error) {
-	result := make([]Receipt, 0, len(ids))
-	for _, id := range ids {
-		receipt, err := readReceiptByID(ctx, db, id)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, receipt)
-	}
-	return result, nil
-}
-
 // Owner imports target only an Audit that still accepts new work. Collection
 // of an Audit child Run is also admitted while the Audit finalizes or cancels:
 // a proposal found by a child Run is never dropped because its Audit began to
@@ -441,10 +437,83 @@ func (s *Service) RetainAuditCollection(
 	return s.importIntoAudit(ctx, request, true)
 }
 
+// RetainAuditCollectionBatch keeps one source-Run and destination-Audit lock
+// for a bounded page. Each receipt still uses the same exact artifact and
+// direct-verification checks as a single import; the page commits atomically.
+func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []ImportRequest) error {
+	if len(requests) == 0 || len(requests) > MaxAuditReceiptBatchSize {
+		return ErrInvalid
+	}
+	first := requests[0]
+	if first.OwnerID == "" || first.AuditID == "" || first.RunID == "" {
+		return ErrInvalid
+	}
+	for _, request := range requests {
+		if request.OwnerID != first.OwnerID || request.AuditID != first.AuditID ||
+			request.RunID != first.RunID || request.Proposal.ValidateExact() != nil {
+			return ErrInvalid
+		}
+	}
+	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		authority, err := lockFindingImportAuthority(ctx, tx, first, true)
+		if err != nil {
+			return err
+		}
+		for _, request := range requests {
+			if _, _, err := s.importIntoAuditWithTx(ctx, request, true, tx, &authority); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (s *Service) importIntoAudit(
 	ctx context.Context,
 	request ImportRequest,
 	collection bool,
+) (AuditHold, bool, error) {
+	return s.importIntoAuditWithTx(ctx, request, collection, nil, nil)
+}
+
+type findingImportAuthority struct{}
+
+func lockFindingImportAuthority(
+	ctx context.Context, tx pgx.Tx, request ImportRequest, collection bool,
+) (findingImportAuthority, error) {
+	// Lock order matches Run deletion and Audit purge. The batch retains both
+	// locks until its last proposal is committed.
+	var sourceProjectID string
+	err := tx.QueryRow(ctx, `
+SELECT project_id FROM workflow_runs
+ WHERE run_id = $1 AND owner_id = $2 AND project_id IS NOT NULL
+ FOR KEY SHARE`, request.RunID, request.OwnerID).Scan(&sourceProjectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return findingImportAuthority{}, ErrNotFound
+	}
+	if err != nil {
+		return findingImportAuthority{}, fmt.Errorf("lock source Run for Audit finding import: %w", err)
+	}
+	var lockedAuditID, auditState string
+	err = tx.QueryRow(ctx, `
+SELECT audit_id, state FROM audits
+ WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
+ FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID, &auditState)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return findingImportAuthority{}, ErrNotFound
+	}
+	if err != nil {
+		return findingImportAuthority{}, fmt.Errorf("lock destination Audit for finding import: %w", err)
+	}
+	if collection && !slices.Contains(collectionRetentionAuditStates, auditState) {
+		return findingImportAuthority{}, ErrAuditClosed
+	}
+	return findingImportAuthority{}, nil
+}
+
+func (s *Service) importIntoAuditWithTx(
+	ctx context.Context, request ImportRequest, collection bool, existingTx pgx.Tx,
+	locked *findingImportAuthority,
 ) (AuditHold, bool, error) {
 	admittedStates := ownerImportAuditStates
 	if collection {
@@ -456,41 +525,18 @@ func (s *Service) importIntoAudit(
 	}
 	var result AuditHold
 	var replayed bool
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		// Serialize destination discovery with Run deletion without blocking
-		// ordinary Run progress or other imports. Audit authority comes next,
-		// before receipt/retention locks, matching deletion and Audit purge.
-		var sourceProjectID string
-		err := tx.QueryRow(ctx, `
-SELECT project_id FROM workflow_runs
- WHERE run_id = $1 AND owner_id = $2 AND project_id IS NOT NULL
- FOR KEY SHARE`, request.RunID, request.OwnerID).Scan(&sourceProjectID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return fmt.Errorf("lock source Run for Audit finding import: %w", err)
-		}
-		var lockedAuditID, auditState string
-		err = tx.QueryRow(ctx, `
-SELECT audit_id, state FROM audits
- WHERE audit_id = $1 AND owner_id = $2 AND project_id = $3
- FOR UPDATE`, request.AuditID, request.OwnerID, sourceProjectID).Scan(&lockedAuditID, &auditState)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return fmt.Errorf("lock destination Audit for finding import: %w", err)
-		}
-		if collection && !slices.Contains(admittedStates, auditState) {
-			return ErrAuditClosed
+	work := func(tx pgx.Tx) error {
+		if locked == nil {
+			if _, err := lockFindingImportAuthority(ctx, tx, request, collection); err != nil {
+				return err
+			}
 		}
 		var receiptID, projectID, invocationID, clientKey, workflowClosureDigest string
 		var proposalDigest, proposalMediaType string
 		var proposalSizeBytes int64
 		var proposalRefJSON, evidenceJSON []byte
 		requestedProposal, _ := json.Marshal(request.Proposal)
-		err = tx.QueryRow(ctx, `
+		err := tx.QueryRow(ctx, `
 SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence,
        receipt.invocation_id, receipt.client_key, receipt.workflow_closure_digest,
        receipt.proposal_digest, receipt.proposal_media_type, receipt.proposal_size_bytes
@@ -613,7 +659,13 @@ RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, reta
 			WorkflowClosureDigest: workflowClosureDigest,
 			Proposal:              proposalSource,
 		})
-	})
+	}
+	var err error
+	if existingTx != nil {
+		err = work(existingTx)
+	} else {
+		err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, work)
+	}
 	if err != nil {
 		return AuditHold{}, false, err
 	}

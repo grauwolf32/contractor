@@ -35,9 +35,9 @@ type RunReader interface {
 // an Audit child Run. It transfers exact proposal/evidence revisions into the
 // owning Audit inbox; it does not create findings, items, or review decisions.
 type FindingRetention interface {
-	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
+	ListAuditCollection(context.Context, string, string, string, findingintake.ListQuery) ([]findingintake.CollectionReceipt, error)
 	GetAuditReceipt(context.Context, string, string, string) (findingintake.Receipt, error)
-	RetainAuditCollection(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+	RetainAuditCollectionBatch(context.Context, []findingintake.ImportRequest) error
 	RejectAuditCollection(context.Context, findingintake.ImportRequest, string) error
 	ResolveAuditProposals(
 		context.Context, string, string, string, string, []findingintake.ProposalKey,

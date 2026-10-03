@@ -363,15 +363,31 @@ SELECT count(*) FROM audit_finding_assessments
 		runstore.Reason{Code: "finding_test_succeeded"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+	trace := &collectionQueryCounter{}
+	actorConfig := pool.Config()
+	actorConfig.ConnConfig.Tracer = trace
+	actorPool, err := pgxpool.NewWithConfig(ctx, actorConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer actorPool.Close()
+	actor, err := New(actorPool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collectionCtx := WithCollectionDirectVerificationCache(ctx)
+	if _, replayed, err := actor.RetainAuditCollection(collectionCtx, ImportRequest{
 		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
 	}); err != nil || !replayed {
 		t.Fatalf("terminal direct-verification import replay = (replay=%v, %v)", replayed, err)
 	}
-	if _, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+	if _, replayed, err := actor.RetainAuditCollection(collectionCtx, ImportRequest{
 		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: claimOnlyReceipt.Proposal.Ref,
 	}); err != nil || replayed {
 		t.Fatalf("claim-only terminal import = (replay=%v, %v)", replayed, err)
+	}
+	if trace.runReads.Load() != 1 || trace.directReads.Load() != 1 {
+		t.Fatalf("collection resolved Run/output %d/%d times, want once each", trace.runReads.Load(), trace.directReads.Load())
 	}
 	var resultRefJSON, contractRefJSON []byte
 	var directAssessmentID, directResultDigest, directContractDigest string
