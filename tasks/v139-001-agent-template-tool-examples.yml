@@ -3,8 +3,8 @@ id: V139-001
 title: Correct AgentTemplate Toolset examples
 milestone: agent-template-tool-examples-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 0e269376adb82da9c33d0da2bf12df9c954a36ba
 depends_on: []
 languages: [markdown]
 goal: Make AgentTemplate examples select exported tools and existing catalog resources.
