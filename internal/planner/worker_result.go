@@ -105,7 +105,7 @@ func cloneWorkerObservations(input contracts.WorkerObservations) contracts.Worke
 func cloneArtifactMap(input map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
 	result := make(map[string]contracts.ArtifactRef, len(input))
 	for name, ref := range input {
-		result[name] = cloneArtifactRef(ref)
+		result[name] = ref.Clone()
 	}
 	return result
 }

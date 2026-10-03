@@ -174,7 +174,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		return *refs[i].Revision < *refs[j].Revision
 	})
 	for index, ref := range refs {
-		if index > 0 && sameRef(refs[index-1], ref) {
+		if index > 0 && refs[index-1].SameExact(ref) {
 			return canonicalSubmission{}, fmt.Errorf("%w: duplicate evidence reference", ErrInvalid)
 		}
 	}
@@ -224,9 +224,4 @@ func deterministicID(prefix string, values ...string) string {
 
 func validIdentity(value string) bool {
 	return value == strings.TrimSpace(value) && identityPattern.MatchString(value)
-}
-
-func sameRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
 }

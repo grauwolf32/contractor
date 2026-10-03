@@ -70,7 +70,7 @@ func (s *Scheduler) buildStageCreation(
 		if resolved.Ref.Namespace != declaration.Namespace || resolved.Ref.Name != declaration.Name || (current.Revision != nil && !reflect.DeepEqual(current, resolved.Ref)) {
 			return NextStageCreation{}, fmt.Errorf("ArtifactStore resolved StageContext artifact %q to another binding", name)
 		}
-		exact := cloneArtifactRef(resolved.Ref)
+		exact := resolved.Ref.Clone()
 		contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{
 			Required: declaration.Required,
 			Artifact: &exact,

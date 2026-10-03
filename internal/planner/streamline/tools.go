@@ -408,7 +408,7 @@ func (p *streamlinePlanner) workerRequest(
 				"worker_request_invalid", "Worker request contains an invalid exact artifact reference", false,
 			)
 		}
-		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, planner.CloneArtifactRef(ref)); err != nil {
+		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, ref.Clone()); err != nil {
 			return contracts.StageContentRequest{}, safeToolFailure(
 				"worker_artifact_unavailable", "Worker request artifact could not be verified", true,
 			)
@@ -439,7 +439,7 @@ func (p *streamlinePlanner) validateWorkerResult(
 		)
 	}
 	for _, ref := range result.Artifacts {
-		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, planner.CloneArtifactRef(ref)); err != nil {
+		if _, err := p.inspector.Inspect(ctx, p.invocation.RunID, ref.Clone()); err != nil {
 			return planner.NewError(
 				"result_artifact_unavailable", "Worker result artifact could not be verified", true, err,
 			)
@@ -647,7 +647,7 @@ func safeSubtaskID(value string) string {
 func cloneArtifactMap(input map[string]contracts.ArtifactRef) map[string]contracts.ArtifactRef {
 	result := make(map[string]contracts.ArtifactRef, len(input))
 	for name, ref := range input {
-		result[name] = planner.CloneArtifactRef(ref)
+		result[name] = ref.Clone()
 	}
 	return result
 }

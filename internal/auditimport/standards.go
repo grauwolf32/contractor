@@ -145,7 +145,7 @@ func validateProposalStandardRefs(
 func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStandard) bool {
 	if task.Standard == nil || task.Checklist == nil ||
 		task.SourceContentDigest != standard.pinned.Retained.Digest ||
-		!sameRef(task.SourceRef, standard.pinned.Retained.Artifact) {
+		!task.SourceRef.SameExact(standard.pinned.Retained.Artifact) {
 		return false
 	}
 	mapping, exists := standard.mappings[task.Standard.MappingKey]

@@ -201,7 +201,7 @@ func (h *handler) repeatInputsFromSnapshot(
 func (h *handler) resolveRepeatSource(
 	ctx context.Context, run runstore.WorkflowRun, ref contracts.ArtifactRef,
 ) (runRepeatInputSelection, error) {
-	copy := cloneArtifactRef(ref)
+	copy := ref.Clone()
 	var (
 		store artifacts.ScopedStore
 		err   error
@@ -225,7 +225,7 @@ func (h *handler) resolveRepeatSource(
 	if err != nil {
 		return runRepeatInputSelection{}, err
 	}
-	if !sameArtifactRef(metadata.Ref, ref) {
+	if !metadata.Ref.Equal(ref) {
 		return unavailableRepeatInput(&copy, "input_source_mismatch",
 			"The exact original Artifact revision could not be verified. Select a replacement explicitly."), nil
 	}
@@ -283,17 +283,6 @@ func hasEvaluationLabels(labels runstore.RunMetadataLabels) bool {
 	return false
 }
 
-func sameArtifactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		sameOptionalString(left.Revision, right.Revision)
-}
-
 func sameOptionalString(left, right *string) bool {
 	return left == nil && right == nil || left != nil && right != nil && *left == *right
-}
-
-func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
-	result := source
-	result.Revision = clone.Pointer(source.Revision)
-	return result
 }

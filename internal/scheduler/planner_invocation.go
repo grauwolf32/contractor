@@ -112,7 +112,7 @@ func plannerContext(snapshot runstore.StageContextSnapshot) planner.StageContext
 	}
 	for name, pinned := range snapshot.Artifacts {
 		if pinned.Artifact != nil {
-			ref := cloneArtifactRef(*pinned.Artifact)
+			ref := pinned.Artifact.Clone()
 			result.Artifacts[name] = &ref
 		} else {
 			result.Artifacts[name] = nil

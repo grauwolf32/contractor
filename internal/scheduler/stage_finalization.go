@@ -112,7 +112,7 @@ func (s *Scheduler) validateCandidate(
 			}
 			return &candidateVerificationError{cause: wrapped}
 		}
-		if !sameExactRef(ref, resolved.Ref) ||
+		if !ref.SameExact(resolved.Ref) ||
 			!contracts.AcceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolved.MediaType) {
 			return fmt.Errorf("Stage result artifact %q differs from its declared exact version or media type", name)
 		}

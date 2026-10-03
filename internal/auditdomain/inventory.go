@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 type inventorySubject struct {
@@ -61,7 +60,7 @@ func finishInventory(
 		document := ItemTask{
 			Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
 			SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
-			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: copyArtifactRef(options.SourceRef),
+			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: options.SourceRef.Clone(),
 			CanonicalInventoryDigest: canonicalDigest,
 			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
 			Standard: subject.standard, Operation: subject.operation, Scan: subject.scan, Finding: subject.finding,
@@ -95,10 +94,10 @@ func finishInventory(
 			TaskPackageID: packageID, ApprovalRequirement: approval,
 		}
 		worklist.Items = append(worklist.Items, item)
-		inputs := []ExactInput{{Name: options.SourceInputName, Ref: copyArtifactRef(options.SourceRef), Digest: sourceDigest}}
+		inputs := []ExactInput{{Name: options.SourceInputName, Ref: options.SourceRef.Clone(), Digest: sourceDigest}}
 		if subject.scan != nil {
 			settings := subject.scan.Settings
-			settings.Ref = copyArtifactRef(settings.Ref)
+			settings.Ref = settings.Ref.Clone()
 			inputs = append(inputs, settings)
 			sort.Slice(inputs, func(i, j int) bool { return inputs[i].Name < inputs[j].Name })
 		}
@@ -215,7 +214,7 @@ func ValidateInventory(value Inventory) error {
 			}
 		}
 		if len(sourceInputs) != 1 || sourceInputs[0].Digest != value.SourceContentDigest ||
-			!sameArtifactRef(sourceInputs[0].Ref, generated.Document.SourceRef) {
+			!sourceInputs[0].Ref.Equal(generated.Document.SourceRef) {
 			return invalid(CodeInventoryInvalid, "inventory.inputs")
 		}
 		validated, err := ValidatePackage(generated.Package)
@@ -336,22 +335,6 @@ func sameCanonicalValue(left, right any) bool {
 	leftBytes, leftErr := canonicalJSON(left)
 	rightBytes, rightErr := canonicalJSON(right)
 	return leftErr == nil && rightErr == nil && bytes.Equal(leftBytes, rightBytes)
-}
-
-func sameArtifactRef(left, right contracts.ArtifactRef) bool {
-	if left.Namespace != right.Namespace || left.Name != right.Name || (left.Revision == nil) != (right.Revision == nil) {
-		return false
-	}
-	return left.Revision == nil || *left.Revision == *right.Revision
-}
-
-func copyArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
-	result := contracts.ArtifactRef{Namespace: source.Namespace, Name: source.Name}
-	if source.Revision != nil {
-		revision := *source.Revision
-		result.Revision = &revision
-	}
-	return result
 }
 
 func equalStringSlices(left, right []string) bool {

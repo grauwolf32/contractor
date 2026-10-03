@@ -242,7 +242,7 @@ func projectAllocationWorkspace(
 			return nil, fmt.Errorf("workspace source %q has no exact StageContext pin", source.Artifact)
 		}
 		result.Sources = append(result.Sources, contracts.AllocationWorkspaceSource{
-			Artifact: cloneArtifactRef(*pinned.Artifact), Target: source.Target,
+			Artifact: pinned.Artifact.Clone(), Target: source.Target,
 		})
 	}
 	if workspace.State != nil {
@@ -252,7 +252,7 @@ func projectAllocationWorkspace(
 		}
 		if pinned.Artifact != nil {
 			result.State = &contracts.AllocationWorkspaceState{
-				Artifact: cloneArtifactRef(*pinned.Artifact),
+				Artifact: pinned.Artifact.Clone(),
 			}
 		}
 	}

@@ -33,7 +33,7 @@ func (r *adapterRepository) Metadata(_ context.Context, scope artifacts.Scope, _
 func (r *adapterRepository) Read(_ context.Context, scope artifacts.Scope, ref contracts.ArtifactRef) (artifacts.ReadResult, error) {
 	r.scope(scope)
 	r.reads++
-	if !sameRef(ref, r.metadata.Ref) {
+	if !ref.SameExact(r.metadata.Ref) {
 		r.t.Fatal("read did not pin metadata revision")
 	}
 	return r.read, nil
@@ -118,7 +118,7 @@ func TestArtifactCreateOnlyRecoveryComparesExactContent(t *testing.T) {
 			target.Revision = nil
 			got, err := adapter.Create(t.Context(), "run-adapter", target, artifacts.Payload{MediaType: "application/json", Data: []byte("{}")})
 			if name == "created" || name == "same content" {
-				if err != nil || !sameRef(got, ref) {
+				if err != nil || !got.SameExact(ref) {
 					t.Fatalf("creation/recovery = %v, %v", got, err)
 				}
 			} else if err == nil {
@@ -136,7 +136,7 @@ func TestFailedReportResolutionPinsOnlyItsOwnBinding(t *testing.T) {
 	target := ref
 	target.Revision = nil
 	got, err := adapter.Resolve(t.Context(), "run-adapter", target)
-	if err != nil || !sameRef(got, ref) || repository.reads != 0 {
+	if err != nil || !got.SameExact(ref) || repository.reads != 0 {
 		t.Fatalf("resolve = %v, %v", got, err)
 	}
 	repository.metadata.Ref.Name = "other-job"

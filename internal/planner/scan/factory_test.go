@@ -46,7 +46,7 @@ func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
 		if !exists || ref.ValidateExact() != nil {
 			return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
 		}
-		return artifacts.Metadata{Ref: planner.CloneArtifactRef(ref), MediaType: payload.MediaType}, nil
+		return artifacts.Metadata{Ref: ref.Clone(), MediaType: payload.MediaType}, nil
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -384,7 +384,7 @@ type factoryArtifacts struct {
 }
 
 func (s *factoryArtifacts) Read(ctx context.Context, _ string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
-	s.reads = append(s.reads, planner.CloneArtifactRef(ref))
+	s.reads = append(s.reads, ref.Clone())
 	payload, exists := s.values[factoryRefKey(ref)]
 	if !exists || ref.ValidateExact() != nil || len(payload.Data) > limit || ctx.Err() != nil {
 		return artifacts.Payload{}, errors.New("exact artifact unavailable")
@@ -401,7 +401,7 @@ func (s *factoryArtifacts) Create(ctx context.Context, _ string, target contract
 		if current := s.payload(ref); current.MediaType != payload.MediaType || !bytes.Equal(current.Data, payload.Data) {
 			return contracts.ArtifactRef{}, errors.New("immutable artifact conflict")
 		}
-		return planner.CloneArtifactRef(ref), nil
+		return ref.Clone(), nil
 	}
 	return s.put(target, payload), nil
 }
@@ -419,13 +419,13 @@ func (s *factoryArtifacts) Resolve(ctx context.Context, _ string, target contrac
 	if !exists || target.Revision != nil || ctx.Err() != nil {
 		return contracts.ArtifactRef{}, errors.New("report metadata unavailable")
 	}
-	return planner.CloneArtifactRef(ref), nil
+	return ref.Clone(), nil
 }
 
 func (s *factoryArtifacts) put(target contracts.ArtifactRef, payload artifacts.Payload) contracts.ArtifactRef {
 	checksum := sha256.Sum256(append([]byte(target.Namespace+"/"+target.Name+"/"+payload.MediaType), payload.Data...))
 	revision := "rev-" + hex.EncodeToString(checksum[:])
-	ref := planner.CloneArtifactRef(target)
+	ref := target.Clone()
 	ref.Revision = &revision
 	s.current[factoryRefKey(target)] = ref
 	s.values[factoryRefKey(ref)] = artifacts.Payload{MediaType: payload.MediaType, Data: append([]byte(nil), payload.Data...)}

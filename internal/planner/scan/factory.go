@@ -63,7 +63,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 			if ref.ValidateExact() != nil || ref.Namespace != slot.Namespace || ref.Name != slot.Name {
 				return nil, fmt.Errorf("scan Stage artifact must match its exact declared binding")
 			}
-			value := planner.CloneArtifactRef(*ref)
+			value := ref.Clone()
 			contextArtifacts[name] = &value
 		} else {
 			contextArtifacts[name] = nil

@@ -388,7 +388,7 @@ func (i *Importer) prepareMembers(
 	for index, member := range members {
 		item, ok := findItem(snapshot.Items, member.ItemID)
 		if !ok || item.State != auditstore.ItemCollecting || member.State != auditstore.ItemCollecting ||
-			item.RoundID != member.RoundID || item.Task.Digest != member.Task.Digest || !sameRef(item.Task.Ref, member.Task.Ref) {
+			item.RoundID != member.RoundID || item.Task.Digest != member.Task.Digest || !item.Task.Ref.SameExact(member.Task.Ref) {
 			return nil, fmt.Errorf("%w: collecting item membership is inconsistent", ErrPermanent)
 		}
 		payload, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, member.Task)
@@ -433,7 +433,7 @@ func (i *Importer) resolveTaskProposal(
 	for _, hold := range receipt.AuditHolds {
 		if hold.AuditID != snapshot.Audit.AuditID ||
 			hold.ProjectID != snapshot.Audit.ProjectID ||
-			hold.Proposal.Digest != task.ProposalDigest || !sameRef(hold.Proposal.Ref, task.ProposalRef) {
+			hold.Proposal.Digest != task.ProposalDigest || !hold.Proposal.Ref.SameExact(task.ProposalRef) {
 			continue
 		}
 		return findingintake.ResolvedProposal{
@@ -855,11 +855,6 @@ func findItem(items []auditstore.Item, itemID string) (auditstore.Item, bool) {
 	return auditstore.Item{}, false
 }
 
-func sameRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
-}
-
 func sortedCopy(values []string) []string {
 	result := append([]string{}, values...)
 	sort.Strings(result)
@@ -908,7 +903,7 @@ func retainedEvidenceFits(
 		if artifact.Ref.Revision == nil || artifact.SizeBytes < 0 {
 			return false
 		}
-		key := exactRefKey(artifact.Ref)
+		key := artifact.Ref.Key()
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -919,12 +914,6 @@ func retainedEvidenceFits(
 		remaining -= artifact.SizeBytes
 	}
 	return true
-}
-
-// exactRefKey identifies one exact revision. Callers have already required
-// an exact ref.
-func exactRefKey(ref contracts.ArtifactRef) string {
-	return ref.Namespace + "\x00" + ref.Name + "\x00" + *ref.Revision
 }
 
 func externalEvidenceArtifacts(values map[string]validatedEvidence) []auditstore.ExactArtifact {

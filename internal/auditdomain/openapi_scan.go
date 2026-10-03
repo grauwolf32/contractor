@@ -75,7 +75,7 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 }
 
 func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prepared scanplan.PreparedAuditOperation) OpenAPIScanTask {
-	input.Ref = copyArtifactRef(input.Ref)
+	input.Ref = input.Ref.Clone()
 	task := OpenAPIScanTask{Scanner: settings.Scanner(), Operation: prepared.Operation, Settings: input,
 		PreparationDigest: prepared.PreparationDigest, Runnable: prepared.Runnable,
 		TestParameters: settings.TestParameters(), Gaps: []string{}}

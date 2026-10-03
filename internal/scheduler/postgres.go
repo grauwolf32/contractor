@@ -561,7 +561,7 @@ func validateNextStagePins(value NextStageCreation) error {
 			}
 			continue
 		}
-		if !present || !sameExactRef(pin, *contextArtifact.Artifact) {
+		if !present || !pin.SameExact(*contextArtifact.Artifact) {
 			return fmt.Errorf("StageContext artifact %q pin differs from its exact snapshot", name)
 		}
 		delete(pins, name)

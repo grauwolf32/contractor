@@ -99,7 +99,7 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		record.Status, record.Code = planner.ScanJobIncomplete, "scan_report_invalid"
 		return record
 	}
-	exact := planner.CloneArtifactRef(ref)
+	exact := ref.Clone()
 	record.Report = &exact
 	record.Status, record.Code = observationStatus(report.Observation)
 	if failedReport && record.Status == planner.ScanJobCompleted {
@@ -218,7 +218,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if state.Plan == nil {
 		return empty, scanError("scan_session_invalid", nil)
 	}
-	report := Report{SchemaVersion: 1, Plan: planner.CloneArtifactRef(*state.Plan), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
+	report := Report{SchemaVersion: 1, Plan: state.Plan.Clone(), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
 	data, err := contracts.MarshalPrivateCanonical(report)
 	if err != nil || len(data) > scanplan.MaxPlanBytes {
 		return empty, scanError("scan_report_invalid", err)

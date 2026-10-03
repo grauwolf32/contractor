@@ -34,7 +34,7 @@ func BuildFindingInventory(
 		for _, ordinal := range proposal.SelectedCheckOrdinals {
 			check := proposal.Document.ProposedChecks[ordinal]
 			finding := &FindingTask{
-				ReceiptID: proposal.ReceiptID, ProposalRef: copyArtifactRef(proposal.Proposal.Ref),
+				ReceiptID: proposal.ReceiptID, ProposalRef: proposal.Proposal.Ref.Clone(),
 				ProposalDigest: proposal.Proposal.Digest, ProposedCheckOrdinal: ordinal,
 				Objective: check.Objective, Method: check.Method, Limitations: slices.Clone(limitations),
 			}

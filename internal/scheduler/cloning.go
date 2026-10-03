@@ -20,15 +20,6 @@ func cloneArtifactSlots(
 	return result
 }
 
-func cloneArtifactRef(source contracts.ArtifactRef) contracts.ArtifactRef {
-	result := source
-	if source.Revision != nil {
-		revision := *source.Revision
-		result.Revision = &revision
-	}
-	return result
-}
-
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {
 	result := source
 	if source.Temperature != nil {
@@ -42,18 +33,13 @@ func cloneStageResult(source contracts.StageContentResult) contracts.StageConten
 	result := source
 	result.Artifacts = make(map[string]contracts.ArtifactRef, len(source.Artifacts))
 	for name, ref := range source.Artifacts {
-		result.Artifacts[name] = cloneArtifactRef(ref)
+		result.Artifacts[name] = ref.Clone()
 	}
 	if source.Error != nil {
 		cloned := *source.Error
 		result.Error = &cloned
 	}
 	return result
-}
-
-func sameExactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
 }
 
 func stringPointer(value string) *string { return &value }

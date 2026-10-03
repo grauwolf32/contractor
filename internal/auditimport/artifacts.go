@@ -132,7 +132,7 @@ func (a *ServiceArtifactAccess) RetainRunExact(
 	if len(lineage) != 1 || lineage[0].Kind != artifacts.LineageAuditImport ||
 		lineage[0].SourceScope != artifacts.ScopeRun || lineage[0].SourceScopeID != runID ||
 		lineage[0].TargetScope != artifacts.ScopeProject || lineage[0].TargetScopeID != projectID ||
-		!sameArtifactRef(lineage[0].Source, source.Ref) || !sameArtifactRef(lineage[0].Target, metadata.Ref) {
+		!lineage[0].Source.SameExact(source.Ref) || !lineage[0].Target.SameExact(metadata.Ref) {
 		return auditstore.ExactArtifact{}, fmt.Errorf("%w: Audit retained lineage collision", artifacts.ErrArtifactIntegrity)
 	}
 	return exactFromMetadata(metadata), nil
@@ -176,9 +176,4 @@ func exactFromMetadata(value artifacts.Metadata) auditstore.ExactArtifact {
 		Ref: value.Ref, Digest: value.Digest,
 		MediaType: value.MediaType, SizeBytes: value.Size,
 	}
-}
-
-func sameArtifactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
 }

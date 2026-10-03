@@ -379,7 +379,7 @@ func clonePromptArtifacts(
 			result[name] = nil
 			continue
 		}
-		cloned := planner.CloneArtifactRef(*ref)
+		cloned := ref.Clone()
 		result[name] = &cloned
 	}
 	return result

@@ -342,7 +342,7 @@ func RequestFactsFor(bindings []string, request contracts.StageContentRequest) R
 	sort.Strings(parameterNames)
 	artifacts := make(map[string]contracts.ArtifactRef, len(request.Artifacts))
 	for name, ref := range request.Artifacts {
-		artifacts[name] = cloneArtifactRef(ref)
+		artifacts[name] = ref.Clone()
 	}
 	return RequestFacts{
 		Bindings:           append([]string(nil), bindings...),
@@ -365,7 +365,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 	artifacts := make(map[string]contracts.ArtifactRef, len(invocation.Context.Artifacts))
 	for name, ref := range invocation.Context.Artifacts {
 		if ref != nil {
-			artifacts[name] = cloneArtifactRef(*ref)
+			artifacts[name] = ref.Clone()
 		}
 	}
 	resultArtifacts := make(map[string]contracts.ArtifactRef)
@@ -446,20 +446,6 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 	return binding, cloneWorkerHandle(handle), nil
 }
 
-func cloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
-	result := ref
-	if ref.Revision != nil {
-		revision := *ref.Revision
-		result.Revision = &revision
-	}
-	return result
-}
-
-// CloneArtifactRef returns a detached exact reference.
-func CloneArtifactRef(ref contracts.ArtifactRef) contracts.ArtifactRef {
-	return cloneArtifactRef(ref)
-}
-
 func cloneStageRequest(request contracts.StageContentRequest) contracts.StageContentRequest {
 	result := request
 	if request.Deadline != nil {
@@ -472,11 +458,11 @@ func cloneStageRequest(request contracts.StageContentRequest) contracts.StageCon
 	}
 	result.Artifacts = make(map[string]contracts.ArtifactRef, len(request.Artifacts))
 	for name, ref := range request.Artifacts {
-		result.Artifacts[name] = cloneArtifactRef(ref)
+		result.Artifacts[name] = ref.Clone()
 	}
 	result.ResultArtifacts = make(map[string]contracts.ArtifactRef, len(request.ResultArtifacts))
 	for name, ref := range request.ResultArtifacts {
-		result.ResultArtifacts[name] = cloneArtifactRef(ref)
+		result.ResultArtifacts[name] = ref.Clone()
 	}
 	return result
 }
@@ -490,7 +476,7 @@ func cloneStageResult(result contracts.StageContentResult) contracts.StageConten
 	cloned := result
 	cloned.Artifacts = make(map[string]contracts.ArtifactRef, len(result.Artifacts))
 	for name, ref := range result.Artifacts {
-		cloned.Artifacts[name] = cloneArtifactRef(ref)
+		cloned.Artifacts[name] = ref.Clone()
 	}
 	if result.Error != nil {
 		errorCopy := *result.Error

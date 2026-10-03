@@ -26,7 +26,7 @@ func TestOpenAPIScanDocumentedInputs(t *testing.T) {
 			}
 			options := testInventoryOptions("scan")
 			options.ApprovalRequirement = ApprovalActiveCheck
-			input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: DigestBytes(settings)}
+			input := ExactInput{Name: "settings", Ref: options.SourceRef.Clone(), Digest: DigestBytes(settings)}
 			input.Ref.Name = scanner + "-settings"
 			inventory, err := BuildOpenAPIScanInventory(source, "application/json", settings, input, options)
 			if err != nil || len(inventory.Tasks) != 1 {
@@ -85,7 +85,7 @@ func scanInventoryFixture(t *testing.T, settings string) (Inventory, InventoryOp
 	t.Helper()
 	options := testInventoryOptions("scan")
 	options.ApprovalRequirement = ApprovalActiveCheck
-	input := ExactInput{Name: "settings", Ref: copyArtifactRef(options.SourceRef), Digest: DigestBytes([]byte(settings))}
+	input := ExactInput{Name: "settings", Ref: options.SourceRef.Clone(), Digest: DigestBytes([]byte(settings))}
 	input.Ref.Name = "scan-settings"
 	inventory, err := BuildOpenAPIScanInventory([]byte(scanSource), "application/json", []byte(settings), input, options)
 	if err != nil {

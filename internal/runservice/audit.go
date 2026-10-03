@@ -234,7 +234,7 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 		}
 	}
 	for slot, input := range params.Inputs {
-		if digest, ok := allowed[exactRefKey(input.Ref)]; !ok || digest != input.Digest {
+		if digest, ok := allowed[input.Ref.Key()]; !ok || digest != input.Digest {
 			return fmt.Errorf("%w: Audit input %q is outside immutable execution intent", auditstore.ErrConflict, slot)
 		}
 	}
@@ -337,19 +337,11 @@ func cloneExactArtifact(source auditstore.ExactArtifact) auditstore.ExactArtifac
 }
 
 func sameExactIdentity(left, right auditstore.ExactArtifact) bool {
-	return exactRefKey(left.Ref) == exactRefKey(right.Ref) && left.Digest == right.Digest
+	return left.Ref.Key() == right.Ref.Key() && left.Digest == right.Digest
 }
 
 func addAllowedArtifact(target map[string]string, artifact auditstore.ExactArtifact) {
 	if artifact.Ref.Revision != nil {
-		target[exactRefKey(artifact.Ref)] = artifact.Digest
+		target[artifact.Ref.Key()] = artifact.Digest
 	}
-}
-
-func exactRefKey(ref contracts.ArtifactRef) string {
-	revision := ""
-	if ref.Revision != nil {
-		revision = *ref.Revision
-	}
-	return ref.Namespace + "\x00" + ref.Name + "\x00" + revision
 }

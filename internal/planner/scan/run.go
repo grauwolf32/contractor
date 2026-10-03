@@ -136,7 +136,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 			if ref == nil {
 				return emptyPlan, emptyState, scanError("scan_source_unavailable", nil)
 			}
-			wordlists[tool.WordlistArtifact] = planner.CloneArtifactRef(*ref)
+			wordlists[tool.WordlistArtifact] = ref.Clone()
 		}
 	}
 	plan, err := scanplan.BuildPlan(scanplan.PlanInput{Artifact: *source, MediaType: payload.MediaType, Data: payload.Data}, policy, bindings, wordlists)
@@ -185,7 +185,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 func (p *execution) validateSavedInputs(ctx context.Context, job scanplan.ScanJob, record planner.ScanJobRecord) error {
 	expected := map[string]contracts.ArtifactRef{}
 	for name, ref := range job.Artifacts {
-		expected[name] = planner.CloneArtifactRef(ref)
+		expected[name] = ref.Clone()
 	}
 	if job.Request != nil {
 		binding := job.Execution.Arguments["request_ref"]
@@ -213,7 +213,7 @@ func (p *execution) validateSavedInputs(ctx context.Context, job scanplan.ScanJo
 func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[string]contracts.ArtifactRef, error) {
 	inputs := map[string]contracts.ArtifactRef{}
 	for name, ref := range job.Artifacts {
-		inputs[name] = planner.CloneArtifactRef(ref)
+		inputs[name] = ref.Clone()
 	}
 	if job.Request != nil {
 		data, err := contracts.MarshalPrivateCanonical(job.Request)

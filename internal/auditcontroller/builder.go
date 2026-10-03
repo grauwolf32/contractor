@@ -304,7 +304,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if resolveErr != nil {
 			return PreparedSubmission{}, resolveErr
 		}
-		if manifestItem.TaskRef == nil || !sameExactRef(*manifestItem.TaskRef, task.Ref) ||
+		if manifestItem.TaskRef == nil || !manifestItem.TaskRef.SameExact(task.Ref) ||
 			manifestItem.TaskPackageDigest != task.Digest {
 			return PreparedSubmission{}, invalidSubmission("item task does not match its execution manifest")
 		}
@@ -494,7 +494,7 @@ func sameExactInputMap(
 	for name, first := range left {
 		second, exists := right[name]
 		if !exists || first.Digest != second.Digest || first.MediaType != second.MediaType ||
-			first.SizeBytes != second.SizeBytes || !sameExactRef(first.Ref, second.Ref) {
+			first.SizeBytes != second.SizeBytes || !first.Ref.SameExact(second.Ref) {
 			return false
 		}
 	}
@@ -566,7 +566,7 @@ func findManifestItem(
 		}
 		candidate.Inputs = append([]auditdomain.ExactInput(nil), candidate.Inputs...)
 		if candidate.TaskRef != nil {
-			ref := cloneRef(*candidate.TaskRef)
+			ref := candidate.TaskRef.Clone()
 			candidate.TaskRef = &ref
 		}
 		return candidate, nil
@@ -611,7 +611,7 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 				continue
 			}
 			pinned, present := manifestInputs[slot]
-			if !present || pinned.Digest != descriptor.Digest || !sameExactRef(pinned.Ref, descriptor.Ref) {
+			if !present || pinned.Digest != descriptor.Digest || !pinned.Ref.SameExact(descriptor.Ref) {
 				return nil, nil, invalidSubmission("baseline input differs from execution manifest")
 			}
 			runInputs[slot] = cloneExact(descriptor)
@@ -737,31 +737,18 @@ func invalidSubmission(message string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidSubmission, message)
 }
 
-func sameExactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
-}
-
-func cloneRef(source contracts.ArtifactRef) contracts.ArtifactRef {
-	if source.Revision != nil {
-		revision := *source.Revision
-		source.Revision = &revision
-	}
-	return source
-}
-
 func cloneExact(source auditstore.ExactArtifact) auditstore.ExactArtifact {
-	source.Ref = cloneRef(source.Ref)
+	source.Ref = source.Ref.Clone()
 	return source
 }
 
 func cloneSkill(source contracts.RunSkillSnapshot) contracts.RunSkillSnapshot {
 	if source.Source != nil {
-		value := cloneRef(*source.Source)
+		value := source.Source.Clone()
 		source.Source = &value
 	}
 	if source.Artifact != nil {
-		value := cloneRef(*source.Artifact)
+		value := source.Artifact.Clone()
 		source.Artifact = &value
 	}
 	return source

@@ -72,7 +72,7 @@ func inspectExact(
 	if err := ref.ValidateExact(); err != nil {
 		return artifacts.Metadata{}, err
 	}
-	result, err := store.Metadata(ctx, cloneArtifactRef(ref))
+	result, err := store.Metadata(ctx, ref.Clone())
 	if err != nil {
 		return artifacts.Metadata{}, err
 	}

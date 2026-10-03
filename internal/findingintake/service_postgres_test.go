@@ -273,7 +273,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	replayHold, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
 		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
 	})
-	if err != nil || !replayed || !sameRef(replayHold.Proposal.Ref, hold.Proposal.Ref) {
+	if err != nil || !replayed || !replayHold.Proposal.Ref.SameExact(hold.Proposal.Ref) {
 		t.Fatalf("replayed Audit import = (%+v, replay=%v, %v)", replayHold, replayed, err)
 	}
 	var prematureAssessments int
@@ -399,7 +399,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 		t.Fatal(err)
 	}
 	if otherAssessmentID != deterministicID("direct-assessment", otherAuditID, firstReceipt.ReceiptID) ||
-		otherAssessmentID == directAssessmentID || sameRef(otherResultRef, directResultRef) || sameRef(otherContractRef, directContractRef) {
+		otherAssessmentID == directAssessmentID || otherResultRef.SameExact(directResultRef) || otherContractRef.SameExact(directContractRef) {
 		t.Fatal("Audits share direct assessment identity or retention")
 	}
 	var otherRetainedBefore, otherRetainedAfter int64
@@ -429,7 +429,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	listed, err := service.ListAuditInbox(ctx, ownerID, auditID, ListQuery{Limit: 10})
 	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionAuditHeld ||
 		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 ||
-		listed[0].AuditHolds[0].AuditID != auditID || !sameRef(listed[0].AuditHolds[0].Proposal.Ref, hold.Proposal.Ref) ||
+		listed[0].AuditHolds[0].AuditID != auditID || !listed[0].AuditHolds[0].Proposal.Ref.SameExact(hold.Proposal.Ref) ||
 		listed[1].Retention != RetentionAuditHeld || !listed[1].Origin.RunDeleted ||
 		len(listed[1].AuditHolds) != 1 || listed[1].AuditHolds[0].AuditID != auditID {
 		t.Fatalf("Audit inbox after Run deletion = (%+v, %v)", listed, err)
@@ -437,7 +437,7 @@ WHERE audit_id=$1 AND receipt_id=$2 AND direct_verification`, otherAuditID, firs
 	otherListed, err := service.ListAuditInbox(ctx, ownerID, otherAuditID, ListQuery{Limit: 10})
 	if err != nil || len(otherListed) != 1 || otherListed[0].ReceiptID != firstReceipt.ReceiptID ||
 		len(otherListed[0].AuditHolds) != 1 || otherListed[0].AuditHolds[0].AuditID != otherAuditID ||
-		!sameRef(otherListed[0].AuditHolds[0].Proposal.Ref, otherHold.Proposal.Ref) {
+		!otherListed[0].AuditHolds[0].Proposal.Ref.SameExact(otherHold.Proposal.Ref) {
 		t.Fatalf("other Audit inbox after Run deletion = (%+v, %v)", otherListed, err)
 	}
 	secondAfterDelete, err := readReceiptByID(ctx, pool, secondReceipt.ReceiptID)

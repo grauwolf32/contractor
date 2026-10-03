@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -208,7 +207,7 @@ func (s *PostgresStore) lookupAcceptedRoundReplay(
 		return Round{}, false, err
 	}
 	if round.Ordinal != params.RoundOrdinal || round.ExpectedItemCount != len(params.Items) ||
-		round.Manifest.Digest != params.Manifest.Digest || !sameRoundArtifactRef(round.Manifest.Ref, params.Manifest.Ref) {
+		round.Manifest.Digest != params.Manifest.Digest || !round.Manifest.Ref.SameExact(params.Manifest.Ref) {
 		return Round{}, true, ErrConflict
 	}
 	var storedDigest *string
@@ -240,11 +239,6 @@ func roundAcceptanceDigest(params AcceptRoundParams) (string, error) {
 		return "", fmt.Errorf("encode Audit Round acceptance identity: %w", err)
 	}
 	return contentdigest.Bytes(encoded), nil
-}
-
-func sameRoundArtifactRef(left, right contracts.ArtifactRef) bool {
-	return left.Namespace == right.Namespace && left.Name == right.Name &&
-		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
 }
 
 func (s *PostgresStore) TransitionRound(

@@ -52,7 +52,7 @@ func TestArtifactResolverUsesMetadataWithAllTransferSlotsOccupied(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sameExactRef(resolved.Ref, repo.ref) || resolved.MediaType != "text/plain" || repo.readCalls != 0 {
+	if !resolved.Ref.SameExact(repo.ref) || resolved.MediaType != "text/plain" || repo.readCalls != 0 {
 		t.Fatalf("metadata resolution = %+v, content reads = %d", resolved, repo.readCalls)
 	}
 }
