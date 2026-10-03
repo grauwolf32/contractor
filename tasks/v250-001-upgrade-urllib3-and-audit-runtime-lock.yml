@@ -3,7 +3,8 @@ id: V250-001
 title: Upgrade urllib3 and audit the Runtime lock in the release gate
 milestone: runtime-dependency-hygiene-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3bb5993e2abdb060e96bd728ff818a7bf1217983
 depends_on: []
 languages: [python, make]
 goal: Keep the shipped Runtime dependency lock free of known vulnerabilities.
