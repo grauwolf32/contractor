@@ -133,12 +133,13 @@ rejects its absence. The deployment procedure is:
    admission.
 
 No data migration rewrites existing WorkflowRun or StageExecution snapshots.
-The new Server decodes a genuinely absent `session` field in those persisted
-pre-feature snapshots as `shared`, preserving their original conversation
-behavior. Newly loaded YAML with omitted `session` instead resolves and stores
-explicit `isolated`; explicit `shared` remains available when a Stage needs one
-sequential conversation. Explicit null, empty and unknown values fail in both
-authoring and persisted data.
+Persisted Workflow and Stage snapshots must contain an explicit `session` value
+of `isolated` or `shared`. Missing, null, empty and unknown values fail decoding;
+snapshots written before the field existed are unsupported. Finish or cancel
+in-flight pre-feature Runs before upgrading, and do not rely on old snapshots
+remaining readable after the upgrade. Newly loaded YAML with omitted `session`
+resolves and stores explicit `isolated`; explicit `shared` remains available
+when a Stage needs one sequential conversation. Invalid authoring values fail.
 
 A binary-only rollback after admitting a new Run is unsafe because old Server
 code does not understand the explicit field in its immutable snapshots. Before

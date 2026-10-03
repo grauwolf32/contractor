@@ -125,8 +125,8 @@ fixed_decisions:
   worker_sessions:
     authoring: >-
       Each Stage selects isolated or shared; new authoring omission resolves to
-      isolated before Run snapshotting, and old snapshots without the field
-      retain their pre-feature shared behavior only at the legacy decode boundary.
+      isolated before Run snapshotting. Persisted Workflow and Stage snapshots
+      require an explicit valid mode; snapshots missing the field are unsupported.
     transport: >-
       Scheduler and Control Plane pin one explicit mode into every AllocationSpec.
       Planner and StageContentRequest carry neither the mode nor a session ID.
@@ -2801,6 +2801,7 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V137-001, file: v137-001-worker-session-upgrade-guide.yml}
   - {id: V136-001, file: v136-001-audit-api-route-table.yml}
   - {id: V135-001, file: v135-001-configuration-body-contract.yml}
   - {id: V134-001, file: v134-001-run-input-validation-test.yml}
