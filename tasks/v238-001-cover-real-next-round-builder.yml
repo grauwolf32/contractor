@@ -3,7 +3,8 @@ id: V238-001
 title: Verify real multi-Round Audit preparation and its stop boundaries
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1a4d63f1d4cba8a577c2c714cc4360eb40c9291f
 depends_on: []
 languages: [go]
 goal: Make later Audit Round preparation and its retry and budget behavior verifiable against real inputs.
