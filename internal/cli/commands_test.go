@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -116,6 +117,44 @@ func TestSourcePushPackagesDirectoryAndCreatesArtifact(t *testing.T) {
 	}
 	if stdout.String() != "projects/repo@rev-1\n" {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestSourcePushRejectsEmptyBundleBeforeArtifactRequest(t *testing.T) {
+	for _, ignored := range []bool{false, true} {
+		name := "empty"
+		if ignored {
+			name = "fully ignored"
+		}
+		t.Run(name, func(t *testing.T) {
+			source := t.TempDir()
+			if ignored {
+				if err := os.WriteFile(filepath.Join(source, ".contractorignore"), []byte("*\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(source, "main.go"), []byte("package main"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				requests.Add(1)
+			}))
+			defer server.Close()
+			var stdout, stderr bytes.Buffer
+			command := New(strings.NewReader(""), &stdout, &stderr, func(name string) string {
+				if name == "CONTRACTOR_API_TOKEN" {
+					return "secret"
+				}
+				return ""
+			})
+			err := command.Run(context.Background(), []string{
+				"--server", server.URL, "source", "push", source, "--name", "repo",
+			})
+			if err == nil || !strings.Contains(err.Error(), "no files to package") || requests.Load() != 0 {
+				t.Fatalf("empty source push = %v, Artifact requests = %d", err, requests.Load())
+			}
+		})
 	}
 }
 

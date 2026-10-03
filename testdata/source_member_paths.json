@@ -1,0 +1,18 @@
+{
+  "valid": [
+    "src/main.go",
+    "docs/über.md",
+    "logs/2024-01-01T10-00.txt",
+    "a-b/c_d.txt"
+  ],
+  "invalid": [
+    "logs/2024-01-01T10:00.txt",
+    "a:b/c.txt",
+    "C:/boot.txt",
+    "../bad.txt",
+    "x//y",
+    "/absolute",
+    "x\\y",
+    "."
+  ]
+}

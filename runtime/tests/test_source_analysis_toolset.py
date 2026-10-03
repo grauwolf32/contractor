@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import stat
 import zipfile
 from dataclasses import dataclass, field
@@ -26,6 +27,16 @@ from contractor_runtime.toolsets.source_analysis.tools import (
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "source-tool-recognizable-secret"
+
+
+def test_source_member_paths_match_producer_fixture() -> None:
+    fixture = Path(__file__).resolve().parents[2] / "testdata/source_member_paths.json"
+    cases = json.loads(fixture.read_text(encoding="utf-8"))
+    for path in cases["valid"]:
+        assert source_tools_module._validated_member_path(path) == path
+    for path in cases["invalid"]:
+        with pytest.raises(ValueError):
+            source_tools_module._validated_member_path(path)
 
 
 def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) -> None:

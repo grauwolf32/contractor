@@ -22,7 +22,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
-// Source ZIP limits match the runtime source_analysis toolset and Git imports.
+// Source ZIP limits and member paths match the runtime source_analysis toolset
+// and Git imports.
 const (
 	MaxArchiveBytes  = gitimport.MaxArchiveBytes
 	MaxEntries       = gitimport.MaxEntries
@@ -87,6 +88,9 @@ func Build(source string, options Options) (Bundle, error) {
 	if err != nil {
 		return Bundle{}, err
 	}
+	if len(files) == 0 {
+		return Bundle{}, errors.New("source has no files to package after ignore filtering")
+	}
 
 	buffer := &limitedBuffer{maximum: MaxArchiveBytes}
 	writer := zip.NewWriter(buffer)
@@ -125,7 +129,19 @@ func candidatePaths(root string, includeIgnored bool) ([]string, int, error) {
 			command := exec.Command("git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ".")
 			output, commandErr := command.Output()
 			if commandErr == nil {
-				paths, skipped := skipNestedRepositories(root, splitNUL(output))
+				// An unmerged index emits the same raw path once per stage. Package
+				// the working-tree file once; distinct names still reach the NFC
+				// collision check in inspectFiles.
+				seen := make(map[string]struct{})
+				unique := make([]string, 0)
+				for _, path := range splitNUL(output) {
+					if _, duplicate := seen[path]; duplicate {
+						continue
+					}
+					seen[path] = struct{}{}
+					unique = append(unique, path)
+				}
+				paths, skipped := skipNestedRepositories(root, unique)
 				return paths, skipped, nil
 			}
 			var exit *exec.ExitError
@@ -401,10 +417,12 @@ func portablePath(value string) (string, error) {
 	if len(parts) > maxPathParts {
 		return "", fmt.Errorf("source path %q exceeds the workspace depth limit", value)
 	}
-	for index, part := range parts {
-		if part == "" || part == "." || part == ".." ||
-			(index == 0 && len(part) >= 2 && part[1] == ':' && isASCIIAlpha(part[0])) {
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
 			return "", fmt.Errorf("source path %q is not a portable workspace path", value)
+		}
+		if strings.Contains(part, ":") {
+			return "", fmt.Errorf("source path %q contains ':' in a path component; exclude it with .contractorignore", value)
 		}
 		for _, character := range part {
 			if character < 0x20 || character == 0x7f {
@@ -479,8 +497,4 @@ func joinNUL(values []string) []byte {
 		result.WriteByte(0)
 	}
 	return result.Bytes()
-}
-
-func isASCIIAlpha(value byte) bool {
-	return value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z'
 }

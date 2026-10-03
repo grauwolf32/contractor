@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V199-001
+title: Package conflicted Git working-tree paths once
+milestone: sourcebundle-validation-2026-10
+priority: P2
+status: completed
+implementation_commit: 9d28bce2fb0fe338fd797ff42dc2e396bcbb60ac
+depends_on: []
+languages: [go]
+goal: Treat duplicate Git index stages as one working-tree path while retaining Unicode collision detection.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/177
+  finding: Unmerged index stages emit duplicate raw paths that inspectFiles misreports as normalization collisions.
+scope:
+  in:
+    - Deduplicate identical raw Git paths before portable path normalization.
+    - Test content and modify/delete conflicts and a real NFC/NFD collision.
+  out:
+    - Changing the source content selected from the working tree.
+acceptance_criteria:
+  - {id: A1, text: Content conflicts package one copy of the working-tree file.}
+  - {id: A2, text: Modify/delete conflicts package a present file once or omit a deleted file without false collision.}
+  - {id: A3, text: Distinct raw paths that normalize to the same NFC path still fail.}
+tests:
+  - {command: go test ./internal/sourcebundle, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

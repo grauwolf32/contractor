@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V198-001
+title: Reject source bundles that the runtime cannot open
+milestone: sourcebundle-validation-2026-10
+priority: P2
+status: completed
+implementation_commit: 48c00037b5079d5f647ab9a7cc3d25a888931e60
+depends_on: []
+languages: [go, python]
+goal: Refuse unsafe source paths and empty source bundles before source push sends an Artifact request.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/171
+  finding: The Go producer accepts colon components and zero-file ZIPs that source-analysis rejects.
+scope:
+  in:
+    - Reject colons in every source path component with a path-specific exclusion hint.
+    - Reject empty bundles after Git and .contractorignore filtering.
+    - Share representative path cases between Go and runtime tests and document the rules.
+  out:
+    - Relaxing runtime archive validation or changing Git ignore selection.
+acceptance_criteria:
+  - {id: A1, text: A colon in any path component fails Build with the path and .contractorignore remedy.}
+  - {id: A2, text: Empty and fully ignored directories fail Build before source push issues an Artifact request.}
+  - {id: A3, text: Go and Python source path fixtures agree on accepted and rejected examples.}
+  - {id: A4, text: The CLI guide documents portable paths and nonempty bundles.}
+tests:
+  - {command: go test ./internal/sourcebundle ./internal/cli, covers: [A1, A2, A3]}
+  - {command: cd runtime && uv run pytest tests/test_source_analysis_toolset.py, covers: [A3]}
+  - {command: make lint, covers: [A1, A2, A3, A4]}
