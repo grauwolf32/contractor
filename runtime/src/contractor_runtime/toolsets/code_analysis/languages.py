@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import PurePosixPath
@@ -79,10 +80,11 @@ EXTENSION_LANGUAGES = MappingProxyType(
     }
 )
 
-# Reviewed extension table for the pinned Trailmark 0.5.0 parser registry.  It
-# intentionally lives in Contractor instead of consulting Trailmark internals
-# at runtime: changing that dependency requires an explicit compatibility
-# review and a new table.
+CPP_HEADER_CONTEXT_EXTENSIONS = frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"})
+
+# Reviewed extension table for Trailmark 0.5.0 auto-detection plus parser-walk
+# headers. Its C and Objective-C parsers both walk .h after another source
+# activates them. An isolated .h does not activate either parser.
 GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
     {
         ".py": "python",
@@ -95,6 +97,7 @@ GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
         ".php": "php",
         ".rb": "ruby",
         ".c": "c",
+        ".h": "c",
         ".cpp": "cpp",
         ".cc": "cpp",
         ".cxx": "cpp",
@@ -371,8 +374,17 @@ class ParseResult:
     long_names_skipped: bool = False
 
 
-def detect_language(path: str) -> Language | None:
-    return EXTENSION_LANGUAGES.get(PurePosixPath(path).suffix.lower())
+def detect_language(path: str, *, cpp_headers: bool = False) -> Language | None:
+    suffix = PurePosixPath(path).suffix.lower()
+    if suffix == ".h" and cpp_headers:
+        return Language.CPP
+    return EXTENSION_LANGUAGES.get(suffix)
+
+
+def cpp_header_context(paths: Iterable[str]) -> bool:
+    return any(
+        PurePosixPath(path).suffix.lower() in CPP_HEADER_CONTEXT_EXTENSIONS for path in paths
+    )
 
 
 def graph_only_source(path: str) -> bool:

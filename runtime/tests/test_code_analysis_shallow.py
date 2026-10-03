@@ -167,6 +167,52 @@ def test_search_def_uses_arrow_bindings_and_initialized_c_names(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+def test_c_family_headers_keep_the_snapshot_language(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        cpp_header = (
+            "namespace app {\nclass Handler {\npublic:\n  int count() const { return 1; }\n};\n}\n"
+        )
+        cpp_tools, _ = await _tools(
+            MutableReader(
+                {
+                    "include/handler.h": cpp_header,
+                    "src/main.cpp": "int main() { return app::Handler{}.count(); }\n",
+                }
+            ),
+            tmp_path / "cpp",
+        )
+        listed = await cpp_tools["list_symbols"](limit=100)
+        assert listed["coverage"]["parseErrors"] == 0
+        assert any(
+            item["name"] == "count"
+            and item["path"] == "include/handler.h"
+            and item["language"] == "cpp"
+            for item in listed["items"]
+        )
+        found = await cpp_tools["search_def"]("count", language="cpp")
+        assert [item["path"] for item in found["items"]] == ["include/handler.h"]
+
+        c_tools, _ = await _tools(
+            MutableReader(
+                {
+                    "include/util.h": "static inline int helper(int x) { return x + 1; }\n",
+                    "src/main.c": "int main(void) { return helper(2); }\n",
+                }
+            ),
+            tmp_path / "c",
+        )
+        c_listed = await c_tools["list_symbols"](limit=100)
+        assert c_listed["coverage"]["parseErrors"] == 0
+        assert any(
+            item["name"] == "helper"
+            and item["path"] == "include/util.h"
+            and item["language"] == "c"
+            for item in c_listed["items"]
+        )
+
+    asyncio.run(scenario())
+
+
 def test_extension_registry_retains_the_v1_surface() -> None:
     expected = {
         ".bash",

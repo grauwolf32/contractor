@@ -170,6 +170,34 @@ def test_all_nineteen_languages_insert_one_syntax_safe_line(
     asyncio.run(scenario())
 
 
+def test_cpp_header_inline_method_is_annotatable_and_parse_failures_are_final(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter(
+            {
+                "include/handler.h": (
+                    "namespace app {\nclass Handler {\npublic:\n"
+                    "  int count() const { return 1; }\n};\n}\n"
+                ),
+                "src/main.cpp": "int main() { return app::Handler{}.count(); }\n",
+                "broken.py": "def broken(\n",
+            }
+        )
+        tools, _ = await make_tools(tmp_path, writer)
+        result = await tools["annotate_trace"]("include/handler.h", "count", target="test")
+        assert result["changed"] is True
+        assert "  // @trace target=test\n  int count()" in await writer.read_text(
+            "include/handler.h"
+        )
+        with pytest.raises(TaintAnnotationError) as missing:
+            await tools["annotate_trace"]("broken.py", "missing")
+        assert missing.value.code == "taint_annotation_unavailable"
+        assert missing.value.retryable is False
+
+    asyncio.run(scenario())
+
+
 def test_canonical_order_replay_and_trace_target_conflict(tmp_path: Path) -> None:
     async def scenario() -> None:
         writer = MemoryWriter({"app.py": "def handler(req):\n    return req\n"})

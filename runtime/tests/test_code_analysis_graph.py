@@ -42,6 +42,45 @@ def test_symbol_id_is_allocation_local_and_bound_to_complete_upstream_id() -> No
         decode_symbol_id(bytes(reversed(key)), symbol_id)
 
 
+def test_c_header_definition_is_mirrored_only_with_an_activating_source(tmp_path: Path) -> None:
+    header = "static inline int helper(int x) { return x + 1; }\n"
+
+    async def scenario() -> None:
+        linked, _, _ = await _tools(
+            tmp_path / "linked",
+            MutableReader(
+                {
+                    "a.c": '#include "include/util.h"\nint main(void) { return helper(2); }\n',
+                    "include/util.h": header,
+                }
+            ),
+        )
+        summary = await linked["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 2
+        assert summary["coverage"]["unsupportedSourceFiles"] == 0
+        helper = (await linked["find_symbol"]("helper"))["items"]
+        assert any(item["path"] == "include/util.h" and item["kind"] != "proxy" for item in helper)
+        main = (await linked["find_symbol"]("main"))["items"][0]
+        callees = await linked["find_callees"](main["symbolId"])
+        assert any(
+            item["name"] == "helper"
+            and item["path"] == "include/util.h"
+            and item["kind"] != "proxy"
+            for item in callees["items"]
+        )
+        await _close(linked)
+
+        standalone, _, _ = await _tools(
+            tmp_path / "standalone", MutableReader({"include/util.h": header})
+        )
+        summary = await standalone["graph_summary"]()
+        assert summary["coverage"]["analyzedFiles"] == 0
+        assert summary["coverage"]["unsupportedSourceFiles"] == 1
+        await _close(standalone)
+
+    asyncio.run(scenario())
+
+
 def test_core_graph_tools_expose_duplicate_identity_and_exact_relationships(
     tmp_path: Path,
 ) -> None:

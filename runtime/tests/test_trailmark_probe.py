@@ -34,7 +34,12 @@ def test_offline_tiny_fixture_probe_succeeds_and_leaves_no_residue(tmp_path: Pat
 
 
 def test_reviewed_graph_language_table_matches_pinned_public_api() -> None:
+    from trailmark.parsers.c.parser import _EXTENSIONS as c_walk_extensions
+    from trailmark.parsers.objc.parser import _EXTENSIONS as objc_walk_extensions
+
     assert set(GRAPH_EXTENSION_LANGUAGES.values()) == set(trailmark.supported_languages())
+    assert ".h" in c_walk_extensions and ".h" in objc_walk_extensions
+    assert GRAPH_EXTENSION_LANGUAGES[".h"] == "c"
     assert ".func" in GRAPH_EXTENSION_LANGUAGES
     assert ".sw" in GRAPH_EXTENSION_LANGUAGES
     assert ".sway" not in GRAPH_EXTENSION_LANGUAGES

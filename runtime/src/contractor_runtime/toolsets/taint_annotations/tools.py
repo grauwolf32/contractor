@@ -203,10 +203,11 @@ class _TaintAnnotationSession:
             if language is None:
                 raise TaintAnnotationError("taint_annotation_language_unsupported")
             try:
-                parsed = await to_thread_until_done(
+                parsed, language = await to_thread_until_done(
                     _parse_target_file,
                     encoded,
                     language,
+                    request.path,
                     name="taint-annotation-cpu",
                 )
                 plan = _plan_mutation(source, language, parsed, request)
@@ -485,7 +486,7 @@ def _plan_mutation(
             if parsed.parse_error
             else "taint_annotation_target_not_found"
         )
-        raise TaintAnnotationError(code, retryable=parsed.parse_error)
+        raise TaintAnnotationError(code)
     if len(matches) != 1:
         raise TaintAnnotationError("taint_annotation_target_ambiguous")
     target = matches[0]
@@ -761,9 +762,17 @@ def _normalize_error(error: Exception) -> TaintAnnotationError:
     return TaintAnnotationError("taint_annotation_unavailable", retryable=True)
 
 
-def _parse_target_file(source: bytes, language: Language) -> AnnotationParseResult:
+def _parse_target_file(
+    source: bytes, language: Language, path: str
+) -> tuple[AnnotationParseResult, Language]:
     parser = language_support.load_parser(language)
-    return parse_annotation_targets(parser, source, language)
+    parsed = parse_annotation_targets(parser, source, language)
+    if path.lower().endswith(".h") and language is Language.C and parsed.parse_error:
+        cpp = Language.CPP
+        alternate = parse_annotation_targets(language_support.load_parser(cpp), source, cpp)
+        if not alternate.parse_error:
+            return alternate, cpp
+    return parsed, language
 
 
 def _without_newline(value: str) -> str:
