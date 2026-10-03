@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V93-001
+title: Count only unified diff hunk changes in Artifact previews
+milestone: ui-outcome-corrections-2026-10
+priority: P2
+status: completed
+implementation_commit: e1b3fec95f19b3e5de54fd6486a6fd4c338b3361
+depends_on: []
+languages: [typescript]
+goal: Prevent format-patch preambles and signatures from inflating change counts.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/288
+  finding: Diff parser classifies every line beginning with plus or minus as a change outside hunks.
+scope:
+  in:
+    - Classify additions and deletions only inside unified diff hunks.
+    - Keep file headers, commit text, separators and signatures as metadata.
+    - Cover a format-patch sample and changed lines beginning with header markers.
+  out:
+    - Change diff creation or Artifact storage.
+acceptance_criteria:
+  - {id: A1, text: A format-patch with one changed line each way reports one addition and one deletion.}
+  - {id: A2, text: Preamble and signature lines are not styled as changes; in-hunk header-like content remains a change.}
+  - {id: A3, text: Focused UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/artifacts/previews/diff.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}

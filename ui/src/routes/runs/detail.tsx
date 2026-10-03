@@ -431,15 +431,7 @@ function CancellationControl({ run }: { run: RunStatus }) {
           {validationError}
         </p>
       )}
-      {mutation.error === null ? null : (
-        <>
-          <ErrorNotice error={mutation.error} />
-          <p className="muted-copy">
-            The Run snapshot was refreshed; the Run had already reached a final
-            state.
-          </p>
-        </>
-      )}
+      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending
           ? "Requesting cancellation…"

@@ -1,0 +1,29 @@
+schema_version: '1.0'
+id: V93-002
+title: Correct failed Run cancellation feedback and terminal race test
+milestone: ui-outcome-corrections-2026-10
+priority: P2
+status: completed
+implementation_commit: e68475f041f7a0e7a9a54d3e08c666b0762e1775
+depends_on: []
+languages: [typescript]
+goal: Give operators accurate retryable cancellation feedback while the Run remains active.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/286
+  finding: The UI claims every cancellation error means the Run already finished; the Server returns a successful 200 for that race.
+scope:
+  in:
+    - Remove the false final-state sentence after failed cancellation.
+    - Make the UI terminal-race test use the documented 200 response.
+    - Cover a failed cancel request with an active Run and a usable retry.
+  out:
+    - Change Server cancellation semantics.
+acceptance_criteria:
+  - {id: A1, text: A failed cancel keeps the active Run form usable and shows the actual error without a final-state claim.}
+  - {id: A2, text: A 200 terminal response removes the cancellation panel after refetch.}
+  - {id: A3, text: Focused UI tests and checks pass.}
+tests:
+  - {command: cd ui && ./node_modules/.bin/vitest run src/routes/runs/runs.test.tsx, covers: [A1, A2, A3]}
+  - {command: cd ui && ./node_modules/.bin/tsc --noEmit, covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/eslint ., covers: [A3]}
+  - {command: cd ui && ./node_modules/.bin/prettier --check ., covers: [A3]}
