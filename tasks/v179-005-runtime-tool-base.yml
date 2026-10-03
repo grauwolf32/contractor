@@ -3,7 +3,8 @@ id: V179-005
 title: Share Runtime toolset call instrumentation and factory helpers
 milestone: code-reuse-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 153ee7ff25e7df15b0fb958771baad22f19e5f42
 depends_on: []
 languages: [python]
 goal: Give built-in toolsets one tool-call metrics wrapper, artifact-observation mixin, factory checks and runtime secret source.
