@@ -3,7 +3,8 @@ id: V217-001
 title: Cache decoded HTTP body artifacts for paged reads
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 1ad4d86547e9df9d7da23209624d728e2129c457
 depends_on: []
 languages: [python]
 goal: Avoid downloading and decoding the same exact HTTP body artifact for every paged read.
