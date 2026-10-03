@@ -353,6 +353,15 @@ case/variant/member, invalid digest, invalid role mapping or incompatible media 
 
 ### Native setup and start example
 
+Native Create and draft update reject a matrix above 1,000 expanded members,
+or one whose conservative serialized-plan estimate exceeds 1 MiB, with
+`eval_limit_exceeded`. The estimate includes member and execution-order rows,
+comparison pin maps and fixed plan overhead. The configured `maxMembers` budget
+may be larger for an existing small draft, but it never raises this effective
+matrix bound. The UI defaults new native budgets to 1,000 and checks the same
+estimate before saving. External registrations retain spec 26's 10,000-member
+format ceiling and per-document byte bound.
+
 The following abbreviated case IDs/artifact refs stand for already registered
 exact revisions; hashes in real requests are full SHA-256 values.
 

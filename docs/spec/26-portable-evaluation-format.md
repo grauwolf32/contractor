@@ -116,6 +116,10 @@ must fit within the enclosing document bound. Input/output blobs have separate
 provider limits; the current Contractor artifact bound is checked by its adapter.
 If both member count and byte limits cannot be met, split into explicit experiments;
 never silently truncate a plan or comparison.
+The 10,000-member ceiling is a format limit, not a promise that one plan document
+can contain 10,000 members. Managed native authoring applies a smaller effective
+matrix bound before storing a draft; see spec 30. External producers may use the
+format ceiling subject to each document's byte limit.
 
 ## 3. Case and suite
 

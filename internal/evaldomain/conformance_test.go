@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -100,6 +101,56 @@ func TestEvalTypedAuthoringRoundTrips(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNativeDraftRejectsPlanOverflowAtAuthoring(t *testing.T) {
+	var input CreateExperiment
+	if err := DecodeInto("CreateExperiment", fixture(t, "create-workflow"), &input); err != nil {
+		t.Fatal(err)
+	}
+	check := func(draft Draft, wantCode string) {
+		t.Helper()
+		input.Draft = &draft
+		for kind, value := range map[string]any{
+			"CreateExperiment": input,
+			"DraftUpdate":      DraftUpdate{Name: input.Name, Draft: draft},
+		} {
+			raw, err := json.Marshal(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = Validate(kind, raw)
+			if wantCode == "" {
+				if err != nil {
+					t.Fatalf("%s rejected a fitting native draft: %v", kind, err)
+				}
+				continue
+			}
+			var safe *Error
+			if !errors.As(err, &safe) || safe.Code != wantCode {
+				t.Fatalf("%s: want %s, got %v", kind, wantCode, err)
+			}
+		}
+	}
+	draft := *input.Draft
+	draft.CaseIDs = make([]string, 25)
+	for i := range draft.CaseIDs {
+		draft.CaseIDs[i] = fmt.Sprintf("case-%03d", i)
+	}
+	draft.Repetitions = 60 // 3,000 members; a former Prepare-time failure.
+	draft.Budgets.MaxMembers = MaxMembers
+	check(draft, "eval_limit_exceeded")
+
+	draft.CaseIDs = make([]string, 500)
+	for i := range draft.CaseIDs {
+		draft.CaseIDs[i] = fmt.Sprintf("case-%03d", i)
+	}
+	draft.Repetitions = 1 // 1,000 ordinary members fit the conservative bound.
+	check(draft, "")
+	for i, id := range draft.CaseIDs {
+		draft.CaseIDs[i] = id + strings.Repeat("x", 128-len(id))
+	}
+	check(draft, "eval_limit_exceeded") // Same count, oversized plan estimate.
 }
 
 func TestEvalPrivateProjectionsAndOwnerErrors(t *testing.T) {
