@@ -16,12 +16,14 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
 )
 from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.common.lines import split_lines
 from contractor_runtime.toolsets.taint_annotations.tools import (
     EXPORTED_TOOLS,
     MAX_SOURCE_FILE_BYTES,
     TaintAnnotationError,
     TaintAnnotationsToolsetFactory,
+    _parse_target_file,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -192,7 +194,7 @@ def test_cpp_header_inline_method_is_annotatable_and_parse_failures_are_final(
         )
         with pytest.raises(TaintAnnotationError) as missing:
             await tools["annotate_trace"]("broken.py", "missing")
-        assert missing.value.code == "taint_annotation_unavailable"
+        assert missing.value.code == "taint_annotation_target_not_found"
         assert missing.value.retryable is False
 
     asyncio.run(scenario())
@@ -285,6 +287,48 @@ def test_structural_resolution_rejects_calls_noncallables_and_ambiguity(
             with pytest.raises(TaintAnnotationError) as missing:
                 await tools["annotate_sink"](path, symbol, kind="db.query")
             assert missing.value.code == "taint_annotation_target_not_found"
+
+    asyncio.run(scenario())
+
+
+def test_method_name_and_parse_error_misses_are_deterministic(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        source = "class Handler:\n    def get(self):\n        return 1\n"
+        broken = source + "\ndef broken(:\n"
+        parsed, _ = _parse_target_file(broken.encode(), Language.PYTHON, "broken.py")
+        assert parsed.parse_error
+        writer = MemoryWriter({"clean.py": source, "broken.py": broken})
+        tools, _ = await make_tools(tmp_path, writer)
+
+        for path, symbol in (
+            ("clean.py", "Handler.get"),
+            ("broken.py", "Handler.get"),
+            ("broken.py", "missing"),
+        ):
+            with pytest.raises(TaintAnnotationError) as missing:
+                await tools["annotate_trace"](path, symbol)
+            assert missing.value.code == "taint_annotation_target_not_found"
+            assert missing.value.retryable is False
+
+        result = await tools["annotate_trace"]("clean.py", "get")
+        assert result["changed"] is True
+        assert "# @trace target=unknown\n    def get" in await writer.read_text("clean.py")
+
+    asyncio.run(scenario())
+
+
+def test_qualified_declaration_names_in_cpp_and_lua(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        writer = MemoryWriter(
+            {
+                "handler.cpp": "struct Handler { void get(); };\nvoid Handler::get() {}\n",
+                "handler.lua": "function Handler.get(self) return self end\n",
+            }
+        )
+        tools, _ = await make_tools(tmp_path, writer)
+        for path, symbol in (("handler.cpp", "Handler::get"), ("handler.lua", "Handler.get")):
+            result = await tools["annotate_trace"](path, symbol)
+            assert result["changed"] is True
 
     asyncio.run(scenario())
 
