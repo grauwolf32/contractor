@@ -3,8 +3,8 @@ id: V135-001
 title: Remove unused configuration reference-summary body
 milestone: configuration-body-contract-2026-10
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 1544736ca11789734537fa42d8c261ebf7097e61
 depends_on: []
 languages: [go, typescript]
 goal: Align the public configuration body union and UI with the four shapes the Server emits.
@@ -26,3 +26,4 @@ tests:
   - {command: make ui-generate-check ui-typecheck, covers: [A1, A2, A3]}
   - {command: go generate ./internal/publicclient/generated && go test ./internal/httpapi/public -run TestPublicConfigurationProjectionContracts, covers: [A1, A3]}
   - {command: cd ui && corepack pnpm test --run src/api/safe-resources.test.ts src/api/configuration-contracts.test.ts, covers: [A2, A3]}
+  - {command: cd ui && corepack pnpm exec playwright test e2e/catalog.spec.ts, covers: [A3]}
