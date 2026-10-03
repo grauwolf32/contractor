@@ -3,7 +3,8 @@ id: V225-001
 title: Preserve SSH Git wire-budget failures
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 7f9c77c2e111b4ccd52ade45481508f8f36b7fab
 depends_on: []
 languages: [go]
 goal: Report an oversized SSH Git transfer as the Git import budget error.
