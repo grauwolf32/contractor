@@ -3,7 +3,8 @@ id: V226-001
 title: Preserve Planner completions through database contention
 milestone: runtime-maintenance-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ba97a6dd801b928901c4dcd08d67b77c0263cd42
 depends_on: []
 languages: [go]
 goal: Allow a finished Planner result to be recorded within configured database wait budgets.
