@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V203-001
+title: Preserve attempted-item coverage when Audit dispatch closes
+milestone: audit-coverage-truth-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Keep the last collected attempt's coverage when an Audit settles an undispatched retry.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/155
+  finding: SettleUndispatched overwrites attempted-item status and rationale with text claiming the item was never submitted.
+scope:
+  in:
+    - Distinguish a first dispatch from an undispatched retry using durable attempt provenance.
+    - Preserve attempted-item status and rationale, appending a truthful closure gap and explanation.
+    - Cover finalizing, cancelling, and never-attempted settlement in PostgreSQL tests.
+  out:
+    - Changing final disposition policy or earlier collection receipts.
+acceptance_criteria:
+  - {id: A1, text: Finalizing an undispatched retry preserves the failed attempt's status and gap with a truthful rationale.}
+  - {id: A2, text: Cancelling an undispatched retry preserves its attempt coverage and uses a retry-specific closure gap.}
+  - {id: A3, text: Never-attempted items keep the existing before-dispatch coverage behavior.}
+tests:
+  - {command: go test ./internal/auditstore/... ./internal/auditimport/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
