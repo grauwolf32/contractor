@@ -1,8 +1,8 @@
-"""Inert immutable interfaces for invocation-local Audit collection and publication.
+"""Immutable value contracts for invocation-local Audit collection and publication.
 
 Only trusted Runtime code constructs these values. They are not ADK State or
-model arguments. Concrete admission/encoder/collector/publication behavior is
-implemented separately; defining these interfaces advertises no capability.
+model arguments. Concrete admission, encoding, collection and publication
+behavior lives in the corresponding implementation modules.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Literal
 
 MAX_ITEMS = 64
 MAX_SUMMARY_BYTES = 16 * 1024
@@ -280,51 +280,3 @@ class AuditPublicationReceipt:
             or self.media_type != "application/zip"
         ):
             raise ValueError("invalid Audit publication size/media")
-
-
-class AuditPackageEncoder(Protocol):
-    def encode(self, snapshot: AuditSnapshot, *, inputs: AuditTrustedInputs) -> AuditEncodedPackage:
-        """Return canonical package bytes with actual overhead or reject bounds.
-
-        Admission calls this same pure function on prospective state. It must
-        verify matching ownership, derive requested coverage from pinned task bytes,
-        and use the pinned manifest/order, never clocks or randomness.
-        """
-        ...
-
-
-class AuditCollector(Protocol):
-    owner: AuditInvocationOwner
-    inputs: AuditTrustedInputs
-
-    async def record(
-        self, item: NormalizedAuditItem, *, expected_revision: int | None = None
-    ) -> AuditRecordReceipt:
-        """Create/replay without revision; replace only with the current revision.
-
-        Identical replay never increments. The immediately preceding explicit
-        update may replay only with matching expected revision and exact content.
-        Validate task-local evidence and prospective encoder sizes before mutation.
-        """
-        ...
-
-    async def record_batch(self, items: tuple[NormalizedAuditItem, ...]) -> AuditRecordReceipt:
-        """Accept one complete trusted-order batch atomically; changed existing items conflict."""
-        ...
-
-    async def snapshot(self) -> AuditSnapshot: ...
-    async def seal(self) -> SealedAuditSnapshot:
-        """Atomically seal a complete set; all later writes fail, including replays."""
-        ...
-
-    async def discard(self) -> None:
-        """Release invocation-local state; never persist/recover partial acceptance."""
-        ...
-
-
-class AuditResultPublisher(Protocol):
-    async def publish(
-        self, snapshot: SealedAuditSnapshot, *, inputs: AuditTrustedInputs, deadline: float
-    ) -> AuditPublicationReceipt:
-        """Verify owner/binding and bytes under deadline and bounded CAS/read-back policy."""
-        ...

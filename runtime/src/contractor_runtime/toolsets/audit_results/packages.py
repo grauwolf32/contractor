@@ -25,9 +25,7 @@ MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
 MAX_PACKAGE_BYTES = 16 * 1024 * 1024
 MAX_PACKAGE_MEMBER_BYTES = 16 * 1024 * 1024
 MAX_BATCH_ITEMS = 64
-MAX_SUMMARY_BYTES = 16 * 1024
 MAX_VALUES = 512
-MAX_EVIDENCE = 256
 IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 
 
@@ -204,9 +202,8 @@ def _build_result_package(
     tasks: list[dict[str, Any]],
     execution_bytes: bytes,
     results: list[dict[str, Any]],
-    allow_empty: bool = False,
 ) -> bytes:
-    if (not tasks and not allow_empty) or len(tasks) != len(results):
+    if len(tasks) != len(results):
         raise ValueError("result membership differs from trusted tasks")
     evidence_values: list[dict[str, str]] = []
     evidence_members: list[tuple[str, str, str, bytes]] = []
