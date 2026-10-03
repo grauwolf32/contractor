@@ -70,14 +70,27 @@ def main() -> int:
         os.close(descriptor)
         success(read_request())
         return 0
+    if mode == "oom":
+        # Exercise the real child's request handler under its RLIMIT_AS.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+        from contractor_runtime.toolsets.code_analysis import trailmark_child
+
+        def exhaust_memory(*_args: object) -> dict[str, object]:
+            bytearray(2 * 1024 * 1024 * 1024)
+            raise AssertionError("address-space limit did not reject the allocation")
+
+        trailmark_child._dispatch = exhaust_memory
+        return trailmark_child.main()
     request = read_request()
     if mode == "hang":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         time.sleep(60)
     if mode == "crash":
         return 9
-    if mode == "oom":
+    if mode == "killed":
         os.kill(os.getpid(), signal.SIGKILL)
+    if mode == "oom-exit":
+        return 71
     if mode == "oversized":
         sys.stdout.buffer.write(struct.pack(">I", 2 * 1024 * 1024 + 1))
         sys.stdout.buffer.flush()

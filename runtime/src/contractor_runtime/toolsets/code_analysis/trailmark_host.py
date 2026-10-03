@@ -37,6 +37,7 @@ DEFAULT_BUILD_TIMEOUT_SECONDS = 120.0
 DEFAULT_QUERY_TIMEOUT_SECONDS = 10.0
 DEFAULT_STOP_TIMEOUT_SECONDS = 2.0
 MIRROR_PREFIX = "code-analysis-mirror-"
+_EXIT_STATUS_GRACE_SECONDS = 0.2
 
 _ENTRYPOINT_BOUNDARY = ".trailmark/entrypoints.toml"
 _SAFE_CHILD_ENVIRONMENT = {
@@ -658,7 +659,18 @@ class TrailmarkChildHost:
             await self._stop_locked(remove_mirror=True)
             raise
         except (BrokenPipeError, ConnectionError, asyncio.IncompleteReadError):
-            await self._stop_locked(remove_mirror=True)
+            process = self._process
+            exit_code: int | None = None
+            try:
+                if process is not None:
+                    with contextlib.suppress(TimeoutError):
+                        exit_code = await asyncio.wait_for(
+                            process.wait(), timeout=_EXIT_STATUS_GRACE_SECONDS
+                        )
+            finally:
+                await self._stop_locked(remove_mirror=True)
+            if exit_code == 71:
+                raise TrailmarkHostError("code_analysis_capacity_exceeded") from None
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
 
     async def _request_once_locked(

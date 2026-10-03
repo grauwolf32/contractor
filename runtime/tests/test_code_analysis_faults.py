@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
+import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
+from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError
 from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     TrailmarkChildHost,
     TrailmarkHostError,
@@ -147,7 +149,9 @@ def test_stderr_flood_is_drained_but_never_retained_as_text(tmp_path: Path) -> N
     ("mode", "code", "retryable"),
     [
         ("crash", "code_analysis_engine_failed", True),
-        ("oom", "code_analysis_engine_failed", True),
+        ("oom", "code_analysis_capacity_exceeded", False),
+        ("oom-exit", "code_analysis_capacity_exceeded", False),
+        ("killed", "code_analysis_engine_failed", True),
         ("malformed", "code_analysis_engine_failed", True),
         ("partial", "code_analysis_engine_failed", True),
         ("wrong-id", "code_analysis_engine_failed", True),
@@ -179,6 +183,20 @@ def test_fault_classification_is_stable_and_scratch_is_immediately_reusable(
         clean = TrailmarkChildHost(tmp_path)
         assert (await clean.build(_snapshot("7"))).node_count >= 1
         await clean.close()
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
+def test_memory_exhaustion_reaches_the_model_as_non_retryable_capacity(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        session = code_analysis._CodeAnalysisSession(object(), graph_scratch=tmp_path)
+        session._graph_host = _fault_host(tmp_path, "oom")
+        with pytest.raises(CodeAnalysisError) as rejected:
+            await session._ensure_graph(_snapshot())
+        assert rejected.value.code == "code_analysis_capacity_exceeded"
+        assert rejected.value.retryable is False
+        await session.close()
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())

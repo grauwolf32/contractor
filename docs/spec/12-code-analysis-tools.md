@@ -533,6 +533,9 @@ the tool query. Unexpected child failure is retryable only after the one
 internal read-only recovery attempt has failed. Errors contain a stable code,
 retryability and bounded structural counts; they never contain source text,
 query strings, relative/host paths, raw child stderr or arbitrary exceptions.
+The child reports a request-time memory exhaustion as non-retryable capacity;
+if it cannot write that response, exit status 71 carries the same classification.
+An unrecognized child death remains a retryable engine failure.
 
 Worker metrics may contain Toolset/operation, shallow or graph engine, outcome,
 duration, analyzed file/byte/symbol counts, skip/error counts, cache

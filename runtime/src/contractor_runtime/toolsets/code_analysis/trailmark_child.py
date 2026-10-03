@@ -499,6 +499,16 @@ def main() -> int:
                     "code": error.code,
                     "retryable": False,
                 }
+            except MemoryError:
+                # Dispatch locals have unwound, so the small error frame can
+                # usually be written even after a graph hit RLIMIT_AS.
+                response = {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "requestId": request_id,
+                    "ok": False,
+                    "code": "code_analysis_capacity_exceeded",
+                    "retryable": False,
+                }
             _write_frame(protocol, response)
         except (BrokenPipeError, EOFError, _ProtocolError):
             return 65
