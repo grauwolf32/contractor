@@ -86,10 +86,10 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 }
 
 // Incoming requests pass API version, request ID, origin policy,
-// authentication and error diagnostics in that order.
+// authentication, Operations authorization and error diagnostics in that order.
 func (h *handler) withMiddleware(mux *http.ServeMux) http.Handler {
 	diagnostics := withErrorDiagnostics(mux)
-	authenticated := h.authenticate(diagnostics)
+	authenticated := h.authenticate(h.requireOperationsRoutes(diagnostics))
 	originChecked := h.cors(authenticated, mux)
 	return withAPIVersion(h.withRequestID(originChecked))
 }
