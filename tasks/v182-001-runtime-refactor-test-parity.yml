@@ -3,7 +3,8 @@ id: V182-001
 title: Restore Runtime tests after proxy and annotation interface changes
 milestone: runtime-test-parity-2026-10
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: d8736cba42aaeccf23983004e4dd349261141def
 depends_on: []
 languages: [python]
 goal: Keep security and concurrency tests aligned with the current Runtime interfaces.
