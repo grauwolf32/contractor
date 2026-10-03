@@ -50,7 +50,6 @@ def test_snapshots_are_sorted_deterministic_and_hide_backend_details(tmp_path: P
             directories={"z", "a"},
             text_files={"z/b.txt": "two", "a/a.txt": "one"},
             binary_paths={"z/image.bin"},
-            stored_binary_paths={"z/image.bin"},
         )
 
         first = await session.snapshot()

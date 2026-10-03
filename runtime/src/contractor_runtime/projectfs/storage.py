@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import os
-import secrets
 from collections.abc import Callable
-from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -176,14 +173,12 @@ class ManagedWorkspaceTree:
     directories: set[str] = field(default_factory=set)
     text_files: dict[str, str] = field(default_factory=dict, repr=False)
     binary_paths: set[str] = field(default_factory=set)
-    stored_binary_paths: set[str] = field(default_factory=set)
 
     def clone(self) -> ManagedWorkspaceTree:
         return ManagedWorkspaceTree(
             directories=set(self.directories),
             text_files=dict(self.text_files),
             binary_paths=set(self.binary_paths),
-            stored_binary_paths=set(self.stored_binary_paths),
         )
 
     def snapshot(self) -> WorkspaceSnapshot:
@@ -215,7 +210,6 @@ class DirectWorkspaceSession:
         directories: set[str],
         text_files: dict[str, str],
         binary_paths: set[str],
-        stored_binary_paths: set[str],
     ) -> None:
         self._mode = mode
         self._storage = storage
@@ -239,7 +233,6 @@ class DirectWorkspaceSession:
                 directories=set(directories),
                 text_files=dict(text_files),
                 binary_paths=set(binary_paths),
-                stored_binary_paths=set(stored_binary_paths),
             )
         )
         self._lock = asyncio.Lock()
@@ -438,13 +431,6 @@ class DirectWorkspaceSession:
             self._tree.directories.clear()
             self._tree.text_files.clear()
             self._tree.binary_paths.clear()
-            self._tree.stored_binary_paths.clear()
-
-    def _source_tree(self) -> ManagedWorkspaceTree:
-        self._require_open()
-        if self._local is not None:
-            raise WorkspaceStorageError("workspace_mode_unsupported")
-        return self._tree.clone()
 
     def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:
         _validate_managed_tree(candidate, self._limits)
@@ -484,11 +470,7 @@ class DirectWorkspaceSession:
                 filesystem.makedirs(self._backend_path(path), exist_ok=True)
         for path, text in sorted(candidate.text_files.items()):
             if current.text_files.get(path) != text or current.kind(path) != "text":
-                encoded = text.encode("utf-8")
-                if self._storage.storage == "local":
-                    _atomic_local_text_write(self._content_root, path, encoded)
-                else:
-                    filesystem.pipe(self._backend_path(path), encoded)
+                filesystem.pipe(self._backend_path(path), text.encode("utf-8"))
 
     def _backend_path(self, path: str) -> str:
         return f"{self._content_root.rstrip('/')}/{path}"
@@ -588,7 +570,6 @@ def _remove_tree(tree: ManagedWorkspaceTree, root: str) -> None:
     for path in selected:
         tree.text_files.pop(path, None)
     tree.binary_paths.difference_update(selected)
-    tree.stored_binary_paths.difference_update(selected)
 
 
 def _copy_tree(
@@ -624,51 +605,3 @@ def _copy_tree(
 
 def _raise_workspace_unavailable() -> None:
     raise WorkspaceStorageError("workspace_unavailable")
-
-
-def _atomic_local_text_write(content_root: str, relative: str, data: bytes) -> None:
-    """Replace one local file without following a swapped final symlink.
-
-    Each parent is opened relative to an already verified directory descriptor,
-    so a path component changed into a symlink causes a safe failure instead of
-    redirecting a direct-mode write outside the private workspace.
-    """
-
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptors: list[int] = []
-    temporary = f".contractor-write-{secrets.token_hex(16)}"
-    temporary_created = False
-    try:
-        current = os.open(content_root, flags)
-        descriptors.append(current)
-        parts = relative.split("/")
-        for component in parts[:-1]:
-            current = os.open(component, flags, dir_fd=current)
-            descriptors.append(current)
-        write_flags = (
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_NOFOLLOW", 0)
-        )
-        output = os.open(temporary, write_flags, 0o600, dir_fd=current)
-        temporary_created = True
-        try:
-            view = memoryview(data)
-            while view:
-                written = os.write(output, view)
-                if written <= 0:
-                    raise OSError("short workspace write")
-                view = view[written:]
-            os.fsync(output)
-        finally:
-            os.close(output)
-        os.replace(temporary, parts[-1], src_dir_fd=current, dst_dir_fd=current)
-        temporary_created = False
-    finally:
-        if descriptors and temporary_created:
-            with suppress(FileNotFoundError):
-                os.unlink(temporary, dir_fd=descriptors[-1])
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
