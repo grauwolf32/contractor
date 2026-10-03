@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"regexp"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -410,7 +410,7 @@ func scanRecord(row rowScanner) (Record, error) {
 	if err != nil {
 		return Record{}, persistencepostgres.WrapError("read encrypted credential", err)
 	}
-	if err := decodeStrictJSON(policy, &result.EffectivePolicy); err != nil || validateRecord(result) != nil {
+	if err := strictjson.Decode(policy, &result.EffectivePolicy); err != nil || validateRecord(result) != nil {
 		return Record{}, errors.New("stored encrypted credential is invalid")
 	}
 	result.CreatedAt = result.CreatedAt.UTC()
@@ -505,7 +505,7 @@ func validateOperation(operation Operation) error {
 		return fmt.Errorf("%w: credential operation is invalid", ErrInvalid)
 	}
 	var object map[string]json.RawMessage
-	if err := decodeStrictJSON(operation.Request, &object); err != nil || object == nil {
+	if err := strictjson.Decode(operation.Request, &object); err != nil || object == nil {
 		return fmt.Errorf("%w: credential operation request is invalid", ErrInvalid)
 	}
 	return nil
@@ -513,18 +513,6 @@ func validateOperation(operation Operation) error {
 
 func validOperationKind(kind OperationKind) bool {
 	return kind == OperationCreate || kind == OperationDelete
-}
-
-func decodeStrictJSON(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&json.RawMessage{}); !errors.Is(err, io.EOF) {
-		return errors.New("trailing JSON value")
-	}
-	return nil
 }
 
 func recordsEqual(left, right Record) bool {

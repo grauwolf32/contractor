@@ -21,6 +21,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -304,7 +305,7 @@ func (m *Manager) delete(
 	switch status {
 	case http.StatusOK:
 		var decoded deleteKeyResponse
-		if decodeStrictJSON(response, &decoded) != nil || len(decoded.DeletedKeys) != 1 ||
+		if strictjson.Decode(response, &decoded) != nil || len(decoded.DeletedKeys) != 1 ||
 			decoded.DeletedKeys[0] != expected {
 			return credentials.ErrGatewayUnavailable
 		}
@@ -359,7 +360,7 @@ func decodeGenerateResponse(
 	request generateKeyRequest,
 ) (credentials.GeneratedCredential, error) {
 	var response generateKeyResponse
-	if decodeStrictJSON(data, &response) != nil || response.KeyAlias != request.KeyAlias ||
+	if strictjson.Decode(data, &response) != nil || response.KeyAlias != request.KeyAlias ||
 		!tokenIDPattern.MatchString(response.TokenID) || response.Token != response.TokenID ||
 		!strings.HasPrefix(response.Key, "sk-") || !equalStrings(response.Models, request.Models) ||
 		len(response.AllowedRoutes) != 1 || response.AllowedRoutes[0] != liteLLMAllowedRoute ||
@@ -391,22 +392,9 @@ func decodeGenerateResponse(
 
 func confirmedKeyNotFound(data []byte) bool {
 	var response liteLLMErrorResponse
-	return decodeStrictJSON(data, &response) == nil && response.Error.Code == "404" &&
+	return strictjson.Decode(data, &response) == nil && response.Error.Code == "404" &&
 		response.Error.Type == "internal_server_error" && response.Error.Param == "None" &&
 		response.Error.Message == confirmedNotFoundBody
-}
-
-func decodeStrictJSON(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("trailing JSON value")
-	}
-	return nil
 }
 
 func isStrictJSONContentType(values []string) bool {

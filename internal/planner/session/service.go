@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"sort"
 	"strings"
@@ -20,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -676,14 +676,10 @@ func decodeState(data json.RawMessage) (persistentState, error) {
 		return persistentState{}, fmt.Errorf("Planner state exceeds its bounded contract")
 	}
 	var state persistentState
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&state); err != nil {
-		return persistentState{}, fmt.Errorf("decode Planner state: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if err := strictjson.Decode(data, &state); errors.Is(err, strictjson.ErrTrailingData) {
 		return persistentState{}, fmt.Errorf("Planner state contains trailing JSON")
+	} else if err != nil {
+		return persistentState{}, fmt.Errorf("decode Planner state: %w", err)
 	}
 	if _, err := encodeState(state); err != nil {
 		return persistentState{}, err

@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -716,7 +717,7 @@ func (s *Service) newOperation(
 
 func decodeCreateOperation(operation Operation) (createOperationRequest, error) {
 	var request createOperationRequest
-	if operation.Kind != OperationCreate || decodeStrictJSON(operation.Request, &request) != nil {
+	if operation.Kind != OperationCreate || strictjson.Decode(operation.Request, &request) != nil {
 		return createOperationRequest{}, errors.New("stored create-credential operation is invalid")
 	}
 	if err := validateCredentialID(request.CredentialID); err != nil || request.CredentialID != operation.CredentialID ||
@@ -740,7 +741,7 @@ func decodeCreateOperation(operation Operation) (createOperationRequest, error) 
 
 func decodeDeleteOperation(operation Operation) (deleteOperationRequest, error) {
 	var request deleteOperationRequest
-	if operation.Kind != OperationDelete || decodeStrictJSON(operation.Request, &request) != nil ||
+	if operation.Kind != OperationDelete || strictjson.Decode(operation.Request, &request) != nil ||
 		request.CredentialID != operation.CredentialID || validateDeleteOperationRequest(request) != nil {
 		return deleteOperationRequest{}, errors.New("stored delete-credential operation is invalid")
 	}

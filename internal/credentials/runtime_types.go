@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -273,7 +274,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 		var source struct {
 			Headers map[string]string `json:"headers"`
 		}
-		if decodeStrictJSON(canonical, &source) != nil {
+		if strictjson.Decode(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewOTLPHeadersCredential(source.Headers)
@@ -282,7 +283,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 			Password string `json:"password"`
 			Username string `json:"username"`
 		}
-		if decodeStrictJSON(canonical, &source) != nil {
+		if strictjson.Decode(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewHTTPProxyBasicCredential(source.Username, source.Password)
@@ -290,7 +291,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 		var source struct {
 			Token string `json:"token"`
 		}
-		if decodeStrictJSON(canonical, &source) != nil {
+		if strictjson.Decode(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewHTTPProxyBearerCredential(source.Token)
@@ -298,7 +299,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 		var source struct {
 			Token string `json:"token"`
 		}
-		if decodeStrictJSON(canonical, &source) != nil {
+		if strictjson.Decode(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewCaidoBearerCredential(source.Token)
@@ -307,7 +308,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 			Password string `json:"password"`
 			Username string `json:"username"`
 		}
-		if decodeStrictJSON(canonical, &source) != nil {
+		if strictjson.Decode(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewHTTPOriginBasicCredential(source.Username, source.Password)
@@ -315,7 +316,7 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 		var source struct {
 			Token string `json:"token"`
 		}
-		if decodeStrictJSON(canonical, &source) != nil {
+		if strictjson.Decode(canonical, &source) != nil {
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewHTTPOriginBearerCredential(source.Token)

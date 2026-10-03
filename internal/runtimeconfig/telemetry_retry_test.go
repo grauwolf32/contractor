@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestTelemetryRetryPublicationAndDetachedResolution(t *testing.T) {
@@ -46,7 +47,7 @@ func TestTelemetryRetryDoesNotRewriteStoredExportBlocks(t *testing.T) {
 	if err := json.Unmarshal(source, &document); err != nil {
 		t.Fatal(err)
 	}
-	source, err := canonicalize(document)
+	source, err := strictjson.Canonical(document)
 	if err != nil {
 		t.Fatal(err)
 	}

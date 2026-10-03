@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"math"
-	"strconv"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -23,7 +24,7 @@ func StrictJSON(data []byte) (any, error) {
 	if len(data) > MaxDocumentBytes {
 		return nil, Failure("eval_limit_exceeded")
 	}
-	if len(data) == 0 || !utf8.Valid(data) || !json.Valid(data) || !validEscapes(data) {
+	if len(data) == 0 || !utf8.Valid(data) || !json.Valid(data) || !strictjson.ValidUnicodeEscapes(data) {
 		return nil, Failure("eval_invalid")
 	}
 	d := json.NewDecoder(bytes.NewReader(data))
@@ -93,44 +94,4 @@ func readValue(d *json.Decoder, depth int) (any, error) {
 		}
 		return t, nil
 	}
-}
-
-// encoding/json accepts lone UTF-16 surrogate escapes by replacement. Exact
-// byte identities must not silently merge such malformed strings or keys.
-func validEscapes(data []byte) bool {
-	for i := 0; i < len(data); i++ {
-		if data[i] != '\\' {
-			continue
-		}
-		i++
-		if i >= len(data) {
-			return false
-		}
-		if data[i] != 'u' {
-			continue
-		}
-		if i+4 >= len(data) {
-			return false
-		}
-		n, err := strconv.ParseUint(string(data[i+1:i+5]), 16, 16)
-		if err != nil {
-			return false
-		}
-		i += 4
-		if n >= 0xDC00 && n <= 0xDFFF {
-			return false
-		}
-		if n < 0xD800 || n > 0xDBFF {
-			continue
-		}
-		if i+6 >= len(data) || data[i+1] != '\\' || data[i+2] != 'u' {
-			return false
-		}
-		low, err := strconv.ParseUint(string(data[i+3:i+7]), 16, 16)
-		if err != nil || low < 0xDC00 || low > 0xDFFF {
-			return false
-		}
-		i += 6
-	}
-	return true
 }

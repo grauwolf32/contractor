@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
@@ -104,8 +104,7 @@ func validate(snapshot Snapshot) error {
 }
 
 func expectEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+	if strictjson.RequireEOF(decoder) != nil {
 		return fmt.Errorf("%w: trailing JSON value", ErrInvalidSnapshot)
 	}
 	return nil

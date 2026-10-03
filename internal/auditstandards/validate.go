@@ -2,16 +2,14 @@ package auditstandards
 
 import (
 	"bytes"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 var (
@@ -49,16 +47,11 @@ func DecodeDocument(data []byte) (Document, error) {
 	if len(data) == 0 || len(data) > MaximumManifestBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
 		return Document{}, validationError(CodeLimitExceeded, ManifestPath)
 	}
-	if err := rejectDuplicateJSONKeys(data); err != nil {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
 		return Document{}, validationError(CodeManifestInvalid, ManifestPath)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
 	var document Document
-	if err := decoder.Decode(&document); err != nil {
-		return Document{}, validationError(CodeManifestInvalid, ManifestPath)
-	}
-	if err := requireJSONEOF(decoder); err != nil {
+	if err := strictjson.Decode(data, &document); err != nil {
 		return Document{}, validationError(CodeManifestInvalid, ManifestPath)
 	}
 	normalizeDocument(&document)
@@ -256,77 +249,6 @@ func contains(values []string, candidate string) bool {
 	return index < len(values) && values[index] == candidate
 }
 
-func requireJSONEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("trailing JSON value")
-		}
-		return err
-	}
-	return nil
-}
-
-func rejectDuplicateJSONKeys(data []byte) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	var visit func() error
-	visit = func() error {
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-		delimiter, compound := token.(json.Delim)
-		if !compound {
-			return nil
-		}
-		switch delimiter {
-		case '{':
-			seen := map[string]struct{}{}
-			for decoder.More() {
-				keyToken, err := decoder.Token()
-				if err != nil {
-					return err
-				}
-				key, ok := keyToken.(string)
-				if !ok {
-					return errors.New("object key is not a string")
-				}
-				if _, duplicate := seen[key]; duplicate {
-					return fmt.Errorf("duplicate JSON key %q", key)
-				}
-				seen[key] = struct{}{}
-				if err := visit(); err != nil {
-					return err
-				}
-			}
-			closing, err := decoder.Token()
-			if err != nil || closing != json.Delim('}') {
-				return errors.New("invalid object closing token")
-			}
-		case '[':
-			for decoder.More() {
-				if err := visit(); err != nil {
-					return err
-				}
-			}
-			closing, err := decoder.Token()
-			if err != nil || closing != json.Delim(']') {
-				return errors.New("invalid array closing token")
-			}
-		default:
-			return errors.New("unexpected JSON delimiter")
-		}
-		return nil
-	}
-	if err := visit(); err != nil {
-		return err
-	}
-	if decoder.More() {
-		return errors.New("trailing JSON value")
-	}
-	return nil
-}
-
 func ValidatePinnedPackage(value PinnedPackage) error {
 	if err := validateReference(value.Reference); err != nil || !validText(value.Title, 512, true) ||
 		!validText(value.Source.Name, 512, true) || !validText(value.Source.Revision, 512, false) ||
@@ -354,11 +276,7 @@ func ValidatePinnedPackage(value PinnedPackage) error {
 
 func validateExactPackage(value ExactPackage) error {
 	if value.Artifact.ValidateExact() != nil || value.MediaType != MediaType ||
-		value.SizeBytes <= 0 || value.SizeBytes > MaximumPackageBytes ||
-		len(value.Digest) != len("sha256:")+64 || !strings.HasPrefix(value.Digest, "sha256:") {
-		return validationError(CodeManifestInvalid, ManifestPath)
-	}
-	if _, err := hex.DecodeString(strings.TrimPrefix(value.Digest, "sha256:")); err != nil {
+		value.SizeBytes <= 0 || value.SizeBytes > MaximumPackageBytes || !contentdigest.Valid(value.Digest) {
 		return validationError(CodeManifestInvalid, ManifestPath)
 	}
 	return nil

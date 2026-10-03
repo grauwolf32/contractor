@@ -1,12 +1,11 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/ucarion/jcs"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func modelPolicyDigest(selector Selector, policy contracts.ResolvedModelPolicy) (string, error) {
@@ -172,17 +171,9 @@ func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelP
 // digestJCS converts Go's typed values through encoding/json so the JCS
 // implementation receives exactly the I-JSON data model it supports.
 func digestJCS(manifest any) (string, error) {
-	encoded, err := json.Marshal(manifest)
-	if err != nil {
-		return "", fmt.Errorf("encode digest manifest: %w", err)
-	}
-	var jsonValue any
-	if err := json.Unmarshal(encoded, &jsonValue); err != nil {
-		return "", fmt.Errorf("normalize digest manifest: %w", err)
-	}
-	canonical, err := jcs.Format(jsonValue)
+	canonical, err := strictjson.Canonical(manifest)
 	if err != nil {
 		return "", fmt.Errorf("canonicalize digest manifest: %w", err)
 	}
-	return contentdigest.Bytes([]byte(canonical)), nil
+	return contentdigest.Bytes(canonical), nil
 }

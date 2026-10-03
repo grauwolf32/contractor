@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const maxRuntimeResponseBytes = 1 << 20
@@ -354,13 +355,10 @@ func (c *RuntimeControlClient) postJSON(
 	if err != nil {
 		return err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(response); err != nil {
+	if err := strictjson.Decode(data, response); errors.Is(err, strictjson.ErrTrailingData) {
+		return errors.New("Runtime Agent returned multiple JSON values")
+	} else if err != nil {
 		return errors.New("Runtime Agent returned an invalid lifecycle response")
-	}
-	if err := ensureRuntimeJSONEOF(decoder); err != nil {
-		return err
 	}
 	if validateResponse {
 		if err := response.Validate(); err != nil {
@@ -738,10 +736,8 @@ func decodeRuntimeError(response *http.Response) error {
 		return &RuntimeAPIError{StatusCode: response.StatusCode, Code: "invalid_error_response"}
 	}
 	var value privateErrorResponse
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil || strings.TrimSpace(value.Code) == "" ||
-		strings.TrimSpace(value.Message) == "" || ensureRuntimeJSONEOF(decoder) != nil {
+	if strictjson.Decode(data, &value) != nil || strings.TrimSpace(value.Code) == "" ||
+		strings.TrimSpace(value.Message) == "" {
 		return &RuntimeAPIError{StatusCode: response.StatusCode, Code: "invalid_error_response"}
 	}
 	return &RuntimeAPIError{
@@ -789,14 +785,6 @@ func oneHeaderValue(response *http.Response, name, expected string) bool {
 
 func workerStateReadError(statusCode int, code string, retryable bool) error {
 	return &WorkerStateReadError{StatusCode: statusCode, Code: code, Retryable: retryable}
-}
-
-func ensureRuntimeJSONEOF(decoder *json.Decoder) error {
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); errors.Is(err, io.EOF) {
-		return nil
-	}
-	return errors.New("Runtime Agent returned multiple JSON values")
 }
 
 // Python datetime and PostgreSQL both retain microseconds. Normalize private

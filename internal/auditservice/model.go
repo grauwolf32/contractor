@@ -1,11 +1,8 @@
 package auditservice
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"sort"
 	"strings"
@@ -17,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func encodeDraftSelection(value DraftSelection) (json.RawMessage, error) {
@@ -28,7 +26,7 @@ func encodeDraftSelection(value DraftSelection) (json.RawMessage, error) {
 
 func DecodeDraftSelection(data []byte) (DraftSelection, error) {
 	var result DraftSelection
-	if err := decodeStrict(data, &result); err != nil || validateDraftSelection(result) != nil {
+	if err := strictjson.Decode(data, &result); err != nil || validateDraftSelection(result) != nil {
 		return DraftSelection{}, fmt.Errorf("%w: stored Audit input selection is invalid", ErrInvalid)
 	}
 	return result, nil
@@ -43,7 +41,7 @@ func EncodeBaseline(value BaselineSnapshot) (json.RawMessage, error) {
 
 func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 	var result BaselineSnapshot
-	if err := decodeStrict(data, &result); err != nil || ValidateBaseline(result) != nil {
+	if err := strictjson.Decode(data, &result); err != nil || ValidateBaseline(result) != nil {
 		return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit baseline is invalid", ErrInvalid)
 	}
 	return cloneBaseline(result), nil
@@ -150,19 +148,6 @@ func normalizeScope(value Scope) (Scope, error) {
 
 func normalizeLabels(value []string) ([]string, error) {
 	return runtimeconfig.NormalizeRunLabels(value)
-}
-
-func decodeStrict(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("JSON value has trailing data")
-	}
-	return nil
 }
 
 func validateExactArtifact(value auditstore.ExactArtifact, metadata bool) error {

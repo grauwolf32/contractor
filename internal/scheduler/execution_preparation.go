@@ -1,12 +1,9 @@
 package scheduler
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -17,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -104,7 +102,7 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 					Password string `json:"password"`
 					Username string `json:"username"`
 				}
-				if decodeRuntimeCredential(plaintext, &material) != nil {
+				if strictjson.Decode(plaintext, &material) != nil {
 					return errors.New("invalid HTTP origin basic credential material")
 				}
 				target.BasicAuth = &contracts.HTTPProxyBasicAuth{
@@ -115,7 +113,7 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 				var material struct {
 					Token string `json:"token"`
 				}
-				if decodeRuntimeCredential(plaintext, &material) != nil {
+				if strictjson.Decode(plaintext, &material) != nil {
 					return errors.New("invalid HTTP origin bearer credential material")
 				}
 				token := contracts.NewSecretString(material.Token)
@@ -185,7 +183,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 					var material struct {
 						Headers map[string]string `json:"headers"`
 					}
-					if kind != contracts.RuntimeCredentialOTLPHeaders || decodeRuntimeCredential(plaintext, &material) != nil {
+					if kind != contracts.RuntimeCredentialOTLPHeaders || strictjson.Decode(plaintext, &material) != nil {
 						return errors.New("invalid OTLP credential material")
 					}
 					for name, value := range material.Headers {
@@ -224,7 +222,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 							Password string `json:"password"`
 							Username string `json:"username"`
 						}
-						if decodeRuntimeCredential(plaintext, &material) != nil {
+						if strictjson.Decode(plaintext, &material) != nil {
 							return errors.New("invalid proxy basic credential material")
 						}
 						proxy.BasicAuth = &contracts.HTTPProxyBasicAuth{
@@ -235,7 +233,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 						var material struct {
 							Token string `json:"token"`
 						}
-						if decodeRuntimeCredential(plaintext, &material) != nil {
+						if strictjson.Decode(plaintext, &material) != nil {
 							return errors.New("invalid proxy bearer credential material")
 						}
 						token := contracts.NewSecretString(material.Token)
@@ -274,7 +272,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 					var material struct {
 						Token string `json:"token"`
 					}
-					if kind != contracts.RuntimeCredentialCaidoBearer || decodeRuntimeCredential(plaintext, &material) != nil {
+					if kind != contracts.RuntimeCredentialCaidoBearer || strictjson.Decode(plaintext, &material) != nil {
 						return errors.New("invalid Caido credential material")
 					}
 					token := contracts.NewSecretString(material.Token)
@@ -303,19 +301,6 @@ func (s *Scheduler) useRuntimeCredential(
 		return errors.New("Runtime credential service is unavailable")
 	}
 	return s.options.RuntimeCredentials.UsePlaintext(ctx, credentialID, allowed, consumer)
-}
-
-func decodeRuntimeCredential(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("Runtime credential has trailing data")
-	}
-	return nil
 }
 
 func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionSettings) {
