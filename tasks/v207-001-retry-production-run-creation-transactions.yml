@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V207-001
+title: Retry production public Run creation after definite PostgreSQL aborts
+milestone: run-creation-reliability-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Let public Run creation recover from definite serialization and deadlock aborts with fresh pins.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/184
+  finding: Production composition uses a single REPEATABLE READ transaction while its retrying unit of work is exercised only by a separately constructed test service.
+scope:
+  in:
+    - Wire the existing retrying PostgreSQL unit of work into production Run creation.
+    - Exercise the production composition for a concurrent binding rebind and rollback after writes.
+    - Return a classified retryable response when definite conflicts exhaust the retry budget.
+  out:
+    - Retrying ambiguous commit or transport failures.
+acceptance_criteria:
+  - {id: A1, text: A definite 40001 or 40P01 retries the whole public Run creation transaction within the configured bound.}
+  - {id: A2, text: Production-composed creation pins the fresh binding and yields one Run and exact artifact revisions after replay.}
+  - {id: A3, text: Exhausted definite conflicts return a classified retryable public error.}
+tests:
+  - {command: go test ./internal/app/... ./internal/httpapi/public/..., covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
