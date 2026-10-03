@@ -3,8 +3,8 @@ id: V115-001
 title: Build and scan with a patched Go toolchain
 milestone: patched-go-toolchain-2026-10
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 9d1cbe0552f78a1b9e7fe117c26abd3f289ab9cd
 depends_on: []
 languages: [go, yaml]
 goal: Ensure local builds and CI use a patched Go 1.26 release and block reachable Go vulnerabilities.
@@ -28,5 +28,5 @@ acceptance_criteria:
 tests:
   - {command: go version, covers: [A1]}
   - {command: govulncheck ./cmd/..., covers: [A3]}
-  - {command: go test ./cmd/... ./internal/..., covers: [A1]}
+  - {command: go test -p 1 ./cmd/... ./internal/..., covers: [A1]}
   - {command: "! rg 'Go 1[.]25' docs/development.md docs/testing tasks/index.yml", covers: [A5]}
