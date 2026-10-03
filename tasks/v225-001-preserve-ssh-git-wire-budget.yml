@@ -1,0 +1,25 @@
+schema_version: '1.0'
+id: V225-001
+title: Preserve SSH Git wire-budget failures
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Report an oversized SSH Git transfer as the Git import budget error.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/233
+  finding: The SSH transport swallows the connection's ErrBudget and presents EOF or a generic transport error.
+scope:
+  in:
+    - Make wire-budget exhaustion sticky and inspect it before decoding or mapping SSH errors.
+    - Cover repeated oversized SSH transfers with an in-process server.
+  out:
+    - Changing HTTPS transfer handling or public error contracts.
+acceptance_criteria:
+  - {id: A1, text: Oversized SSH transfers reliably return ErrBudget rather than ErrContent or ErrRemote.}
+  - {id: A2, text: Truncated budget-limited bytes are not decoded as a complete pack.}
+  - {id: A3, text: Normal SSH transport and content errors retain their classifications.}
+tests:
+  - {command: go test ./internal/gitimport -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
