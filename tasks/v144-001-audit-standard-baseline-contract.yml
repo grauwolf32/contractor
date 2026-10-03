@@ -3,7 +3,8 @@ id: V144-001
 title: Enforce the Audit standard baseline contract and trim dead catalog helpers
 milestone: audit-standard-baseline-contract-2026-10
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 21b025a2e6ed2606cb84185a1b1bc35eb7af0b19
 depends_on: []
 languages: [go, markdown]
 goal: Reject baselines without standards consistently and remove unused exported catalog helpers.
