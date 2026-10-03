@@ -3,8 +3,8 @@ id: V123-001
 title: Distinguish read_file past EOF from a missing workspace file
 milestone: read-file-past-eof-2026-10
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: e26aecd77db1f62085f35eea9553e01cb080610a
 depends_on: []
 languages: [python]
 goal: Give models an accurate line-range error when reading beyond an existing file.
