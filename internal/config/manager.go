@@ -246,8 +246,6 @@ func resolveMissingRoot(path string) (string, error) {
 
 func (m *Manager) Snapshot() *Snapshot { return m.current.Load() }
 
-func (m *Manager) Counts() Counts { return m.Snapshot().Counts() }
-
 func (m *Manager) Workflow(raw string) (ResolvedWorkflow, error) {
 	return m.Snapshot().Workflow(raw)
 }

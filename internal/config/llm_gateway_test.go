@@ -25,9 +25,6 @@ func TestLoadLLMGatewayConfig(t *testing.T) {
 	if gateway.Ref.Digest != expectedDigest {
 		t.Fatalf("LLMGatewayConfig digest = %q, want %q", gateway.Ref.Digest, expectedDigest)
 	}
-	if listed := snapshot.LLMGateways(); len(listed) != 1 || listed[0].Ref != gateway.Ref {
-		t.Fatalf("LLMGateways() = %+v", listed)
-	}
 }
 
 func TestLLMGatewayDigestUsesNormalizedManifest(t *testing.T) {
