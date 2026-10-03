@@ -3,7 +3,8 @@ id: V172-001
 title: Classify completion and summarizer output limits
 milestone: worker-output-limit-2026-10
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e4090fadb48f2de169bee3e8c07e2e1ad9a6d2ad
 depends_on: []
 languages: [python]
 goal: Report output-token limits consistently and never accept truncated terminal summaries.
