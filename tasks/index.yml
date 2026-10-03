@@ -322,6 +322,11 @@ fixed_decisions:
       require exact-origin CORS and session-bound CSRF.
 
 milestones:
+  - id: local-secret-log-and-process-boundaries-2026-10
+    exit_task: V94-002
+    outcome: >-
+      Git import logs omit private repository paths on transport failures and
+      LiteLLM launch arguments never contain master, salt or upstream token values.
   - id: ui-outcome-corrections-2026-10
     exit_task: V93-002
     outcome: >-
@@ -2751,6 +2756,8 @@ local_direct_podman_planning_review:
     - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
 
 tasks:
+  - {id: V94-001, file: v94-001-git-transport-log-redaction.yml}
+  - {id: V94-002, file: v94-002-litellm-secret-argv.yml}
   - {id: V93-001, file: v93-001-format-patch-diff-counts.yml}
   - {id: V93-002, file: v93-002-run-cancellation-feedback.yml}
   - {id: V92-001, file: v92-001-katana-report-summary.yml}
