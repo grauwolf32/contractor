@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V226-001
+title: Preserve Planner completions through database contention
+milestone: runtime-maintenance-2026-10
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Allow a finished Planner result to be recorded within configured database wait budgets.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/163
+  finding: A one-second completion deadline is shorter than the configured database acquire and lock budgets.
+scope:
+  in:
+    - Derive a shared completion-write budget from operational database settings.
+    - Retry transient completion-write failures while that budget remains.
+    - Preserve a non-retryable Planner failure's retryability if its durable completion cannot be written.
+  out:
+    - Changing the underlying database transaction budgets.
+acceptance_criteria:
+  - {id: A1, text: Passthrough and Streamline retain a completion after a 1.5-second database wait under default settings.}
+  - {id: A2, text: A transient first completion-write failure can recover without discarding the result.}
+  - {id: A3, text: A failed write does not make an originally non-retryable Planner failure retryable.}
+tests:
+  - {command: go test ./internal/planner/... -count=1, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
