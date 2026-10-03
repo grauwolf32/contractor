@@ -1,0 +1,24 @@
+schema_version: '1.0'
+id: V138-001
+title: Correct Qwen eval and default policy budget guidance
+milestone: eval-policy-budget-docs-2026-10
+priority: P3
+status: completed
+implementation_commit: 8124bf37819efa0cae648dfd48af19116d804760
+depends_on: []
+languages: [markdown, yaml]
+goal: Describe current Planner, Worker and historical Qwen eval policy limits accurately.
+context:
+  issue: https://github.com/grauwolf32/contractor/issues/180
+  finding: The eval guide claims temperature is its only difference from current worker@2, but maxOutputTokens differs too.
+scope:
+  in:
+    - Document the eval's temperature and output-limit differences without changing its historical manifest values.
+    - Correct default Planner and Worker per-response output-limit guidance.
+  out:
+    - Republish or alter a policy version and digest.
+acceptance_criteria:
+  - {id: A1, text: Eval guide and manifest comment match the current Worker field-by-field comparison.}
+  - {id: A2, text: Default config guide states Planner 16,384 and Worker 32,768 output tokens.}
+tests:
+  - {command: compare YAML manifest fields and verify historical eval digest, covers: [A1, A2]}
