@@ -1,7 +1,6 @@
 package controlplane
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +13,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -147,14 +147,14 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		options.MonotonicNow = func() time.Duration { return time.Since(started) }
 	}
 	if options.NewID == nil {
-		options.NewID = randomID
+		options.NewID = randomid.New
 	}
 	if options.AgentOrderKey == nil {
 		options.AgentOrderKey = func(registration contracts.AgentRegistration) string {
 			return registration.InstanceID
 		}
 	}
-	operationsGeneration, err := randomID("operations-generation-")
+	operationsGeneration, err := randomid.New("operations-generation-")
 	if err != nil {
 		return nil, fmt.Errorf("generate Operations snapshot identity: %w", err)
 	}
@@ -1473,14 +1473,6 @@ func validateRuntimeSelection(value workflowconfig.ResolvedConsumerExecutionConf
 func contains(values []string, expected string) bool {
 	index := sort.SearchStrings(values, expected)
 	return index < len(values) && values[index] == expected
-}
-
-func randomID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(buffer), nil
 }
 
 func (r *InMemoryRegistry) nextID(prefix string) (string, error) {

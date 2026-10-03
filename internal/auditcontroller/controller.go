@@ -2,8 +2,6 @@ package auditcontroller
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -701,14 +699,6 @@ func (c *Controller) newID(prefix string) (string, error) {
 	c.idMu.Lock()
 	defer c.idMu.Unlock()
 	return c.options.NewID(prefix)
-}
-
-func randomID(prefix string) (string, error) {
-	var raw [16]byte
-	if _, err := cryptorand.Read(raw[:]); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(raw[:]), nil
 }
 
 func deadlineTarget(reason *auditstore.StopReason) auditstore.AuditState {

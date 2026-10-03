@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -169,7 +170,7 @@ func (s *Service) PutDataset(ctx context.Context, scope evalstore.Scope, doc eva
 	if replay != nil {
 		return *replay, nil
 	}
-	revision, err := newID("revision-")
+	revision, err := randomid.New("revision-")
 	if err != nil {
 		return evalstore.Receipt{}, err
 	}

@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 var blobKeyPattern = regexp.MustCompile(`^[0-9a-f]{2}/[0-9a-f]{32}$`)
@@ -71,7 +73,7 @@ func (s *FilesystemBlobStore) Store(ctx context.Context, data []byte) (result Bl
 	if len(data) > MaxPayloadSize {
 		return result, ErrPayloadTooLarge
 	}
-	id, err := randomOpaqueID("")
+	id, err := randomid.New("")
 	if err != nil {
 		return result, err
 	}

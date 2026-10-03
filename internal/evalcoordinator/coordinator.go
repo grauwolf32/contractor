@@ -4,8 +4,6 @@ package evalcoordinator
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"sync"
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/grauwolf32/contractor/internal/randomid"
 )
 
 const (
@@ -54,11 +53,11 @@ func New(store Store, service Service, o Options) (*Coordinator, error) {
 		return nil, errors.New("eval coordinator dependencies are incomplete")
 	}
 	if o.HolderID == "" {
-		var b [16]byte
-		if _, err := rand.Read(b[:]); err != nil {
+		holderID, err := randomid.New("eval-")
+		if err != nil {
 			return nil, err
 		}
-		o.HolderID = "eval-" + hex.EncodeToString(b[:])
+		o.HolderID = holderID
 	}
 	if o.PollInterval == 0 {
 		o.PollInterval = defaultPollInterval

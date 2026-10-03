@@ -4,8 +4,6 @@ package projectlifecycle
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -91,7 +90,7 @@ func New(
 		options.Clock = realClock{}
 	}
 	if options.NewID == nil {
-		options.NewID = randomID
+		options.NewID = randomid.New
 	}
 	if options.Logger == nil {
 		options.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -548,11 +547,3 @@ type realClock struct{}
 
 func (realClock) Now() time.Time                                { return time.Now() }
 func (realClock) After(duration time.Duration) <-chan time.Time { return time.After(duration) }
-
-func randomID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(buffer), nil
-}

@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
 )
@@ -466,11 +465,11 @@ func (m *Manager) writeDurableManifest(candidate publicationCandidate) error {
 	}
 	defer unix.Close(directoryFD)
 
-	random := make([]byte, 16)
-	if _, err := cryptorand.Read(random); err != nil {
+	temporaryName, err := randomid.New(".contractor-publish-")
+	if err != nil {
 		return fmt.Errorf("generate publication temporary name: %w", err)
 	}
-	temporaryName := ".contractor-publish-" + hex.EncodeToString(random) + ".tmp"
+	temporaryName += ".tmp"
 	finalName := candidate.selector.ID + "@" + candidate.selector.Version + ".yaml"
 	temporaryFD, err := unix.Openat(
 		directoryFD,

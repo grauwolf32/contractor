@@ -2,8 +2,6 @@ package credentials
 
 import (
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
@@ -133,7 +132,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 		options.Now = time.Now
 	}
 	if options.NewID == nil {
-		options.NewID = randomCredentialID
+		options.NewID = randomid.New
 	}
 	if options.Barrier == nil {
 		options.Barrier = NewLifecycleBarrier()
@@ -838,12 +837,4 @@ func operationCompletionTime(operation Operation, candidate time.Time) time.Time
 
 func validActorID(value string) bool {
 	return strings.TrimSpace(value) != "" && len(value) <= 256 && utf8.ValidString(value)
-}
-
-func randomCredentialID(prefix string) (string, error) {
-	buffer := make([]byte, 16)
-	if _, err := cryptorand.Read(buffer); err != nil {
-		return "", errors.New("generate random credential operation ID")
-	}
-	return prefix + hex.EncodeToString(buffer), nil
 }

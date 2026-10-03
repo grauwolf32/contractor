@@ -5,8 +5,6 @@ package session
 import (
 	"bytes"
 	"context"
-	cryptorand "crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -51,7 +50,7 @@ func New(store Store, options Options) (*Service, error) {
 		return nil, fmt.Errorf("Planner session store is required")
 	}
 	if options.NewID == nil {
-		options.NewID = randomID
+		options.NewID = randomid.New
 	}
 	return &Service{store: store, newID: options.NewID}, nil
 }
@@ -886,12 +885,4 @@ func toRunEventKind(kind planner.PlannerEventKind) (runstore.RunEventKind, error
 		return "", fmt.Errorf("unknown Planner Run event kind %q", kind)
 	}
 	return value, nil
-}
-
-func randomID(prefix string) (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := cryptorand.Read(bytes); err != nil {
-		return "", err
-	}
-	return prefix + hex.EncodeToString(bytes), nil
 }
