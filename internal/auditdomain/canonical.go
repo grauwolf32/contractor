@@ -65,13 +65,20 @@ func decodeStrictJSON(data []byte, target any) (any, error) {
 }
 
 func parseStrictJSON(data []byte) (any, error) {
+	return parseStrictJSONNumbers(data, finiteJSONNumber)
+}
+
+// parseStrictJSONNumbers lets source documents apply the same safe-integer
+// number bound as their YAML form, while canonical encodings of Server values
+// keep accepting every finite float64.
+func parseStrictJSONNumbers(data []byte, number func(string) (float64, bool)) (any, error) {
 	if len(data) == 0 || len(data) > MaximumDocumentBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 || !validJSONUnicodeEscapes(data) {
 		return nil, errors.New("invalid JSON bytes")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	nodes := 0
-	value, err := readJSONValue(decoder, 1, &nodes)
+	value, err := readJSONValue(decoder, 1, &nodes, number)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +153,12 @@ func parseHex16(value []byte) (uint16, bool) {
 	return result, true
 }
 
-func readJSONValue(decoder *json.Decoder, depth int, nodes *int) (any, error) {
+func finiteJSONNumber(text string) (float64, bool) {
+	value, err := strconv.ParseFloat(text, 64)
+	return value, err == nil && !math.IsInf(value, 0) && !math.IsNaN(value)
+}
+
+func readJSONValue(decoder *json.Decoder, depth int, nodes *int, number func(string) (float64, bool)) (any, error) {
 	*nodes++
 	if depth > MaximumJSONDepth || *nodes > MaximumJSONNodes {
 		return nil, errors.New("JSON limit exceeded")
@@ -172,7 +184,7 @@ func readJSONValue(decoder *json.Decoder, depth int, nodes *int) (any, error) {
 				if _, duplicate := result[key]; duplicate {
 					return nil, errors.New("duplicate JSON key")
 				}
-				value, valueErr := readJSONValue(decoder, depth+1, nodes)
+				value, valueErr := readJSONValue(decoder, depth+1, nodes, number)
 				if valueErr != nil {
 					return nil, valueErr
 				}
@@ -186,7 +198,7 @@ func readJSONValue(decoder *json.Decoder, depth int, nodes *int) (any, error) {
 		case '[':
 			result := make([]any, 0)
 			for decoder.More() {
-				value, valueErr := readJSONValue(decoder, depth+1, nodes)
+				value, valueErr := readJSONValue(decoder, depth+1, nodes, number)
 				if valueErr != nil {
 					return nil, valueErr
 				}
@@ -201,8 +213,8 @@ func readJSONValue(decoder *json.Decoder, depth int, nodes *int) (any, error) {
 			return nil, errors.New("unexpected JSON delimiter")
 		}
 	case json.Number:
-		value, parseErr := strconv.ParseFloat(typed.String(), 64)
-		if parseErr != nil || math.IsInf(value, 0) || math.IsNaN(value) {
+		value, ok := number(typed.String())
+		if !ok {
 			return nil, errors.New("invalid JSON number")
 		}
 		return value, nil
@@ -237,7 +249,7 @@ func parseJSONOrYAML(data []byte, mediaType string) (map[string]any, error) {
 	var err error
 	switch normalizedMediaType(mediaType) {
 	case "application/json":
-		value, err = parseStrictJSON(data)
+		value, err = parseStrictJSONNumbers(data, documentnumber.Float)
 	case "application/yaml", "application/x-yaml", "text/yaml":
 		value, err = parseStrictYAML(data)
 	default:

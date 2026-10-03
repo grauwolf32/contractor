@@ -830,6 +830,9 @@ Path Item, operation, parameter, security declaration, or schema dependency
 rejects the entire inventory before dispatch. Remote refs that occur only in
 unsupported callbacks, webhooks, or other non-selected surfaces are not
 followed and become explicit named coverage gaps.
+Numbers in either form must be finite and within the exact integer range
+(±9007199254740991, without a fraction that rounds past it); a larger number
+rejects the document in JSON and YAML alike, as in scan preparation.
 
 `openapi-operations@1` enumerates explicit HTTP operations in `paths`. Callbacks
 and webhooks become named coverage gaps rather than counted checks. Path Item
