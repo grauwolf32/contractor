@@ -107,9 +107,15 @@ settings table and independent deadline rules.
 | --- | --- |
 | Execution, artifact metadata and PostgreSQL-backed payloads | Back up PostgreSQL |
 | Filesystem-backed payloads | Back up the separate blob root along with its PostgreSQL metadata |
-| Operator and managed configurations | Retain both roots; managed storage must support hard links and durable publication |
+| Operator and managed configurations | Retain both roots; production managed storage must support hard links and durable publication |
 | Login, PKI and encrypted-credential master key | Retain owner-only files; the master key is needed to decrypt stored credentials |
 | Runtime workspaces | Disposable allocation data; cleanup must finish before reusing a slot |
+
+The [no-PVC Kubernetes example](operations/artifact-blob-storage.md#deployment-without-pvc)
+is a disposable exception: its `/managed` memory volume loses every
+API-published configuration version on pod replacement. Use only baked-in
+operator configurations there. Do not bind credentials, admin keys or
+RuntimeConfigs to a Gateway published in that ephemeral root.
 
 Choose the payload backend for a fresh installation. Changing the flag does
 not migrate an existing store. PostgreSQL is the default; filesystem requires a

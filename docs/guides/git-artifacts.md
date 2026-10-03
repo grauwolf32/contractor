@@ -51,7 +51,10 @@ The Server fetches Git objects and creates the ZIP in memory. Its production
 image needs neither a Git executable nor writable Git, checkout, key or `/tmp`
 directories. Use the existing [deployment without PVC](../operations/artifact-blob-storage.md#deployment-without-pvc)
 with read-only CA/known_hosts/master-key mounts. The managed configuration
-`emptyDir` is independent of artifact storage. PostgreSQL is the default blob
+`emptyDir` is independent of artifact storage, but it loses every API-published
+configuration version on pod replacement. Use baked-in operator configurations
+with this example; do not bind credentials, admin keys or RuntimeConfigs to
+Gateways published in that ephemeral root. PostgreSQL is the default blob
 backend; filesystem requires an explicit writable blob path and can use an
 ephemeral `emptyDir`. S3 remains a future backend with details deferred.
 

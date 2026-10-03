@@ -25,6 +25,13 @@ database across Server replacement. Filesystem may use an ephemeral `emptyDir`;
 volume loss then leaves metadata whose bytes are unavailable. Reads return
 `artifact_content_missing`, not a successful empty file. Corruption returns
 `artifact_content_corrupt`. There is no automatic Git refetch or repair.
+The no-PVC example also mounts the managed configuration root as a separate
+memory `emptyDir`: every API-published ModelPolicy, LLMGatewayConfig and other
+managed version is lost on pod replacement. A standby pod has its own empty
+root. Use only immutable operator configurations baked into the image with
+this example. Do not publish managed versions or bind admin keys, credentials
+or RuntimeConfigs to API-published Gateways here. For durable publication,
+mount a persistent managed root that supports hard links and back it up.
 Only one Server may be active per PostgreSQL database, with either blob
 backend. A second Server serves `/healthz` but returns 503 on `/readyz` and
 does not start its private API, credential recovery, or Scheduler until the
@@ -78,10 +85,12 @@ directory are not a consistent backup.
 2. For filesystem storage, also copy the complete dedicated blob root while
    writers remain stopped. Retain the corresponding database dump and directory
    as one backup set. PostgreSQL storage needs no separate payload directory.
-3. Separately retain operator/managed configurations, local-auth bootstrap,
-   PKI and the credential master key with their original owner-only permissions.
-   They are not included in the database dump. Restore keys securely; the
-   database cannot recover them.
+3. Separately retain operator configurations, the durable managed root if one
+   is used, local-auth bootstrap, PKI and the credential master key with their
+   original owner-only permissions. They are not included in the database dump.
+   The no-PVC example's memory `/managed` is lost on pod replacement and cannot
+   be recovered from PostgreSQL. Restore keys securely; the database cannot
+   recover them.
 4. Restore into an empty replacement database with
    `pg_restore --exit-on-error --no-owner --dbname=<replacement> <archive>`.
    Restore the matching filesystem snapshot to its dedicated path if selected.
@@ -110,9 +119,13 @@ power-loss durability test.
 ## Deployment without PVC
 
 [PostgreSQL deployment](../../deploy/artifact-blobs/postgresql/postgresql.yaml) runs as
-non-root UID 65532 with a read-only root and no Artifact or `/tmp` volume. `/managed` is an independent
-64 MiB memory `emptyDir` for existing managed configuration publication; it is
-not payload storage. Immutable operator configs are baked into `/configs`.
+non-root UID 65532 with a read-only root and no Artifact or `/tmp` volume.
+`/managed` is an independent 64 MiB memory `emptyDir`, not payload storage.
+It is per pod and all API-published configuration versions disappear on pod
+replacement. Do not use this disposable example for managed publication or
+bind credentials, admin keys or RuntimeConfigs to a Gateway published there.
+Mount durable managed storage before enabling publication. Immutable operator
+configs are baked into `/configs`.
 Prepare a static `CGO_ENABLED=0 go build -o contractor-server
 ./cmd/contractor-server` binary and your config tree in a build context, then
 build with [Containerfile](../../deploy/artifact-blobs/Containerfile). It copies
